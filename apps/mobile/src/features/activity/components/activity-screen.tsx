@@ -23,6 +23,7 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { ActivityViewModel } from "@mobile/features/activity/components/activity-controller";
+import type { DevelopmentActivityProofViewModel } from "@mobile/features/activity/capabilities/development-activity-proof";
 import type { ShellLocation } from "@mobile/features/shell/domain/shell-navigation";
 
 import {
@@ -43,14 +44,30 @@ const filters = [
   readonly label: string;
 }[];
 
+function isCompletedActivity(item: ActivityItem): boolean {
+  return item.kind !== "job" || item.job.state.kind === "terminal";
+}
+
 export function ActivityScreen({
+  developmentProof,
   model,
+  onCancelDismissal,
+  onConfirmDismissal,
+  onDismissVisibleCompleted,
+  onExitDevelopmentProof,
+  onRetryDevelopmentProof,
   onMarkAllRead,
   onOpen,
   onRefresh,
   onSelectFilter,
 }: {
+  readonly developmentProof?: DevelopmentActivityProofViewModel | null;
   readonly model: ActivityViewModel;
+  readonly onCancelDismissal: () => void;
+  readonly onConfirmDismissal: () => Promise<void>;
+  readonly onDismissVisibleCompleted: () => void;
+  readonly onExitDevelopmentProof?: () => Promise<void>;
+  readonly onRetryDevelopmentProof?: () => Promise<void>;
   readonly onMarkAllRead: () => Promise<void>;
   readonly onOpen: (location: ShellLocation) => void;
   readonly onRefresh: () => Promise<void>;
@@ -84,6 +101,11 @@ export function ActivityScreen({
               and after you reopen the app.
             </Text>
           </View>
+          <DevelopmentActivityProofBanner
+            model={developmentProof ?? null}
+            {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
+            {...(onRetryDevelopmentProof ? { onRetry: onRetryDevelopmentProof } : {})}
+          />
           {model.mutationFailure ? (
             <View
               accessible
@@ -147,6 +169,20 @@ export function ActivityScreen({
               onMarkAllRead={onMarkAllRead}
             />
           </View>
+          <ClearCompletedButton
+            disabled={
+              model.allItems.every((item) => !isCompletedActivity(item)) ||
+              model.isDismissing ||
+              model.isRefreshing
+            }
+            isDismissing={model.isDismissing}
+            onDismissVisibleCompleted={onDismissVisibleCompleted}
+          />
+          <DismissalStatus
+            model={model}
+            onCancel={onCancelDismissal}
+            onConfirm={onConfirmDismissal}
+          />
         </View>
       }
       renderItem={({ item }) => <ActivityRow item={item} onOpen={onOpen} />}
@@ -251,6 +287,129 @@ function MarkAllReadButton({
   );
 }
 
+function ClearCompletedButton({
+  disabled,
+  isDismissing,
+  onDismissVisibleCompleted,
+}: {
+  readonly disabled: boolean;
+  readonly isDismissing: boolean;
+  readonly onDismissVisibleCompleted: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel="Clear completed Activity"
+      accessibilityRole="button"
+      accessibilityState={{ busy: isDismissing, disabled }}
+      disabled={disabled}
+      onPress={onDismissVisibleCompleted}
+      style={[
+        styles.clearCompletedButton,
+        disabled ? styles.disabledButton : null,
+      ]}
+      testID="activity-clear-completed"
+    >
+      <Text selectable style={styles.markAllText}>
+        {isDismissing
+          ? "Clearing completed Activity"
+          : "Clear completed Activity"}
+      </Text>
+    </Pressable>
+  );
+}
+
+function DismissalStatus({
+  model,
+  onCancel,
+  onConfirm,
+}: {
+  readonly model: Pick<
+    ActivityViewModel,
+    | "dismissalConfirmation"
+    | "dismissalFailure"
+    | "dismissalResult"
+    | "isDismissing"
+  >;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => Promise<void>;
+}) {
+  const confirmation = model.dismissalConfirmation;
+  if (confirmation) {
+    const count = confirmation.eventIds.length;
+    return (
+      <View
+        style={styles.confirmation}
+        testID="activity-dismissal-confirmation"
+      >
+        <Text
+          accessibilityLiveRegion="polite"
+          selectable
+          style={styles.itemBody}
+        >
+          {confirmation.kind === "clear-completed"
+            ? `Hide ${count} completed Activity ${count === 1 ? "item" : "items"} across all Activity tabs? Active jobs stay visible. This does not cancel jobs or change Android notifications.`
+            : "Hide this completed Activity item? This does not cancel work or change Android notifications."}
+        </Text>
+        {model.dismissalFailure ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            selectable
+            style={styles.itemBody}
+          >
+            Activity could not save that dismissal. Try again or cancel.
+          </Text>
+        ) : null}
+        <View style={styles.confirmationActions}>
+          <Pressable
+            accessibilityLabel="Cancel Activity dismissal"
+            accessibilityRole="button"
+            accessibilityState={{ busy: false, disabled: model.isDismissing }}
+            disabled={model.isDismissing}
+            onPress={onCancel}
+            style={styles.cancelButton}
+            testID="activity-dismissal-cancel"
+          >
+            <Text selectable style={styles.markAllText}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Confirm Activity dismissal"
+            accessibilityRole="button"
+            accessibilityState={{
+              busy: model.isDismissing,
+              disabled: model.isDismissing,
+            }}
+            disabled={model.isDismissing}
+            onPress={() => void onConfirm()}
+            style={styles.openButton}
+            testID="activity-dismissal-confirm"
+          >
+            <Text selectable style={styles.openButtonText}>
+              {model.isDismissing
+                ? "Hiding Activity"
+                : "Hide completed Activity"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+  if (!model.dismissalResult) return null;
+  const { activeCount, alreadyDismissedCount, dismissedCount, missingCount } =
+    model.dismissalResult;
+  return (
+    <Text
+      accessibilityLiveRegion="polite"
+      selectable
+      style={styles.itemBody}
+      testID="activity-dismissal-result"
+    >
+      {`Hidden ${dismissedCount} completed ${dismissedCount === 1 ? "item" : "items"}.${alreadyDismissedCount > 0 ? ` ${alreadyDismissedCount} ${alreadyDismissedCount === 1 ? "item was" : "items were"} already hidden.` : ""}${activeCount > 0 ? ` Kept ${activeCount} active ${activeCount === 1 ? "job" : "jobs"}.` : ""}${missingCount > 0 ? ` ${missingCount} ${missingCount === 1 ? "item was" : "items were"} no longer available.` : ""}`}
+    </Text>
+  );
+}
+
 function ActivityAvailabilityNotice({
   hasItems,
   isRefreshing,
@@ -336,18 +495,38 @@ function ActivityEmptyState({
 }
 
 export function ActivityDetailScreen({
+  developmentProof,
+  dismissalConfirmation,
+  dismissalFailure,
+  dismissalResult,
   eventId,
+  isDismissing,
   isMarkingRead,
   items,
   mutationFailure,
   onMarkRead,
+  onDismissItem,
+  onExitDevelopmentProof,
+  onRetryDevelopmentProof,
+  onCancelDismissal,
+  onConfirmDismissal,
   onOpen,
 }: {
+  readonly developmentProof?: DevelopmentActivityProofViewModel | null;
+  readonly dismissalConfirmation: ActivityViewModel["dismissalConfirmation"];
+  readonly dismissalFailure: ActivityViewModel["dismissalFailure"];
+  readonly dismissalResult: ActivityViewModel["dismissalResult"];
   readonly eventId: string;
+  readonly isDismissing: boolean;
   readonly isMarkingRead: boolean;
   readonly items: readonly ActivityItem[];
   readonly mutationFailure: ActivityViewModel["mutationFailure"];
   readonly onMarkRead: (eventId: string) => Promise<void>;
+  readonly onDismissItem: (eventId: string) => void;
+  readonly onExitDevelopmentProof?: () => Promise<void>;
+  readonly onRetryDevelopmentProof?: () => Promise<void>;
+  readonly onCancelDismissal: () => void;
+  readonly onConfirmDismissal: () => Promise<void>;
   readonly onOpen: (location: ShellLocation) => void;
 }) {
   const item = items.find((candidate) => candidate.eventId === eventId);
@@ -398,6 +577,32 @@ export function ActivityDetailScreen({
               </Text>
             </Pressable>
           ) : null}
+          {isCompletedActivity(item) ? (
+            <Pressable
+              accessibilityLabel="Dismiss Activity item"
+              accessibilityRole="button"
+              accessibilityState={{
+                busy: isDismissing,
+                disabled: isDismissing,
+              }}
+              disabled={isDismissing}
+              onPress={() => onDismissItem(item.eventId)}
+              style={styles.dismissButton}
+              testID="activity-dismiss-item"
+            >
+              <Text selectable style={styles.markAllText}>
+                Dismiss from Activity
+              </Text>
+            </Pressable>
+          ) : (
+            <Text
+              selectable
+              style={styles.itemBody}
+              testID="activity-active-job-dismissal-note"
+            >
+              Active jobs stay in Activity until terminal reconciliation.
+            </Text>
+          )}
           {activityDestinationLocation(item) ? (
             <Pressable
               accessibilityLabel="Open Activity destination"
@@ -425,7 +630,72 @@ export function ActivityDetailScreen({
           </Text>
         </View>
       )}
+      <DevelopmentActivityProofBanner
+        model={developmentProof ?? null}
+        {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
+        {...(onRetryDevelopmentProof ? { onRetry: onRetryDevelopmentProof } : {})}
+      />
+      <DismissalStatus
+        model={{
+          dismissalConfirmation,
+          dismissalFailure,
+          dismissalResult,
+          isDismissing,
+        }}
+        onCancel={onCancelDismissal}
+        onConfirm={onConfirmDismissal}
+      />
     </ScrollView>
+  );
+}
+
+function DevelopmentActivityProofBanner({
+  model,
+  onExit,
+  onRetry,
+}: {
+  readonly model: DevelopmentActivityProofViewModel | null;
+  readonly onExit?: () => Promise<void>;
+  readonly onRetry?: () => Promise<void>;
+}) {
+  if ((model?.kind !== "proof" && model?.kind !== "cleanup-required") ||
+    (!onExit && !onRetry)) return null;
+  return (
+    <View style={styles.proofBanner} testID="activity-proof-banner">
+      <Text selectable style={styles.itemBody}>
+        {model.kind === "cleanup-required" && !model.selected
+          ? `Pending isolated Activity proof ${model.namespace}. Main Activity is selected. ${model.detail}`
+          : `Isolated Activity proof ${model.namespace}. ${model.detail}`}
+      </Text>
+      {model.kind === "proof" && onExit ? (
+        <Pressable
+          accessibilityLabel="Exit isolated Activity proof"
+          accessibilityRole="button"
+          accessibilityState={{ busy: false, disabled: false }}
+          onPress={() => void onExit()}
+          style={styles.retryButton}
+          testID="exit-activity-proof"
+        >
+          <Text selectable style={styles.markAllText}>
+            Exit isolated Activity proof
+          </Text>
+        </Pressable>
+      ) : null}
+      {model.kind === "cleanup-required" && onRetry ? (
+        <Pressable
+          accessibilityLabel="Retry isolated Activity cleanup"
+          accessibilityRole="button"
+          accessibilityState={{ busy: false, disabled: false }}
+          onPress={() => void onRetry()}
+          style={styles.retryButton}
+          testID="retry-activity-proof-cleanup"
+        >
+          <Text selectable style={styles.markAllText}>
+            Retry isolated Activity cleanup
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -454,6 +724,12 @@ export function activityDestinationLocation(
 const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
+    gap: mobileSpacing.small,
+    padding: mobileSpacing.medium,
+  },
+  proofBanner: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
     gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
   },
@@ -507,6 +783,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.small,
   },
   markAllButtonDisabled: { opacity: 0.5 },
+  clearCompletedButton: {
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.small,
+  },
+  confirmation: {
+    backgroundColor: mobileColors.surface,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.medium,
+    borderWidth: 1,
+    gap: mobileSpacing.small,
+    padding: mobileSpacing.medium,
+  },
+  confirmationActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.small,
+  },
+  cancelButton: {
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  disabledButton: { opacity: 0.5 },
+  dismissButton: {
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+  },
   markAllText: {
     color: mobileColors.textPrimary,
     fontSize: 13,

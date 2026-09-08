@@ -411,6 +411,8 @@ Activity is the durable local inbox for notifications and media-job events. Comp
 
 Ingesting the same event ID updates the existing Activity Item. It must not create a second row or reset a non-null read timestamp to unread. Native job events, relay retries, foreground receipt, notification entry, and restart reconciliation obey the same rule. A genuinely new event has a new stable ID and may start unread. Mark-read and mark-all-read operations persist locally; the badge derives from the persisted unread projection. Test a duplicate before and after restart after the item has been marked read.
 
+Completed Activity can be dismissed one item at a time or by the explicit global Clear completed action. Dismissal is local metadata, not a provider deletion, notification change, job cancellation, or retention bypass; it survives restart and duplicate delivery. A duplicate completed event preserves both local read and dismissal metadata. Active jobs cannot be dismissed and remain visible until terminal reconciliation; a later active-job update clears prior local dismissal visibility without changing the existing read timestamp. Retention still prunes completed rows on its normal 90-day/2,000-entry bounds.
+
 ## 11. Playback, chat, media, and Compatibility Integrations
 
 ### 11.1 Native modules
@@ -748,6 +750,8 @@ Guest Follow is a device-local mutation available while signed out and offline. 
 Activity includes channel alerts, media-job progress and recovery, actionable device degradation, eligible moderation alerts, updates and account/maintenance notices. All, Channels and Jobs filter the same durable inbox. Read count and item state agree after mutations and restart.
 
 Duplicate ingestion preserves the existing read timestamp as required in section 10.4. Opening an item resolves its current destination; an ended stream opens ended Channel/detail state. An alert for a job returns to its actual source content and job controls. Malformed, unsupported or stale routes fail safely without creating a sixth destination or restarting playback.
+
+Per-item dismissal is available only for completed Activity. Clear completed is an explicitly global local operation: its confirmation and persisted result state that it applies across All, Channels, and Jobs, even when invoked from a filtered tab. It captures eligible completed IDs when its confirmation opens, then rechecks active and missing IDs at execution; newly arriving completed items are not silently added to that confirmation. It leaves active jobs visible, reports already-dismissed/missing/active outcomes truthfully, and never cancels work or changes Android notification delivery. Local dismissal metadata migrates with Product Store schema changes, survives restart and duplicate delivery, and remains subject to the retention rules in section 10.4.
 
 Permission-denied and unavailable-FCM states keep local Activity usable. Guest notification eligibility does not require Platform login. Registration and preference reconciliation runs after launch, foregrounding, token rotation, reinstall, account or preference changes and network recovery. One logical event uses topic or direct delivery, never both deliberately. Overflow preferences retain direct-token delivery eligibility. Permanent payload, credential and unregistered-token failures are surfaced rather than retried blindly.
 

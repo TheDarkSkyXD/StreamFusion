@@ -70,7 +70,18 @@ export interface ActivityWriteResult {
   readonly kind: "created" | "reconciled";
 }
 
+export interface ActivityDismissalResult {
+  readonly activeEventIds: readonly string[];
+  readonly alreadyDismissedEventIds: readonly string[];
+  readonly dismissedEventIds: readonly string[];
+  readonly missingEventIds: readonly string[];
+}
+
 export interface ActivityRepository {
+  dismissCompleted(
+    eventIds: readonly string[],
+    dismissedAt: SerializedTimestamp,
+  ): Promise<ActivityDismissalResult>;
   list(filter?: ActivityFilter): Promise<readonly ActivityItem[]>;
   markAllRead(readAt: SerializedTimestamp): Promise<number>;
   markRead(

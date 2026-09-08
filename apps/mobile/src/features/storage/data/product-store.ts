@@ -9,6 +9,7 @@ import {
 } from "@streamfusion/core/activity";
 
 import type {
+  ActivityDismissalResult,
   ActivityFilter,
   ActivityWriteResult,
 } from "@mobile/features/storage/capabilities/persistence";
@@ -28,11 +29,17 @@ interface ProductSettingRow {
 }
 
 interface ActivityItemRow {
+  readonly dismissed_at: number | null;
   readonly id: string;
   readonly kind: string;
   readonly payload: string;
   readonly occurred_at: number;
   readonly read_at: number | null;
+}
+
+interface StoredActivityItem {
+  readonly dismissedAt: SerializedTimestamp | null;
+  readonly item: ActivityItem;
 }
 
 function rowToActivityItem(row: ActivityItemRow): ActivityItem | null {
@@ -74,15 +81,29 @@ function databaseTimestamp(value: unknown): SerializedTimestamp | null {
 async function readActivityItems(
   database: StoreDatabase,
 ): Promise<ActivityItem[]> {
+  return (await readStoredActivityItems(database)).map(({ item }) => item);
+}
+
+async function readStoredActivityItems(
+  database: StoreDatabase,
+): Promise<StoredActivityItem[]> {
   const rows = await database.query<ActivityItemRow>(
-    `SELECT id, kind, payload, occurred_at, read_at
+    `SELECT id, kind, payload, occurred_at, read_at, dismissed_at
      FROM activity_items
      ORDER BY occurred_at DESC, id ASC`,
   );
   return rows.flatMap((row) => {
     const item = rowToActivityItem(row);
-    return item ? [item] : [];
+    const dismissedAt =
+      row.dismissed_at === null ? null : databaseTimestamp(row.dismissed_at);
+    return item && (row.dismissed_at === null || dismissedAt)
+      ? [{ dismissedAt, item }]
+      : [];
   });
+}
+
+function isActiveJob(item: ActivityItem): boolean {
+  return item.kind === "job" && item.job.state.kind === "active";
 }
 
 export class ProductStore {
@@ -117,7 +138,11 @@ export class ProductStore {
   }
 
   async listActivity(filter: ActivityFilter = "all"): Promise<ActivityItem[]> {
-    const items = await readActivityItems(this.database);
+    const items = (await readStoredActivityItems(this.database))
+      .filter(
+        ({ dismissedAt, item }) => dismissedAt === null || isActiveJob(item),
+      )
+      .map(({ item }) => item);
     if (filter === "channels")
       return items.filter((item) => item.kind === "channel");
     if (filter === "jobs") return items.filter((item) => item.kind === "job");
@@ -131,7 +156,7 @@ export class ProductStore {
     let result: ActivityWriteResult | undefined;
     await this.database.transaction(async (database) => {
       const existingRow = await database.first<ActivityItemRow>(
-        `SELECT id, kind, payload, occurred_at, read_at
+        `SELECT id, kind, payload, occurred_at, read_at, dismissed_at
          FROM activity_items WHERE id = ?`,
         [incoming.eventId],
       );
@@ -139,20 +164,28 @@ export class ProductStore {
       const item = existing
         ? reconcileActivityItem(existing, incoming)
         : incoming;
+      const dismissedAt =
+        existingRow !== null &&
+        existingRow.dismissed_at !== null &&
+        !isActiveJob(item)
+          ? existingRow.dismissed_at
+          : null;
       await database.run(
-        `INSERT INTO activity_items (id, kind, payload, occurred_at, read_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO activity_items (id, kind, payload, occurred_at, read_at, dismissed_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            kind = excluded.kind,
            payload = excluded.payload,
            occurred_at = excluded.occurred_at,
-           read_at = excluded.read_at`,
+           read_at = excluded.read_at,
+           dismissed_at = excluded.dismissed_at`,
         [
           item.eventId,
           item.kind,
           JSON.stringify(item),
           Date.parse(item.occurredAt),
           item.readAt === null ? null : Date.parse(item.readAt),
+          dismissedAt,
         ],
       );
 
@@ -178,7 +211,7 @@ export class ProductStore {
     readAt: SerializedTimestamp,
   ): Promise<ActivityItem | null> {
     const row = await this.database.first<ActivityItemRow>(
-      `SELECT id, kind, payload, occurred_at, read_at
+      `SELECT id, kind, payload, occurred_at, read_at, dismissed_at
        FROM activity_items WHERE id = ?`,
       [eventId],
     );
@@ -191,7 +224,7 @@ export class ProductStore {
         [Date.parse(item.readAt ?? readAt), eventId],
       );
       const storedRow = await this.database.first<ActivityItemRow>(
-        `SELECT id, kind, payload, occurred_at, read_at
+        `SELECT id, kind, payload, occurred_at, read_at, dismissed_at
          FROM activity_items WHERE id = ?`,
         [eventId],
       );
@@ -201,10 +234,66 @@ export class ProductStore {
   }
 
   async markAllActivityRead(readAt: SerializedTimestamp): Promise<number> {
-    const result = await this.database.run(
-      "UPDATE activity_items SET read_at = ? WHERE read_at IS NULL",
-      [Date.parse(readAt)],
-    );
-    return result.changes;
+    let changes = 0;
+    await this.database.transaction(async (database) => {
+      const entries = await readStoredActivityItems(database);
+      for (const { dismissedAt, item } of entries) {
+        if (
+          item.readAt !== null ||
+          (dismissedAt !== null && !isActiveJob(item))
+        )
+          continue;
+        const result = await database.run(
+          "UPDATE activity_items SET read_at = ? WHERE id = ? AND read_at IS NULL",
+          [Date.parse(readAt), item.eventId],
+        );
+        changes += result.changes;
+      }
+    });
+    return changes;
+  }
+
+  async dismissCompletedActivity(
+    eventIds: readonly string[],
+    dismissedAt: SerializedTimestamp,
+  ): Promise<ActivityDismissalResult> {
+    const uniqueEventIds = [...new Set(eventIds)];
+    const activeEventIds: string[] = [];
+    const alreadyDismissedEventIds: string[] = [];
+    const dismissedEventIds: string[] = [];
+    const missingEventIds: string[] = [];
+    await this.database.transaction(async (database) => {
+      for (const eventId of uniqueEventIds) {
+        const row = await database.first<ActivityItemRow>(
+          `SELECT id, kind, payload, occurred_at, read_at, dismissed_at
+           FROM activity_items WHERE id = ?`,
+          [eventId],
+        );
+        const item = row ? rowToActivityItem(row) : null;
+        if (!row || !item) {
+          missingEventIds.push(eventId);
+          continue;
+        }
+        if (isActiveJob(item)) {
+          activeEventIds.push(eventId);
+          continue;
+        }
+        if (row.dismissed_at !== null) {
+          alreadyDismissedEventIds.push(eventId);
+          continue;
+        }
+        const result = await database.run(
+          "UPDATE activity_items SET dismissed_at = ? WHERE id = ? AND dismissed_at IS NULL",
+          [Date.parse(dismissedAt), eventId],
+        );
+        if (result.changes > 0) dismissedEventIds.push(eventId);
+      }
+    });
+    return {
+      activeEventIds,
+      alreadyDismissedEventIds,
+      dismissedEventIds,
+      missingEventIds,
+    };
   }
 }

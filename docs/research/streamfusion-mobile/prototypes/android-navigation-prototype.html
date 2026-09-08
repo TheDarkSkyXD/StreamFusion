@@ -2565,11 +2565,13 @@
         historyCleared: false,
         historyRemovedTitles: [],
         slotOrder: [...fixtureSlotNames],
+        activityDismissedIds: [],
         activityRead: false,
         lastAction: null,
         miniPlayerPaused: false,
         multiChatMode: "merged",
         notificationPermission: "not requested",
+        selectedActivityId: null,
         selectedHistoryId: null,
         demoSheet: null,
         demoFeedback:
@@ -3022,16 +3024,48 @@
           </div>`;
       }
 
+      const activityFixtureItems = [
+        { id: "channel-live", tab: "channels", kind: "channel", active: false, read: false, destination: "watch", title: "NebulaNine is live", detail: "2 minutes ago · Twitch Follow", visual: `<img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" />`, trailing: `<span class="platform-badge twitch">Twitch</span>` },
+        { id: "channel-moderation", tab: "channels", kind: "channel", active: false, read: false, destination: "moderation", title: "Moderation session needs attention", detail: "NebulaNine · one held message", visual: `<img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" />`, trailing: icon("shield") },
+        { id: "job-recording", tab: "jobs", kind: "job", active: true, read: false, destination: "watch", title: "Recording window ends soon", detail: "42 minutes remain · return to the Stream", visual: `<img class="activity-visual" src="${streamImages.nebula}" alt="" />`, trailing: icon("schedule") },
+        { id: "job-completed", tab: "jobs", kind: "job", active: false, read: true, destination: "video", title: "Video download completed", detail: "Final round highlights · ready to watch", visual: `<img class="activity-visual" src="${streamImages.forge}" alt="" />`, trailing: icon("download_done") },
+        { id: "system-profile", tab: "system", kind: "system", active: false, read: true, destination: "system", title: "Device profile checked", detail: "Yesterday · parity-qualified", visual: "", trailing: icon("check_circle") },
+      ];
+
+      function visibleActivityFixtureItems() {
+        return activityFixtureItems.filter(
+          (item) =>
+            !state.activityDismissedIds.includes(item.id) &&
+            (state.activityTab === "all" || state.activityTab === item.tab),
+        );
+      }
+
+      function activityUnreadCount() {
+        return activityFixtureItems.filter(
+          (item) =>
+            !state.activityDismissedIds.includes(item.id) &&
+            !state.activityRead &&
+            !item.read,
+        ).length;
+      }
+
+      function activityFixtureMarkup(item) {
+        const destination = `<button type="button" class="activity-link" data-screen="${item.destination}"><span class="activity-content">${item.visual}<span class="activity-copy"><strong>${item.title}</strong><span>${item.detail}</span></span>${item.trailing}</span></button>`;
+        const dismissal = item.active
+          ? `<span class="fixture-label">Active job remains until terminal reconciliation.</span>`
+          : `<button type="button" class="text-button" data-action="activity-dismiss-item" data-id="${item.id}">Dismiss</button>`;
+        return `<article class="system-card">${destination}${dismissal}</article>`;
+      }
+
       function activityScreen() {
-        const channelItems = `<button type="button" class="system-card activity-link" data-screen="watch"><span class="activity-content"><img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" /><span class="activity-copy"><strong>NebulaNine is live</strong><span>2 minutes ago · Twitch Follow</span></span><span class="platform-badge twitch">Twitch</span></span></button><button type="button" class="system-card activity-link" data-screen="moderation"><span class="activity-content"><img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" /><span class="activity-copy"><strong>Moderation session needs attention</strong><span>NebulaNine · one held message</span></span>${icon("shield")}</span></button>`;
-        const jobItems = `<button type="button" class="system-card activity-link" data-screen="watch"><span class="activity-content"><img class="activity-visual" src="${streamImages.nebula}" alt="" /><span class="activity-copy"><strong>Recording window ends soon</strong><span>42 minutes remain · return to the Stream</span></span>${icon("schedule")}</span></button><button type="button" class="system-card activity-link" data-screen="video"><span class="activity-content"><img class="activity-visual" src="${streamImages.forge}" alt="" /><span class="activity-copy"><strong>Video download completed</strong><span>Final round highlights · ready to watch</span></span>${icon("download_done")}</span></button>`;
-        const systemItem = `<button type="button" class="system-card activity-link" data-screen="system"><span class="system-top"><span><strong>Device profile checked</strong><span>Yesterday · parity-qualified</span></span>${icon("check_circle")}</span></button>`;
+        const visibleActivityItems = visibleActivityFixtureItems();
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Activity</h2><p>${state.activityRead ? "All read" : "3 unread"} · fixture device</p></div><button class="text-button" type="button" data-action="activity-mark-read">Mark read</button></div>
+            <div class="screen-title-row"><div><h2>Activity</h2><p>${activityUnreadCount() === 0 ? "All read" : `${activityUnreadCount()} unread`} · fixture device</p></div><button class="text-button" type="button" data-action="activity-mark-read">Mark read</button></div>
+            <div class="control-row"><button class="text-button" type="button" data-action="activity-clear-completed">Clear completed</button></div>
             <div class="segmented">${["all", "channels", "jobs"].map((tab) => `<button class="${state.activityTab === tab ? "active" : ""}" type="button" data-action="activity-tab" data-tab="${tab}">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div>
             <div class="system-list">
-              ${state.activityTab === "channels" ? channelItems : state.activityTab === "jobs" ? jobItems : channelItems + jobItems + systemItem}
+              ${visibleActivityItems.length ? visibleActivityItems.map(activityFixtureMarkup).join("") : `<article class="empty-state"><strong>No Activity in this filter</strong><span>Completed fixture Activity was hidden locally.</span></article>`}
             </div>
           </div>`;
       }
@@ -3739,6 +3773,27 @@
         if (action === "confirm-sheet") {
           if (state.demoSheet?.kind === "history-clear")
             state.historyCleared = true;
+          if (state.demoSheet?.kind === "activity-clear-completed") {
+            state.activityRead = true;
+            state.activityDismissedIds = [
+              ...new Set([
+                ...state.activityDismissedIds,
+                ...activityFixtureItems
+                  .filter((item) => !item.active)
+                  .map((item) => item.id),
+              ]),
+            ];
+          }
+          if (
+            state.demoSheet?.kind === "activity-dismiss-item" &&
+            state.selectedActivityId
+          )
+            state.activityDismissedIds = [
+              ...new Set([
+                ...state.activityDismissedIds,
+                state.selectedActivityId,
+              ]),
+            ];
           if (
             state.demoSheet?.kind === "history-remove" &&
             state.selectedHistoryId
@@ -4034,6 +4089,25 @@
           state.demoFeedback =
             "Fixture Activity items marked read for this review session.";
         }
+        if (action === "activity-clear-completed")
+          openSheet(
+            "Clear completed Activity",
+            "Fixture confirmation. This hides completed Activity across all Activity tabs. Active jobs stay visible. It does not cancel jobs or change Android notifications.",
+            [],
+            null,
+            "Clear fixture Activity",
+            "activity-clear-completed",
+          );
+        if (action === "activity-dismiss-item")
+          ((state.selectedActivityId = data.id),
+            openSheet(
+              "Dismiss Activity item",
+              "Fixture confirmation. This hides one completed Activity item only. It does not cancel jobs or change Android notifications.",
+              [],
+              null,
+              "Dismiss fixture Activity",
+              "activity-dismiss-item",
+            ));
         if (action === "moderation-switch")
           openSheet(
             "Switch moderation room",
@@ -4102,7 +4176,8 @@
           state.screen = "category-detail";
         }
         if (action === "run-check") state.diagnosticsRun += 1;
-        if (action === "retry-installation-registration") state.diagnosticsRun += 1;
+        if (action === "retry-installation-registration")
+          state.diagnosticsRun += 1;
         if (action === "refresh-capability-policy") state.diagnosticsRun += 1;
         if (action === "toggle-density")
           state.compactDensity = !state.compactDensity;

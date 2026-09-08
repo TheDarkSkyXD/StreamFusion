@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DatabaseSync } from "node:sqlite";
 
 import type {
   ActivityRepository,
@@ -24,7 +25,10 @@ import {
   readSchemaVersion,
 } from "@mobile/features/storage/data/migrations";
 import { ProductStore } from "@mobile/features/storage/data/product-store";
-import { createMobileStoreRuntime } from "@mobile/features/storage/composition/store-runtime";
+import {
+  cleanupMobileStoreNamespace,
+  createMobileStoreRuntime,
+} from "@mobile/features/storage/composition/store-runtime";
 
 class MigrationDatabase implements StoreDatabase {
   readonly cipherVersion = "SQLCipher 4";
@@ -83,7 +87,28 @@ class CacheRecordingDatabase extends MigrationDatabase {
   }
 }
 
+class CloseRecordingDatabase extends MigrationDatabase {
+  closeCalls = 0;
+  failNextClose = false;
+
+  override close(): Promise<void> {
+    this.closeCalls += 1;
+    if (this.failNextClose) {
+      this.failNextClose = false;
+      return Promise.reject(new Error("close failed"));
+    }
+    return Promise.resolve();
+  }
+
+  override query<T>(source: string): Promise<T[]> {
+    if (source === "PRAGMA quick_check")
+      return Promise.resolve([{ quick_check: "ok" } as T]);
+    return super.query<T>(source);
+  }
+}
+
 interface ActivityRow {
+  dismissed_at: number | null;
   id: string;
   kind: string;
   payload: string;
@@ -122,13 +147,14 @@ class ActivityMemoryDatabase extends MigrationDatabase {
     parameters: DatabaseValue[] = [],
   ): Promise<DatabaseRunResult> {
     if (source.includes("INSERT INTO activity_items")) {
-      const [id, kind, payload, occurredAt, readAt] = parameters;
+      const [id, kind, payload, occurredAt, readAt, dismissedAt] = parameters;
       this.rows.set(String(id), {
         id: String(id),
         kind: String(kind),
         payload: String(payload),
         occurred_at: Number(occurredAt),
         read_at: readAt === null ? null : Number(readAt),
+        dismissed_at: dismissedAt === null ? null : Number(dismissedAt),
       });
       return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
     }
@@ -137,6 +163,13 @@ class ActivityMemoryDatabase extends MigrationDatabase {
       if (!row || row.read_at !== null)
         return Promise.resolve({ changes: 0, lastInsertRowId: 0 });
       row.read_at = Number(parameters[0]);
+      return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
+    }
+    if (source.includes("SET dismissed_at = ? WHERE id = ?")) {
+      const row = this.rows.get(String(parameters[1]));
+      if (!row || row.dismissed_at !== null)
+        return Promise.resolve({ changes: 0, lastInsertRowId: 0 });
+      row.dismissed_at = Number(parameters[0]);
       return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
     }
     if (source.includes("SET read_at = ? WHERE read_at IS NULL")) {
@@ -158,6 +191,55 @@ class ActivityMemoryDatabase extends MigrationDatabase {
   }
 }
 
+class SqliteTestDatabase implements StoreDatabase {
+  readonly cipherVersion = "SQLite test adapter";
+  readonly path = ":memory:";
+  private readonly database = new DatabaseSync(":memory:");
+
+  close(): Promise<void> {
+    this.database.close();
+    return Promise.resolve();
+  }
+
+  execute(source: string): Promise<void> {
+    this.database.exec(source);
+    return Promise.resolve();
+  }
+
+  first<T>(source: string, parameters: DatabaseValue[] = []): Promise<T | null> {
+    const row = this.database.prepare(source).get(...parameters);
+    return Promise.resolve(row === undefined ? null : (row as T));
+  }
+
+  query<T>(source: string, parameters: DatabaseValue[] = []): Promise<T[]> {
+    return Promise.resolve(this.database.prepare(source).all(...parameters) as T[]);
+  }
+
+  run(
+    source: string,
+    parameters: DatabaseValue[] = [],
+  ): Promise<DatabaseRunResult> {
+    const result = this.database.prepare(source).run(...parameters);
+    return Promise.resolve({
+      changes: Number(result.changes),
+      lastInsertRowId: Number(result.lastInsertRowid),
+    });
+  }
+
+  async transaction(
+    operation: (database: StoreDatabase) => Promise<void>,
+  ): Promise<void> {
+    this.database.exec("BEGIN");
+    try {
+      await operation(this);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+}
+
 function activityItem(overrides: Partial<ActivityItem> = {}): ActivityItem {
   return {
     schemaVersion: 1,
@@ -172,6 +254,24 @@ function activityItem(overrides: Partial<ActivityItem> = {}): ActivityItem {
     destination: { kind: "diagnostics" },
     ...overrides,
   } as ActivityItem;
+}
+
+function jobActivityItem(options: {
+  readonly eventId: string;
+  readonly state: "active" | "terminal";
+}): ActivityItem {
+  return {
+    body: "A media job changed.",
+    destination: { jobId: "job:1", kind: "media-job" },
+    eventId: options.eventId,
+    job: { id: "job:1", state: { kind: options.state } },
+    kind: "job",
+    occurredAt: "2026-09-01T00:00:00.000Z" as SerializedTimestamp,
+    readAt: null,
+    schemaVersion: 1,
+    source: "local",
+    title: "Media job",
+  };
 }
 
 function memorySecrets(
@@ -203,8 +303,68 @@ const random = {
 };
 
 describe("encrypted store policy", () => {
+  it("rejects every non-proof cleanup namespace before a driver deletion", async () => {
+    const deleted: string[] = [];
+    const databaseDriver: EncryptedDatabaseDriver = {
+      backup: async () => undefined,
+      containsBytes: async () => false,
+      corrupt: async () => undefined,
+      delete: async (name) => void deleted.push(name),
+      deleteQuarantines: async (name) => void deleted.push(name),
+      exists: () => false,
+      open: async () => new MigrationDatabase(),
+      quarantine: async () => "artifact",
+      restore: async () => undefined,
+    };
+    const secrets = memorySecrets();
+
+    for (const namespace of ["main", "activity-proof-not-a-uuid", "other-proof-11111111-1111-4111-8111-111111111111"]) {
+      await expect(
+        cleanupMobileStoreNamespace({
+          databaseDriver,
+          namespace,
+          secretStore: secrets,
+        }),
+      ).rejects.toThrow("exact Activity proof namespace");
+    }
+
+    expect(deleted).toEqual([]);
+  });
+
+  it("retries only a failed native store close and never returns a closing Product Store", async () => {
+    const product = new CloseRecordingDatabase();
+    const cache = new CloseRecordingDatabase();
+    product.failNextClose = true;
+    const runtime = createMobileStoreRuntime({
+      backupExcluded: true,
+      databaseDriver: {
+        backup: async () => undefined,
+        containsBytes: async () => false,
+        corrupt: async () => undefined,
+        delete: async () => undefined,
+        deleteQuarantines: async () => undefined,
+        exists: () => false,
+        open: async (name) => name.includes("cache") ? cache : product,
+        quarantine: async () => "artifact",
+        restore: async () => undefined,
+      },
+      random,
+      secretStore: memorySecrets(),
+    });
+    await expect(runtime.initialize()).resolves.toMatchObject({ kind: "ready" });
+
+    await expect(runtime.close()).rejects.toThrow("close failed");
+    await expect(runtime.productState.activity.list()).rejects.toThrow("closing");
+    await expect(runtime.close()).resolves.toBeUndefined();
+    await expect(runtime.initialize()).rejects.toThrow("closed");
+
+    expect(product.closeCalls).toBe(2);
+    expect(cache.closeCalls).toBe(1);
+  });
+
   it("contains rejected Activity mutations for retryable UI state", async () => {
     const unavailable: ActivityRepository = {
+      dismissCompleted: () => Promise.reject(new Error("unavailable")),
       list: () => Promise.resolve([]),
       markAllRead: () => Promise.reject(new Error("unavailable")),
       markRead: () => Promise.reject(new Error("unavailable")),
@@ -271,9 +431,60 @@ describe("encrypted store policy", () => {
     );
   });
 
+  it("keeps local dismissal across duplicate delivery and hides only completed Activity", async () => {
+    const database = new ActivityMemoryDatabase();
+    const store = new ProductStore(database);
+    const readAt = "2026-09-02T00:00:00.000Z" as SerializedTimestamp;
+    const dismissedAt = "2026-09-03T00:00:00.000Z" as SerializedTimestamp;
+    await store.recordActivity(activityItem());
+    await store.markActivityRead("device:ready:v1", readAt);
+    await expect(
+      store.dismissCompletedActivity(["device:ready:v1"], dismissedAt),
+    ).resolves.toMatchObject({ dismissedEventIds: ["device:ready:v1"] });
+    await expect(store.listActivity()).resolves.toEqual([]);
+
+    await store.recordActivity(
+      activityItem({ title: "Reconciled without restoring visibility" }),
+    );
+    await expect(new ProductStore(database).listActivity()).resolves.toEqual(
+      [],
+    );
+    expect(database.rows.get("device:ready:v1")).toMatchObject({
+      dismissed_at: Date.parse(dismissedAt),
+      read_at: Date.parse(readAt),
+    });
+  });
+
+  it("keeps active jobs visible and clears an earlier local dismissal on reactivation", async () => {
+    const database = new ActivityMemoryDatabase();
+    const store = new ProductStore(database);
+    const dismissedAt = "2026-09-03T00:00:00.000Z" as SerializedTimestamp;
+    const readAt = "2026-09-02T00:00:00.000Z" as SerializedTimestamp;
+    await store.recordActivity(
+      jobActivityItem({ eventId: "job:event", state: "terminal" }),
+    );
+    await store.markActivityRead("job:event", readAt);
+    await store.dismissCompletedActivity(["job:event"], dismissedAt);
+    await expect(store.listActivity()).resolves.toEqual([]);
+
+    await store.recordActivity(
+      jobActivityItem({ eventId: "job:event", state: "active" }),
+    );
+    const visible = await store.listActivity();
+    expect(visible).toHaveLength(1);
+    expect(visible[0]?.eventId).toBe("job:event");
+    expect(visible[0]?.kind).toBe("job");
+    if (visible[0]?.kind === "job") {
+      expect(visible[0].job.state.kind).toBe("active");
+      expect(visible[0].readAt).toBe(readAt);
+    }
+    expect(database.rows.get("job:event")?.dismissed_at).toBeNull();
+  });
+
   it("skips malformed persisted Activity timestamps without failing the list", async () => {
     const database = new ActivityMemoryDatabase();
     database.rows.set("corrupt", {
+      dismissed_at: null,
       id: "corrupt",
       kind: "system",
       payload: JSON.stringify(activityItem({ eventId: "corrupt" })),
@@ -281,6 +492,7 @@ describe("encrypted store policy", () => {
       read_at: 9e20,
     });
     database.rows.set("valid", {
+      dismissed_at: null,
       id: "valid",
       kind: "system",
       payload: JSON.stringify(activityItem({ eventId: "valid" })),
@@ -297,12 +509,68 @@ describe("encrypted store policy", () => {
     const database = new MigrationDatabase();
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(2);
+    ).resolves.toBe(3);
     const statements = database.statements.length;
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(2);
+    ).resolves.toBe(3);
     expect(database.statements).toHaveLength(statements);
+  });
+
+  it("adds visible local dismissal metadata from the oldest supported Product schema", async () => {
+    const database = new MigrationDatabase();
+    await expect(
+      applyMigrations({ database, migrations: productMigrations.slice(0, 1) }),
+    ).resolves.toBe(1);
+    await expect(
+      applyMigrations({ database, migrations: productMigrations }),
+    ).resolves.toBe(3);
+    expect(database.statements).toContain(
+      "ALTER TABLE activity_items ADD COLUMN dismissed_at INTEGER",
+    );
+  });
+
+  it("migrates and dismisses a real SQLite Product row without changing duplicate identity", async () => {
+    const database = new SqliteTestDatabase();
+    const dismissedAt = "2026-09-03T00:00:00.000Z" as SerializedTimestamp;
+    try {
+      await applyMigrations({
+        database,
+        migrations: productMigrations.slice(0, 2),
+      });
+      const original = activityItem();
+      await database.run(
+        `INSERT INTO activity_items (id, kind, payload, occurred_at, read_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          original.eventId,
+          original.kind,
+          JSON.stringify(original),
+          Date.parse(original.occurredAt),
+          null,
+        ],
+      );
+      await applyMigrations({ database, migrations: productMigrations });
+      const store = new ProductStore(database);
+      await expect(store.listActivity()).resolves.toMatchObject([
+        { eventId: original.eventId, readAt: null },
+      ]);
+      await expect(
+        store.dismissCompletedActivity([original.eventId], dismissedAt),
+      ).resolves.toMatchObject({ dismissedEventIds: [original.eventId] });
+      await store.recordActivity(
+        activityItem({ title: "Duplicate stays dismissed" }),
+      );
+      await expect(store.listActivity()).resolves.toEqual([]);
+      await expect(
+        database.first<{ readonly dismissed_at: number | null }>(
+          "SELECT dismissed_at FROM activity_items WHERE id = ?",
+          [original.eventId],
+        ),
+      ).resolves.toEqual({ dismissed_at: Date.parse(dismissedAt) });
+    } finally {
+      await database.close();
+    }
   });
 
   it("rolls back a failed migration without advancing user_version", async () => {
@@ -327,7 +595,7 @@ describe("encrypted store policy", () => {
 
   it("rejects a database newer than the supported schema", async () => {
     const database = new MigrationDatabase();
-    await database.execute("PRAGMA user_version = 3");
+    await database.execute("PRAGMA user_version = 4");
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
     ).rejects.toThrow("newer than supported");
@@ -449,7 +717,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
-        productSchemaVersion: 2,
+        productSchemaVersion: 3,
         recoveredProductStore: false,
       },
       allPassed,
@@ -465,7 +733,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
-        productSchemaVersion: 2,
+        productSchemaVersion: 3,
         recoveredProductStore: false,
       },
       null,

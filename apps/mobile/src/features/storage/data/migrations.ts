@@ -58,6 +58,10 @@ export const productMigrations: readonly StoreMigration[] = [
       ) STRICT`,
     ],
   },
+  {
+    version: 3,
+    statements: ["ALTER TABLE activity_items ADD COLUMN dismissed_at INTEGER"],
+  },
 ];
 
 export const cacheMigrations: readonly StoreMigration[] = [

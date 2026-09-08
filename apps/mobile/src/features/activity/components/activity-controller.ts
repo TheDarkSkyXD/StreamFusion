@@ -2,7 +2,7 @@ import {
   toSerializedTimestamp,
   type SystemActivityItem,
 } from "@streamfusion/core/activity";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AppState } from "react-native";
 
 import type {
@@ -33,9 +33,14 @@ export function createStorageCheckActivityItem(
 }
 
 export function useActivityController(options: {
+  readonly epoch?: string;
   readonly now?: () => number;
   readonly repository: ActivityRepository;
 }): {
+  readonly cancelDismissal: () => void;
+  readonly confirmDismissal: () => Promise<void>;
+  readonly dismissItem: (eventId: string) => void;
+  readonly dismissAllCompleted: () => void;
   readonly markAllRead: () => Promise<void>;
   readonly markRead: (eventId: string) => Promise<void>;
   readonly model: ActivityViewModel;
@@ -44,6 +49,7 @@ export function useActivityController(options: {
   readonly selectFilter: (filter: ActivityFilter) => void;
 } {
   const now = options.now ?? Date.now;
+  const epoch = options.epoch ?? "main";
   const lifecycle = useMemo(
     () => createActivityInboxLifecycle({ now, repository: options.repository }),
     [now, options.repository],
@@ -52,9 +58,9 @@ export function useActivityController(options: {
     lifecycle.snapshot(),
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     return lifecycle.attach(setModel);
-  }, [lifecycle]);
+  }, [epoch, lifecycle]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -64,6 +70,10 @@ export function useActivityController(options: {
   }, [lifecycle]);
 
   return {
+    cancelDismissal: lifecycle.cancelDismissal,
+    confirmDismissal: lifecycle.confirmDismissal,
+    dismissItem: lifecycle.dismissItem,
+    dismissAllCompleted: lifecycle.dismissAllCompleted,
     markAllRead: lifecycle.markAllRead,
     markRead: lifecycle.markRead,
     model,

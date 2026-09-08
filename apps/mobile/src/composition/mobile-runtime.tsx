@@ -1,7 +1,7 @@
 import { PLATFORMS } from "@streamfusion/core/platform";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
@@ -20,6 +20,7 @@ import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/
 import { createExpoSecureSecretStore } from "@mobile/features/storage/adapters/expo-secure-secret-store";
 import { createSqliteEncryptedDatabaseDriver } from "@mobile/features/storage/adapters/sqlite-encrypted-driver";
 import { createMobileStoreRuntime } from "@mobile/features/storage/composition/store-runtime";
+import { createDevelopmentActivityProof } from "@mobile/features/activity/composition/development-activity-proof";
 import { createVolatilePersistenceProbe } from "@mobile/features/diagnostics/adapters/volatile-persistence-probe";
 import { createFetchRuntimeProbe } from "@mobile/features/diagnostics/adapters/fetch-runtime-probe";
 import { createSecureTwitchCredentialRepository } from "@mobile/features/auth/data/secure-twitch-credential-repository";
@@ -43,13 +44,32 @@ const developmentClientController = createDevelopmentClientController({
 
 const secureRandom = createExpoSecureRandomSource();
 const secureSecretStore = createExpoSecureSecretStore();
+const databaseDriver = createSqliteEncryptedDatabaseDriver();
 
 const persistenceRuntime = createMobileStoreRuntime({
   backupExcluded: true,
-  databaseDriver: createSqliteEncryptedDatabaseDriver(),
+  databaseDriver,
   random: secureRandom,
   secretStore: secureSecretStore,
 });
+
+const developmentActivityProof = __DEV__
+  ? createDevelopmentActivityProof({
+      createRuntime: (namespace) =>
+        createMobileStoreRuntime({
+          backupExcluded: true,
+          databaseDriver,
+          namespace,
+          random: secureRandom,
+          secretStore: secureSecretStore,
+        }),
+      databaseDriver,
+      mainRepository: persistenceRuntime.productState.activity,
+      now: Date.now,
+      randomUuid: secureRandom.uuid,
+      secretStore: secureSecretStore,
+    })
+  : null;
 
 const appLinks = createExpoAppLinkSource();
 
@@ -107,6 +127,9 @@ const developmentTwitchController = createTwitchAccountSessionController({
 });
 
 export function MobileRuntime() {
+  const [activityProof, setActivityProof] = useState(() =>
+    developmentActivityProof?.snapshot() ?? null,
+  );
   const [useDevelopmentTwitchFixture, setUseDevelopmentTwitchFixture] =
     useState(false);
   const persistence = usePersistenceController(persistenceRuntime);
@@ -126,9 +149,19 @@ export function MobileRuntime() {
   const visibleTwitchAccount = useDevelopmentTwitchFixture
     ? developmentTwitchAccount
     : twitchAccount;
+  useEffect(() => {
+    if (!developmentActivityProof) return;
+    const unsubscribe = developmentActivityProof.subscribe(setActivityProof);
+    void developmentActivityProof.recover();
+    return unsubscribe;
+  }, []);
   return (
     <AppShell
-      activityRepository={persistenceRuntime.productState.activity}
+      activityRepository={
+        developmentActivityProof?.repository ??
+        persistenceRuntime.productState.activity
+      }
+      developmentActivityProof={activityProof}
       appLinks={appLinks}
       capabilityProfile={capabilityProfile.model}
       onRetryCapabilityProfile={capabilityProfile.retry}
@@ -140,6 +173,25 @@ export function MobileRuntime() {
       onRunCapabilityProfileDevelopmentProof={() =>
         capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()
       }
+      onQueueActivityReadFailure={() => {
+        developmentActivityProof?.queueNextReadFailure();
+      }}
+      onExitDevelopmentActivityProof={async () => {
+        await developmentActivityProof?.exit();
+        setActivityProof(developmentActivityProof?.snapshot() ?? null);
+      }}
+      onReplayDevelopmentActivityProof={async () => {
+        await developmentActivityProof?.replayCompleted();
+        setActivityProof(developmentActivityProof?.snapshot() ?? null);
+      }}
+      onRetryDevelopmentActivityProofCleanup={async () => {
+        await developmentActivityProof?.retryCleanup();
+        setActivityProof(developmentActivityProof?.snapshot() ?? null);
+      }}
+      onStartDevelopmentActivityProof={async () => {
+        await developmentActivityProof?.start();
+        setActivityProof(developmentActivityProof?.snapshot() ?? null);
+      }}
       developmentStatus={developmentClientController.read()}
       onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
       onPrepareRestorationProof={async (kind) => {

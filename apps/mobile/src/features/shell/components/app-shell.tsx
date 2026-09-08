@@ -30,6 +30,8 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import { useActivityController } from "@mobile/features/activity/components/activity-controller";
+import { DevelopmentActivityProofControl } from "@mobile/features/activity/components/development-activity-proof-control";
+import type { DevelopmentActivityProofViewModel } from "@mobile/features/activity/capabilities/development-activity-proof";
 import {
   ActivityDetailScreen,
   ActivityScreen,
@@ -79,6 +81,7 @@ const previewRoutes: Readonly<
 
 export function AppShell({
   activityRepository,
+  developmentActivityProof,
   appLinks,
   capabilityProfile,
   installationPolicy,
@@ -86,6 +89,11 @@ export function AppShell({
   onRefreshCapabilityPolicy,
   onRetryInstallationRegistration,
   onRunCapabilityProfileDevelopmentProof,
+  onQueueActivityReadFailure,
+  onExitDevelopmentActivityProof,
+  onReplayDevelopmentActivityProof,
+  onRetryDevelopmentActivityProofCleanup,
+  onStartDevelopmentActivityProof,
   developmentStatus,
   onPrepareRestorationProof,
   onRunNativeCapabilityProof,
@@ -99,6 +107,7 @@ export function AppShell({
   onDisableTwitchDevelopmentFixture,
 }: {
   readonly activityRepository: ActivityRepository;
+  readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
   readonly appLinks: AppLinkSource;
   readonly capabilityProfile: CapabilityProfileViewModel;
   readonly installationPolicy: InstallationPolicyViewModel;
@@ -106,6 +115,11 @@ export function AppShell({
   readonly onRefreshCapabilityPolicy: () => void;
   readonly onRetryInstallationRegistration: () => void;
   readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
+  readonly onQueueActivityReadFailure: () => void;
+  readonly onExitDevelopmentActivityProof: () => Promise<void>;
+  readonly onReplayDevelopmentActivityProof: () => Promise<void>;
+  readonly onRetryDevelopmentActivityProofCleanup: () => Promise<void>;
+  readonly onStartDevelopmentActivityProof: () => Promise<void>;
   readonly developmentStatus: DevelopmentClientViewModel;
   readonly onPrepareRestorationProof: (
     kind: "corrupt" | "unsupported",
@@ -122,7 +136,16 @@ export function AppShell({
   readonly onEnableTwitchDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableTwitchDevelopmentFixture?: (() => void) | undefined;
 }) {
-  const activity = useActivityController({ repository: activityRepository });
+  const activityRepositoryEpoch =
+    developmentActivityProof?.kind === "proof" ||
+    (developmentActivityProof?.kind === "cleanup-required" &&
+      developmentActivityProof.selected)
+      ? developmentActivityProof.namespace
+      : "main";
+  const activity = useActivityController({
+    epoch: activityRepositoryEpoch,
+    repository: activityRepository,
+  });
   const lifecycle = useShellLifecycleController({
     appLinks,
     restoration: shellRestoration,
@@ -195,6 +218,14 @@ export function AppShell({
               onRunCapabilityProfileDevelopmentProof={
                 onRunCapabilityProfileDevelopmentProof
               }
+              onQueueActivityReadFailure={onQueueActivityReadFailure}
+              developmentActivityProof={developmentActivityProof}
+              onExitDevelopmentActivityProof={onExitDevelopmentActivityProof}
+              onReplayDevelopmentActivityProof={onReplayDevelopmentActivityProof}
+              onRetryDevelopmentActivityProofCleanup={
+                onRetryDevelopmentActivityProofCleanup
+              }
+              onStartDevelopmentActivityProof={onStartDevelopmentActivityProof}
               onRunNativeCapabilityProof={onRunNativeCapabilityProof}
               onRunPersistenceProof={onRunPersistenceProof}
               persistenceStatus={persistenceStatus}
@@ -202,8 +233,12 @@ export function AppShell({
               twitchAccount={twitchAccount}
               twitchAccountActions={twitchAccountActions}
               twitchAccountDevelopmentFixture={twitchAccountDevelopmentFixture}
-              onEnableTwitchDevelopmentFixture={onEnableTwitchDevelopmentFixture}
-              onDisableTwitchDevelopmentFixture={onDisableTwitchDevelopmentFixture}
+              onEnableTwitchDevelopmentFixture={
+                onEnableTwitchDevelopmentFixture
+              }
+              onDisableTwitchDevelopmentFixture={
+                onDisableTwitchDevelopmentFixture
+              }
             />
           </View>
         </View>
@@ -322,6 +357,7 @@ function ShellHeader({
 
 function ShellScreen({
   activity,
+  developmentActivityProof,
   capabilityProfile,
   installationPolicy,
   developmentStatus,
@@ -331,6 +367,11 @@ function ShellScreen({
   onRefreshCapabilityPolicy,
   onRetryInstallationRegistration,
   onRunCapabilityProfileDevelopmentProof,
+  onQueueActivityReadFailure,
+  onExitDevelopmentActivityProof,
+  onReplayDevelopmentActivityProof,
+  onRetryDevelopmentActivityProofCleanup,
+  onStartDevelopmentActivityProof,
   onRunNativeCapabilityProof,
   onRunPersistenceProof,
   persistenceStatus,
@@ -342,6 +383,7 @@ function ShellScreen({
   onDisableTwitchDevelopmentFixture,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
+  readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
   readonly capabilityProfile: CapabilityProfileViewModel;
   readonly installationPolicy: InstallationPolicyViewModel;
   readonly developmentStatus: DevelopmentClientViewModel;
@@ -353,6 +395,11 @@ function ShellScreen({
   readonly onRefreshCapabilityPolicy: () => void;
   readonly onRetryInstallationRegistration: () => void;
   readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
+  readonly onQueueActivityReadFailure: () => void;
+  readonly onExitDevelopmentActivityProof: () => Promise<void>;
+  readonly onReplayDevelopmentActivityProof: () => Promise<void>;
+  readonly onRetryDevelopmentActivityProofCleanup: () => Promise<void>;
+  readonly onStartDevelopmentActivityProof: () => Promise<void>;
   readonly onRunNativeCapabilityProof: () => Promise<{
     readonly detail: string;
   }>;
@@ -378,7 +425,13 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-activity-root">
         <ActivityScreen
+          developmentProof={developmentActivityProof}
           model={activity.model}
+          onCancelDismissal={activity.cancelDismissal}
+          onConfirmDismissal={activity.confirmDismissal}
+          onDismissVisibleCompleted={activity.dismissAllCompleted}
+          onExitDevelopmentProof={onExitDevelopmentActivityProof}
+          onRetryDevelopmentProof={onRetryDevelopmentActivityProofCleanup}
           onMarkAllRead={activity.markAllRead}
           onOpen={(nextLocation) =>
             dispatch({ type: "navigate", location: nextLocation })
@@ -397,13 +450,23 @@ function ShellScreen({
         testID="screen-activity-alert-preview"
       >
         <ActivityDetailScreen
+          developmentProof={developmentActivityProof}
+          dismissalConfirmation={activity.model.dismissalConfirmation}
+          dismissalFailure={activity.model.dismissalFailure}
+          dismissalResult={activity.model.dismissalResult}
           eventId={location.eventId}
+          isDismissing={activity.model.isDismissing}
           isMarkingRead={activity.model.markingReadEventIds.includes(
             location.eventId,
           )}
           items={activity.model.allItems}
           mutationFailure={activity.model.mutationFailure}
+          onCancelDismissal={activity.cancelDismissal}
+          onConfirmDismissal={activity.confirmDismissal}
           onMarkRead={activity.markRead}
+          onDismissItem={activity.dismissItem}
+          onExitDevelopmentProof={onExitDevelopmentActivityProof}
+          onRetryDevelopmentProof={onRetryDevelopmentActivityProofCleanup}
           onOpen={(nextLocation) =>
             dispatch({ type: "navigate", location: nextLocation })
           }
@@ -482,6 +545,17 @@ function ShellScreen({
               onRefreshCapabilityPolicy={onRefreshCapabilityPolicy}
               onRetryInstallationRegistration={onRetryInstallationRegistration}
             />
+            {__DEV__ && developmentActivityProof ? (
+              <DevelopmentActivityProofControl
+                model={developmentActivityProof}
+                onExit={onExitDevelopmentActivityProof}
+                onQueueReadFailure={onQueueActivityReadFailure}
+                onRefresh={activity.refresh}
+                onReplay={onReplayDevelopmentActivityProof}
+                onRetryCleanup={onRetryDevelopmentActivityProofCleanup}
+                onStart={onStartDevelopmentActivityProof}
+              />
+            ) : null}
             {__DEV__ ? (
               <DevelopmentResourceFailureProofControl
                 onQueue={onRunCapabilityProfileDevelopmentProof}

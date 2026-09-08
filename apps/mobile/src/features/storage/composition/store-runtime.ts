@@ -23,6 +23,7 @@ import {
 import { ProductStore } from "../data/product-store";
 
 const keyPattern = /^[a-f0-9]{64}$/u;
+const activityProofNamespacePattern = /^activity-proof-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
 type PersistenceStartupCause = PersistenceStartupDiagnostic["cause"];
 
@@ -72,7 +73,7 @@ export interface MobileStoreRuntimeOptions {
   readonly secretStore: SecureSecretStore;
 }
 
-function names(namespace: string) {
+export function mobileStoreNamespaceArtifacts(namespace: string) {
   if (!/^[a-z0-9-]+$/u.test(namespace))
     throw new Error("The persistence namespace is invalid.");
   return {
@@ -83,6 +84,23 @@ function names(namespace: string) {
     product: `streamfusion-${namespace}-product.db`,
     productKey: `streamfusion.${namespace}.product-key.v1`,
   };
+}
+
+export async function cleanupMobileStoreNamespace(options: {
+  readonly databaseDriver: EncryptedDatabaseDriver;
+  readonly namespace: string;
+  readonly secretStore: SecureSecretStore;
+}): Promise<void> {
+  if (!activityProofNamespacePattern.test(options.namespace))
+    throw new Error("Only an exact Activity proof namespace may be cleaned.");
+  const storeNames = mobileStoreNamespaceArtifacts(options.namespace);
+  await options.databaseDriver.delete(storeNames.product);
+  await options.databaseDriver.delete(storeNames.cache);
+  await options.databaseDriver.delete(storeNames.backup);
+  await options.databaseDriver.deleteQuarantines(storeNames.product);
+  await options.secretStore.delete(storeNames.productKey);
+  await options.secretStore.delete(storeNames.cacheKey);
+  await options.secretStore.delete(storeNames.backupKey);
 }
 
 async function getOrCreateKey(options: {
@@ -250,15 +268,20 @@ export function createMobileStoreRuntime(
   options: MobileStoreRuntimeOptions,
 ): MobilePersistenceRuntime {
   const namespace = options.namespace ?? "main";
-  const storeNames = names(namespace);
+  const storeNames = mobileStoreNamespaceArtifacts(namespace);
   const randomKey = options.random.databaseKey;
   const now = options.now ?? Date.now;
   const configuredProductMigrations =
     options.productMigrationSet ?? productMigrations;
   let initializePromise: Promise<PersistenceRuntimeState> | undefined;
   let stores: OpenStoreSet | undefined;
+  let closing: Promise<void> | undefined;
+  let closeStarted = false;
+  let cacheClosed = false;
+  let productClosed = false;
 
   async function requireProductStore(): Promise<ProductStore> {
+    if (closeStarted) throw new Error("The encrypted Product Store is closing.");
     const state = await (initializePromise ??= initialize());
     if (state.kind !== "ready" || !stores) {
       throw new Error("The encrypted Product Store is unavailable.");
@@ -486,6 +509,12 @@ export function createMobileStoreRuntime(
         },
       },
       activity: {
+        async dismissCompleted(eventIds, dismissedAt) {
+          return (await requireProductStore()).dismissCompletedActivity(
+            eventIds,
+            dismissedAt,
+          );
+        },
         async list(filter) {
           return (await requireProductStore()).listActivity(filter);
         },
@@ -529,12 +558,43 @@ export function createMobileStoreRuntime(
       },
     },
     async close() {
+      if (closing) return closing;
       const open = stores;
-      stores = undefined;
-      initializePromise = undefined;
-      if (open) await Promise.all([open.product.close(), open.cache.close()]);
+      if (!open) return;
+      closeStarted = true;
+      closing = (async () => {
+        let failure: unknown = null;
+        if (!productClosed) {
+          try {
+            await open.product.close();
+            productClosed = true;
+          } catch (error) {
+            failure = error;
+          }
+        }
+        if (!cacheClosed) {
+          try {
+            await open.cache.close();
+            cacheClosed = true;
+          } catch (error) {
+            failure ??= error;
+          }
+        }
+        if (failure) throw failure;
+        stores = undefined;
+        initializePromise = undefined;
+        cacheClosed = false;
+        productClosed = false;
+      })();
+      try {
+        await closing;
+      } finally {
+        closing = undefined;
+      }
     },
     initialize() {
+      if (closeStarted && !stores)
+        return Promise.reject(new Error("The encrypted Product Store is closed."));
       initializePromise ??= initialize();
       return initializePromise;
     },
@@ -570,9 +630,9 @@ async function runPersistenceProof(options: {
   readonly secretStore: SecureSecretStore;
 }): Promise<PersistenceProofResult> {
   const proofNamespace = `proof-${options.randomUuid().toLowerCase()}`;
-  const proofNames = names(proofNamespace);
+  const proofNames = mobileStoreNamespaceArtifacts(proofNamespace);
   const migrationNamespace = `${proofNamespace}-migration`;
-  const migrationNames = names(migrationNamespace);
+  const migrationNames = mobileStoreNamespaceArtifacts(migrationNamespace);
   const marker = `native-encryption-marker-${options.randomUuid()}`;
   const runtimes: MobilePersistenceRuntime[] = [];
   const openDatabases = new Set<StoreDatabase>();
@@ -707,7 +767,7 @@ async function runPersistenceProof(options: {
       failedMigrationRestored &&
       backupEncrypted &&
       migratedState.kind === "ready" &&
-      migratedState.productSchemaVersion === 2 &&
+      migratedState.productSchemaVersion === 3 &&
       recoveredState.kind === "ready" &&
       recoveredState.recoveredProductStore;
 
@@ -793,7 +853,7 @@ async function cleanupProof(
     readonly databaseDriver: EncryptedDatabaseDriver;
     readonly secretStore: SecureSecretStore;
   },
-  nameSets: readonly ReturnType<typeof names>[],
+  nameSets: readonly ReturnType<typeof mobileStoreNamespaceArtifacts>[],
 ): Promise<void> {
   const operations: Promise<unknown>[] = [];
   for (const storeNames of nameSets) {

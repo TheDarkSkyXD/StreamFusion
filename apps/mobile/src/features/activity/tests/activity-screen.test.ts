@@ -1,8 +1,12 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ActivityScreen } from "../components/activity-screen";
+import {
+  ActivityDetailScreen,
+  ActivityScreen,
+} from "../components/activity-screen";
 import type { ActivityViewModel } from "../components/activity-controller";
+import type { DevelopmentActivityProofViewModel } from "../capabilities/development-activity-proof";
 
 type SystemActivityItem = Extract<
   ActivityViewModel["items"][number],
@@ -25,12 +29,18 @@ vi.mock("lucide-react-native", () => ({
   CircleAlert: "CircleAlert",
 }));
 
+vi.mock("react", async () => {
+  const actual = await vi.importActual<typeof import("react")>("react");
+  return { ...actual, useEffect: vi.fn() };
+});
+
 type ElementProps = Readonly<{
   accessibilityLiveRegion?: "none" | "polite" | "assertive";
   accessibilityLabel?: string;
   accessibilityState?: Readonly<{ busy?: boolean; disabled?: boolean }>;
   accessible?: boolean;
   children?: unknown;
+  onPress?: () => void;
   numberOfLines?: number;
   testID?: string;
 }>;
@@ -56,7 +66,11 @@ function model(overrides: Partial<ActivityViewModel> = {}): ActivityViewModel {
   const items = overrides.items ?? [item()];
   return {
     allItems: items,
+    dismissalConfirmation: null,
+    dismissalFailure: false,
+    dismissalResult: null,
     filter: "all",
+    isDismissing: false,
     isMarkingAllRead: false,
     isRefreshing: false,
     items,
@@ -87,9 +101,20 @@ function descendants(node: unknown): readonly Element[] {
   return [element, ...childNodes.flatMap((child) => descendants(child))];
 }
 
-function render(modelValue: ActivityViewModel) {
+function render(
+  modelValue: ActivityViewModel,
+  developmentProof?: DevelopmentActivityProofViewModel,
+) {
   const root = ActivityScreen({
     model: modelValue,
+    onCancelDismissal: () => undefined,
+    onConfirmDismissal: async () => undefined,
+    onDismissVisibleCompleted: () => undefined,
+    ...(developmentProof ? {
+      developmentProof,
+      onExitDevelopmentProof: async () => undefined,
+      onRetryDevelopmentProof: async () => undefined,
+    } : {}),
     onMarkAllRead: async () => undefined,
     onOpen: () => undefined,
     onRefresh: async () => undefined,
@@ -148,6 +173,85 @@ describe("Activity screen", () => {
     });
   });
 
+  it("emits a reachable clear-completed control with explicit busy state", () => {
+    const ready = render(model()).find(
+      (node) => node.props.testID === "activity-clear-completed",
+    );
+    expect(ready?.props.accessibilityState).toEqual({
+      busy: false,
+      disabled: false,
+    });
+
+    const busy = render(model({ isDismissing: true })).find(
+      (node) => node.props.testID === "activity-clear-completed",
+    );
+    expect(busy?.props.accessibilityState).toEqual({
+      busy: true,
+      disabled: true,
+    });
+  });
+
+  it("states that Clear completed applies across Activity tabs", () => {
+    const nodes = render(
+      model({
+        dismissalConfirmation: {
+          eventIds: ["event:system", "event:other"],
+          kind: "clear-completed",
+        },
+        filter: "channels",
+      }),
+    );
+    expect(
+      nodes.some(
+        (node) =>
+          typeof node.props.children === "string" &&
+          node.props.children.includes("across all Activity tabs"),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a detail dismissal confirmation, cancel, and destination action together", () => {
+    const onCancelDismissal = vi.fn();
+    const onDismissItem = vi.fn();
+    const onOpen = vi.fn();
+    const detail = ActivityDetailScreen({
+      dismissalConfirmation: {
+        eventIds: ["event:system"],
+        kind: "dismiss-item",
+      },
+      dismissalFailure: false,
+      dismissalResult: null,
+      eventId: "event:system",
+      isDismissing: false,
+      isMarkingRead: false,
+      items: [item()],
+      mutationFailure: null,
+      onCancelDismissal,
+      onConfirmDismissal: async () => undefined,
+      onDismissItem,
+      onMarkRead: async () => undefined,
+      onOpen,
+    });
+    const nodes = descendants(detail);
+    const dismiss = nodes.find(
+      (node) => node.props.testID === "activity-dismiss-item",
+    );
+    const cancel = nodes.find(
+      (node) => node.props.testID === "activity-dismissal-cancel",
+    );
+    const destination = nodes.find(
+      (node) => node.props.testID === "activity-open-destination",
+    );
+
+    dismiss?.props.onPress?.();
+    cancel?.props.onPress?.();
+    destination?.props.onPress?.();
+
+    expect(onDismissItem).toHaveBeenCalledWith("event:system");
+    expect(onCancelDismissal).toHaveBeenCalledOnce();
+    expect(onOpen).toHaveBeenCalledWith({ route: "more/diagnostics" });
+  });
+
   it("keeps saved rows visible with a reachable retry after a failed refresh", () => {
     const nodes = render(model({ status: "unavailable" }));
     const notice = nodes.find(
@@ -178,6 +282,45 @@ describe("Activity screen", () => {
     ).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "activity-retry-load"),
+    ).toBe(true);
+  });
+
+  it("keeps proof failure identity and its cleanup retry reachable in Activity", () => {
+    const nodes = render(model(), {
+      detail: "Proof cleanup could not finish.",
+      kind: "cleanup-required",
+      namespace: "activity-proof-11111111-1111-4111-8111-111111111111",
+      selected: true,
+    });
+    expect(
+      nodes.some(
+        (node) =>
+          typeof node.props.children === "string" &&
+          node.props.children.includes("activity-proof-11111111"),
+      ),
+    ).toBe(true);
+    expect(
+      nodes.some(
+        (node) => node.props.testID === "retry-activity-proof-cleanup",
+      ),
+    ).toBe(true);
+  });
+
+  it("shows a replay failure and Exit from the selected proof Activity", () => {
+    const nodes = render(model(), {
+      detail: "Proof Activity replay could not be saved.",
+      kind: "proof",
+      namespace: "activity-proof-11111111-1111-4111-8111-111111111111",
+    });
+    expect(
+      nodes.some(
+        (node) =>
+          typeof node.props.children === "string" &&
+          node.props.children.includes("replay could not be saved"),
+      ),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "exit-activity-proof"),
     ).toBe(true);
   });
 });

@@ -9,6 +9,10 @@ import {
 
 export interface ActivityInboxLifecycle {
   attach(listener: (snapshot: ActivityInboxViewModel) => void): () => void;
+  cancelDismissal(): void;
+  confirmDismissal(): Promise<void>;
+  dismissItem(eventId: string): void;
+  dismissAllCompleted(): void;
   markAllRead(): Promise<void>;
   markRead(eventId: string): Promise<void>;
   record(item: Parameters<ActivityInboxWorkflow["record"]>[0]): Promise<void>;
@@ -40,6 +44,18 @@ export function createActivityInboxLifecycle(options: {
     },
     markAllRead: async () => {
       await active?.markAllRead();
+    },
+    cancelDismissal() {
+      active?.cancelDismissal();
+    },
+    confirmDismissal: async () => {
+      await active?.confirmDismissal();
+    },
+    dismissItem(eventId) {
+      active?.dismissItem(eventId);
+    },
+    dismissAllCompleted() {
+      active?.dismissAllCompleted();
     },
     markRead: async (eventId) => {
       await active?.markRead(eventId);

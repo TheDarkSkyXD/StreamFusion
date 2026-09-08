@@ -20,6 +20,25 @@ export async function markActivityReadSafely(
   }
 }
 
+export async function dismissCompletedActivitySafely(
+  repository: ActivityRepository,
+  eventIds: readonly string[],
+  dismissedAt: SerializedTimestamp,
+): Promise<
+  ActivityMutationResult<
+    Awaited<ReturnType<ActivityRepository["dismissCompleted"]>>
+  >
+> {
+  try {
+    return {
+      kind: "saved",
+      value: await repository.dismissCompleted(eventIds, dismissedAt),
+    };
+  } catch {
+    return { kind: "failed" };
+  }
+}
+
 export async function markAllActivityReadSafely(
   repository: ActivityRepository,
   readAt: SerializedTimestamp,

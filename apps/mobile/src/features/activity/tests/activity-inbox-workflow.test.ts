@@ -62,6 +62,12 @@ function repository(
   overrides: Partial<ActivityRepository> = {},
 ): ActivityRepository {
   return {
+    dismissCompleted: async () => ({
+      activeEventIds: [],
+      alreadyDismissedEventIds: [],
+      dismissedEventIds: [],
+      missingEventIds: [],
+    }),
     list: async () => [],
     markAllRead: async () => 0,
     markRead: async () => null,
@@ -161,6 +167,148 @@ describe("Activity inbox workflow", () => {
     expect(inbox.snapshot()).toMatchObject({
       isMarkingAllRead: false,
       mutationFailure: null,
+    });
+  });
+
+  it("confirms only the captured completed IDs and retains an item that became active", async () => {
+    const completed = jobItem("job:completed");
+    const active: JobActivityItem = {
+      ...completed,
+      job: { ...completed.job, state: { kind: "active" } },
+    };
+    let stored: readonly ActivityItem[] = [completed];
+    const dismissCompleted = vi
+      .fn<ActivityRepository["dismissCompleted"]>()
+      .mockImplementation(async (eventIds) => {
+        const activeEventIds = stored
+          .filter(
+            (item) =>
+              eventIds.includes(item.eventId) &&
+              item.kind === "job" &&
+              item.job.state.kind === "active",
+          )
+          .map((item) => item.eventId);
+        const dismissedEventIds = eventIds.filter(
+          (eventId) => !activeEventIds.includes(eventId),
+        );
+        stored = stored.filter(
+          (item) => !dismissedEventIds.includes(item.eventId),
+        );
+        return {
+          activeEventIds,
+          alreadyDismissedEventIds: [],
+          dismissedEventIds,
+          missingEventIds: [],
+        };
+      });
+    const inbox = workflow(
+      repository({ dismissCompleted, list: async () => stored }),
+    );
+    await inbox.refresh();
+    inbox.dismissAllCompleted();
+    stored = [active, systemItem("event:new")];
+    await inbox.confirmDismissal();
+
+    expect(dismissCompleted).toHaveBeenCalledWith(
+      ["job:completed"],
+      "2026-09-08T01:00:00.000Z",
+    );
+    expect(inbox.snapshot()).toMatchObject({
+      dismissalConfirmation: null,
+      dismissalResult: { activeCount: 1, dismissedCount: 0, missingCount: 0 },
+      items: [{ eventId: "job:completed" }, { eventId: "event:new" }],
+    });
+  });
+
+  it("keeps the captured dismissal confirmation retryable after a failed write", async () => {
+    const item = systemItem("event:dismiss");
+    const dismissCompleted = vi
+      .fn<ActivityRepository["dismissCompleted"]>()
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockResolvedValueOnce({
+        activeEventIds: [],
+        alreadyDismissedEventIds: [],
+        dismissedEventIds: [item.eventId],
+        missingEventIds: [],
+      });
+    const inbox = workflow(
+      repository({ dismissCompleted, list: async () => [item] }),
+    );
+    await inbox.refresh();
+    inbox.dismissItem(item.eventId);
+    await inbox.confirmDismissal();
+    expect(inbox.snapshot()).toMatchObject({
+      dismissalConfirmation: { eventIds: [item.eventId], kind: "dismiss-item" },
+      dismissalFailure: true,
+      isDismissing: false,
+    });
+    await inbox.confirmDismissal();
+    expect(dismissCompleted).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes an already-hidden confirmation target when its authoritative refresh fails", async () => {
+    const item = systemItem("event:hidden");
+    const list = vi
+      .fn<() => Promise<readonly ActivityItem[]>>()
+      .mockResolvedValueOnce([item])
+      .mockRejectedValueOnce(new Error("unavailable"));
+    const inbox = workflow(
+      repository({
+        dismissCompleted: async () => ({
+          activeEventIds: [],
+          alreadyDismissedEventIds: [item.eventId],
+          dismissedEventIds: [],
+          missingEventIds: [],
+        }),
+        list,
+      }),
+    );
+    await inbox.refresh();
+    inbox.dismissItem(item.eventId);
+    await inbox.confirmDismissal();
+
+    expect(inbox.snapshot()).toMatchObject({
+      dismissalResult: {
+        activeCount: 0,
+        alreadyDismissedCount: 1,
+        dismissedCount: 0,
+        missingCount: 0,
+      },
+      items: [],
+      status: "unavailable",
+    });
+  });
+
+  it("contains a pruned confirmation target when its authoritative refresh fails", async () => {
+    const item = systemItem("event:pruned");
+    const list = vi
+      .fn<() => Promise<readonly ActivityItem[]>>()
+      .mockResolvedValueOnce([item])
+      .mockRejectedValueOnce(new Error("unavailable"));
+    const inbox = workflow(
+      repository({
+        dismissCompleted: async () => ({
+          activeEventIds: [],
+          alreadyDismissedEventIds: [],
+          dismissedEventIds: [],
+          missingEventIds: [item.eventId],
+        }),
+        list,
+      }),
+    );
+    await inbox.refresh();
+    inbox.dismissItem(item.eventId);
+    await inbox.confirmDismissal();
+
+    expect(inbox.snapshot()).toMatchObject({
+      dismissalResult: {
+        activeCount: 0,
+        alreadyDismissedCount: 0,
+        dismissedCount: 0,
+        missingCount: 1,
+      },
+      items: [],
+      status: "unavailable",
     });
   });
 
