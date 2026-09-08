@@ -38,6 +38,38 @@ function channelAlert(overrides = {}) {
   };
 }
 
+function jobActivity(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    eventId: "job:local:recording-1",
+    kind: "job",
+    source: "local",
+    occurredAt,
+    readAt: null,
+    title: "Recording",
+    body: "A local recording job",
+    job: { id: "recording-1", state: { kind: "active" } },
+    destination: { kind: "media-job", jobId: "recording-1" },
+    ...overrides,
+  };
+}
+
+function systemActivity(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    eventId: "device:health:v1",
+    kind: "system",
+    event: "device-health",
+    source: "local",
+    occurredAt,
+    readAt: null,
+    title: "Device health",
+    body: "A local device update",
+    destination: { kind: "diagnostics" },
+    ...overrides,
+  };
+}
+
 test("Activity schema accepts safe destinations and rejects URLs or unknown fields", () => {
   assert.equal(activityItemSchema.is(channelAlert()), true);
   assert.equal(
@@ -71,26 +103,44 @@ test("Activity schema accepts safe destinations and rejects URLs or unknown fiel
   );
 });
 
-test("duplicate event reconciliation preserves occurrence and resets unread state", () => {
+test("duplicate event reconciliation preserves read state across Activity kinds", () => {
   const readAt = toSerializedTimestamp("2026-09-04T12:01:00.000Z");
-  const existing = markActivityItemRead(channelAlert(), readAt);
-  const reconciled = reconcileActivityItem(
-    existing,
-    channelAlert({
-      readAt: toSerializedTimestamp("2026-09-04T12:02:00.000Z"),
-      title: "ProofStreamer remains live",
-    }),
-  );
+  const incomingReadAt = toSerializedTimestamp("2026-09-04T12:02:00.000Z");
+  for (const createItem of [channelAlert, jobActivity, systemActivity]) {
+    const existing = markActivityItemRead(createItem(), readAt);
+    const reconciledWithIncomingUnread = reconcileActivityItem(
+      existing,
+      createItem({
+        occurredAt: incomingReadAt,
+        readAt: null,
+        title: "Updated Activity item",
+      }),
+    );
+    const reconciledWithIncomingRead = reconcileActivityItem(
+      existing,
+      createItem({ occurredAt: incomingReadAt, readAt: incomingReadAt }),
+    );
+    const unreadReconciledWithIncomingRead = reconcileActivityItem(
+      createItem(),
+      createItem({ occurredAt: incomingReadAt, readAt: incomingReadAt }),
+    );
 
-  assert.equal(reconciled.title, "ProofStreamer remains live");
-  assert.equal(reconciled.occurredAt, existing.occurredAt);
-  assert.equal(reconciled.readAt, null);
-  const readAgain = markActivityItemRead(reconciled, readAt);
-  assert.equal(readAgain.readAt, readAt);
-  assert.equal(markActivityItemRead(readAgain, readAt), readAgain);
+    assert.equal(reconciledWithIncomingUnread.title, "Updated Activity item");
+    assert.equal(reconciledWithIncomingUnread.occurredAt, existing.occurredAt);
+    assert.equal(reconciledWithIncomingUnread.readAt, readAt);
+    assert.equal(reconciledWithIncomingRead.readAt, readAt);
+    assert.equal(unreadReconciledWithIncomingRead.readAt, null);
+    assert.equal(
+      markActivityItemRead(reconciledWithIncomingUnread, readAt),
+      reconciledWithIncomingUnread,
+    );
+  }
   assert.throws(
     () =>
-      reconcileActivityItem(existing, channelAlert({ eventId: "different" })),
+      reconcileActivityItem(
+        channelAlert(),
+        channelAlert({ eventId: "different" }),
+      ),
     /event identity/u,
   );
 });

@@ -222,16 +222,14 @@ describe("encrypted store policy", () => {
     ).resolves.toEqual({ kind: "failed" });
   });
 
-  it("deduplicates Activity events, preserves occurrence, and resets unread state", async () => {
+  it("deduplicates read Activity events without resetting persisted read state", async () => {
     const database = new ActivityMemoryDatabase();
     const store = new ProductStore(database);
+    const readAt = "2026-09-02T00:00:00.000Z" as SerializedTimestamp;
     await expect(store.recordActivity(activityItem())).resolves.toMatchObject({
       kind: "created",
     });
-    await store.markActivityRead(
-      "device:ready:v1",
-      "2026-09-02T00:00:00.000Z" as SerializedTimestamp,
-    );
+    await store.markActivityRead("device:ready:v1", readAt);
     await expect(
       store.recordActivity(
         activityItem({
@@ -243,11 +241,34 @@ describe("encrypted store policy", () => {
       kind: "reconciled",
       item: {
         occurredAt: "2026-09-01T00:00:00.000Z",
-        readAt: null,
+        readAt,
         title: "Ready again",
       },
     });
-    await expect(store.listActivity()).resolves.toHaveLength(1);
+    const reopened = new ProductStore(database);
+    await expect(reopened.listActivity()).resolves.toEqual([
+      expect.objectContaining({
+        eventId: "device:ready:v1",
+        occurredAt: "2026-09-01T00:00:00.000Z",
+        readAt,
+        title: "Ready again",
+      }),
+    ]);
+    await expect(
+      reopened.recordActivity(
+        activityItem({
+          eventId: "device:new:v1",
+          occurredAt: "2026-09-04T00:00:00.000Z" as SerializedTimestamp,
+          title: "New event",
+        }),
+      ),
+    ).resolves.toMatchObject({ kind: "created" });
+    await expect(reopened.listActivity()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: "device:ready:v1", readAt }),
+        expect.objectContaining({ eventId: "device:new:v1", readAt: null }),
+      ]),
+    );
   });
 
   it("skips malformed persisted Activity timestamps without failing the list", async () => {

@@ -245,7 +245,7 @@ export function reconcileActivityItem(
       "An Activity event cannot change kind during reconciliation.",
     );
   }
-  const readAt = null;
+  const readAt = existing.readAt;
   switch (incoming.kind) {
     case "channel":
       if (existing.kind !== "channel")
