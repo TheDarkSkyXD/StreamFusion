@@ -1,13 +1,15 @@
 import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BackHandler,
   KeyboardAvoidingView,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  type TextLayoutEventData,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -40,6 +42,10 @@ import { DevelopmentResourceFailureProofControl } from "@mobile/features/capabil
 import type { RuntimeObservationDevelopmentProofResult } from "@mobile/features/capability-profile/capabilities/capability-profile";
 
 import { DestinationIcon } from "./destination-icon";
+import {
+  applyCompactNavigationTextMeasurement,
+  type CompactNavigationLayout,
+} from "../domain/shell-layout";
 import {
   canNavigateBack,
   getActiveShellLocation,
@@ -107,7 +113,7 @@ export function AppShell({
     restoration: shellRestoration,
   });
   const { dispatch, state: navigation } = lifecycle;
-  const { width } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const placement = getShellNavigationPlacement(width);
 
@@ -128,6 +134,7 @@ export function AppShell({
   const navigationView = (
     <PrimaryNavigation
       dispatch={dispatch}
+      key={`${placement}:${width}:${fontScale}`}
       placement={placement}
       state={navigation}
     />
@@ -692,13 +699,41 @@ function PrimaryNavigation({
   readonly placement: "bottom" | "rail";
   readonly state: ShellNavigationState;
 }) {
+  const measurementActive = useRef(true);
+  const [layout, setLayout] = useState<CompactNavigationLayout>("row");
+
+  useEffect(() => {
+    measurementActive.current = true;
+    return () => {
+      measurementActive.current = false;
+    };
+  }, []);
+
+  const onTextLayout = useCallback(
+    (measuredLayout: CompactNavigationLayout) =>
+      (event: NativeSyntheticEvent<TextLayoutEventData>) => {
+        if (!measurementActive.current) return;
+        const lineCount = event.nativeEvent.lines.length;
+        setLayout((current) =>
+          applyCompactNavigationTextMeasurement(current, {
+            layout: measuredLayout,
+            lineCount,
+          }),
+        );
+      },
+    [],
+  );
+
   return (
     <View
       accessibilityLabel="Primary navigation"
       accessibilityRole="tablist"
-      style={
-        placement === "rail" ? styles.navigationRail : styles.navigationBottom
-      }
+      style={[
+        placement === "rail" ? styles.navigationRail : styles.navigationBottom,
+        placement === "bottom" && layout !== "row"
+          ? styles.navigationBottomGrid
+          : null,
+      ]}
       testID={`navigation-${placement}`}
     >
       {SHELL_DESTINATIONS.map((destination) => {
@@ -723,13 +758,27 @@ function PrimaryNavigation({
             style={({ pressed }) => [
               styles.navigationItem,
               placement === "rail" ? styles.navigationItemRail : null,
+              placement === "bottom" && layout === "grid-3"
+                ? styles.navigationItemGridThree
+                : null,
+              placement === "bottom" && layout === "grid-2"
+                ? styles.navigationItemGridTwo
+                : null,
               selected ? styles.navigationItemSelected : null,
               pressed ? styles.pressed : null,
             ]}
             testID={`nav-${destination.id}`}
           >
             <DestinationIcon color={color} destination={destination.id} />
-            <Text selectable style={[styles.navigationLabel, { color }]}>
+            <Text
+              onTextLayout={
+                placement === "bottom"
+                  ? onTextLayout(layout)
+                  : undefined
+              }
+              selectable
+              style={[styles.navigationLabel, { color }]}
+            >
               {destination.label}
             </Text>
           </Pressable>
@@ -942,6 +991,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.xSmall,
     paddingTop: mobileSpacing.xSmall,
   },
+  navigationBottomGrid: {
+    flexWrap: "wrap",
+    gap: 0,
+    justifyContent: "flex-start",
+  },
   navigationRail: {
     alignItems: "stretch",
     backgroundColor: mobileColors.surface,
@@ -967,6 +1021,14 @@ const styles = StyleSheet.create({
     flex: 0,
     minHeight: 56,
     width: "100%",
+  },
+  navigationItemGridThree: {
+    flex: 0,
+    width: "33.333333%",
+  },
+  navigationItemGridTwo: {
+    flex: 0,
+    width: "50%",
   },
   navigationItemSelected: {
     backgroundColor: mobileColors.navigationSelected,
