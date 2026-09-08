@@ -254,16 +254,57 @@ describe('RelatedContent', () => {
     });
 
     it('unmounts full-tab video cards when they leave the viewport margin', async () => {
-        const callbacks: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
-        window.IntersectionObserver = class implements IntersectionObserver {
-            readonly root = null;
-            readonly rootMargin = '';
-            readonly scrollMargin = '';
-            readonly thresholds: number[] = [];
-            constructor(callback: IntersectionObserverCallback) {
-                callbacks.push((entries) => callback(entries as IntersectionObserverEntry[], this));
+        type ObserverRecord = {
+            observedTargets: Element[];
+            disconnectCallCount: () => number;
+            trigger: (target: Element, isIntersecting: boolean) => void;
+        };
+        const observerRecords: ObserverRecord[] = [];
+        const createEntry = (target: Element, isIntersecting: boolean): IntersectionObserverEntry => {
+            const rect = target.getBoundingClientRect();
+            return {
+                boundingClientRect: rect,
+                intersectionRatio: isIntersecting ? 1 : 0,
+                intersectionRect: rect,
+                isIntersecting,
+                rootBounds: null,
+                target,
+                time: performance.now()
+            };
+        };
+        const getLazyCardTarget = (record: ObserverRecord): Element | undefined =>
+            record.observedTargets.find((target) => target.hasAttribute('data-related-card-mounted'));
+        const getLazyCardObserverRecords = () =>
+            observerRecords.filter((record) => getLazyCardTarget(record) !== undefined);
+        const requireLazyCardTarget = (record: ObserverRecord): Element => {
+            const target = getLazyCardTarget(record);
+            if (!target) {
+                throw new Error('Expected observer to be registered to a lazy related card target');
             }
-            observe = vi.fn();
+            return target;
+        };
+
+        window.IntersectionObserver = class implements IntersectionObserver {
+            readonly root: Element | Document | null;
+            readonly rootMargin: string;
+            readonly scrollMargin = '';
+            readonly thresholds: ReadonlyArray<number>;
+            private readonly observedTargets: Element[] = [];
+            constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+                this.root = options?.root ?? null;
+                this.rootMargin = options?.rootMargin ?? '';
+                this.thresholds = Array.isArray(options?.threshold)
+                    ? options.threshold
+                    : [options?.threshold ?? 0];
+                observerRecords.push({
+                    observedTargets: this.observedTargets,
+                    disconnectCallCount: () => this.disconnect.mock.calls.length,
+                    trigger: (target, isIntersecting) => callback([createEntry(target, isIntersecting)], this)
+                });
+            }
+            observe = vi.fn((target: Element) => {
+                this.observedTargets.push(target);
+            });
             unobserve = vi.fn();
             disconnect = vi.fn();
             takeRecords = vi.fn(() => []);
@@ -277,7 +318,7 @@ describe('RelatedContent', () => {
             }))
         });
 
-        render(
+        const { unmount } = render(
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
@@ -288,15 +329,37 @@ describe('RelatedContent', () => {
         await waitFor(() => {
             expect(screen.getAllByTestId('video-card')).toHaveLength(9);
         });
+        await waitFor(() => {
+            expect(getLazyCardObserverRecords()).toHaveLength(10);
+        });
 
+        const lazyCardObserverRecords = getLazyCardObserverRecords();
         act(() => {
-            callbacks.forEach((callback) => callback([{ isIntersecting: false }]));
+            lazyCardObserverRecords.forEach((record) => {
+                record.trigger(requireLazyCardTarget(record), false);
+            });
         });
 
         await waitFor(() => {
             expect(screen.queryAllByTestId('video-card')).toHaveLength(0);
         });
         expect(screen.getAllByTestId('deferred-related-card')).toHaveLength(10);
+
+        act(() => {
+            lazyCardObserverRecords.forEach((record) => {
+                record.trigger(requireLazyCardTarget(record), true);
+            });
+        });
+
+        await waitFor(() => {
+            expect(screen.getAllByTestId('video-card')).toHaveLength(10);
+        });
+        expect(screen.queryAllByTestId('deferred-related-card')).toHaveLength(0);
+
+        unmount();
+        observerRecords.forEach((record) => {
+            expect(record.disconnectCallCount()).toBe(1);
+        });
     });
 
     it('should request limit=20 on the Clips tab initial fetch', async () => {
