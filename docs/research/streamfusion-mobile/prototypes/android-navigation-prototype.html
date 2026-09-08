@@ -1974,6 +1974,111 @@
         }
       }
 
+      .player-controls,
+      .chat-tools,
+      .job-strip,
+      .tool-chooser {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .player-controls {
+        padding: 8px;
+        background: var(--surface);
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+      }
+
+      .player-controls button,
+      .chat-tools button,
+      .job-strip button,
+      .tool-chooser button {
+        min-height: 34px;
+        padding: 6px 9px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        background: var(--raised);
+        color: var(--text);
+        font: inherit;
+      }
+
+      .job-strip {
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 10px;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+
+      .job-strip small {
+        color: var(--muted);
+      }
+
+      .demo-sheet {
+        position: fixed;
+        z-index: 20;
+        inset: 0;
+        display: grid;
+        align-items: end;
+        background: rgba(0, 0, 0, 0.58);
+      }
+
+      .demo-sheet-card {
+        max-height: min(78vh, 560px);
+        overflow: auto;
+        padding: 18px;
+        border: 1px solid var(--divider);
+        border-radius: 18px 18px 0 0;
+        background: var(--raised);
+        box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.42);
+      }
+
+      .demo-sheet-card h3,
+      .demo-sheet-card p {
+        margin: 0;
+      }
+
+      .demo-sheet-card p {
+        margin-top: 7px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .demo-sheet-card label {
+        display: grid;
+        gap: 5px;
+        margin-top: 12px;
+        color: var(--category);
+        font-size: 12px;
+      }
+
+      .demo-sheet-card input,
+      .demo-sheet-card select {
+        min-height: 40px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 8px;
+        background: var(--void);
+        color: var(--text);
+        font: inherit;
+      }
+
+      .demo-sheet-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .fixture-label {
+        color: var(--muted);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
@@ -2302,6 +2407,8 @@
             "unban",
             "moderators",
             "vips",
+            "activity",
+            "active-mods",
           ],
         },
         {
@@ -2419,8 +2526,24 @@
       };
 
       const initialParams = new URLSearchParams(location.search);
+      const fixtureSlotNames = [
+        "NebulaNine",
+        "OrbitActual",
+        "ForgeLine",
+        "CircuitMara",
+        "SideQuest",
+        "NightIndex",
+      ];
+      const fixtureSlotImages = {
+        NebulaNine: streamImages.nebula,
+        OrbitActual: streamImages.orbit,
+        ForgeLine: streamImages.forge,
+        CircuitMara: streamImages.circuit,
+        SideQuest: streamImages.orbit,
+        NightIndex: streamImages.forge,
+      };
       const state = {
-        variant: initialParams.get("variant") || "A",
+        variant: initialParams.get("variant") || "B",
         screen: initialParams.get("screen") || "search",
         chatOpen: true,
         activeVideos: 2,
@@ -2431,6 +2554,26 @@
         diagnosticsRun: 4,
         compactDensity: true,
         playbackActive: true,
+        playerPaused: false,
+        playerMuted: false,
+        playerVolume: 70,
+        selectedQuality: "Auto",
+        playbackSpeed: "1x",
+        captionsActive: false,
+        captionModel: "not installed",
+        recordingState: "no active fixture job",
+        historyCleared: false,
+        historyRemovedTitles: [],
+        slotOrder: [...fixtureSlotNames],
+        activityRead: false,
+        lastAction: null,
+        miniPlayerPaused: false,
+        multiChatMode: "merged",
+        notificationPermission: "not requested",
+        selectedHistoryId: null,
+        demoSheet: null,
+        demoFeedback:
+          "Fixture mode. No provider, Android service, or credential is used.",
         searchTab: initialParams.get("searchTab") || "all",
         searchPlatform: "all",
         searchLiveOnly: false,
@@ -2460,6 +2603,20 @@
 
       function icon(name) {
         return `<span class="material-symbols-rounded" aria-hidden="true">${name}</span>`;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(
+          /[&<>'"]/g,
+          (character) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              "'": "&#39;",
+              '"': "&quot;",
+            })[character],
+        );
       }
 
       function statusBar() {
@@ -2713,6 +2870,22 @@
           </div>`;
       }
 
+      function playerControls({ seekEnabled = false } = {}) {
+        return `<div class="player-controls" aria-label="Fixture player controls">
+          <button type="button" data-action="player-play-pause">${icon(state.playerPaused ? "play_arrow" : "pause")} ${state.playerPaused ? "Play" : "Pause"}</button>
+          ${seekEnabled ? `<button type="button" data-action="player-seek-back">${icon("replay_10")} 10</button><button type="button" data-action="player-seek-forward">${icon("forward_10")} 10</button>` : `<span class="fixture-label">Live seek unavailable</span>`}
+          <button type="button" data-action="player-mute">${icon(state.playerMuted ? "volume_off" : "volume_up")} Volume</button>
+          <label class="range-control"><span>${state.playerVolume}%</span><input type="range" min="0" max="100" value="${state.playerVolume}" data-player-volume aria-label="Player volume" /></label>
+          <button type="button" data-action="player-speed">${state.playbackSpeed}</button>
+          <button type="button" data-action="player-quality">${state.selectedQuality}</button>
+          <button type="button" data-action="player-theater">${icon("tv")} Theater</button>
+          <button type="button" data-action="player-stats">${icon("query_stats")} Stats</button>
+          <button type="button" data-action="player-fullscreen">${icon("fullscreen")} Fullscreen</button>
+          <button type="button" data-action="player-pip">${icon("picture_in_picture_alt")} PiP</button>
+          <button type="button" data-action="player-captions">${icon("closed_caption")} ${state.captionsActive ? "Captions on" : "Captions"}</button>
+        </div>`;
+      }
+
       function videoStage() {
         return `
           <div class="video-stage">
@@ -2724,7 +2897,8 @@
                 <button class="icon-button" type="button" aria-label="Mute stream">${icon("volume_up")}</button>
               </div>
             </div>
-          </div>`;
+          </div>
+          ${playerControls()}`;
       }
 
       function chatPanel() {
@@ -2734,12 +2908,13 @@
         return `
           <section class="chat-panel">
             <header class="chat-header"><strong>Live chat</strong><button class="icon-button" type="button" data-action="toggle-chat" aria-label="Close chat">${icon("close")}</button></header>
+            <div class="chat-tools"><button type="button" data-action="chat-emotes">${icon("sentiment_satisfied")} Emotes</button><button type="button" data-action="chat-context">${icon("more_horiz")} Message actions</button><span class="fixture-label">Visible session only</span></div>
             <div class="chat-list">
-              <div class="chat-message"><strong>pixelPilot</strong>That rotation was clean</div>
-              <div class="chat-message"><strong>greenRoom</strong>Audio is perfect now</div>
-              <div class="chat-message"><strong>ModMira</strong>Reminder: keep spoilers tagged</div>
+              <div class="chat-message"><strong><span class="platform-badge twitch">Twitch</span> pixelPilot</strong>That rotation was clean</div>
+              <div class="chat-message"><strong><span class="platform-badge kick">Kick</span> greenRoom</strong>Audio is perfect now</div>
+              <div class="chat-message"><strong><span class="platform-badge twitch">Twitch</span> ModMira</strong>Reminder: keep spoilers tagged</div>
             </div>
-            <div class="chat-compose"><input aria-label="Chat message" placeholder="Message as Guest" /><button type="button">Send</button></div>
+            <div class="chat-compose"><input aria-label="Chat message" placeholder="Sign in to send on Twitch" data-chat-input /><button type="button" data-action="chat-send">Send</button></div>
           </section>`;
       }
 
@@ -2749,7 +2924,7 @@
           state.watchTab === "chat"
             ? chatPanel()
             : state.watchTab === "info"
-              ? `<div class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>Ranked, no resets</strong><span>NebulaNine · Apex Legends · 18.4K watching</span></span><button class="primary-button" type="button">Follow</button></div><div class="control-row"><button class="secondary-button" type="button" data-screen="multi">Add to Multistream</button><button class="secondary-button" type="button">Start recording</button></div><div class="notice good">${icon("closed_caption")}<div><strong>Local captions ready</strong><p>English model stays on this device. Starting captions may pause non-focused Streams.</p></div></div>`
+              ? `<div class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>Ranked, no resets</strong><span>NebulaNine · Apex Legends · 18.4K watching</span></span><button class="primary-button" type="button" data-action="channel-follow">Follow</button></div><div class="control-row"><button class="secondary-button" type="button" data-action="multistream-add">Add to Multistream</button><button class="secondary-button" type="button" data-action="job-record">Start recording</button><button class="secondary-button" type="button" data-action="job-download" disabled>Download VOD only</button></div><div class="job-strip"><span><strong>Fixture media job</strong><small> ${state.recordingState}.</small></span><button type="button" data-action="job-details">View jobs</button></div><div class="notice good">${icon("closed_caption")}<div><strong>Local captions ${state.captionsActive ? "active" : "ready"}</strong><p>Model: ${state.captionModel}. Captions use local program audio only and never ask for microphone permission.</p></div></div>`
               : `<div class="section-label"><span>Related content</span><span>NebulaNine</span></div><div class="history-list">${recordedCard("Final ring comeback", "NebulaNine", streamImages.nebula, "Clip · 00:42")}${recordedCard("Ranked review", "NebulaNine", streamImages.forge, "Video · 46:12")}</div>`;
         const tabBar = `<div class="segmented">${tabs.map((tab) => `<button class="${state.watchTab === tab ? "active" : ""}" type="button" data-action="watch-tab" data-tab="${tab}">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div>`;
         const body =
@@ -2772,9 +2947,10 @@
           <div class="screen-content">
             <div class="video-stage">
               <img src="${streamImages.forge}" alt="Final round highlights video preview" />
-              <div class="video-overlay"><div class="video-overlay-top"><span class="quality-badge">Video · 1080p</span><button class="icon-button" type="button" aria-label="Cast video">${icon("cast")}</button></div><div class="video-overlay-bottom"><button class="icon-button" type="button" aria-label="Play video">${icon("play_arrow")}</button><button class="icon-button" type="button" aria-label="Enter fullscreen">${icon("fullscreen")}</button></div></div>
+              <div class="video-overlay"><div class="video-overlay-top"><span class="quality-badge">Video · 1080p</span></div><div class="video-overlay-bottom"><button class="icon-button" type="button" data-action="player-play-pause" aria-label="Play or pause video">${icon("play_arrow")}</button><button class="icon-button" type="button" data-action="player-fullscreen" aria-label="Enter fullscreen">${icon("fullscreen")}</button></div></div>
             </div>
             <div class="playback-scrubber"><span>24:18</span><div class="progress-track"><div class="progress-value" style="width:37%"></div></div><span>1:06:42</span></div>
+            ${playerControls({ seekEnabled: true })}
             <div class="channel-hero"><img class="channel-avatar large" src="${avatarImages.ForgeLine}" alt="" /><span class="channel-hero-copy"><strong>Final round highlights</strong><span>ForgeLine · 84K views · 3 days ago</span></span><button class="primary-button" type="button">Follow</button></div>
             <div class="segmented">${["details", "comments", "related"].map((tab) => `<button class="${state.videoTab === tab ? "active" : ""}" type="button" data-action="video-tab" data-tab="${tab}">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div>
             ${panels[state.videoTab]}
@@ -2794,32 +2970,55 @@
       function multistreamScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Six-slot room</h2><p>${state.activeVideos} active · one audio owner</p></div><button class="text-button" type="button">Edit</button></div>
-            <div class="notice warning">${icon("device_thermostat")}<div><strong>Device is warm</strong><p>Four non-focused players are live thumbnails. Your layout and focused stream stay available.</p></div></div>
+            <div class="screen-title-row"><div><h2>Six-slot room</h2><p>${state.activeVideos} active · one audio owner</p></div><button class="text-button" type="button" data-action="multistream-edit">Edit</button></div>
+            <div class="segmented"><button class="${state.multiChatMode === "merged" ? "active" : ""}" type="button" data-action="multi-chat-mode" data-mode="merged">Merged chat</button><button class="${state.multiChatMode === "channel" ? "active" : ""}" type="button" data-action="multi-chat-mode" data-mode="channel">Channel chat</button></div>
+            <div class="notice warning">${icon("device_thermostat")}<div><strong>Fixture device state: ${state.thermal}</strong><p>${state.degradation}. This prototype does not qualify hardware or start background work.</p></div></div>
             <div class="multi-grid">
-              ${slot("NebulaNine", 1, streamImages.nebula)}
-              ${slot("OrbitActual", 2, streamImages.orbit)}
-              ${slot("ForgeLine", 3, streamImages.forge)}
-              ${slot("CircuitMara", 4, streamImages.circuit)}
-              ${slot("SideQuest", 5, streamImages.orbit)}
-              ${slot("NightIndex", 6, streamImages.forge)}
+              ${state.slotOrder.map((name, index) => slot(name, index + 1, fixtureSlotImages[name])).join("")}
             </div>
             <div class="control-row">
               <button class="primary-button" type="button" data-action="restore-slot">Try one more video</button>
               <button class="secondary-button" type="button" data-action="cool-device">Device cooled</button>
             </div>
+            <section class="chat-panel"><header class="chat-header"><strong>${state.multiChatMode === "merged" ? "Merged chat" : "NebulaNine chat"}</strong><span class="job-state">Fixture</span></header><div class="chat-list"><div class="chat-message"><strong><span class="platform-badge twitch">Twitch</span> pixelPilot</strong>Source-labeled merged messages stay visible.</div><div class="chat-message"><strong><span class="platform-badge kick">Kick</span> greenRoom</strong>Select a channel to enter its interactive chat.</div></div><div class="chat-tools"><button type="button" data-action="multi-chat-channel">Open channel chat</button><button type="button" data-action="chat-emotes">Emotes</button></div></section>
           </div>`;
       }
 
       function historyScreen() {
+        const row = (title, screen, image, kind, detail, progress) =>
+          state.historyRemovedTitles.includes(title)
+            ? ""
+            : `<article class="history-card"><button type="button" data-screen="${screen}"><img class="history-thumbnail" src="${image}" alt="" /><span><span class="history-kind">${kind}</span><strong>${title}</strong><small>${detail}</small><span class="progress-track"><span class="progress-value" style="width:${progress}%"></span></span></span></button><button class="compact-button" type="button" data-action="history-remove" data-title="${title}" aria-label="Remove ${title} from history">${icon("close")}</button></article>`;
+        const rows = [
+          row(
+            "Ranked, no resets",
+            "watch",
+            streamImages.nebula,
+            "Stream · Twitch",
+            "NebulaNine · 18 minutes ago · 38% watched",
+            38,
+          ),
+          row(
+            "Impossible recovery",
+            "video",
+            streamImages.orbit,
+            "Clip · Kick",
+            "OrbitActual · 00:42 · yesterday · completed",
+            100,
+          ),
+          row(
+            "Final round highlights",
+            "video",
+            streamImages.forge,
+            "Video · Twitch",
+            "ForgeLine · 1:06:42 · 3 days ago · 62% watched",
+            62,
+          ),
+        ].join("");
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>History</h2><p>Watched on this device</p></div><button class="text-button" type="button">Clear</button></div>
-            <div class="history-list">
-              <button type="button" class="history-card" data-screen="watch"><img class="history-thumbnail" src="${streamImages.nebula}" alt="" /><span><span class="history-kind">Stream</span><strong>Ranked, no resets</strong><small>NebulaNine · 18 minutes ago</small></span></button>
-              <button type="button" class="history-card" data-screen="video"><img class="history-thumbnail" src="${streamImages.orbit}" alt="" /><span><span class="history-kind">Clip</span><strong>Impossible recovery</strong><small>OrbitActual · 00:42 · yesterday</small></span></button>
-              <button type="button" class="history-card" data-screen="video"><img class="history-thumbnail" src="${streamImages.forge}" alt="" /><span><span class="history-kind">Video</span><strong>Final round highlights</strong><small>ForgeLine · 1:06:42 · 3 days ago</small></span></button>
-            </div>
+            <div class="screen-title-row"><div><h2>History</h2><p>Fixture entries stored on this device</p></div><button class="text-button" type="button" data-action="history-clear">Clear</button></div>
+            ${state.historyCleared || !rows ? `<div class="empty-state">${icon("history")}<strong>No fixture History rows</strong><span>Use Watch or Video to create a new local fixture row.</span></div>` : `<div class="history-list">${rows}</div>`}
           </div>`;
       }
 
@@ -2829,7 +3028,7 @@
         const systemItem = `<button type="button" class="system-card activity-link" data-screen="system"><span class="system-top"><span><strong>Device profile checked</strong><span>Yesterday · parity-qualified</span></span>${icon("check_circle")}</span></button>`;
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Activity</h2><p>3 unread · this device</p></div><button class="text-button" type="button">Mark read</button></div>
+            <div class="screen-title-row"><div><h2>Activity</h2><p>${state.activityRead ? "All read" : "3 unread"} · fixture device</p></div><button class="text-button" type="button" data-action="activity-mark-read">Mark read</button></div>
             <div class="segmented">${["all", "channels", "jobs"].map((tab) => `<button class="${state.activityTab === tab ? "active" : ""}" type="button" data-action="activity-tab" data-tab="${tab}">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div>
             <div class="system-list">
               ${state.activityTab === "channels" ? channelItems : state.activityTab === "jobs" ? jobItems : channelItems + jobItems + systemItem}
@@ -2847,6 +3046,8 @@
           unban: `<article class="mod-card"><div class="mod-top"><div><strong>orbitFan42</strong><span>Requested 3 hours ago · first request</span></div><span class="job-state">Pending</span></div><p style="font-size:10px;color:var(--category);line-height:1.45">I understand the rule now and will not repeat it.</p><div class="moderation-action"><button type="button">Deny</button><button type="button">Review log</button><button type="button">Approve</button></div></article>`,
           moderators: `<div class="system-list"><article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>ModMira</strong><span>Moderator · active today</span></span><button class="text-button" type="button">Remove</button></article><article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.ForgeLine}" alt="" /><span class="channel-hero-copy"><strong>ForgeLine</strong><span>Moderator · active yesterday</span></span><button class="text-button" type="button">Remove</button></article></div>`,
           vips: `<div class="system-list"><article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>OrbitActual</strong><span>VIP · added 4 months ago</span></span><button class="text-button" type="button">Remove</button></article></div>`,
+          activity: `<div class="search-filters"><button class="filter-chip active" type="button">All activity</button><button class="filter-chip" type="button">Follows</button><button class="filter-chip" type="button">Raids</button><button class="filter-chip" type="button">Messages</button></div><div class="system-list"><article class="system-card"><div class="system-top"><div><strong>Fixture follow</strong><span>Source-labeled activity, not a background listener claim</span></div><span class="platform-badge twitch">Twitch</span></div></article><article class="system-card"><div class="system-top"><div><strong>Fixture community event</strong><span>Scope and provider support stay visible</span></div><span class="platform-badge kick">Kick</span></div></article></div>`,
+          "active-mods": `<div class="system-list"><article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>ModMira</strong><span>Active moderator · fixture presence</span></span><button class="text-button" type="button">Message</button></article><article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.ForgeLine}" alt="" /><span class="channel-hero-copy"><strong>ForgeLine</strong><span>Moderator · last active fixture timestamp</span></span><button class="text-button" type="button">Remove</button></article></div>`,
         };
         const tabs = [
           ["chat", "Chat"],
@@ -2857,10 +3058,12 @@
           ["unban", "Unban"],
           ["moderators", "Moderators"],
           ["vips", "VIPs"],
+          ["activity", "Activity"],
+          ["active-mods", "Active mods"],
         ];
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Mod room</h2><p>NebulaNine · Twitch</p></div><button class="text-button" type="button">Switch</button></div>
+            <div class="screen-title-row"><div><h2>Mod room</h2><p>NebulaNine · Twitch · fixture scope</p></div><div class="control-row"><button class="text-button" type="button" data-action="moderation-switch">Switch</button><button class="text-button" type="button" data-action="moderation-tools">Tools</button></div></div>
             <div class="search-tabs" role="tablist" aria-label="Moderation tools">${tabs.map(([tab, label]) => `<button class="${state.moderationTab === tab ? "active" : ""}" type="button" data-action="moderation-tab" data-tab="${tab}">${label}</button>`).join("")}</div>
             ${panels[state.moderationTab]}
           </div>`;
@@ -2908,11 +3111,11 @@
 
       function diagnosticsTabContent() {
         const content = {
-          overview: `<div class="settings-status-grid"><div class="settings-status-card"><strong>Parity-qualified</strong><span>Profile checked today</span></div><div class="settings-status-card"><strong>2 of 6 active</strong><span>StreamSlots within limit</span></div><div class="settings-status-card"><strong>1.8 GB free</strong><span>App-private storage</span></div><div class="settings-status-card"><strong>Warm</strong><span>Runtime Degradation active</span></div></div>`,
-          resources: `${settingRange("diagnostic-window", "Observation window", "Current-session resource history", 15, 5, 60, " min")}<div class="settings-status-grid"><div class="settings-status-card"><strong>CPU 18.4%</strong><span>Main and renderer processes</span></div><div class="settings-status-card"><strong>Memory 742 MB</strong><span>Current StreamFusion total</span></div></div>`,
-          io: `<div class="settings-status-grid"><div class="settings-status-card"><strong>Read 4.2 MB/s</strong><span>Media and local models</span></div><div class="settings-status-card"><strong>Write 1.8 MB/s</strong><span>Recording and downloads</span></div></div>${settingChoice("diagnostic-io-window", "Observation window", "Current-session I/O evidence", ["5 min", "15 min", "30 min", "60 min"], "15 min")}`,
-          traces: `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>stream.resolve · 184 ms</strong><span>Twitch · success · 12 spans</span></div><span class="job-state">Trace</span></div></article><article class="system-card"><div class="system-top"><div><strong>download.segment · 612 ms</strong><span>Kick · slow · 8 spans</span></div><span class="job-state">Inspect</span></div></article></div>`,
-          "logs-reports": `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>Diagnostic report ${state.diagnosticsRun}</strong><span>Redacted logs, jobs, profile, exit history</span></div><button class="text-button" type="button">Share</button></div></article><article class="system-card"><div class="system-top"><div><strong>Runtime logs</strong><span>247 entries · 3 warnings · no secrets</span></div><button class="text-button" type="button">Open</button></div></article></div>`,
+          overview: `<div class="notice">${icon("science")}<div><strong>Fixture diagnostic summary</strong><p>App-owned observations only. This screen does not qualify hardware or claim production support.</p></div></div><div class="settings-status-grid"><div class="settings-status-card"><strong>2 configured active</strong><span>Fixture StreamSlots</span></div><div class="settings-status-card"><strong>Warm</strong><span>Fixture degradation state</span></div><div class="settings-status-card"><strong>1.8 GB free</strong><span>App-private storage fixture</span></div></div>`,
+          resources: `${settingChoice("diagnostic-window", "History range", "App-owned resource history. Gaps are not zero usage.", ["Real time", "5 minutes", "30 minutes", "1 hour", "24 hours", "7 days", "30 days", "90 days"], "30 minutes")}<div class="settings-status-grid"><div class="settings-status-card"><strong>Process</strong><span>Fixture CPU and memory sample</span></div><div class="settings-status-card"><strong>Managed runtime</strong><span>Fixture media and caption work</span></div><div class="settings-status-card"><strong>History gap</strong><span>No sample, not zero</span></div></div>`,
+          io: `${settingChoice("diagnostic-io-window", "History range", "App-owned I/O history. A gap is shown as unavailable evidence.", ["Real time", "5 minutes", "30 minutes", "1 hour", "24 hours", "7 days", "30 days", "90 days"], "30 minutes")}<div class="settings-status-grid"><div class="settings-status-card"><strong>Read</strong><span>Fixture media and model I/O</span></div><div class="settings-status-card"><strong>Write</strong><span>Fixture recording and download I/O</span></div><div class="settings-status-card"><strong>Gap</strong><span>No prior app sample</span></div></div>`,
+          traces: `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>stream.resolve · fixture</strong><span>Local trace summary · no provider request</span></div><span class="job-state">Trace</span></div></article><article class="system-card"><div class="system-top"><div><strong>media job · fixture</strong><span>Lifecycle recovery state is simulated</span></div><span class="job-state">Inspect</span></div></article></div>`,
+          "logs-reports": `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>Fixture report ${state.diagnosticsRun}</strong><span>Redacted report preview, jobs, profile, exit history</span></div><button class="text-button" type="button" data-action="job-details">Review</button></div></article><article class="system-card"><div class="system-top"><div><strong>Runtime logs</strong><span>Fixture entries · no secrets · app-owned only</span></div><button class="text-button" type="button" data-action="job-details">Open</button></div></article></div>`,
           "developer-tools": `<div class="notice warning">${icon("developer_mode")}<div><strong>Developer build only on Desktop</strong><p>Android keeps safe diagnostics here but does not expose arbitrary process control.</p></div></div>${settingToggle("diagnostic-detail", "Detailed collection", "Collect bounded diagnostic detail for the selected subject", false)}`,
         };
         return content[state.diagnosticsTab];
@@ -2928,7 +3131,7 @@
         if (sectionId === "appearance")
           body = `${settingSection("Display", settingChoice("theme", "Theme", "StreamFusion stays dark by default", ["System dark", "Dark", "High contrast"], "System dark") + settingChoice("density", "Content density", "Spacing for lists, chat, and controls", ["Comfortable", "Compact"], "Comfortable") + settingChoice("language", "Language", "App interface language", ["English", "Spanish", "German"], "English"))}${settingSection("Startup", settingToggle("restore-session", "Restore last session", "Return to the previous destination and playback state") + settingToggle("resume-playback", "Resume playback", "Ask before resuming metered video", false))}`;
         if (sectionId === "playback")
-          body = `${settingSection("Defaults", settingChoice("quality", "Default quality", "Preferred stream quality when available", ["Auto", "Source", "1080p", "720p", "480p"], "Auto") + settingRange("carousel", "Featured carousel timing", "How long each featured Stream stays active", 15, 5, 60, " sec") + settingToggle("captions", "Local captions", "Use the downloaded English model when Platform captions are unavailable"))}${settingSection("Advanced", settingChoice("token-player", "Access-token player type", "Player type used for eligible ad-block token requests", ["Default", "Site", "Embed", "Picture-by-picture"], "Default") + settingToggle("hevc", "Allow HEVC (H.265)", "Keep HEVC Streams instead of swapping to AVC during ads", false) + settingField("Stream device ID", "Identifier sent with eligible token requests", "auto-generated"), "Power user")}`;
+          body = `${settingSection("Defaults", settingChoice("quality", "Default quality", "Preferred stream quality when available", ["Auto", "Source", "1080p", "720p", "480p"], "Auto") + settingRange("carousel", "Featured carousel timing", "How long each featured Stream stays active", 15, 5, 60, " sec") + settingToggle("captions", "Local captions", "Use the downloaded English model when Platform captions are unavailable"))}${settingSection("Caption model and appearance", settingChoice("caption-track", "Caption track", "Choose the active local caption track", ["Off", "English local"], "Off") + settingRange("caption-text-size", "Caption text size", "Percent of the approved base size", 100, 75, 200, "%") + settingRange("caption-background-opacity", "Caption background", "Percent opacity behind caption text", 70, 0, 100, "%") + `<div class="setting-row"><span class="setting-copy"><strong>English local model</strong><small>Fixture install, cancel, retry, and remove path</small></span><button type="button" class="setting-value" data-action="caption-model">Manage</button></div>`)}${settingSection("Advanced", settingChoice("token-player", "Access-token player type", "Player type used for eligible ad-block token requests", ["Default", "Site", "Embed", "Picture-by-picture"], "Default") + settingToggle("hevc", "Allow HEVC (H.265)", "Keep HEVC Streams instead of swapping to AVC during ads", false) + settingField("Stream device ID", "Identifier sent with eligible token requests", "auto-generated"), "Power user")}`;
         if (sectionId === "player-controls")
           body = `${settingSection("Visible controls", ["Quality", "Playback speed", "Volume", "Fullscreen", "Theater", "Video Stats"].map((label, index) => settingToggle(`control-${index}`, label, "Show this control when it applies", index !== 5)).join(""))}${settingSection("Seek intervals", settingChoice("rewind", "Rewind", "Seconds skipped backward in Videos and Clips", ["5 sec", "10 sec", "20 sec", "30 sec"], "10 sec") + settingChoice("fast-forward", "Fast forward", "Seconds skipped forward in Videos and Clips", ["5 sec", "10 sec", "20 sec", "30 sec"], "10 sec"))}`;
         if (sectionId === "buffer")
@@ -2984,7 +3187,7 @@
         if (sectionId === "api-tokens")
           body = `${settingSection("Token status", `<div class="settings-status-grid"><div class="settings-status-card"><strong>Twitch valid</strong><span>7 scopes · refresh available</span></div><div class="settings-status-card"><strong>Kick not connected</strong><span>Public reads and Guest Follows available</span></div></div>`)}<div class="notice warning">${icon("security")}<div><strong>Tokens are never displayed</strong><p>This screen reports status, expiry, and scopes without exposing credential values.</p></div></div>`;
         if (sectionId === "updates")
-          body = `${settingSection("Automatic checks", settingToggle("prerelease", "Allow pre-release updates", "Receive beta and preview versions before stable release", false) + settingToggle("startup-updates", "Check on startup", "Check for a newer signed GitHub APK in the background") + settingChoice("update-frequency", "Check frequency", "How often automatic checks run", ["Hourly", "Daily", "Weekly"], "Daily"))}${settingSection("Current version", `<div class="setting-row"><span class="setting-copy"><strong>StreamFusion 0.1.0</strong><small>Android · signed GitHub APK channel</small></span><button class="setting-value" type="button">Check now</button></div>`)}`;
+          body = `${settingSection("Stable release checks", settingToggle("automatic-foreground-updates", "Check while foregrounded", "Optional stable-release check no more than once per 24 hours", false))}${settingSection("Current version", `<div class="setting-row"><span class="setting-copy"><strong>Fixture version 0.1.0</strong><small>Stable GitHub APK policy · no prerelease or background-startup check</small></span><button class="setting-value" type="button" data-action="check-updates">Check now</button></div>`)}`;
         if (sectionId === "diagnostics") {
           const tabs = [
             ["overview", "Overview"],
@@ -3031,29 +3234,29 @@
       function accountsScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Accounts</h2><p>Platform connections and notification identity</p></div><button class="text-button" type="button">Add</button></div>
+            <div class="screen-title-row"><div><h2>Accounts</h2><p>Fixture connections and notification identity</p></div><button class="text-button" type="button" data-action="account-add">Add</button></div>
             <div class="system-list">
-              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Connected · follows, chat, moderation</span></span><span class="platform-badge twitch">Twitch</span></article>
-              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>Guest mode</strong><span>Guest Follows only · connect for chat</span></span><span class="platform-badge kick">Kick</span></article>
+              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Fixture connected · follows, chat, moderation</span></span><button class="text-button" type="button" data-action="account-manage">Manage</button><span class="platform-badge twitch">Twitch</span></article>
+              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>Guest mode</strong><span>Guest Follows only · connect for chat</span></span><button class="text-button" type="button" data-action="account-add">Connect</button><span class="platform-badge kick">Kick</span></article>
             </div>
-            <section class="system-card"><div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Account notifications</strong><span class="job-state">Device-local</span></div><div class="switch-row"><div><strong>Live alerts</strong><span>Followed and Guest Follow Channels</span></div><button type="button" class="switch on" aria-label="Toggle live alerts"></button></div><div class="switch-row"><div><strong>Moderation alerts</strong><span>Eligible managed channels</span></div><button type="button" class="switch on" aria-label="Toggle moderation alerts"></button></div></section>
+            <section class="system-card"><div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Account notifications</strong><span class="job-state">${state.notificationPermission}</span></div><div class="switch-row"><div><strong>Live alerts</strong><span>Followed and Guest Follow Channels</span></div><button type="button" class="switch" data-action="notification-permission" aria-label="Configure live alerts"></button></div><div class="switch-row"><div><strong>Moderation alerts</strong><span>Eligible managed channels</span></div><button type="button" class="switch" data-action="notification-permission" aria-label="Configure moderation alerts"></button></div><p class="fixture-label">Activity remains local when permission is denied. No token or relay request runs here.</p></section>
           </div>`;
       }
 
       function systemScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Diagnostics</h2><p>Qualified · profile checked today</p></div><button class="text-button" type="button" data-action="run-check">Run check</button></div>
-            <div class="notice good">${icon("check_circle")}<div><strong>Parity-Qualified Device</strong><p>Two active videos, local captions, recording, downloads, and diagnostics passed the baseline.</p></div></div>
+            <div class="screen-title-row"><div><h2>Diagnostics</h2><p>Fixture state · app-owned observations</p></div><button class="text-button" type="button" data-action="run-check">Run check</button></div>
+            <div class="notice">${icon("science")}<div><strong>Diagnostic fixture</strong><p>Capability, resource, and job states are simulated. No hardware qualification or background service runs here.</p></div></div>
             <section class="system-card">
               <div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Playback and chat</strong><span class="job-state">Local</span></div>
               <div class="switch-row"><div><strong>Local captions</strong><span>English · 43.11 MiB</span></div><button type="button" class="switch on" aria-label="Toggle local captions"></button></div>
               <div class="switch-row"><div><strong>Compact chat density</strong><span>Show more messages on screen</span></div><button type="button" class="switch ${state.compactDensity ? "on" : ""}" data-action="toggle-density" aria-label="Toggle compact chat density"></button></div>
             </section>
             <div class="system-list">
-              <article class="system-card"><div class="system-top"><div><strong>Device and media health</strong><span>Warm · 2 of 6 active · 1.8 GB free</span></div>${icon("health_metrics")}</div></article>
-              <article class="system-card"><div class="system-top"><div><strong>Diagnostics report ${state.diagnosticsRun}</strong><span>Redacted logs, exit history, jobs, profile</span></div><button class="text-button" type="button">Share</button></div></article>
-              <article class="system-card"><div class="system-top"><div><strong>Accounts and notifications</strong><span>Twitch connected · Kick guest mode</span></div>${icon("chevron_right")}</div></article>
+              <button class="system-card" type="button" data-screen="settings-diagnostics"><span class="system-top"><span><strong>Device and media health</strong><span>Fixture thermal, storage, runtime, and lifecycle evidence</span></span>${icon("health_metrics")}</span></button>
+              <article class="system-card"><div class="system-top"><div><strong>Fixture diagnostics report ${state.diagnosticsRun}</strong><span>Redacted local preview, exit history, jobs, profile</span></div><button class="text-button" type="button" data-action="job-details">Review</button></div></article>
+              <button class="system-card" type="button" data-screen="accounts"><span class="system-top"><span><strong>Accounts and notifications</strong><span>Fixture account and permission state</span></span>${icon("chevron_right")}</span></button>
             </div>
           </div>`;
       }
@@ -3212,7 +3415,71 @@
       }
 
       function miniPlayer() {
-        return `<div class="mini-player" data-mini-player role="button" tabindex="0" aria-label="Return to NebulaNine in Watch. Drag to move."><img src="${streamImages.nebula}" alt="" /><span class="mini-player-label">NebulaNine · drag to move</span><button class="mini-player-close" type="button" data-action="dismiss-player" aria-label="Close mini-player">${icon("close")}</button></div>`;
+        return `<div class="mini-player" data-mini-player role="button" tabindex="0" aria-label="Return to NebulaNine in Watch. Drag to move."><img src="${streamImages.nebula}" alt="" /><span class="mini-player-label">${state.miniPlayerPaused ? "Paused" : "Playing"} · NebulaNine</span><button class="mini-player-close" type="button" data-action="mini-player-pause" aria-label="${state.miniPlayerPaused ? "Resume" : "Pause"} mini-player">${icon(state.miniPlayerPaused ? "play_arrow" : "pause")}</button><button class="mini-player-close" type="button" data-action="dismiss-player" aria-label="Close mini-player">${icon("close")}</button></div>`;
+      }
+
+      function demoSheet() {
+        const sheet = state.demoSheet;
+        if (!sheet) return "";
+        const detail = sheetDetail(sheet);
+        const field = sheet.field
+          ? `<label>${escapeHtml(sheet.field.label)}<input data-demo-field value="${escapeHtml(sheet.field.value || "")}" placeholder="${escapeHtml(sheet.field.placeholder || "")}" /></label>`
+          : "";
+        const options = (sheet.options || [])
+          .map(
+            (option) =>
+              `<button type="button" data-action="demo-option" data-value="${option.value}">${option.label}</button>`,
+          )
+          .join("");
+        const actions =
+          sheet.kind === "review"
+            ? `<div class="demo-sheet-actions"><button class="primary-button" type="button" data-sheet-confirm data-action="close-sheet">Close</button></div>`
+            : `<div class="demo-sheet-actions"><button class="secondary-button" type="button" data-action="close-sheet">Cancel</button><button class="primary-button" type="button" data-sheet-confirm data-action="confirm-sheet">${sheet.confirmLabel || "Apply fixture"}</button></div>`;
+        return `<div class="demo-sheet" data-sheet-backdrop role="dialog" aria-modal="true" aria-label="${escapeHtml(sheet.title)}"><section class="demo-sheet-card"><span class="fixture-label">Prototype fixture</span><h3>${escapeHtml(sheet.title)}</h3><p>${escapeHtml(sheet.copy)}</p>${detail}${field}${options ? `<div class="tool-chooser">${options}</div>` : ""}<p>${escapeHtml(state.demoFeedback)}</p>${actions}</section></div>`;
+      }
+
+      function sheetDetail(sheet) {
+        if (sheet.kind === "slot-editor")
+          return `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>${state.configuredSlots} configured slots</strong><span>${state.activeVideos} active fixture videos · order: ${state.slotOrder.join(" → ")}</span></div><button type="button" data-action="sheet-fixture-action" data-result="slot-focus">Focus first</button></div></article><div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="slot-add">Add</button><button type="button" data-action="sheet-fixture-action" data-result="slot-reorder">Move first to end</button><button type="button" data-action="sheet-fixture-action" data-result="slot-remove">Remove last</button></div></div>`;
+        if (sheet.kind === "caption-model")
+          return `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>English local model</strong><span>${state.captionModel} · 43.11 MiB fixture</span></div></div></article><div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="caption-install">Install</button><button type="button" data-action="sheet-fixture-action" data-result="caption-cancel">Cancel</button><button type="button" data-action="sheet-fixture-action" data-result="caption-retry">Retry</button><button type="button" data-action="sheet-fixture-action" data-result="caption-remove">Remove</button></div></div>`;
+        if (sheet.kind === "account")
+          return `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>Twitch Device Code</strong><span>Fixture code and verification route. No credential is shown.</span></div><button type="button" data-action="sheet-fixture-action" data-result="account-twitch">Start</button></div></article><article class="system-card"><div class="system-top"><div><strong>Kick PKCE</strong><span>Fixture callback, state, expiry, and retry path.</span></div><button type="button" data-action="sheet-fixture-action" data-result="account-kick">Start</button></div></article><button type="button" data-action="sheet-fixture-action" data-result="account-disconnect">Disconnect fixture account</button></div>`;
+        if (sheet.kind === "tool-stream-info")
+          return `<label>Title<input data-demo-field value="Fixture stream title" /></label><label>Category<input data-demo-field value="Apex Legends" /></label><label>Tags<input data-demo-field value="english, ranked" /></label><label>Language<select data-demo-field><option>English</option><option>Spanish</option></select></label><label>Content labels<select data-demo-field><option>None</option><option>Mature audience</option></select></label>`;
+        if (sheet.kind === "tool-blocked-terms")
+          return `<label>Blocked term<input data-demo-field placeholder="Add a fixture term" /></label><div class="system-list"><article class="system-card"><div class="system-top"><div><strong>Fixture term</strong><span>Provider validation pending</span></div><button type="button" data-action="sheet-fixture-action" data-result="term-remove">Remove</button></div></article></div>`;
+        if (sheet.kind === "tool-automod")
+          return `<label>AutoMod level<select data-demo-field><option>Level 1</option><option>Level 2</option><option>Level 3</option><option>Level 4</option></select></label><div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="automod-apply">Apply fixture policy</button><button type="button" data-action="sheet-fixture-action" data-result="automod-reject">Show scope rejection</button></div>`;
+        if (sheet.kind === "tool-automod-queue")
+          return `<article class="system-card"><div class="system-top"><div><strong>Held fixture message</strong><span>Scope and channel are checked before action.</span></div></div><div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="queue-allow">Allow</button><button type="button" data-action="sheet-fixture-action" data-result="queue-deny">Deny</button></div></article>`;
+        if (sheet.kind === "tool-rewards")
+          return `<article class="system-card"><div class="system-top"><div><strong>Fixture redemption</strong><span>Available only for rewards created by this app.</span></div><span class="job-state">App-created</span></div><button type="button" data-action="sheet-fixture-action" data-result="reward-complete">Complete fixture redemption</button></article><article class="system-card"><div class="system-top"><div><strong>Provider-created reward</strong><span>Unavailable by policy.</span></div><span class="job-state">Unavailable</span></div></article>`;
+        if (sheet.kind === "tool-suspicious")
+          return `<div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="suspicious-monitor">Monitor</button><button type="button" data-action="sheet-fixture-action" data-result="suspicious-restrict">Restrict</button><button type="button" data-action="sheet-fixture-action" data-result="suspicious-clear">Clear status</button></div>`;
+        if (sheet.kind === "tool-shield")
+          return `<article class="system-card"><div class="system-top"><div><strong>Shield Mode</strong><span>Fixture channel protection state with explicit confirmation.</span></div><span class="job-state">Off</span></div><div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="shield-enable">Enable</button><button type="button" data-action="sheet-fixture-action" data-result="shield-disable">Disable</button></div></article>`;
+        if (sheet.kind === "tool-community")
+          return `<label>Community mode<select data-demo-field><option>Off</option><option>Followers only</option><option>Slow mode</option></select></label><div class="tool-chooser"><button type="button" data-action="sheet-fixture-action" data-result="community-apply">Apply fixture mode</button><button type="button" data-action="sheet-fixture-action" data-result="community-scope">Show scope rejection</button></div>`;
+        if (sheet.kind === "tool-whispers")
+          return `<div class="system-list"><article class="system-card"><div class="system-top"><div><strong>Fixture whisper</strong><span>Visible only with a verified account scope.</span></div><span class="job-state">Scope required</span></div></article><label>Reply draft<input data-demo-field placeholder="Fixture reply" /></label><button type="button" data-action="sheet-fixture-action" data-result="whisper-send">Send fixture reply</button></div>`;
+        if (sheet.kind === "tool-native")
+          return `<div class="notice">${icon("open_in_new")}<div><strong>Safe native handoff</strong><p>This fixture can label an Android handoff. It cannot start arbitrary native actions or process controls.</p></div></div><button type="button" data-action="sheet-fixture-action" data-result="native-handoff">Record fixture handoff</button>`;
+        if (sheet.kind === "tool-unavailable")
+          return `<div class="notice warning">${icon("lock")}<div><strong>Fixture unavailable</strong><p>The selected provider, role, or scope does not support this tool in the current fixture.</p></div></div>`;
+        return "";
+      }
+
+      function openSheet(
+        title,
+        copy,
+        options = [],
+        field = null,
+        confirmLabel,
+        kind = "review",
+      ) {
+        state.demoSheet = { title, copy, options, field, confirmLabel, kind };
+        state.demoFeedback = "Fixture mode. Nothing leaves this prototype.";
       }
 
       function renderApp() {
@@ -3236,6 +3503,7 @@
             ${hasSearchDock ? searchDock() : ""}
             ${bottom}
             ${player}
+            ${demoSheet()}
           </div>`;
         bindAppEvents();
         bindMiniPlayer();
@@ -3277,15 +3545,99 @@
           }
         });
         document.querySelectorAll("[data-action]").forEach((element) => {
-          element.addEventListener("click", () =>
-            handleAction(element.dataset.action, element.dataset),
-          );
+          element.addEventListener("click", () => {
+            if (
+              ![
+                "close-sheet",
+                "confirm-sheet",
+                "demo-option",
+                "sheet-fixture-action",
+              ].includes(element.dataset.action)
+            )
+              state.lastAction = element.dataset.action;
+            handleAction(element.dataset.action, element.dataset);
+          });
         });
+        document
+          .querySelectorAll(
+            "button:not([data-action]):not([data-screen]):not([id])",
+          )
+          .forEach((element) => {
+            element.addEventListener("click", () =>
+              handleAction("unresolved-control", {
+                label: element.textContent.trim(),
+              }),
+            );
+          });
         document
           .querySelector("[data-search-input]")
           ?.addEventListener("input", (event) => {
             state.searchQuery = event.currentTarget.value;
           });
+        document
+          .querySelector("[data-chat-input]")
+          ?.addEventListener("input", (event) => {
+            state.chatDraft = event.currentTarget.value;
+          });
+        document.querySelectorAll("[data-demo-field]").forEach((element) => {
+          element.addEventListener("input", (event) => {
+            state.demoFeedback = `Fixture input captured: ${event.currentTarget.value || "empty"}.`;
+          });
+        });
+        document
+          .querySelector("[data-player-volume]")
+          ?.addEventListener("input", (event) => {
+            state.playerVolume = Number(event.currentTarget.value);
+            event.currentTarget.previousElementSibling.textContent = `${state.playerVolume}%`;
+          });
+        const sheet = document.querySelector("[data-sheet-backdrop]");
+        if (sheet) {
+          document
+            .querySelectorAll(
+              ".topbar, .screen, .search-dock, .bottom-nav, .side-rail, .mini-player",
+            )
+            .forEach((element) => {
+              element.inert = true;
+            });
+          sheet.addEventListener("click", (event) => {
+            if (event.target === sheet) {
+              state.demoSheet = null;
+              renderApp();
+            }
+          });
+          const focusable = [
+            ...sheet.querySelectorAll("button, input, select"),
+          ];
+          sheet.addEventListener("keydown", (event) => {
+            if (event.key !== "Tab" || focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            }
+            if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          });
+          sheet.querySelector("[data-sheet-confirm]")?.focus();
+        } else if (state.lastAction) {
+          requestAnimationFrame(() =>
+            document
+              .querySelector(`[data-action="${state.lastAction}"]`)
+              ?.focus(),
+          );
+        }
+        if (!window.prototypeEscapeBound) {
+          window.prototypeEscapeBound = true;
+          document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape" || !state.demoSheet) return;
+            event.preventDefault();
+            state.demoSheet = null;
+            renderApp();
+          });
+        }
         document.querySelectorAll("[data-setting-range]").forEach((input) => {
           input.addEventListener("input", (event) => {
             const control = event.currentTarget;
@@ -3376,6 +3728,359 @@
       }
 
       function handleAction(action, data) {
+        if (action === "unresolved-control")
+          openSheet(
+            `${data.label || "Control"} needs a feature workflow`,
+            "The source mockup shows this control, but its provider policy, validation, and terminal state are not settled. This fixture does not report success.",
+          );
+        if (action === "close-sheet") state.demoSheet = null;
+        if (action === "confirm-sheet") {
+          if (state.demoSheet?.kind === "history-clear")
+            state.historyCleared = true;
+          if (
+            state.demoSheet?.kind === "history-remove" &&
+            state.selectedHistoryId
+          )
+            state.historyRemovedTitles = [
+              ...state.historyRemovedTitles,
+              state.selectedHistoryId,
+            ];
+          if (state.demoSheet?.kind === "recording")
+            state.recordingState = "recording fixture job queued";
+          state.demoFeedback =
+            "Fixture change recorded locally for this review session.";
+          state.demoSheet = null;
+        }
+        if (action === "demo-option") {
+          if (state.demoSheet?.title === "Channel tools") {
+            const toolKinds = {
+              "shield-mode": [
+                "Shield Mode",
+                "Confirm fixture enable or disable for the selected channel.",
+                "tool-shield",
+              ],
+              automod: [
+                "AutoMod policy",
+                "Edit fixture categories and level after scope validation.",
+                "tool-automod",
+              ],
+              "blocked-terms": [
+                "Blocked terms",
+                "Review, add, or remove fixture terms with provider validation.",
+                "tool-blocked-terms",
+              ],
+              "stream-info": [
+                "Edit Stream Info",
+                "Edit fixture title, category, and tags before one provider submission.",
+                "tool-stream-info",
+              ],
+              "automod-queue": [
+                "AutoMod queue",
+                "Review the held fixture message before allowing or denying it.",
+                "tool-automod-queue",
+              ],
+              "suspicious-users": [
+                "Suspicious users",
+                "Change the fixture status only after confirmation and scope validation.",
+                "tool-suspicious",
+              ],
+              community: [
+                "Community",
+                "Fixture community controls retain provider and scope restrictions.",
+                "tool-community",
+              ],
+              whispers: [
+                "Whispers",
+                "Fixture whisper activity appears only when the account has the required scope.",
+                "tool-whispers",
+              ],
+              rewards: [
+                "Rewards",
+                "Fixture reward redemption view keeps app-created eligibility visible.",
+                "tool-rewards",
+              ],
+              "native-tools": [
+                "Native tools",
+                "This Android fixture keeps a safe handoff marker. It does not expose arbitrary native controls.",
+                "tool-native",
+              ],
+            };
+            const [title, copy, kind] = toolKinds[data.value] || [
+              "Channel tool",
+              "Fixture tool state.",
+              "tool-unavailable",
+            ];
+            openSheet(title, copy, [], null, "Apply fixture", kind);
+          }
+          if (state.demoSheet?.title === "Playback speed")
+            state.playbackSpeed = data.value;
+          if (state.demoSheet?.title === "Stream quality")
+            state.selectedQuality = data.value;
+          if (
+            state.demoSheet?.title === "Local captions" &&
+            data.value === "english-model"
+          )
+            state.captionsActive = !state.captionsActive;
+          if (
+            state.demoSheet?.title === "Local captions" &&
+            data.value === "caption-style"
+          ) {
+            state.demoSheet = null;
+            state.screen = "settings-playback";
+          }
+          if (
+            state.demoSheet?.title === "Local captions" &&
+            data.value === "remove-model"
+          )
+            openSheet(
+              "English caption model",
+              "Fixture model manager. Install, cancel, retry, and remove are local model lifecycle actions. No microphone or cloud transcription is used.",
+              [],
+              null,
+              "Close",
+              "caption-model",
+            );
+          if (state.demoSheet?.title === "Live alert permission")
+            state.notificationPermission = data.value;
+          state.demoFeedback = `Fixture option selected: ${data.value}. No provider request was sent.`;
+        }
+        if (action === "sheet-fixture-action") {
+          if (
+            data.result === "slot-add" &&
+            state.slotOrder.length < fixtureSlotNames.length
+          )
+            state.slotOrder = [
+              ...state.slotOrder,
+              fixtureSlotNames.find((name) => !state.slotOrder.includes(name)),
+            ];
+          if (data.result === "slot-remove" && state.slotOrder.length > 1)
+            state.slotOrder = state.slotOrder.slice(0, -1);
+          if (data.result === "slot-focus")
+            state.audioOwner = state.slotOrder[0];
+          if (data.result === "slot-reorder")
+            state.slotOrder = [...state.slotOrder.slice(1), state.slotOrder[0]];
+          state.configuredSlots = state.slotOrder.length;
+          if (data.result === "caption-install")
+            state.captionModel = "installed fixture";
+          if (data.result === "caption-cancel")
+            state.captionModel = "install canceled fixture";
+          if (data.result === "caption-retry")
+            state.captionModel = "retrying fixture";
+          if (data.result === "caption-remove")
+            state.captionModel = "removed fixture";
+          state.demoFeedback = `Fixture action recorded: ${data.result}. No provider request was sent.`;
+        }
+        if (action === "player-play-pause")
+          state.playerPaused = !state.playerPaused;
+        if (action === "player-seek-back" || action === "player-seek-forward")
+          state.demoFeedback = `Fixture seek ${action === "player-seek-back" ? "backward" : "forward"} by 10 seconds.`;
+        if (action === "player-mute") state.playerMuted = !state.playerMuted;
+        if (action === "player-speed")
+          openSheet(
+            "Playback speed",
+            "Choose a fixture playback rate. The active player is not changed.",
+            [
+              { label: "0.75x", value: "0.75x" },
+              { label: "1x", value: "1x" },
+              { label: "1.25x", value: "1.25x" },
+              { label: "1.5x", value: "1.5x" },
+            ],
+          );
+        if (action === "player-quality")
+          openSheet(
+            "Stream quality",
+            "Choose a fixture quality. Provider fallback remains visible in a real player.",
+            [
+              { label: "Auto", value: "Auto" },
+              { label: "Source", value: "Source" },
+              { label: "1080p", value: "1080p" },
+              { label: "720p", value: "720p" },
+            ],
+          );
+        if (action === "player-fullscreen")
+          openSheet(
+            "Fullscreen",
+            "Fixture control. Android orientation and system bars are not changed by this prototype.",
+          );
+        if (action === "player-theater")
+          openSheet(
+            "Theater mode",
+            "Fixture control. The active session stays in the same Watch route.",
+          );
+        if (action === "player-stats")
+          openSheet(
+            "Video stats",
+            "Fixture telemetry. A real player shows measured app-owned playback state without secrets.",
+          );
+        if (action === "player-pip")
+          openSheet(
+            "Picture in Picture",
+            "Fixture control. Mini-player and Android PiP represent one session and cannot both be active.",
+          );
+        if (action === "player-captions")
+          openSheet(
+            "Local captions",
+            "Fixture control. Caption tracks, model install, retry, cancel, and removal use local program audio only.",
+            [
+              { label: "English local model", value: "english-model" },
+              { label: "Caption appearance", value: "caption-style" },
+              { label: "Remove model", value: "remove-model" },
+            ],
+          );
+        if (action === "caption-model")
+          openSheet(
+            "English caption model",
+            "Fixture model manager. Install, cancel, retry, and remove are local model lifecycle actions. No microphone or cloud transcription is used.",
+            [],
+            null,
+            "Close",
+            "caption-model",
+          );
+        if (action === "mini-player-pause")
+          state.miniPlayerPaused = !state.miniPlayerPaused;
+        if (action === "chat-emotes")
+          openSheet(
+            "Emote picker",
+            "Fixture emotes are local labels. No chat send occurs until an eligible signed-in session exists.",
+            [
+              { label: "Kappa", value: "Kappa" },
+              { label: "Pog", value: "Pog" },
+              { label: "GG", value: "GG" },
+            ],
+          );
+        if (action === "chat-context")
+          openSheet(
+            "Message actions",
+            "Fixture menu. Provider and scope decide which moderation, reply, report, or profile actions appear.",
+            [
+              { label: "Reply", value: "reply" },
+              { label: "Open profile", value: "profile" },
+              { label: "Moderation tools", value: "moderation" },
+            ],
+          );
+        if (action === "chat-send")
+          openSheet(
+            "Chat send unavailable",
+            "This fixture has no signed-in provider session. The draft stays local and no background listener or provider request starts.",
+            [],
+            { label: "Draft message", placeholder: "Type a fixture message" },
+            "Keep draft",
+          );
+        if (action === "job-record")
+          openSheet(
+            "Start recording",
+            "Fixture confirmation. A real recording needs explicit user start, visible foreground service state, capacity checks, and durable job evidence.",
+            [],
+            null,
+            "Start fixture job",
+            "recording",
+          );
+        if (action === "job-download")
+          openSheet(
+            "Download unavailable",
+            "This live-stream fixture cannot start a VOD or Clip download. No job was created.",
+          );
+        if (action === "job-details")
+          openSheet(
+            "Media jobs",
+            "Fixture job list. Real jobs show queued, running, paused, completed, failed, and recovery states.",
+          );
+        if (action === "channel-follow")
+          openSheet(
+            "Follow source",
+            "Choose Guest Follow or an approved provider-page action. This prototype does not mutate either source.",
+            [
+              { label: "Guest Follow", value: "guest-follow" },
+              { label: "Open provider page", value: "provider-page" },
+            ],
+          );
+        if (action === "multistream-add" || action === "multistream-edit")
+          openSheet(
+            "Edit Multistream",
+            "Fixture slot editor. Configured slots remain separate from measured active-video capacity.",
+            [],
+            null,
+            "Save fixture layout",
+            "slot-editor",
+          );
+        if (action === "multi-chat-mode") state.multiChatMode = data.mode;
+        if (action === "multi-chat-channel") {
+          state.multiChatMode = "channel";
+          state.chatOpen = true;
+        }
+        if (action === "history-clear")
+          openSheet(
+            "Clear History",
+            "Fixture confirmation. A real clear affects History only and leaves Activity, settings, media, and accounts intact.",
+            [],
+            null,
+            "Clear fixture history",
+            "history-clear",
+          );
+        if (action === "history-remove")
+          ((state.selectedHistoryId = data.title),
+            openSheet(
+              "Remove history item",
+              `Fixture confirmation for ${data.title}. No provider data is changed.`,
+              [],
+              null,
+              "Remove fixture item",
+              "history-remove",
+            ));
+        if (action === "activity-mark-read") {
+          state.activityRead = true;
+          state.demoFeedback =
+            "Fixture Activity items marked read for this review session.";
+        }
+        if (action === "moderation-switch")
+          openSheet(
+            "Switch moderation room",
+            "Fixture eligible workspaces only. A real chooser filters unavailable provider roles and expired sessions.",
+            [
+              { label: "NebulaNine · Twitch", value: "twitch-room" },
+              { label: "OrbitActual · Kick", value: "kick-room" },
+            ],
+          );
+        if (action === "moderation-tools")
+          openSheet(
+            "Channel tools",
+            "Fixture tool chooser. Provider, role, and scope constrain every item before it is enabled.",
+            [
+              { label: "Shield Mode", value: "shield-mode" },
+              { label: "AutoMod policy", value: "automod" },
+              { label: "Blocked terms", value: "blocked-terms" },
+              { label: "Edit Stream Info", value: "stream-info" },
+              { label: "AutoMod queue", value: "automod-queue" },
+              { label: "Suspicious users", value: "suspicious-users" },
+              { label: "Community", value: "community" },
+              { label: "Whispers", value: "whispers" },
+              { label: "Rewards", value: "rewards" },
+              { label: "Native tools", value: "native-tools" },
+            ],
+          );
+        if (action === "notification-permission")
+          openSheet(
+            "Live alert permission",
+            "Fixture permission path. Activity stays available when Android permission is denied. No token or relay request is made.",
+            [
+              { label: "Allow fixture alerts", value: "allowed" },
+              { label: "Keep Activity only", value: "denied" },
+            ],
+          );
+        if (action === "account-add" || action === "account-manage")
+          openSheet(
+            action === "account-add" ? "Connect account" : "Manage account",
+            "Fixture account flow. OAuth callback, scopes, expiry, refresh, disconnect, and guest separation are shown without credentials.",
+            [],
+            null,
+            "Apply fixture",
+            "account",
+          );
+        if (action === "check-updates")
+          openSheet(
+            "Check stable release",
+            "Fixture check. Only the latest stable release is eligible. No download, signer validation, or installer request occurs here.",
+          );
         if (action === "toggle-chat") state.chatOpen = !state.chatOpen;
         if (action === "restore-slot") {
           state.activeVideos = Math.min(6, state.activeVideos + 1);
@@ -3431,7 +4136,10 @@
             (query) => query !== data.query,
           );
         if (action === "clear-search-history") state.searchHistory = [];
-        if (action === "dismiss-player") state.playbackActive = false;
+        if (action === "dismiss-player") {
+          state.playbackActive = false;
+          state.playerPaused = true;
+        }
         updateUrl();
         renderApp();
       }
@@ -3485,6 +4193,7 @@
         .getElementById("next-variant")
         .addEventListener("click", () => cycleVariant(1));
       document.addEventListener("keydown", (event) => {
+        if (state.demoSheet) return;
         const tag = document.activeElement?.tagName;
         if (
           ["INPUT", "TEXTAREA"].includes(tag) ||

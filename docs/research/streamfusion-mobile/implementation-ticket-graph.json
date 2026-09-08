@@ -7,7 +7,8 @@
   },
   "sourceSpecification": {
     "commit": "b9d1255",
-    "path": "docs/research/streamfusion-mobile/streamfusion-mobile-implementation-specification.md"
+    "path": "docs/research/streamfusion-mobile/streamfusion-mobile-implementation-specification.md",
+    "amendment": "2026-09-07 PRD sections 6.7–6.9, 18–19 and normative screen and control contract"
   },
   "coverage": {
     "settingsPanels": [
@@ -45,7 +46,9 @@
         "Engagement",
         "Unban",
         "Moderators",
-        "VIPs"
+        "VIPs",
+        "Activity",
+        "Active moderators"
       ],
       "Diagnostics": [
         "Overview",
@@ -58,14 +61,38 @@
     }
   },
   "milestones": [
-    { "id": "M0", "name": "Repository and build foundation" },
-    { "id": "M1", "name": "Shared-core extraction" },
-    { "id": "M2", "name": "Android device foundation" },
-    { "id": "M3", "name": "Identity and discovery" },
-    { "id": "M4", "name": "Watch and engagement" },
-    { "id": "M5", "name": "Media, settings, and diagnostics" },
-    { "id": "M6", "name": "Notifications and release path" },
-    { "id": "M7", "name": "Parity closure and publication" }
+    {
+      "id": "M0",
+      "name": "Repository and build foundation"
+    },
+    {
+      "id": "M1",
+      "name": "Shared-core extraction"
+    },
+    {
+      "id": "M2",
+      "name": "Android device foundation"
+    },
+    {
+      "id": "M3",
+      "name": "Identity and discovery"
+    },
+    {
+      "id": "M4",
+      "name": "Watch and engagement"
+    },
+    {
+      "id": "M5",
+      "name": "Media, settings, and diagnostics"
+    },
+    {
+      "id": "M6",
+      "name": "Notifications and release path"
+    },
+    {
+      "id": "M7",
+      "name": "Parity closure and publication"
+    }
   ],
   "tickets": [
     {
@@ -139,7 +166,6 @@
       ],
       "delivers": "A separate Integration Relay workspace and Cloudflare deployment boundary with shared relay envelopes, development and production configuration isolation, and no product endpoints yet."
     },
-
     {
       "id": "C01",
       "milestone": "M1",
@@ -274,7 +300,6 @@
       ],
       "delivers": "All portable callers use core public exports, compatibility re-exports and migration exceptions are gone, and the extraction-complete predicate passes."
     },
-
     {
       "id": "B01",
       "milestone": "M2",
@@ -358,14 +383,34 @@
       "capabilities": ["diagnostics-logs-and-bug-reports", "multistream"],
       "evidence": [
         "change-gate",
-        "lowest-device",
-        "constrained-device",
+        "api30-device",
+        "native-contract-tests",
         "thermal-proof",
         "degradation-order"
       ],
-      "delivers": "Install qualification, measured device capacity, visible ordered degradation with hysteresis, and diagnostic evidence that preserves the focused task and artifacts."
+      "delivers": "Measured Android resource observations, installation eligibility, typed degradation and recovery policy, and foundation measurement UI with loading, failure, retry and observation feedback. Full physical-workload admission and integrated mitigation qualification are required under Q01 before release."
     },
-
+    {
+      "id": "UX01",
+      "issueNumber": 195,
+      "milestone": "M6",
+      "startsDuring": "M2",
+      "completionCheckpoint": "Before R04 promotion; feature UI completes inside each owning feature issue",
+      "completionRequires": ["Q01"],
+      "title": "Continuously reconcile mobile screen, control, action and UI/UX coverage",
+      "kind": "verification",
+      "blockedBy": [],
+      "owners": ["mobile", "verification", "capability-owners"],
+      "capabilities": ["*"],
+      "evidence": [
+        "source-decision-register",
+        "screen-control-contract",
+        "per-feature-ui-evidence",
+        "cross-feature-consistency",
+        "resolved-required-findings"
+      ],
+      "delivers": "Start inventory immediately, review UI and UX within every feature slice, and finish integrated development-candidate review before R04 promotion. Feature owners implement their own complete experience before closing; UX01 is not deferred page construction."
+    },
     {
       "id": "D01",
       "milestone": "M3",
@@ -513,7 +558,6 @@
       ],
       "delivers": "Live-first Following, Guest Follows, supported account imports, provider-page actions, local search, notification preferences, and Live Notification Projection commands across five tab states."
     },
-
     {
       "id": "W01",
       "milestone": "M4",
@@ -710,7 +754,6 @@
       ],
       "delivers": "Supported proxy configuration, connectivity observation, request cancellation, bounded retry, Platform isolation, stale-cache state, and actionable diagnostics."
     },
-
     {
       "id": "M01",
       "milestone": "M5",
@@ -890,7 +933,6 @@
       ],
       "delivers": "Overview, Resources, I/O, Traces, Logs and reports, and Developer tools states with Capability Profile, degradation causes, redacted exports, and safe recovery."
     },
-
     {
       "id": "N01",
       "milestone": "M6",
@@ -980,10 +1022,11 @@
         "interrupted-download",
         "package-installer"
       ],
-      "delivers": "Manual or daily stable-release checks, validated metadata, resumable private APK download, digest and signer verification, explicit PackageInstaller handoff, and cleanup."
+      "delivers": "Manual stable-release checks and optional foreground automatic checks no more than once per 24 hours, validated metadata, resumable private APK download, digest and signer verification, explicit PackageInstaller handoff, and cleanup."
     },
     {
       "id": "R03",
+      "issueNumber": 177,
       "milestone": "M6",
       "title": "Automate the four Android verification gates",
       "kind": "verification",
@@ -1001,11 +1044,23 @@
       "delivers": "Change, Main, Candidate, and Public Release automation with API 30 and current emulator journeys, physical roles, live canaries, accessibility, performance, security, and fail-closed evidence freshness."
     },
     {
-      "id": "R04",
+      "id": "Q01",
+      "issueNumber": 196,
       "milestone": "M6",
+      "title": "Qualify full Android workloads and integrated degradation before release",
+      "kind": "verification",
+      "blockedBy": ["B06", "W01", "W02", "W03", "W09", "M01", "M02", "M03", "M04", "M05", "M08", "M09", "R03"],
+      "owners": ["mobile", "mobile-native", "verification", "capability-owners"],
+      "capabilities": ["diagnostics-logs-and-bug-reports", "multistream"],
+      "evidence": ["change-gate", "lowest-device", "constrained-device", "thermal-proof", "degradation-order"],
+      "delivers": "Full physical-workload admission, measured capacity, real integrated mitigation and recovery, focused-work and artifact preservation, reviewed performance limits and complete affected UI/UX. Required before UX01 final completion and every M7 release gate."
+    },
+    {
+      "id": "R04",
+      "milestone": "M7",
       "title": "Promote one exact APK into an immutable Android Release Set",
       "kind": "release",
-      "blockedBy": ["R02", "R03"],
+      "blockedBy": ["R02", "R03", "UX01", "Q01"],
       "owners": ["publisher", "release", "verification"],
       "capabilities": ["app-updates"],
       "evidence": [
@@ -1018,7 +1073,6 @@
       ],
       "delivers": "Protected second-approval promotion of one EAS build ID into a matched immutable Release Set, plus metadata withdrawal and same-key forward-fix rehearsal."
     },
-
     {
       "id": "P01",
       "milestone": "M7",
@@ -1051,7 +1105,9 @@
         "W08",
         "W09",
         "W10",
-        "W11"
+        "W11",
+        "UX01",
+        "Q01"
       ],
       "owners": ["verification", "capability-owners"],
       "capabilities": ["*"],
@@ -1059,7 +1115,7 @@
         "desktop-baseline",
         "24-capability-records",
         "17-settings-panels",
-        "40-tab-states",
+        "42-tab-states",
         "no-exceptions",
         "no-quarantines"
       ],
@@ -1070,7 +1126,7 @@
       "milestone": "M7",
       "title": "Pass the complete Candidate Gate twice",
       "kind": "verification",
-      "blockedBy": ["P01", "R04"],
+      "blockedBy": ["P01", "R04", "UX01", "Q01"],
       "owners": ["verification", "capability-owners"],
       "capabilities": ["*"],
       "evidence": [
@@ -1089,7 +1145,7 @@
       "milestone": "M7",
       "title": "Publish the first Public Android Release",
       "kind": "publisher-task",
-      "blockedBy": ["P02"],
+      "blockedBy": ["P02", "UX01", "Q01"],
       "owners": ["publisher", "verification-reviewer", "capability-owners"],
       "capabilities": ["*"],
       "evidence": [
@@ -1102,5 +1158,34 @@
       ],
       "delivers": "The exact approved APK and matched immutable Android Release Set become the first public GitHub release only after the complete fail-closed predicate passes."
     }
-  ]
+  ],
+  "amendments": [
+    {
+      "date": "2026-09-07",
+      "issue": 196,
+      "decision": "User requires all work before release. Split B06 foundation acceptance from Q01 full-workload qualification. Preserve full qualification and feature-owned UI/UX before UX01 completes and all M7 gates; no threshold waiver or issue closure is implied."
+    },
+    {
+      "date": "2026-09-07",
+      "issue": 195,
+      "decision": "Every feature owns its complete UI and UX before closure. Continuous cross-feature review finishes before production artifact promotion; release gates revalidate rather than implement missing UI."
+    },
+    {
+      "date": "2026-09-07",
+      "issue": 122,
+      "decision": "Order UX01 after B06 for continuous development review. M6 completes notifications and UI/UX; move R04 artifact promotion into M7. R04, P01, P02 and P03 directly require UX01 completion."
+    }
+  ],
+  "featureDeliveryContract": {
+    "appliesTo": "Every issue implementing or changing a feature; pure infrastructure must justify no new UI and verify affected consumers.",
+    "requirements": [
+      "Trace PRD, approved mockup, screen, tab, component, control and business-rule IDs.",
+      "Compare current Desktop screens, controls, settings, workflows and tests with Mobile; add omitted outcomes to the mockup and PRD within the feature, using approved Android adaptations.",
+      "Deliver complete feature UI, domain behavior, adapters, persistence and accessible interactions together.",
+      "Complete applicable loading, empty, offline, error, permission, lifecycle, cancellation and recovery states.",
+      "Prove real Android actions with root npm start option 3 and Mobile MCP; custom native work requires the matching development client.",
+      "Attach matched reference/app screenshots, regression tests and current source/artifact evidence before feature closure.",
+      "Do not defer feature UI to UX01 or a release ticket."
+    ]
+  }
 }

@@ -2,17 +2,25 @@
 
 Status: Approved in [Approve the StreamFusion Mobile implementation milestone and ticket graph](https://github.com/TheDarkSkyXD/StreamFusion/issues/121)
 
-Source specification: commit `b9d1255`
+Source specification: approved baseline `b9d1255`, amended on 2026-09-07 under #195 for complete screen/control contracts and feature-owned UI/UX acceptance.
 
 Machine-readable graph: [implementation-ticket-graph.json](./implementation-ticket-graph.json)
 
 ## What this roadmap defines
 
-This approved roadmap defines eight GitHub milestones and 59 implementation tickets. The graph is the publication source for their granularity and blocker edges.
+The approved baseline defines eight GitHub milestones and 59 implementation tickets. The 2026-09-07 amendments add #195 for continuous cross-feature review and #196 for full-workload qualification, for 61 tracked tickets. The graph records the baseline and amended blocker edges.
 
 The first 15 tickets are controlled repository and shared-core migration work. The remaining tickets are Android tracer bullets, verification work, or Publisher tasks. A tracer bullet must end in behavior that can be exercised through the real application and indexed in the evidence catalog.
 
 Draft IDs such as `F01` and `W03` are graph identifiers, not GitHub issue numbers.
+
+## Feature UI and UX are part of delivery
+
+Every feature issue delivers its complete UI, interactions, business rules, persistence, integration and evidence together, as required by PRD section 6.7 and its normative screen and control contract. A working backend, native stub, placeholder page or happy-path screenshot does not close a feature. Each milestone finishes the UI and UX of the features it delivers. Pure infrastructure records why no new UI applies and verifies affected consumers.
+
+UX01, issue #195, begins immediately and reviews each slice throughout development. It owns cross-feature consistency and coverage reconciliation, not postponed page construction. Required corrections return to their feature owner before that feature closes. Integrated UI and UX acceptance completes before R04/#178 production promotion. P02/#180 revalidates the completed experience on the exact candidate; it does not implement missing UI. Publisher setup and verification tooling can still start independently.
+
+This amendment retains existing feature issue numbers and their implementation order. UX01 has no start blocker because inventory and review start now; its completion still requires all relevant feature UI and development-candidate evidence. The user resolved B06 sequencing by retaining all work before release. B06 owns the complete measurement/degradation foundation. Q01 (#196) owns full-workload qualification after real media implementations and before UX01 final completion and every M7 gate. No qualification requirement or performance limit is waived.
 
 ## Publication model
 
@@ -39,7 +47,7 @@ flowchart LR
   M3 --> M4["M4 Watch and engagement"]
   M2 --> M5["M5 Media, settings, and diagnostics"]
   M4 --> M5
-  M3 --> M6["M6 Notifications and release path"]
+  M3 --> M6["M6 Notifications and UI/UX completion"]
   M5 --> M7["M7 Parity closure and publication"]
   M6 --> M7
   R --> M6
@@ -49,16 +57,16 @@ Milestones communicate review and release gates. Tickets inside them may run con
 
 ## Milestone exits
 
-| Milestone                           | Tickets | Exit condition                                                                                                                                                                                                                             |
-| ----------------------------------- | ------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| M0 Repository and build foundation  |       5 | Desktop and Worker use one lockfile, the empty Android development APK installs on API 30, the empty Relay passes a deployment dry run, core boundaries reject forbidden imports, and the verifier accepts a valid empty evidence catalog. |
-| M1 Shared-core extraction           |      10 | The extraction-complete predicate passes with Desktop behavior unchanged, shared adapter contracts green, and zero compatibility re-exports or boundary exceptions.                                                                        |
-| M2 Android device foundation        |       6 | The real Android shell launches, stores and restores encrypted device state, routes Activity links, measures the device, and proves degradation behavior on API 30.                                                                        |
-| M3 Identity and discovery           |       8 | Twitch and Kick accounts, relay identity, direct and signed-out reads, Home, Search, Categories, Channel Detail, Following, and Guest Follows work end to end.                                                                             |
-| M4 Watch and engagement             |      11 | Live, Video, Clip, chat, moderation, History, Multistream, PiP, playback filtering, and connectivity outcomes have current device and live-Platform evidence.                                                                              |
-| M5 Media, settings, and diagnostics |       9 | Media Jobs recover correctly, downloads, recording, and captions meet device limits, and all 17 Settings panels plus all six Diagnostics tabs work.                                                                                        |
-| M6 Notifications and release path   |       7 | Direct FCM passes scale and lifecycle tests, the updater validates an exact signed APK, four gates run, signing recovery is current, and promotion produces an immutable Release Set.                                                      |
-| M7 Parity closure and publication   |       3 | All 24 capabilities and 40 tab states have fresh evidence, the same candidate passes twice, and the Publisher releases the exact approved APK.                                                                                             |
+| Milestone                             | Tickets | Exit condition                                                                                                                                                                                                                             |
+| ------------------------------------- | ------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M0 Repository and build foundation    |       5 | Desktop and Worker use one lockfile, the empty Android development APK installs on API 30, the empty Relay passes a deployment dry run, core boundaries reject forbidden imports, and the verifier accepts a valid empty evidence catalog. |
+| M1 Shared-core extraction             |      10 | The extraction-complete predicate passes with Desktop behavior unchanged, shared adapter contracts green, and zero compatibility re-exports or boundary exceptions.                                                                        |
+| M2 Android device foundation          |       6 | The real Android shell launches, stores and restores encrypted device state, routes Activity links, measures the device, and proves degradation behavior on API 30.                                                                        |
+| M3 Identity and discovery             |       8 | Twitch and Kick accounts, relay identity, direct and signed-out reads, Home, Search, Categories, Channel Detail, Following, and Guest Follows work end to end.                                                                             |
+| M4 Watch and engagement               |      11 | Live, Video, Clip, chat, moderation, History, Multistream, PiP, playback filtering, and connectivity outcomes have current device and live-Platform evidence.                                                                              |
+| M5 Media, settings, and diagnostics   |       9 | Media Jobs recover correctly, downloads, recording, and captions meet device limits, and all 17 Settings panels plus all six Diagnostics tabs work.                                                                                        |
+| M6 Notifications and UI/UX completion |       8 | Notifications, updater, verification tooling and signing prerequisites pass. Q01 completes full-workload qualification before UX01 finishes integrated UI/UX review and before M7. Review starts during M2 and continues within every feature. |
+| M7 Parity closure and publication     |       4 | UI/UX is complete before artifact promotion. All 24 capabilities and 42 tab states have fresh evidence; the same candidate passes twice before publication.                                                                                |
 
 ## M0: repository and build foundation
 
@@ -98,7 +106,7 @@ This is an expand-and-contract sequence. `C01` expands the system with the new f
 | B03 | Deliver encrypted Product and Cache Stores               | B01           | Mobile                         | Product Store, Cache Store, SecureStore, migrations, quarantine, recovery, eviction, and backup exclusion.                     |
 | B04 | Deliver Activity, deep links, and lifecycle restoration  | B02, B03      | Mobile and Core                | Durable Activity Items, deduplication, read state, nested routing, and explicit process-death restoration without push.        |
 | B05 | Create the typed Android capability-module boundary      | B01           | Mobile Native                  | Small playback, Media Job, caption, diagnostics, and maintenance module contracts with typed failures.                         |
-| B06 | Measure Capability Profile and apply Runtime Degradation | B03, B05, F04 | Mobile Native and Verification | Install qualification, device capacity, visible ordered degradation, hysteresis, and resource evidence.                        |
+| B06 | Measure Capability Profile and apply Runtime Degradation | B03, B05, F04 | Mobile Native and Verification | Measured resources, installation eligibility, typed degradation/recovery policy, and foundation measurement UI with loading, failure, retry and observation feedback. Full workload qualification remains required in Q01. |
 
 ## M3: identity and discovery
 
@@ -117,19 +125,19 @@ This is an expand-and-contract sequence. `C01` expands the system with the new f
 
 ## M4: Watch and engagement
 
-| ID  | Ticket                                                             | Blocked by    | Primary owner    | What it delivers                                                                                                         |
-| --- | ------------------------------------------------------------------ | ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| W01 | Resolve and watch one live Stream                                  | B06, D05      | Mobile Native    | One focused Twitch or Kick HLS session with compatibility policy, fallback, Info, Related, and failure containment.      |
-| W02 | Deliver player controls, movable mini-player, and Android PiP      | B04, W01      | Mobile Native    | Controls, quality, fullscreen, orientation, draggable safe regions, one PiP session, and restoration.                    |
-| W03 | Watch Videos and Clips                                             | D06, D07, W01 | Mobile Native    | Recorded Watch routes with seeking, progress, Details, Comments ownership, Related, compatibility state, and deep links. |
-| W04 | Deliver typed Watch History                                        | W03           | Mobile           | Durable Stream, Video, and Clip history with imagery, progress, resume, replay, local search, and offline use.           |
-| W05 | Deliver Twitch foreground chat                                     | D02, W01      | Mobile           | Visible-only EventSub receive, direct Helix send, eligibility, reconnection, deduplication, and gap state.               |
-| W06 | Deliver Kick foreground chat through the relay                     | D03, W01      | Relay and Mobile | Verified webhooks, channel-sharded foreground fanout, direct send, reconnection, deduplication, and no chat history.     |
-| W07 | Deliver chat cosmetics and replay                                  | W03, W05, W06 | Mobile           | Emotes, badges, paints, bounded caches, synchronized Comments and replay, and visible source gaps.                       |
-| W08 | Deliver managed-channel moderation                                 | W05, W06      | Mobile           | Managed channels, contextual actions, and all eight moderation states with scope and Platform support.                   |
-| W09 | Deliver capability-aware Multistream                               | W02           | Mobile Native    | Six retained StreamSlots, measured video capacity, one audio owner, focused chat, degradation, and restoration.          |
-| W10 | Deliver playback filtering as an isolated compatibility capability | W01           | Mobile Native    | Narrow filtering adapter, signed policy, canary, kill switch, diagnostics, disclosure, and player-only failure.          |
-| W11 | Deliver proxy and connectivity behavior                            | B06, D04      | Mobile           | Proxy configuration, connectivity, cancellation, bounded retry, stale-cache state, Platform isolation, and diagnostics.  |
+| ID  | Ticket                                                             | Blocked by    | Primary owner    | What it delivers                                                                                                                      |
+| --- | ------------------------------------------------------------------ | ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| W01 | Resolve and watch one live Stream                                  | B06, D05      | Mobile Native    | One focused Twitch or Kick HLS session with compatibility policy, fallback, Info, Related, and failure containment.                   |
+| W02 | Deliver player controls, movable mini-player, and Android PiP      | B04, W01      | Mobile Native    | Controls, quality, fullscreen, orientation, draggable safe regions, one PiP session, and restoration.                                 |
+| W03 | Watch Videos and Clips                                             | D06, D07, W01 | Mobile Native    | Recorded Watch routes with seeking, progress, Details, Comments ownership, Related, compatibility state, and deep links.              |
+| W04 | Deliver typed Watch History                                        | W03           | Mobile           | Durable Stream, Video, and Clip history with imagery, progress, resume, replay, local search, and offline use.                        |
+| W05 | Deliver Twitch foreground chat                                     | D02, W01      | Mobile           | Visible-only EventSub receive, direct Helix send, eligibility, reconnection, deduplication, and gap state.                            |
+| W06 | Deliver Kick foreground chat through the relay                     | D03, W01      | Relay and Mobile | Verified webhooks, channel-sharded foreground fanout, direct send, reconnection, deduplication, and no chat history.                  |
+| W07 | Deliver chat cosmetics and replay                                  | W03, W05, W06 | Mobile           | Emotes, badges, paints, bounded caches, synchronized Comments and replay, and visible source gaps.                                    |
+| W08 | Deliver managed-channel moderation                                 | W05, W06      | Mobile           | Managed channels, contextual actions, and all ten moderation tab states and the channel-tools sheets with scope and Platform support. |
+| W09 | Deliver capability-aware Multistream                               | W02           | Mobile Native    | Six retained StreamSlots, measured video capacity, one audio owner, focused chat, degradation, and restoration.                       |
+| W10 | Deliver playback filtering as an isolated compatibility capability | W01           | Mobile Native    | Narrow filtering adapter, signed policy, canary, kill switch, diagnostics, disclosure, and player-only failure.                       |
+| W11 | Deliver proxy and connectivity behavior                            | B06, D04      | Mobile           | Proxy configuration, connectivity, cancellation, bounded retry, stale-cache state, Platform isolation, and diagnostics.               |
 
 Chat and Multistream can progress independently once single-stream Watch exists. Every Compatibility Integration has its own evidence and disablement edge.
 
@@ -149,27 +157,33 @@ Chat and Multistream can progress independently once single-stream Watch exists.
 
 `M05` through `M08` divide the 17 Settings panels into coherent groups of 5, 4, 3, and 5. The panels ship with real persistence and behavior, not inert placeholders.
 
-## M6: notifications and release path
+## M6: notifications and UI/UX completion
 
-| ID  | Ticket                                                                   | Blocked by | Primary owner    | What it delivers                                                                                                                             |
-| --- | ------------------------------------------------------------------------ | ---------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| N01 | Register native FCM delivery and present notifications                   | B04, M07   | Mobile and Relay | In-context permission, native token rotation, three channels, safe payloads, Activity reconciliation, and current-data routing.              |
-| N02 | Deliver scalable topic and direct-token fanout                           | N01        | Relay            | Versioned projection reconciliation, topics, one-mode events, private direct sends, topic overflow, retries, and token retirement.           |
-| N03 | Prove notification scale and lifecycle recovery                          | N02        | Verification     | Repeatable 100,000-recipient dispatch plus simultaneous event, retry, credential, reinstall, ended Stream, offline, and force-stop evidence. |
-| R01 | Establish production identity, EAS build authority, and signing recovery | F03, F04   | Publisher        | Production and development identities, StreamFusion Expo ownership, committed versions, controlled build start, backups, and recovery drill. |
-| R02 | Deliver the signed GitHub APK updater                                    | M08, R01   | Mobile Native    | Stable-release checks, validated metadata, resumable APK download, digest and signer proof, PackageInstaller handoff, and cleanup.           |
-| R03 | Automate the four Android verification gates                             | B02, F04   | Verification     | Change, Main, Candidate, and Public Release gates with emulator, physical, live, accessibility, performance, security, and freshness policy. |
-| R04 | Promote one exact APK into an immutable Android Release Set              | R02, R03   | Release          | Protected promotion, EAS provenance, signed manifest, SBOM, matched immutable files, metadata withdrawal, and forward-fix rehearsal.         |
+In the parent issue, UX01 is displayed after B06 so design review is visible during development. M6 is its final completion checkpoint, not its start date. R04 promotion belongs to M7. Signing and updater infrastructure do not authorize a release.
+
+| ID   | Ticket                                                                   | Blocked by                                                       | Primary owner           | What it delivers                                                                                                                             |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| N01  | Register native FCM delivery and present notifications                   | B04, M07                                                         | Mobile and Relay        | In-context permission, native token rotation, three channels, safe payloads, Activity reconciliation, and current-data routing.              |
+| N02  | Deliver scalable topic and direct-token fanout                           | N01                                                              | Relay                   | Versioned projection reconciliation, topics, one-mode events, private direct sends, topic overflow, retries, and token retirement.           |
+| N03  | Prove notification scale and lifecycle recovery                          | N02                                                              | Verification            | Repeatable 100,000-recipient dispatch plus simultaneous event, retry, credential, reinstall, ended Stream, offline, and force-stop evidence. |
+| R01  | Establish production identity, EAS build authority, and signing recovery | F03, F04                                                         | Publisher               | Production and development identities, StreamFusion Expo ownership, committed versions, controlled build start, backups, and recovery drill. |
+| R02  | Deliver the signed GitHub APK updater                                    | M08, R01                                                         | Mobile Native           | Manual stable-release checks and optional foreground automatic checks no more than once per 24 hours; validated metadata, resumable APK download, digest and signer proof, PackageInstaller handoff, and cleanup. |
+| R03  | Automate the four Android verification gates                             | B02, F04                                                         | Verification            | Change, Main, Candidate, and Public Release gates with emulator, physical, live, accessibility, performance, security, and freshness policy. |
+| Q01  | Qualify full Android workloads and integrated degradation (#196)         | B06, W01, W02, W03, W09, M01, M02, M03, M04, M05, M08, M09, R03   | Mobile and verification | Physical-workload capacity, actual mitigation/recovery, preserved work/artifacts and affected UI/UX before UX01 final completion and every M7 gate. |
+| UX01 | Complete integrated UI/UX and requirement coverage (#195)                | No start blocker; completed features required for final evidence | Mobile and verification | Starts in M2, reviews each feature continuously, resolves all required UI/UX and logic findings before M7.                                   |
 
 `R01` is a human-owned frontier task once its blockers close. Gate automation starts well before feature completion, then every feature ticket adds its evidence rather than building a second testing path near release.
 
+Q01 (#196) completes full physical-workload qualification in M6. It requires B06, W01, W02, W03, W09, M01 through M05, M08, M09 and R03. It verifies real media mitigation, measured capacity, recovery, artifact preservation, reviewed performance limits and all affected UI/UX. UX01 cannot finish before Q01. R04, P01, P02 and P03 each directly depend on Q01 in addition to their listed blockers. This is development work before release, not release-stage feature implementation.
+
 ## M7: parity closure and publication
 
-| ID  | Ticket                                   | Blocked by                       | Primary owner                      | What it delivers                                                                                                                                                     |
-| --- | ---------------------------------------- | -------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P01 | Close every Android parity record        | Every capability delivery ticket | Verification and capability owners | All 24 current capabilities, all 17 Settings panels, and all 40 tab states have current evidence with no blocker, exception, or quarantine.                          |
-| P02 | Pass the complete Candidate Gate twice   | P01, R04                         | Verification                       | Two clean runs for the same candidate across five physical roles, emulators, live Platforms, lifecycle, accessibility, performance, security, install, and recovery. |
-| P03 | Publish the first Public Android Release | P02                              | Publisher                          | Independent review, capability approvals, Publisher approval, current recovery, exact digest match, and immutable public GitHub release.                             |
+| ID  | Ticket                                                      | Blocked by                             | Primary owner                      | What it delivers                                                                                                                                                     |
+| --- | ----------------------------------------------------------- | -------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R04 | Promote one exact APK into an immutable Android Release Set | R02, R03, UX01, Q01                    | Release                            | Protected promotion, EAS provenance, signed manifest, SBOM, immutable files and forward-fix rehearsal after UI/UX completion.                                        |
+| P01 | Close every Android parity record                           | Every capability delivery ticket, UX01, Q01 | Verification and capability owners | All 24 current capabilities, all 17 Settings panels, and all 42 tab states have current evidence with no blocker, exception, or quarantine.                          |
+| P02 | Pass the complete Candidate Gate twice                      | P01, R04, UX01, Q01                    | Verification                       | Two clean runs for the same candidate across five physical roles, emulators, live Platforms, lifecycle, accessibility, performance, security, install, and recovery. |
+| P03 | Publish the first Public Android Release                    | P02, UX01, Q01                         | Publisher                          | Independent review, capability approvals, Publisher approval, current recovery, exact digest match, and immutable public GitHub release.                             |
 
 ## Capability ownership audit
 
@@ -213,9 +227,9 @@ The final parity owner is `P01` for every row. The tickets above own delivery an
 | Watch           |      3 | W01, W05, W06                                         |
 | Video or Clip   |      3 | W03, W07                                              |
 | Activity        |      3 | B04, M01, N01                                         |
-| Moderation      |      8 | W08                                                   |
+| Moderation      |     10 | W08                                                   |
 | Diagnostics     |      6 | M09                                                   |
-| Total           |     40 | P01 verifies every state against the exact candidate. |
+| Total           |     42 | P01 verifies every state against the exact candidate. |
 
 ## Acceptance contract for every published ticket
 
