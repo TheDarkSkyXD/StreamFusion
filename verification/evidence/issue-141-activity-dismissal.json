@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "issue": 141,
+  "ticketId": "B04",
+  "result": "pass",
+  "source": {
+    "mainCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+    "tree": "f77de174bb18fce389c3cbf20973cdc044e80995",
+    "workerCommit": "4cf69d2c15527495a397769e03c88e4962ca8c76",
+    "workerTreeEquivalent": true,
+    "dismissalImplementationCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+    "screenBlob": "1df45c150cac2de4f54381b7cfccee07e62354f5",
+    "screenTestBlob": "3b0a5d09f869b06646a57eb8c54bc36921c768ef",
+    "binding": "The first native run used the reviewed 27-file manifest later committed as 36e3441 and landed as 365ca9e. Root verified those exact source blobs. The final correction changes only detail confirmation order and its test. Storage, proof lifecycle, workflow, list UI and global-clear logic are unchanged between 365ca9e and 906986e. Final large-text evidence used the two corrected blobs before commit; primary offline/reboot evidence ran pushed 906986e."
+  },
+  "runtime": {
+    "client": "Android API 30 development client",
+    "package": "com.thedarkskyxd.streamfusion.dev",
+    "version": "0.1.0",
+    "versionCode": 1,
+    "apkDigest": "sha256:b6373877d4afc55592d79f5edb85e9cbec2af84fe0b74c4eac0a218661317f79",
+    "device": "emulator-5554",
+    "profile": "StreamFusion_Issue_142_API30",
+    "transport": "Literal task-root and primary-root npm start option 3. Existing native client receives JavaScript from Metro. This is not a release APK source binding.",
+    "interaction": "Mobile MCP actions and screenshots; ADB for explicit process/reboot/network control and supplemental full native XML."
+  },
+  "observations": {
+    "isolatedActivity": {
+      "windowStart": "2026-09-08T19:26:00Z",
+      "windowEnd": "2026-09-08T19:49:26.587Z",
+      "timePrecision": "Start is approximate; individual action times not retained unless explicitly listed.",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "namespaces": [
+        "activity-proof-0b15fe85-feb4-477f-b4b2-0dd5b9a57a84",
+        "activity-proof-4329663e-0c8b-4752-9595-43740563d949",
+        "activity-proof-5aa630d0-d861-458e-90dc-acddff5e823d"
+      ],
+      "results": [
+        "Explicit Start succeeded using real isolated encrypted Product storage.",
+        "Mark all changed 4 unread to 0 unread.",
+        "Per-item Cancel kept detail and destination. Confirm hid only the completed item.",
+        "Stable completed-ID replay preserved local read and dismissal state.",
+        "A queued repository list failure retained saved rows; real Retry restored the list.",
+        "Global Hide 3 from filtered Activity applied across tabs. MCP observed the active job still present; retained Channels PNG only shows empty Channels and Hidden 3.",
+        "Exit restored the original main read item and zero unread. Root separately observed no proof SQLite files remaining."
+      ]
+    },
+    "isolatedProcessDeath": {
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "forceStoppedAt": "2026-09-08T19:34:30.231Z",
+      "result": "pass",
+      "details": "Same first namespace recovered without replaying fixtures."
+    },
+    "isolatedReboot": {
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "requestedAt": "2026-09-08T19:35:13.261Z",
+      "bootCompletedAt": "2026-09-08T19:35:58.296Z",
+      "result": "pass",
+      "details": "Same first namespace recovered without replay. ADB reverse was restored after reboot."
+    },
+    "font200Correction": {
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedAt": "2026-09-08T20:28:35.858Z",
+      "result": "pass",
+      "details": "Original Dismiss handler worked, but the development proof banner preceded the confirmation and pushed it below the viewport. Owner observed the original confirmation after a full scroll; that original causal frame was not retained. The correction puts DismissalStatus before the banner. Root and independent reviewer viewed the retained complete corrected confirmation. Owner observed Cancel preserving detail, Open destination to Diagnostics and return to the same detail, and Confirm producing unavailable plus Hidden 1 at both font scales.",
+      "regression": "New ordering test failed against original order and passed after the move. No selectable-text change or production-handler workaround."
+    },
+    "primaryLaunch": {
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "selectedOption3At": "2026-09-08T20:38:53Z",
+      "launcherSeconds": 15.2,
+      "appObservedBy": "2026-09-08T20:39:29Z",
+      "result": "pass",
+      "details": "Primary-folder literal npm start option 3 restored the normal Activity inbox. Warm installed-client launch, not cold emulator timing. Metro emitted manifest-asset warnings; visible icons and text were observed, not a clean-log claim."
+    },
+    "offlineProcessRestart": {
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "airplaneEnabledBy": "2026-09-08T20:39:59Z",
+      "forceStoppedAt": "2026-09-08T20:40:20Z",
+      "recentServerSelectedAt": "2026-09-08T20:40:53Z",
+      "appAndNoDefaultNetworkObservedAt": "2026-09-08T20:41:05Z",
+      "artifactsRetainedBy": "2026-09-08T20:41:31Z",
+      "result": "pass",
+      "details": "Android reported Active default network: none before and after force-stop/reopen. Mobile MCP launched the installed client and selected its visible recent http://127.0.0.1:8081 server. Main Activity restored device:native-storage-check:v1 as Read with zero unread. JavaScript used ADB loopback. A custom-scheme URL tool request was rejected; no tool safety setting was changed.",
+      "networkChecks": {
+        "command": "adb -s emulator-5554 shell dumpsys connectivity | Select-String 'Active default network:'",
+        "beforeForceStop": {
+          "observedBefore": "2026-09-08T20:40:20Z",
+          "matchedOutput": "Active default network: none"
+        },
+        "afterReopen": {
+          "observedBy": "2026-09-08T20:41:05Z",
+          "matchedOutput": "Active default network: none"
+        },
+        "scope": "Exact matched output retained from two successful read-only calls. This is not the complete dumpsys output and does not claim ADB loopback was disconnected."
+      }
+    },
+    "currentSourceReboot": {
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "requestedAt": "2026-09-08T20:41:55Z",
+      "bootCompletedAt": "2026-09-08T20:42:34Z",
+      "recentServerSelectedAt": "2026-09-08T20:43:02Z",
+      "appAndPngObservedBy": "2026-09-08T20:43:18Z",
+      "result": "pass",
+      "details": "No app-data wipe. Normal Activity route, original Read item and zero unread survived reboot. Native XML was separately captured after the PNG."
+    },
+    "cleanup": {
+      "verifiedAt": "2026-09-08T20:44:01Z",
+      "airplaneMode": 0,
+      "wifi": 1,
+      "mobileData": 1,
+      "fontScale": 1,
+      "metroPort8081": "free",
+      "mainActivity": "Original read Storage check item and zero unread.",
+      "details": "Root created no proof namespace and mutated no main Activity item during the current-main run. Earlier isolated namespaces were exited through their real controls. Direct SQLite filename checks support file cleanup, not inspection of SecureStore key deletion."
+    }
+  },
+  "androidParityRecord": {
+    "desktopBaselineCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+    "comparison": "Source-based Desktop notification outcomes and approved Mobile PRD/control/prototype comparison. No rendered HTML or pixel-parity claim.",
+    "records": {
+      "notifications": "Activity retains unread badge, Mark all read, item destination, per-item Dismiss, global completed clear and empty/error/retry outcomes. Mobile adapts dismissal to local durable tombstones, preserving duplicate read state and excluding active jobs. Desktop duplicate replacement does not preserve readAt; Mobile follows the explicit user correction.",
+      "app-shell-and-navigation": "Five portrait destinations remain icon-above-label, with adaptive large-text rows, independent route histories, validated deep links, persisted Activity restoration and safe navigation fallback. Historical unchanged navigation proofs remain separately source/time-bound in issue-141-activity-correction.json."
+    },
+    "designSources": [
+      "docs/research/streamfusion-mobile/streamfusion-mobile-implementation-specification.md",
+      "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md",
+      "docs/research/streamfusion-mobile/prototypes/android-navigation-prototype.html"
+    ]
+  },
+  "gates": {
+    "local": {
+      "result": "pass",
+      "mobileNode": 43,
+      "mobileVitest": 224,
+      "architecture": "pass",
+      "typecheck": "pass",
+      "lint": "pass",
+      "independentRootRerun": "Worker candidate and landed primary tree passed.",
+      "normalCommitHook": "Passed isolated signed-out Desktop smoke; root read unseeded profile and healthy empty-database evidence."
+    },
+    "hostedCI": {
+      "result": "pass",
+      "run": "https://github.com/TheDarkSkyXD/StreamFusion/actions/runs/34275986109",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "jobs": 4,
+      "verifiedAt": "2026-09-08T21:10:57Z"
+    },
+    "previousCI": {
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "run": "https://github.com/TheDarkSkyXD/StreamFusion/actions/runs/34272424697",
+      "result": "infrastructure-failure",
+      "details": "Workspace, Windows and macOS passed. Android APK build passed, hosted KVM setup failed, install/launch skipped."
+    },
+    "evidenceCatalog": {
+      "result": "pass",
+      "recordsVerified": 21,
+      "receiptArtifactsVerified": 21,
+      "evidenceTestsPassed": 15,
+      "scope": "Ten B04 catalog records updated across the two affected capabilities. Unrelated records retain their original content and freshness."
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-selected-20260908.png",
+      "sha256": "beeca23ade9103d6e06e6649ab204f01c93d0141fd533bc4dc0cb7b89bb60eb4",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Explicit isolated native Activity proof selected; real Product Store, not provider delivery."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-retry-error-20260908.png",
+      "sha256": "65b87e151ba7494e23b6d63d1c47c156667ae3c11e627e6453753b13ead4124f",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Injected development repository list failure with retained rows and reachable Retry."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-retry-recovery-20260908.png",
+      "sha256": "c9563ea94e6180699ab4fb3fbd0db12e36ba3402659573996e94d32135c1eaa7",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Actual Retry restored the retained Activity list."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-process-recovery-20260908.png",
+      "sha256": "ff4af5dd6fe7df4e93af94011f61e92c3c215db58ad7c37bcda8e410ff0b2c3f",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Force-stop restored the same isolated namespace without fixture replay."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-reboot-recovery-20260908.png",
+      "sha256": "65498c153d59f56cd834533bfe29a9b19f0fe2569540a27e7b001b0979c90be9",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Emulator reboot restored the same isolated namespace without fixture replay."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-font2-controls-20260908.png",
+      "sha256": "fbe0a2afa70dcf13eae1e3a9ebaa90e763f95acb57a01cd20ade28d3ee74144b",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "200 percent Activity filters, read/clear controls and five portrait destinations."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-font2-global-clear-channels-empty-20260908.png",
+      "sha256": "8886b455db5af7eb57fcc9898a7976c566e7c8983c8ac6b8bcf4c02c4e8ae189",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Channels empty after global Hide 3. Active-job protection was separately observed through MCP, not visible in this PNG."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-font2-clear-confirmation-controls-20260908.png",
+      "sha256": "b4947776a29b2e62a39667d4462dc6c6b96526e805312dafb58e03aac2b9187f",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Complete global-clear protection copy and reachable Cancel/Confirm at 200 percent."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-proof-final-main-restored-after-confirmation-20260908.png",
+      "sha256": "c75dd6405b2393606ed8b9a1bf7ce37ae9591301592c23df4084fd5cea3a6e57",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Main Activity restored after the third isolated session exited."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main365-proof-system-detail-actions-font2-20260908.png",
+      "sha256": "49aa3bbae196cd793a2f458c4830af0e4c17178ddbd6510e4507b0491d44d5ac",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Completed system detail with Dismiss, Open destination and isolated identity at 200 percent."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main365-proof-open-destination-diagnostics-font2-20260908.png",
+      "sha256": "a234246211edd0f80d08cbede3221938cdd0ab50a684df0fef5bee6247cc6680",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Open destination reached Diagnostics at 200 percent."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main365-proof-system-dismissed-unavailable-font1-20260908.png",
+      "sha256": "c81535f5cc769944e1e5a721e6756983279f23f7188df524890807e448a7378a",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Per-item confirmation produced unavailable detail and Hidden 1 at normal font."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main365-proof-system-dismissed-unavailable-font1-20260908.xml",
+      "sha256": "02cd4daa94db3dbdde18b572d7d89bd1da10eb26938369b523505e2f584b4357",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Native semantics for the confirmed unavailable detail."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-dismiss-font2-fixed-confirmation-20260908.png",
+      "sha256": "b8774d11cfd226124bb46f0818209beee883c8cf5f4a92d47555f937a8229e8d",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Corrected per-item confirmation before the proof banner, full copy and Cancel/Confirm at 200 percent."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-dismiss-font2-fixed-confirmation-20260908.xml",
+      "sha256": "d5ffa13a8c9f677274fbd199dbb2536eefa4ff14c2a59672520a480848b0dcbe",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Native confirmation, Cancel and Confirm order before the proof banner at 200 percent."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main906-primary-option3-20260908.png",
+      "sha256": "3cf0914211aed2691d3c7c36fd4a7cad98cd21c9ca10ff8f37ee7ae633a6fe5a",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Literal primary-folder npm start option 3 restored the normal Activity inbox."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main906-offline-none-reopen-20260908.png",
+      "sha256": "05db01b2bc8bf156a032b1d53e0ced7b8bc765ef74ee941ecc1e9c20d823cd4f",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Force-stop/reopen with measured Active default network: none restored the read row and zero unread over ADB-loopback JavaScript."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main906-offline-none-reopen-20260908.xml",
+      "sha256": "3796617ba7fb809eeb8f1d917ee6fbc56cd75ab96c68dd3e9749ea5d968f495a",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Separately captured full native hierarchy after no-default-network reopening."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main906-reboot-reopen-20260908.png",
+      "sha256": "80b87c2880e0268ce824c914fa73e953950b1ab19a29824a0d91f6fc56b4dd87",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Current-source reboot restored the normal Activity route, read row and zero unread."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main906-reboot-reopen-20260908.xml",
+      "sha256": "3796617ba7fb809eeb8f1d917ee6fbc56cd75ab96c68dd3e9749ea5d968f495a",
+      "sourceCommit": "906986e06291fefbb2b791f487e71aea144ed489",
+      "observedOn": "2026-09-08",
+      "scope": "Separately captured full native hierarchy after current-source reboot."
+    },
+    {
+      "path": "verification/evidence/issue-141/issue141-main-native-semantics-20260908.xml",
+      "sha256": "3796617ba7fb809eeb8f1d917ee6fbc56cd75ab96c68dd3e9749ea5d968f495a",
+      "sourceCommit": "365ca9ebd7ca1d4e26ab5f911d8f52a660a0601c",
+      "observedOn": "2026-09-08",
+      "scope": "Observed native selected All/Activity state and disabled Mark all at zero unread. Hierarchy is not TalkBack traversal."
+    }
+  ],
+  "limits": [
+    "Feature-level native semantics were observed. Full XML selected/disabled state supplements MCP's omitted fields. Native node order is not TalkBack traversal.",
+    "No physical-device, live-provider, live-job, FCM, standalone offline APK, production signing or release qualification.",
+    "The earlier suspended-cellular offline attempt is not actual-no-default-network proof and is not reused as such. The current-main root run supplies that bounded proof.",
+    "Original full-scroll causal diagnosis and several action transitions were observed through MCP but lack separately retained frames. Retained final states and source/test evidence are identified without inventing timestamps.",
+    "This is bounded B04 local Activity feature evidence. Later physical-device, provider, FCM, performance and release gates remain open."
+  ]
+}
