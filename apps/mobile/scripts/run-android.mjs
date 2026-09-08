@@ -4,18 +4,84 @@ import {
   closeSync,
   existsSync,
   openSync,
+  realpathSync,
   readFileSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const driveCandidates = ["S", "R", "Q", "P", "O", "N", "M", "L"];
+const javaPreflightTimeoutMs = 10_000;
 const scriptPath = fileURLToPath(import.meta.url);
 const mobileRoot = path.resolve(path.dirname(scriptPath), "..");
 const repositoryRoot = path.resolve(mobileRoot, "../..");
+
+function relativeTaskPath(repositoryDirectory, targetPath) {
+  const resolvedRepositoryDirectory = realpathSync(repositoryDirectory);
+  const resolvedTargetPath = realpathSync(targetPath);
+  const relativePath = path.relative(
+    resolvedRepositoryDirectory,
+    resolvedTargetPath,
+  );
+  if (
+    relativePath === "" ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    throw new Error(
+      `Resolved path must stay inside the task worktree: ${resolvedTargetPath}`,
+    );
+  }
+  return relativePath;
+}
+
+export function resolveMobileExpoCli(
+  mobileDirectory = mobileRoot,
+  repositoryDirectory = repositoryRoot,
+) {
+  const mobilePackage = path.join(mobileDirectory, "package.json");
+  const expoCli = createRequire(mobilePackage).resolve("expo/bin/cli");
+  relativeTaskPath(repositoryDirectory, expoCli);
+  return expoCli;
+}
+
+export function mapWorktreePathToDriveLease(targetPath, lease) {
+  const relativePath = relativeTaskPath(lease.repositoryRoot, targetPath);
+  return path.win32.join(`${lease.drive}:\\`, relativePath);
+}
+
+export function assertJavaAvailable(
+  environment = process.env,
+  platform = process.platform,
+  run = spawnSync,
+) {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const javaExecutable = environment.JAVA_HOME
+    ? pathApi.join(
+        environment.JAVA_HOME,
+        "bin",
+        platform === "win32" ? "java.exe" : "java",
+      )
+    : platform === "win32"
+      ? "java.exe"
+      : "java";
+  const result = run(javaExecutable, ["-version"], {
+    env: environment,
+    stdio: "ignore",
+    timeout: javaPreflightTimeoutMs,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      "Java is required before Android prebuild. Set JAVA_HOME to a working JDK or put java on PATH.",
+    );
+  }
+}
 
 function normalizeTarget(target) {
   return path.win32
@@ -347,41 +413,28 @@ function run(command, args, cwd, environment = process.env) {
 
 async function main() {
   const androidArguments = ["run:android", ...process.argv.slice(2)];
+  assertJavaAvailable();
+  const expoCli = resolveMobileExpoCli();
 
   if (process.platform !== "win32") {
-    await run(
-      process.execPath,
-      [fileURLToPath(import.meta.resolve("expo/bin/cli")), ...androidArguments],
-      mobileRoot,
-    );
+    await run(process.execPath, [expoCli, ...androidArguments], mobileRoot);
     return;
   }
 
   const lease = acquireWindowsDrive(repositoryRoot);
-  const mappedRepositoryRoot = `${lease.drive}:\\`;
-  const mappedMobileRoot = path.win32.join(
-    mappedRepositoryRoot,
-    "apps",
-    "mobile",
-  );
-  const mappedExpoCli = path.win32.join(
-    mappedRepositoryRoot,
-    "node_modules",
-    "expo",
-    "bin",
-    "cli",
-  );
-  const mappedEnvironment = createMappedAndroidEnvironment(lease);
+  await runWithDriveLease(lease, () => {
+    const mappedMobileRoot = mapWorktreePathToDriveLease(mobileRoot, lease);
+    const mappedExpoCli = mapWorktreePathToDriveLease(expoCli, lease);
+    const mappedEnvironment = createMappedAndroidEnvironment(lease);
 
-  console.log(`Starting Android from ${mappedMobileRoot}`);
-  await runWithDriveLease(lease, () =>
-    run(
+    console.log(`Starting Android from ${mappedMobileRoot}`);
+    return run(
       process.execPath,
       [mappedExpoCli, ...androidArguments],
       mappedMobileRoot,
       mappedEnvironment,
-    ),
-  );
+    );
+  });
 }
 
 if (path.resolve(process.argv[1] ?? "") === scriptPath) {

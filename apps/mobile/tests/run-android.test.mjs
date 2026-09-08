@@ -1,14 +1,23 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import { runBuildCommand } from "../scripts/build-android-development.mjs";
+import {
+  buildAndroid,
+  runBuildCommand,
+} from "../scripts/build-android-development.mjs";
 import {
   acquireWindowsDrive,
+  assertJavaAvailable,
   createMappedAndroidEnvironment,
+  mapWorktreePathToDriveLease,
   parseSubstMappings,
   releaseWindowsDrive,
+  resolveMobileExpoCli,
   runWithDriveLease,
 } from "../scripts/run-android.mjs";
 
@@ -16,6 +25,32 @@ const require = createRequire(import.meta.url);
 const {
   translateResolvedPath,
 } = require("../scripts/preserve-subst-paths.cjs");
+
+function writeExpoCli(root, version) {
+  const expoRoot = path.join(root, "node_modules", "expo");
+  mkdirSync(path.join(expoRoot, "bin"), { recursive: true });
+  writeFileSync(
+    path.join(expoRoot, "package.json"),
+    JSON.stringify({
+      exports: { "./bin/cli": "./bin/cli.js" },
+      name: "expo",
+      version,
+    }),
+  );
+  writeFileSync(path.join(expoRoot, "bin", "cli.js"), "export {};\n");
+}
+
+function createExpoResolutionFixture({ appLocal }) {
+  const repositoryRoot = mkdtempSync(
+    path.join(tmpdir(), "streamfusion mobile cli fixture "),
+  );
+  const mobileRoot = path.join(repositoryRoot, "apps", "mobile");
+  mkdirSync(mobileRoot, { recursive: true });
+  writeFileSync(path.join(mobileRoot, "package.json"), '{"name":"mobile"}');
+  writeExpoCli(repositoryRoot, "57.0.15");
+  if (appLocal) writeExpoCli(mobileRoot, "57.0.17");
+  return { mobileRoot, repositoryRoot };
+}
 
 function createDriveHarness({
   mappings = [],
@@ -124,6 +159,147 @@ test("the mapped Expo process preloads consistent realpath handling", () => {
   );
   assert.equal(environment.STREAMFUSION_SUBST_DRIVE_ROOT, "S:\\");
   assert.equal(environment.STREAMFUSION_SUBST_TARGET_ROOT, "F:\\StreamFusion");
+});
+
+test("the mobile-local Expo CLI wins over a distinct hoisted version and maps to the leased drive", () => {
+  const fixture = createExpoResolutionFixture({ appLocal: true });
+  try {
+    const expoCli = resolveMobileExpoCli(
+      fixture.mobileRoot,
+      fixture.repositoryRoot,
+    );
+    assert.equal(
+      expoCli,
+      path.join(fixture.mobileRoot, "node_modules", "expo", "bin", "cli.js"),
+    );
+    assert.equal(
+      mapWorktreePathToDriveLease(expoCli, {
+        drive: "S",
+        repositoryRoot: fixture.repositoryRoot,
+      }),
+      "S:\\apps\\mobile\\node_modules\\expo\\bin\\cli.js",
+    );
+  } finally {
+    rmSync(fixture.repositoryRoot, { force: true, recursive: true });
+  }
+});
+
+test("a hoisted Expo CLI remains valid when it resolves inside the task worktree", () => {
+  const fixture = createExpoResolutionFixture({ appLocal: false });
+  try {
+    assert.equal(
+      resolveMobileExpoCli(fixture.mobileRoot, fixture.repositoryRoot),
+      path.join(
+        fixture.repositoryRoot,
+        "node_modules",
+        "expo",
+        "bin",
+        "cli.js",
+      ),
+    );
+  } finally {
+    rmSync(fixture.repositoryRoot, { force: true, recursive: true });
+  }
+});
+
+test("a resolved Expo CLI outside the task worktree is rejected before mapping", () => {
+  const fixture = createExpoResolutionFixture({ appLocal: false });
+  const outsideRoot = mkdtempSync(path.join(tmpdir(), "outside expo cli "));
+  try {
+    const outsideCli = path.join(outsideRoot, "cli.js");
+    writeFileSync(outsideCli, "export {};\n");
+    assert.throws(
+      () =>
+        mapWorktreePathToDriveLease(outsideCli, {
+          drive: "S",
+          repositoryRoot: fixture.repositoryRoot,
+        }),
+      /inside the task worktree/u,
+    );
+  } finally {
+    rmSync(fixture.repositoryRoot, { force: true, recursive: true });
+    rmSync(outsideRoot, { force: true, recursive: true });
+  }
+});
+
+test("the development build checks Java before prebuild can create Android output", async () => {
+  let prebuildStarted = false;
+  await assert.rejects(
+    buildAndroid(
+      path.join(tmpdir(), "missing-java-mobile"),
+      "expo-cli",
+      {},
+      {
+        assertJava() {
+          throw new Error("Java is required");
+        },
+        exists() {
+          return false;
+        },
+        runCommand() {
+          prebuildStarted = true;
+          return Promise.resolve();
+        },
+      },
+    ),
+    /Java is required/u,
+  );
+  assert.equal(prebuildStarted, false);
+});
+
+test("the Java preflight uses JAVA_HOME on Windows and PATH on Linux", () => {
+  const commands = [];
+  const run = (command, args, options) => {
+    commands.push({ args, command, options });
+    return { status: 0 };
+  };
+  assertJavaAvailable({ JAVA_HOME: "C:\\Android Studio\\jbr" }, "win32", run);
+  assertJavaAvailable({}, "linux", run);
+  assert.deepEqual(
+    commands.map((entry) => entry.command),
+    ["C:\\Android Studio\\jbr\\bin\\java.exe", "java"],
+  );
+  assert.deepEqual(
+    commands.map((entry) => entry.args),
+    [["-version"], ["-version"]],
+  );
+  assert.equal(commands[0].options.timeout, 10_000);
+  assert.equal(commands[1].options.timeout, 10_000);
+});
+
+test("the Java preflight contains failed and timed-out commands", () => {
+  for (const result of [
+    { error: new Error("spawn failed"), status: null },
+    { status: 1 },
+    { error: new Error("timed out"), status: null },
+  ]) {
+    assert.throws(
+      () => assertJavaAvailable({}, "linux", () => result),
+      /Java is required/u,
+    );
+  }
+});
+
+test("a lease releases when resolved CLI path mapping fails", async () => {
+  const fixture = createExpoResolutionFixture({ appLocal: false });
+  const outsideRoot = mkdtempSync(path.join(tmpdir(), "outside expo cli "));
+  const harness = createDriveHarness();
+  const lease = acquireWindowsDrive(fixture.repositoryRoot, harness.overrides);
+  try {
+    const outsideCli = path.join(outsideRoot, "cli.js");
+    writeFileSync(outsideCli, "export {};\n");
+    await assert.rejects(
+      runWithDriveLease(lease, () =>
+        mapWorktreePathToDriveLease(outsideCli, lease),
+      ),
+      /inside the task worktree/u,
+    );
+    assert.equal(harness.driveMappings.has("S"), false);
+    assert.equal(harness.driveLocks.has("S"), false);
+  } finally {
+    rmSync(fixture.repositoryRoot, { force: true, recursive: true });
+    rmSync(outsideRoot, { force: true, recursive: true });
+  }
 });
 
 test("an occupied drive is preserved and the next drive is leased", () => {
@@ -268,7 +444,10 @@ test("a cancelled development build forwards the signal and releases its drive",
     return running;
   };
 
-  await assert.rejects(runWithDriveLease(lease, operation), /exited with code/u);
+  await assert.rejects(
+    runWithDriveLease(lease, operation),
+    /exited with code/u,
+  );
   assert.equal(harness.driveMappings.has("S"), false);
   assert.equal(harness.driveLocks.has("S"), false);
   assert.equal(signals.listenerCount("SIGINT"), 0);

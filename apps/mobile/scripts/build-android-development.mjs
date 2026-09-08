@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 
 import {
   acquireWindowsDrive,
+  assertJavaAvailable,
   createMappedAndroidEnvironment,
+  mapWorktreePathToDriveLease,
+  resolveMobileExpoCli,
   runWithDriveLease,
 } from "./run-android.mjs";
 
@@ -55,21 +58,31 @@ export function runBuildCommand(
   });
 }
 
-async function buildAndroid(root, expoCli, environment = process.env) {
+export async function buildAndroid(
+  root,
+  expoCli,
+  environment = process.env,
+  dependencies = {
+    assertJava: assertJavaAvailable,
+    exists: existsSync,
+    runCommand: runBuildCommand,
+  },
+) {
+  dependencies.assertJava(environment);
   const gradleRoot = path.join(root, "android");
   const gradleExecutable = path.join(
     gradleRoot,
     process.platform === "win32" ? "gradlew.bat" : "gradlew",
   );
 
-  await runBuildCommand(
+  await dependencies.runCommand(
     process.execPath,
     [expoCli, "prebuild", "--platform", "android", "--no-install"],
     root,
     environment,
   );
 
-  if (!existsSync(gradleExecutable)) {
+  if (!dependencies.exists(gradleExecutable)) {
     throw new Error(`Expo prebuild did not create ${gradleExecutable}`);
   }
 
@@ -82,7 +95,7 @@ async function buildAndroid(root, expoCli, environment = process.env) {
       ? ["/d", "/s", "/c", ".\\gradlew.bat app:assembleDebug"]
       : ["app:assembleDebug"];
 
-  await runBuildCommand(
+  await dependencies.runCommand(
     gradleCommand,
     gradleArguments,
     gradleRoot,
@@ -91,33 +104,20 @@ async function buildAndroid(root, expoCli, environment = process.env) {
 }
 
 async function main() {
+  const expoCli = resolveMobileExpoCli();
   if (process.platform === "win32") {
     const lease = acquireWindowsDrive(repositoryRoot);
-    const mappedRepositoryRoot = `${lease.drive}:\\`;
-    const mappedMobileRoot = path.win32.join(
-      mappedRepositoryRoot,
-      "apps",
-      "mobile",
-    );
-    const mappedExpoCli = path.win32.join(
-      mappedRepositoryRoot,
-      "node_modules",
-      "expo",
-      "bin",
-      "cli",
-    );
-    await runWithDriveLease(lease, () =>
-      buildAndroid(
+    await runWithDriveLease(lease, () => {
+      const mappedMobileRoot = mapWorktreePathToDriveLease(mobileRoot, lease);
+      const mappedExpoCli = mapWorktreePathToDriveLease(expoCli, lease);
+      return buildAndroid(
         mappedMobileRoot,
         mappedExpoCli,
         createMappedAndroidEnvironment(lease),
-      ),
-    );
+      );
+    });
   } else {
-    await buildAndroid(
-      mobileRoot,
-      fileURLToPath(import.meta.resolve("expo/bin/cli")),
-    );
+    await buildAndroid(mobileRoot, expoCli);
   }
 
   console.log(
