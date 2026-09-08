@@ -588,20 +588,21 @@
       },
       {
         "id": "d01-installation-policy-foundation",
-        "sourceCommit": "39ca26633b1d978411fdf520700b5665d0f29ba6",
+        "sourceCommit": "7dea18bb2f8d0619469118d7b1cf7692bef3f3b1",
         "apkDigest": "sha256:ac15fc221eaaf2b968abb3045bd87996651a2963cc7060116ab639d71a4531ac",
         "verifierVersion": "1.0.0",
-        "testVersion": "issue-144-d01-foundation-v1",
+        "testVersion": "issue-144-d01-foundation-v2",
         "environment": { "gate": "change", "retention": "development", "name": "local-mobile-mcp-development-client-and-metro" },
         "device": { "kind": "emulator", "profile": "StreamFusion Issue 142 API30", "apiLevel": 30 },
         "artifacts": [
-          { "id": "installation-policy-report", "path": "verification/evidence/issue-144-installation-policy.json", "sha256": "sha256:3e622a3247cb9a66b937aa21ba3b8f449abe557ba3df6228a547a60ee4800ac2", "mediaType": "application/json" },
+          { "id": "installation-policy-report", "path": "verification/evidence/issue-144-installation-policy.json", "sha256": "sha256:ca0e4563499694d48333b111740c87c92ea24c26c5c932940b48e92f1a382791", "mediaType": "application/json" },
           { "id": "signature-failure-cache", "path": "verification/evidence/issue-144/issue144-invalid-signature-cache-20260908.png", "sha256": "sha256:2d7b915c7d2587c72943446fcd376ce5e07529459405e16727e9c67969c68315", "mediaType": "image/png" },
           { "id": "signature-failure-recovery", "path": "verification/evidence/issue-144/issue144-invalid-signature-recovery-20260908.png", "sha256": "sha256:9689df17d78363d8b738416f9c4cc1a6ead62dd51184f978fa21fe96c48de676", "mediaType": "image/png" },
           { "id": "refresh-busy-native", "path": "verification/evidence/issue-144/issue144-refresh-busy-native-20260908.png", "sha256": "sha256:db1b56f80ae2cc133ebaa01363b15bce47dd273c23d47405ef562ee6cf62a93d", "mediaType": "image/png" },
           { "id": "refresh-busy-recovery-native", "path": "verification/evidence/issue-144/issue144-refresh-busy-native-recovery-20260908.png", "sha256": "sha256:02c2cdfa5918a36e73ce0aa3e6cbba5d9963e93cc6f1d9f98bf50cfe4721ee17", "mediaType": "image/png" },
           { "id": "large-text-policy", "path": "verification/evidence/issue-144/issue144-large-text-policy-20260908.png", "sha256": "sha256:fcd23d8cd00c570e002d88bc980a774a21dba796d67c6f3ced29b946f74624ea", "mediaType": "image/png" },
-          { "id": "large-text-controls", "path": "verification/evidence/issue-144/issue144-large-text-controls-20260908.png", "sha256": "sha256:352f644e7e660738d57f2a7dc12f9820f6f78d1298fee0ac71bbd2d3ecbea4a8", "mediaType": "image/png" }
+          { "id": "large-text-controls", "path": "verification/evidence/issue-144/issue144-large-text-controls-20260908.png", "sha256": "sha256:352f644e7e660738d57f2a7dc12f9820f6f78d1298fee0ac71bbd2d3ecbea4a8", "mediaType": "image/png" },
+          { "id": "font200-navigation-grid", "path": "verification/evidence/issue-144/issue144-font200-policy-controls-grid-final-source-20260908.png", "sha256": "sha256:60e8dcf16b3060437d6a42c23bcb57121452b586b7d4f315ef4500b676448d20", "mediaType": "image/png" }
         ],
         "result": "pass", "observedAt": "2026-09-08T05:17:50.391Z", "expiresAt": "2026-09-09T05:17:50.391Z",
         "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/144"]
