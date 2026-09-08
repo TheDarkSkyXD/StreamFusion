@@ -9,6 +9,12 @@ import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { createVerificationAccountSeed } from "./account-seed.mjs";
+import {
+  readWindowsPortOwnership,
+  readWindowsPortListenerPid,
+  readWindowsProcess,
+  windowsCleanupPid,
+} from "./control-windows-process.mjs";
 
 import {
   createVerificationLaunchPlan,
@@ -153,7 +159,16 @@ async function assertNoActiveVerificationRun() {
     if (!existsSync(candidate)) continue;
     try {
       const state = JSON.parse(await readFile(candidate, "utf8"));
-      if (isProcessAlive(state.pid)) {
+      const listenerActive =
+        process.platform === "win32" && state.listenerProcess
+          ? readWindowsPortOwnership({
+              port: state.port,
+              rootPid: state.pid,
+              profileDir: state.profileDir,
+              expectedProcess: state.listenerProcess,
+            }).belongsToLaunch
+          : false;
+      if (isProcessAlive(state.pid) || listenerActive) {
         throw new Error(
           `Verification run ${state.id} is still active. Clean it up before launching another run.`,
         );
@@ -461,6 +476,22 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
   });
   closeSync(outputFd);
   if (!managed) child.unref();
+  let launcherProcess = null;
+  if (process.platform === "win32") {
+    const deadline = Date.now() + 3_000;
+    while (!launcherProcess && Date.now() < deadline) {
+      if (child.exitCode !== null || child.signalCode) break;
+      launcherProcess = readWindowsProcess(child.pid);
+      if (!launcherProcess) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }
+  if (process.platform === "win32" && !launcherProcess) {
+    throw new Error(
+      `Could not capture launcher process identity for ${child.pid}; refusing PID-only cleanup`,
+    );
+  }
 
   const packageJson = JSON.parse(
     await readFile(path.join(desktopRoot, "package.json"), "utf8"),
@@ -481,6 +512,7 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
     packageVersion: packageJson.version,
     gitRevision: getGitRevision(),
     launchedAt: new Date().toISOString(),
+    launcherProcess,
   };
   await writeFile(runFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 
@@ -490,6 +522,22 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
       child.pid,
       plan.readinessTimeoutMs,
     );
+    if (process.platform === "win32") {
+      const ownership = readWindowsPortOwnership({
+        port,
+        rootPid: child.pid,
+        profileDir,
+        expectedLauncherProcess: launcherProcess,
+      });
+      if (!ownership.belongsToLaunch || !ownership.owner) {
+        throw new Error(
+          `CDP listener did not belong to launcher at readiness: ${JSON.stringify(ownership)}`,
+        );
+      }
+      state.listenerProcess = ownership.owner;
+    }
+    state.rendererUrl = target.url;
+    await writeFile(runFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
     return {
       state,
       child,
@@ -500,37 +548,6 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
     await removeRunScratch(state);
     throw new Error(`${String(error)}. Launch log retained at ${logFile}`);
   }
-}
-
-function windowsPortOwnership(port, rootPid) {
-  const source = [
-    `$owner = (Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)`,
-    "$chain = @()",
-    "$current = $owner",
-    "while ($current -and $current -gt 0 -and -not ($chain -contains $current)) {",
-    "  $chain += $current",
-    '  $record = Get-CimInstance Win32_Process -Filter "ProcessId = $current" -ErrorAction SilentlyContinue',
-    "  if (-not $record) { break }",
-    "  $current = [int]$record.ParentProcessId",
-    "}",
-    `[pscustomobject]@{ ownerPid = $owner; chain = $chain; belongsToLaunch = ($chain -contains ${rootPid}) } | ConvertTo-Json -Compress`,
-  ].join("; ");
-  const result = spawnSync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", source],
-    {
-      encoding: "utf8",
-    },
-  );
-  if (result.status !== 0 || !result.stdout.trim()) {
-    return {
-      ownerPid: null,
-      chain: [],
-      belongsToLaunch: false,
-      error: result.stderr.trim(),
-    };
-  }
-  return JSON.parse(result.stdout);
 }
 
 function unixPortOwnership(port, rootPid) {
@@ -564,7 +581,12 @@ async function doctor(options) {
   );
   const ownership =
     process.platform === "win32"
-      ? windowsPortOwnership(state.port, state.pid)
+      ? readWindowsPortOwnership({
+          port: state.port,
+          rootPid: state.pid,
+          profileDir: state.profileDir,
+          expectedProcess: state.listenerProcess,
+        })
       : unixPortOwnership(state.port, state.pid);
   const currentVersion = JSON.parse(
     await readFile(path.join(desktopRoot, "package.json"), "utf8"),
@@ -587,8 +609,9 @@ async function doctor(options) {
     : [];
   const result = {
     healthy: isVerificationHealthy({
-      processAlive: isProcessAlive(state.pid),
-      portOwned: ownership.belongsToLaunch,
+      processOwned: ownership.belongsToLaunch,
+      artifactMatches:
+        target.url === state.rendererUrl && page.url === state.rendererUrl,
       page,
       accountStorageErrors,
       uncaughtErrors,
@@ -598,6 +621,8 @@ async function doctor(options) {
     launcherPid: state.pid,
     port: state.port,
     portOwnership: ownership,
+    artifactMatches:
+      target.url === state.rendererUrl && page.url === state.rendererUrl,
     target: { title: target.title, url: target.url },
     page,
     packageVersion: currentVersion,
@@ -858,6 +883,12 @@ async function stopProcessTree(pid) {
   }
 }
 
+async function stopOwnedProcessTree(state) {
+  if (process.platform !== "win32") return stopProcessTree(state.pid);
+  const pid = windowsCleanupPid(state);
+  if (pid) return stopProcessTree(pid);
+}
+
 async function removeRunScratch(state) {
   const runDir = safeRunDirectory(state.runDir);
   await rm(runDir, {
@@ -877,14 +908,39 @@ async function cleanup(options) {
     `${JSON.stringify(state, null, 2)}\n`,
     "utf8",
   );
-  await stopProcessTree(state.pid);
+  await stopOwnedProcessTree(state);
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
+    const listenerPid =
+      process.platform === "win32"
+        ? readWindowsPortListenerPid(state.port)
+        : await getTargets(state.port).then(
+            () => state.pid,
+            () => null,
+          );
+    if (!listenerPid) break;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  if (process.platform === "win32") {
+    const listenerPid = readWindowsPortListenerPid(state.port);
+    if (listenerPid) {
+      throw new Error(
+        `Refusing to remove run scratch while PID ${listenerPid} listens on CDP port ${state.port}`,
+      );
+    }
+  } else {
     try {
       await getTargets(state.port);
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    } catch {
-      break;
+      throw new Error(
+        `Refusing to remove run scratch while CDP port ${state.port} remains open`,
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Refusing to remove run scratch")
+      ) {
+        throw error;
+      }
     }
   }
   const runDir = await removeRunScratch(state);

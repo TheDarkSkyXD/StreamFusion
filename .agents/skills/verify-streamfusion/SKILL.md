@@ -51,7 +51,7 @@ Run doctor before driving the app and whenever a selector, route, or screenshot 
 node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verifyRun
 ```
 
-Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Seeded runs report no copied authenticated platforms. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
+Require `healthy: true`. On Windows, launch records the npm process identity and pins the CDP listener identity only after live ancestry proves that the listener belongs to npm. Doctor requires the same listener PID, creation time, executable, CDP port, profile, and renderer URL. This remains valid if disposable npm or cmd ancestors exit, but rejects a reused PID or a different listener. Doctor also checks the StreamFusion window title, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Seeded runs report no copied authenticated platforms. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
 
 Inspect the isolated database after doctor succeeds:
 
@@ -102,7 +102,7 @@ Clean up after every pass and failed attempt.
 node .agents/skills/verify-streamfusion/scripts/control.mjs cleanup --run $verifyRun
 ```
 
-Cleanup terminates the recorded launcher process tree by PID, waits for its CDP port to close, and removes only that run's disposable profile and run file. It never kills by process name. It refuses run directories outside `.scratch/verify-streamfusion/runs/`. The command must report `evidenceExists: true` after deleting scratch state.
+Cleanup terminates the recorded launcher process tree only while its process identity still matches. If the launcher has exited on Windows, cleanup terminates the pinned listener tree only after its identity, CDP port, and profile match. It never kills by process name or a reused PID. Cleanup waits for the CDP port to close before removing that run's disposable profile and run file. It refuses run directories outside `.scratch/verify-streamfusion/runs/`. The command must report `evidenceExists: true` after deleting scratch state.
 
 ## Isolation
 

@@ -196,8 +196,8 @@ test("the smoke check returns the inspection result and always cleans up", async
 // Guards: the E2E health check must reject a missing app shell and uncaught renderer errors.
 test("verification health requires the app shell and clean renderer logs", () => {
   const healthy = {
-    processAlive: true,
-    portOwned: true,
+    processOwned: true,
+    artifactMatches: true,
     page: {
       title: "StreamFusion",
       bridgeAvailable: true,

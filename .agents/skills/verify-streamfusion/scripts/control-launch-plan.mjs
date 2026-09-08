@@ -162,8 +162,8 @@ export async function runVerificationSmoke(
 }
 
 export function isVerificationHealthy({
-  processAlive,
-  portOwned,
+  processOwned,
+  artifactMatches,
   page,
   accountStorageErrors,
   uncaughtErrors,
@@ -171,8 +171,8 @@ export function isVerificationHealthy({
   launchedVersion,
 }) {
   return (
-    processAlive &&
-    portOwned &&
+    processOwned &&
+    artifactMatches &&
     page.title === "StreamFusion" &&
     page.bridgeAvailable &&
     page.bodyReady &&
