@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "issue": 141,
+  "ticketId": "B04",
+  "result": "partial",
+  "source": {
+    "mainCommit": "e4fdfaf3a877dd971c62c3ae218899ee0350b00b",
+    "metroCandidateCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27",
+    "equivalence": "The initial UI, original process-death, and link receipts used the reviewed uncommitted eight-file tree. The later unsupported, offline, and fresh reboot receipts used committed 2b3d9f after main e4f existed. Root verified the complete landed tree equals 2b3d9f, and the listed Activity blobs bind both receipt groups.",
+    "activityBlobs": {
+      "controller": "2bcff7d7b72dc079444aeb79e10984a06814bd40",
+      "screen": "07357a39a66a85003651480c62bda94818b65496",
+      "shell": "44b3c93262cf5ed1b91ff02584a3357a08b02d68",
+      "workflow": "c7755655f2f1f352954cf81bcc174eb85f1b1f2f"
+    }
+  },
+  "runtime": {
+    "client": "Android API 30 development client",
+    "apkDigest": "sha256:b6373877d4afc55592d79f5edb85e9cbec2af84fe0b74c4eac0a218661317f79",
+    "metro": "Literal root npm start option 3 served JavaScript to the development client. This is not a release-APK source binding.",
+    "interaction": "The first root capture used Mobile MCP. Later proof used bounded adb input and uiautomator XML after Mobile MCP became unavailable."
+  },
+  "observations": {
+    "unsupportedNavigationFallback": {
+      "preparedAt": "2026-09-08T16:10:50.113Z",
+      "reopenedAt": "2026-09-08T16:11:18.858Z",
+      "activityPreservedAt": "2026-09-08T16:11:30.496Z",
+      "result": "pass",
+      "details": "The development-only unsupported snapshot reopened at Search with the distinct unsupported-version reset notice. The persisted Storage check Activity row remained available.",
+      "artifactPath": "verification/evidence/issue-141/issue141-unsupported-fallback-activity-preserved-20260908.png"
+    },
+    "offlineProductReopen": {
+      "offlineAt": "2026-09-08T16:12:18.706Z",
+      "reopenedAt": "2026-09-08T16:12:44.041Z",
+      "capturedAt": "2026-09-08T16:12:53.299Z",
+      "restoredAt": "2026-09-08T16:13:03.509Z",
+      "result": "pass",
+      "details": "Wi-Fi and data were disabled and Android reported Active default network: none. adb reverse carried development JavaScript through localhost. Force-stop and explicit development-client loopback reopen restored the read Storage check row and zero unread. Wi-Fi, data, font scale, and adb reverse state were restored afterward.",
+      "artifactPath": "verification/evidence/issue-141/issue141-offline-loopback-restoration-20260908.png"
+    },
+    "currentSourceReboot": {
+      "requestedAt": "2026-09-08T16:44:48.498Z",
+      "bootCompletedAt": "2026-09-08T16:45:23.972Z",
+      "reopenedAt": "2026-09-08T16:45:25.494Z",
+      "capturedAt": "2026-09-08T16:46:01.170Z",
+      "cleanedAt": "2026-09-08T16:49:47.208Z",
+      "result": "pass",
+      "details": "The API 30 emulator rebooted without an app-data wipe. The matching B637 development client then reopened through the still-running literal option-3 Metro session to Activity, where XML and the retained PNG show Storage check finished as Read and zero unread.",
+      "artifactPath": "verification/evidence/issue-141/issue141-reboot-current-source-20260908.png",
+      "xmlArtifactPath": "verification/evidence/issue-141/issue141-reboot-current-source-20260908.xml"
+    },
+    "linkAndHistoryCoverage": {
+      "observedOn": "2026-09-08",
+      "exactTimes": "not retained for the earlier bounded current-UI session",
+      "details": "The retained current-UI session observed repeated warm Activity links, malformed or unknown-link containment, and independent Watch and Activity back histories. These observations are tied by identical Activity blobs but are not used to fabricate a catalog timestamp."
+    }
+  },
+  "reviewedCoverage": {
+    "readState": "The landed reconciler preserves existing readAt for duplicate activity identity while retaining the original occurredAt. Core variants and Mobile ProductStore regressions cover channel, job, and system records.",
+    "ui": "The reviewed UI evidence shows typed provenance, readable wrapped title/detail at 200 percent font scale, filter and disabled Mark all semantics, and five portrait destinations. Earlier images remain tied to the identical Activity blobs and their original session times.",
+    "outcomes": "Desktop notification outcomes informed the Activity item/detail and read-state contract. The approved mobile contract and prototype were compared from source. No browser-rendered mockup comparison was performed.",
+    "retainedUiArtifactPaths": [
+      "verification/evidence/issue-141/issue141-activity-ui-font1-20260908.png",
+      "verification/evidence/issue-141/issue141-activity-ui-font2-20260908.png",
+      "verification/evidence/issue-141/issue141-activity-ui-font2-scroll-20260908.png",
+      "verification/evidence/issue-141/issue141-activity-detail-font2-20260908.png",
+      "verification/evidence/issue-141/issue141-navigation-corrupt-fallback-20260908.png",
+      "verification/evidence/issue-141/issue141-fixed-restart-preserves-read-20260908.png"
+    ]
+  },
+  "evidenceArtifacts": [
+    { "path": "verification/evidence/issue-141/issue141-activity-ui-font1-20260908.png", "sha256": "38ac8212f6d94ded73be859a02011027f4cb9285d296dc57b5393313ece24222", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedOn": "2026-09-08", "scope": "Mobile MCP root capture of title, typed read and provenance metadata, disabled Mark all read, and five destinations from the reviewed pre-landing tree that root verified equivalent to e4f." },
+    { "path": "verification/evidence/issue-141/issue141-activity-ui-font2-20260908.png", "sha256": "967f9ffe2461b4b24904c2726ef2f5ff405728f802fe768e41ed8d8367c9d31c", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedOn": "2026-09-08", "scope": "ADB fallback large-text capture of the wrapped title, filters, and five destinations from the reviewed pre-landing tree equivalent to e4f." },
+    { "path": "verification/evidence/issue-141/issue141-activity-ui-font2-scroll-20260908.png", "sha256": "4a922a77065223a0124cd8a0a9fad8efc10a0ff1a9b01b873eb3a75f948c6032", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedOn": "2026-09-08", "scope": "ADB fallback scroll capture of the visible row summary portion and read/provenance metadata above navigation." },
+    { "path": "verification/evidence/issue-141/issue141-activity-detail-font2-20260908.png", "sha256": "2a0ca4c33b897ed357edc0f52ab86441648b1ea0f1af234f126e8b3f20cbf308", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedOn": "2026-09-08", "scope": "ADB fallback detail capture of the complete summary and reachable destination action." },
+    { "path": "verification/evidence/issue-141/issue141-navigation-corrupt-fallback-20260908.png", "sha256": "7da126dc14adae318950b8c07d5fc6865339a31b5f9c7149959aac58baa489d3", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedOn": "2026-09-08", "scope": "ADB fallback capture of corrupt-navigation recovery from the reviewed pre-landing tree equivalent to e4f." },
+    { "path": "verification/evidence/issue-141/issue141-fixed-restart-preserves-read-20260908.png", "sha256": "7cb46ba7fc9698e3bef8f24746ab0ff4feea6b048fe01da136ad49fc1847657f", "sourceCommit": "c802c8f8c690e330ea86bede7b8c377dc52aee91", "observedOn": "2026-09-08", "scope": "Earlier c802 read-state source capture. Its exact timestamp was not retained, so it is historical context only and is not current-source evidence." },
+    { "path": "verification/evidence/issue-141/issue141-unsupported-fallback-activity-preserved-20260908.png", "sha256": "429778c755fea71528c0a429bc48bcd958578d28f669f13ca0539661b15e1c64", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedAt": "2026-09-08T16:11:30.496Z", "scope": "Development-only unsupported shell-restoration fallback. The PNG shows the unsupported-version notice and preserved read row. Search-root placement was asserted in the contemporaneous XML." },
+    { "path": "verification/evidence/issue-141/issue141-offline-loopback-restoration-20260908.png", "sha256": "e84b3c66d14e64e66459ed112a5c2e5641cd67c9e9302bcdd8e3e6758e338685", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedAt": "2026-09-08T16:12:53.299Z", "scope": "ADB-loopback development-JavaScript Product-data restoration. The PNG shows no connected transport icon, one Read/System/Local row, and zero unread. It is not standalone offline APK proof." },
+    { "path": "verification/evidence/issue-141/issue141-reboot-current-source-20260908.png", "sha256": "f3c627768db31618b549d47c483820e80e5cbfc6da6df4d6f44006e6472123c8", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedAt": "2026-09-08T16:46:01.170Z", "scope": "Fresh post-landing API 30 reboot receipt. The PNG shows the persisted Read/System/Local row and zero unread." },
+    { "path": "verification/evidence/issue-141/issue141-reboot-current-source-20260908.xml", "sha256": "863aae89e4ffc8beca512200a736cd8e95b24aac96cb25b0b4c75cb938cd4775", "sourceCommit": "2b3d9f4790aa17ea46f831f82adcc28f4440de27", "observedAt": "2026-09-08T16:46:01.170Z", "scope": "Fresh reboot hierarchy with selected Activity navigation, visible zero unread, and a disabled but clickable Mark all Activity read control with its content description and bounds. It is observed native semantics, not TalkBack traversal proof." }
+  ],
+  "androidParityRecord": {
+    "desktopBaselineCommit": "e4fdfaf3a877dd971c62c3ae218899ee0350b00b",
+    "records": {
+      "app-shell-and-navigation": "The corrected Activity shell retains five portrait destinations, independent Activity and Watch histories, strict app-link containment, and corruption or unsupported-version fallback. The source comparison uses docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md and docs/research/streamfusion-mobile/prototypes/android-navigation-prototype.html.",
+      "notifications": "The mobile Activity row and detail preserve Desktop notification outcomes as local typed Activity data. Remote push and FCM presentation remain out of scope."
+    },
+    "limitations": "This is a source comparison plus native receipts. It does not claim rendered HTML parity or complete notification delivery."
+  },
+  "gates": {
+    "local": "Root independently passed Core 50, Mobile 37 Node plus 119 Vitest, architecture, typecheck, and lint on the landed tree. The normal commit hook passed an isolated signed-out Electron smoke preview.",
+    "hostedCI": {
+      "result": "pass",
+      "run": "https://github.com/TheDarkSkyXD/StreamFusion/actions/runs/34249151820",
+      "jobs": 4,
+      "sourceCommit": "e4fdfaf3a877dd971c62c3ae218899ee0350b00b"
+    }
+  },
+  "limits": [
+    "The unsupported and offline interactions are adb/XML fallback evidence after Mobile MCP became unavailable.",
+    "The UI structural tests do not prove TalkBack traversal.",
+    "Unsupported and corrupt shell-restoration failure-and-recovery states were observed. No live provider failure or write-failure native screen was observed in this receipt.",
+    "No standalone offline APK startup is claimed.",
+    "The historical issue-141-activity-lifecycle receipt remains unchanged and expired. This correction does not re-date it.",
+    "TalkBack is not installed on this emulator; no assistive-service traversal was run.",
+    "No live provider, FCM delivery, or native write-failure screen was observed; those are outside this bounded local Activity correction receipt.",
+    "This evidence does not close Issue 141. Any unobserved broader Activity acceptance remains explicit."
+  ],
+  "remainingB04AcceptanceGaps": {
+    "requiredBeforeClosure": [
+      "Deliver a mobile-ready equivalent for Desktop per-item Dismiss and Clear all. No Android omission or adaptation is approved. The durable Activity model needs an explicit tombstone and retention decision that protects active jobs and duplicate identity before any deletion action.",
+      "Observe the implemented unavailable and Retry states in the real Android feature; current coverage for those states is structural or unit-level rather than a retained native interaction.",
+      "Complete actual-use semantic accessibility validation. The current reboot XML proves selected, disabled, clickable, label, and bounds semantics, but the emulator lacks TalkBack so assistive traversal remains unmeasured.",
+      "Complete the required Desktop-to-Mobile outcome comparison with retained, current-source evidence for every applicable Activity state; this report records the approved source comparison and local outcomes only."
+    ],
+    "notRequiredForThisBoundedLocalReceipt": [
+      "Live provider or FCM delivery is outside B04's no-remote-push scope.",
+      "A standalone offline release APK is not claimed; the retained offline proof is explicitly development-client JavaScript over adb loopback."
+    ]
+  }
+}
