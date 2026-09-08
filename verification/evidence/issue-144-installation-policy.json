@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "issue": 144,
+  "ticketId": "D01",
+  "mobileSourceCommit": "39ca26633b1d978411fdf520700b5665d0f29ba6",
+  "observedAt": "2026-09-08T05:17:50.391Z",
+  "result": "partial",
+  "desktopBaseline": {
+    "observedMainCommit": "39ca26633b1d978411fdf520700b5665d0f29ba6",
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "D01 installation and policy foundation receipt. It does not claim complete Diagnostics parity."
+  },
+  "candidate": {
+    "apkSha256": "ac15fc221eaaf2b968abb3045bd87996651a2963cc7060116ab639d71a4531ac",
+    "apkSizeBytes": 330218860,
+    "nativeKotlinBlob": "0e23ac409e089b94b11c105d321cff7f7eb4edcb",
+    "mobileTree": "219ae25ca39f34eaadc886266bdd05e02e6a729e",
+    "relayTree": "7ad86b3ab1c5a196504289c8a067cd88936f251c",
+    "coreTree": "2b5d51243ea2a1f5fff02d5170006bb7770be5f5",
+    "provenance": "The installed Android development client supplied the native module matching the Kotlin blob. Metro served JavaScript from the source whose Mobile, Relay, and Core trees match reachable main 39ca266. The APK is a development client, not a release artifact bound to all source."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "The reviewed source commit passed the normal isolated signed-out Electron preview hook.",
+        "The final focused Mobile gate passed with 30 Node tests, 100 Vitest tests, architecture proof, typecheck, lint, contract check, prototype check, and diff check.",
+        "GitHub Actions run 34187918723 completed successfully across all four jobs, including Android API 30 install and launch.",
+        "https://github.com/TheDarkSkyXD/StreamFusion/actions/runs/34187918723"
+      ]
+    },
+    "relay-contract-tests": {
+      "result": "pass",
+      "observations": [
+        "Feature-private Relay service, route, and HMAC authority tests exercised registration replay limits, credential rotation, environment isolation, bounded request handling, normalized errors, and rate-limit scopes.",
+        "The local Relay used development-only fixtures. It never received a manifest signing private key or Platform authentication token."
+      ]
+    },
+    "api30-emulator": {
+      "result": "pass",
+      "observations": [
+        "A literal root npm start option 3 launch opened the matching custom development client on Android 11 API 30.",
+        "The Diagnostics card showed separate installation and effective-policy state, source, timestamps, cache age at last check, and two 48dp actions in portrait."
+      ]
+    },
+    "environment-isolation": {
+      "result": "pass",
+      "observations": [
+        "Shared-contract and Relay tests reject credential and manifest environment mismatches before authorization or activation.",
+        "Production configuration accepts only public Relay and trusted-key input. Missing or invalid configuration fails closed. No production endpoint, credential, key generation, or deployment was used."
+      ]
+    },
+    "signature-failure": {
+      "result": "pass",
+      "observations": [
+        "The API 30 development client rejected a schema-valid local development manifest with an invalid detached signature and retained verified-cache sequence 1.",
+        "After the same local Relay restored its normal fixture, Refresh returned fresh-verified policy and idle controls."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-144/issue144-invalid-signature-cache-20260908.png",
+      "sha256": "2d7b915c7d2587c72943446fcd376ce5e07529459405e16727e9c67969c68315",
+      "scope": "API 30 Hermes signature rejection with verified-cache retention"
+    },
+    {
+      "path": "verification/evidence/issue-144/issue144-invalid-signature-recovery-20260908.png",
+      "sha256": "9689df17d78363d8b738416f9c4cc1a6ead62dd51184f978fa21fe96c48de676",
+      "scope": "API 30 normal-fixture recovery after signature rejection"
+    },
+    {
+      "path": "verification/evidence/issue-144/issue144-refresh-busy-native-20260908.png",
+      "sha256": "db1b56f80ae2cc133ebaa01363b15bce47dd273c23d47405ef562ee6cf62a93d",
+      "scope": "API 30 native Refresh pending state with verified-cache retention and busy actions"
+    },
+    {
+      "path": "verification/evidence/issue-144/issue144-refresh-busy-native-recovery-20260908.png",
+      "sha256": "02c2cdfa5918a36e73ce0aa3e6cbba5d9963e93cc6f1d9f98bf50cfe4721ee17",
+      "scope": "API 30 native Refresh recovery to fresh-verified and idle actions"
+    },
+    {
+      "path": "verification/evidence/issue-144/issue144-large-text-policy-20260908.png",
+      "sha256": "fcd23d8cd00c570e002d88bc980a774a21dba796d67c6f3ced29b946f74624ea",
+      "scope": "API 30 font scale 1.3 policy text and metadata wrapping"
+    },
+    {
+      "path": "verification/evidence/issue-144/issue144-large-text-controls-20260908.png",
+      "sha256": "352f644e7e660738d57f2a7dc12f9820f6f78d1298fee0ac71bbd2d3ecbea4a8",
+      "scope": "API 30 font scale 1.3 stacked 48dp actions and portrait destinations"
+    }
+  ],
+  "runtimeObservations": {
+    "registryRows": {
+      "beforeRestart": 3,
+      "afterRestart": 3,
+      "scope": "Read-only local development D1 row counts. No identity or credential value was read or retained."
+    },
+    "credentialAndMarkerLimits": [
+      "The nonsecret Product presence marker distinguishes a saved identity from a missing or corrupt SecureStore record after marker adoption.",
+      "An empty legacy state from before marker adoption remains ambiguous between first install and a lost record. The implementation treats it as first install and creates a new identity without deleting Product data.",
+      "A rotation response lost beyond the bounded replay grant expiry becomes terminal-safe unavailable. It does not promise unbounded reconciliation."
+    ],
+    "largeText": "At font scale 1.3, the API 30 emulator showed wrapped policy text and metadata, vertically stacked 132px controls at 440 density, and five visible portrait destinations. Font scale 1.0 was restored after the receipt.",
+    "uiComparison": {
+      "contractAndMockupSource": "The committed mobile screen and control contract checker and Android navigation prototype declaration checker passed against the candidate source.",
+      "renderedHtml": "Not performed. Browser security policy blocks the prior local HTML rendering path, so this receipt contains no rendered HTML screenshot or visual parity claim."
+    },
+    "nativeBusyObservation": "A temporary 14-second hold of the task-owned local development workerd kept the normal HMAC and D1 fixture request pending below the client timeout. The API 30 hierarchy then showed Checking installation, Checking capability policy, verified-cache retention, Retrying installation busy, and Refreshing policy busy. The helper resumed the fixture in finally, after which the hierarchy and screenshot showed fresh-verified with ordinary action labels. This is a controlled local fixture delay, not network performance evidence."
+  },
+  "androidParityRecords": {
+    "diagnostics-logs-and-bug-reports": {
+      "delivery": "direct D01 installation and policy foundation",
+      "progress": "implemented",
+      "freshness": "development receipt expires within 24 hours",
+      "blockers": [
+        "#171 owns complete Diagnostics history and parity evidence.",
+        "This D01 receipt does not mark the full Diagnostics capability verified."
+      ],
+      "developmentException": null
+    }
+  },
+  "qualification": "No physical-device, release, production Relay, production credential, manifest-signing-key, media-workload, or full Diagnostics qualification was exercised. #196 remains required for physical and media qualification.",
+  "closureGaps": [
+    "OPEN-D01-VISUAL remains. A user-approved matched portrait-B mockup comparison is required before issue closure.",
+    "The receipt remains partial until that human visual-comparison decision is resolved."
+  ],
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/144",
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/171",
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/196"
+  ]
+}
