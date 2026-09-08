@@ -33,6 +33,14 @@ function shellQuote(value) {
   return `'${value.replaceAll("'", "'\"'\"'")}'`;
 }
 
+function testShell() {
+  const gitBashPath = "C:/Program Files/Git/bin/bash.exe";
+
+  return process.platform === "win32" && existsSync(gitBashPath)
+    ? gitBashPath
+    : "bash";
+}
+
 function runPinnedActionScripts(commands, adbStubDirectory, environment) {
   const assignments = Object.entries(environment)
     .map(([name, value]) => `${name}=${shellQuote(value)}`)
@@ -41,10 +49,10 @@ function runPinnedActionScripts(commands, adbStubDirectory, environment) {
   let result;
   for (const command of commands) {
     result = spawnSync(
-      "bash",
+      testShell(),
       [
         "-c",
-        `PATH=${shellQuote(adbStubDirectory)}:"$PATH"; export PATH; ${assignments} ${command}`,
+        `PATH=${shellQuote(adbStubDirectory)}:"$PATH"; export PATH; ${assignments} sh -c ${shellQuote(command)}`,
       ],
       {
         cwd: process.cwd(),
@@ -87,6 +95,23 @@ esac
 `,
   );
   chmodSync(adbPath, 0o755);
+}
+
+function writeEmulatorStub(directory) {
+  const emulatorPath = path.join(directory, "emulator", "emulator");
+
+  mkdirSync(path.dirname(emulatorPath), { recursive: true });
+  writeFileSync(
+    emulatorPath,
+    `#!/usr/bin/env bash
+set -eu
+printf '%s\\n' "$*" >> "$STUB_EMULATOR_LOG"
+if [ "\${STUB_EMULATOR_FAILURE:-0}" = "1" ]; then
+  exit 42
+fi
+`,
+  );
+  chmodSync(emulatorPath, 0o755);
 }
 
 test("the build workflow is CI-only and cannot publish a GitHub release", () => {
@@ -163,7 +188,7 @@ test("the API 30 job enables and verifies KVM before accelerated boot", () => {
   assert.equal(emulatorStep.with["disable-linux-hw-accel"], false);
   assert.match(
     emulatorStep.with["pre-emulator-launch-script"],
-    /emulator -accel-check/,
+    /"\$ANDROID_HOME\/emulator\/emulator" -accel-check/,
   );
   assert.doesNotMatch(source, /-accel off/);
   assert.deepEqual(parsePinnedActionScript(emulatorStep.with.script), [
@@ -173,6 +198,60 @@ test("the API 30 job enables and verifies KVM before accelerated boot", () => {
     existsSync(".github/scripts/verify-android-api30-install.sh"),
     true,
   );
+});
+
+test("the pre-launch acceleration check uses the action SDK root", () => {
+  const workflow = loadWorkflow("build.yml");
+  const emulatorStep = workflow.jobs["android-development"].steps.find(
+    (step) => step.name === "Install and launch on API 30",
+  );
+  const commands = parsePinnedActionScript(
+    emulatorStep.with["pre-emulator-launch-script"],
+  );
+  const directory = mkdtempSync(
+    path.join(process.cwd(), ".workflow SDK root's-"),
+  );
+  const fakePathDirectory = path.join(directory, "path");
+  const sdkDirectory = path.join(directory, "SDK with space's quote");
+  const emulatorLogPath = path.join(directory, "emulator.log");
+
+  mkdirSync(fakePathDirectory);
+  writeFileSync(
+    path.join(fakePathDirectory, "emulator"),
+    "#!/usr/bin/env bash\nexit 66\n",
+  );
+  chmodSync(path.join(fakePathDirectory, "emulator"), 0o755);
+  writeEmulatorStub(sdkDirectory);
+  try {
+    assert.deepEqual(commands, [
+      '"$ANDROID_HOME/emulator/emulator" -accel-check',
+    ]);
+    const successfulCheck = runPinnedActionScripts(
+      commands,
+      relativeShellPath(fakePathDirectory),
+      {
+        ANDROID_HOME: relativeShellPath(sdkDirectory),
+        STUB_EMULATOR_LOG: relativeShellPath(emulatorLogPath),
+      },
+    );
+
+    assert.equal(successfulCheck.status, 0, successfulCheck.stderr);
+    assert.equal(readFileSync(emulatorLogPath, "utf8"), "-accel-check\n");
+
+    const failedCheck = runPinnedActionScripts(
+      commands,
+      relativeShellPath(fakePathDirectory),
+      {
+        ANDROID_HOME: relativeShellPath(sdkDirectory),
+        STUB_EMULATOR_FAILURE: "1",
+        STUB_EMULATOR_LOG: relativeShellPath(emulatorLogPath),
+      },
+    );
+
+    assert.equal(failedCheck.status, 42);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("the API 30 install script survives the pinned action parser and fails terminally", () => {
@@ -200,7 +279,7 @@ test("the API 30 install script survives the pinned action parser and fails term
       { STUB_ADB_LOG: bashAdbLogPath },
     );
 
-    assert.equal(successfulInstall.status, 0);
+    assert.equal(successfulInstall.status, 0, successfulInstall.stderr);
     assert.match(readFileSync(adbLogPath, "utf8"), /install --no-streaming/);
     assert.match(readFileSync(adbLogPath, "utf8"), /shell monkey/);
 

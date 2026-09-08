@@ -164,7 +164,7 @@ jobs:
           profile: pixel_2
           disable-linux-hw-accel: false
           pre-emulator-launch-script: |
-            emulator -accel-check
+            "$ANDROID_HOME/emulator/emulator" -accel-check
           script: bash .github/scripts/verify-android-api30-install.sh
 
       - name: Upload development APK
