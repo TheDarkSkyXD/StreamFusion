@@ -252,6 +252,50 @@ describe("Activity screen", () => {
     expect(onOpen).toHaveBeenCalledWith({ route: "more/diagnostics" });
   });
 
+  it("places a detail dismissal confirmation before the proof banner", () => {
+    const detail = ActivityDetailScreen({
+      developmentProof: {
+        detail: "Isolated Activity proof data is selected.",
+        kind: "proof",
+        namespace: "activity-proof-11111111-1111-4111-8111-111111111111",
+      },
+      dismissalConfirmation: {
+        eventIds: ["event:system"],
+        kind: "dismiss-item",
+      },
+      dismissalFailure: false,
+      dismissalResult: null,
+      eventId: "event:system",
+      isDismissing: false,
+      isMarkingRead: false,
+      items: [item()],
+      mutationFailure: null,
+      onCancelDismissal: () => undefined,
+      onConfirmDismissal: async () => undefined,
+      onDismissItem: () => undefined,
+      onExitDevelopmentProof: async () => undefined,
+      onMarkRead: async () => undefined,
+      onOpen: () => undefined,
+    });
+    const children = Array.isArray(detail.props.children)
+      ? detail.props.children
+      : [detail.props.children];
+    const confirmationIndex = children.findIndex((child) =>
+      descendants(child).some(
+        (node) => node.props.testID === "activity-dismissal-confirmation",
+      ),
+    );
+    const proofBannerIndex = children.findIndex((child) =>
+      descendants(child).some(
+        (node) => node.props.testID === "activity-proof-banner",
+      ),
+    );
+
+    expect(confirmationIndex).toBeGreaterThanOrEqual(0);
+    expect(proofBannerIndex).toBeGreaterThanOrEqual(0);
+    expect(confirmationIndex).toBeLessThan(proofBannerIndex);
+  });
+
   it("keeps saved rows visible with a reachable retry after a failed refresh", () => {
     const nodes = render(model({ status: "unavailable" }));
     const notice = nodes.find(

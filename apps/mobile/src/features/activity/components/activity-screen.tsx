@@ -630,11 +630,6 @@ export function ActivityDetailScreen({
           </Text>
         </View>
       )}
-      <DevelopmentActivityProofBanner
-        model={developmentProof ?? null}
-        {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
-        {...(onRetryDevelopmentProof ? { onRetry: onRetryDevelopmentProof } : {})}
-      />
       <DismissalStatus
         model={{
           dismissalConfirmation,
@@ -644,6 +639,11 @@ export function ActivityDetailScreen({
         }}
         onCancel={onCancelDismissal}
         onConfirm={onConfirmDismissal}
+      />
+      <DevelopmentActivityProofBanner
+        model={developmentProof ?? null}
+        {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
+        {...(onRetryDevelopmentProof ? { onRetry: onRetryDevelopmentProof } : {})}
       />
     </ScrollView>
   );
