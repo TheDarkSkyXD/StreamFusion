@@ -445,6 +445,46 @@ export function createMobileStoreRuntime(
           });
         },
       },
+      installationPolicy: {
+        async read() {
+          return (
+            (
+              await (
+                await requireProductStore()
+              ).getSetting("installation-policy.v1")
+            )?.value ?? null
+          );
+        },
+        async write(value, updatedAtEpochMs) {
+          await (
+            await requireProductStore()
+          ).setSetting({
+            key: "installation-policy.v1",
+            updatedAt: updatedAtEpochMs,
+            value,
+          });
+        },
+      },
+      installationIdentityPresence: {
+        async read() {
+          return (
+            (
+              await (
+                await requireProductStore()
+              ).getSetting("installation-policy.identity-presence.v1")
+            )?.value ?? null
+          );
+        },
+        async write(value, updatedAtEpochMs) {
+          await (
+            await requireProductStore()
+          ).setSetting({
+            key: "installation-policy.identity-presence.v1",
+            updatedAt: updatedAtEpochMs,
+            value,
+          });
+        },
+      },
       activity: {
         async list(filter) {
           return (await requireProductStore()).listActivity(filter);

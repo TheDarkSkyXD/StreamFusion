@@ -14,7 +14,13 @@
       "name": "streamfusion-integration-relay-development",
       "vars": {
         "RELAY_ENVIRONMENT": "development"
-      }
+      },
+      "d1_databases": [
+        {
+          "binding": "INSTALLATION_REGISTRY",
+          "database_name": "streamfusion-installation-policy-development"
+        }
+      ]
     },
     "production": {
       "name": "streamfusion-integration-relay-production",

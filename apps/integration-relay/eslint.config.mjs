@@ -93,7 +93,22 @@ export default tseslint.config(
           type: "relay-composition",
           pattern: "src/composition",
           partialMatch: false
-        }
+        },
+        ...[
+          "routes",
+          "components",
+          "domain",
+          "capabilities",
+          "adapters",
+          "data",
+          "utils",
+          "composition",
+          "tests"
+        ].map((layer) => ({
+          type: `relay-feature-${layer}`,
+          pattern: `src/features/*/${layer}`,
+          partialMatch: false
+        }))
       ]
     },
     rules: {
@@ -106,6 +121,48 @@ export default tseslint.config(
           checkUnknownLocals: true,
           checkInternals: true,
           policies: [
+            {
+              from: {
+                element: {
+                  types: {
+                    anyOf: [
+                      "relay-composition",
+                      "relay-transport",
+                      "relay-feature-routes",
+                      "relay-feature-components",
+                      "relay-feature-domain",
+                      "relay-feature-capabilities",
+                      "relay-feature-adapters",
+                      "relay-feature-data",
+                      "relay-feature-utils",
+                      "relay-feature-composition",
+                      "relay-feature-tests"
+                    ]
+                  }
+                }
+              },
+              allow: { to: { module: { origin: "external" } } }
+            },
+            {
+              from: {
+                element: {
+                  types: {
+                    anyOf: [
+                      "relay-feature-routes",
+                      "relay-feature-components",
+                      "relay-feature-domain",
+                      "relay-feature-capabilities",
+                      "relay-feature-adapters",
+                      "relay-feature-data",
+                      "relay-feature-utils",
+                      "relay-feature-composition",
+                      "relay-feature-tests"
+                    ]
+                  }
+                }
+              },
+              allow: { dependency: { source: "@streamfusion/core/relay" } }
+            },
             {
               from: { element: { type: "relay-transport" } },
               allow: { to: { element: { type: "relay-transport" } } }
@@ -124,7 +181,127 @@ export default tseslint.config(
                 to: {
                   element: {
                     types: {
-                      anyOf: ["relay-composition", "relay-transport"]
+                      anyOf: [
+                        "relay-composition",
+                        "relay-transport",
+                        "relay-feature-routes",
+                        "relay-feature-components",
+                        "relay-feature-domain",
+                        "relay-feature-capabilities",
+                        "relay-feature-adapters",
+                        "relay-feature-data",
+                        "relay-feature-utils",
+                        "relay-feature-composition"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              from: { element: { type: "relay-feature-routes" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "relay-feature-routes",
+                        "relay-feature-domain",
+                        "relay-feature-capabilities",
+                        "relay-feature-utils"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              from: { element: { type: "relay-feature-domain" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "relay-feature-domain",
+                        "relay-feature-capabilities",
+                        "relay-feature-utils"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              from: { element: { type: "relay-feature-adapters" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "relay-feature-adapters",
+                        "relay-feature-capabilities",
+                        "relay-feature-utils"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              from: { element: { type: "relay-feature-data" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "relay-feature-data",
+                        "relay-feature-capabilities",
+                        "relay-feature-utils"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              from: { element: { type: "relay-feature-composition" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "relay-feature-routes",
+                        "relay-feature-components",
+                        "relay-feature-domain",
+                        "relay-feature-capabilities",
+                        "relay-feature-adapters",
+                        "relay-feature-data",
+                        "relay-feature-utils",
+                        "relay-feature-composition"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              from: { element: { type: "relay-feature-tests" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "relay-composition",
+                        "relay-transport",
+                        "relay-feature-routes",
+                        "relay-feature-components",
+                        "relay-feature-domain",
+                        "relay-feature-capabilities",
+                        "relay-feature-adapters",
+                        "relay-feature-data",
+                        "relay-feature-utils",
+                        "relay-feature-composition"
+                      ]
                     }
                   }
                 }

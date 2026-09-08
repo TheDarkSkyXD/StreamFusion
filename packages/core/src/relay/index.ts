@@ -1,5 +1,27 @@
 export const RELAY_PROTOCOL_VERSION = 1;
 
+export {
+  CAPABILITY_MANIFEST_SCHEMA_VERSION,
+  canonicalizeCapabilityManifest,
+  capabilityManifestSchema,
+  signedCapabilityManifestSchema,
+} from "./capability-manifest.ts";
+export type {
+  CapabilityManifest,
+  CapabilityManifestEnvironment,
+  SignedCapabilityManifest,
+} from "./capability-manifest.ts";
+export {
+  installationCredentialGrantSchema,
+  installationRegistrationRequestSchema,
+  installationRotationRequestSchema,
+} from "./installation-identity.ts";
+export type {
+  InstallationCredentialGrant,
+  InstallationRegistrationRequest,
+  InstallationRotationRequest,
+} from "./installation-identity.ts";
+
 export type JsonPrimitive = boolean | null | number | string;
 export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
 export type JsonObject = { readonly [key: string]: JsonValue };

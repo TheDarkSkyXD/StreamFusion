@@ -91,9 +91,16 @@ export interface CapabilityProfileSnapshotStore {
   write(value: string, observedAtEpochMs: number): Promise<void>;
 }
 
+export interface InstallationPolicySnapshotStore {
+  read(): Promise<string | null>;
+  write(value: string, updatedAtEpochMs: number): Promise<void>;
+}
+
 export interface MobileProductState {
   readonly activity: ActivityRepository;
   readonly capabilityProfile: CapabilityProfileSnapshotStore;
+  readonly installationPolicy: InstallationPolicySnapshotStore;
+  readonly installationIdentityPresence: InstallationPolicySnapshotStore;
   readonly shellRestoration: ShellRestorationRepository;
 }
 

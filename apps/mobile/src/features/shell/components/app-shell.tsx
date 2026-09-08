@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { AppLinkSource } from "@mobile/features/shell/capabilities/app-links";
 import type { CapabilityProfileViewModel } from "@mobile/features/capability-profile/components/capability-profile-runtime-controller";
+import { InstallationPolicyPanel } from "@mobile/features/installation-policy/components/installation-policy-panel";
+import type { InstallationPolicyViewModel } from "@mobile/features/installation-policy/domain/installation-policy-runtime-controller";
 import type {
   ActivityRepository,
   ShellRestorationRepository,
@@ -68,7 +70,10 @@ export function AppShell({
   activityRepository,
   appLinks,
   capabilityProfile,
+  installationPolicy,
   onRetryCapabilityProfile,
+  onRefreshCapabilityPolicy,
+  onRetryInstallationRegistration,
   onRunCapabilityProfileDevelopmentProof,
   developmentStatus,
   onPrepareRestorationProof,
@@ -80,7 +85,10 @@ export function AppShell({
   readonly activityRepository: ActivityRepository;
   readonly appLinks: AppLinkSource;
   readonly capabilityProfile: CapabilityProfileViewModel;
+  readonly installationPolicy: InstallationPolicyViewModel;
   readonly onRetryCapabilityProfile: () => void;
+  readonly onRefreshCapabilityPolicy: () => void;
+  readonly onRetryInstallationRegistration: () => void;
   readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
   readonly developmentStatus: DevelopmentClientViewModel;
   readonly onPrepareRestorationProof: (
@@ -155,10 +163,13 @@ export function AppShell({
             <ShellScreen
               activity={activity}
               capabilityProfile={capabilityProfile}
+              installationPolicy={installationPolicy}
               developmentStatus={developmentStatus}
               dispatch={dispatch}
               onPrepareRestorationProof={onPrepareRestorationProof}
               onRetryCapabilityProfile={onRetryCapabilityProfile}
+              onRefreshCapabilityPolicy={onRefreshCapabilityPolicy}
+              onRetryInstallationRegistration={onRetryInstallationRegistration}
               onRunCapabilityProfileDevelopmentProof={onRunCapabilityProfileDevelopmentProof}
               onRunNativeCapabilityProof={onRunNativeCapabilityProof}
               onRunPersistenceProof={onRunPersistenceProof}
@@ -283,10 +294,13 @@ function ShellHeader({
 function ShellScreen({
   activity,
   capabilityProfile,
+  installationPolicy,
   developmentStatus,
   dispatch,
   onPrepareRestorationProof,
   onRetryCapabilityProfile,
+  onRefreshCapabilityPolicy,
+  onRetryInstallationRegistration,
   onRunCapabilityProfileDevelopmentProof,
   onRunNativeCapabilityProof,
   onRunPersistenceProof,
@@ -295,12 +309,15 @@ function ShellScreen({
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly capabilityProfile: CapabilityProfileViewModel;
+  readonly installationPolicy: InstallationPolicyViewModel;
   readonly developmentStatus: DevelopmentClientViewModel;
   readonly dispatch: (action: ShellNavigationAction) => void;
   readonly onPrepareRestorationProof: (
     kind: "corrupt" | "unsupported",
   ) => Promise<void>;
   readonly onRetryCapabilityProfile: () => void;
+  readonly onRefreshCapabilityPolicy: () => void;
+  readonly onRetryInstallationRegistration: () => void;
   readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
   readonly onRunNativeCapabilityProof: () => Promise<{
     readonly detail: string;
@@ -389,6 +406,11 @@ function ShellScreen({
             <CapabilityProfilePanel
               model={capabilityProfile}
               onRetry={onRetryCapabilityProfile}
+            />
+            <InstallationPolicyPanel
+              model={installationPolicy}
+              onRefreshCapabilityPolicy={onRefreshCapabilityPolicy}
+              onRetryInstallationRegistration={onRetryInstallationRegistration}
             />
             {__DEV__ ? (
               <DevelopmentResourceFailureProofControl

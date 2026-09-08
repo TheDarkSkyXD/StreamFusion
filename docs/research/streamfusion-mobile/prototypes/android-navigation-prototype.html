@@ -3253,6 +3253,7 @@
               <div class="switch-row"><div><strong>Local captions</strong><span>English · 43.11 MiB</span></div><button type="button" class="switch on" aria-label="Toggle local captions"></button></div>
               <div class="switch-row"><div><strong>Compact chat density</strong><span>Show more messages on screen</span></div><button type="button" class="switch ${state.compactDensity ? "on" : ""}" data-action="toggle-density" aria-label="Toggle compact chat density"></button></div>
             </section>
+            <section class="system-card"><div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Installation and capability policy</strong><span class="job-state">Fixture</span></div><p class="fixture-label"><strong>Installation.</strong> Registered fixture. Reconciled time unavailable.</p><p class="fixture-label"><strong>Effective capability policy.</strong> Verified cache fixture. Environment development · source verified-cache · issued and verified times unavailable · age at last check unavailable · expiry unavailable.</p><p class="fixture-label">Registration and policy are independent. Fixture metadata omits installation identifiers, credentials, and keys.</p><div class="control-row"><button type="button" class="secondary-button" data-action="retry-installation-registration">Retry installation</button><button type="button" class="secondary-button" data-action="refresh-capability-policy">Refresh policy</button></div></section>
             <div class="system-list">
               <button class="system-card" type="button" data-screen="settings-diagnostics"><span class="system-top"><span><strong>Device and media health</strong><span>Fixture thermal, storage, runtime, and lifecycle evidence</span></span>${icon("health_metrics")}</span></button>
               <article class="system-card"><div class="system-top"><div><strong>Fixture diagnostics report ${state.diagnosticsRun}</strong><span>Redacted local preview, exit history, jobs, profile</span></div><button class="text-button" type="button" data-action="job-details">Review</button></div></article>
@@ -4100,6 +4101,8 @@
           state.screen = "category-detail";
         }
         if (action === "run-check") state.diagnosticsRun += 1;
+        if (action === "retry-installation-registration") state.diagnosticsRun += 1;
+        if (action === "refresh-capability-policy") state.diagnosticsRun += 1;
         if (action === "toggle-density")
           state.compactDensity = !state.compactDensity;
         if (action === "search-tab") state.searchTab = data.tab;

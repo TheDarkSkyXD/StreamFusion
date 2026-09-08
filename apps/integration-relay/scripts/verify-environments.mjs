@@ -24,7 +24,6 @@ assert.equal(config.env.development.vars?.RELAY_ENVIRONMENT, "development");
 assert.equal(config.env.production.vars?.RELAY_ENVIRONMENT, "production");
 
 const resourceFields = [
-  "d1_databases",
   "durable_objects",
   "kv_namespaces",
   "queues",
@@ -39,6 +38,18 @@ for (const environment of environmentNames) {
     );
   }
 }
+
+assert.deepEqual(config.env.development.d1_databases, [
+  {
+    binding: "INSTALLATION_REGISTRY",
+    database_name: "streamfusion-installation-policy-development"
+  }
+]);
+assert.equal(
+  config.env.production.d1_databases,
+  undefined,
+  "production must fail closed until its independently provisioned registry exists"
+);
 
 const sensitiveName = /(secret|token|password|private[_-]?key|credential)/i;
 for (const environment of environmentNames) {

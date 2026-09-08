@@ -5,6 +5,11 @@ import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapte
 import { createAndroidCapabilityContractRuntime } from "@mobile/features/native-contracts/composition/android-capability-contract-runtime";
 import { createCapabilityProfileRuntime } from "@mobile/features/capability-profile/composition/capability-profile-runtime";
 import { useCapabilityProfileController } from "@mobile/features/capability-profile/components/use-capability-profile-controller";
+import {
+  createInstallationPolicyRuntime,
+  publicProductionConfigurationFromEnvironment,
+} from "@mobile/features/installation-policy/composition/installation-policy-runtime";
+import { useInstallationPolicyController } from "@mobile/features/installation-policy/components/use-installation-policy-controller";
 import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
 import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
@@ -24,11 +29,14 @@ const developmentClientController = createDevelopmentClientController({
   supportedPlatforms: PLATFORMS,
 });
 
+const secureRandom = createExpoSecureRandomSource();
+const secureSecretStore = createExpoSecureSecretStore();
+
 const persistenceRuntime = createMobileStoreRuntime({
   backupExcluded: true,
   databaseDriver: createSqliteEncryptedDatabaseDriver(),
-  random: createExpoSecureRandomSource(),
-  secretStore: createExpoSecureSecretStore(),
+  random: secureRandom,
+  secretStore: secureSecretStore,
 });
 
 const appLinks = createExpoAppLinkSource();
@@ -38,17 +46,39 @@ const capabilityProfileRuntime = createCapabilityProfileRuntime({
   store: persistenceRuntime.productState.capabilityProfile,
 });
 
+const installationPolicyRuntime = createInstallationPolicyRuntime({
+  productionConfiguration: publicProductionConfigurationFromEnvironment({
+    relayUrl: process.env.EXPO_PUBLIC_STREAMFUSION_RELAY_URL,
+    trustedKeysJson: process.env.EXPO_PUBLIC_STREAMFUSION_POLICY_TRUSTED_KEYS,
+  }),
+  random: secureRandom,
+  secretStore: secureSecretStore,
+  identityPresenceStore: persistenceRuntime.productState.installationIdentityPresence,
+  snapshotStore: persistenceRuntime.productState.installationPolicy,
+});
+
 export function MobileRuntime() {
   const persistence = usePersistenceController(persistenceRuntime);
-  const capabilityProfile = useCapabilityProfileController(capabilityProfileRuntime);
+  const capabilityProfile = useCapabilityProfileController(
+    capabilityProfileRuntime,
+  );
+  const installationPolicy = useInstallationPolicyController(
+    installationPolicyRuntime,
+  );
   return (
     <AppShell
       activityRepository={persistenceRuntime.productState.activity}
       appLinks={appLinks}
       capabilityProfile={capabilityProfile.model}
       onRetryCapabilityProfile={capabilityProfile.retry}
+      installationPolicy={installationPolicy.model}
+      onRefreshCapabilityPolicy={installationPolicy.refreshCapabilityPolicy}
+      onRetryInstallationRegistration={
+        installationPolicy.retryInstallationRegistration
+      }
       onRunCapabilityProfileDevelopmentProof={() =>
-        capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()}
+        capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()
+      }
       developmentStatus={developmentClientController.read()}
       onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
       onPrepareRestorationProof={async (kind) => {
