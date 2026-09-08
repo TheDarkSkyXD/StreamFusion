@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "issue": 143,
+  "ticketId": "B06",
+  "mobileSourceCommit": "c9478eea69bb5db546a2979dda351ea9dee244b3",
+  "observedAt": "2026-09-08T01:25:00.000Z",
+  "result": "partial",
+  "desktopBaseline": {
+    "observedMainCommit": "c9478eea69bb5db546a2979dda351ea9dee244b3",
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "candidate-bound B06 foundation receipt; full parity remains pending"
+  },
+  "candidate": {
+    "apkSha256": "ac15fc221eaaf2b968abb3045bd87996651a2963cc7060116ab639d71a4531ac",
+    "nativeKotlinBlob": "0e23ac409e089b94b11c105d321cff7f7eb4edcb",
+    "provenance": "The installed development client supplied the native module matching the Kotlin blob. Metro served the candidate JavaScript. The reviewed mobile and native trees are byte-identical between ba93383 and reachable main c9478eea, so the source binding is main c9478eea. This is not a release-APK-wide source identity claim."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Final fast-forwarded source lint, typecheck, and full root test passed: Core 46, evidence 10, launcher 23, Mobile 27 Node and 59 Vitest with architecture proof, Relay 7, Desktop 7,736, and Worker 21.",
+        "The source commits each passed the normal isolated signed-out Electron preview hook."
+      ]
+    },
+    "native-contract-tests": {
+      "result": "pass",
+      "observations": [
+        "The focused Android capability-contract tests cover thrown native invocation as typed NATIVE_INVOCATION_FAILED with safe retry guidance; no raw native error is exposed.",
+        "The debug-only atomic one-shot bridge control caused one real unavailable resource read and a normal retry returned an observed, history-confirmed profile."
+      ]
+    },
+    "api30-development-client": {
+      "result": "pass",
+      "observations": [
+        "Literal root npm start option 3 retained Metro session 1929 and the custom development client on Android 11/API30 showed actual API, ABI, storage, available memory, thermal status, and decoder inventory.",
+        "SQLCipher 4.7.0 community, Product schema 2, Cache schema 1, and 8/8 isolated native storage checks were observed. Restarted history is explicitly diagnostic only and never restores admission or runtime protection."
+      ]
+    },
+    "degradation-order": {
+      "result": "pass-with-simulation",
+      "observations": [
+        "An API30 thermal-service status-4 override produced thermal critical and stage 5 with the visible ordered actions: background refresh, nonfocused quality/frame rate, nonfocused thumbnails, nonfocused decoders retaining slots, then focused player/finalization/Product writes.",
+        "The override was reset to false/status 0. A foreground fresh thermal-none sample retained stage 5 under hysteresis. This is simulated OS-status evidence, not physical thermal qualification."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    { "path": "verification/evidence/issue-143/issue143-storage-checks-20260908.png", "sha256": "4091aebfebe0da2d0bbdb7c21f5ff11aae428b6e4735784cac07996ff2c5dae4", "scope": "API30 storage checks" },
+    { "path": "verification/evidence/issue-143/issue143-native-failure-retry-20260908.png", "sha256": "44b4dfde94c707e3af106a422ddc7bbf17b02ecb0c5e6a333f15d33e278c61d8", "scope": "pre-copy source screenshot; superseded retry wording" },
+    { "path": "verification/evidence/issue-143/issue143-native-failure-retry-current-copy-20260908.png", "sha256": "9572463ac36d1de73805ca09ffe08cc02a68f2d3643193b987837b9ea1075177", "scope": "reachable-main-equivalent retry copy and recovery" },
+    { "path": "verification/evidence/issue-143/issue143-restarted-profile-20260908.png", "sha256": "e0d915c8fb0b27ce433aff75995ae8eeaea4775355a11412b6171247ed804f35", "scope": "restart history semantics" },
+    { "path": "verification/evidence/issue-143/issue143-thermal-override-critical-20260908.png", "sha256": "eb034fdb2495493f538bd9b7e5162b65db35a336cc890f5a45d8becdbcfa9404", "scope": "simulated OS critical status" },
+    { "path": "verification/evidence/issue-143/issue143-thermal-recovery-hysteresis-20260908.png", "sha256": "3e6b1b8fd32ef04f5fed90141e840596eddd4fee1842df69335e4dea8585cf48", "scope": "simulated OS recovery hysteresis" }
+  ],
+  "androidParityRecords": {
+    "diagnostics-logs-and-bug-reports": { "delivery": "direct enabling foundation", "progress": "implemented", "freshness": "missing", "blockers": ["#171 owns remaining Android diagnostics evidence.", "#196 owns physical and media-workload qualification."], "developmentException": null },
+    "multistream": { "delivery": "direct enabling foundation", "progress": "specified", "freshness": "missing", "blockers": ["W09 must implement actual StreamSlots, Media3 decoders, and audio ownership.", "#196 must exercise admission and the lowest runtime profile; decoder inventory and RAM establish no capacity."], "developmentException": null }
+  },
+  "qualification": "No playback, captions, recording, downloads, concurrent decoder workload, physical-device lowest profile, or release qualification was exercised. #196 remains required.",
+  "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/143", "https://github.com/TheDarkSkyXD/StreamFusion/issues/196"]
+}

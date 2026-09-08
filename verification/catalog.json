@@ -566,6 +566,44 @@
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/141"
         ]
       }
+    ],
+    "diagnostics-logs-and-bug-reports": [
+      {
+        "id": "b06-diagnostics-foundation",
+        "sourceCommit": "c9478eea69bb5db546a2979dda351ea9dee244b3",
+        "apkDigest": "sha256:ac15fc221eaaf2b968abb3045bd87996651a2963cc7060116ab639d71a4531ac",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-143-b06-foundation-v2",
+        "environment": { "gate": "change", "retention": "development", "name": "local-mobile-mcp-development-client-and-metro" },
+        "device": { "kind": "emulator", "profile": "StreamFusion Issue 142 API30", "apiLevel": 30 },
+        "artifacts": [
+          { "id": "capability-profile-report", "path": "verification/evidence/issue-143-capability-profile.json", "sha256": "sha256:d96c6c655fc7733714ba68af3961628baf0a2ecf969ccf02107555239e201b82", "mediaType": "application/json" },
+          { "id": "storage-checks", "path": "verification/evidence/issue-143/issue143-storage-checks-20260908.png", "sha256": "sha256:4091aebfebe0da2d0bbdb7c21f5ff11aae428b6e4735784cac07996ff2c5dae4", "mediaType": "image/png" },
+          { "id": "failure-retry-precopy", "path": "verification/evidence/issue-143/issue143-native-failure-retry-20260908.png", "sha256": "sha256:44b4dfde94c707e3af106a422ddc7bbf17b02ecb0c5e6a333f15d33e278c61d8", "mediaType": "image/png" },
+          { "id": "failure-retry-current", "path": "verification/evidence/issue-143/issue143-native-failure-retry-current-copy-20260908.png", "sha256": "sha256:9572463ac36d1de73805ca09ffe08cc02a68f2d3643193b987837b9ea1075177", "mediaType": "image/png" },
+          { "id": "restarted-profile", "path": "verification/evidence/issue-143/issue143-restarted-profile-20260908.png", "sha256": "sha256:e0d915c8fb0b27ce433aff75995ae8eeaea4775355a11412b6171247ed804f35", "mediaType": "image/png" }
+        ],
+        "result": "pass", "observedAt": "2026-09-08T01:25:00.000Z", "expiresAt": "2026-09-09T01:25:00.000Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/143"]
+      }
+    ],
+    "multistream": [
+      {
+        "id": "b06-runtime-degradation-foundation",
+        "sourceCommit": "c9478eea69bb5db546a2979dda351ea9dee244b3",
+        "apkDigest": "sha256:ac15fc221eaaf2b968abb3045bd87996651a2963cc7060116ab639d71a4531ac",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-143-b06-foundation-v2",
+        "environment": { "gate": "change", "retention": "development", "name": "local-mobile-mcp-development-client-and-metro" },
+        "device": { "kind": "emulator", "profile": "StreamFusion Issue 142 API30", "apiLevel": 30 },
+        "artifacts": [
+          { "id": "capability-profile-report", "path": "verification/evidence/issue-143-capability-profile.json", "sha256": "sha256:d96c6c655fc7733714ba68af3961628baf0a2ecf969ccf02107555239e201b82", "mediaType": "application/json" },
+          { "id": "thermal-critical-simulated", "path": "verification/evidence/issue-143/issue143-thermal-override-critical-20260908.png", "sha256": "sha256:eb034fdb2495493f538bd9b7e5162b65db35a336cc890f5a45d8becdbcfa9404", "mediaType": "image/png" },
+          { "id": "thermal-recovery-simulated", "path": "verification/evidence/issue-143/issue143-thermal-recovery-hysteresis-20260908.png", "sha256": "sha256:3e6b1b8fd32ef04f5fed90141e840596eddd4fee1842df69335e4dea8585cf48", "mediaType": "image/png" }
+        ],
+        "result": "pass", "observedAt": "2026-09-08T01:25:00.000Z", "expiresAt": "2026-09-09T01:25:00.000Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/143"]
+      }
     ]
   }
 }
