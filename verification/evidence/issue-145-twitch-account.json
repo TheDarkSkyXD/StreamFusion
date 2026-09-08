@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "issue": 145,
+  "ticketId": "D02",
+  "mobileSourceCommit": "57504df6b38ee2309742cb0ca37f1cf0f548bf7a",
+  "observedAt": "2026-09-08T16:00:51.341Z",
+  "result": "partial",
+  "sourceBinding": {
+    "implementationCommit": "eb36a89c3e21122b609f642d36191a5a68e99465",
+    "integratedTree": "ecfa4eac6468ce39f91c757b53d5bfda8dde5ea3",
+    "mainEquivalentCommit": "57504df6b38ee2309742cb0ca37f1cf0f548bf7a",
+    "manifestSha256": "7d789df8b566e07484c4e9e66b87e685a4571828e55222e4c22ebed8718d64ea",
+    "manifestFileCount": 32,
+    "sessionControllerBlob": "3dbbe90a04d74000612228253707f40aab149ec2",
+    "sessionControllerTestBlob": "89f727a223ca3eeabc426c19d144fca420223c74",
+    "mobileRuntimeCompositionBlob": "a0acbe7ecbc9a9d6904af154dc43a3be18712125",
+    "provenance": "The native development client is the lock-exact B637 APK. Metro served evolving issue-145 JavaScript; only the final 2026-09-08T16:00:51.341Z Copy artifact is bound to the final 32-file manifest. That manifest was committed byte-identically as eb36a89. Main 57504df and task integration d89c235 share exact tree ecfa4eac. Native proof predates the integrated issue-141 three-line Activity-detail prop, which does not touch the Twitch feature or native client. This is not a release APK or live-provider qualification claim."
+  },
+  "candidate": {
+    "apkSha256": "b6373877d4afc55592d79f5edb85e9cbec2af84fe0b74c4eac0a218661317f79",
+    "signingCertificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "nativeBuild": "560 Gradle tasks completed from a lock-exact task-owned dependency graph; Expo 57.0.17, React Native 0.86.3, expo-modules-core 57.0.14, and expo-clipboard 57.0.1 were resolved from the Mobile workspace.",
+    "runtime": "Literal task-root npm start option 3 opened the matching development client. JavaScript was delivered by Metro; the observations do not establish standalone packaged startup."
+  },
+  "desktopBaseline": {
+    "observedMainCommit": "7dfcc80d73d4f9d9b58666bae73b32f29765b0c7",
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md#accounts-connect-validate-refresh-and-disconnect-twitch-and-kick-accounts",
+    "check": "The historical Desktop inventory observed at 7dfcc80 records login and Settings entry points, renderer auth state, privileged auth/token-status IPC, Twitch and Kick adapters, storage, and connect/validate/refresh/disconnect tests. Current Android source was compared with that recorded inventory rather than a newly opened Desktop runtime. Android implements the Twitch D02 slice only; Kick remains unavailable and Guest data remains independent."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "The reviewed implementation passed 52 Core tests plus architecture, import policy, typecheck, lint, and formatting.",
+        "The integrated candidate passed 42 Mobile Node tests, 188 Vitest tests, feature architecture, typecheck, and lint.",
+        "Six release-workflow tests passed after restoring the current main CI baseline. The normal commit hook passed an isolated signed-out Electron preview and database smoke.",
+        "Hosted CI run 34252784280 was still pending when this partial receipt was prepared and is not counted as passed."
+      ]
+    },
+    "configuration-and-guest-containment": {
+      "result": "pass",
+      "observations": [
+        "Without a qualified Mobile Twitch public client ID, the API 30 UI visibly reported Twitch connection unavailable and kept Guest mode available.",
+        "The development fixture requires both a development build and explicit local opt-in, uses distinct persisted keys, is visibly labeled non-live, and is inactive before opt-in."
+      ]
+    },
+    "device-code-and-account-management": {
+      "result": "pass-with-development-fixture",
+      "observations": [
+        "The API 30 fixture visibly rendered Device Code SF-145, full expiry, Copy, Open, and Cancel controls at font scale 2.0 with all five navigation destinations.",
+        "At font scale 1.0, Open launched the verification page and returned, Cancel cleared the exact attempt, connected Manage exposed validation and refresh state, refresh returned safely to connected, and confirmed targeted disconnect removed only Twitch state while Guest use remained available.",
+        "Connected and pending fixture screens exercise the production controller, repository, and UI composition with a development-only provider adapter. They do not prove Twitch accepted a real grant."
+      ]
+    },
+    "copy-feedback": {
+      "result": "pass-with-development-fixture",
+      "observations": [
+        "One native Copy action at 2026-09-08T16:00:40.575Z displayed Code copied. immediately and it remained visible after a five-second wait spanning at least one four-second fixture pending poll, observed at 2026-09-08T16:00:51.341Z.",
+        "App PID 6799 and system_server PID 517 remained unchanged through the retained observation. The source correction preserves feedback only for the same operation lease, attempt, and code."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-145/issue145-missing-client-font2-20260908.png",
+      "sha256": "0dc452a628f4b553f1f0252aa3859cc705387857fd1a7cc5a783e3947dbcd2a5",
+      "observedAt": "2026-09-08T14:26:49.358Z",
+      "scope": "Lock-exact API 30 ordinary missing-client configuration at font scale 2.0. This predates the fixture-request reset and Copy-feedback correction. The exact whole dirty runtime tree was not retained; the visible panel and composition match blobs 3cf41fd8c85e0b51780c3973c4f4e685f41c41d2 and a0acbe7ecbc9a9d6904af154dc43a3be18712125."
+    },
+    {
+      "path": "verification/evidence/issue-145/issue145-pending-controls-font2-20260908.png",
+      "sha256": "d7efd61d451eb2684c062854b2a109b5eb34e88864ffeefd081b8398ef8eb33ed",
+      "observedAt": "2026-09-08T15:04:31.598Z",
+      "scope": "Explicit non-live fixture pending controls at font scale 2.0 from task HEAD 8e64baf before the Copy-feedback correction. The exact whole dirty runtime tree was not retained; the visible panel and composition match blobs 3cf41fd8c85e0b51780c3973c4f4e685f41c41d2 and a0acbe7ecbc9a9d6904af154dc43a3be18712125."
+    },
+    {
+      "path": "verification/evidence/issue-145/issue145-connected-manage-font2-20260908.png",
+      "sha256": "feef52d5f3531453b3740dc26992b12b86e55d99a9fbe9766b6609f90c139e14",
+      "observedAt": "2026-09-08T14:28:03.195Z",
+      "scope": "Explicit non-live fixture connected account row with the Manage entry button visible at font scale 2.0; the Manage panel is not open in this image. This predates the fixture-request reset and Copy-feedback correction. The exact whole dirty runtime tree was not retained; the visible panel and composition match blobs 3cf41fd8c85e0b51780c3973c4f4e685f41c41d2 and a0acbe7ecbc9a9d6904af154dc43a3be18712125."
+    },
+    {
+      "path": "verification/evidence/issue-145/issue145-copy-feedback-after-poll-20260908.png",
+      "sha256": "f7c4250fddc569b6fae5c1f982f4911ad4ca1e388a3129083bd993cb52a45340",
+      "observedAt": "2026-09-08T16:00:51.341Z",
+      "scope": "Explicit non-live fixture Copy feedback retained after a pending poll, bound to final manifest 7d789df8b566e07484c4e9e66b87e685a4571828e55222e4c22ebed8718d64ea"
+    }
+  ],
+  "containment": {
+    "secrets": "Twitch tokens, Device Codes, refresh claims, generations, and tombstones use one versioned SecureStore envelope. Evidence contains no token, clipboard, environment-secret, or user-database content.",
+    "refresh": "One-time refresh is durably claimed and generation fenced. Outcome-unknown response, malformed success, or persistence failure cannot reuse the consumed grant or falsely project connected state.",
+    "validation": "Startup and hourly validation are identity and version checks, not a full native fingerprint. Optional scope loss remains connected-limited; expired access preserves refresh credentials for safe recovery.",
+    "hostClipboard": "The final Copy observation temporarily disabled only the API 30 emulator host clipboard-sharing registry value after an earlier platform system_server crash. It was restored to its original String true value and does not establish a platform fix or general clipboard stability.",
+    "excludedRuns": "The wrong-AVD setup attempt, superseded dependency-mismatch Reload failure, and earlier system_server clipboard crash are retained diagnostic history and are not counted as passing evidence."
+  },
+  "androidParityRecords": {
+    "platform-account-auth": {
+      "delivery": "direct Twitch implementation with development fixture",
+      "progress": "implemented-partial-verification",
+      "freshness": "current emulator source and artifact binding",
+      "blockers": [
+        "A qualified secretless Mobile Twitch public client ID and controlled Twitch test account are required for live Device Code, validation, scope, refresh-rotation, and disconnect proof.",
+        "A representative physical Android device is required for Keystore/SecureStore, app-link return, clipboard, lifecycle, large-text, and accessibility qualification.",
+        "Kick account connection is not implemented by issue 145."
+      ],
+      "developmentException": null,
+      "testing": "The explicitly opted-in fixture is a controlled test technique using the production workflow with an isolated provider adapter and storage key. It is not a Development Exception and cannot satisfy live-provider acceptance. Earlier UI journeys used Mobile MCP while it was available. For the final-source Copy-after-poll check, Mobile MCP reported mobilecli unavailable twice; the qualified fallback used ADB input plus UI Automator XML and full PNG capture. That final-source runtime observation is limited to one pending-poll feedback interval, PID continuity, fixture exit, and environment restoration."
+    }
+  },
+  "qualification": "Partial. Reviewed implementation, deterministic local gates, lock-exact API 30 rendering, bounded native action flow, and development-fixture lifecycle evidence are retained. Hosted CI 34252784280 was pending at preparation time. Live Twitch and physical-device gates remain missing and are not inferred from fixtures, emulator inventory, or Desktop credentials.",
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/145",
+    "https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#device-code-grant-flow",
+    "https://dev.twitch.tv/docs/authentication/validate-tokens/",
+    "https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5"
+  ]
+}
