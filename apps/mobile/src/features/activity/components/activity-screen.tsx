@@ -1,5 +1,10 @@
 import type { ActivityItem } from "@streamfusion/core/activity";
-import { ChevronRight } from "lucide-react-native";
+import {
+  Bell,
+  BriefcaseBusiness,
+  ChevronRight,
+  CircleAlert,
+} from "lucide-react-native";
 import { memo, useEffect } from "react";
 import {
   FlatList,
@@ -19,6 +24,11 @@ import {
 } from "@mobile/design/tokens";
 import type { ActivityViewModel } from "@mobile/features/activity/components/activity-controller";
 import type { ShellLocation } from "@mobile/features/shell/domain/shell-navigation";
+
+import {
+  presentActivityItem,
+  type ActivityVisualKind,
+} from "../domain/activity-presentation";
 
 const activityDateFormat = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -53,7 +63,11 @@ export function ActivityScreen({
       data={model.items}
       keyExtractor={(item) => item.eventId}
       ListEmptyComponent={
-        <ActivityEmptyState onRefresh={onRefresh} status={model.status} />
+        <ActivityEmptyState
+          isRefreshing={model.isRefreshing}
+          onRefresh={onRefresh}
+          status={model.status}
+        />
       }
       ListHeaderComponent={
         <View style={styles.headerContent}>
@@ -81,6 +95,12 @@ export function ActivityScreen({
               </Text>
             </View>
           ) : null}
+          <ActivityAvailabilityNotice
+            hasItems={model.items.length > 0}
+            isRefreshing={model.isRefreshing}
+            onRefresh={onRefresh}
+            status={model.status}
+          />
           <View accessibilityLabel="Activity filters" style={styles.filters}>
             {filters.map((filter) => {
               const selected = model.filter === filter.id;
@@ -117,98 +137,174 @@ export function ActivityScreen({
             >
               {`${model.unreadCount} unread`}
             </Text>
-            <Pressable
-              accessibilityLabel="Mark all Activity read"
-              accessibilityRole="button"
-              disabled={model.unreadCount === 0}
-              onPress={() => void onMarkAllRead()}
-              style={styles.markAllButton}
-              testID="activity-mark-all-read"
-            >
-              <Text selectable style={styles.markAllText}>
-                Mark all read
-              </Text>
-            </Pressable>
+            <MarkAllReadButton
+              disabled={
+                model.unreadCount === 0 ||
+                model.isMarkingAllRead ||
+                model.isRefreshing
+              }
+              isMarkingAllRead={model.isMarkingAllRead}
+              onMarkAllRead={onMarkAllRead}
+            />
           </View>
         </View>
       }
-      renderItem={({ item }) => (
-        <ActivityRow
-          body={item.body}
-          eventId={item.eventId}
-          kind={item.kind}
-          occurredAt={item.occurredAt}
-          read={item.readAt !== null}
-          title={item.title}
-          onOpen={onOpen}
-        />
-      )}
+      renderItem={({ item }) => <ActivityRow item={item} onOpen={onOpen} />}
       testID="activity-list"
     />
   );
 }
 
 const ActivityRow = memo(function ActivityRow({
-  body,
-  eventId,
-  kind,
-  occurredAt,
+  item,
   onOpen,
-  read,
-  title,
 }: {
-  readonly body: string;
-  readonly eventId: string;
-  readonly kind: ActivityItem["kind"];
-  readonly occurredAt: string;
+  readonly item: ActivityItem;
   readonly onOpen: (location: ShellLocation) => void;
-  readonly read: boolean;
-  readonly title: string;
 }) {
+  const presentation = presentActivityItem(item);
+  const read = item.readAt !== null;
   return (
     <Pressable
       accessibilityHint="Opens this Activity item"
-      accessibilityLabel={`${read ? "Read" : "Unread"} ${title}`}
+      accessibilityLabel={`${read ? "Read" : "Unread"} ${presentation.kindLabel} ${item.title}. ${presentation.provenanceLabel}. Activity event ${presentation.eventIdentity}.`}
       accessibilityRole="button"
-      onPress={() => onOpen({ route: "activity/alert-preview", eventId })}
+      onPress={() =>
+        onOpen({ route: "activity/alert-preview", eventId: item.eventId })
+      }
       style={({ pressed }) => [styles.item, pressed ? styles.pressed : null]}
-      testID={`activity-item-${eventId}`}
+      testID={`activity-item-${item.eventId}`}
     >
+      <ActivityVisual visual={presentation.visual} />
       <View style={styles.itemCopy}>
         <View style={styles.itemTitleRow}>
           {!read ? (
             <View accessibilityLabel="Unread" style={styles.unreadDot} />
           ) : null}
-          <Text numberOfLines={1} selectable style={styles.itemTitle}>
-            {title}
+          <Text selectable style={styles.itemTitle}>
+            {item.title}
           </Text>
         </View>
         <Text numberOfLines={2} selectable style={styles.itemBody}>
-          {body}
+          {item.body}
         </Text>
         <Text selectable style={styles.itemMeta}>
-          {`${kind === "channel" ? "Channel" : kind === "job" ? "Job" : "System"} · ${activityDateFormat.format(new Date(occurredAt))}`}
+          {`${read ? "Read" : "Unread"} · ${presentation.provenanceLabel} · ${activityDateFormat.format(new Date(item.occurredAt))}`}
         </Text>
       </View>
       <ChevronRight
         accessibilityElementsHidden
         color={mobileColors.textSecondary}
         size={mobileSizing.icon}
+        style={styles.itemChevron}
       />
     </Pressable>
   );
 });
 
-function ActivityEmptyState({
+function ActivityVisual({ visual }: { readonly visual: ActivityVisualKind }) {
+  const Icon =
+    visual === "channel"
+      ? Bell
+      : visual === "job"
+        ? BriefcaseBusiness
+        : CircleAlert;
+  return (
+    <View accessibilityElementsHidden style={styles.itemVisual}>
+      <Icon color={mobileColors.textCategory} size={mobileSizing.icon} />
+    </View>
+  );
+}
+
+function MarkAllReadButton({
+  disabled,
+  isMarkingAllRead,
+  onMarkAllRead,
+}: {
+  readonly disabled: boolean;
+  readonly isMarkingAllRead: boolean;
+  readonly onMarkAllRead: () => Promise<void>;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel="Mark all Activity read"
+      accessibilityRole="button"
+      accessibilityState={{ busy: isMarkingAllRead, disabled }}
+      disabled={disabled}
+      onPress={() => void onMarkAllRead()}
+      style={[
+        styles.markAllButton,
+        disabled ? styles.markAllButtonDisabled : null,
+      ]}
+      testID="activity-mark-all-read"
+    >
+      <Text
+        selectable
+        style={[
+          styles.markAllText,
+          disabled ? styles.markAllTextDisabled : null,
+        ]}
+      >
+        {isMarkingAllRead ? "Marking all read" : "Mark all read"}
+      </Text>
+    </Pressable>
+  );
+}
+
+function ActivityAvailabilityNotice({
+  hasItems,
+  isRefreshing,
   onRefresh,
   status,
 }: {
+  readonly hasItems: boolean;
+  readonly isRefreshing: boolean;
+  readonly onRefresh: () => Promise<void>;
+  readonly status: ActivityViewModel["status"];
+}) {
+  if (!hasItems || (status !== "unavailable" && !isRefreshing)) return null;
+  const unavailable = status === "unavailable" && !isRefreshing;
+  return (
+    <View style={styles.availability} testID="activity-availability">
+      <Text accessibilityLiveRegion="polite" selectable style={styles.itemBody}>
+        {unavailable
+          ? "Saved Activity remains visible, but the inbox could not refresh."
+          : "Refreshing saved Activity."}
+      </Text>
+      {unavailable ? (
+        <Pressable
+          accessibilityLabel="Try refreshing Activity again"
+          accessibilityRole="button"
+          accessibilityState={{ busy: false, disabled: false }}
+          onPress={() => void onRefresh()}
+          style={styles.retryButton}
+          testID="activity-retry-load"
+        >
+          <Text selectable style={styles.markAllText}>
+            Try again
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function ActivityEmptyState({
+  isRefreshing,
+  onRefresh,
+  status,
+}: {
+  readonly isRefreshing: boolean;
   readonly onRefresh: () => Promise<void>;
   readonly status: ActivityViewModel["status"];
 }) {
   return (
-    <View accessible style={styles.empty} testID="activity-empty-state">
-      <Text selectable style={styles.itemTitle}>
+    <View style={styles.empty} testID="activity-empty-state">
+      <Text
+        accessibilityLiveRegion="polite"
+        selectable
+        style={styles.itemTitle}
+      >
         {status === "loading"
           ? "Opening Activity"
           : status === "unavailable"
@@ -224,6 +320,8 @@ function ActivityEmptyState({
         <Pressable
           accessibilityLabel="Try opening Activity again"
           accessibilityRole="button"
+          accessibilityState={{ busy: isRefreshing, disabled: isRefreshing }}
+          disabled={isRefreshing}
           onPress={() => void onRefresh()}
           style={styles.retryButton}
           testID="activity-retry-load"
@@ -239,18 +337,21 @@ function ActivityEmptyState({
 
 export function ActivityDetailScreen({
   eventId,
+  isMarkingRead,
   items,
   mutationFailure,
   onMarkRead,
   onOpen,
 }: {
   readonly eventId: string;
+  readonly isMarkingRead: boolean;
   readonly items: readonly ActivityItem[];
   readonly mutationFailure: ActivityViewModel["mutationFailure"];
   readonly onMarkRead: (eventId: string) => Promise<void>;
   readonly onOpen: (location: ShellLocation) => void;
 }) {
   const item = items.find((candidate) => candidate.eventId === eventId);
+  const presentation = item ? presentActivityItem(item) : null;
   useEffect(() => {
     if (item?.readAt === null) void onMarkRead(item.eventId);
   }, [item, onMarkRead]);
@@ -264,7 +365,10 @@ export function ActivityDetailScreen({
       {item ? (
         <View style={styles.detailCard}>
           <Text selectable style={styles.itemMeta}>
-            {item.source === "local" ? "LOCAL EVENT" : "RELAY EVENT"}
+            {`${presentation?.provenanceLabel} · ${activityDateFormat.format(new Date(item.occurredAt))}`}
+          </Text>
+          <Text selectable style={styles.itemMeta}>
+            {`Activity event ${presentation?.eventIdentity} · ${item.readAt === null ? "Unread" : "Read"}`}
           </Text>
           <Text
             accessibilityRole="header"
@@ -280,12 +384,17 @@ export function ActivityDetailScreen({
             <Pressable
               accessibilityLabel="Try marking Activity read again"
               accessibilityRole="button"
+              accessibilityState={{
+                busy: isMarkingRead,
+                disabled: isMarkingRead,
+              }}
+              disabled={isMarkingRead}
               onPress={() => void onMarkRead(item.eventId)}
               style={styles.retryButton}
               testID="activity-retry-mark-read"
             >
               <Text selectable style={styles.markAllText}>
-                Try marking read again
+                {isMarkingRead ? "Marking read" : "Try marking read again"}
               </Text>
             </Pressable>
           ) : null}
@@ -397,13 +506,15 @@ const styles = StyleSheet.create({
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.small,
   },
+  markAllButtonDisabled: { opacity: 0.5 },
   markAllText: {
     color: mobileColors.textPrimary,
     fontSize: 13,
     fontWeight: "600",
   },
+  markAllTextDisabled: { color: mobileColors.textSecondary },
   item: {
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
@@ -414,6 +525,12 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
   },
   pressed: { backgroundColor: mobileColors.surfaceRaised },
+  itemVisual: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    minWidth: mobileSizing.minimumTouchTarget,
+  },
   itemCopy: { flex: 1, gap: mobileSpacing.xSmall },
   itemTitleRow: {
     alignItems: "center",
@@ -438,6 +555,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  itemChevron: { marginTop: mobileSpacing.small },
   empty: {
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
@@ -449,6 +567,12 @@ const styles = StyleSheet.create({
   failure: {
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.medium,
+    padding: mobileSpacing.small,
+  },
+  availability: {
+    backgroundColor: mobileColors.surfaceMuted,
+    borderRadius: mobileRadii.medium,
+    gap: mobileSpacing.small,
     padding: mobileSpacing.small,
   },
   detailContent: { flexGrow: 1, padding: mobileSpacing.medium },

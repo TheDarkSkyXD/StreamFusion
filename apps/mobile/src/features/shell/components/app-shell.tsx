@@ -366,6 +366,9 @@ function ShellScreen({
       >
         <ActivityDetailScreen
           eventId={location.eventId}
+          isMarkingRead={activity.model.markingReadEventIds.includes(
+            location.eventId,
+          )}
           items={activity.model.allItems}
           mutationFailure={activity.model.mutationFailure}
           onMarkRead={activity.markRead}
