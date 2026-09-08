@@ -41,7 +41,7 @@ export default defineConfig([
         { from: { element: { types: { anyOf: ["mobile-utils"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-utils"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", ...featureLayers] } } } } },
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { dependency: { source: "node:fs" } } },
-        ...coreSubpaths.map((subpath) => ({ from: { element: { types: { anyOf: ["mobile-runtime-composition", ...featureLayers] } } }, allow: { dependency: { source: `@streamfusion/core/${subpath}` } } }))
+        ...coreSubpaths.map((subpath) => ({ from: { element: { types: { anyOf: ["mobile-runtime-composition", ...featureLayers, "mobile-tests"] } } }, allow: { dependency: { source: `@streamfusion/core/${subpath}` } } }))
       ] }],
       "no-restricted-imports": ["error", { patterns: restrictedRuntimeImports }]
     }

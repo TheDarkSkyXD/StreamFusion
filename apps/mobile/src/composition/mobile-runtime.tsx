@@ -1,4 +1,7 @@
 import { PLATFORMS } from "@streamfusion/core/platform";
+import * as Clipboard from "expo-clipboard";
+import * as Linking from "expo-linking";
+import { useState } from "react";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
@@ -19,6 +22,15 @@ import { createSqliteEncryptedDatabaseDriver } from "@mobile/features/storage/ad
 import { createMobileStoreRuntime } from "@mobile/features/storage/composition/store-runtime";
 import { createVolatilePersistenceProbe } from "@mobile/features/diagnostics/adapters/volatile-persistence-probe";
 import { createFetchRuntimeProbe } from "@mobile/features/diagnostics/adapters/fetch-runtime-probe";
+import { createSecureTwitchCredentialRepository } from "@mobile/features/auth/data/secure-twitch-credential-repository";
+import { createTwitchDeviceAuthApi } from "@mobile/features/auth/adapters/twitch/twitch-device-auth-api";
+import { parseTwitchClientConfiguration } from "@mobile/features/auth/adapters/twitch/twitch-client-config";
+import { useTwitchAccountController } from "@mobile/features/auth/components/use-twitch-account-controller";
+import { createTwitchAccountSessionController } from "@mobile/features/auth/domain/twitch-account-session-controller";
+import {
+  createDevelopmentTwitchAuthFixture,
+  DEVELOPMENT_TWITCH_CLIENT_ID,
+} from "@mobile/features/auth/adapters/twitch/development-twitch-auth-fixture";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -53,11 +65,50 @@ const installationPolicyRuntime = createInstallationPolicyRuntime({
   }),
   random: secureRandom,
   secretStore: secureSecretStore,
-  identityPresenceStore: persistenceRuntime.productState.installationIdentityPresence,
+  identityPresenceStore:
+    persistenceRuntime.productState.installationIdentityPresence,
   snapshotStore: persistenceRuntime.productState.installationPolicy,
 });
 
+const productionTwitchRepository = createSecureTwitchCredentialRepository({
+  secrets: secureSecretStore,
+});
+const developmentTwitchRepository = createSecureTwitchCredentialRepository({
+  secrets: secureSecretStore,
+  key: "streamfusion.development.issue145.twitch-auth.v1",
+});
+let twitchClientId: string | null = null;
+try {
+  twitchClientId = parseTwitchClientConfiguration(
+    process.env.EXPO_PUBLIC_TWITCH_CLIENT_ID,
+  ).clientId;
+} catch {
+  twitchClientId = null;
+}
+const productionTwitchGateway = twitchClientId
+  ? createTwitchDeviceAuthApi({ clientId: twitchClientId })
+  : null;
+const developmentTwitchGateway = __DEV__
+  ? createDevelopmentTwitchAuthFixture()
+  : null;
+const productionTwitchController = createTwitchAccountSessionController({
+  clientId: twitchClientId,
+  copy: async (value) => void (await Clipboard.setStringAsync(value)),
+  gateway: productionTwitchGateway,
+  open: async (value) => void (await Linking.openURL(value)),
+  repository: productionTwitchRepository,
+});
+const developmentTwitchController = createTwitchAccountSessionController({
+  clientId: DEVELOPMENT_TWITCH_CLIENT_ID,
+  copy: async (value) => void (await Clipboard.setStringAsync(value)),
+  gateway: developmentTwitchGateway,
+  open: async (value) => void (await Linking.openURL(value)),
+  repository: developmentTwitchRepository,
+});
+
 export function MobileRuntime() {
+  const [useDevelopmentTwitchFixture, setUseDevelopmentTwitchFixture] =
+    useState(false);
   const persistence = usePersistenceController(persistenceRuntime);
   const capabilityProfile = useCapabilityProfileController(
     capabilityProfileRuntime,
@@ -65,6 +116,16 @@ export function MobileRuntime() {
   const installationPolicy = useInstallationPolicyController(
     installationPolicyRuntime,
   );
+  const twitchAccount = useTwitchAccountController({
+    controller: productionTwitchController,
+  });
+  const developmentTwitchAccount = useTwitchAccountController({
+    controller: developmentTwitchController,
+    enabled: useDevelopmentTwitchFixture,
+  });
+  const visibleTwitchAccount = useDevelopmentTwitchFixture
+    ? developmentTwitchAccount
+    : twitchAccount;
   return (
     <AppShell
       activityRepository={persistenceRuntime.productState.activity}
@@ -90,6 +151,19 @@ export function MobileRuntime() {
       onRunPersistenceProof={persistence.runProof}
       persistenceStatus={persistence.model}
       shellRestoration={persistenceRuntime.productState.shellRestoration}
+      twitchAccount={visibleTwitchAccount.model}
+      twitchAccountActions={visibleTwitchAccount.actions}
+      twitchAccountDevelopmentFixture={useDevelopmentTwitchFixture}
+      onEnableTwitchDevelopmentFixture={
+        __DEV__ && twitchClientId === null
+          ? () => setUseDevelopmentTwitchFixture(true)
+          : undefined
+      }
+      onDisableTwitchDevelopmentFixture={
+        useDevelopmentTwitchFixture
+          ? () => setUseDevelopmentTwitchFixture(false)
+          : undefined
+      }
     />
   );
 }

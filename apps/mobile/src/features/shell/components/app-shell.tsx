@@ -40,6 +40,11 @@ import { NativeCapabilityStubProofControl } from "@mobile/features/native-contra
 import { CapabilityProfilePanel } from "@mobile/features/capability-profile/components/capability-profile-panel";
 import { DevelopmentResourceFailureProofControl } from "@mobile/features/capability-profile/components/development-resource-failure-proof-control";
 import type { RuntimeObservationDevelopmentProofResult } from "@mobile/features/capability-profile/capabilities/capability-profile";
+import {
+  TwitchAccountsPanel,
+  type TwitchAccountActions,
+  type TwitchAccountViewModel,
+} from "@mobile/features/auth/components/twitch-accounts-panel";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -87,6 +92,11 @@ export function AppShell({
   onRunPersistenceProof,
   persistenceStatus,
   shellRestoration,
+  twitchAccount,
+  twitchAccountActions,
+  twitchAccountDevelopmentFixture,
+  onEnableTwitchDevelopmentFixture,
+  onDisableTwitchDevelopmentFixture,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly appLinks: AppLinkSource;
@@ -106,6 +116,11 @@ export function AppShell({
   readonly onRunPersistenceProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly shellRestoration: ShellRestorationRepository;
+  readonly twitchAccount: TwitchAccountViewModel;
+  readonly twitchAccountActions: TwitchAccountActions;
+  readonly twitchAccountDevelopmentFixture: boolean;
+  readonly onEnableTwitchDevelopmentFixture?: (() => void) | undefined;
+  readonly onDisableTwitchDevelopmentFixture?: (() => void) | undefined;
 }) {
   const activity = useActivityController({ repository: activityRepository });
   const lifecycle = useShellLifecycleController({
@@ -177,11 +192,18 @@ export function AppShell({
               onRetryCapabilityProfile={onRetryCapabilityProfile}
               onRefreshCapabilityPolicy={onRefreshCapabilityPolicy}
               onRetryInstallationRegistration={onRetryInstallationRegistration}
-              onRunCapabilityProfileDevelopmentProof={onRunCapabilityProfileDevelopmentProof}
+              onRunCapabilityProfileDevelopmentProof={
+                onRunCapabilityProfileDevelopmentProof
+              }
               onRunNativeCapabilityProof={onRunNativeCapabilityProof}
               onRunPersistenceProof={onRunPersistenceProof}
               persistenceStatus={persistenceStatus}
               state={navigation}
+              twitchAccount={twitchAccount}
+              twitchAccountActions={twitchAccountActions}
+              twitchAccountDevelopmentFixture={twitchAccountDevelopmentFixture}
+              onEnableTwitchDevelopmentFixture={onEnableTwitchDevelopmentFixture}
+              onDisableTwitchDevelopmentFixture={onDisableTwitchDevelopmentFixture}
             />
           </View>
         </View>
@@ -278,12 +300,12 @@ function ShellHeader({
         </Text>
       </View>
       <Pressable
-        accessibilityHint="Opens Accounts and maintenance under More"
-        accessibilityLabel="Accounts and maintenance"
+        accessibilityHint="Opens More, including Accounts and maintenance"
+        accessibilityLabel="More"
         accessibilityRole="button"
         android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
         onPress={() =>
-          dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          dispatch({ type: "navigate", location: { route: "more" } })
         }
         style={styles.headerAction}
         testID="shell-accounts"
@@ -313,6 +335,11 @@ function ShellScreen({
   onRunPersistenceProof,
   persistenceStatus,
   state,
+  twitchAccount,
+  twitchAccountActions,
+  twitchAccountDevelopmentFixture,
+  onEnableTwitchDevelopmentFixture,
+  onDisableTwitchDevelopmentFixture,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly capabilityProfile: CapabilityProfileViewModel;
@@ -332,6 +359,11 @@ function ShellScreen({
   readonly onRunPersistenceProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly state: ShellNavigationState;
+  readonly twitchAccount: TwitchAccountViewModel;
+  readonly twitchAccountActions: TwitchAccountActions;
+  readonly twitchAccountDevelopmentFixture: boolean;
+  readonly onEnableTwitchDevelopmentFixture?: (() => void) | undefined;
+  readonly onDisableTwitchDevelopmentFixture?: (() => void) | undefined;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -377,6 +409,34 @@ function ShellScreen({
           }
         />
       </View>
+    );
+  }
+
+  if (location.route === "more/accounts") {
+    return (
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        contentInsetAdjustmentBehavior="automatic"
+        ref={scrollView}
+        style={styles.screenScroll}
+        testID="screen-more-accounts"
+      >
+        <View style={styles.contentColumn}>
+          <TwitchAccountsPanel
+            actions={twitchAccountActions}
+            developmentFixture={twitchAccountDevelopmentFixture}
+            model={twitchAccount}
+            onDisableDevelopmentFixture={onDisableTwitchDevelopmentFixture}
+            onEnableDevelopmentFixture={onEnableTwitchDevelopmentFixture}
+            onOpenNotificationSettings={() =>
+              dispatch({
+                type: "navigate",
+                location: { route: "more/settings" },
+              })
+            }
+          />
+        </View>
+      </ScrollView>
     );
   }
 
@@ -436,9 +496,7 @@ function ShellScreen({
               }}
             />
             {__DEV__ ? (
-              <RestorationProofControls
-                onPrepare={onPrepareRestorationProof}
-              />
+              <RestorationProofControls onPrepare={onPrepareRestorationProof} />
             ) : null}
             {__DEV__ ? (
               <NativeCapabilityStubProofControl
@@ -527,7 +585,9 @@ function RestorationProofControls({
   const prepare = async (kind: "corrupt" | "unsupported") => {
     try {
       await onPrepare(kind);
-      setDetail(`Prepared ${kind} navigation state. Reopen the app to verify safe reset.`);
+      setDetail(
+        `Prepared ${kind} navigation state. Reopen the app to verify safe reset.`,
+      );
     } catch {
       setDetail("Navigation fallback proof could not be prepared. Try again.");
     }
@@ -539,7 +599,11 @@ function RestorationProofControls({
         NAVIGATION FALLBACK CHECKS
       </Text>
       {detail ? (
-        <Text selectable style={styles.cardBody} testID="restoration-proof-result">
+        <Text
+          selectable
+          style={styles.cardBody}
+          testID="restoration-proof-result"
+        >
           {detail}
         </Text>
       ) : null}
@@ -775,9 +839,7 @@ function PrimaryNavigation({
             <DestinationIcon color={color} destination={destination.id} />
             <Text
               onTextLayout={
-                placement === "bottom"
-                  ? onTextLayout(layout)
-                  : undefined
+                placement === "bottom" ? onTextLayout(layout) : undefined
               }
               selectable
               style={[styles.navigationLabel, { color }]}

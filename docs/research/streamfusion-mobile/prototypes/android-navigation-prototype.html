@@ -3234,10 +3234,11 @@
       function accountsScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Accounts</h2><p>Fixture connections and notification identity</p></div><button class="text-button" type="button" data-action="account-add">Add</button></div>
+            <div class="screen-title-row"><div><h2>Accounts</h2><p>Fixture connections and notification identity</p></div><button class="text-button" type="button" data-action="connect-account">Add</button></div>
             <div class="system-list">
-              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Fixture connected · follows, chat, moderation</span></span><button class="text-button" type="button" data-action="account-manage">Manage</button><span class="platform-badge twitch">Twitch</span></article>
-              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>Guest mode</strong><span>Guest Follows only · connect for chat</span></span><button class="text-button" type="button" data-action="account-add">Connect</button><span class="platform-badge kick">Kick</span></article>
+              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Fixture connected · follows, chat, moderation</span></span><button class="text-button" type="button" data-action="manage-account">Manage</button><span class="platform-badge twitch">Twitch</span></article>
+              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>Guest mode</strong><span>Guest Follows only · connect for chat</span></span><button class="text-button" type="button" data-action="connect-account">Connect</button><span class="platform-badge kick">Kick</span></article>
+              <article class="system-card"><strong>Twitch Device Code fixture</strong><p class="fixture-label">Pending ABCD-EFGH · validating and encrypted commit follow authorization. Denied, expired, offline, and authentication-lost states restart safely.</p><div class="button-row"><button type="button" class="text-button" data-action="copy-account-code">Copy code</button><button type="button" class="text-button" data-action="open-account-verification">Open verification page</button><button type="button" class="text-button" data-action="cancel-account-connect">Cancel</button><button type="button" class="text-button" data-action="retry-account-connect">Retry</button><button type="button" class="text-button" data-action="disconnect-account">Disconnect Twitch</button></div></article>
             </div>
             <section class="system-card"><div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Account notifications</strong><span class="job-state">${state.notificationPermission}</span></div><div class="switch-row"><div><strong>Live alerts</strong><span>Followed and Guest Follow Channels</span></div><button type="button" class="switch" data-action="notification-permission" aria-label="Configure live alerts"></button></div><div class="switch-row"><div><strong>Moderation alerts</strong><span>Eligible managed channels</span></div><button type="button" class="switch" data-action="notification-permission" aria-label="Configure moderation alerts"></button></div><p class="fixture-label">Activity remains local when permission is denied. No token or relay request runs here.</p></section>
           </div>`;
@@ -4068,9 +4069,9 @@
               { label: "Keep Activity only", value: "denied" },
             ],
           );
-        if (action === "account-add" || action === "account-manage")
+        if (action === "connect-account" || action === "manage-account")
           openSheet(
-            action === "account-add" ? "Connect account" : "Manage account",
+            action === "connect-account" ? "Connect account" : "Manage account",
             "Fixture account flow. OAuth callback, scopes, expiry, refresh, disconnect, and guest separation are shown without credentials.",
             [],
             null,
