@@ -39,6 +39,7 @@ import { useDiagnosticsResourceHistory } from "@/features/settings/components/ho
 import { translateSettings } from "@/features/settings/components/presentation/settings-translation";
 import { i18n } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { HISTORY_RANGE_PRESETS, historyRangePreset } from "@shared/diagnostics-types";
 import type {
   DiagnosticSourceStatus,
@@ -1258,7 +1259,7 @@ function ResourceHistoryDetail({
   );
 }
 
-function ResourceHistoryStatus({
+export function ResourceHistoryStatus({
   history,
   live,
 }: {
@@ -1266,6 +1267,7 @@ function ResourceHistoryStatus({
   readonly live: boolean;
 }) {
   const [showDelayedLoading, setShowDelayedLoading] = useState(false);
+  const delayedLoadingTimer = useManagedTimeout(() => setShowDelayedLoading(true));
   const mode =
     history.kind === "error"
       ? "Unavailable"
@@ -1276,13 +1278,17 @@ function ResourceHistoryStatus({
           : "Paused";
 
   useEffect(() => {
-    if (history.kind !== "loading") return;
-    const timeout = window.setTimeout(() => setShowDelayedLoading(true), 1_000);
-    return () => {
-      window.clearTimeout(timeout);
+    if (history.kind !== "loading") {
+      delayedLoadingTimer.clear();
       setShowDelayedLoading(false);
+      return;
+    }
+
+    delayedLoadingTimer.start(1_000);
+    return () => {
+      delayedLoadingTimer.clear();
     };
-  }, [history.kind]);
+  }, [delayedLoadingTimer, history.kind]);
 
   return (
     <span className="inline-flex w-24 items-center gap-2 text-xs font-semibold text-[var(--color-foreground-secondary)]">
