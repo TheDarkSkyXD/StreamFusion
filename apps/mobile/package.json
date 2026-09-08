@@ -10,8 +10,8 @@
   },
   "scripts": {
     "preinstall": "node ../../scripts/require-npm.mjs",
-    "start": "expo start --go",
-    "android": "node scripts/start-expo-go.mjs",
+    "start": "expo start --dev-client",
+    "android": "node scripts/start-development-client.mjs",
     "android:native": "node scripts/run-android.mjs",
     "prebuild:android": "expo prebuild --platform android --no-install",
     "bundle:android": "expo export --platform android --output-dir dist",

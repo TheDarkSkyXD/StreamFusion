@@ -5,7 +5,7 @@ export const START_PROMPT = [
   "How would you like to start StreamFusion?",
   "  1) Electron",
   "  2) Browser",
-  "  3) Mobile (Expo Go)",
+  "  3) Mobile (Development Client)",
   "  4) E2E Preview",
   "",
   "Choose a start mode [1]: ",

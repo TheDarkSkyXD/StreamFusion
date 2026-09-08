@@ -89,9 +89,10 @@ test("local Android commands stay owned by the Mobile workspace", () => {
     "utf8",
   );
 
+  assert.equal(packageManifest.scripts.start, "expo start --dev-client");
   assert.equal(
     packageManifest.scripts.android,
-    "node scripts/start-expo-go.mjs",
+    "node scripts/start-development-client.mjs",
   );
   assert.equal(
     packageManifest.scripts["android:native"],

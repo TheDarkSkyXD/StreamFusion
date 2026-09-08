@@ -1,12 +1,20 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const mobileRoot = path.resolve(path.dirname(scriptPath), "..");
-const expoGoPackage = "host.exp.exponent";
+const appConfig = JSON.parse(
+  readFileSync(path.resolve(mobileRoot, "app.json"), "utf8"),
+).expo;
+const developmentClient = Object.freeze({
+  packageName: appConfig.android.package,
+  scheme: `exp+${appConfig.slug}`,
+  versionCode: appConfig.android.versionCode,
+  versionName: appConfig.version,
+});
 const metroPort = 8081;
 
 function defaultSdkCandidates(platform, home) {
@@ -76,10 +84,20 @@ export function createAndroidEnvironment(
   };
 }
 
-export function createExpoGoArguments(forwardArguments = [], port = metroPort) {
+export function createDevelopmentClientArguments(
+  forwardArguments = [],
+  port = metroPort,
+) {
+  for (const argument of forwardArguments) {
+    if (argument === "--go" || argument === "--dev-client") {
+      throw new Error(
+        `${argument} is reserved by the StreamFusion development-client launcher.`,
+      );
+    }
+  }
   return [
     "start",
-    "--go",
+    "--dev-client",
     "--offline",
     "--port",
     String(port),
@@ -94,7 +112,7 @@ export function parseAdbDevices(output) {
     .filter(Boolean);
 }
 
-export function createExpoGoIntentArguments(
+export function createDevelopmentClientIntentArguments(
   port = metroPort,
   host = "127.0.0.1",
 ) {
@@ -102,9 +120,60 @@ export function createExpoGoIntentArguments(
     "-a",
     "android.intent.action.VIEW",
     "-d",
-    `exp://${host}:${port}`,
-    expoGoPackage,
+    `${developmentClient.scheme}://expo-development-client/?url=${encodeURIComponent(`http://${host}:${port}`)}`,
+    developmentClient.packageName,
   ];
+}
+
+export function parseInstalledDevelopmentClient(output) {
+  const versionCode = output.match(/\bversionCode=(\d+)\b/u)?.[1];
+  const versionName = output.match(/\bversionName=([^\s]+)\b/u)?.[1];
+  if (!versionCode || !versionName) return null;
+  return { versionCode: Number(versionCode), versionName };
+}
+
+export function assertDevelopmentClientVersion(
+  installed,
+  expected = developmentClient,
+) {
+  if (
+    installed?.versionCode === expected.versionCode &&
+    installed.versionName === expected.versionName
+  ) {
+    return;
+  }
+  const expectedVersion = `${expected.versionName} (${expected.versionCode})`;
+  const found = installed
+    ? `${installed.versionName} (${installed.versionCode})`
+    : "not installed";
+  throw new Error(
+    `StreamFusion development client ${expectedVersion} is required; found ${found}. Run npm run mobile:native to build and install it, then retry npm run mobile. Rebuild after native module changes.`,
+  );
+}
+
+function requireExpectedDevelopmentClientIdentity(adb, device, environment) {
+  const installed = parseInstalledDevelopmentClient(
+    runChecked(
+      adb,
+      [
+        "-s",
+        device,
+        "shell",
+        "dumpsys",
+        "package",
+        developmentClient.packageName,
+      ],
+      environment,
+    ),
+  );
+  assertDevelopmentClientVersion(installed);
+}
+
+export function assertDevelopmentClientIntentStarted(output) {
+  if (/\bStatus:\s*ok\b/u.test(output)) return;
+  throw new Error(
+    `Android could not open the StreamFusion development client. ${output.trim() || "The activity launch returned no success status."} Run npm run mobile:native to build and install it, then retry npm run mobile. Rebuild after native module changes.`,
+  );
 }
 
 function executablePath(sdkRoot, directory, executable, platform) {
@@ -271,11 +340,11 @@ async function main() {
   const startedAt = Date.now();
 
   console.log(
-    "Starting StreamFusion Mobile in Expo Go (native rebuild skipped).",
+    "Starting StreamFusion Mobile in the installed development client (native rebuild skipped).",
   );
   const metro = spawn(
     process.execPath,
-    [expoCli, ...createExpoGoArguments(process.argv.slice(2))],
+    [expoCli, ...createDevelopmentClientArguments(process.argv.slice(2))],
     { cwd: mobileRoot, env: environment, stdio: "inherit" },
   );
   let stopRequested = false;
@@ -307,35 +376,28 @@ async function main() {
       ["-s", device, "reverse", `tcp:${metroPort}`, `tcp:${metroPort}`],
       environment,
     );
-    const installedExpoGo = runChecked(
-      adb,
-      ["-s", device, "shell", "pm", "path", expoGoPackage],
-      environment,
-    );
-    if (!installedExpoGo.trim()) {
-      throw new Error(
-        "Expo Go is not installed on the Android device. Install the SDK-compatible Expo Go app and retry.",
-      );
-    }
+    requireExpectedDevelopmentClientIdentity(adb, device, environment);
     const deviceHost = device.startsWith("emulator-")
       ? "10.0.2.2"
       : "127.0.0.1";
-    runChecked(
-      adb,
-      [
-        "-s",
-        device,
-        "shell",
-        "am",
-        "start",
-        "-S",
-        "-W",
-        ...createExpoGoIntentArguments(metroPort, deviceHost),
-      ],
-      environment,
+    assertDevelopmentClientIntentStarted(
+      runChecked(
+        adb,
+        [
+          "-s",
+          device,
+          "shell",
+          "am",
+          "start",
+          "-S",
+          "-W",
+          ...createDevelopmentClientIntentArguments(metroPort, deviceHost),
+        ],
+        environment,
+      ),
     );
     console.log(
-      `Expo Go opened on ${device} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s${started ? " after cold boot" : ""}.`,
+      `StreamFusion development client opened on ${device} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s${started ? " after cold boot" : ""}.`,
     );
     await waitForExit(metro, () => stopRequested);
   } catch (error) {
