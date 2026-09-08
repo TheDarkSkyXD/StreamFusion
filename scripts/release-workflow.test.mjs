@@ -1,10 +1,92 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
 import test from "node:test";
 import { load as loadYaml } from "js-yaml";
 
 function loadWorkflow(filename) {
   return loadYaml(readFileSync(`.github/workflows/${filename}`, "utf8"));
+}
+
+function parsePinnedActionScript(rawScript) {
+  return rawScript
+    .trim()
+    .split(/\r\n|\n|\r/)
+    .map((value) => value.trim())
+    .filter((value) => !value.startsWith("#") && value.length > 0);
+}
+
+function relativeShellPath(value) {
+  return `./${path.relative(process.cwd(), value).replaceAll("\\", "/")}`;
+}
+
+function shellQuote(value) {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function runPinnedActionScripts(commands, adbStubDirectory, environment) {
+  const assignments = Object.entries(environment)
+    .map(([name, value]) => `${name}=${shellQuote(value)}`)
+    .join(" ");
+
+  let result;
+  for (const command of commands) {
+    result = spawnSync(
+      "bash",
+      [
+        "-c",
+        `PATH=${shellQuote(adbStubDirectory)}:"$PATH"; export PATH; ${assignments} ${command}`,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        timeout: 10_000,
+      },
+    );
+    if (result.status !== 0) {
+      return result;
+    }
+  }
+
+  return result;
+}
+
+function writeAdbStub(directory) {
+  const adbPath = path.join(directory, "adb");
+
+  writeFileSync(
+    adbPath,
+    `#!/usr/bin/env bash
+set -eu
+printf '%s\\n' "$*" >> "$STUB_ADB_LOG"
+case "$*" in
+  "devices -l") printf 'List of devices attached\\nemulator-5554 device\\n' ;;
+  "shell getprop ro.build.version.sdk") printf '30\\n' ;;
+  "shell getprop sys.boot_completed"|"shell getprop dev.bootcomplete") printf '1\\n' ;;
+  "shell service check package") printf 'Service package: found\\n' ;;
+  "shell cmd package list packages") printf 'package:android\\n' ;;
+  "shell service list") printf '0 package: [android.content.pm.IPackageManager]\\n' ;;
+  install*)
+    if [ "\${STUB_ADB_INSTALL_FAILURE:-0}" = "1" ]; then
+      printf "cmd: Can't find service: package\\n" >&2
+      exit 20
+    fi
+    ;;
+  "shell monkey"*|"shell pidof "*) printf '1234\\n' ;;
+  *) printf 'Unexpected adb command: %s\\n' "$*" >&2; exit 64 ;;
+esac
+`,
+  );
+  chmodSync(adbPath, 0o755);
 }
 
 test("the build workflow is CI-only and cannot publish a GitHub release", () => {
@@ -28,14 +110,125 @@ test("the build workflow is CI-only and cannot publish a GitHub release", () => 
   );
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
 
-  const packageServiceReady = source.indexOf("service check package");
-  const developmentApkInstall = source.indexOf(
+  const androidInstallScript = readFileSync(
+    ".github/scripts/verify-android-api30-install.sh",
+    "utf8",
+  );
+  const packageServiceReady = androidInstallScript.indexOf(
+    "service check package",
+  );
+  const developmentApkInstall = androidInstallScript.indexOf(
     "adb install --no-streaming apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
   );
   assert.ok(packageServiceReady >= 0);
   assert.ok(developmentApkInstall > packageServiceReady);
-  assert.match(source, /timeout 300 sh -c .*service check package/);
-  assert.match(source, /timeout 300 sh -c .*cmd package list packages/);
+  assert.match(
+    androidInstallScript,
+    /timeout 300 sh -c .*service check package/,
+  );
+  assert.match(
+    androidInstallScript,
+    /timeout 300 sh -c .*cmd package list packages/,
+  );
+});
+
+test("the API 30 job enables and verifies KVM before accelerated boot", () => {
+  const source = readFileSync(".github/workflows/build.yml", "utf8");
+  const workflow = loadWorkflow("build.yml");
+  const androidJob = workflow.jobs["android-development"];
+  const kvmStep = androidJob.steps.find(
+    (step) => step.name === "Enable KVM access for the ephemeral Android job",
+  );
+  const emulatorStep = androidJob.steps.find(
+    (step) => step.name === "Install and launch on API 30",
+  );
+
+  assert.ok(kvmStep);
+  assert.ok(emulatorStep);
+  assert.ok(
+    workflow.jobs.verify.steps.some(
+      (step) =>
+        step.name === "Test checked-in workflow contracts" &&
+        step.run === "node --test scripts/release-workflow.test.mjs",
+    ),
+  );
+  assert.ok(
+    androidJob.steps.indexOf(kvmStep) < androidJob.steps.indexOf(emulatorStep),
+  );
+  assert.match(kvmStep.run, /KERNEL=="kvm"/);
+  assert.match(kvmStep.run, /--name-match=kvm/);
+  assert.match(kvmStep.run, /test -c \/dev\/kvm/);
+  assert.match(kvmStep.run, /test -r \/dev\/kvm/);
+  assert.match(kvmStep.run, /test -w \/dev\/kvm/);
+  assert.equal(emulatorStep.with["disable-linux-hw-accel"], false);
+  assert.match(
+    emulatorStep.with["pre-emulator-launch-script"],
+    /emulator -accel-check/,
+  );
+  assert.doesNotMatch(source, /-accel off/);
+  assert.deepEqual(parsePinnedActionScript(emulatorStep.with.script), [
+    "bash .github/scripts/verify-android-api30-install.sh",
+  ]);
+  assert.equal(
+    existsSync(".github/scripts/verify-android-api30-install.sh"),
+    true,
+  );
+});
+
+test("the API 30 install script survives the pinned action parser and fails terminally", () => {
+  const workflow = loadWorkflow("build.yml");
+  const emulatorStep = workflow.jobs["android-development"].steps.find(
+    (step) => step.name === "Install and launch on API 30",
+  );
+  const actionScripts = parsePinnedActionScript(emulatorStep.with.script);
+  const directory = mkdtempSync(path.join(process.cwd(), ".workflow API30's-"));
+  const stubDirectory = path.join(directory, "bin");
+  const adbLogPath = path.join(directory, "adb.log");
+  const bashStubDirectory = relativeShellPath(stubDirectory);
+  const bashAdbLogPath = relativeShellPath(adbLogPath);
+
+  mkdirSync(stubDirectory);
+  writeAdbStub(stubDirectory);
+  try {
+    assert.equal(
+      shellQuote("path with space's quote"),
+      "'path with space'\"'\"'s quote'",
+    );
+    const successfulInstall = runPinnedActionScripts(
+      actionScripts,
+      bashStubDirectory,
+      { STUB_ADB_LOG: bashAdbLogPath },
+    );
+
+    assert.equal(successfulInstall.status, 0);
+    assert.match(readFileSync(adbLogPath, "utf8"), /install --no-streaming/);
+    assert.match(readFileSync(adbLogPath, "utf8"), /shell monkey/);
+
+    writeFileSync(adbLogPath, "");
+    const failedInstall = runPinnedActionScripts(
+      actionScripts,
+      bashStubDirectory,
+      {
+        STUB_ADB_INSTALL_FAILURE: "1",
+        STUB_ADB_LOG: bashAdbLogPath,
+      },
+    );
+
+    assert.equal(failedInstall.status, 1);
+    assert.match(failedInstall.stdout, /Android package-service diagnostics/);
+    assert.match(
+      failedInstall.stdout,
+      /package: \[android.content.pm.IPackageManager\]/,
+    );
+    assert.match(failedInstall.stderr, /Can't find service: package/);
+    assert.equal(
+      readFileSync(adbLogPath, "utf8").match(/install --no-streaming/g)?.length,
+      1,
+    );
+    assert.doesNotMatch(readFileSync(adbLogPath, "utf8"), /shell monkey/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("one release workflow handles tagged and manual releases with fail-closed gates", () => {

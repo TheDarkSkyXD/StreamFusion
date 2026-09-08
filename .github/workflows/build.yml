@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
 
+      - name: Test checked-in workflow contracts
+        run: node --test scripts/release-workflow.test.mjs
+
       - name: Validate dependency sources
         run: npm run lint:dependencies
 
@@ -143,19 +146,26 @@ jobs:
       - name: Build Android development APK
         run: npm run build:mobile:development
 
+      - name: Enable KVM access for the ephemeral Android job
+        run: |
+          # This documented rule only changes /dev/kvm. The hosted runner is discarded after this job.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -c /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+
       - name: Install and launch on API 30
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 30
           arch: x86_64
           profile: pixel_2
-          script: |
-            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "30"
-            timeout 300 sh -c 'until adb shell service check package 2>/dev/null | grep -q "found"; do sleep 2; done'
-            timeout 300 sh -c 'until adb shell cmd package list packages >/dev/null 2>&1; do sleep 2; done'
-            adb install --no-streaming apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
-            adb shell monkey -p com.thedarkskyxd.streamfusion.dev -c android.intent.category.LAUNCHER 1
-            timeout 30 sh -c 'until adb shell pidof com.thedarkskyxd.streamfusion.dev; do sleep 1; done'
+          disable-linux-hw-accel: false
+          pre-emulator-launch-script: |
+            emulator -accel-check
+          script: bash .github/scripts/verify-android-api30-install.sh
 
       - name: Upload development APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
