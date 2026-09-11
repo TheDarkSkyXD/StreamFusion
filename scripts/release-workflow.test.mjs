@@ -161,30 +161,47 @@ test("the API 30 job enables and verifies KVM before accelerated boot", () => {
   const source = readFileSync(".github/workflows/build.yml", "utf8");
   const workflow = loadWorkflow("build.yml");
   const androidJob = workflow.jobs["android-development"];
+  const checkoutStep = androidJob.steps[0];
   const kvmStep = androidJob.steps.find(
     (step) => step.name === "Enable KVM access for the ephemeral Android job",
+  );
+  const apkStep = androidJob.steps.find(
+    (step) => step.name === "Build Android development APK",
   );
   const emulatorStep = androidJob.steps.find(
     (step) => step.name === "Install and launch on API 30",
   );
+  const kvmScript = readFileSync(".github/scripts/enable-kvm-access.sh", "utf8");
 
+  assert.equal(androidJob["runs-on"], "ubuntu-24.04");
   assert.ok(kvmStep);
+  assert.ok(apkStep);
   assert.ok(emulatorStep);
   assert.ok(
     workflow.jobs.verify.steps.some(
       (step) =>
         step.name === "Test checked-in workflow contracts" &&
-        step.run === "node --test scripts/release-workflow.test.mjs",
+        step.run ===
+          "node --test scripts/release-workflow.test.mjs scripts/kvm-access.test.mjs",
     ),
   );
+  assert.ok(androidJob.steps.indexOf(kvmStep) > androidJob.steps.indexOf(checkoutStep));
+  assert.ok(androidJob.steps.indexOf(kvmStep) < androidJob.steps.indexOf(apkStep));
   assert.ok(
     androidJob.steps.indexOf(kvmStep) < androidJob.steps.indexOf(emulatorStep),
   );
-  assert.match(kvmStep.run, /KERNEL=="kvm"/);
-  assert.match(kvmStep.run, /--name-match=kvm/);
-  assert.match(kvmStep.run, /test -c \/dev\/kvm/);
-  assert.match(kvmStep.run, /test -r \/dev\/kvm/);
-  assert.match(kvmStep.run, /test -w \/dev\/kvm/);
+  assert.deepEqual(parsePinnedActionScript(kvmStep.run), [
+    "bash .github/scripts/enable-kvm-access.sh",
+  ]);
+  assert.match(kvmScript, /KERNEL=="kvm"/);
+  assert.match(kvmScript, /--name-match=kvm/);
+  assert.match(kvmScript, /settle --timeout/);
+  assert.match(kvmScript, /chmod 0666/);
+  assert.match(kvmScript, /test -c /);
+  assert.match(kvmScript, /test -r /);
+  assert.match(kvmScript, /test -w /);
+  assert.doesNotMatch(kvmScript, /disable-linux-hw-accel:\s*true/);
+  assert.doesNotMatch(kvmScript, /-accel off/);
   assert.equal(emulatorStep.with["disable-linux-hw-accel"], false);
   assert.match(
     emulatorStep.with["pre-emulator-launch-script"],
@@ -198,6 +215,7 @@ test("the API 30 job enables and verifies KVM before accelerated boot", () => {
     existsSync(".github/scripts/verify-android-api30-install.sh"),
     true,
   );
+  assert.equal(existsSync(".github/scripts/enable-kvm-access.sh"), true);
 });
 
 test("the pre-launch acceleration check uses the action SDK root", () => {
