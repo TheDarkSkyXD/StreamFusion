@@ -21,6 +21,16 @@ export type {
   InstallationRegistrationRequest,
   InstallationRotationRequest,
 } from "./installation-identity.ts";
+export {
+  signedOutCategoriesBodySchema,
+  signedOutSearchBodySchema,
+  signedOutTopStreamsBodySchema,
+} from "./signed-out-discovery.ts";
+export type {
+  SignedOutCategoriesBody,
+  SignedOutSearchBody,
+  SignedOutTopStreamsBody,
+} from "./signed-out-discovery.ts";
 
 export type JsonPrimitive = boolean | null | number | string;
 export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
@@ -119,6 +129,25 @@ export const relayResponseEnvelopeSchema: RelaySchema<RelayResponseEnvelope> = {
 export const relayEventEnvelopeSchema: RelaySchema<RelayEventEnvelope> = {
   is: isRelayEventEnvelope,
 };
+
+export function createRelaySuccessEnvelope(input: {
+  readonly requestId: string;
+  readonly body: JsonValue;
+}): RelaySuccessEnvelope {
+  if (!isIdentifier(input.requestId) || !isJsonValue(input.body)) {
+    throw new RangeError("Invalid relay success envelope");
+  }
+
+  return {
+    protocolVersion: RELAY_PROTOCOL_VERSION,
+    kind: "response",
+    requestId: input.requestId,
+    outcome: {
+      kind: "success",
+      body: input.body,
+    },
+  };
+}
 
 export function createRelayFailureEnvelope(input: {
   readonly requestId: string | null;

@@ -56,7 +56,27 @@ export interface PersistenceProofResult {
   readonly wrongKeyRejected: boolean;
 }
 
+export type DisposableCacheRead =
+  | { readonly kind: "miss" }
+  | {
+      readonly kind: "hit";
+      readonly ageMilliseconds: number;
+      readonly payload: string;
+      readonly stale: boolean;
+    };
+
+export interface DisposableCache {
+  clear(): Promise<void>;
+  get(key: string): Promise<DisposableCacheRead>;
+  put(options: {
+    readonly freshnessMilliseconds?: number;
+    readonly key: string;
+    readonly payload: string;
+  }): Promise<void>;
+}
+
 export interface MobilePersistenceRuntime {
+  readonly disposableCache: DisposableCache;
   readonly productState: MobileProductState;
   close(): Promise<void>;
   initialize(): Promise<PersistenceRuntimeState>;

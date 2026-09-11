@@ -289,6 +289,15 @@ export function createMobileStoreRuntime(
     return stores.product;
   }
 
+  async function requireCacheStore(): Promise<CacheStore> {
+    if (closeStarted) throw new Error("The disposable Cache Store is closing.");
+    const state = await (initializePromise ??= initialize());
+    if (state.kind !== "ready" || !stores) {
+      throw new Error("The disposable Cache Store is unavailable.");
+    }
+    return stores.cache;
+  }
+
   async function openStores(
     productMigrationSet: readonly StoreMigration[] = configuredProductMigrations,
     maximumCacheBytes = DEFAULT_CACHE_MAXIMUM_BYTES,
@@ -447,6 +456,17 @@ export function createMobileStoreRuntime(
   }
 
   return {
+    disposableCache: {
+      clear() {
+        return requireCacheStore().then((cache) => cache.clear());
+      },
+      get(key) {
+        return requireCacheStore().then((cache) => cache.get(key));
+      },
+      put(options) {
+        return requireCacheStore().then((cache) => cache.put(options));
+      },
+    },
     productState: {
       capabilityProfile: {
         async read() {
