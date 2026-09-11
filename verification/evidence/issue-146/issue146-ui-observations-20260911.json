@@ -1,0 +1,75 @@
+{
+  "observedAt": "2026-09-11T22:25:30.000Z",
+  "device": "emulator-5554",
+  "source": "adb exec-out uiautomator dump",
+  "note": "API 30 emulator font rasterization collapses spaces in PNGs. These resource-id and text values are the authoritative UI strings.",
+  "states": {
+    "unavailable": {
+      "resourceIds": ["kick-account-card", "development-kick-auth-fixture"],
+      "texts": [
+        "Kick",
+        "Kick connection unavailable",
+        "A qualified public Kick client ID is required before connection can start. Guest mode remains available.",
+        "Run development Kick auth fixture"
+      ]
+    },
+    "pending": {
+      "resourceIds": [
+        "kick-development-fixture",
+        "cancel-kick-account-connect",
+        "kick-fixture-accepted"
+      ],
+      "texts": [
+        "Development fixture — not a live Kick account",
+        "Waiting for Kick authorization in the system browser",
+        "Simulate Kick return"
+      ]
+    },
+    "connected": {
+      "resourceIds": ["manage-kick-account"],
+      "texts": [
+        "Kick development fixture (@streamfusion_kick_fixture) · Kick",
+        "Connected. Required features are available.",
+        "Manage"
+      ]
+    },
+    "manage": {
+      "resourceIds": ["disconnect-kick-account"],
+      "texts": [
+        "Scopes: user:read, channel:read, chat:write, moderation:chat_message:manage, moderation:ban, events:subscribe",
+        "Validate and refresh now",
+        "Close account details",
+        "Disconnect Kick"
+      ]
+    },
+    "confirmDisconnect": {
+      "texts": [
+        "Disconnect Kick account Kick development fixture? Only this Kick credential and session state will be removed. Guest Follows, History, Activity, settings, media, and other accounts stay intact.",
+        "Confirm disconnect Kick development fixture",
+        "Keep account"
+      ]
+    },
+    "disconnected": {
+      "resourceIds": ["connect-kick-account"],
+      "texts": ["Not connected", "Connect Kick"]
+    },
+    "denied": {
+      "resourceIds": ["retry-kick-account-connect"],
+      "texts": ["Kick denied this connection.", "Retry Kick connection"]
+    },
+    "retryPending": {
+      "resourceIds": ["cancel-kick-account-connect", "kick-fixture-expired"],
+      "texts": [
+        "Waiting for Kick authorization in the system browser",
+        "Simulate expired return"
+      ]
+    },
+    "expired": {
+      "resourceIds": ["retry-kick-account-connect"],
+      "texts": [
+        "The Kick authorization attempt expired.",
+        "Retry Kick connection"
+      ]
+    }
+  }
+}

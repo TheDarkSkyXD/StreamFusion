@@ -266,6 +266,43 @@ describe("Kick Worker OAuth boundary", () => {
     expect(upstreamFetch).toHaveBeenCalledOnce();
   });
 
+  it("accepts the exact Android App Link redirect", async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(Response.json(validKickToken()));
+    vi.stubGlobal("fetch", upstreamFetch);
+    const body = {
+      ...validTokenBody(),
+      redirect_uri:
+        "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback",
+    };
+
+    const response = await dispatch(tokenRequest(body), createEnv());
+
+    expect(response.status).toBe(200);
+    expect(new URLSearchParams(String(upstreamFetch.mock.calls[0][1].body)).get("redirect_uri")).toBe(
+      "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback",
+    );
+  });
+
+  it("rejects non-exact Android App Link redirects", async () => {
+    const upstreamFetch = vi.fn();
+    vi.stubGlobal("fetch", upstreamFetch);
+    const rejected = [
+      "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback?x=1",
+      "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback/",
+      "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/callback",
+      "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback#frag",
+    ];
+
+    for (const redirect_uri of rejected) {
+      const response = await dispatch(
+        tokenRequest({ ...validTokenBody(), redirect_uri }),
+        createEnv(),
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
   it("rejects token exchanges outside the localhost callback range", async () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);
