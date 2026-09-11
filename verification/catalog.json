@@ -627,6 +627,101 @@
         "result": "pass", "observedAt": "2026-09-08T01:25:00.000Z", "expiresAt": "2026-09-09T01:25:00.000Z",
         "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/143"]
       }
+    ],
+    "platform-account-auth": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "944c63efb1d70de2627710dd0f780ca01b684d2b",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-146-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "kick-account-receipt",
+            "path": "verification/evidence/issue-146-kick-account.json",
+            "sha256": "sha256:aafe7870db33b7968e14c7da5a5232e4dafb5270fe13016e12e59fd0748c6b7c",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-11T22:31:20.000Z",
+        "expiresAt": "2026-09-25T22:31:20.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/146"
+        ]
+      },
+      {
+        "id": "api30-emulator",
+        "sourceCommit": "944c63efb1d70de2627710dd0f780ca01b684d2b",
+        "apkDigest": "sha256:1c7cf6dfab66315ed58d06fbb98144ad3e6b757b37c4bb975ecec3f20fb8b522",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-146-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion_API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "kick-account-receipt",
+            "path": "verification/evidence/issue-146-kick-account.json",
+            "sha256": "sha256:aafe7870db33b7968e14c7da5a5232e4dafb5270fe13016e12e59fd0748c6b7c",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-11T22:31:20.000Z",
+        "expiresAt": "2026-09-25T22:31:20.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/146"
+        ]
+      },
+      {
+        "id": "worker-tests",
+        "sourceCommit": "944c63efb1d70de2627710dd0f780ca01b684d2b",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-146-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-worker-tests"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "kick-account-receipt",
+            "path": "verification/evidence/issue-146-kick-account.json",
+            "sha256": "sha256:aafe7870db33b7968e14c7da5a5232e4dafb5270fe13016e12e59fd0748c6b7c",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-11T22:31:20.000Z",
+        "expiresAt": "2026-09-25T22:31:20.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/146"
+        ]
+      }
     ]
   }
 }

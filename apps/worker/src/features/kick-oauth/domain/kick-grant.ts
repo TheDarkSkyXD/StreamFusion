@@ -22,8 +22,12 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
 }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function isBoundedString(value: unknown, maximumLength: number): value is string { return typeof value === "string" && value.length > 0 && value.length <= maximumLength; }
+const KICK_ANDROID_REDIRECT_URI =
+  "https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback";
+
 function isAllowedKickRedirect(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 2048) return false;
+  if (value === KICK_ANDROID_REDIRECT_URI) return true;
   try {
     const redirect = new URL(value); const port = Number(redirect.port);
     return redirect.protocol === "http:" && redirect.hostname === "localhost" && Number.isInteger(port) && port >= 8765 && port <= 8864 && redirect.pathname === "/auth/kick/callback" && redirect.username === "" && redirect.password === "" && redirect.search === "" && redirect.hash === "";
