@@ -42,6 +42,8 @@ import { NativeCapabilityStubProofControl } from "@mobile/features/native-contra
 import { CapabilityProfilePanel } from "@mobile/features/capability-profile/components/capability-profile-panel";
 import { DevelopmentResourceFailureProofControl } from "@mobile/features/capability-profile/components/development-resource-failure-proof-control";
 import type { RuntimeObservationDevelopmentProofResult } from "@mobile/features/capability-profile/capabilities/capability-profile";
+import type { KickAccountActions } from "@mobile/features/auth/components/kick-account-card";
+import type { KickAccountSessionSnapshot } from "@mobile/features/auth/domain/kick-account-session-controller";
 import {
   TwitchAccountsPanel,
   type TwitchAccountActions,
@@ -105,6 +107,11 @@ export function AppShell({
   twitchAccountDevelopmentFixture,
   onEnableTwitchDevelopmentFixture,
   onDisableTwitchDevelopmentFixture,
+  kickAccount,
+  kickAccountActions,
+  kickAccountDevelopmentFixture,
+  onEnableKickDevelopmentFixture,
+  onDisableKickDevelopmentFixture,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -135,6 +142,11 @@ export function AppShell({
   readonly twitchAccountDevelopmentFixture: boolean;
   readonly onEnableTwitchDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableTwitchDevelopmentFixture?: (() => void) | undefined;
+  readonly kickAccount: KickAccountSessionSnapshot;
+  readonly kickAccountActions: KickAccountActions;
+  readonly kickAccountDevelopmentFixture: boolean;
+  readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
+  readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -236,6 +248,11 @@ export function AppShell({
               onEnableTwitchDevelopmentFixture={
                 onEnableTwitchDevelopmentFixture
               }
+              kickAccount={kickAccount}
+              kickAccountActions={kickAccountActions}
+              kickAccountDevelopmentFixture={kickAccountDevelopmentFixture}
+              onEnableKickDevelopmentFixture={onEnableKickDevelopmentFixture}
+              onDisableKickDevelopmentFixture={onDisableKickDevelopmentFixture}
               onDisableTwitchDevelopmentFixture={
                 onDisableTwitchDevelopmentFixture
               }
@@ -381,6 +398,11 @@ function ShellScreen({
   twitchAccountDevelopmentFixture,
   onEnableTwitchDevelopmentFixture,
   onDisableTwitchDevelopmentFixture,
+  kickAccount,
+  kickAccountActions,
+  kickAccountDevelopmentFixture,
+  onEnableKickDevelopmentFixture,
+  onDisableKickDevelopmentFixture,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -411,6 +433,11 @@ function ShellScreen({
   readonly twitchAccountDevelopmentFixture: boolean;
   readonly onEnableTwitchDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableTwitchDevelopmentFixture?: (() => void) | undefined;
+  readonly kickAccount: KickAccountSessionSnapshot;
+  readonly kickAccountActions: KickAccountActions;
+  readonly kickAccountDevelopmentFixture: boolean;
+  readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
+  readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -488,9 +515,14 @@ function ShellScreen({
           <TwitchAccountsPanel
             actions={twitchAccountActions}
             developmentFixture={twitchAccountDevelopmentFixture}
+            kickAccount={kickAccount}
+            kickAccountActions={kickAccountActions}
+            kickAccountDevelopmentFixture={kickAccountDevelopmentFixture}
             model={twitchAccount}
             onDisableDevelopmentFixture={onDisableTwitchDevelopmentFixture}
             onEnableDevelopmentFixture={onEnableTwitchDevelopmentFixture}
+            onDisableKickDevelopmentFixture={onDisableKickDevelopmentFixture}
+            onEnableKickDevelopmentFixture={onEnableKickDevelopmentFixture}
             onOpenNotificationSettings={() =>
               dispatch({
                 type: "navigate",

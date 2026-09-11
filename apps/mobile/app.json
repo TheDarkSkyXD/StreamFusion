@@ -9,7 +9,21 @@
     "android": {
       "allowBackup": false,
       "package": "com.thedarkskyxd.streamfusion.dev",
-      "versionCode": 1
+      "versionCode": 1,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "streamfusion.leveluptogetherbiz.workers.dev",
+              "pathPrefix": "/auth/kick/android/callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
       "expo-router",

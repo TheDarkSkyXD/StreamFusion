@@ -7,6 +7,9 @@ import {
   mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
+import type { KickAccountActions } from "@mobile/features/auth/components/kick-account-card";
+import { KickAccountCard } from "@mobile/features/auth/components/kick-account-card";
+import type { KickAccountSessionSnapshot } from "@mobile/features/auth/domain/kick-account-session-controller";
 import type { TwitchAccountSessionSnapshot } from "@mobile/features/auth/domain/twitch-account-session-controller";
 import { shouldShowTwitchAvatar } from "@mobile/features/auth/components/account-avatar-state";
 
@@ -36,16 +39,26 @@ export interface TwitchAccountActions {
 export function TwitchAccountsPanel({
   actions,
   developmentFixture = false,
+  kickAccount,
+  kickAccountActions,
+  kickAccountDevelopmentFixture = false,
   model,
   onEnableDevelopmentFixture,
   onDisableDevelopmentFixture,
+  onEnableKickDevelopmentFixture,
+  onDisableKickDevelopmentFixture,
   onOpenNotificationSettings,
 }: {
   readonly actions: TwitchAccountActions;
   readonly developmentFixture?: boolean;
+  readonly kickAccount: KickAccountSessionSnapshot;
+  readonly kickAccountActions: KickAccountActions;
+  readonly kickAccountDevelopmentFixture?: boolean;
   readonly model: TwitchAccountViewModel;
   readonly onEnableDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableDevelopmentFixture?: (() => void) | undefined;
+  readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
+  readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onOpenNotificationSettings: () => void;
 }) {
   return (
@@ -80,9 +93,12 @@ export function TwitchAccountsPanel({
           />
         ) : null}
       </View>
-      <AccountCard
-        title="Kick"
-        detail="Kick account connection is not available yet."
+      <KickAccountCard
+        actions={kickAccountActions}
+        developmentFixture={kickAccountDevelopmentFixture}
+        model={kickAccount}
+        onDisableDevelopmentFixture={onDisableKickDevelopmentFixture}
+        onEnableDevelopmentFixture={onEnableKickDevelopmentFixture}
       />
       <AccountCard
         title="Guest mode"

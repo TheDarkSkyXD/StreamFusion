@@ -1,3 +1,4 @@
+import { KICK_ANDROID_REDIRECT_URI } from "@streamfusion/core/auth";
 import { PLATFORMS } from "@streamfusion/core/platform";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
@@ -23,11 +24,22 @@ import { createMobileStoreRuntime } from "@mobile/features/storage/composition/s
 import { createDevelopmentActivityProof } from "@mobile/features/activity/composition/development-activity-proof";
 import { createVolatilePersistenceProbe } from "@mobile/features/diagnostics/adapters/volatile-persistence-probe";
 import { createFetchRuntimeProbe } from "@mobile/features/diagnostics/adapters/fetch-runtime-probe";
+import { createSecureKickCredentialRepository } from "@mobile/features/auth/data/secure-kick-credential-repository";
 import { createSecureTwitchCredentialRepository } from "@mobile/features/auth/data/secure-twitch-credential-repository";
+import { createKickOAuthApi } from "@mobile/features/auth/adapters/kick/kick-oauth-api";
+import { createKickPkceAuthorization } from "@mobile/features/auth/adapters/kick/kick-authorization-url";
+import { createKickLinkingCallbackSource } from "@mobile/features/auth/adapters/kick/kick-callback-source";
+import { parseKickClientConfiguration } from "@mobile/features/auth/adapters/kick/kick-client-config";
 import { createTwitchDeviceAuthApi } from "@mobile/features/auth/adapters/twitch/twitch-device-auth-api";
 import { parseTwitchClientConfiguration } from "@mobile/features/auth/adapters/twitch/twitch-client-config";
+import { useKickAccountController } from "@mobile/features/auth/components/use-kick-account-controller";
 import { useTwitchAccountController } from "@mobile/features/auth/components/use-twitch-account-controller";
+import { createKickAccountSessionController } from "@mobile/features/auth/domain/kick-account-session-controller";
 import { createTwitchAccountSessionController } from "@mobile/features/auth/domain/twitch-account-session-controller";
+import {
+  createDevelopmentKickAuthFixture,
+  DEVELOPMENT_KICK_CLIENT_ID,
+} from "@mobile/features/auth/adapters/kick/development-kick-auth-fixture";
 import {
   createDevelopmentTwitchAuthFixture,
   DEVELOPMENT_TWITCH_CLIENT_ID,
@@ -126,11 +138,61 @@ const developmentTwitchController = createTwitchAccountSessionController({
   repository: developmentTwitchRepository,
 });
 
+const productionKickRepository = createSecureKickCredentialRepository({
+  secrets: secureSecretStore,
+});
+const developmentKickRepository = createSecureKickCredentialRepository({
+  secrets: secureSecretStore,
+  key: "streamfusion.development.issue146.kick-auth.v1",
+});
+let kickClientId: string | null = null;
+try {
+  kickClientId = parseKickClientConfiguration(
+    process.env.EXPO_PUBLIC_KICK_CLIENT_ID,
+  ).clientId;
+} catch {
+  kickClientId = null;
+}
+const productionKickGateway = kickClientId
+  ? createKickOAuthApi({
+      workerBaseUrl: process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL,
+    })
+  : null;
+const developmentKickFixture = __DEV__
+  ? createDevelopmentKickAuthFixture()
+  : null;
+const kickCallbacks = createKickLinkingCallbackSource();
+const productionKickController = createKickAccountSessionController({
+  authorize: createKickPkceAuthorization,
+  callbacks: kickCallbacks,
+  clientId: kickClientId,
+  gateway: productionKickGateway,
+  open: async (value) => void (await Linking.openURL(value)),
+  repository: productionKickRepository,
+});
+const developmentKickController = createKickAccountSessionController({
+  authorize: async ({ nowEpochMs }) => ({
+    authorizeUrl: "https://id.kick.com/oauth/authorize?fixture=1",
+    codeVerifier: "a".repeat(43),
+    expiresAtEpochMs: nowEpochMs + 600_000,
+    redirectUri: KICK_ANDROID_REDIRECT_URI,
+    state: "development-kick-state",
+  }),
+  callbacks: { subscribe: () => () => undefined },
+  clientId: DEVELOPMENT_KICK_CLIENT_ID,
+  ...(developmentKickFixture ? { fixture: developmentKickFixture } : {}),
+  gateway: developmentKickFixture,
+  open: async () => undefined,
+  repository: developmentKickRepository,
+});
+
 export function MobileRuntime() {
   const [activityProof, setActivityProof] = useState(() =>
     developmentActivityProof?.snapshot() ?? null,
   );
   const [useDevelopmentTwitchFixture, setUseDevelopmentTwitchFixture] =
+    useState(false);
+  const [useDevelopmentKickFixture, setUseDevelopmentKickFixture] =
     useState(false);
   const persistence = usePersistenceController(persistenceRuntime);
   const capabilityProfile = useCapabilityProfileController(
@@ -149,6 +211,16 @@ export function MobileRuntime() {
   const visibleTwitchAccount = useDevelopmentTwitchFixture
     ? developmentTwitchAccount
     : twitchAccount;
+  const kickAccount = useKickAccountController({
+    controller: productionKickController,
+  });
+  const developmentKickAccount = useKickAccountController({
+    controller: developmentKickController,
+    enabled: useDevelopmentKickFixture,
+  });
+  const visibleKickAccount = useDevelopmentKickFixture
+    ? developmentKickAccount
+    : kickAccount;
   useEffect(() => {
     if (!developmentActivityProof) return;
     const unsubscribe = developmentActivityProof.subscribe(setActivityProof);
@@ -214,6 +286,19 @@ export function MobileRuntime() {
       onDisableTwitchDevelopmentFixture={
         useDevelopmentTwitchFixture
           ? () => setUseDevelopmentTwitchFixture(false)
+          : undefined
+      }
+      kickAccount={visibleKickAccount.model}
+      kickAccountActions={visibleKickAccount.actions}
+      kickAccountDevelopmentFixture={useDevelopmentKickFixture}
+      onEnableKickDevelopmentFixture={
+        __DEV__ && kickClientId === null
+          ? () => setUseDevelopmentKickFixture(true)
+          : undefined
+      }
+      onDisableKickDevelopmentFixture={
+        useDevelopmentKickFixture
+          ? () => setUseDevelopmentKickFixture(false)
           : undefined
       }
     />

@@ -14,3 +14,4 @@ export type {
   OAuth2SessionState,
 } from "./oauth2-session.ts";
 export * from "./twitch-account-auth.ts";
+export * from "./kick-account-auth.ts";
