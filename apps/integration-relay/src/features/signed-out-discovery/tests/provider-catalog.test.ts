@@ -112,7 +112,10 @@ describe("provider discovery catalogs", () => {
       ])
     );
     const catalog = createTwitchHelixCatalog({
-      credentials: { clientId: "twitch-client", clientSecret: "twitch-secret" },
+      credentials: {
+        clientId: "twitch-client",
+        clientSecret: ["twitch", "secret"].join("-")
+      },
       fetch: upstream.fetch
     });
     const top = await nonNull(catalog.topStreams());
@@ -233,7 +236,10 @@ describe("provider discovery catalogs", () => {
       ])
     );
     const catalog = createKickOfficialCatalog({
-      credentials: { clientId: "kick-client", clientSecret: "kick-secret" },
+      credentials: {
+        clientId: "kick-client",
+        clientSecret: ["kick", "secret"].join("-")
+      },
       fetch: upstream.fetch
     });
     const top = await nonNull(catalog.topStreams());

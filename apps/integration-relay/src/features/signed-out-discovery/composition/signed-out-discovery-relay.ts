@@ -14,11 +14,11 @@ export function createSignedOutDiscoveryRelayRoute(input: {
   readonly database: D1Database;
   readonly environment: RelayEnvironment;
   readonly fetch: typeof globalThis.fetch;
-  readonly kickClientId?: string;
-  readonly kickClientSecret?: string;
+  readonly kickClientId: string | undefined;
+  readonly kickClientSecret: string | undefined;
   readonly now: () => number;
-  readonly twitchClientId?: string;
-  readonly twitchClientSecret?: string;
+  readonly twitchClientId: string | undefined;
+  readonly twitchClientSecret: string | undefined;
 }) {
   const rateLimiter = createD1RelayRateLimiter(input.database);
   const installationService = createInstallationService({
