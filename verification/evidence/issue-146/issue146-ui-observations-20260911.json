@@ -52,6 +52,24 @@
     "disconnected": {
       "resourceIds": ["connect-kick-account"],
       "texts": ["Not connected", "Connect Kick"]
+    },
+    "denied": {
+      "resourceIds": ["retry-kick-account-connect"],
+      "texts": ["Kick denied this connection.", "Retry Kick connection"]
+    },
+    "retryPending": {
+      "resourceIds": ["cancel-kick-account-connect", "kick-fixture-expired"],
+      "texts": [
+        "Waiting for Kick authorization in the system browser",
+        "Simulate expired return"
+      ]
+    },
+    "expired": {
+      "resourceIds": ["retry-kick-account-connect"],
+      "texts": [
+        "The Kick authorization attempt expired.",
+        "Retry Kick connection"
+      ]
     }
   }
 }

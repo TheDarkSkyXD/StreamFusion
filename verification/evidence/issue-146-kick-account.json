@@ -40,7 +40,8 @@
         "API 30 fixture rendered pending browser wait, Cancel, and Simulate Kick return.",
         "Simulate Kick return committed Kick development fixture (@streamfusion_kick_fixture) with required scopes visible under Manage.",
         "Confirm disconnect removed only Kick session state and returned to Not connected / Connect Kick.",
-        "Connected, manage, and disconnect screens exercise the production controller, repository, and Accounts composition with a development-only provider adapter. They do not prove Kick accepted a real grant."
+        "Denied return showed Kick denied this connection. plus Retry Kick connection. Retry relaunched a new pending attempt. Expired return showed The Kick authorization attempt expired.",
+        "Connected, manage, disconnect, denied, retry, and expired screens exercise the production controller with a development-only provider adapter. They do not prove Kick accepted a real grant."
       ]
     },
     "worker-allowlist": {
@@ -89,9 +90,27 @@
       "scope": "After confirm: Not connected and Connect Kick. Guest mode remains available."
     },
     {
+      "path": "verification/evidence/issue-146/issue146-denied-20260911.png",
+      "sha256": "b1251f2fb41d1d2b3255bf50091499e8e178d9505d4eccfee21cb637b82e7b80",
+      "observedAt": "2026-09-11T22:31:10.000Z",
+      "scope": "Fixture denied return. UI Automator text is Kick denied this connection. plus Retry Kick connection."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-retry-pending-20260911.png",
+      "sha256": "c1430d8bea7563a0823cbd82053f35b392116ae57dcf52664d0ad9cc1a7ebec7",
+      "observedAt": "2026-09-11T22:31:15.000Z",
+      "scope": "Retry after denial relaunched a new pending browser attempt instead of marking the return superseded."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-expired-20260911.png",
+      "sha256": "15ef8eadd0634bb2b05a63b9b0b24aee1e9959aca46146bc53285a9f6d0f5a55",
+      "observedAt": "2026-09-11T22:31:20.000Z",
+      "scope": "Fixture expired return. UI Automator text is The Kick authorization attempt expired. plus Retry Kick connection."
+    },
+    {
       "path": "verification/evidence/issue-146/issue146-ui-observations-20260911.json",
-      "sha256": "308b66dc321a0795393a55aa690b87555e4009131aa6dfd5cb2d980a4b20cd7d",
-      "observedAt": "2026-09-11T22:25:30.000Z",
+      "sha256": "ba1820d39b8e786d3909c3fd4c48970163cba7de6bc9c5a03d3411e14bd68e59",
+      "observedAt": "2026-09-11T22:31:20.000Z",
       "scope": "UI Automator resource-id and text values for the same states. Use these strings when PNG font rasterization collapses spaces."
     }
   ],

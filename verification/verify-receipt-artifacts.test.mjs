@@ -178,5 +178,5 @@ test("verifies the checked-in issue 146 receipt", async () => {
       "issue-146-kick-account.json",
     ),
   });
-  assert.deepEqual(result, { verified: 7 });
+  assert.deepEqual(result, { verified: 10 });
 });
