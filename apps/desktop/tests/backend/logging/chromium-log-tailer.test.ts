@@ -15,9 +15,9 @@
  *   5. Stop is idempotent — calling the returned fn twice is safe and
  *      a subsequent append does NOT produce more logger calls.
  *
- * Timing strategy: vitest fake timers do NOT drive `fs.watchFile`'s native
- * polling. We use real timers with a small pollIntervalMs and short `await`
- * pauses to let the OS fire the watcher between writes.
+ * Timing strategy: the tailer polls with `setInterval`. Tests use real
+ * timers, a small pollIntervalMs, and either a short pause or `vi.waitFor`
+ * so the first tick can run after an append.
  */
 
 import fs from "node:fs";
@@ -80,8 +80,7 @@ afterEach(async () => {
       // best-effort
     }
   }
-  // Let watchFile finish unregistering before nuking the dir, otherwise
-  // Windows occasionally hangs on EBUSY.
+  // Give Windows a beat to release the last read handle before rm.
   await pause(80);
   try {
     fs.rmSync(tmpDir, { recursive: true, force: true });
