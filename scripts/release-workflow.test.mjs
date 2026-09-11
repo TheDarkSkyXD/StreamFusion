@@ -185,7 +185,9 @@ test("the API 30 job enables and verifies KVM before accelerated boot", () => {
           "node --test scripts/release-workflow.test.mjs scripts/kvm-access.test.mjs",
     ),
   );
-  assert.ok(androidJob.steps.indexOf(kvmStep) > androidJob.steps.indexOf(checkoutStep));
+  assert.ok(
+    androidJob.steps.indexOf(kvmStep) > androidJob.steps.indexOf(checkoutStep),
+  );
   assert.ok(androidJob.steps.indexOf(kvmStep) < androidJob.steps.indexOf(apkStep));
   assert.ok(
     androidJob.steps.indexOf(kvmStep) < androidJob.steps.indexOf(emulatorStep),

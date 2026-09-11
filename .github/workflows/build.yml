@@ -35,7 +35,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Test checked-in workflow contracts
-        run: node --test scripts/release-workflow.test.mjs
+        run: node --test scripts/release-workflow.test.mjs scripts/kvm-access.test.mjs
 
       - name: Validate dependency sources
         run: npm run lint:dependencies
@@ -120,10 +120,13 @@ jobs:
 
   android-development:
     name: Android development APK and API 30 install
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: verify
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Enable KVM access for the ephemeral Android job
+        run: bash .github/scripts/enable-kvm-access.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -145,16 +148,6 @@ jobs:
 
       - name: Build Android development APK
         run: npm run build:mobile:development
-
-      - name: Enable KVM access for the ephemeral Android job
-        run: |
-          # This documented rule only changes /dev/kvm. The hosted runner is discarded after this job.
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          test -c /dev/kvm
-          test -r /dev/kvm
-          test -w /dev/kvm
 
       - name: Install and launch on API 30
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0

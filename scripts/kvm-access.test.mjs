@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -37,7 +36,7 @@ function writeUdevadmStub(directory) {
     stub,
     `#!/usr/bin/env bash
 set -eu
-printf '%s\\n' "$*" >> "\${UDEVADM_LOG:?}"
+printf '%s\\n' "$*" >> "$(dirname "$0")/udevadm.log"
 `,
   );
   chmodSync(stub, 0o755);
@@ -54,7 +53,6 @@ function runEnableKvm(directory, device, extraEnv = {}) {
       KVM_DEVICE: device,
       UDEV_RULES_FILE: path.join(directory, "99-kvm4all.rules"),
       UDEVADM: path.join(directory, "udevadm"),
-      UDEVADM_LOG: path.join(directory, "udevadm.log"),
       RETRY_COUNT: "2",
       RETRY_SLEEP_SECONDS: "0",
       SETTLE_TIMEOUT_SECONDS: "1",
@@ -90,10 +88,6 @@ test("the GitHub udev snippet without chmod leaves a 0660 kvm node unwritable", 
       {
         cwd: directory,
         encoding: "utf8",
-        env: {
-          ...process.env,
-          UDEVADM_LOG: path.join(directory, "udevadm.log"),
-        },
         timeout: 10_000,
       },
     );
