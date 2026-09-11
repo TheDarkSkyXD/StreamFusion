@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "issue": 146,
+  "ticketId": "D03",
+  "mobileSourceCommit": "86abc751560a5ea9726ca59477ac59f662465ee8",
+  "observedAt": "2026-09-11T22:25:30.000Z",
+  "result": "partial",
+  "sourceBinding": {
+    "implementationCommit": "86abc751560a5ea9726ca59477ac59f662465ee8",
+    "provenance": "Local development-client APK built on this Cloud Agent VM from the same branch, then Metro delivered 86abc751 JavaScript. Screenshots and UI Automator dumps were taken on emulator-5554 after the retry-fix reload. This is not a release APK or live-provider qualification claim."
+  },
+  "candidate": {
+    "apkSha256": "1c7cf6dfab66315ed58d06fbb98144ad3e6b757b37c4bb975ecec3f20fb8b522",
+    "nativeBuild": "560 Gradle tasks; debug APK at apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk; package com.thedarkskyxd.streamfusion.dev 0.1.0.",
+    "runtime": "Official Mobile launcher option 3 (scripts/start-development-client.mjs) with Metro --offline --dev-client --port 8081. JavaScript was delivered by Metro; the observations do not establish standalone packaged startup."
+  },
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md#accounts-connect-validate-refresh-and-disconnect-twitch-and-kick-accounts",
+    "check": "Android D03 implements Kick PKCE connect, callback verdicts, refresh, scope status, and targeted disconnect beside the existing Twitch Accounts sheet. Guest mode remains independent. Live Kick grant, App Link return, and physical-device qualification are not claimed."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Core: 54 unit tests with NODE_OPTIONS=--experimental-strip-types; architecture and import policy passed with that flag unset; typecheck and lint passed.",
+        "Mobile: 43 Node tests, 229 Vitest tests, feature architecture, typecheck, and lint passed.",
+        "Worker: 23 tests, architecture, typecheck, and lint passed, including the exact Android Kick redirect allowlist."
+      ]
+    },
+    "configuration-and-guest-containment": {
+      "result": "pass",
+      "observations": [
+        "Without EXPO_PUBLIC_KICK_CLIENT_ID the Accounts Kick card reported Kick connection unavailable and kept Guest mode available.",
+        "The development fixture requires a development build and explicit opt-in, uses isolated SecureStore keys, and is labeled not a live Kick account."
+      ]
+    },
+    "pkce-and-account-management": {
+      "result": "pass-with-development-fixture",
+      "observations": [
+        "API 30 fixture rendered pending browser wait, Cancel, and Simulate Kick return.",
+        "Simulate Kick return committed Kick development fixture (@streamfusion_kick_fixture) with required scopes visible under Manage.",
+        "Confirm disconnect removed only Kick session state and returned to Not connected / Connect Kick.",
+        "Connected, manage, and disconnect screens exercise the production controller, repository, and Accounts composition with a development-only provider adapter. They do not prove Kick accepted a real grant."
+      ]
+    },
+    "worker-allowlist": {
+      "result": "pass",
+      "observations": [
+        "Worker isAllowedKickRedirect accepts only the exact Android HTTPS callback plus the existing desktop localhost range.",
+        "Query, trailing-slash, wrong-path, and hash variants are rejected in worker tests."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-146/issue146-unavailable-20260911.png",
+      "sha256": "0772237f673d9d3a03a1cec23c6099d670ddce6eccb25b4ba9930f060cf47988",
+      "observedAt": "2026-09-11T22:24:00.000Z",
+      "scope": "Missing Kick client ID: Kick connection unavailable plus Run development Kick auth fixture. Guest mode remains visible."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-pending-20260911.png",
+      "sha256": "7ff330ed8ce58b4a6f2cddad62fc559464ba7d5ca877745d1bf0352ac0f92c3f",
+      "observedAt": "2026-09-11T22:25:00.000Z",
+      "scope": "Explicit non-live fixture pending browser authorization with Cancel and Simulate Kick return."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-connected-20260911.png",
+      "sha256": "7311528b3c2765687566e3c875395a72d80df5d523a9ac86976326461945b713",
+      "observedAt": "2026-09-11T22:25:10.000Z",
+      "scope": "Fixture connected row for Kick development fixture (@streamfusion_kick_fixture) with Manage."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-manage-20260911.png",
+      "sha256": "8e2df47de70ab10e800d4a1278716a949fc2b935c858e202c9ce880a83c8902e",
+      "observedAt": "2026-09-11T22:25:20.000Z",
+      "scope": "Manage panel: required Kick scopes, Validate and refresh now, and Disconnect Kick."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-confirm-disconnect-20260911.png",
+      "sha256": "d1da3f0690c5db5ca9b2e73e09ad9b2f9a40bcd4049a40c618ec2aa730e71fb2",
+      "observedAt": "2026-09-11T22:25:25.000Z",
+      "scope": "Targeted disconnect confirmation for Kick development fixture only."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-disconnected-20260911.png",
+      "sha256": "192d18df73b081261b6b7a9d2b0489b660ef5a8b3668e18b10b1a03630cc9401",
+      "observedAt": "2026-09-11T22:25:30.000Z",
+      "scope": "After confirm: Not connected and Connect Kick. Guest mode remains available."
+    },
+    {
+      "path": "verification/evidence/issue-146/issue146-ui-observations-20260911.json",
+      "sha256": "308b66dc321a0795393a55aa690b87555e4009131aa6dfd5cb2d980a4b20cd7d",
+      "observedAt": "2026-09-11T22:25:30.000Z",
+      "scope": "UI Automator resource-id and text values for the same states. Use these strings when PNG font rasterization collapses spaces."
+    }
+  ],
+  "containment": {
+    "secrets": "Kick tokens, PKCE verifier, state, and codes stay out of UI snapshots. Evidence contains no live Kick token, environment secret, or user-database content.",
+    "callback": "judgeKickCallback rejects denied, expired, stale, duplicate, state-mismatch, wrong-redirect, and superseded returns. Terminal failures clear the finished attempt before the next connect.",
+    "storage": "Kick credentials use isolated SecureStore keys streamfusion.main.kick-auth.v1 and streamfusion.development.issue146.kick-auth.v1."
+  },
+  "androidParityRecords": {
+    "platform-account-auth": {
+      "delivery": "direct Kick implementation with development fixture beside existing Twitch Accounts",
+      "progress": "implemented-partial-verification",
+      "freshness": "current emulator source and artifact binding",
+      "blockers": [
+        "A qualified secretless Mobile Kick public client ID (EXPO_PUBLIC_KICK_CLIENT_ID) and a controlled Kick test account are required for live S256 PKCE, token refresh, scope, and disconnect proof.",
+        "A representative physical Android device is required for Keystore/SecureStore, verified App Link return, lifecycle, large-text, and accessibility qualification.",
+        "Hosted Worker allowlist deploy and production assetlinks.json for the exact Android callback remain outside this VM."
+      ],
+      "developmentException": null,
+      "testing": "The explicitly opted-in fixture uses the production workflow with an isolated provider adapter and storage key. It is not a Development Exception and cannot satisfy live-provider acceptance. Mobile MCP was unavailable; the qualified fallback used ADB input plus UI Automator XML and full PNG capture on emulator-5554."
+    }
+  },
+  "qualification": "Partial. Reviewed implementation, deterministic local Change Gate for core/mobile/worker, API 30 fixture lifecycle, and Worker allowlist tests are retained. Live Kick, verified App Link, hosted Worker deploy, and physical-device gates remain missing and are not inferred from fixtures.",
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/146",
+    "https://docs.kick.com/getting-started/generating-tokens-oauth2-flow",
+    "https://www.rfc-editor.org/rfc/rfc7636"
+  ]
+}

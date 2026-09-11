@@ -167,3 +167,16 @@ test("verifies the checked-in issue 145 receipt", async () => {
   });
   assert.deepEqual(result, { verified: 4 });
 });
+
+test("verifies the checked-in issue 146 receipt", async () => {
+  const result = await verifyReceiptArtifacts({
+    repositoryRoot,
+    receiptPath: path.join(
+      repositoryRoot,
+      "verification",
+      "evidence",
+      "issue-146-kick-account.json",
+    ),
+  });
+  assert.deepEqual(result, { verified: 7 });
+});
