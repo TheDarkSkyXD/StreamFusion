@@ -38,7 +38,11 @@ export type KickAccountSessionSnapshot =
       readonly failure: "restore" | "connection" | "cancellation";
       readonly message: string;
     }
-  | { readonly kind: "auth-lost"; readonly displayName: string | null; readonly reason: string }
+  | {
+      readonly kind: "auth-lost";
+      readonly displayName: string | null;
+      readonly reason: string;
+    }
   | {
       readonly kind: "connected";
       readonly displayName: string;
@@ -56,7 +60,8 @@ export type KickAccountSessionSnapshot =
 type CancelSignal = KickCancellationSignal & { cancel(): void };
 type Lease = {
   readonly epoch: number;
-  readonly kind: "restore" | "connect" | "callback" | "refresh" | "cancel" | "disconnect";
+  readonly kind:
+    "restore" | "connect" | "callback" | "refresh" | "cancel" | "disconnect";
   readonly attemptId?: KickAttemptId;
   readonly generation?: KickCredentialGeneration;
   readonly signal: CancelSignal;
@@ -103,7 +108,10 @@ function signal(): CancelSignal {
 }
 
 const failureMessage: Record<
-  Exclude<Awaited<ReturnType<typeof completeKickAuthorization>>["kind"], "connected">,
+  Exclude<
+    Awaited<ReturnType<typeof completeKickAuthorization>>["kind"],
+    "connected"
+  >,
   string
 > = {
   denied: "Kick denied this connection.",
@@ -146,10 +154,17 @@ export function createKickAccountSessionController(options: {
   let generation = kickCredentialGeneration(0);
   let readyCredential: KickCredential | undefined;
   let liveState: string | undefined;
-  let consumed: { readonly attemptId: KickAttemptId; readonly state: string } | null = null;
+  let consumed: {
+    readonly attemptId: KickAttemptId;
+    readonly state: string;
+  } | null = null;
   const replacedAttempts: { attemptId: KickAttemptId; state: string }[] = [];
   const emit = (next: KickAccountSessionSnapshot, owner?: Lease) => {
-    if (owner && (lease !== owner || owner.epoch !== epoch || owner.signal.aborted)) return;
+    if (
+      owner &&
+      (lease !== owner || owner.epoch !== epoch || owner.signal.aborted)
+    )
+      return;
     snapshot = next;
     for (const listener of listeners) listener();
   };
@@ -158,20 +173,30 @@ export function createKickAccountSessionController(options: {
     lease?.signal.cancel();
     lease = null;
   };
-  const begin = (kind: Lease["kind"], identity: Pick<Lease, "attemptId" | "generation"> = {}) => {
+  const begin = (
+    kind: Lease["kind"],
+    identity: Pick<Lease, "attemptId" | "generation"> = {},
+  ) => {
     invalidate();
     const next: Lease = { epoch, kind, signal: signal(), ...identity };
     lease = next;
     return next;
   };
   const current = (owner: Lease) =>
-    foreground && lease === owner && owner.epoch === epoch && !owner.signal.aborted;
+    foreground &&
+    lease === owner &&
+    owner.epoch === epoch &&
+    !owner.signal.aborted;
   const fail = (
     failure: Extract<KickAccountSessionSnapshot, { kind: "failed" }>["failure"],
     message: string,
     owner: Lease,
   ) => emit({ kind: "failed", failure, message }, owner);
-  const projectCredential = (credential: KickCredential, owner: Lease, notice?: string) => {
+  const projectCredential = (
+    credential: KickCredential,
+    owner: Lease,
+    notice?: string,
+  ) => {
     generation = credential.generation;
     readyCredential = credential;
     emit(
@@ -211,12 +236,18 @@ export function createKickAccountSessionController(options: {
     });
     if (!current(owner)) return;
     if (result.kind === "connected") {
-      consumed = liveState && attemptId ? { attemptId, state: liveState } : consumed;
+      consumed =
+        liveState && attemptId ? { attemptId, state: liveState } : consumed;
       liveState = undefined;
       attemptId = undefined;
       emit({ kind: "committing" }, owner);
       projectCredential(result.credential, owner);
       return;
+    }
+    if (result.kind !== "offline" && attemptId) {
+      await options.repository.clearAttempt(attemptId);
+      attemptId = undefined;
+      liveState = undefined;
     }
     fail("connection", failureMessage[result.kind], owner);
   };
@@ -242,18 +273,34 @@ export function createKickAccountSessionController(options: {
         );
         return;
       }
-      if (durable.kind === "launching" || durable.kind === "pending" || durable.kind === "exchanging") {
+      if (
+        durable.kind === "launching" ||
+        durable.kind === "pending" ||
+        durable.kind === "exchanging"
+      ) {
         attemptId = durable.attempt.attemptId;
         generation = durable.attempt.generation;
         liveState = durable.attempt.state;
-        emit({ kind: "pending", expiresAtEpochMs: durable.attempt.expiresAtEpochMs }, owner);
+        emit(
+          {
+            kind: "pending",
+            expiresAtEpochMs: durable.attempt.expiresAtEpochMs,
+          },
+          owner,
+        );
         return;
       }
       if (durable.kind === "refresh-in-flight") {
-        const recovered = await recoverInterruptedKickRefresh(options.repository);
+        const recovered = await recoverInterruptedKickRefresh(
+          options.repository,
+        );
         if (!current(owner)) return;
         if (recovered !== "recovered") {
-          fail("restore", "Interrupted Kick refresh recovery could not be confirmed.", owner);
+          fail(
+            "restore",
+            "Interrupted Kick refresh recovery could not be confirmed.",
+            owner,
+          );
           return;
         }
         await reconcile();
@@ -271,16 +318,21 @@ export function createKickAccountSessionController(options: {
         );
         return;
       }
-      if (durable.kind === "ready") projectCredential(durable.credential, owner);
+      if (durable.kind === "ready")
+        projectCredential(durable.credential, owner);
     } catch {
-      fail("restore", "Encrypted Kick account state could not be loaded. Retry loading account state.", owner);
+      fail(
+        "restore",
+        "Encrypted Kick account state could not be loaded. Retry loading account state.",
+        owner,
+      );
     }
   };
 
   const connect = async () => {
     if (!foreground || !options.gateway || !options.clientId) return;
-    if (liveState && attemptId)
-      replacedAttempts.push({ attemptId, state: liveState });
+    const previous =
+      liveState && attemptId ? { attemptId, state: liveState } : null;
     const owner = begin("connect", { generation });
     const id = kickAttemptId(`mobile-kick-${now()}-${++operationSequence}`);
     attemptId = id;
@@ -307,16 +359,30 @@ export function createKickAccountSessionController(options: {
         await reconcile();
         return;
       }
+      if (previous) replacedAttempts.push(previous);
       liveState = authorization.state;
-      emit({ kind: "pending", expiresAtEpochMs: authorization.expiresAtEpochMs }, owner);
+      emit(
+        { kind: "pending", expiresAtEpochMs: authorization.expiresAtEpochMs },
+        owner,
+      );
       try {
         await options.open(authorization.authorizeUrl);
       } catch {
         if (current(owner))
-          emit({ kind: "pending", expiresAtEpochMs: authorization.expiresAtEpochMs }, owner);
+          emit(
+            {
+              kind: "pending",
+              expiresAtEpochMs: authorization.expiresAtEpochMs,
+            },
+            owner,
+          );
       }
     } catch {
-      fail("connection", "Kick is unavailable. Check your connection and retry.", owner);
+      fail(
+        "connection",
+        "Kick is unavailable. Check your connection and retry.",
+        owner,
+      );
     }
   };
 
@@ -346,14 +412,22 @@ export function createKickAccountSessionController(options: {
         const cleared = await options.repository.clearAttempt(target);
         if (!current(owner)) return;
         if (!cleared) {
-          fail("cancellation", "Cancellation could not be confirmed. Retry cancellation or reload account state.", owner);
+          fail(
+            "cancellation",
+            "Cancellation could not be confirmed. Retry cancellation or reload account state.",
+            owner,
+          );
           return;
         }
         attemptId = undefined;
         liveState = undefined;
         await reconcile();
       } catch {
-        fail("cancellation", "Cancellation failed. The Kick connection attempt may still be active.", owner);
+        fail(
+          "cancellation",
+          "Cancellation failed. The Kick connection attempt may still be active.",
+          owner,
+        );
       }
     },
     manage() {
@@ -376,7 +450,11 @@ export function createKickAccountSessionController(options: {
         const disconnected = await options.repository.disconnect(generation);
         if (!current(owner)) return;
         if (!disconnected) {
-          fail("restore", "Disconnect was superseded. Reload account state.", owner);
+          fail(
+            "restore",
+            "Disconnect was superseded. Reload account state.",
+            owner,
+          );
           return;
         }
         readyCredential = undefined;
@@ -386,7 +464,12 @@ export function createKickAccountSessionController(options: {
       }
     },
     async refresh() {
-      if (snapshot.kind !== "connected" || snapshot.refreshing || !readyCredential) return;
+      if (
+        snapshot.kind !== "connected" ||
+        snapshot.refreshing ||
+        !readyCredential
+      )
+        return;
       const fallback = readyCredential;
       const owner = begin("refresh", { generation });
       emit({ ...snapshot, refreshing: true }, owner);
@@ -416,8 +499,13 @@ export function createKickAccountSessionController(options: {
     },
     async retry() {
       if (snapshot.kind === "auth-lost") await connect();
-      else if (snapshot.kind === "failed" && snapshot.failure === "connection") await connect();
-      else if (snapshot.kind === "failed" && snapshot.failure === "cancellation") await this.cancel();
+      else if (snapshot.kind === "failed" && snapshot.failure === "connection")
+        await connect();
+      else if (
+        snapshot.kind === "failed" &&
+        snapshot.failure === "cancellation"
+      )
+        await this.cancel();
       else await reconcile();
     },
     ...(options.fixture
@@ -433,7 +521,10 @@ export function createKickAccountSessionController(options: {
             if (kind === "duplicate" && attemptId && liveState)
               consumed = { attemptId, state: liveState };
             await handleCallback(
-              options.fixture!.inject(kind, liveState ? { state: liveState } : null),
+              options.fixture!.inject(
+                kind,
+                liveState ? { state: liveState } : null,
+              ),
             );
           },
         }

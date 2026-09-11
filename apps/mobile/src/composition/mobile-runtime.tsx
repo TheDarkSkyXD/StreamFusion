@@ -155,7 +155,9 @@ try {
 }
 const productionKickGateway = kickClientId
   ? createKickOAuthApi({
-      workerBaseUrl: process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL,
+      ...(process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL
+        ? { workerBaseUrl: process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL }
+        : {}),
     })
   : null;
 const developmentKickFixture = __DEV__
@@ -176,7 +178,7 @@ const developmentKickController = createKickAccountSessionController({
     codeVerifier: "a".repeat(43),
     expiresAtEpochMs: nowEpochMs + 600_000,
     redirectUri: KICK_ANDROID_REDIRECT_URI,
-    state: "development-kick-state",
+    state: `development-kick-state-${nowEpochMs}`,
   }),
   callbacks: { subscribe: () => () => undefined },
   clientId: DEVELOPMENT_KICK_CLIENT_ID,
@@ -187,8 +189,8 @@ const developmentKickController = createKickAccountSessionController({
 });
 
 export function MobileRuntime() {
-  const [activityProof, setActivityProof] = useState(() =>
-    developmentActivityProof?.snapshot() ?? null,
+  const [activityProof, setActivityProof] = useState(
+    () => developmentActivityProof?.snapshot() ?? null,
   );
   const [useDevelopmentTwitchFixture, setUseDevelopmentTwitchFixture] =
     useState(false);

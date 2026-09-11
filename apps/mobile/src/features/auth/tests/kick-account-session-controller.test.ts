@@ -7,7 +7,9 @@ import { createSecureKickCredentialRepository } from "../data/secure-kick-creden
 import { createKickAccountSessionController } from "../domain/kick-account-session-controller";
 import type { SecureSecretStore } from "../../storage/capabilities/persistence";
 
-function secrets(): SecureSecretStore & { readonly values: Map<string, string> } {
+function secrets(): SecureSecretStore & {
+  readonly values: Map<string, string>;
+} {
   const values = new Map<string, string>();
   return {
     values,
@@ -46,7 +48,9 @@ describe("Kick account session controller", () => {
       }),
     });
     controller.setForeground(true);
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("disconnected"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("disconnected"),
+    );
     await controller.connect();
     expect(controller.getSnapshot().kind).toBe("pending");
     await controller.injectFixture?.("accepted");
@@ -59,7 +63,9 @@ describe("Kick account session controller", () => {
     await controller.disconnect();
     expect(controller.getSnapshot().kind).toBe("connected");
     await controller.disconnect();
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("disconnected"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("disconnected"),
+    );
   });
 
   it("cancels a pending attempt and reports fixture denial", async () => {
@@ -85,16 +91,24 @@ describe("Kick account session controller", () => {
       }),
     });
     controller.setForeground(true);
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("disconnected"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("disconnected"),
+    );
     await controller.connect();
     await controller.cancel();
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("disconnected"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("disconnected"),
+    );
     await controller.connect();
     await controller.injectFixture?.("denied");
     const failed = controller.getSnapshot();
     expect(failed.kind).toBe("failed");
     if (failed.kind !== "failed") throw new Error("expected failed");
     expect(failed.message).toBe("Kick denied this connection.");
+    await controller.retry();
+    expect(controller.getSnapshot().kind).toBe("pending");
+    await controller.injectFixture?.("accepted");
+    expect(controller.getSnapshot().kind).toBe("connected");
   });
 
   it("stays unavailable without a gateway", async () => {
@@ -112,6 +126,8 @@ describe("Kick account session controller", () => {
       }),
     });
     controller.setForeground(true);
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("unavailable"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("unavailable"),
+    );
   });
 });
