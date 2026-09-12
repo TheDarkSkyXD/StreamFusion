@@ -223,7 +223,7 @@ describe("followed-content provider catalogs", () => {
     const twitch = createTwitchFollowedCatalog({
       credentials: {
         clientId: "twitch-client",
-        clientSecret: ["twitch", "secret"].join("-"),
+        clientSecret: ["twitch", "secret"].join("-")
       },
       fetch: helixFetch(),
       now: () => Date.parse("2026-09-12T00:00:00.000Z")
@@ -231,7 +231,7 @@ describe("followed-content provider catalogs", () => {
     const kick = createKickFollowedCatalog({
       credentials: {
         clientId: "kick-client",
-        clientSecret: ["kick", "secret"].join("-"),
+        clientSecret: ["kick", "secret"].join("-")
       },
       fetch: async () => new Response(null, { status: 500 })
     });
