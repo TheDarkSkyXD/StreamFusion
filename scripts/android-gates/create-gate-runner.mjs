@@ -159,20 +159,18 @@ function selectedVerdict(run, selected) {
   };
 }
 
-async function runRequest(request, configuration) {
-  const definition = GATE_DEFINITIONS[request.gate];
-  if (!definition) throw new Error(`unsupported gate: ${request.gate}`);
-  if (!request.runId) throw new Error("--run-id is required");
-  const now = request.now ?? new Date().toISOString();
-  if (Number.isNaN(Date.parse(now))) throw new Error("--now must be RFC 3339");
-  const policy = JSON.parse(await readFile(configuration.policyPath, "utf8"));
+async function prepareRun(request, configuration, definition, now) {
+  const [policySource, apk] = await Promise.all([
+    readFile(configuration.policyPath, "utf8"),
+    apkIdentity(request.apkPath, request.apkDigest),
+  ]);
+  const policy = JSON.parse(policySource);
   const catalog = await loadCatalog({
     catalogPath: configuration.catalogPath,
     outputPath: configuration.outputPath,
     incomingPath: request.incomingPath ?? configuration.incomingPath,
     policy,
   });
-  const apk = await apkIdentity(request.apkPath, request.apkDigest);
   const run = new GateRun({
     definition,
     runId: request.runId,
@@ -181,16 +179,34 @@ async function runRequest(request, configuration) {
     records: catalog.gateRuns[request.runId] ?? [],
   });
   assertIdentity(run, definition, request.sourceCommit, apk.apkDigest);
-  const options = {
-    ...configuration,
-    ...apk,
+  return {
+    run,
     catalog,
-    digestMismatch: apk.digestMismatch,
-    now,
-    policy,
-    retryUsed: { value: run.usedDiagnosticRetry() },
-    sourceCommit: request.sourceCommit,
+    options: {
+      ...configuration,
+      ...apk,
+      catalog,
+      digestMismatch: apk.digestMismatch,
+      now,
+      policy,
+      retryUsed: { value: run.usedDiagnosticRetry() },
+      sourceCommit: request.sourceCommit,
+    },
   };
+}
+
+async function runRequest(request, configuration) {
+  const definition = GATE_DEFINITIONS[request.gate];
+  if (!definition) throw new Error(`unsupported gate: ${request.gate}`);
+  if (!request.runId) throw new Error("--run-id is required");
+  const now = request.now ?? new Date().toISOString();
+  if (Number.isNaN(Date.parse(now))) throw new Error("--now must be RFC 3339");
+  const { catalog, options, run } = await prepareRun(
+    request,
+    configuration,
+    definition,
+    now,
+  );
   const selected = selectSlot(definition, request);
   await fillGate(run, selected, request, options);
   await writeCatalog(
