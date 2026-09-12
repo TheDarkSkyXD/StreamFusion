@@ -210,8 +210,18 @@ function playbackState(value: unknown): PlaybackSessionState | undefined {
     : undefined;
 }
 
+function unwrapCompleted(value: unknown): unknown {
+  let current = toPlainJson(value);
+  for (let step = 0; step < 3; step += 1) {
+    const record = object(current);
+    if (!record || record.kind !== "completed") break;
+    current = toPlainJson(record.value);
+  }
+  return current;
+}
+
 function mediaJobNativeResult(value: unknown): MediaJobNativeResult | undefined {
-  const state = object(value);
+  const state = object(unwrapCompleted(value));
   if (!state) return undefined;
   if (state.kind === "missing") {
     const jobId = nonEmptyString(state.jobId);
@@ -223,8 +233,11 @@ function mediaJobNativeResult(value: unknown): MediaJobNativeResult | undefined 
   if (state.files === undefined || state.files === null) {
     return { kind: "record", journal, files: null };
   }
-  const files = parseMediaJobFileEvidence(state.files);
-  return files ? { kind: "record", journal, files } : undefined;
+  return {
+    kind: "record",
+    journal,
+    files: parseMediaJobFileEvidence(state.files),
+  };
 }
 
 function captionModelState(value: unknown): CaptionModelState | undefined {
@@ -381,8 +394,9 @@ function formFactorObservation(value: unknown): AndroidFormFactorObservation | u
 }
 
 function recoveredJobs(value: unknown): readonly MediaJobNativeResult[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const states = value.map(mediaJobNativeResult);
+  const unwrapped = unwrapCompleted(value);
+  if (!Array.isArray(unwrapped)) return undefined;
+  const states = unwrapped.map(mediaJobNativeResult);
   return states.every((state): state is MediaJobNativeResult => state !== undefined)
     ? states
     : undefined;

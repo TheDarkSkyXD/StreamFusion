@@ -54,13 +54,15 @@ async function applyJobCommand(
   if (local.kind === "ok") await options.product.put(local.snapshot);
   const native = await invokeNative(options.native, command);
   if (native.kind !== "completed") {
-    return {
-      kind: "rejected",
-      reason:
-        native.kind === "unsupported"
-          ? native.failure.diagnostic
-          : native.failure.diagnostic,
-    };
+    const reason = native.failure.diagnostic;
+    if (local.kind === "ok") {
+      await persistProjection(
+        options,
+        { ...local.snapshot, statusMessage: reason },
+        nowIso,
+      );
+    }
+    return { kind: "rejected", reason };
   }
   if (native.value.kind === "missing") {
     return { kind: "rejected", reason: "Media Job does not exist." };

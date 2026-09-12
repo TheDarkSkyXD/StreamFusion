@@ -2,6 +2,7 @@ import {
   isNonNegativeNumber,
   isSerializedTimestamp,
   isString,
+  toSerializedTimestamp,
 } from "../../../foundations/contract-schema.ts";
 import { asFiniteNumber, asHostRecord } from "./host-record.ts";
 import {
@@ -35,6 +36,22 @@ function isNonEmptyString(value: unknown): value is string {
   return isString(value) && value.length > 0;
 }
 
+function asTimestamp(value: unknown): string | undefined {
+  if (isSerializedTimestamp(value)) return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const iso = new Date(value).toISOString();
+    return isSerializedTimestamp(iso) ? iso : undefined;
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.valueOf())) {
+      const iso = parsed.toISOString();
+      return isSerializedTimestamp(iso) ? iso : undefined;
+    }
+  }
+  return undefined;
+}
+
 function pickCheckpoint(value: unknown): MediaJobCheckpoint | null {
   if (value === null) return null;
   const record = asHostRecord(value);
@@ -49,15 +66,17 @@ function pickCheckpoint(value: unknown): MediaJobCheckpoint | null {
     !isNonNegativeNumber(byteOffset) ||
     durationMs === undefined ||
     !isNonNegativeNumber(durationMs) ||
-    !isSerializedTimestamp(record.updatedAt)
+    asTimestamp(record.updatedAt) === undefined
   ) {
     return null;
   }
+  const updatedAt = asTimestamp(record.updatedAt);
+  if (!updatedAt) return null;
   return {
     generation: asMediaJobGeneration(generation),
     byteOffset,
     durationMs,
-    updatedAt: record.updatedAt,
+    updatedAt: toSerializedTimestamp(updatedAt),
   };
 }
 

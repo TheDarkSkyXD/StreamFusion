@@ -404,4 +404,24 @@ describe("Android capability module contracts", () => {
       value: { kind: "record", journal: { jobId: "job-1" } },
     });
   });
+
+  it("keeps a Media Job record when file evidence is malformed", async () => {
+    const mediaJobs = createAndroidMediaJobsContractPort(
+      reader({
+        ...mediaJobsBinding,
+        getRecoverableJob: async () => ({
+          kind: "completed",
+          value: {
+            kind: "record",
+            journal: fixtureJournal("job-1"),
+            files: { relativePath: "media-jobs/job-1/artifact.bin" },
+          },
+        }),
+      }),
+    );
+    await expect(mediaJobs.getRecoverableJob("job-1")).resolves.toMatchObject({
+      kind: "completed",
+      value: { kind: "record", journal: { jobId: "job-1" }, files: null },
+    });
+  });
 });
