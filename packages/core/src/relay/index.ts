@@ -44,6 +44,7 @@ export type {
   SignedOutCategoryStreamsBody,
   SignedOutCategoryVideosBody,
   SignedOutCategoryVideosUnavailableReason,
+  SignedOutClipTimeRange,
 } from "./signed-out-category-discovery.ts";
 
 export type JsonPrimitive = boolean | null | number | string;

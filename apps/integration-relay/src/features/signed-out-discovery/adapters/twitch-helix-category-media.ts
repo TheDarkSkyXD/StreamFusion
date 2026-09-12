@@ -1,12 +1,12 @@
-import type { ClipTimeRange } from "@streamfusion/core/discovery";
 import type {
   SignedOutCategoryClipsBody,
   SignedOutCategoryStreamsBody,
-  SignedOutCategoryVideosBody
+  SignedOutCategoryVideosBody,
+  SignedOutClipTimeRange
 } from "@streamfusion/core/relay";
 
 import { cursorFrom, dataFrom, queryParams } from "./twitch-helix-json";
-import { toClip, toStream, toVideo, topStreamsBody } from "./twitch-helix-mappers";
+import { toClip, toVideo, topStreamsBody } from "./twitch-helix-mappers";
 
 type TwitchClient = {
   get(path: string): Promise<unknown | null>;
@@ -39,7 +39,7 @@ export function createTwitchCategoryMedia(client: TwitchClient) {
       readonly categoryId: string;
       readonly cursor?: string;
       readonly nowEpochMs: number;
-      readonly timeRange: ClipTimeRange;
+      readonly timeRange: SignedOutClipTimeRange;
     }): Promise<SignedOutCategoryClipsBody | null> {
       const window = clipWindow(input.timeRange, input.nowEpochMs);
       const payload = await client.get(
@@ -89,7 +89,7 @@ export function createTwitchCategoryMedia(client: TwitchClient) {
 }
 
 function clipWindow(
-  timeRange: ClipTimeRange,
+  timeRange: SignedOutClipTimeRange,
   nowEpochMs: number
 ): { readonly endedAt: string; readonly startedAt: string } | null {
   if (timeRange === "all") return null;

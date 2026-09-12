@@ -1,10 +1,10 @@
-import type { ClipTimeRange } from "@streamfusion/core/discovery";
 import type {
   SignedOutCategoriesBody,
   SignedOutCategoryBody,
   SignedOutCategoryClipsBody,
   SignedOutCategoryStreamsBody,
   SignedOutCategoryVideosBody,
+  SignedOutClipTimeRange,
   SignedOutSearchBody,
   SignedOutTopStreamsBody
 } from "@streamfusion/core/relay";
@@ -40,7 +40,7 @@ export type DiscoveryRead =
       readonly platform: DiscoveryPlatform;
       readonly categoryId: string;
       readonly cursor?: string;
-      readonly timeRange: ClipTimeRange;
+      readonly timeRange: SignedOutClipTimeRange;
     }
   | {
       readonly kind: "category-videos";
@@ -59,7 +59,10 @@ export type DiscoveryReadResult =
       readonly kind: "category-streams";
       readonly body: SignedOutCategoryStreamsBody;
     }
-  | { readonly kind: "category-clips"; readonly body: SignedOutCategoryClipsBody }
+  | {
+      readonly kind: "category-clips";
+      readonly body: SignedOutCategoryClipsBody;
+    }
   | {
       readonly kind: "category-videos";
       readonly body: SignedOutCategoryVideosBody;
@@ -96,7 +99,7 @@ export interface DiscoveryCatalog {
   categoryClips(input: {
     readonly categoryId: string;
     readonly cursor?: string;
-    readonly timeRange: ClipTimeRange;
+    readonly timeRange: SignedOutClipTimeRange;
   }): Promise<SignedOutCategoryClipsBody | null>;
   categoryVideos(input: {
     readonly categoryId: string;

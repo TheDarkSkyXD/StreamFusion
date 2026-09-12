@@ -8,7 +8,7 @@ import {
 import {
   parseLanguageFilter,
   type LanguageFilter,
-} from "../domain/broadcast-languages";
+} from "../utils/broadcast-languages";
 
 export function createDiscoveryPreferenceStore(input: {
   readonly now?: () => number;

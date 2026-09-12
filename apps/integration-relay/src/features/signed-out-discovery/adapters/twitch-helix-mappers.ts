@@ -1,9 +1,10 @@
 import type {
   SignedOutCategoriesBody,
+  SignedOutCategoryClipsBody,
+  SignedOutCategoryVideosBody,
   SignedOutSearchBody,
   SignedOutTopStreamsBody
 } from "@streamfusion/core/relay";
-import type { Clip, Video } from "@streamfusion/core/content";
 
 import {
   booleanAt,
@@ -22,6 +23,14 @@ import {
 type TwitchStream = SignedOutTopStreamsBody["streams"][number];
 type TwitchCategory = SignedOutCategoriesBody["categories"][number];
 type TwitchChannel = SignedOutSearchBody["channels"][number];
+type TwitchClip = Extract<
+  SignedOutCategoryClipsBody,
+  { readonly kind: "available" }
+>["clips"][number];
+type TwitchVideo = Extract<
+  SignedOutCategoryVideosBody,
+  { readonly kind: "available" }
+>["videos"][number];
 
 export function topStreamsBody(payload: unknown): SignedOutTopStreamsBody {
   const cursor = cursorFrom(payload);
@@ -115,7 +124,7 @@ export function toChannel(record: JsonRecord): TwitchChannel {
   };
 }
 
-export function toClip(record: JsonRecord): Clip | null {
+export function toClip(record: JsonRecord): TwitchClip | null {
   const createdAt = helixTimestamp(stringAt(record, "created_at"));
   const id = identifierAt(record, "id");
   if (createdAt === null || id === "") return null;
@@ -138,7 +147,7 @@ export function toClip(record: JsonRecord): Clip | null {
   };
 }
 
-export function toVideo(record: JsonRecord): Video | null {
+export function toVideo(record: JsonRecord): TwitchVideo | null {
   const publishedAt = helixTimestamp(
     firstString(record, ["published_at", "created_at"])
   );

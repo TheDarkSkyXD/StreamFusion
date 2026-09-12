@@ -9,7 +9,10 @@ export function recordAt(record: JsonRecord, key: string): JsonRecord | null {
   return isRecord(value) ? value : null;
 }
 
-export function firstRecordAt(record: JsonRecord, key: string): JsonRecord | null {
+export function firstRecordAt(
+  record: JsonRecord,
+  key: string
+): JsonRecord | null {
   const value = record[key];
   return Array.isArray(value) && isRecord(value[0]) ? value[0] : null;
 }
@@ -47,7 +50,10 @@ export function identifierAt(record: JsonRecord, key: string): string {
       : "";
 }
 
-export function firstString(record: JsonRecord, keys: readonly string[]): string {
+export function firstString(
+  record: JsonRecord,
+  keys: readonly string[]
+): string {
   for (const key of keys) {
     const value = stringAt(record, key);
     if (value !== "") return value;
@@ -66,7 +72,10 @@ export function firstIdentifier(
   return "";
 }
 
-export function firstNumber(record: JsonRecord, keys: readonly string[]): number {
+export function firstNumber(
+  record: JsonRecord,
+  keys: readonly string[]
+): number {
   return firstNumberOrNull(record, keys) ?? 0;
 }
 

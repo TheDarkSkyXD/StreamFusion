@@ -29,8 +29,10 @@ export type SignedOutCategoryStreamsBody = {
   readonly cursor?: string;
 };
 
+export type SignedOutClipTimeRange = "day" | "week" | "month" | "all";
 export type SignedOutCategoryClipsUnavailableReason = "kick-clips-unsupported";
-export type SignedOutCategoryVideosUnavailableReason = "kick-videos-unsupported";
+export type SignedOutCategoryVideosUnavailableReason =
+  "kick-videos-unsupported";
 
 export type SignedOutCategoryClipsBody =
   | {

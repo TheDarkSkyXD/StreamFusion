@@ -1,4 +1,4 @@
-import type { ClipTimeRange } from "@streamfusion/core/discovery";
+import type { SignedOutClipTimeRange } from "@streamfusion/core/relay";
 
 import type {
   DiscoveryPlatform,
@@ -50,10 +50,7 @@ export function commandFrom(
 }
 
 function mediaCommand(
-  kind: Exclude<
-    DiscoveryRouteKind,
-    "top-streams" | "categories" | "search"
-  >,
+  kind: Exclude<DiscoveryRouteKind, "top-streams" | "categories" | "search">,
   platform: DiscoveryPlatform,
   url: URL
 ): DiscoveryRead | null {
@@ -110,7 +107,7 @@ function optionalLanguage(url: URL): string | undefined {
   return /^[a-z]{2,3}$/.test(language) ? language : undefined;
 }
 
-function timeRangeFrom(url: URL): ClipTimeRange | null {
+function timeRangeFrom(url: URL): SignedOutClipTimeRange | null {
   const timeRange = url.searchParams.get("timeRange") ?? "all";
   return timeRange === "day" ||
     timeRange === "week" ||

@@ -1,48 +1,22 @@
-export const BROADCAST_LANGUAGES = [
-  "en",
-  "es",
-  "pt",
-  "fr",
-  "de",
-  "ru",
-  "ko",
-  "ja",
-  "zh",
-  "it",
-  "pl",
-  "tr",
-  "nl",
-  "sv",
-  "ar",
-  "th",
-  "cs",
-  "hu",
-  "fi",
-  "da",
-  "no",
-  "el",
-  "he",
-  "uk",
-  "vi",
-  "id",
-] as const;
+import {
+  BROADCAST_LANGUAGES,
+  isBroadcastLanguage,
+  parseLanguageFilter,
+  type BroadcastLanguage,
+  type LanguageFilter,
+} from "../utils/broadcast-languages";
 
-export type BroadcastLanguage = (typeof BROADCAST_LANGUAGES)[number];
-
-export type LanguageFilter = "all" | BroadcastLanguage;
+export {
+  BROADCAST_LANGUAGES,
+  isBroadcastLanguage,
+  parseLanguageFilter,
+  type BroadcastLanguage,
+  type LanguageFilter,
+};
 
 const englishNames = new Intl.DisplayNames(["en"], { type: "language" });
-
-export function isBroadcastLanguage(value: string): value is BroadcastLanguage {
-  return BROADCAST_LANGUAGES.some((language) => language === value);
-}
 
 export function languageLabel(filter: LanguageFilter): string {
   if (filter === "all") return "All languages";
   return englishNames.of(filter) ?? filter;
-}
-
-export function parseLanguageFilter(value: string | null): LanguageFilter {
-  if (value === null || value === "" || value === "all") return "all";
-  return isBroadcastLanguage(value) ? value : "all";
 }

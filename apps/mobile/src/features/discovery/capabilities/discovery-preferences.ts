@@ -1,6 +1,6 @@
 import type { ClipTimeRange } from "@streamfusion/core/discovery";
 
-import type { LanguageFilter } from "../domain/broadcast-languages";
+import type { LanguageFilter } from "../utils/broadcast-languages";
 
 export interface DiscoveryPreferenceStore {
   readLanguage(): Promise<LanguageFilter>;

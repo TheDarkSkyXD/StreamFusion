@@ -295,10 +295,12 @@ describe("provider discovery catalogs", () => {
         )?.init?.headers
       ).get("Authorization")
     ).toBe("Bearer kick-app-token");
-    const kickClips = await nonNull(catalog.categoryClips({
-      categoryId: "4",
-      timeRange: "all"
-    }));
+    const kickClips = await nonNull(
+      catalog.categoryClips({
+        categoryId: "4",
+        timeRange: "all"
+      })
+    );
     const kickVideos = await nonNull(
       catalog.categoryVideos({ categoryId: "4", sort: "recent" })
     );
@@ -314,9 +316,9 @@ describe("provider discovery catalogs", () => {
       platform: "kick",
       reason: "kick-videos-unsupported"
     });
-    expect(
-      upstream.calls.some((call) => call.url.includes("/clips"))
-    ).toBe(false);
+    expect(upstream.calls.some((call) => call.url.includes("/clips"))).toBe(
+      false
+    );
   });
 
   it("maps Helix category streams, clips, and recorded videos", async () => {

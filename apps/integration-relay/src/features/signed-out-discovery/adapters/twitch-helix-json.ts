@@ -31,7 +31,10 @@ export function identifierAt(record: JsonRecord, key: string): string {
       : "";
 }
 
-export function firstString(record: JsonRecord, keys: readonly string[]): string {
+export function firstString(
+  record: JsonRecord,
+  keys: readonly string[]
+): string {
   for (const key of keys) {
     const value = stringAt(record, key);
     if (value !== "") return value;
@@ -50,7 +53,10 @@ export function booleanAt(record: JsonRecord, key: string): boolean {
   return record[key] === true;
 }
 
-export function stringArrayAt(record: JsonRecord, key: string): readonly string[] {
+export function stringArrayAt(
+  record: JsonRecord,
+  key: string
+): readonly string[] {
   const value = record[key];
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")

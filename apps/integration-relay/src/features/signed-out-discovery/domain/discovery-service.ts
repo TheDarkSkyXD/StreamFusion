@@ -63,7 +63,9 @@ async function dispatchMedia(
       await catalog.categoryStreams({
         categoryId: command.categoryId,
         ...(command.cursor === undefined ? {} : { cursor: command.cursor }),
-        ...(command.language === undefined ? {} : { language: command.language })
+        ...(command.language === undefined
+          ? {}
+          : { language: command.language })
       })
     );
   }
@@ -87,7 +89,9 @@ async function dispatchMedia(
   );
 }
 
-function wrap<TKind extends Exclude<DiscoveryReadResult["kind"], "unavailable">>(
+function wrap<
+  TKind extends Exclude<DiscoveryReadResult["kind"], "unavailable">
+>(
   kind: TKind,
   body: Extract<DiscoveryReadResult, { kind: TKind }>["body"] | null
 ): DiscoveryReadResult {

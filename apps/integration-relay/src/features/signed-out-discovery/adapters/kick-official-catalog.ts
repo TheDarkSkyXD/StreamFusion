@@ -57,9 +57,7 @@ export function createKickOfficialCatalog(input: {
         ? null
         : ({ category, platform: "kick" } satisfies SignedOutCategoryBody);
     },
-    categoryStreams(
-      read
-    ): Promise<SignedOutCategoryStreamsBody | null> {
+    categoryStreams(read): Promise<SignedOutCategoryStreamsBody | null> {
       return media.categoryStreams(read);
     },
     categoryClips(): Promise<SignedOutCategoryClipsBody | null> {

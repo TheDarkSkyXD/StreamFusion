@@ -8,7 +8,6 @@ import { composeCategoryCatalog } from "../domain/category-catalog";
 import type { LanguageFilter } from "../domain/broadcast-languages";
 
 const REMOTE_SEARCH_MIN = 2;
-const REMOTE_SEARCH_DELAY_MS = 250;
 
 export function categoriesQueryKey(
   platform: Platform,
@@ -32,7 +31,9 @@ export function useCategoryCatalog(input: {
   const queryClient = useQueryClient();
   const enabled = input.enabled !== false;
   const [language, setLanguage] = useState<LanguageFilter>("all");
-  const [remoteQuery, setRemoteQuery] = useState("");
+  const trimmedQuery = input.query.trim();
+  const remoteQuery =
+    trimmedQuery.length >= REMOTE_SEARCH_MIN ? trimmedQuery : "";
   useEffect(() => {
     let cancelled = false;
     void input.preferences.readLanguage().then((value) => {
@@ -42,18 +43,6 @@ export function useCategoryCatalog(input: {
       cancelled = true;
     };
   }, [input.preferences]);
-  useEffect(() => {
-    const trimmed = input.query.trim();
-    if (trimmed.length < REMOTE_SEARCH_MIN) {
-      setRemoteQuery("");
-      return;
-    }
-    const timer = setTimeout(
-      () => setRemoteQuery(trimmed),
-      REMOTE_SEARCH_DELAY_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [input.query]);
   const twitch = useQuery({
     enabled,
     queryFn: ({ signal }) =>

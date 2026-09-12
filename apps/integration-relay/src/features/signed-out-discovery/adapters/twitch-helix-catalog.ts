@@ -1,13 +1,10 @@
 import type {
-  SignedOutCategoriesBody,
   SignedOutCategoryBody,
   SignedOutCategoryClipsBody,
   SignedOutCategoryStreamsBody,
   SignedOutCategoryVideosBody,
-  SignedOutSearchBody,
   SignedOutTopStreamsBody
 } from "@streamfusion/core/relay";
-import type { ClipTimeRange } from "@streamfusion/core/discovery";
 
 import type {
   AppCredentials,
@@ -62,9 +59,7 @@ export function createTwitchHelixCatalog(input: {
         ? null
         : ({ category, platform: "twitch" } satisfies SignedOutCategoryBody);
     },
-    categoryStreams(
-      read
-    ): Promise<SignedOutCategoryStreamsBody | null> {
+    categoryStreams(read): Promise<SignedOutCategoryStreamsBody | null> {
       return media.categoryStreams(read);
     },
     categoryClips(read): Promise<SignedOutCategoryClipsBody | null> {
@@ -75,12 +70,10 @@ export function createTwitchHelixCatalog(input: {
         ...(read.cursor === undefined ? {} : { cursor: read.cursor })
       });
     },
-    categoryVideos(
-      read
-    ): Promise<SignedOutCategoryVideosBody | null> {
+    categoryVideos(read): Promise<SignedOutCategoryVideosBody | null> {
       return media.categoryVideos(read);
     }
   };
 }
 
-export type { SignedOutTopStreamsBody, ClipTimeRange };
+export type { SignedOutTopStreamsBody };

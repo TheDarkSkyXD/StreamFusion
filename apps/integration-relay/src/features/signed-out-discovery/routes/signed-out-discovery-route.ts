@@ -132,7 +132,9 @@ function validBody(result: AvailableDiscoveryReadResult): JsonValue | null {
       ? result.body
       : null;
   if (result.kind === "category-clips")
-    return signedOutCategoryClipsBodySchema.is(result.body) ? result.body : null;
+    return signedOutCategoryClipsBodySchema.is(result.body)
+      ? result.body
+      : null;
   return signedOutCategoryVideosBodySchema.is(result.body) ? result.body : null;
 }
 

@@ -207,12 +207,8 @@ describe("signed-out discovery route", () => {
   it("returns category identity and typed Kick media gaps", async () => {
     const { route } = createRoute();
     expect(
-      (
-        await request(
-          route,
-          "/v1/discovery/category-clips?platform=twitch"
-        )
-      ).status
+      (await request(route, "/v1/discovery/category-clips?platform=twitch"))
+        .status
     ).toBe(400);
     const category = await request(
       route,
