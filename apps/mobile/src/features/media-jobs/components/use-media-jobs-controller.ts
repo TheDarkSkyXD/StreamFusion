@@ -111,9 +111,10 @@ export function useMediaJobsController(options: {
   return {
     model: { busy, jobs, selected, status },
     apply: async (command) => {
-      if (!options.selectedJobId) return;
+      const selectedJobId = options.selectedJobId;
+      if (!selectedJobId) return;
       const applied = await withUserLock(userLock, setBusy, async () => {
-        const jobId = asMediaJobId(options.selectedJobId);
+        const jobId = asMediaJobId(selectedJobId);
         const now = toSerializedTimestamp(new Date().toISOString());
         const result = await options.workflow.apply(
           command === "start"
