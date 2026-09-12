@@ -119,7 +119,10 @@ function commandFrom(
   url: URL
 ) {
   if (kind !== "search") return { kind, platform };
-  const query = url.searchParams.get("q")?.trim() ?? "";
+  const query =
+    url.searchParams.get("query")?.trim() ||
+    url.searchParams.get("q")?.trim() ||
+    "";
   return query === "" ? null : { kind, platform, query };
 }
 

@@ -25,7 +25,15 @@ function catalog(platform: DiscoveryPlatform): DiscoveryCatalog {
       return { categories: [], platform };
     },
     async search({ query }): Promise<SignedOutSearchBody> {
-      return { categories: [], channels: [], platform, query, streams: [] };
+      return {
+        categories: [],
+        channels: [],
+        clips: [],
+        platform,
+        query,
+        streams: [],
+        videos: []
+      };
     }
   };
 }
@@ -167,5 +175,28 @@ describe("signed-out discovery route", () => {
     expect(scopes).toContain(
       "discovery:top-streams:twitch:development:installation-1"
     );
+  });
+
+  it("accepts either query or q on Search", async () => {
+    const { route } = createRoute();
+    const named = await request(
+      route,
+      "/v1/discovery/search?platform=twitch&query=arcade"
+    );
+    expect(named.status).toBe(200);
+    const body: unknown = await named.json();
+    expect(relayResponseEnvelopeSchema.is(body)).toBe(true);
+    if (
+      !relayResponseEnvelopeSchema.is(body) ||
+      body.outcome.kind !== "success"
+    ) {
+      throw new Error("Expected a Search success envelope");
+    }
+    expect(signedOutSearchBodySchema.is(body.outcome.body)).toBe(true);
+    if (signedOutSearchBodySchema.is(body.outcome.body)) {
+      expect(body.outcome.body.query).toBe("arcade");
+      expect(body.outcome.body.videos).toEqual([]);
+      expect(body.outcome.body.clips).toEqual([]);
+    }
   });
 });
