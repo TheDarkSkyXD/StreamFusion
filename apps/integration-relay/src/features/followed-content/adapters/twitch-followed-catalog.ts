@@ -61,7 +61,7 @@ export function createTwitchFollowedCatalog(input: {
       );
       if (payload === null) return null;
       const mapped = twitchClipsBody(payload);
-      const clips = [...mapped.clips].toSorted((left, right) =>
+      const clips = [...mapped.clips].sort((left, right) =>
         sort === "views"
           ? right.viewCount - left.viewCount
           : right.createdAt.localeCompare(left.createdAt)

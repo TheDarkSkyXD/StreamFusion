@@ -8,6 +8,8 @@ import type {
   FollowedVideosBody
 } from "@streamfusion/core/relay";
 
+export type { FollowedClipPeriod, FollowedRecordedSort };
+
 export type FollowedPlatform = FollowedStreamsBody["platform"];
 
 export type FollowedContentRead =

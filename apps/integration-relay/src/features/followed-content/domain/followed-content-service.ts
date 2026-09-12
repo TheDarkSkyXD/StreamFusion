@@ -18,31 +18,33 @@ export function createFollowedContentService(input: {
     ): Promise<FollowedContentReadResult> {
       const catalog = catalogs.get(command.platform);
       if (catalog === undefined) return { kind: "unavailable" };
-      const body = await readBody(catalog, command);
-      return body === null
-        ? { kind: "unavailable" }
-        : { body, kind: command.kind };
+      if (command.kind === "streams") {
+        const body = await catalog.followedStreams(command.refs);
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: "streams" };
+      }
+      if (command.kind === "channels") {
+        const body = await catalog.followedChannels(command.refs);
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: "channels" };
+      }
+      if (command.kind === "videos") {
+        const body = await catalog.followedVideos({
+          channelId: command.channelId,
+          sort: command.sort
+        });
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: "videos" };
+      }
+      const body = await catalog.followedClips({
+        channelId: command.channelId,
+        period: command.period,
+        sort: command.sort
+      });
+      return body === null ? { kind: "unavailable" } : { body, kind: "clips" };
     }
   };
-}
-
-async function readBody(
-  catalog: FollowedContentCatalog,
-  command: FollowedContentRead
-) {
-  if (command.kind === "streams") return catalog.followedStreams(command.refs);
-  if (command.kind === "channels") {
-    return catalog.followedChannels(command.refs);
-  }
-  if (command.kind === "videos") {
-    return catalog.followedVideos({
-      channelId: command.channelId,
-      sort: command.sort
-    });
-  }
-  return catalog.followedClips({
-    channelId: command.channelId,
-    period: command.period,
-    sort: command.sort
-  });
 }

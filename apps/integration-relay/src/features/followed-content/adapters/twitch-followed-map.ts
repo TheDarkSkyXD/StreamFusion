@@ -7,11 +7,11 @@ import type {
 
 import {
   booleanAt,
-  canonicalTimestamp,
   cursorFrom,
   dataFrom,
   firstString,
   helixDurationSeconds,
+  helixTimestamp,
   identifierAt,
   nonNegativeNumberAt,
   sizedUrl,
@@ -81,7 +81,7 @@ function toStream(record: JsonRecord): Stream | null {
     isLive: stringAt(record, "type") === "live",
     language: stringAt(record, "language"),
     platform: "twitch",
-    startedAt: canonicalTimestamp(record.started_at),
+    startedAt: helixTimestamp(stringAt(record, "started_at")),
     tags: stringArrayAt(record, "tags"),
     thumbnailUrl: sizedUrl(record, "thumbnail_url", "640", "360"),
     title: stringAt(record, "title"),
@@ -96,7 +96,7 @@ function toChannel(record: JsonRecord): Channel | null {
   const id = identifierAt(record, "id");
   const username = firstString(record, ["login", "display_name"]);
   if (id === "" || username === "") return null;
-  const createdAt = canonicalTimestamp(record.created_at);
+  const createdAt = helixTimestamp(stringAt(record, "created_at"));
   const viewCount = nonNegativeNumberAt(record, "view_count");
   return {
     avatarUrl: stringAt(record, "profile_image_url"),
@@ -121,7 +121,7 @@ function toChannel(record: JsonRecord): Channel | null {
 function toVideo(record: JsonRecord): Video | null {
   const id = identifierAt(record, "id");
   const channelId = identifierAt(record, "user_id");
-  const publishedAt = canonicalTimestamp(record.published_at);
+  const publishedAt = helixTimestamp(stringAt(record, "published_at"));
   const url = stringAt(record, "url");
   if (id === "" || channelId === "" || publishedAt === null || url === "") {
     return null;
@@ -151,7 +151,7 @@ function toClip(record: JsonRecord): Clip | null {
   const id = identifierAt(record, "id");
   const channelId = identifierAt(record, "broadcaster_id");
   const clipUrl = firstString(record, ["url", "embed_url"]);
-  const createdAt = canonicalTimestamp(record.created_at);
+  const createdAt = helixTimestamp(stringAt(record, "created_at"));
   if (id === "" || channelId === "" || clipUrl === "" || createdAt === null) {
     return null;
   }

@@ -5,11 +5,11 @@ import type {
 
 import {
   booleanAt,
-  canonicalTimestamp,
   dataFrom,
   firstIdentifier,
   firstString,
   hasKey,
+  helixTimestamp,
   identifierAt,
   recordAt,
   stringAt,
@@ -58,8 +58,8 @@ function toStream(record: JsonRecord): Stream | null {
     isLive: booleanAt(record, "is_live") || !hasKey(record, "is_live"),
     language: stringAt(record, "language"),
     platform: "kick",
-    startedAt: canonicalTimestamp(
-      record.started_at ?? record.start_time ?? record.created_at
+    startedAt: helixTimestamp(
+      firstString(record, ["started_at", "start_time", "created_at"])
     ),
     tags: stringArrayAt(record, "tags"),
     thumbnailUrl: firstString(record, ["thumbnail_url", "thumbnail", "image"]),

@@ -1,3 +1,8 @@
+import {
+  toSerializedTimestamp,
+  type SerializedTimestamp
+} from "@streamfusion/core/relay";
+
 export type JsonRecord = Record<string, unknown>;
 
 export function isRecord(value: unknown): value is JsonRecord {
@@ -93,12 +98,10 @@ export function helixQuery(
   return search.toString();
 }
 
-export function canonicalTimestamp(value: unknown): string | null {
-  const raw = typeof value === "string" ? value : "";
-  if (raw.length === 0) return null;
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
+export function helixTimestamp(value: string): SerializedTimestamp | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return null;
+  return toSerializedTimestamp(date.toISOString());
 }
 
 export function helixDurationSeconds(record: JsonRecord, key: string): number {
