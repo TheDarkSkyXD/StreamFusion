@@ -5,6 +5,7 @@ import type {
   HomeLiveDiscoveryPhase,
   PlatformReadOutcome,
 } from "../capabilities/platform-reads";
+import { sortCopy } from "../utils/sort-copy";
 import type { LanguageFilter } from "./broadcast-languages";
 import type { CatalogCategory } from "./category-identity";
 import { normalizeCategoryName, preferredMergePlatform } from "./category-name";
@@ -78,11 +79,10 @@ export function mergeCategories(
     group.push(category);
     groups.set(key, group);
   }
-  return [...groups.entries()]
-    .map(([key, group]) => mergeGroup(key, group))
-    .toSorted(
-      (left, right) => (right.viewerCount ?? 0) - (left.viewerCount ?? 0),
-    );
+  return sortCopy(
+    [...groups.entries()].map(([key, group]) => mergeGroup(key, group)),
+    (left, right) => (right.viewerCount ?? 0) - (left.viewerCount ?? 0),
+  );
 }
 
 function mergeGroup(key: string, group: readonly Category[]): CatalogCategory {

@@ -5,6 +5,7 @@ import type {
   HomeLiveDiscoveryPhase,
   PlatformReadOutcome,
 } from "../capabilities/platform-reads";
+import { sortCopy } from "../utils/sort-copy";
 import type {
   CategoryFollowState,
   CategoryIdentity,
@@ -168,7 +169,7 @@ function filterLive(
 }
 
 function sortLive(items: readonly Stream[], sort: "viewers-desc" | "viewers-asc"): Stream[] {
-  return items.toSorted((left, right) =>
+  return sortCopy(items, (left, right) =>
     sort === "viewers-asc"
       ? left.viewerCount - right.viewerCount
       : right.viewerCount - left.viewerCount,
@@ -176,14 +177,14 @@ function sortLive(items: readonly Stream[], sort: "viewers-desc" | "viewers-asc"
 }
 
 function sortClips(items: readonly Clip[]): Clip[] {
-  return items.toSorted((left, right) => right.viewCount - left.viewCount);
+  return sortCopy(items, (left, right) => right.viewCount - left.viewCount);
 }
 
 function sortVideos(
   items: readonly Video[],
   sort: CategoryRequestIdentity["videoSort"],
 ): Video[] {
-  return items.toSorted((left, right) =>
+  return sortCopy(items, (left, right) =>
     sort === "views"
       ? right.viewCount - left.viewCount
       : right.publishedAt.localeCompare(left.publishedAt),
