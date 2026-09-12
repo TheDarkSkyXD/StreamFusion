@@ -31,6 +31,20 @@ export type {
   SignedOutSearchBody,
   SignedOutTopStreamsBody,
 } from "./signed-out-discovery.ts";
+export {
+  signedOutCategoryBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryStreamsBodySchema,
+  signedOutCategoryVideosBodySchema,
+} from "./signed-out-category-discovery.ts";
+export type {
+  SignedOutCategoryBody,
+  SignedOutCategoryClipsBody,
+  SignedOutCategoryClipsUnavailableReason,
+  SignedOutCategoryStreamsBody,
+  SignedOutCategoryVideosBody,
+  SignedOutCategoryVideosUnavailableReason,
+} from "./signed-out-category-discovery.ts";
 
 export type JsonPrimitive = boolean | null | number | string;
 export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
