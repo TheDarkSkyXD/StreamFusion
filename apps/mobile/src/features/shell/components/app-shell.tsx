@@ -49,7 +49,10 @@ import {
   type TwitchAccountActions,
   type TwitchAccountViewModel,
 } from "@mobile/features/auth/components/twitch-accounts-panel";
+import type { DiscoveryPreferenceStore } from "@mobile/features/discovery/capabilities/discovery-preferences";
 import type { HomeDiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import { CategoriesScreen } from "@mobile/features/discovery/components/categories-screen";
+import { CategoryDetailScreen } from "@mobile/features/discovery/components/category-detail-screen";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
 
 import { DestinationIcon } from "./destination-icon";
@@ -115,6 +118,7 @@ export function AppShell({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  discoveryPreferences,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -151,6 +155,7 @@ export function AppShell({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: HomeDiscoverySession;
+  readonly discoveryPreferences: DiscoveryPreferenceStore;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -261,6 +266,7 @@ export function AppShell({
                 onDisableTwitchDevelopmentFixture
               }
               homeDiscovery={homeDiscovery}
+              discoveryPreferences={discoveryPreferences}
             />
           </View>
         </View>
@@ -323,6 +329,7 @@ function ShellHeader({
   readonly state: ShellNavigationState;
 }) {
   const route = getActiveShellRoute(state);
+  const location = getActiveShellLocation(state);
   const showsBack = canNavigateBack(state);
   return (
     <View style={styles.header}>
@@ -353,7 +360,9 @@ function ShellHeader({
           {route.eyebrow}
         </Text>
         <Text accessibilityRole="header" selectable style={styles.headerText}>
-          {route.title}
+          {location.route === "more/category-detail"
+            ? location.category.name
+            : route.title}
         </Text>
       </View>
       <Pressable
@@ -409,6 +418,7 @@ function ShellScreen({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  discoveryPreferences,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -445,6 +455,7 @@ function ShellScreen({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: HomeDiscoverySession;
+  readonly discoveryPreferences: DiscoveryPreferenceStore;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -516,6 +527,44 @@ function ShellScreen({
           onOpenAccounts={() =>
             dispatch({ type: "navigate", location: { route: "more/accounts" } })
           }
+          onOpenCategories={() =>
+            dispatch({ type: "navigate", location: { route: "more/categories" } })
+          }
+          session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/categories") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-categories">
+        <CategoriesScreen
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          onOpenCategory={(category) =>
+            dispatch({
+              type: "navigate",
+              location: { category, route: "more/category-detail" },
+            })
+          }
+          preferences={discoveryPreferences}
+          session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/category-detail") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-category-detail">
+        <CategoryDetailScreen
+          category={location.category}
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          preferences={discoveryPreferences}
           session={homeDiscovery}
         />
       </View>

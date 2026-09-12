@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import {
@@ -17,7 +16,7 @@ export function HomeProviderBanner({
 }: {
   readonly onOpenAccounts: () => void;
   readonly onRetry: (platform: Platform) => void;
-  readonly outcome: PlatformReadOutcome<Stream>;
+  readonly outcome: PlatformReadOutcome<unknown>;
 }) {
   const message = bannerMessage(outcome);
   if (message === null) return null;
@@ -74,7 +73,7 @@ export function HomeProviderBanner({
   );
 }
 
-function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
+function bannerMessage(outcome: PlatformReadOutcome<unknown>): string | null {
   if (outcome.error?.code === "auth-lost") {
     return `${platformLabel(outcome.platform)} sign-in was lost. Catalog can still use Relay.`;
   }
@@ -97,7 +96,7 @@ function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
     return `${platformLabel(outcome.platform)} needs sign-in or a registered installation.`;
   }
   if (outcome.status === "failed") {
-    return `${platformLabel(outcome.platform)} live reads failed.`;
+    return `${platformLabel(outcome.platform)} catalog read failed.`;
   }
   if (
     outcome.status === "stale" ||
@@ -108,7 +107,7 @@ function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
   return null;
 }
 
-function cacheAge(outcome: PlatformReadOutcome<Stream>): string | null {
+function cacheAge(outcome: PlatformReadOutcome<unknown>): string | null {
   if (outcome.cache.kind !== "hit") return null;
   const minutes = Math.max(
     1,
@@ -117,7 +116,7 @@ function cacheAge(outcome: PlatformReadOutcome<Stream>): string | null {
   return `Cached ${minutes} min ago`;
 }
 
-function viewRetryable(outcome: PlatformReadOutcome<Stream>): boolean {
+function viewRetryable(outcome: PlatformReadOutcome<unknown>): boolean {
   return (
     (outcome.error?.retry === "manual" ||
       outcome.error?.retry === "after" ||

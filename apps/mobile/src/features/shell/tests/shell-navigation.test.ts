@@ -186,6 +186,73 @@ describe("adaptive app shell", () => {
     ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
+  it("restores category detail including names with spaces", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "more",
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "more/categories" },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        category: {
+          boxArtUrl: "https://example.com/box.png",
+          id: "509658",
+          name: "Just Chatting",
+          otherId: "15",
+          platform: "twitch",
+        },
+        route: "more/category-detail",
+      },
+    });
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(getActiveShellLocation(restored.state)).toEqual({
+      category: {
+        boxArtUrl: "https://example.com/box.png",
+        id: "509658",
+        name: "Just Chatting",
+        otherId: "15",
+        platform: "twitch",
+      },
+      route: "more/category-detail",
+    });
+  });
+
+  it("rejects category detail restoration when the name is empty", () => {
+    expect(
+      restoreShellNavigationState(
+        JSON.stringify({
+          version: 1,
+          activeDestination: "more",
+          histories: {
+            search: [],
+            following: [],
+            watch: [],
+            activity: [],
+            more: [
+              {
+                category: {
+                  boxArtUrl: "https://example.com/box.png",
+                  id: "509658",
+                  name: "",
+                  platform: "twitch",
+                },
+                route: "more/category-detail",
+              },
+            ],
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: "fallback", reason: "corrupt" });
+  });
+
   it("keeps Home first and Accounts or maintenance last under More", () => {
     expect(MORE_ROUTE_IDS).toEqual([
       "more/home",
