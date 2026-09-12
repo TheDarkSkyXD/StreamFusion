@@ -17,6 +17,7 @@ import {
 import { useInstallationPolicyController } from "@mobile/features/installation-policy/components/use-installation-policy-controller";
 import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
 import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
+import { createMediaJobsRuntime } from "@mobile/features/media-jobs/composition/media-jobs-runtime";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
 import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/expo-secure-random-source";
 import { createExpoSecureSecretStore } from "@mobile/features/storage/adapters/expo-secure-secret-store";
@@ -95,6 +96,12 @@ const appLinks = createExpoAppLinkSource();
 const capabilityProfileRuntime = createCapabilityProfileRuntime({
   diagnostics: androidCapabilityRuntime.contracts.diagnostics,
   store: persistenceRuntime.productState.capabilityProfile,
+});
+
+const mediaJobs = createMediaJobsRuntime({
+  activity: persistenceRuntime.productState.activity,
+  native: androidCapabilityRuntime.contracts.mediaJobs,
+  product: persistenceRuntime.productState.mediaJobs,
 });
 
 const installationPolicyRuntime = createInstallationPolicyRuntime({
@@ -370,6 +377,7 @@ export function MobileRuntime() {
           : undefined
       }
       homeDiscovery={homeDiscovery}
+      mediaJobs={mediaJobs}
     />
     </QueryClientProvider>
   );

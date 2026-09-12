@@ -29,11 +29,55 @@ const playbackBinding: ExpoPlaybackBinding = {
   getContractVersion: () => 1,
   startFocusedSession: unsupported,
 };
+const fixtureTimestamp = "2026-09-12T00:00:00.000Z";
+
+function missingJob(jobId: string) {
+  return {
+    kind: "completed" as const,
+    value: { kind: "missing" as const, jobId },
+  };
+}
+
+function fixtureJournal(jobId: string) {
+  return {
+    jobId,
+    kind: "download" as const,
+    generation: 1,
+    phase: "queued" as const,
+    checkpoint: {
+      generation: 1,
+      byteOffset: 0,
+      durationMs: 0,
+      updatedAt: fixtureTimestamp,
+    },
+    artifact: { kind: "none" as const },
+    serviceOwned: false,
+    failureCode: null,
+    statusMessage: "Queued",
+  };
+}
+
+function recordJob(jobId: string) {
+  return {
+    kind: "completed" as const,
+    value: {
+      kind: "record" as const,
+      journal: fixtureJournal(jobId),
+      files: null,
+    },
+  };
+}
+
 const mediaJobsBinding: ExpoMediaJobsBinding = {
-  cancelRecoverableJob: unsupported,
-  getContractVersion: () => 1,
-  recoverJobs: unsupported,
-  startRecoverableJob: unsupported,
+  cancelRecoverableJob: async (jobId) => missingJob(jobId),
+  finalizeRecoverableJob: async (jobId) => missingJob(jobId),
+  getContractVersion: () => 2,
+  getRecoverableJob: async (jobId) => missingJob(jobId),
+  pauseRecoverableJob: async (jobId) => missingJob(jobId),
+  recoverJobs: async () => ({ kind: "completed", value: [] }),
+  resumeRecoverableJob: async (jobId) => missingJob(jobId),
+  retryRecoverableJob: async (jobId) => missingJob(jobId),
+  startRecoverableJob: async (request) => recordJob(request.jobId),
 };
 const captionsBinding: ExpoCaptionsBinding = {
   getContractVersion: () => 1,
@@ -104,11 +148,11 @@ describe("Android capability module contracts", () => {
       { capability: "captions", contractVersion: 1, kind: "ready" },
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
-      { capability: "media-jobs", contractVersion: 1, kind: "ready" },
+      { capability: "media-jobs", contractVersion: 2, kind: "ready" },
       { capability: "playback", contractVersion: 1, kind: "ready" },
     ]);
     await expect(contracts.playback.enterPictureInPicture("watch-1")).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
-    await expect(contracts.mediaJobs.recoverJobs()).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
+    await expect(contracts.mediaJobs.recoverJobs()).resolves.toMatchObject({ kind: "completed", value: [] });
     await expect(contracts.captions.installEnglishModel({ modelId: "english-v1" })).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
     await expect(contracts.diagnostics.readResourceSnapshot()).resolves.toMatchObject({ kind: "completed", value: { thermal: { state: "none" } } });
     await expect(contracts.maintenance.verifyDownloadedApk({ artifactUri: "file:///data/update.apk", expectedApplicationId: "com.thedarkskyxd.streamfusion", expectedSha256: "a".repeat(64), expectedSignerSha256: "b".repeat(64), minimumVersionCode: 2 })).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
@@ -209,7 +253,7 @@ describe("Android capability module contracts", () => {
     }));
     const mediaJobs = createAndroidMediaJobsContractPort(reader({
       ...mediaJobsBinding,
-      startRecoverableJob: async () => ({ kind: "completed", value: { jobId: "job-1", kind: "download", phase: "queued" } }),
+      startRecoverableJob: async () => recordJob("job-1"),
     }));
     const captions = createAndroidCaptionsContractPort(reader({
       ...captionsBinding,
@@ -225,7 +269,10 @@ describe("Android capability module contracts", () => {
     }));
 
     await expect(playback.startFocusedSession({ sessionId: "watch-1", sourceUri: "https://example.test/live.m3u8" })).resolves.toMatchObject({ kind: "completed", value: { sessionId: "watch-1" } });
-    await expect(mediaJobs.startRecoverableJob({ jobId: "job-1", kind: "download", sourceUri: "https://example.test/video.mp4" })).resolves.toMatchObject({ kind: "completed", value: { jobId: "job-1" } });
+    await expect(mediaJobs.startRecoverableJob({ jobId: "job-1", kind: "download", sourceUri: "https://example.test/video.mp4" })).resolves.toMatchObject({
+      kind: "completed",
+      value: { kind: "record", journal: { jobId: "job-1" } },
+    });
     await expect(captions.installEnglishModel({ modelId: "english-v1" })).resolves.toMatchObject({ kind: "completed", value: { installed: true } });
     await expect(diagnostics.readResourceSnapshot()).resolves.toMatchObject({ kind: "completed", value: { thermal: { state: "none" } } });
     await expect(maintenance.verifyDownloadedApk({ artifactUri: "file:///data/update.apk", expectedApplicationId: "com.thedarkskyxd.streamfusion", expectedSha256: "a".repeat(64), expectedSignerSha256: "b".repeat(64), minimumVersionCode: 2 })).resolves.toMatchObject({ kind: "completed", value: { versionCode: 2 } });
@@ -314,7 +361,15 @@ describe("Android capability module contracts", () => {
       captions: createAndroidCaptionsContractPort(reader({ ...captionsBinding, installEnglishModel: unsafe, removeEnglishModel: unsafe, startFocusedCaptionSession: unsafe, stopFocusedCaptionSession: async () => { calls.push("captions.stop"); return unsupported(); } })),
       diagnostics: createAndroidDiagnosticsContractPort(reader({ ...diagnosticsBinding, readResourceSnapshot: async () => { calls.push("diagnostics.snapshot"); return { kind: "completed", value: diagnosticsSnapshot }; } })),
       maintenance: createAndroidMaintenanceContractPort(reader({ ...maintenanceBinding, handoffVerifiedApk: unsafe, verifyDownloadedApk: async () => { calls.push("maintenance.verify"); return unsupported(); } })),
-      mediaJobs: createAndroidMediaJobsContractPort(reader({ ...mediaJobsBinding, cancelRecoverableJob: async () => { calls.push("media.cancel"); return unsupported(); }, recoverJobs: unsafe, startRecoverableJob: unsafe })),
+      mediaJobs: createAndroidMediaJobsContractPort(reader({
+        ...mediaJobsBinding,
+        cancelRecoverableJob: async (jobId) => {
+          calls.push("media.cancel");
+          return missingJob(jobId);
+        },
+        recoverJobs: unsafe,
+        startRecoverableJob: unsafe,
+      })),
       playback: createAndroidPlaybackContractPort(reader({ ...playbackBinding, endFocusedSession: async () => { calls.push("playback.end"); return unsupported(); }, enterPictureInPicture: unsafe, startFocusedSession: unsafe })),
     });
 
@@ -326,5 +381,27 @@ describe("Android capability module contracts", () => {
       "maintenance.verify",
       "diagnostics.snapshot",
     ]);
+  });
+
+  it("plains Expo host maps before parsing Media Job journals", async () => {
+    const journal = Object.assign(Object.create({ expo: true }), fixtureJournal("job-1"));
+    const mediaJobs = createAndroidMediaJobsContractPort(
+      reader({
+        ...mediaJobsBinding,
+        getRecoverableJob: async () =>
+          Object.assign(Object.create({ expo: true }), {
+            kind: "completed",
+            value: Object.assign(Object.create({ expo: true }), {
+              kind: "record",
+              journal,
+              files: null,
+            }),
+          }),
+      }),
+    );
+    await expect(mediaJobs.getRecoverableJob("job-1")).resolves.toMatchObject({
+      kind: "completed",
+      value: { kind: "record", journal: { jobId: "job-1" } },
+    });
   });
 });

@@ -38,6 +38,10 @@ import {
 } from "@mobile/features/activity/components/activity-screen";
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
+import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
+import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
+import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
+import type { MediaJobWorkflow } from "@mobile/features/media-jobs/capabilities/media-jobs";
 import { NativeCapabilityStubProofControl } from "@mobile/features/native-contracts/components/native-capability-stub-proof-control";
 import { CapabilityProfilePanel } from "@mobile/features/capability-profile/components/capability-profile-panel";
 import { DevelopmentResourceFailureProofControl } from "@mobile/features/capability-profile/components/development-resource-failure-proof-control";
@@ -115,6 +119,7 @@ export function AppShell({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  mediaJobs,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -151,6 +156,7 @@ export function AppShell({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: HomeDiscoverySession;
+  readonly mediaJobs: MediaJobWorkflow;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -167,6 +173,13 @@ export function AppShell({
     restoration: shellRestoration,
   });
   const { dispatch, state: navigation } = lifecycle;
+  const location = getActiveShellLocation(navigation);
+  const selectedJobId =
+    location.route === "activity/job-preview" ? location.jobId : undefined;
+  const mediaJobsController = useMediaJobsController({
+    selectedJobId,
+    workflow: mediaJobs,
+  });
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const placement = getShellNavigationPlacement(width);
@@ -261,6 +274,7 @@ export function AppShell({
                 onDisableTwitchDevelopmentFixture
               }
               homeDiscovery={homeDiscovery}
+              mediaJobsController={mediaJobsController}
             />
           </View>
         </View>
@@ -409,6 +423,7 @@ function ShellScreen({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  mediaJobsController,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -445,6 +460,7 @@ function ShellScreen({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: HomeDiscoverySession;
+  readonly mediaJobsController: ReturnType<typeof useMediaJobsController>;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -506,6 +522,29 @@ function ShellScreen({
           }
         />
       </View>
+    );
+  }
+
+  if (location.route === "activity/job-preview") {
+    return (
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        contentInsetAdjustmentBehavior="automatic"
+        ref={scrollView}
+        style={styles.screenScroll}
+        testID="screen-activity-job-preview"
+      >
+        <View style={styles.contentColumn}>
+          <MediaJobScreen
+            onCommand={(command) => {
+              void mediaJobsController.apply(command).then(() => {
+                void activity.refresh();
+              });
+            }}
+            snapshot={mediaJobsController.model.selected}
+          />
+        </View>
+      </ScrollView>
     );
   }
 
@@ -588,6 +627,44 @@ function ShellScreen({
         )}
         {route.id === "more/diagnostics" ? (
           <>
+            <MediaJobsDiagnosticsPanel
+              jobs={mediaJobsController.model.jobs}
+              onOpenJob={(jobId) =>
+                dispatch({
+                  type: "navigate",
+                  location: { route: "activity/job-preview", jobId },
+                })
+              }
+              onRecover={() => {
+                void mediaJobsController.recover().then(() => {
+                  void activity.refresh();
+                });
+              }}
+              onStartDownload={() => {
+                void openStartedJob(
+                  mediaJobsController.startDownload,
+                  mediaJobsController,
+                  activity,
+                  dispatch,
+                );
+              }}
+              onStartRecording={() => {
+                void openStartedJob(
+                  mediaJobsController.startRecording,
+                  mediaJobsController,
+                  activity,
+                  dispatch,
+                );
+              }}
+              onStartStoragePressure={() => {
+                void openStartedJob(
+                  mediaJobsController.startStoragePressure,
+                  mediaJobsController,
+                  activity,
+                  dispatch,
+                );
+              }}
+            />
             <CapabilityProfilePanel
               model={capabilityProfile}
               onRetry={onRetryCapabilityProfile}
@@ -792,6 +869,21 @@ function RootPreviewAction({
       />
     </Pressable>
   );
+}
+
+async function openStartedJob(
+  start: () => Promise<string>,
+  mediaJobsController: ReturnType<typeof useMediaJobsController>,
+  activity: ReturnType<typeof useActivityController>,
+  dispatch: (action: ShellNavigationAction) => void,
+): Promise<void> {
+  const jobId = await start();
+  await mediaJobsController.recover();
+  await activity.refresh();
+  dispatch({
+    type: "navigate",
+    location: { route: "activity/job-preview", jobId },
+  });
 }
 
 function NestedRouteState({ location }: { readonly location: ShellLocation }) {

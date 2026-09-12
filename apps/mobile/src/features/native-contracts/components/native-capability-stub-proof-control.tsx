@@ -30,10 +30,12 @@ export function NativeCapabilityStubProofControl({
   return (
     <View style={styles.panel} testID="native-capability-stub-proof">
       <Text selectable style={styles.label}>
-        ANDROID CONTRACT STUBS
+        ANDROID CONTRACT CHECKS
       </Text>
       <Text selectable style={styles.body}>
-        Runs safe stop, cancel, and nonexistent-artifact checks, then reads the measured diagnostics snapshot.
+        Media Jobs is a live contract. Remaining playback, captions, and
+        maintenance stubs still return unsupported. This check cancels a
+        nonexistent job without starting work, then reads Diagnostics.
       </Text>
       {detail ? (
         <Text
@@ -45,8 +47,8 @@ export function NativeCapabilityStubProofControl({
         </Text>
       ) : null}
       <Pressable
-        accessibilityHint="Runs safe current Android contract stub checks"
-        accessibilityLabel="Run Android contract stub checks"
+        accessibilityHint="Runs remaining Android stub checks and a safe Media Jobs cancel"
+        accessibilityLabel="Run Android contract checks"
         accessibilityRole="button"
         accessibilityState={{ disabled: running }}
         android_ripple={{ color: mobileColors.surfaceRaised }}
@@ -56,7 +58,7 @@ export function NativeCapabilityStubProofControl({
         testID="run-native-capability-stub-proof"
       >
         <Text selectable style={styles.buttonLabel}>
-          {running ? "Running checks" : "Run Android contract stub checks"}
+          {running ? "Running checks" : "Run Android contract checks"}
         </Text>
       </Pressable>
     </View>

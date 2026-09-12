@@ -10,7 +10,7 @@ const kotlinRoot = path.join(
 );
 const modules = [
   ["Playback", "StreamFusionPlayback", ["startFocusedSession", "enterPictureInPicture", "endFocusedSession"]],
-  ["MediaJobs", "StreamFusionMediaJobs", ["startRecoverableJob", "recoverJobs", "cancelRecoverableJob"]],
+  ["MediaJobs", "StreamFusionMediaJobs", ["startRecoverableJob", "recoverJobs", "cancelRecoverableJob", "pauseRecoverableJob", "resumeRecoverableJob", "retryRecoverableJob", "finalizeRecoverableJob", "getRecoverableJob"]],
   ["Captions", "StreamFusionCaptions", ["installEnglishModel", "startFocusedCaptionSession", "stopFocusedCaptionSession", "removeEnglishModel"]],
   ["Diagnostics", "StreamFusionDiagnostics", ["queueDevelopmentResourceSnapshotFailure", "readResourceSnapshot"]],
   ["Maintenance", "StreamFusionMaintenance", ["verifyDownloadedApk", "handoffVerifiedApk"]],
@@ -27,7 +27,9 @@ test("the Expo module keeps four contained stubs and one measured diagnostics co
       source,
       className === "Diagnostics"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
-        : /Function\("getContractVersion"\) \{ 1 \}/u,
+        : className === "MediaJobs"
+          ? /Function\("getContractVersion"\) \{ 2 \}/u
+          : /Function\("getContractVersion"\) \{ 1 \}/u,
     );
     if (className === "Diagnostics") {
       assert.match(source, /ActivityManager\.MemoryInfo/u);
@@ -37,6 +39,8 @@ test("the Expo module keeps four contained stubs and one measured diagnostics co
       assert.match(source, /MediaCodecList/u);
       assert.match(source, /PowerManager\.THERMAL_STATUS_SHUTDOWN/u);
       assert.match(source, /StatFs/u);
+    } else if (className === "MediaJobs") {
+      assert.doesNotMatch(source, /NATIVE_OPERATION_UNSUPPORTED/u);
     } else {
       assert.match(source, /"NATIVE_OPERATION_UNSUPPORTED"/u);
     }

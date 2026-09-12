@@ -1,3 +1,8 @@
+import {
+  parseMediaJobFileEvidence,
+  parseMediaJobNativeJournal,
+} from "@streamfusion/core/media-jobs";
+
 import type {
   AndroidCaptionsContractPort,
   AndroidCapabilityId,
@@ -19,7 +24,7 @@ import type {
   AndroidThermalState,
   CaptionModelState,
   CaptionSessionState,
-  MediaJobState,
+  MediaJobNativeResult,
   PackageInstallHandoff,
   PlaybackSessionState,
   VerifiedApk,
@@ -47,8 +52,10 @@ function describe(capability: AndroidCapabilityId): string {
   return capability.replaceAll("-", " ");
 }
 
-function expectedContractVersion(capability: AndroidCapabilityId): 1 | 3 {
-  return capability === "diagnostics" ? 3 : 1;
+function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
+  if (capability === "diagnostics") return 3;
+  if (capability === "media-jobs") return 2;
+  return 1;
 }
 
 function resolveBinding<TBinding extends { readonly getContractVersion: () => number }>(
@@ -113,11 +120,20 @@ function readiness<TBinding extends { readonly getContractVersion: () => number 
     : { capability, kind: "unavailable", failure: resolution.failure };
 }
 
+function toPlainJson(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(toPlainJson);
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, toPlainJson(entry)]),
+  );
+}
+
 function object(value: unknown): Readonly<Record<string, unknown>> | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  const plain = toPlainJson(value);
+  if (plain === null || typeof plain !== "object" || Array.isArray(plain)) {
     return undefined;
   }
-  return Object.fromEntries(Object.entries(value));
+  return Object.fromEntries(Object.entries(plain));
 }
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -194,14 +210,21 @@ function playbackState(value: unknown): PlaybackSessionState | undefined {
     : undefined;
 }
 
-function mediaJobState(value: unknown): MediaJobState | undefined {
+function mediaJobNativeResult(value: unknown): MediaJobNativeResult | undefined {
   const state = object(value);
-  const jobId = state ? nonEmptyString(state.jobId) : undefined;
-  const phase = state?.phase;
-  return state && jobId && (state.kind === "download" || state.kind === "recording") &&
-    (phase === "queued" || phase === "running" || phase === "paused" || phase === "completed" || phase === "cancelled")
-    ? { jobId, kind: state.kind, phase }
-    : undefined;
+  if (!state) return undefined;
+  if (state.kind === "missing") {
+    const jobId = nonEmptyString(state.jobId);
+    return jobId ? { kind: "missing", jobId } : undefined;
+  }
+  if (state.kind !== "record") return undefined;
+  const journal = parseMediaJobNativeJournal(state.journal);
+  if (!journal) return undefined;
+  if (state.files === undefined || state.files === null) {
+    return { kind: "record", journal, files: null };
+  }
+  const files = parseMediaJobFileEvidence(state.files);
+  return files ? { kind: "record", journal, files } : undefined;
 }
 
 function captionModelState(value: unknown): CaptionModelState | undefined {
@@ -357,10 +380,10 @@ function formFactorObservation(value: unknown): AndroidFormFactorObservation | u
     : undefined;
 }
 
-function recoveredJobs(value: unknown): readonly MediaJobState[] | undefined {
+function recoveredJobs(value: unknown): readonly MediaJobNativeResult[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const states = value.map(mediaJobState);
-  return states.every((state): state is MediaJobState => state !== undefined)
+  const states = value.map(mediaJobNativeResult);
+  return states.every((state): state is MediaJobNativeResult => state !== undefined)
     ? states
     : undefined;
 }
@@ -403,18 +426,24 @@ export function createAndroidPlaybackContractPort(reader: ExpoBindingReader<Expo
   };
 }
 
+function jobResultFor(jobId: string, value: unknown): MediaJobNativeResult | undefined {
+  const result = mediaJobNativeResult(value);
+  if (!result) return undefined;
+  if (result.kind === "missing") return result.jobId === jobId ? result : undefined;
+  return result.journal.jobId === jobId ? result : undefined;
+}
+
 export function createAndroidMediaJobsContractPort(reader: ExpoBindingReader<ExpoMediaJobsBinding>): AndroidMediaJobsContractPort {
   return {
     readiness: () => readiness("media-jobs", reader),
-    startRecoverableJob: (request) => invoke("media-jobs", reader, (binding) => binding.startRecoverableJob(request), (value) => {
-      const state = mediaJobState(value);
-      return state?.jobId === request.jobId && state.kind === request.kind ? state : undefined;
-    }),
+    startRecoverableJob: (request) => invoke("media-jobs", reader, (binding) => binding.startRecoverableJob(request), (value) => jobResultFor(request.jobId, value)),
     recoverJobs: () => invoke("media-jobs", reader, (binding) => binding.recoverJobs(), recoveredJobs),
-    cancelRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.cancelRecoverableJob(jobId), (value) => {
-      const state = mediaJobState(value);
-      return state?.jobId === jobId ? state : undefined;
-    }),
+    cancelRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.cancelRecoverableJob(jobId), (value) => jobResultFor(jobId, value)),
+    pauseRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.pauseRecoverableJob(jobId), (value) => jobResultFor(jobId, value)),
+    resumeRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.resumeRecoverableJob(jobId), (value) => jobResultFor(jobId, value)),
+    retryRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.retryRecoverableJob(jobId), (value) => jobResultFor(jobId, value)),
+    finalizeRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.finalizeRecoverableJob(jobId), (value) => jobResultFor(jobId, value)),
+    getRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.getRecoverableJob(jobId), (value) => jobResultFor(jobId, value)),
   };
 }
 

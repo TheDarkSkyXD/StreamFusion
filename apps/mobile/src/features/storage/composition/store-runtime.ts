@@ -20,6 +20,7 @@ import {
   readSchemaVersion,
   type StoreMigration,
 } from "../data/migrations";
+import { createProductMediaJobStore } from "@mobile/features/media-jobs/data/product-media-jobs-store";
 import { ProductStore } from "../data/product-store";
 
 const keyPattern = /^[a-f0-9]{64}$/u;
@@ -549,6 +550,22 @@ export function createMobileStoreRuntime(
         },
         async record(item) {
           return (await requireProductStore()).recordActivity(item, now());
+        },
+      },
+      mediaJobs: {
+        async get(jobId) {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).get(jobId);
+        },
+        async list() {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).list();
+        },
+        async put(snapshot) {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).put(
+            snapshot,
+          );
         },
       },
       shellRestoration: {

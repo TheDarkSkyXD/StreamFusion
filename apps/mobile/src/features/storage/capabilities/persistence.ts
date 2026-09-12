@@ -2,6 +2,7 @@ import type {
   ActivityItem,
   SerializedTimestamp,
 } from "@streamfusion/core/activity";
+import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 
 export type PersistenceUnavailableReason =
   | "secure-store-unavailable"
@@ -127,11 +128,18 @@ export interface InstallationPolicySnapshotStore {
   write(value: string, updatedAtEpochMs: number): Promise<void>;
 }
 
+export interface MediaJobRepository {
+  get(jobId: string): Promise<MediaJobSnapshot | null>;
+  list(): Promise<readonly MediaJobSnapshot[]>;
+  put(snapshot: MediaJobSnapshot): Promise<void>;
+}
+
 export interface MobileProductState {
   readonly activity: ActivityRepository;
   readonly capabilityProfile: CapabilityProfileSnapshotStore;
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
+  readonly mediaJobs: MediaJobRepository;
   readonly shellRestoration: ShellRestorationRepository;
 }
 
