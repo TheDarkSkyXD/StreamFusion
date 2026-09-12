@@ -839,6 +839,124 @@
         "https://github.com/TheDarkSkyXD/StreamFusion/issues/147"
       ]
     }
+    ],
+    "search": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "d145b5e8e32c4b9f25d7c9e7ab93e24c04edda18",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-149-d06-search-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "search-report",
+            "path": "verification/evidence/issue-149-search.json",
+            "sha256": "sha256:8310a9fd7ae71d042519df77c7eea252909a99a891061a4ec7c11cbd96846da8",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-12T06:10:00.000Z",
+        "expiresAt": "2026-09-13T06:10:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/149"
+        ]
+      },
+      {
+        "id": "api30-journey",
+        "sourceCommit": "d145b5e8e32c4b9f25d7c9e7ab93e24c04edda18",
+        "apkDigest": "sha256:9d56c5eada18488281df9cb0d8ac15c2ace3e11e8dac56a4bfe6dd36d4820456",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-149-d06-search-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "pixel_2_api30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "search-report",
+            "path": "verification/evidence/issue-149-search.json",
+            "sha256": "sha256:8310a9fd7ae71d042519df77c7eea252909a99a891061a4ec7c11cbd96846da8",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "search-idle",
+            "path": "verification/evidence/issue-149/issue149-search-idle-20260912.png",
+            "sha256": "sha256:cc745abf4a6b1d283173f33c059158cdedd2a72d6e2ab5c6d91a1831cd5e5d40",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-token",
+            "path": "verification/evidence/issue-149/issue149-search-token-20260912.png",
+            "sha256": "sha256:9f562afc8ca64d8efe3851f1786223fd398e84d0d9690e076429f458a8d46d25",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-tab-all",
+            "path": "verification/evidence/issue-149/issue149-search-tab-all-20260912.png",
+            "sha256": "sha256:933bdaadd9650a929a9abb1f74bbbd267fb079babc40f57e7e6ec80d076940e6",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-tab-channels",
+            "path": "verification/evidence/issue-149/issue149-search-tab-channels-20260912.png",
+            "sha256": "sha256:b5bea1eb9c8fac59c7e6d7e103beab0d587cfe71b3fec270246d113360237b60",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-tab-streams",
+            "path": "verification/evidence/issue-149/issue149-search-tab-streams-20260912.png",
+            "sha256": "sha256:8a390ec3adad01edbe52770b8538e3940b0f5517a28fd465b161f5efd655eec6",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-tab-videos",
+            "path": "verification/evidence/issue-149/issue149-search-tab-videos-20260912.png",
+            "sha256": "sha256:d736db8e3200b62d2d86f1a8d4236ee169a6f6acca1d433eef7d179fc4751511",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-tab-categories",
+            "path": "verification/evidence/issue-149/issue149-search-tab-categories-20260912.png",
+            "sha256": "sha256:95f52ddb44f051be9e18be9e18118d5b35b9640fdc7f33d6bd38131dcfa03bcf",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-filters",
+            "path": "verification/evidence/issue-149/issue149-search-filters-20260912.png",
+            "sha256": "sha256:87d020e8a3864173bd427b7981d0f80f3e10ec0489b57f1fbf8954309841f14d",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "search-proof-stale-selected",
+            "path": "verification/evidence/issue-149/issue149-search-proof-stale-selected-20260912.png",
+            "sha256": "sha256:3eb51e626a1dbd579759057c676d96ece9846aafcb9fd3c4c710611c3e3443fb",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-12T06:10:00.000Z",
+        "expiresAt": "2026-09-13T06:10:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/149"
+        ]
+      }
     ]
   }
 }

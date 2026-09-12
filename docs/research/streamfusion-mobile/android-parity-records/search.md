@@ -7,7 +7,7 @@
 - Progress: `implemented`
 - Delivery: `direct`
 - Adaptation: Equivalent. Search is a primary destination with a bottom field, not a top navigation bar.
-- Freshness: `missing` until `verification/evidence/issue-149-search.json` binds a rebuilt APK
+- Freshness: `current` for APK `9d56c5eada18488281df9cb0d8ac15c2ace3e11e8dac56a4bfe6dd36d4820456` via `verification/evidence/issue-149-search.json`
 
 ## Desktop outcome
 
@@ -27,6 +27,10 @@ Local history is Product Store `search-history.v1`. Repeat, remove, and confirme
 - `offline-history`
 - `keyboard-insets`
 - `accessibility`
+
+## Evidence residuals
+
+`live-platforms`, `offline-history`, and `keyboard-insets` stay residual on this APK. Live catalog success still needs Relay credentials or official app tokens. A typed query, history mutation, and IME inset were not captured on device.
 
 ## Blocking for public release
 
