@@ -78,6 +78,7 @@ Roots: `apps/mobile/src/features/`.
 - `capability-profile`: measured Android resource facts, pending workload admission, and visible runtime degradation policy.
 - `native-contracts`: typed Android capability ports, Expo adapters, safe proof control, and Kotlin Expo modules.
 - `storage`: encrypted Product/Cache stores, migrations, recovery, and native adapters.
+- `media-jobs`: durable Media Job engine, fixture start surface, Activity job details, and recoverable native work.
 
 Expo's `apps/mobile/app/` entries delegate to
 `apps/mobile/src/composition/mobile-runtime.tsx`. Shared design tokens stay under
@@ -93,7 +94,7 @@ is the required Wrangler entry. This worker does not proxy product reads or chat
 ## Shared Core
 
 `packages/core/src/features/` owns shared `activity`, `auth`, `chat`, `content`,
-`discovery`, `follows`, and `reliability` contracts and workflows. Runtimes consume
+`discovery`, `follows`, `media-jobs`, and `reliability` contracts and workflows. Runtimes consume
 declared `@streamfusion/core/<subpath>` exports. They do not deep-import feature
 internals. Platform vocabulary, contract foundations, relay envelopes, and testing
 support remain package-wide infrastructure.

@@ -1,3 +1,8 @@
+import type {
+  MediaJobFileEvidence,
+  MediaJobNativeJournal,
+} from "@streamfusion/core/media-jobs";
+
 export const ANDROID_CAPABILITY_IDS = [
   "playback",
   "media-jobs",
@@ -81,20 +86,39 @@ export interface MediaJobStartRequest {
   readonly sourceUri: string;
 }
 
-export interface MediaJobState {
-  readonly jobId: string;
-  readonly kind: MediaJobKind;
-  readonly phase: "queued" | "running" | "paused" | "completed" | "cancelled";
-}
+export type MediaJobNativeResult =
+  | {
+      readonly files: MediaJobFileEvidence | null;
+      readonly journal: MediaJobNativeJournal;
+      readonly kind: "record";
+    }
+  | { readonly jobId: string; readonly kind: "missing" };
 
 export interface AndroidMediaJobsContractPort extends AndroidCapabilityContractPort {
   cancelRecoverableJob(
     jobId: string,
-  ): Promise<AndroidNativeOperationResult<MediaJobState>>;
-  recoverJobs(): Promise<AndroidNativeOperationResult<readonly MediaJobState[]>>;
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
+  finalizeRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
+  getRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
+  pauseRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
+  recoverJobs(): Promise<
+    AndroidNativeOperationResult<readonly MediaJobNativeResult[]>
+  >;
+  resumeRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
+  retryRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
   startRecoverableJob(
     request: MediaJobStartRequest,
-  ): Promise<AndroidNativeOperationResult<MediaJobState>>;
+  ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
 }
 
 export interface CaptionModelRequest {

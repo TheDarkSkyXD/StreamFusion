@@ -135,6 +135,11 @@ function runtime(
         read: async () => null,
         write: async () => undefined,
       },
+      mediaJobs: {
+        get: async () => null,
+        list: async () => [],
+        put: async () => undefined,
+      },
       shellRestoration: {
         clear: async () => undefined,
         read: async () => null,

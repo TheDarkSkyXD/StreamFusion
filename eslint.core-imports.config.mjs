@@ -18,6 +18,7 @@ const publicSubpaths = new Set([
   "activity",
   "reliability",
   "relay",
+  "media-jobs",
   "testing",
 ]);
 const coreSourcePattern = /(^|\/)(packages\/)?core\/src(\/|$)/;

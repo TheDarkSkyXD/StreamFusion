@@ -1,3 +1,8 @@
+import {
+  parseMediaJobFileEvidence,
+  parseMediaJobNativeJournal,
+} from "@streamfusion/core/media-jobs";
+
 import type {
   AndroidCaptionsContractPort,
   AndroidCapabilityId,
@@ -19,7 +24,8 @@ import type {
   AndroidThermalState,
   CaptionModelState,
   CaptionSessionState,
-  MediaJobState,
+  MediaJobKind,
+  MediaJobNativeResult,
   PackageInstallHandoff,
   PlaybackSessionState,
   VerifiedApk,
@@ -47,11 +53,15 @@ function describe(capability: AndroidCapabilityId): string {
   return capability.replaceAll("-", " ");
 }
 
-function expectedContractVersion(capability: AndroidCapabilityId): 1 | 3 {
-  return capability === "diagnostics" ? 3 : 1;
+function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
+  if (capability === "diagnostics") return 3;
+  if (capability === "media-jobs") return 2;
+  return 1;
 }
 
-function resolveBinding<TBinding extends { readonly getContractVersion: () => number }>(
+function resolveBinding<
+  TBinding extends { readonly getContractVersion: () => number },
+>(
   capability: AndroidCapabilityId,
   reader: ExpoBindingReader<TBinding>,
 ): BindingResolution<TBinding> {
@@ -103,21 +113,36 @@ function resolveBinding<TBinding extends { readonly getContractVersion: () => nu
   return { binding, kind: "available" };
 }
 
-function readiness<TBinding extends { readonly getContractVersion: () => number }>(
+function readiness<
+  TBinding extends { readonly getContractVersion: () => number },
+>(
   capability: AndroidCapabilityId,
   reader: ExpoBindingReader<TBinding>,
 ): AndroidCapabilityReadiness {
   const resolution = resolveBinding(capability, reader);
   return resolution.kind === "available"
-    ? { capability, contractVersion: expectedContractVersion(capability), kind: "ready" }
+    ? {
+        capability,
+        contractVersion: expectedContractVersion(capability),
+        kind: "ready",
+      }
     : { capability, kind: "unavailable", failure: resolution.failure };
 }
 
+function toPlainJson(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(toPlainJson);
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, toPlainJson(entry)]),
+  );
+}
+
 function object(value: unknown): Readonly<Record<string, unknown>> | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  const plain = toPlainJson(value);
+  if (plain === null || typeof plain !== "object" || Array.isArray(plain)) {
     return undefined;
   }
-  return Object.fromEntries(Object.entries(value));
+  return Object.fromEntries(Object.entries(plain));
 }
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -131,9 +156,11 @@ function sha256(value: unknown): string | undefined {
 
 function unsupported(value: unknown): string | undefined {
   const response = object(value);
-  return response && response.kind === "unsupported" &&
+  return response &&
+    response.kind === "unsupported" &&
     response.code === "NATIVE_OPERATION_UNSUPPORTED" &&
-    typeof response.diagnostic === "string" && response.diagnostic.length > 0
+    typeof response.diagnostic === "string" &&
+    response.diagnostic.length > 0
     ? response.diagnostic
     : undefined;
 }
@@ -143,10 +170,15 @@ function completed<TValue>(
   parse: (candidate: unknown) => TValue | undefined,
 ): TValue | undefined {
   const response = object(value);
-  return response && response.kind === "completed" ? parse(response.value) : undefined;
+  return response && response.kind === "completed"
+    ? parse(response.value)
+    : undefined;
 }
 
-async function invoke<TBinding extends { readonly getContractVersion: () => number }, TValue>(
+async function invoke<
+  TBinding extends { readonly getContractVersion: () => number },
+  TValue,
+>(
   capability: AndroidCapabilityId,
   reader: ExpoBindingReader<TBinding>,
   operation: (binding: TBinding) => Promise<unknown>,
@@ -189,24 +221,50 @@ async function invoke<TBinding extends { readonly getContractVersion: () => numb
 function playbackState(value: unknown): PlaybackSessionState | undefined {
   const state = object(value);
   const sessionId = state ? nonEmptyString(state.sessionId) : undefined;
-  return state && sessionId && typeof state.pictureInPictureEligible === "boolean"
+  return state &&
+    sessionId &&
+    typeof state.pictureInPictureEligible === "boolean"
     ? { sessionId, pictureInPictureEligible: state.pictureInPictureEligible }
     : undefined;
 }
 
-function mediaJobState(value: unknown): MediaJobState | undefined {
-  const state = object(value);
-  const jobId = state ? nonEmptyString(state.jobId) : undefined;
-  const phase = state?.phase;
-  return state && jobId && (state.kind === "download" || state.kind === "recording") &&
-    (phase === "queued" || phase === "running" || phase === "paused" || phase === "completed" || phase === "cancelled")
-    ? { jobId, kind: state.kind, phase }
-    : undefined;
+function unwrapCompleted(value: unknown): unknown {
+  let current = toPlainJson(value);
+  for (let step = 0; step < 3; step += 1) {
+    const record = object(current);
+    if (!record || record.kind !== "completed") break;
+    current = toPlainJson(record.value);
+  }
+  return current;
+}
+
+function mediaJobNativeResult(
+  value: unknown,
+): MediaJobNativeResult | undefined {
+  const state = object(unwrapCompleted(value));
+  if (!state) return undefined;
+  if (state.kind === "missing") {
+    const jobId = nonEmptyString(state.jobId);
+    return jobId ? { kind: "missing", jobId } : undefined;
+  }
+  if (state.kind !== "record") return undefined;
+  const journal = parseMediaJobNativeJournal(state.journal);
+  if (!journal) return undefined;
+  if (state.files === undefined || state.files === null) {
+    return { kind: "record", journal, files: null };
+  }
+  return {
+    kind: "record",
+    journal,
+    files: parseMediaJobFileEvidence(state.files),
+  };
 }
 
 function captionModelState(value: unknown): CaptionModelState | undefined {
   const state = object(value);
-  return state && state.modelId === "english-v1" && typeof state.installed === "boolean"
+  return state &&
+    state.modelId === "english-v1" &&
+    typeof state.installed === "boolean"
     ? { modelId: state.modelId, installed: state.installed }
     : undefined;
 }
@@ -214,7 +272,9 @@ function captionModelState(value: unknown): CaptionModelState | undefined {
 function captionSessionState(value: unknown): CaptionSessionState | undefined {
   const state = object(value);
   const sessionId = state ? nonEmptyString(state.sessionId) : undefined;
-  return state && sessionId && (state.state === "active" || state.state === "stopped")
+  return state &&
+    sessionId &&
+    (state.state === "active" || state.state === "stopped")
     ? { sessionId, state: state.state }
     : undefined;
 }
@@ -227,8 +287,13 @@ function resourceSnapshot(value: unknown): AndroidResourceSnapshot | undefined {
   const storage = storageObservation(snapshot?.storage);
   const runtime = runtimeIdentity(snapshot?.runtime);
   const decoders = decoderObservations(snapshot?.decoders);
-  return snapshot && observedAtEpochMs !== undefined && thermal && memory && storage &&
-    runtime && decoders
+  return snapshot &&
+    observedAtEpochMs !== undefined &&
+    thermal &&
+    memory &&
+    storage &&
+    runtime &&
+    decoders
     ? { decoders, memory, observedAtEpochMs, runtime, storage, thermal }
     : undefined;
 }
@@ -247,45 +312,64 @@ function numberAtLeast(value: unknown, minimum: number): number | undefined {
 }
 
 function thermal(value: unknown): AndroidThermalState | undefined {
-  return value === "none" || value === "light" || value === "moderate" ||
-    value === "severe" || value === "critical" || value === "emergency" ||
+  return value === "none" ||
+    value === "light" ||
+    value === "moderate" ||
+    value === "severe" ||
+    value === "critical" ||
+    value === "emergency" ||
     value === "shutdown"
     ? value
     : undefined;
 }
 
-function thermalObservation(value: unknown): AndroidResourceSnapshot["thermal"] | undefined {
+function thermalObservation(
+  value: unknown,
+): AndroidResourceSnapshot["thermal"] | undefined {
   const observation = object(value);
   const state = observation ? thermal(observation.state) : undefined;
-  if (observation?.kind === "observed" && state) return { kind: "observed", state };
+  if (observation?.kind === "observed" && state)
+    return { kind: "observed", state };
   const detail = observation ? nonEmptyString(observation.detail) : undefined;
   return observation?.kind === "unavailable" && detail
     ? { detail, kind: "unavailable" }
     : undefined;
 }
 
-function executionEnvironment(value: unknown): AndroidExecutionEnvironment | undefined {
+function executionEnvironment(
+  value: unknown,
+): AndroidExecutionEnvironment | undefined {
   return value === "emulator" || value === "physical" || value === "unknown"
     ? value
     : undefined;
 }
 
 function stringArray(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) && value.every((item) => nonEmptyString(item) !== undefined)
+  return Array.isArray(value) &&
+    value.every((item) => nonEmptyString(item) !== undefined)
     ? value
     : undefined;
 }
 
-function decoderObservations(value: unknown): readonly AndroidDecoderObservation[] | undefined {
+function decoderObservations(
+  value: unknown,
+): readonly AndroidDecoderObservation[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const decoders = value.map((candidate) => {
     const decoder = object(candidate);
     const name = decoder ? nonEmptyString(decoder.name) : undefined;
     const mimeTypes = decoder ? stringArray(decoder.mimeTypes) : undefined;
-    return decoder && name && mimeTypes &&
+    return decoder &&
+      name &&
+      mimeTypes &&
       typeof decoder.hardwareAccelerated === "boolean" &&
       typeof decoder.softwareOnly === "boolean"
-      ? { hardwareAccelerated: decoder.hardwareAccelerated, mimeTypes, name, softwareOnly: decoder.softwareOnly }
+      ? {
+          hardwareAccelerated: decoder.hardwareAccelerated,
+          mimeTypes,
+          name,
+          softwareOnly: decoder.softwareOnly,
+        }
       : undefined;
   });
   return decoders.every(
@@ -295,7 +379,9 @@ function decoderObservations(value: unknown): readonly AndroidDecoderObservation
     : undefined;
 }
 
-function memoryObservation(value: unknown): AndroidMemoryObservation | undefined {
+function memoryObservation(
+  value: unknown,
+): AndroidMemoryObservation | undefined {
   const memory = object(value);
   if (!memory) return undefined;
   const availableBytes = numberAtLeast(memory.availableBytes, 0);
@@ -304,17 +390,32 @@ function memoryObservation(value: unknown): AndroidMemoryObservation | undefined
   const runtimeTotalBytes = numberAtLeast(memory.runtimeTotalBytes, 0);
   const thresholdBytes = numberAtLeast(memory.thresholdBytes, 0);
   const totalBytes = numberAtLeast(memory.totalBytes, 0);
-  return availableBytes !== undefined && runtimeFreeBytes !== undefined &&
-    runtimeMaxBytes !== undefined && runtimeTotalBytes !== undefined &&
-    thresholdBytes !== undefined && totalBytes !== undefined &&
+  return availableBytes !== undefined &&
+    runtimeFreeBytes !== undefined &&
+    runtimeMaxBytes !== undefined &&
+    runtimeTotalBytes !== undefined &&
+    thresholdBytes !== undefined &&
+    totalBytes !== undefined &&
     typeof memory.lowMemory === "boolean"
-    ? { availableBytes, lowMemory: memory.lowMemory, runtimeFreeBytes, runtimeMaxBytes, runtimeTotalBytes, thresholdBytes, totalBytes }
+    ? {
+        availableBytes,
+        lowMemory: memory.lowMemory,
+        runtimeFreeBytes,
+        runtimeMaxBytes,
+        runtimeTotalBytes,
+        thresholdBytes,
+        totalBytes,
+      }
     : undefined;
 }
 
-function storageObservation(value: unknown): AndroidStorageObservation | undefined {
+function storageObservation(
+  value: unknown,
+): AndroidStorageObservation | undefined {
   const storage = object(value);
-  const availableBytes = storage ? numberAtLeast(storage.availableBytes, 0) : undefined;
+  const availableBytes = storage
+    ? numberAtLeast(storage.availableBytes, 0)
+    : undefined;
   const totalBytes = storage ? numberAtLeast(storage.totalBytes, 0) : undefined;
   return storage && availableBytes !== undefined && totalBytes !== undefined
     ? { availableBytes, totalBytes }
@@ -323,24 +424,49 @@ function storageObservation(value: unknown): AndroidStorageObservation | undefin
 
 function runtimeIdentity(value: unknown): AndroidRuntimeIdentity | undefined {
   const runtime = object(value);
-  const applicationId = runtime ? nonEmptyString(runtime.applicationId) : undefined;
+  const applicationId = runtime
+    ? nonEmptyString(runtime.applicationId)
+    : undefined;
   const apiLevel = runtime ? numberAtLeast(runtime.apiLevel, 1) : undefined;
-  const versionCode = runtime ? numberAtLeast(runtime.versionCode, 0) : undefined;
-  const supportedAbis = runtime ? stringArray(runtime.supportedAbis) : undefined;
+  const versionCode = runtime
+    ? numberAtLeast(runtime.versionCode, 0)
+    : undefined;
+  const supportedAbis = runtime
+    ? stringArray(runtime.supportedAbis)
+    : undefined;
   const environment = runtime
     ? executionEnvironment(runtime.executionEnvironment)
     : undefined;
-  const formFactor = runtime ? formFactorObservation(runtime.formFactor) : undefined;
-  return runtime && applicationId && apiLevel !== undefined &&
-    versionCode !== undefined && supportedAbis && environment && formFactor
-    ? { apiLevel, applicationId, executionEnvironment: environment, formFactor, supportedAbis, versionCode }
+  const formFactor = runtime
+    ? formFactorObservation(runtime.formFactor)
+    : undefined;
+  return runtime &&
+    applicationId &&
+    apiLevel !== undefined &&
+    versionCode !== undefined &&
+    supportedAbis &&
+    environment &&
+    formFactor
+    ? {
+        apiLevel,
+        applicationId,
+        executionEnvironment: environment,
+        formFactor,
+        supportedAbis,
+        versionCode,
+      }
     : undefined;
 }
 
-function formFactorObservation(value: unknown): AndroidFormFactorObservation | undefined {
+function formFactorObservation(
+  value: unknown,
+): AndroidFormFactorObservation | undefined {
   const formFactor = object(value);
-  const uiModeType = formFactor ? numberAtLeast(formFactor.uiModeType, 0) : undefined;
-  return formFactor && uiModeType !== undefined &&
+  const uiModeType = formFactor
+    ? numberAtLeast(formFactor.uiModeType, 0)
+    : undefined;
+  return formFactor &&
+    uiModeType !== undefined &&
     typeof formFactor.automotive === "boolean" &&
     typeof formFactor.pc === "boolean" &&
     typeof formFactor.touchscreen === "boolean" &&
@@ -357,10 +483,15 @@ function formFactorObservation(value: unknown): AndroidFormFactorObservation | u
     : undefined;
 }
 
-function recoveredJobs(value: unknown): readonly MediaJobState[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const states = value.map(mediaJobState);
-  return states.every((state): state is MediaJobState => state !== undefined)
+function recoveredJobs(
+  value: unknown,
+): readonly MediaJobNativeResult[] | undefined {
+  const unwrapped = unwrapCompleted(value);
+  if (!Array.isArray(unwrapped)) return undefined;
+  const states = unwrapped.map(mediaJobNativeResult);
+  return states.every(
+    (state): state is MediaJobNativeResult => state !== undefined,
+  )
     ? states
     : undefined;
 }
@@ -371,70 +502,197 @@ function verifiedApk(value: unknown): VerifiedApk | undefined {
   const artifactUri = apk ? nonEmptyString(apk.artifactUri) : undefined;
   const signerSha256 = apk ? sha256(apk.signerSha256) : undefined;
   const digest = apk ? sha256(apk.sha256) : undefined;
-  return apk && applicationId && artifactUri && signerSha256 && digest &&
-    typeof apk.versionCode === "number" && Number.isSafeInteger(apk.versionCode) && apk.versionCode >= 0
-    ? { applicationId, artifactUri, signerSha256, sha256: digest, versionCode: apk.versionCode }
+  return apk &&
+    applicationId &&
+    artifactUri &&
+    signerSha256 &&
+    digest &&
+    typeof apk.versionCode === "number" &&
+    Number.isSafeInteger(apk.versionCode) &&
+    apk.versionCode >= 0
+    ? {
+        applicationId,
+        artifactUri,
+        signerSha256,
+        sha256: digest,
+        versionCode: apk.versionCode,
+      }
     : undefined;
 }
 
 function installHandoff(value: unknown): PackageInstallHandoff | undefined {
   const handoff = object(value);
   const artifactUri = handoff ? nonEmptyString(handoff.artifactUri) : undefined;
-  return handoff && artifactUri && (handoff.state === "requested" || handoff.state === "awaiting-user-action")
+  return handoff &&
+    artifactUri &&
+    (handoff.state === "requested" || handoff.state === "awaiting-user-action")
     ? { artifactUri, state: handoff.state }
     : undefined;
 }
 
-export function createAndroidPlaybackContractPort(reader: ExpoBindingReader<ExpoPlaybackBinding>): AndroidPlaybackContractPort {
+export function createAndroidPlaybackContractPort(
+  reader: ExpoBindingReader<ExpoPlaybackBinding>,
+): AndroidPlaybackContractPort {
   return {
     readiness: () => readiness("playback", reader),
-    startFocusedSession: (request) => invoke("playback", reader, (binding) => binding.startFocusedSession(request), (value) => {
-      const state = playbackState(value);
-      return state?.sessionId === request.sessionId ? state : undefined;
-    }),
-    enterPictureInPicture: (sessionId) => invoke("playback", reader, (binding) => binding.enterPictureInPicture(sessionId), (value) => {
-      const state = playbackState(value);
-      return state?.sessionId === sessionId ? state : undefined;
-    }),
-    endFocusedSession: (sessionId) => invoke("playback", reader, (binding) => binding.endFocusedSession(sessionId), (value) => {
-      const state = playbackState(value);
-      return state?.sessionId === sessionId ? state : undefined;
-    }),
+    startFocusedSession: (request) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.startFocusedSession(request),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === request.sessionId ? state : undefined;
+        },
+      ),
+    enterPictureInPicture: (sessionId) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.enterPictureInPicture(sessionId),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === sessionId ? state : undefined;
+        },
+      ),
+    endFocusedSession: (sessionId) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.endFocusedSession(sessionId),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === sessionId ? state : undefined;
+        },
+      ),
   };
 }
 
-export function createAndroidMediaJobsContractPort(reader: ExpoBindingReader<ExpoMediaJobsBinding>): AndroidMediaJobsContractPort {
+function jobResultFor(
+  jobId: string,
+  value: unknown,
+  expectedKind?: MediaJobKind,
+): MediaJobNativeResult | undefined {
+  const result = mediaJobNativeResult(value);
+  if (!result) return undefined;
+  if (result.kind === "missing")
+    return result.jobId === jobId ? result : undefined;
+  if (result.journal.jobId !== jobId) return undefined;
+  if (expectedKind !== undefined && result.journal.kind !== expectedKind) {
+    return undefined;
+  }
+  return result;
+}
+
+export function createAndroidMediaJobsContractPort(
+  reader: ExpoBindingReader<ExpoMediaJobsBinding>,
+): AndroidMediaJobsContractPort {
   return {
     readiness: () => readiness("media-jobs", reader),
-    startRecoverableJob: (request) => invoke("media-jobs", reader, (binding) => binding.startRecoverableJob(request), (value) => {
-      const state = mediaJobState(value);
-      return state?.jobId === request.jobId && state.kind === request.kind ? state : undefined;
-    }),
-    recoverJobs: () => invoke("media-jobs", reader, (binding) => binding.recoverJobs(), recoveredJobs),
-    cancelRecoverableJob: (jobId) => invoke("media-jobs", reader, (binding) => binding.cancelRecoverableJob(jobId), (value) => {
-      const state = mediaJobState(value);
-      return state?.jobId === jobId ? state : undefined;
-    }),
+    startRecoverableJob: (request) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.startRecoverableJob(request),
+        (value) => jobResultFor(request.jobId, value, request.kind),
+      ),
+    recoverJobs: () =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.recoverJobs(),
+        recoveredJobs,
+      ),
+    cancelRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.cancelRecoverableJob(jobId),
+        (value) => jobResultFor(jobId, value),
+      ),
+    pauseRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.pauseRecoverableJob(jobId),
+        (value) => jobResultFor(jobId, value),
+      ),
+    resumeRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.resumeRecoverableJob(jobId),
+        (value) => jobResultFor(jobId, value),
+      ),
+    retryRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.retryRecoverableJob(jobId),
+        (value) => jobResultFor(jobId, value),
+      ),
+    finalizeRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.finalizeRecoverableJob(jobId),
+        (value) => jobResultFor(jobId, value),
+      ),
+    getRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.getRecoverableJob(jobId),
+        (value) => jobResultFor(jobId, value),
+      ),
   };
 }
 
-export function createAndroidCaptionsContractPort(reader: ExpoBindingReader<ExpoCaptionsBinding>): AndroidCaptionsContractPort {
+export function createAndroidCaptionsContractPort(
+  reader: ExpoBindingReader<ExpoCaptionsBinding>,
+): AndroidCaptionsContractPort {
   return {
     readiness: () => readiness("captions", reader),
-    installEnglishModel: (request) => invoke("captions", reader, (binding) => binding.installEnglishModel(request), captionModelState),
-    removeEnglishModel: (request) => invoke("captions", reader, (binding) => binding.removeEnglishModel(request), captionModelState),
-    startFocusedCaptionSession: (request) => invoke("captions", reader, (binding) => binding.startFocusedCaptionSession(request), (value) => {
-      const state = captionSessionState(value);
-      return state?.sessionId === request.sessionId ? state : undefined;
-    }),
-    stopFocusedCaptionSession: (sessionId) => invoke("captions", reader, (binding) => binding.stopFocusedCaptionSession(sessionId), (value) => {
-      const state = captionSessionState(value);
-      return state?.sessionId === sessionId ? state : undefined;
-    }),
+    installEnglishModel: (request) =>
+      invoke(
+        "captions",
+        reader,
+        (binding) => binding.installEnglishModel(request),
+        captionModelState,
+      ),
+    removeEnglishModel: (request) =>
+      invoke(
+        "captions",
+        reader,
+        (binding) => binding.removeEnglishModel(request),
+        captionModelState,
+      ),
+    startFocusedCaptionSession: (request) =>
+      invoke(
+        "captions",
+        reader,
+        (binding) => binding.startFocusedCaptionSession(request),
+        (value) => {
+          const state = captionSessionState(value);
+          return state?.sessionId === request.sessionId ? state : undefined;
+        },
+      ),
+    stopFocusedCaptionSession: (sessionId) =>
+      invoke(
+        "captions",
+        reader,
+        (binding) => binding.stopFocusedCaptionSession(sessionId),
+        (value) => {
+          const state = captionSessionState(value);
+          return state?.sessionId === sessionId ? state : undefined;
+        },
+      ),
   };
 }
 
-export function createAndroidDiagnosticsContractPort(reader: ExpoBindingReader<ExpoDiagnosticsBinding>): AndroidDiagnosticsContractPort {
+export function createAndroidDiagnosticsContractPort(
+  reader: ExpoBindingReader<ExpoDiagnosticsBinding>,
+): AndroidDiagnosticsContractPort {
   return {
     readiness: () => readiness("diagnostics", reader),
     queueDevelopmentResourceSnapshotFailure: () =>
@@ -444,20 +702,46 @@ export function createAndroidDiagnosticsContractPort(reader: ExpoBindingReader<E
         (binding) => binding.queueDevelopmentResourceSnapshotFailure(),
         developmentResourceSnapshotFailureQueue,
       ),
-    readResourceSnapshot: () => invoke("diagnostics", reader, (binding) => binding.readResourceSnapshot(), resourceSnapshot),
+    readResourceSnapshot: () =>
+      invoke(
+        "diagnostics",
+        reader,
+        (binding) => binding.readResourceSnapshot(),
+        resourceSnapshot,
+      ),
   };
 }
 
-export function createAndroidMaintenanceContractPort(reader: ExpoBindingReader<ExpoMaintenanceBinding>): AndroidMaintenanceContractPort {
+export function createAndroidMaintenanceContractPort(
+  reader: ExpoBindingReader<ExpoMaintenanceBinding>,
+): AndroidMaintenanceContractPort {
   return {
     readiness: () => readiness("maintenance", reader),
-    verifyDownloadedApk: (request) => invoke("maintenance", reader, (binding) => binding.verifyDownloadedApk(request), (value) => {
-      const apk = verifiedApk(value);
-      return apk?.artifactUri === request.artifactUri && apk.applicationId === request.expectedApplicationId && apk.sha256 === request.expectedSha256 && apk.signerSha256 === request.expectedSignerSha256 && apk.versionCode >= request.minimumVersionCode ? apk : undefined;
-    }),
-    handoffVerifiedApk: (apk) => invoke("maintenance", reader, (binding) => binding.handoffVerifiedApk(apk), (value) => {
-      const handoff = installHandoff(value);
-      return handoff?.artifactUri === apk.artifactUri ? handoff : undefined;
-    }),
+    verifyDownloadedApk: (request) =>
+      invoke(
+        "maintenance",
+        reader,
+        (binding) => binding.verifyDownloadedApk(request),
+        (value) => {
+          const apk = verifiedApk(value);
+          return apk?.artifactUri === request.artifactUri &&
+            apk.applicationId === request.expectedApplicationId &&
+            apk.sha256 === request.expectedSha256 &&
+            apk.signerSha256 === request.expectedSignerSha256 &&
+            apk.versionCode >= request.minimumVersionCode
+            ? apk
+            : undefined;
+        },
+      ),
+    handoffVerifiedApk: (apk) =>
+      invoke(
+        "maintenance",
+        reader,
+        (binding) => binding.handoffVerifiedApk(apk),
+        (value) => {
+          const handoff = installHandoff(value);
+          return handoff?.artifactUri === apk.artifactUri ? handoff : undefined;
+        },
+      ),
   };
 }

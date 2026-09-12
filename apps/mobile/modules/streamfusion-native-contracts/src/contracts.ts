@@ -15,8 +15,13 @@ interface NativePlaybackModule {
 
 interface NativeMediaJobsModule {
   cancelRecoverableJob(jobId: unknown): Promise<unknown>;
+  finalizeRecoverableJob(jobId: unknown): Promise<unknown>;
   getContractVersion(): number;
+  getRecoverableJob(jobId: unknown): Promise<unknown>;
+  pauseRecoverableJob(jobId: unknown): Promise<unknown>;
   recoverJobs(): Promise<unknown>;
+  resumeRecoverableJob(jobId: unknown): Promise<unknown>;
+  retryRecoverableJob(jobId: unknown): Promise<unknown>;
   startRecoverableJob(request: unknown): Promise<unknown>;
 }
 
