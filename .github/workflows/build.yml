@@ -185,7 +185,17 @@ jobs:
         run: npm run --workspace streamfusion-worker deploy:dry-run
 
       - name: Android Change Gate
+        env:
+          ANDROID_GATE_FRAGMENT: "1"
         run: npm run verify:android-gates -- --gate change --run-id "${{ github.run_id }}-change"
+
+      - name: Upload Change Gate evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-change-evidence
+          path: artifacts/mobile-evidence/android-gates
+          if-no-files-found: error
+          retention-days: 7
 
   main-api30:
     name: Android Main API 30
@@ -358,7 +368,7 @@ jobs:
       - name: Download Main evidence fragments
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v8.0.1
         with:
-          pattern: android-main-*-evidence
+          pattern: android-*-evidence
           merge-multiple: true
           path: artifacts/mobile-evidence/incoming
 

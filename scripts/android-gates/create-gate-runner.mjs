@@ -195,7 +195,9 @@ async function runRequest(request, configuration) {
   await fillGate(run, selected, request, options);
   await writeCatalog(
     request.outputPath ?? configuration.outputPath,
-    selected ? emptyGateFragment(run.runId, run.records) : upsertRun(catalog, run),
+    selected || request.fragment
+      ? emptyGateFragment(run.runId, run.records)
+      : upsertRun(catalog, run),
   );
   return selected ? selectedVerdict(run, selected) : finalVerdict(run, options);
 }

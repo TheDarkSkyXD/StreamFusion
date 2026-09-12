@@ -44,7 +44,11 @@ async function jsonFiles(directory) {
   const nested = await Promise.all(
     entries.map((entry) => {
       const child = path.join(directory, entry.name);
-      return entry.isDirectory() ? jsonFiles(child) : entry.name.endsWith(".json") ? [child] : [];
+      return entry.isDirectory()
+        ? jsonFiles(child)
+        : entry.name === "catalog.json"
+          ? [child]
+          : [];
     }),
   );
   return nested.flat();

@@ -61,6 +61,7 @@ async function runCli() {
   const runner = createGateRunner({ repositoryRoot: process.cwd() });
   const verdict = await runner.run({
     ...request,
+    fragment: process.env.ANDROID_GATE_FRAGMENT === "1",
     slot: process.env.ANDROID_GATE_SLOT,
   });
   console.log(`${request.gate} gate ${verdict.pass ? "passed" : `failed: ${verdict.reason}`}`);

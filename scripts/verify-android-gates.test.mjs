@@ -14,6 +14,7 @@ import {
   evaluateGate,
   hasCleanCandidatePair,
 } from "./android-gates/gate-run.mjs";
+import { loadCatalog } from "./android-gates/catalog-store.mjs";
 
 const NOW = "2026-09-12T00:00:00.000Z";
 const COMMIT = "a".repeat(40);
@@ -258,4 +259,34 @@ test("two clean candidate runs satisfy the public-release predicate", () => {
     }, DIGEST),
     true,
   );
+});
+
+test("incoming fragments collapse duplicates and reject conflicts", async () => {
+  await fixture(async (root) => {
+    const incoming = path.join(root, "incoming");
+    const fragment = (entry) => ({
+      schemaVersion: 2,
+      policyVersion: 1,
+      verifierVersion: "1.0.0",
+      capabilities: {},
+      gateRuns: { merged: [entry] },
+    });
+    await mkdir(path.join(incoming, "one"), { recursive: true });
+    await mkdir(path.join(incoming, "two"), { recursive: true });
+    await writeFile(path.join(incoming, "one/catalog.json"), JSON.stringify(fragment(record("change-gate"))));
+    await writeFile(path.join(incoming, "two/catalog.json"), JSON.stringify(fragment(record("change-gate"))));
+    const options = {
+      catalogPath: path.join(root, "catalog.json"),
+      outputPath: path.join(root, "output.json"),
+      incomingPath: incoming,
+      policy,
+    };
+
+    assert.equal((await loadCatalog(options)).gateRuns.merged.length, 1);
+    await writeFile(
+      path.join(incoming, "two/catalog.json"),
+      JSON.stringify(fragment(record("change-gate", { result: "fail" }))),
+    );
+    await assert.rejects(loadCatalog(options), /conflicting incoming evidence/);
+  });
 });

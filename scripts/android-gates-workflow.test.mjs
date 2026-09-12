@@ -20,6 +20,7 @@ test("workflows invoke every Android gate without a release promotion", async ()
   ]);
 
   assert.match(build.source, /--gate change/);
+  assert.match(build.source, /ANDROID_GATE_FRAGMENT: "1"/);
   assert.match(build.source, /--gate main/);
   assert.match(candidate.source, /--gate candidate/);
   assert.match(publicRelease.source, /--gate public-release/);
@@ -48,6 +49,10 @@ test("Main drives API 30 and current API journeys then always evaluates fragment
   assert.match(
     finalizer.steps.find((step) => step.name === "Evaluate Main Gate").run,
     /--gate main .*--read .*--incoming/,
+  );
+  assert.equal(
+    finalizer.steps.find((step) => step.name === "Download Main evidence fragments").with.pattern,
+    "android-*-evidence",
   );
 });
 
