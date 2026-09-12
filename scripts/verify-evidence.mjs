@@ -306,16 +306,46 @@ function validateEvidenceRecord(raw, policy, location) {
   return record;
 }
 
+function validateGateRuns(raw, policy) {
+  const gateRuns = objectAt(raw, "catalog.gateRuns");
+  for (const [runId, records] of Object.entries(gateRuns)) {
+    stringAt(runId, `catalog.gateRuns.${runId}`);
+    const parsedRecords = arrayAt(records, `catalog.gateRuns.${runId}`);
+    const recordIds = new Set();
+    parsedRecords.forEach((record, index) => {
+      const parsed = validateEvidenceRecord(
+        record,
+        policy,
+        `catalog.gateRuns.${runId}[${index}]`,
+      );
+      if (recordIds.has(parsed.id)) {
+        fail(
+          `catalog.gateRuns.${runId}[${index}].id`,
+          "must be unique within the gate run",
+        );
+      }
+      recordIds.add(parsed.id);
+    });
+  }
+  return gateRuns;
+}
+
 export function validateCatalog(rawCatalog, rawPolicy) {
   const policy = validatePolicy(rawPolicy);
   const catalog = objectAt(rawCatalog, "catalog");
   exactKeys(
     catalog,
-    ["schemaVersion", "policyVersion", "verifierVersion", "capabilities"],
+    [
+      "schemaVersion",
+      "policyVersion",
+      "verifierVersion",
+      "capabilities",
+      "gateRuns",
+    ],
     "catalog",
   );
-  if (catalog.schemaVersion !== 1)
-    fail("catalog.schemaVersion", "must equal 1");
+  if (catalog.schemaVersion !== 2)
+    fail("catalog.schemaVersion", "must equal 2");
   if (catalog.policyVersion !== policy.schemaVersion) {
     fail(
       "catalog.policyVersion",
@@ -353,6 +383,7 @@ export function validateCatalog(rawCatalog, rawPolicy) {
       recordIds.add(parsed.id);
     });
   }
+  validateGateRuns(catalog.gateRuns, policy);
   return { catalog, policy };
 }
 
@@ -389,6 +420,19 @@ function normalizeCapabilities(capabilities) {
       .map((capabilityId) => [
         capabilityId,
         capabilities[capabilityId]
+          .map(normalizeRecord)
+          .sort((left, right) => left.id.localeCompare(right.id)),
+      ]),
+  );
+}
+
+function normalizeGateRuns(gateRuns) {
+  return Object.fromEntries(
+    Object.keys(gateRuns)
+      .sort()
+      .map((runId) => [
+        runId,
+        gateRuns[runId]
           .map(normalizeRecord)
           .sort((left, right) => left.id.localeCompare(right.id)),
       ]),
@@ -445,6 +489,25 @@ function resumable(previous, fingerprint, artifactFacts) {
     previous?.fingerprint === fingerprint &&
     digest(previous.artifacts) === digest(artifactFacts)
   );
+}
+
+function evidenceEntries(capabilities, gateRuns) {
+  return [
+    ...Object.entries(capabilities).flatMap(([capabilityId, records]) =>
+      records.map((record) => ({
+        key: `capabilities/${capabilityId}/${record.id}`,
+        record,
+        countsAsFailure: true,
+      })),
+    ),
+    ...Object.entries(gateRuns).flatMap(([runId, records]) =>
+      records.map((record) => ({
+        key: `gateRuns/${runId}/${record.id}`,
+        record,
+        countsAsFailure: false,
+      })),
+    ),
+  ];
 }
 
 function publicLink(link, policy) {
@@ -553,6 +616,7 @@ export async function verifyEvidenceCatalog({
   ]);
   const { catalog, policy } = validateCatalog(rawCatalog, rawPolicy);
   const capabilities = normalizeCapabilities(catalog.capabilities);
+  const gateRuns = normalizeGateRuns(catalog.gateRuns);
   const resolvedRepositoryRoot = await realpath(repositoryRoot);
   const state = resume
     ? await readResumeState(statePath)
@@ -560,45 +624,27 @@ export async function verifyEvidenceCatalog({
   const summary = { records: 0, verified: 0, resumed: 0, failed: 0 };
   const activeStateKeys = new Set();
 
-  for (const [capabilityId, recordsForCapability] of Object.entries(
-    capabilities,
-  )) {
-    for (const record of recordsForCapability) {
-      summary.records += 1;
-      if (record.result !== "pass") summary.failed += 1;
-      const locatedArtifacts = [];
-      for (const artifact of record.artifacts) {
-        locatedArtifacts.push(
-          await locateArtifact(resolvedRepositoryRoot, artifact),
-        );
+  for (const entry of evidenceEntries(capabilities, gateRuns)) {
+    const { key, record } = entry;
+    summary.records += 1;
+    if (entry.countsAsFailure && record.result !== "pass") summary.failed += 1;
+    const locatedArtifacts = [];
+    for (const artifact of record.artifacts) {
+      locatedArtifacts.push(await locateArtifact(resolvedRepositoryRoot, artifact));
+    }
+    let artifactFacts = locatedArtifacts.map(({ facts }) => facts);
+    activeStateKeys.add(key);
+    const fingerprint = digest({ key, policyVersion: policy.schemaVersion, record });
+    if (resume && resumable(state.completed[key], fingerprint, artifactFacts)) {
+      summary.resumed += 1;
+    } else {
+      summary.verified += 1;
+      artifactFacts = [];
+      for (let index = 0; index < record.artifacts.length; index += 1) {
+        artifactFacts.push(await verifyArtifact(record.artifacts[index], locatedArtifacts[index]));
       }
-      let artifactFacts = locatedArtifacts.map(({ facts }) => facts);
-      const key = `${capabilityId}/${record.id}`;
-      activeStateKeys.add(key);
-      const fingerprint = digest({
-        capabilityId,
-        policyVersion: policy.schemaVersion,
-        record,
-      });
-      if (
-        resume &&
-        resumable(state.completed[key], fingerprint, artifactFacts)
-      ) {
-        summary.resumed += 1;
-      } else {
-        summary.verified += 1;
-        artifactFacts = [];
-        for (let index = 0; index < record.artifacts.length; index += 1) {
-          artifactFacts.push(
-            await verifyArtifact(
-              record.artifacts[index],
-              locatedArtifacts[index],
-            ),
-          );
-        }
-        state.completed[key] = { fingerprint, artifacts: artifactFacts };
-        await writeJson(statePath, state);
-      }
+      state.completed[key] = { fingerprint, artifacts: artifactFacts };
+      await writeJson(statePath, state);
     }
   }
 
@@ -606,7 +652,7 @@ export async function verifyEvidenceCatalog({
     if (!activeStateKeys.has(key)) delete state.completed[key];
   }
 
-  const verifiedCatalog = { ...catalog, capabilities, summary };
+  const verifiedCatalog = { ...catalog, capabilities, gateRuns, summary };
   const publicCatalog = {
     schemaVersion: catalog.schemaVersion,
     policyVersion: catalog.policyVersion,
@@ -618,6 +664,12 @@ export async function verifyEvidenceCatalog({
           recordsForCapability.map((record) => redactRecord(record, policy)),
         ],
       ),
+    ),
+    gateRuns: Object.fromEntries(
+      Object.entries(gateRuns).map(([runId, records]) => [
+        runId,
+        records.map((record) => redactRecord(record, policy)),
+      ]),
     ),
     summary,
   };

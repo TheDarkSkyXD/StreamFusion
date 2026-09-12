@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "policyVersion": 1,
   "verifierVersion": "1.0.0",
   "capabilities": {
@@ -723,5 +723,6 @@
         ]
       }
     ]
-  }
+  },
+  "gateRuns": {}
 }

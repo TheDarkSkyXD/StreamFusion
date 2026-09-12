@@ -30,10 +30,11 @@ function hash(content) {
 
 function catalogWith(record) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     policyVersion: 1,
     verifierVersion: VERIFIER_VERSION,
     capabilities: record ? { "home-live-discovery": [record] } : {},
+    gateRuns: {},
   };
 }
 
@@ -120,7 +121,7 @@ test("runs the same verifier command with explicit CI artifact paths", async () 
     assert.equal(
       JSON.parse(await readFile(path.join(root, "public.json"), "utf8"))
         .schemaVersion,
-      1,
+      2,
     );
   });
 });
@@ -173,6 +174,24 @@ test("verifies artifact hashes and resumes unchanged records", async () => {
         resumed: 1,
         failed: 0,
       },
+    );
+  });
+});
+
+test("verifies failed gate-run evidence without making history a global failure", async () => {
+  await withFixture(async (root) => {
+    const content = "failed gate evidence";
+    const artifactPath = path.join(root, "evidence", "report.json");
+    await mkdir(path.dirname(artifactPath), { recursive: true });
+    await writeFile(artifactPath, content);
+    const catalog = catalogWith();
+    catalog.gateRuns["failed-public-release"] = [
+      evidenceRecord(content, { result: "fail" }),
+    ];
+
+    assert.deepEqual(
+      await verifyEvidenceCatalog(await fixtureOptions(root, catalog)),
+      { records: 1, verified: 1, resumed: 0, failed: 0 },
     );
   });
 });
