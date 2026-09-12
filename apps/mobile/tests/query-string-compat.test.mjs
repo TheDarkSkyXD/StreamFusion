@@ -99,3 +99,34 @@ test("Metro resolves public core subpaths inside a mapped Android workspace", ()
   );
   assert.equal(resolution.type, "sourceFile");
 });
+
+test("Metro loads TanStack Query from the modern build instead of the react-native TypeScript entry", () => {
+  for (const moduleName of ["@tanstack/react-query", "@tanstack/query-core"]) {
+    const resolution = config.resolver.resolveRequest(
+      {
+        originModulePath: path.join(
+          mobileDirectory,
+          "src",
+          "composition",
+          "mobile-runtime.tsx",
+        ),
+        resolveRequest() {
+          throw new Error("TanStack Query must not fall through to Metro");
+        },
+      },
+      moduleName,
+      "android",
+    );
+
+    assert.equal(
+      resolution.filePath,
+      path.resolve(
+        mobileDirectory,
+        "../../node_modules",
+        moduleName,
+        "build/modern/index.js",
+      ),
+    );
+    assert.equal(resolution.type, "sourceFile");
+  }
+});
