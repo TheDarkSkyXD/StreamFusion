@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { load as loadYaml } from "js-yaml";
 
@@ -10,9 +10,18 @@ const VERIFY_SHARDS = [
   { id: "verify-desktop", name: "Verify desktop" },
 ];
 const VERIFY_SHARD_IDS = VERIFY_SHARDS.map((shard) => shard.id);
+const HOSTED_EMU_FORBIDDEN =
+  /android-emulator-runner|\/dev\/kvm|Enable KVM|android-smoke-journey\.sh/;
+const JOB_NAME_USES_ENV = /\$\{\{\s*env\./;
 
 function loadWorkflow(filename) {
   return loadYaml(readFileSync(`.github/workflows/${filename}`, "utf8"));
+}
+
+function workflowFiles() {
+  return readdirSync(".github/workflows").filter(
+    (name) => name.endsWith(".yml") || name.endsWith(".yaml"),
+  );
 }
 
 function stepNamed(job, name) {
@@ -44,14 +53,40 @@ test("the build workflow is CI-only and cannot publish a GitHub release", () => 
     /npm --prefix apps\/desktop (?:ci|audit|rebuild)/,
   );
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
-  assert.doesNotMatch(
-    source,
-    /android-emulator-runner|\/dev\/kvm|api-level:\s*30/,
-  );
+  assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN);
+  assert.doesNotMatch(source, /api-level:\s*30/);
+  assert.equal(workflow.jobs["main-api30"], undefined);
+  assert.equal(workflow.jobs["main-current"], undefined);
+  assert.equal(workflow.jobs["main-gate"], undefined);
   assert.equal(
     existsSync(".github/scripts/verify-android-api30-install.sh"),
     false,
   );
+});
+
+test("GitHub Actions workflows never enable KVM or name jobs with env context", () => {
+  for (const name of workflowFiles()) {
+    const source = readFileSync(`.github/workflows/${name}`, "utf8");
+    const workflow = loadWorkflow(name);
+
+    assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN, name);
+    assert.doesNotMatch(source, /name:\s*.*\$\{\{\s*env\./, name);
+    for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
+      assert.doesNotMatch(
+        String(job.name ?? ""),
+        JOB_NAME_USES_ENV,
+        `${name}:${id}`,
+      );
+      assert.ok(
+        (job.steps ?? []).every(
+          (step) =>
+            typeof step.uses !== "string" ||
+            !step.uses.includes("android-emulator-runner"),
+        ),
+        `${name}:${id}`,
+      );
+    }
+  }
 });
 
 test("verify shards and CI success form a fail-closed gate", () => {
@@ -171,6 +206,19 @@ test("verify shards keep the workspace commands from the former Verify workspace
   assert.ok(jobRuns(desktop, "npm run --workspace streamfusion-worker test"));
   assert.ok(
     jobRuns(desktop, "npm run --workspace streamfusion-worker deploy:dry-run"),
+  );
+});
+
+test("Android Change Gate runs on the desktop shard without a hosted emulator", () => {
+  const workflow = loadWorkflow("build.yml");
+  const desktop = workflow.jobs["verify-desktop"];
+  const change = stepNamed(desktop, "Android Change Gate");
+
+  assert.equal(change.env.ANDROID_GATE_FRAGMENT, "1");
+  assert.match(change.run, /--gate change/);
+  assert.equal(
+    stepNamed(desktop, "Enable KVM access for the ephemeral Android job"),
+    undefined,
   );
 });
 
