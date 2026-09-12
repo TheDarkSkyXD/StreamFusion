@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "issue": 147,
+  "ticketId": "D04",
+  "mobileSourceCommit": "0d448403a1a85eb8ff0e4d24cb3a09495b4c6337",
+  "observedAt": "2026-09-12T01:53:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "D04 Home Platform reads receipt. It does not claim live Twitch or Kick catalog success, category search, or followed-stream sync."
+  },
+  "candidate": {
+    "apkSha256": "063ccdd1e498abeb8371278dacd4324fa9e5e8774a028eae136897ff50f7bcd9",
+    "apkSizeBytes": 138209148,
+    "mobileTree": "dccded651c3fe8863b79fab5695e3ca4e8d805d3",
+    "discoveryTree": "34b3a2ef81bf919524a7a74d6c774a7d18b3d83c",
+    "relaySignedOutDiscoveryTree": "bf3e0d7e7899ef5d340310502b018ca6ec90c488",
+    "coreRelayTree": "37a1443b40fbe00c3f1ca1eb9e5d61cb2a68da68",
+    "provenance": "The installed Android development client loaded JavaScript from Metro for source 0d448403. The Home proof panel printed issue-147-d04-f481. The APK is a development client, not a release artifact bound to all JavaScript source."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Owned-slice checks passed for Core (56 tests, architecture, typecheck, lint), Mobile (248 Vitest tests plus architecture, typecheck, lint), and Relay (25 tests, architecture, environment isolation, secret scan, typecheck, lint).",
+        "Desktop preview smoke did not run here because Electron is uninstalled in this workspace."
+      ]
+    },
+    "home-live-discovery": {
+      "result": "pass",
+      "observations": [
+        "Mobile MCP launched the rebuilt development client, connected it to Metro, opened More, then Home.",
+        "Every captured Home frame showed the source token issue-147-d04-f481.",
+        "live showed the signed-out Twitch installation/sign-in banner and Retry Twitch.",
+        "ready showed Live recommendations from Twitch and Kick plus a LIVE card.",
+        "loading showed Loading live recommendations from Twitch and Kick.",
+        "stale-cache showed cached recommendations and Cached 60 min ago.",
+        "cache-miss, twitch-fail, kick-fail, relay-unavailable, and retry-exhausted showed the matching banners and per-platform retry actions.",
+        "auth-lost showed Sign in and the Relay-still-usable copy.",
+        "cancelled showed cancelled copy for Twitch and Kick."
+      ]
+    },
+    "live-platforms": {
+      "result": "residual",
+      "observations": [
+        "This workspace has no live Twitch or Kick user tokens and no signed-out Relay with official Platform credentials.",
+        "The live chip therefore proves the signed-out/unavailable path, not a successful official catalog read."
+      ]
+    },
+    "followed-streams-and-sync": {
+      "result": "residual",
+      "observations": [
+        "Signed-out Follows stay unavailable without a Relay followed endpoint. Guest Follows are D08. This receipt does not cover the Following tab."
+      ]
+    }
+  }
+}
