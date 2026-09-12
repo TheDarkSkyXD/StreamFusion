@@ -55,12 +55,16 @@ export interface SearchMatchRank {
 export type ChannelSearchRank = SearchMatchRank;
 export type CategorySearchMatchRank = SearchMatchRank;
 
-const SEARCH_GRAPHEME_SEGMENTER = new Intl.Segmenter("en", {
-  granularity: "grapheme",
-});
 const WORD_GRAPHEME_PATTERN = /^[\p{L}\p{N}]+$/u;
 const EMOJI_GRAPHEME_PATTERN =
   /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
+
+function iterateSearchGraphemes(value: string): Iterable<{ segment: string }> {
+  if (typeof Intl === "object" && typeof Intl.Segmenter === "function") {
+    return new Intl.Segmenter("en", { granularity: "grapheme" }).segment(value);
+  }
+  return Array.from(value, (segment) => ({ segment }));
+}
 
 export function normalizeSearchTokens(query: string): string[] {
   const normalized = query
@@ -74,7 +78,7 @@ export function normalizeSearchTokens(query: string): string[] {
     word = "";
   };
 
-  for (const { segment } of SEARCH_GRAPHEME_SEGMENTER.segment(normalized)) {
+  for (const { segment } of iterateSearchGraphemes(normalized)) {
     if (WORD_GRAPHEME_PATTERN.test(segment)) {
       word += segment;
       continue;

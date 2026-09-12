@@ -42,6 +42,21 @@ test("search intent validation normalizes portable input and reports every inval
   assert.equal(normalizeSearchQuery("  Pokémon---POKEMON  "), "pokemon");
 });
 
+test("search tokenizing stays portable when Intl.Segmenter is missing", () => {
+  const Segmenter = Intl.Segmenter;
+  const intl = Intl;
+  Reflect.deleteProperty(intl, "Segmenter");
+  try {
+    assert.equal(normalizeSearchQuery("  Café  café 🎮 "), "cafe 🎮");
+    assert.equal(normalizeSearchQuery("  Pokémon---POKEMON  "), "pokemon");
+  } finally {
+    Object.defineProperty(intl, "Segmenter", {
+      configurable: true,
+      value: Segmenter,
+    });
+  }
+});
+
 test("search result validation rejects provider and presentation leakage", () => {
   const result = sanitizeSearchResultCollection({
     channels: [content.channel, { ...content.channel, chatroomId: 12 }],
