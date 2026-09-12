@@ -12,6 +12,7 @@ import {
   writeCatalog,
 } from "./catalog-store.mjs";
 import { createOwners } from "./owners.mjs";
+import { isFresh, matchesBinding } from "./freshness.mjs";
 
 function digest(content) {
   return `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -57,12 +58,21 @@ async function occupy(run, slot, fill, options) {
     now: options.now,
     retryUsed: slot.id === "diagnostic-retry" && options.retryUsed,
   });
-  run.occupy(record);
+  run.replace(record);
   return record;
 }
 
+function recordIsCurrent(record, slot, options) {
+  return (
+    record?.result === "pass" &&
+    matchesBinding(slot, record, options) &&
+    isFresh(slot, record, options.now, options.policy)
+  );
+}
+
 async function fillSlot(run, slot, options) {
-  if (run.record(slot.id)) return;
+  const existing = run.record(slot.id);
+  if (existing && (existing.result !== "pass" || recordIsCurrent(existing, slot, options))) return;
   if (slot.requiresApk && !options.apkDigest) {
     await occupy(run, slot, absentFor(slot, options.now), options);
     return;
@@ -117,6 +127,79 @@ function finalVerdict(run, options) {
     : verdict;
 }
 
+function selectSlot(definition, request) {
+  const selected = request.slot
+    ? definition.slots.find((slot) => slot.id === request.slot)
+    : null;
+  if (request.slot && !selected) {
+    throw new Error(`slot ${request.slot} is not in ${request.gate}`);
+  }
+  return selected;
+}
+
+async function fillGate(run, selected, request, options) {
+  if (selected) {
+    await fillSlot(run, selected, options);
+    return;
+  }
+  for (const slot of run.definition.slots) {
+    const isSummary = slot.id === gateRecordId(run.definition.id);
+    const isReadOwner = slot.owner === "catalog-read" || slot.owner === "run-archive";
+    if (!isSummary && (!request.read || isReadOwner)) await fillSlot(run, slot, options);
+  }
+  await fillSummary(run, options);
+}
+
+function selectedVerdict(run, selected) {
+  const record = run.record(selected.id);
+  return {
+    pass: record?.result === "pass",
+    reason: record?.result ?? "missing-slot",
+    failures: [],
+  };
+}
+
+async function runRequest(request, configuration) {
+  const definition = GATE_DEFINITIONS[request.gate];
+  if (!definition) throw new Error(`unsupported gate: ${request.gate}`);
+  if (!request.runId) throw new Error("--run-id is required");
+  const now = request.now ?? new Date().toISOString();
+  if (Number.isNaN(Date.parse(now))) throw new Error("--now must be RFC 3339");
+  const policy = JSON.parse(await readFile(configuration.policyPath, "utf8"));
+  const catalog = await loadCatalog({
+    catalogPath: configuration.catalogPath,
+    outputPath: configuration.outputPath,
+    incomingPath: request.incomingPath ?? configuration.incomingPath,
+    policy,
+  });
+  const apk = await apkIdentity(request.apkPath, request.apkDigest);
+  const run = new GateRun({
+    definition,
+    runId: request.runId,
+    sourceCommit: request.sourceCommit,
+    apkDigest: apk.apkDigest,
+    records: catalog.gateRuns[request.runId] ?? [],
+  });
+  assertIdentity(run, definition, request.sourceCommit, apk.apkDigest);
+  const options = {
+    ...configuration,
+    ...apk,
+    catalog,
+    digestMismatch: apk.digestMismatch,
+    now,
+    policy,
+    retryUsed: { value: run.usedDiagnosticRetry() },
+    sourceCommit: request.sourceCommit,
+  };
+  const selected = selectSlot(definition, request);
+  await fillGate(run, selected, request, options);
+  await writeCatalog(
+    request.outputPath ?? configuration.outputPath,
+    selected ? emptyGateFragment(run.runId, run.records) : upsertRun(catalog, run),
+  );
+  return selected ? selectedVerdict(run, selected) : finalVerdict(run, options);
+}
+
 export function createGateRunner({
   repositoryRoot,
   catalogPath = path.join(repositoryRoot, "verification/catalog.json"),
@@ -125,45 +208,13 @@ export function createGateRunner({
   owner,
 } = {}) {
   if (!repositoryRoot) throw new Error("repositoryRoot is required");
-  const defaultOwner = createOwners({ repositoryRoot });
-  return {
-    async run(request) {
-      const definition = GATE_DEFINITIONS[request.gate];
-      if (!definition) throw new Error(`unsupported gate: ${request.gate}`);
-      if (!request.runId) throw new Error("--run-id is required");
-      const now = request.now ?? new Date().toISOString();
-      if (Number.isNaN(Date.parse(now))) throw new Error("--now must be RFC 3339");
-      const policy = JSON.parse(await readFile(path.join(repositoryRoot, "verification/evidence-policy.json"), "utf8"));
-      const catalog = await loadCatalog({
-        catalogPath,
-        outputPath,
-        incomingPath: request.incomingPath ?? incomingPath,
-        policy,
-      });
-      const apk = await apkIdentity(request.apkPath, request.apkDigest);
-      const records = catalog.gateRuns[request.runId] ?? [];
-      const run = new GateRun({ definition, runId: request.runId, sourceCommit: request.sourceCommit, apkDigest: apk.apkDigest, records });
-      assertIdentity(run, definition, request.sourceCommit, apk.apkDigest);
-      const retryUsed = { value: run.usedDiagnosticRetry() };
-      const options = { apkDigest: apk.apkDigest, apkPath: apk.apkPath, catalog, defaultOwner, digestMismatch: apk.digestMismatch, now, owner, policy, repositoryRoot, retryUsed, sourceCommit: request.sourceCommit };
-      const selected = request.slot ? definition.slots.find((slot) => slot.id === request.slot) : null;
-      if (request.slot && !selected) throw new Error(`slot ${request.slot} is not in ${request.gate}`);
-      if (selected) await fillSlot(run, selected, options);
-      else {
-        for (const slot of definition.slots) {
-          if (slot.id !== gateRecordId(definition.id) && (!request.read || slot.owner === "catalog-read" || slot.owner === "run-archive")) {
-            await fillSlot(run, slot, options);
-          }
-        }
-        await fillSummary(run, options);
-      }
-      const output = selected ? emptyGateFragment(run.runId, run.records) : upsertRun(catalog, run);
-      await writeCatalog(request.outputPath ?? outputPath, output);
-      if (selected) {
-        const record = run.record(selected.id);
-        return { pass: record?.result === "pass", reason: record?.result ?? "missing-slot", failures: [] };
-      }
-      return finalVerdict(run, options);
-    },
-  };
+  return { run: (request) => runRequest(request, {
+    catalogPath,
+    defaultOwner: createOwners({ repositoryRoot }),
+    incomingPath,
+    outputPath,
+    owner,
+    policyPath: path.join(repositoryRoot, "verification/evidence-policy.json"),
+    repositoryRoot,
+  }) };
 }

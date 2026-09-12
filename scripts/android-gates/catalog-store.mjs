@@ -152,7 +152,9 @@ export async function evidenceRecord({ repositoryRoot, run, slot, fill, now, ret
 }
 
 export function upsertRun(catalog, run) {
-  mergeRun(catalog, run.runId, run.records);
+  catalog.gateRuns[run.runId] = [...run.records].toSorted((left, right) =>
+    left.id.localeCompare(right.id),
+  );
   return catalog;
 }
 
