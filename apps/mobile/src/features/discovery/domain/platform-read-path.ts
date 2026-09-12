@@ -19,13 +19,7 @@ export function selectPlatformReadPath(input: {
   if (input.userToken.kind === "ready") {
     return { kind: "direct", platform: input.platform };
   }
-  if (input.installation.kind === "ready") {
-    return { kind: "relay", platform: input.platform };
-  }
-  if (input.userToken.kind === "auth-lost") {
-    return unavailable(input.platform, "auth-lost");
-  }
-  return unavailable(input.platform, "signed-out-login-required");
+  return { kind: "relay", platform: input.platform };
 }
 
 export function followedStreamsPath(input: {

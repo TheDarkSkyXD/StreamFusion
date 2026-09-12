@@ -1,10 +1,12 @@
 import type {
   Category,
   Channel,
+  Clip,
   Stream,
+  Video,
 } from "@streamfusion/core/content";
 import type { DiscoveryProviderStatus } from "@streamfusion/core/discovery";
-import type { Platform } from "@streamfusion/core/platform";
+import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
 export type UserTokenRead =
   | { readonly kind: "none" }
@@ -105,6 +107,69 @@ export interface HomeDiscoverySession {
     readonly platform: Platform;
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Stream>>;
+}
+
+export type ChannelPageOutcome = {
+  readonly platform: Platform;
+  readonly path: PlatformReadPath;
+  readonly status: DiscoveryProviderStatus;
+  readonly channel: Channel | null;
+  readonly live: Stream | null;
+  readonly cache: CacheProjection;
+  readonly error?: { readonly code: string; readonly retry: PlatformReadRetry };
+};
+
+export type ChannelMediaRead<T> =
+  | { readonly kind: "page"; readonly outcome: PlatformReadOutcome<T> }
+  | {
+      readonly kind: "unsupported";
+      readonly platform: Platform;
+      readonly media: "videos" | "clips";
+    };
+
+export type FollowView =
+  | { readonly kind: "guest-unsupported" }
+  | { readonly kind: "pending" }
+  | { readonly kind: "failed"; readonly reason: string };
+
+export type WatchAvailability = {
+  readonly kind: "unavailable";
+  readonly reason: string;
+};
+
+export type ChannelDetailTab = "home" | "videos" | "clips";
+
+export type ChannelDetailPhase =
+  | "loading"
+  | "ready"
+  | "offline-cache"
+  | "empty"
+  | "failed";
+
+export type ChannelDetailView = {
+  readonly channel: Channel | null;
+  readonly live: Stream | null;
+  readonly videos: ChannelMediaRead<Video>;
+  readonly clips: ChannelMediaRead<Clip>;
+  readonly follow: FollowView;
+  readonly watch: WatchAvailability;
+  readonly phase: ChannelDetailPhase;
+  readonly page: ChannelPageOutcome;
+};
+
+export interface DiscoverySession extends HomeDiscoverySession {
+  readChannel(input: {
+    readonly channel: ChannelIdentity;
+    readonly signal?: AbortSignal;
+  }): Promise<ChannelPageOutcome>;
+  readChannelVideos(input: {
+    readonly channel: ChannelIdentity;
+    readonly signal?: AbortSignal;
+  }): Promise<ChannelMediaRead<Video>>;
+  readChannelClips(input: {
+    readonly channel: ChannelIdentity;
+    readonly signal?: AbortSignal;
+  }): Promise<ChannelMediaRead<Clip>>;
 }
 
 export type DiscoveryFixtureMode =

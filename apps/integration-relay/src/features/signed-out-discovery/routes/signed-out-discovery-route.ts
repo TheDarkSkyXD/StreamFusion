@@ -2,8 +2,11 @@ import {
   createRelayFailureEnvelope,
   createRelaySuccessEnvelope,
   signedOutCategoriesBodySchema,
+  signedOutChannelBodySchema,
+  signedOutClipsBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema,
+  signedOutVideosBodySchema,
   type JsonValue
 } from "@streamfusion/core/relay";
 
@@ -44,21 +47,25 @@ export function createSignedOutDiscoveryRoute(input: {
     const kind = routeKind(url.pathname, request.method);
     if (kind === null) return null;
     const credential = bearerCredential(request);
-    if (credential === null)
-      return failure(requestId, "unauthorized", 401, "never");
     const platform = platformFrom(url);
     if (!(await consumeAbuseLimit(input, request, kind, platform)))
       return failure(requestId, "rate_limited", 429, "after");
-    const installation =
-      await input.authorizer.authenticatedInstallation(credential);
-    if (installation === null)
-      return failure(requestId, "unauthorized", 401, "never");
-    if (platform === null)
+    if (credential !== null) {
+      const installation =
+        await input.authorizer.authenticatedInstallation(credential);
+      if (installation === null)
+        return failure(requestId, "unauthorized", 401, "never");
+      if (platform === null)
+        return failure(requestId, "invalid_request", 400, "never");
+      if (
+        !(await consumeInstallationLimit(input, kind, platform, installation))
+      )
+        return failure(requestId, "rate_limited", 429, "after");
+      if ((await input.authorizer.authorizeRead(credential)) === null)
+        return failure(requestId, "unauthorized", 401, "never");
+    } else if (platform === null) {
       return failure(requestId, "invalid_request", 400, "never");
-    if (!(await consumeInstallationLimit(input, kind, platform, installation)))
-      return failure(requestId, "rate_limited", 429, "after");
-    if ((await input.authorizer.authorizeRead(credential)) === null)
-      return failure(requestId, "unauthorized", 401, "never");
+    }
     const command = commandFrom(kind, platform, url);
     if (command === null)
       return failure(requestId, "invalid_request", 400, "never");
@@ -105,6 +112,9 @@ function routeKind(
   if (pathname === "/v1/discovery/top-streams") return "top-streams";
   if (pathname === "/v1/discovery/categories") return "categories";
   if (pathname === "/v1/discovery/search") return "search";
+  if (pathname === "/v1/discovery/channel") return "channel";
+  if (pathname === "/v1/discovery/channel-videos") return "channel-videos";
+  if (pathname === "/v1/discovery/channel-clips") return "channel-clips";
   return null;
 }
 
@@ -118,9 +128,30 @@ function commandFrom(
   platform: DiscoveryPlatform,
   url: URL
 ) {
-  if (kind !== "search") return { kind, platform };
-  const query = url.searchParams.get("q")?.trim() ?? "";
-  return query === "" ? null : { kind, platform, query };
+  if (kind === "search") {
+    const query = url.searchParams.get("q")?.trim() ?? "";
+    return query === "" ? null : { kind, platform, query };
+  }
+  if (
+    kind === "channel" ||
+    kind === "channel-videos" ||
+    kind === "channel-clips"
+  ) {
+    const lookup = channelLookupFrom(url);
+    return lookup === null ? null : { kind, lookup, platform };
+  }
+  return { kind, platform };
+}
+
+function channelLookupFrom(url: URL) {
+  const id = url.searchParams.get("id")?.trim() ?? "";
+  const login = url.searchParams.get("login")?.trim() ?? "";
+  if (id === "" && login === "") return null;
+  if (id.length > 128 || login.length > 64) return null;
+  return {
+    ...(id === "" ? {} : { id }),
+    ...(login === "" ? {} : { login })
+  };
 }
 
 function discoveryResponse(
@@ -140,7 +171,13 @@ function validBody(result: AvailableDiscoveryReadResult): JsonValue | null {
     return signedOutTopStreamsBodySchema.is(result.body) ? result.body : null;
   if (result.kind === "categories")
     return signedOutCategoriesBodySchema.is(result.body) ? result.body : null;
-  return signedOutSearchBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "search")
+    return signedOutSearchBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "channel")
+    return signedOutChannelBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "channel-videos")
+    return signedOutVideosBodySchema.is(result.body) ? result.body : null;
+  return signedOutClipsBodySchema.is(result.body) ? result.body : null;
 }
 
 function success(requestId: string, body: JsonValue): Response {

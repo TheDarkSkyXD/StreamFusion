@@ -186,6 +186,39 @@ describe("adaptive app shell", () => {
     ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
+  it("restores a More channel location without adding it to the More menu", () => {
+    const state = createInitialShellNavigationState();
+    const opened = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        channel: { id: "c1", platform: "twitch", username: "alice" },
+        route: "more/channel",
+      },
+    });
+    expect(getActiveShellLocation(opened)).toEqual({
+      channel: { id: "c1", platform: "twitch", username: "alice" },
+      route: "more/channel",
+    });
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(opened),
+    );
+    expect(restored).toMatchObject({
+      kind: "restored",
+      state: {
+        histories: {
+          more: {
+            trail: [
+              {
+                channel: { id: "c1", platform: "twitch", username: "alice" },
+                route: "more/channel",
+              },
+            ],
+          },
+        },
+      },
+    });
+  });
+
   it("keeps Home first and Accounts or maintenance last under More", () => {
     expect(MORE_ROUTE_IDS).toEqual([
       "more/home",

@@ -15,6 +15,7 @@ import type {
   PlatformReadOutcome,
 } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import { createRelayChannelReader } from "./relay-channel-reader";
 
 export function createRelaySignedOutReader(input: {
   readonly baseUrl: string;
@@ -22,6 +23,7 @@ export function createRelaySignedOutReader(input: {
   readonly installation: () => Promise<InstallationIdentityRead>;
 }) {
   return {
+    ...createRelayChannelReader(input),
     async getCategories(inputRead: {
       readonly platform: Platform;
       readonly signal?: AbortSignal;
@@ -98,27 +100,15 @@ async function relayRead<T>(options: {
     return cancelled(options.inputRead.platform);
   }
   const identity = await options.input.installation();
-  if (identity.kind !== "ready") {
-    return {
-      cache: { kind: "miss" },
-      error: { code: "signed-out-login-required", retry: "manual" },
-      items: [],
-      path: {
-        kind: "unavailable",
-        platform: options.inputRead.platform,
-        reason: "signed-out-login-required",
-      },
-      platform: options.inputRead.platform,
-      status: "failed",
-    };
-  }
   try {
     const url = new URL(options.path, options.input.baseUrl);
     url.searchParams.set("platform", options.inputRead.platform);
     const response = await options.input.fetch(
       url.toString(),
       requestInit(
-        { Authorization: `Bearer ${identity.credential}` },
+        identity.kind === "ready"
+          ? { Authorization: `Bearer ${identity.credential}` }
+          : {},
         options.inputRead.signal,
       ),
     );

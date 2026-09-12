@@ -11,11 +11,9 @@ import {
 import type { PlatformReadOutcome } from "../capabilities/platform-reads";
 
 export function HomeProviderBanner({
-  onOpenAccounts,
   onRetry,
   outcome,
 }: {
-  readonly onOpenAccounts: () => void;
   readonly onRetry: (platform: Platform) => void;
   readonly outcome: PlatformReadOutcome<Stream>;
 }) {
@@ -52,23 +50,6 @@ export function HomeProviderBanner({
             {`Retry ${outcome.platform}`}
           </Text>
         </Pressable>
-      ) : outcome.error?.code === "auth-lost" ||
-        (outcome.path.kind === "unavailable" &&
-          outcome.path.reason === "signed-out-login-required") ? (
-        <Pressable
-          accessibilityLabel={`Sign in to ${outcome.platform}`}
-          accessibilityRole="button"
-          onPress={onOpenAccounts}
-          style={({ pressed }) => [
-            styles.retry,
-            pressed ? styles.pressed : null,
-          ]}
-          testID={`home-login-${outcome.platform}`}
-        >
-          <Text selectable style={styles.retryLabel}>
-            Sign in
-          </Text>
-        </Pressable>
       ) : null}
     </View>
   );
@@ -76,7 +57,7 @@ export function HomeProviderBanner({
 
 function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
   if (outcome.error?.code === "auth-lost") {
-    return `${platformLabel(outcome.platform)} sign-in was lost. Catalog can still use Relay.`;
+    return `${platformLabel(outcome.platform)} catalog can still use Relay.`;
   }
   if (outcome.error?.code === "cancelled") {
     return `${platformLabel(outcome.platform)} read was cancelled.`;
@@ -94,7 +75,7 @@ function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
     outcome.path.kind === "unavailable" &&
     outcome.path.reason === "signed-out-login-required"
   ) {
-    return `${platformLabel(outcome.platform)} needs sign-in or a registered installation.`;
+    return `${platformLabel(outcome.platform)} Relay is unavailable.`;
   }
   if (outcome.status === "failed") {
     return `${platformLabel(outcome.platform)} live reads failed.`;
@@ -123,7 +104,6 @@ function viewRetryable(outcome: PlatformReadOutcome<Stream>): boolean {
       outcome.error?.retry === "after" ||
       outcome.status === "failed" ||
       outcome.status === "partial") &&
-    outcome.error?.code !== "auth-lost" &&
     outcome.error?.code !== "cancelled"
   );
 }

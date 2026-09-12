@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "issue": 148,
+  "ticketId": "D05",
+  "mobileSourceCommit": "3b20a2756c0a3a9c4dd3aeef4313775adf36b5a3",
+  "observedAt": "2026-09-12T05:17:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "D05 Home and Channel Detail guest receipt. It does not claim live Twitch or Kick catalog success, Watch playback, Following writes, tablet layout, or TalkBack."
+  },
+  "candidate": {
+    "apkSha256": "1596d999e5ca19d5404bcfc89a5c182bad55d6397c5cb1946eb5550022844d5e",
+    "apkSizeBytes": 330285210,
+    "mobileTree": "c8489d59d24356d7da4ae2344bacc87b4ca4f80f",
+    "discoveryTree": "9f40d6497406b34c6c511007919345e36147de7a",
+    "coreRelayTree": "6a294eae5c2f67dd5f11439f248ccaa837f9820f",
+    "relaySignedOutDiscoveryTree": "0d38f6e680fd3d16d133bc790c2f994b01135de7",
+    "provenance": "The installed Android development client loaded JavaScript from Metro for source 3b20a275. The Home and Channel Detail proof panels printed issue-148-d05-60c4. The APK is a development client, not a release artifact bound to all JavaScript source."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Owned-slice checks passed on implementation commit 3b20a275 for Core, Mobile, and Relay (architecture, typecheck, lint, and unit tests).",
+        "Desktop preview smoke did not run here because Electron is uninstalled in this workspace."
+      ]
+    },
+    "api30-journey": {
+      "result": "pass",
+      "observations": [
+        "Mobile MCP launched the rebuilt development client, connected it to Metro, and drove Search, More, Home, then Channel Detail without any account.",
+        "Every captured Home and Channel Detail frame showed the source token issue-148-d05-60c4.",
+        "Home live showed Retry Twitch. Home auth-lost showed Retry Twitch and Twitch catalog can still use Relay. No Sign in control appeared.",
+        "Home ready showed Live recommendations from Twitch and Kick plus a LIVE card for Twitch catalog proof stream.",
+        "Opening a Home card reached Channel Detail with Home, Videos, and Clips tabs.",
+        "Follow showed Guest Follow is not available yet. Watch showed Watch is not available yet. Discovery stayed open.",
+        "Kick Videos and Clips showed first-class unsupported copy for the official public API."
+      ]
+    },
+    "tablet-layout": {
+      "result": "residual",
+      "observations": [
+        "This journey used the StreamFusion_API30 phone emulator only. No tablet AVD was driven."
+      ]
+    },
+    "live-platforms": {
+      "result": "residual",
+      "observations": [
+        "This workspace has no live Twitch or Kick user tokens and no signed-out Relay with official Platform credentials.",
+        "The live chip proves the guest unavailable path (Twitch live reads failed or Twitch Relay is unavailable) plus Retry, not a successful official catalog read."
+      ]
+    },
+    "offline-cache": {
+      "result": "pass",
+      "observations": [
+        "Home stale-cache showed Showing cached recommendations while a live read is unavailable, Twitch is showing a cached catalog, and Cached 60 min ago."
+      ]
+    },
+    "accessibility": {
+      "result": "residual",
+      "observations": [
+        "Proof chips, Retry, Follow, Watch, and tab controls expose accessibility labels in source and unit tests.",
+        "TalkBack, large text, and a tablet matrix were not driven on this API 30 TCG emulator."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-148/issue148-guest-search-shell.png",
+      "sha256": "34798301322d7a182271f56d5f08684acc1a32240e8f0fad82f264de0bdea5d8",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Signed-out Search shell. No login screen. Five destinations remain usable."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-more-menu.png",
+      "sha256": "b342d2b7ccec8a3acff4cd70092c42d2481ee4ddd68b49c3631d7b6e5c208c7d",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "More lists Home first. Combined Twitch and Kick recommendation feed. No Sign in."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-home-live.png",
+      "sha256": "9f468955c99ce49c58f2853753b5f59511e67de3963d7099c7267d600a484730",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Home live chip. Token issue-148-d05-60c4. Twitch live reads failed plus Retry Twitch. No Sign in."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-home-ready.png",
+      "sha256": "6f8269f2a1c2c89ae721e1e58ba26a8e090412767b8e9af17e5fa3e1501704af",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Home ready chip. Live recommendations from Twitch and Kick. LIVE card."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-home-ready-scrolled.png",
+      "sha256": "110b073055a759de9ed22e9bf3c658e5a905aa86aed36c415adfd562c39fbc78",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Home ready scrolled. Twitch catalog proof stream. 90 viewers."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-home-stale-cache.png",
+      "sha256": "cf7cafc6dba6ac1a8d3bba03959dafe88a38a389d1fdf760706bc1d1cdf9211d",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Home stale-cache. Cached recommendations. Cached 60 min ago."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-home-auth-lost.png",
+      "sha256": "bf7916bf9f320b8a8cceecad2aaae744f89a1ba1ad56e0be982592450b4c811c",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Home auth-lost. Twitch catalog can still use Relay. Retry Twitch. No Sign in."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-home-before-extra.png",
+      "sha256": "6df1869f88fe9727ece227b7d587cf2f95d021c3b62b8d47cd9b2e9f07681171",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Home live residual. Twitch Relay is unavailable. Retry Twitch. No Sign in."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-channel-home.png",
+      "sha256": "b6c25af1c6077bd5a66bc03244fd1ddd0d7830c8157c9a054419cc45a766722f",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Channel Detail live. Retry, not login. Home tab. Channel details could not be loaded."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-channel-kick-unsupported.png",
+      "sha256": "f12f5a0c4b29f79eac0e38a923a32d40c3def04c362595e3d04a9433558ea85c",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Channel header. Follow plus Guest Follow is not available yet. Watch is not available yet."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-channel-videos-kick.png",
+      "sha256": "645669d24a30eca66673138b1bc847573900fbefa56cd98c14f74a3a2a09afc8",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Videos tab. Kick does not publish videos on the official public API."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-channel-clips-kick.png",
+      "sha256": "23eee7eda08df3b0e74c48c302be395fc3dcf29073507c8fc610885581d63fdd",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Clips tab. Kick does not publish clips on the official public API."
+    },
+    {
+      "path": "verification/evidence/issue-148/issue148-channel-ready-header.png",
+      "sha256": "8c7479203d1d035e98ed4bd51e50567b0284f0fccfb51426ec2a9c25330e339e",
+      "observedAt": "2026-09-12T05:17:00.000Z",
+      "scope": "Channel ready. Header, follow degrade, Watch degrade, clip row."
+    }
+  ],
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/148"
+  ]
+}

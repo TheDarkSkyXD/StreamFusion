@@ -49,7 +49,8 @@ import {
   type TwitchAccountActions,
   type TwitchAccountViewModel,
 } from "@mobile/features/auth/components/twitch-accounts-panel";
-import type { HomeDiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import { ChannelDetailScreen } from "@mobile/features/discovery/components/channel-detail-screen";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
 
 import { DestinationIcon } from "./destination-icon";
@@ -150,7 +151,7 @@ export function AppShell({
   readonly kickAccountDevelopmentFixture: boolean;
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
-  readonly homeDiscovery: HomeDiscoverySession;
+  readonly homeDiscovery: DiscoverySession;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -444,7 +445,7 @@ function ShellScreen({
   readonly kickAccountDevelopmentFixture: boolean;
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
-  readonly homeDiscovery: HomeDiscoverySession;
+  readonly homeDiscovery: DiscoverySession;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -513,9 +514,26 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-more-home">
         <HomeLiveDiscoveryScreen
-          onOpenAccounts={() =>
-            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          onOpenCategories={() =>
+            dispatch({ type: "navigate", location: { route: "more/categories" } })
           }
+          onOpenChannel={(channel) =>
+            dispatch({
+              type: "navigate",
+              location: { channel, route: "more/channel" },
+            })
+          }
+          session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/channel") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-channel">
+        <ChannelDetailScreen
+          channel={location.channel}
           session={homeDiscovery}
         />
       </View>

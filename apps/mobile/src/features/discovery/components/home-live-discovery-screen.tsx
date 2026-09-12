@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
-import type { Platform } from "@streamfusion/core/platform";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
 import {
   mobileColors,
@@ -10,9 +10,10 @@ import {
 } from "@mobile/design/tokens";
 import type {
   DiscoveryFixtureMode,
-  HomeDiscoverySession,
+  DiscoverySession,
   HomeLiveDiscoveryView as HomeLiveDiscoveryModel,
 } from "../capabilities/platform-reads";
+import { channelFromStream } from "../domain/channel-detail";
 import { fixtureOutcome } from "../domain/discovery-fixture";
 import { composeHomeLiveDiscovery } from "../domain/home-live-discovery";
 
@@ -22,11 +23,13 @@ import { HomeStreamCard } from "./home-stream-card";
 import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
 export function HomeLiveDiscoveryScreen({
-  onOpenAccounts,
+  onOpenCategories,
+  onOpenChannel,
   session,
 }: {
-  readonly onOpenAccounts: () => void;
-  readonly session: HomeDiscoverySession;
+  readonly onOpenCategories: () => void;
+  readonly onOpenChannel: (channel: ChannelIdentity) => void;
+  readonly session: DiscoverySession;
 }) {
   const [mode, setMode] = useState<DiscoveryFixtureMode>("live");
   const live = useHomeLiveDiscovery({
@@ -43,24 +46,25 @@ export function HomeLiveDiscoveryScreen({
         });
   return (
     <HomeLiveDiscoveryView
-      onOpenAccounts={onOpenAccounts}
+      onOpenCategories={onOpenCategories}
+      onOpenChannel={onOpenChannel}
       onRetry={live.retry}
       view={view}
-      {...(__DEV__
-        ? { onSelectProofMode: setMode, proofMode: mode }
-        : {})}
+      {...(__DEV__ ? { onSelectProofMode: setMode, proofMode: mode } : {})}
     />
   );
 }
 
 export function HomeLiveDiscoveryView({
-  onOpenAccounts,
+  onOpenCategories,
+  onOpenChannel,
   onRetry,
   onSelectProofMode,
   proofMode,
   view,
 }: {
-  readonly onOpenAccounts: () => void;
+  readonly onOpenCategories: () => void;
+  readonly onOpenChannel: (channel: ChannelIdentity) => void;
   readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly proofMode?: DiscoveryFixtureMode;
@@ -73,8 +77,29 @@ export function HomeLiveDiscoveryView({
       style={styles.scroll}
       testID="home-live-discovery"
     >
-      <Text accessibilityRole="header" selectable style={styles.title}>
-        Home
+      <View style={styles.titleRow}>
+        <Text accessibilityRole="header" selectable style={styles.title}>
+          Home
+        </Text>
+        <Pressable
+          accessibilityHint="Opens categories"
+          accessibilityLabel="Categories"
+          accessibilityRole="button"
+          android_ripple={{ color: mobileColors.surfaceRaised }}
+          onPress={onOpenCategories}
+          style={({ pressed }) => [
+            styles.categories,
+            pressed ? styles.pressed : null,
+          ]}
+          testID="home-categories"
+        >
+          <Text selectable style={styles.categoriesLabel}>
+            Categories
+          </Text>
+        </Pressable>
+      </View>
+      <Text selectable style={styles.heading}>
+        Recommended live
       </Text>
       <Text selectable style={styles.summary} testID="home-phase">
         {phaseCopy(view)}
@@ -85,37 +110,15 @@ export function HomeLiveDiscoveryView({
           onSelect={onSelectProofMode}
         />
       ) : null}
-      <HomeProviderBanner
-        onOpenAccounts={onOpenAccounts}
-        onRetry={onRetry}
-        outcome={view.providers.twitch}
-      />
-      <HomeProviderBanner
-        onOpenAccounts={onOpenAccounts}
-        onRetry={onRetry}
-        outcome={view.providers.kick}
-      />
+      <HomeProviderBanner onRetry={onRetry} outcome={view.providers.twitch} />
+      <HomeProviderBanner onRetry={onRetry} outcome={view.providers.kick} />
       {view.streams.map((stream) => (
-        <HomeStreamCard key={`${stream.platform}:${stream.id}`} stream={stream} />
+        <HomeStreamCard
+          key={`${stream.platform}:${stream.id}`}
+          onOpen={() => onOpenChannel(channelFromStream(stream))}
+          stream={stream}
+        />
       ))}
-      {needsLogin(view) ? (
-        <Pressable
-          accessibilityHint="Opens Accounts so you can sign in"
-          accessibilityLabel="Sign in"
-          accessibilityRole="button"
-          android_ripple={{ color: mobileColors.surfaceRaised }}
-          onPress={onOpenAccounts}
-          style={({ pressed }) => [
-            styles.login,
-            pressed ? styles.pressed : null,
-          ]}
-          testID="home-login"
-        >
-          <Text selectable style={styles.loginLabel}>
-            Sign in
-          </Text>
-        </Pressable>
-      ) : null}
     </ScrollView>
   );
 }
@@ -135,17 +138,6 @@ function phaseCopy(view: HomeLiveDiscoveryModel): string {
   }
 }
 
-function needsLogin(view: HomeLiveDiscoveryModel): boolean {
-  return (["twitch", "kick"] as const).some((platform) => {
-    const outcome = view.providers[platform];
-    return (
-      outcome.error?.code === "auth-lost" ||
-      (outcome.path.kind === "unavailable" &&
-        outcome.path.reason === "signed-out-login-required")
-    );
-  });
-}
-
 const styles = StyleSheet.create({
   scroll: {
     flex: 1,
@@ -156,30 +148,42 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
+  titleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   title: {
     color: mobileColors.textPrimary,
     fontSize: 28,
     fontWeight: "700",
     lineHeight: 34,
   },
+  categories: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  categoriesLabel: {
+    color: mobileColors.textPrimary,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  heading: {
+    color: mobileColors.textPrimary,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
+  },
   summary: {
     color: mobileColors.textCategory,
     fontSize: 16,
     fontWeight: "500",
     lineHeight: 24,
-  },
-  login: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  loginLabel: {
-    color: mobileColors.background,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
   },
   pressed: {
     opacity: 0.76,

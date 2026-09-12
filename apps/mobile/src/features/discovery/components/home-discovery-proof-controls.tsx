@@ -35,7 +35,7 @@ export function HomeDiscoveryProofControls({
         DEVELOPMENT PLATFORM READS
       </Text>
       <Text selectable style={styles.source} testID="home-proof-source">
-        issue-147-d04-f481
+        issue-148-d05-60c4
       </Text>
       <View style={styles.row}>
         {PROOF_MODES.map((next) => (

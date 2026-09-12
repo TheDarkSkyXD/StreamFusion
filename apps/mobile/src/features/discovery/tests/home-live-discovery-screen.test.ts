@@ -49,7 +49,8 @@ function render(
 ) {
   const retried: string[] = [];
   const root = HomeLiveDiscoveryView({
-    onOpenAccounts: () => undefined,
+    onOpenCategories: () => undefined,
+    onOpenChannel: () => undefined,
     onRetry: (platform) => {
       retried.push(platform);
     },
@@ -80,8 +81,10 @@ describe("Home live discovery screen", () => {
   });
 
   it("stamps the Home proof panel with the D04 source token", () => {
+    const opened: string[] = [];
     const root = HomeLiveDiscoveryView({
-      onOpenAccounts: () => undefined,
+      onOpenCategories: () => opened.push("categories"),
+      onOpenChannel: (channel) => opened.push(`${channel.platform}:${channel.username}`),
       onRetry: () => undefined,
       onSelectProofMode: () => undefined,
       proofMode: "ready",
@@ -96,8 +99,13 @@ describe("Home live discovery screen", () => {
       nodes.some((node) => node.props.testID === "home-proof-source")
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.children === "issue-147-d04-f481")
+      nodes.some((node) => node.props.children === "issue-148-d05-60c4")
     ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.children === "Recommended live")
+    ).toBe(true);
+    nodes.find((node) => node.props.testID === "home-categories")?.props.onPress?.();
+    expect(opened).toEqual(["categories"]);
   });
 
   it("shows a loading phase before either catalog arrives", () => {
@@ -128,7 +136,7 @@ describe("Home live discovery screen", () => {
     expect(retried).toEqual(["twitch"]);
   });
 
-  it("surfaces stale cache age, auth-lost login, and Relay unavailability", () => {
+  it("surfaces stale cache age, guest retry after auth-lost, and Relay unavailability", () => {
     const stale = render(
       fixtureOutcome("twitch", "stale-cache"),
       fixtureOutcome("kick", "stale-cache")
@@ -142,8 +150,11 @@ describe("Home live discovery screen", () => {
       fixtureOutcome("kick", "ready")
     );
     expect(
-      authLost.nodes.some((node) => node.props.testID === "home-login")
+      authLost.nodes.some((node) => node.props.testID === "home-retry-twitch")
     ).toBe(true);
+    expect(
+      authLost.nodes.some((node) => node.props.testID === "home-login")
+    ).toBe(false);
 
     const relayDown = render(
       fixtureOutcome("twitch", "relay-unavailable"),
