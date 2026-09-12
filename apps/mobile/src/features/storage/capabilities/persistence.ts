@@ -2,6 +2,11 @@ import type {
   ActivityItem,
   SerializedTimestamp,
 } from "@streamfusion/core/activity";
+import type {
+  GuestFollow,
+  LiveNotificationPreferences,
+} from "@streamfusion/core/follows";
+import type { Platform } from "@streamfusion/core/platform";
 
 export type PersistenceUnavailableReason =
   | "secure-store-unavailable"
@@ -127,11 +132,27 @@ export interface InstallationPolicySnapshotStore {
   write(value: string, updatedAtEpochMs: number): Promise<void>;
 }
 
+export interface GuestFollowRepository {
+  list(): Promise<readonly GuestFollow[]>;
+  remove(identity: {
+    readonly platform: Platform;
+    readonly channelId: string;
+  }): Promise<void>;
+  upsert(value: unknown): Promise<GuestFollow>;
+}
+
+export interface LiveNotificationPreferenceStore {
+  read(): Promise<LiveNotificationPreferences>;
+  write(value: unknown): Promise<LiveNotificationPreferences>;
+}
+
 export interface MobileProductState {
   readonly activity: ActivityRepository;
   readonly capabilityProfile: CapabilityProfileSnapshotStore;
+  readonly guestFollows: GuestFollowRepository;
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
+  readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly shellRestoration: ShellRestorationRepository;
 }
 

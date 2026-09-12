@@ -127,6 +127,13 @@ function runtime(
         read: async () => null,
         write: async () => undefined,
       },
+      guestFollows: {
+        list: async () => [],
+        remove: async () => undefined,
+        upsert: async () => {
+          throw new Error("unused");
+        },
+      },
       installationIdentityPresence: {
         read: async () => null,
         write: async () => undefined,
@@ -134,6 +141,14 @@ function runtime(
       installationPolicy: {
         read: async () => null,
         write: async () => undefined,
+      },
+      liveNotifications: {
+        read: async () => {
+          throw new Error("unused");
+        },
+        write: async () => {
+          throw new Error("unused");
+        },
       },
       shellRestoration: {
         clear: async () => undefined,
