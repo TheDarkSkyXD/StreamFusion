@@ -12,11 +12,12 @@
  * `process.stderr.write`) never sees them. Routing Chromium's log to a file
  * we own and tailing it back into our session log closes that gap.
  *
- * Why `fs.watchFile` instead of `fs.watch`: `fs.watch` is famously unreliable
- * for file growth across platforms (it fires on inode changes, not size
- * changes, on Linux; it doesn't fire at all for some filesystems on Windows).
- * `fs.watchFile` polls `stat()` at a fixed interval and works everywhere.
- * The polling cost is one stat call per second — negligible.
+ * Why a `createManagedInterval` stat poll instead of `fs.watch` /
+ * `fs.watchFile`: `fs.watch` misses append-only growth on several
+ * platforms. `fs.watchFile` uses `uv_fs_poll`, which can sample the
+ * post-append size as its first baseline and then never emit. Comparing
+ * each tick to our `readPosition` still delivers those lines. One stat
+ * per second in production.
  *
  * No recursion guard needed: this tailer reads from disk and writes to a
  * DIFFERENT file (the main session log), so the logger's own write back to
@@ -27,11 +28,12 @@ import fs from "node:fs";
 
 import { isHarmlessChromiumNoise } from "@backend/logging/chromium-noise-filter";
 import { logger } from "@backend/logging/logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 
 export interface ChromiumLogTailerOpts {
   /** Absolute path of the file Chromium writes to. */
   filePath: string;
-  /** Polling interval for `fs.watchFile` (ms). Default 1000. */
+  /** Stat-poll interval (ms). Default 1000. */
   pollIntervalMs?: number;
 }
 
@@ -71,8 +73,6 @@ interface TailerState {
   readPosition: number;
   /** Carry-over for a line that didn't end with `\n` on the previous read. */
   carry: string;
-  /** Watcher reference so `stop()` can detach. */
-  watching: boolean;
 }
 
 /** Stop function returned from `startChromiumLogTailer`. Idempotent. */
@@ -85,20 +85,19 @@ export function startChromiumLogTailer(opts: ChromiumLogTailerOpts): StopChromiu
   const state: TailerState = {
     readPosition: 0,
     carry: "",
-    watching: false,
   };
 
   // If the file already exists (Chromium started before us — true on resume),
   // start tailing from the END so we don't replay every line on relaunch.
-  // If it doesn't exist yet, fs.watchFile will fire when it appears.
+  // If it doesn't exist yet, the next successful stat starts from byte 0.
   try {
     const stat = fs.statSync(filePath);
     state.readPosition = stat.size;
-  } catch {
-    // Missing file is fine — watchFile handles creation events.
+  } catch (error) {
+    if (!isEnoent(error)) throw error;
   }
 
-  const onChange = (curr: fs.Stats, _prev: fs.Stats): void => {
+  const onChange = (curr: fs.Stats): void => {
     if (curr.size < state.readPosition) {
       // File was truncated / rotated — reset and re-tail from the start.
       state.readPosition = 0;
@@ -140,12 +139,18 @@ export function startChromiumLogTailer(opts: ChromiumLogTailerOpts): StopChromiu
     }
   };
 
-  fs.watchFile(filePath, { interval: pollIntervalMs }, onChange);
-  state.watching = true;
-
-  return (): void => {
-    if (!state.watching) return;
-    fs.unwatchFile(filePath, onChange);
-    state.watching = false;
+  const poll = (): void => {
+    try {
+      onChange(fs.statSync(filePath));
+    } catch {
+      return;
+    }
   };
+
+  const handle = createManagedInterval(poll, pollIntervalMs);
+  return handle.stop;
+}
+
+function isEnoent(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
