@@ -127,11 +127,17 @@ export interface InstallationPolicySnapshotStore {
   write(value: string, updatedAtEpochMs: number): Promise<void>;
 }
 
+export interface ProductSettingsStore {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string, updatedAt: number): Promise<void>;
+}
+
 export interface MobileProductState {
   readonly activity: ActivityRepository;
   readonly capabilityProfile: CapabilityProfileSnapshotStore;
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
+  readonly settings: ProductSettingsStore;
   readonly shellRestoration: ShellRestorationRepository;
 }
 

@@ -576,6 +576,16 @@ export function createMobileStoreRuntime(
           });
         },
       },
+      settings: {
+        async read(key: string) {
+          return (await (await requireProductStore()).getSetting(key))?.value ?? null;
+        },
+        async write(key: string, value: string, updatedAt: number) {
+          await (
+            await requireProductStore()
+          ).setSetting({ key, updatedAt, value });
+        },
+      },
     },
     async close() {
       if (closing) return closing;

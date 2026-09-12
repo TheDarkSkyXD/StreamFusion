@@ -1,4 +1,10 @@
-import type { Stream } from "@streamfusion/core/content";
+import type {
+  Category,
+  Clip,
+  SerializedTimestamp,
+  Stream,
+  Video,
+} from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type {
@@ -28,6 +34,66 @@ export function fixtureStream(
         ? "Twitch catalog proof stream"
         : "Kick catalog proof stream",
     viewerCount: viewers,
+  };
+}
+
+export function fixtureCategory(
+  platform: Platform,
+  id: string,
+  name: string,
+  viewers?: number,
+): Category {
+  return {
+    boxArtUrl: "https://example.com/box.png",
+    id,
+    name,
+    platform,
+    ...(viewers === undefined ? {} : { viewerCount: viewers }),
+  };
+}
+
+export function fixtureClip(
+  platform: Platform,
+  id: string,
+  views: number,
+): Clip {
+  return {
+    channelAvatar: "",
+    channelDisplayName: "Clip Creator",
+    channelId: `${platform}-${id}`,
+    channelName: `${platform}-clip`,
+    clipUrl: `https://example.com/clip/${id}`,
+    createdAt: "2026-09-11T00:00:00.000Z" as SerializedTimestamp,
+    creatorName: "Creator",
+    duration: 12,
+    id,
+    platform,
+    thumbnailUrl: "",
+    title: `${platform} clip ${id}`,
+    viewCount: views,
+  };
+}
+
+export function fixtureVideo(
+  platform: Platform,
+  id: string,
+  views: number,
+  publishedAt = "2026-09-11T00:00:00.000Z" as SerializedTimestamp,
+): Video {
+  return {
+    channelAvatar: "",
+    channelDisplayName: "VOD Channel",
+    channelId: `${platform}-${id}`,
+    channelName: `${platform}-vod`,
+    duration: 3600,
+    id,
+    platform,
+    publishedAt,
+    thumbnailUrl: "",
+    title: `${platform} video ${id}`,
+    type: "archive",
+    url: `https://example.com/video/${id}`,
+    viewCount: views,
   };
 }
 
