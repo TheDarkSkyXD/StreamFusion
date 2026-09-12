@@ -90,6 +90,27 @@ describe("adaptive app shell", () => {
     expect(state.rootScrollRequests.following).toBe(1);
   });
 
+  it("keeps Guest Follow management inside Following", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "following",
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "following/manage" },
+    });
+    expect(getActiveShellRoute(state).id).toBe("following/manage");
+    expect(canNavigateBack(state)).toBe(true);
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(getActiveShellLocation(restored.state).route).toBe(
+      "following/manage",
+    );
+  });
+
   it("restores allowlisted locations and all independent histories", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {

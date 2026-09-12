@@ -78,6 +78,7 @@ Roots: `apps/mobile/src/features/`.
 - `capability-profile`: measured Android resource facts, pending workload admission, and visible runtime degradation policy.
 - `native-contracts`: typed Android capability ports, Expo adapters, safe proof control, and Kotlin Expo modules.
 - `storage`: encrypted Product/Cache stores, migrations, recovery, and native adapters.
+- `follows`: Guest Follows, Following destination, followed-content hydration, and live-notification prefs.
 
 Expo's `apps/mobile/app/` entries delegate to
 `apps/mobile/src/composition/mobile-runtime.tsx`. Shared design tokens stay under
@@ -100,9 +101,7 @@ support remain package-wide infrastructure.
 
 ## Integration Relay
 
-The current `apps/integration-relay/` is deployment/protocol infrastructure.
-`src/composition/worker.ts` validates its environment and returns unavailable or
-not-found envelopes. Product endpoints are planned, not implemented feature roots.
+`apps/integration-relay/src/features/` owns installation policy, signed-out discovery, and followed-content identity reads. `src/composition/worker.ts` allowlists those routes, validates the installation, and returns unavailable or not-found envelopes for everything else.
 
 ## Verification
 
