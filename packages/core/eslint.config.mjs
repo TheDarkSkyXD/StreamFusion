@@ -18,6 +18,7 @@ const publicSubpaths = [
   "activity",
   "reliability",
   "relay",
+  "media-jobs",
 ];
 const coreElements = [
   "core-foundation",

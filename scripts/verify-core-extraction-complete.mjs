@@ -18,6 +18,7 @@ const publicSubpaths = [
   "activity",
   "reliability",
   "relay",
+  "media-jobs",
   "testing",
 ];
 
@@ -31,6 +32,7 @@ const contractSuites = {
   activity: "packages/core/src/features/activity/tests/activity.test.mjs",
   reliability: "packages/core/src/features/reliability/tests/reliability.test.mjs",
   relay: "apps/integration-relay/tests/envelopes.test.ts",
+  "media-jobs": "packages/core/src/features/media-jobs/tests/media-jobs.test.mjs",
 };
 
 const compatibilityAliases = new Map([
