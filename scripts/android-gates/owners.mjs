@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { hasCleanCandidatePair } from "./gate-run.mjs";
+import { isFresh } from "./freshness.mjs";
+import { sourceEvidenceFill } from "./source-evidence.mjs";
 
 function pass(now, apkDigest = null) {
   return { kind: "pass", observedAt: now, artifacts: [], apkDigest };
@@ -14,15 +16,6 @@ function fail(now, detail) {
 
 function absent(now, missing) {
   return { kind: "absent", observedAt: now, artifacts: [], missing };
-}
-
-async function exists(filePath) {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function commandFill(command, repositoryRoot, now, apkDigest) {
@@ -54,10 +47,10 @@ async function androidPermissions(repositoryRoot, now) {
     : fail(now, "Android configuration violates the permission or backup allowlist");
 }
 
-function requiredEnvironment(name, context, now, missing) {
-  return process.env[name] && process.env[name].length > 0
-    ? pass(now, context.apkDigest)
-    : absent(now, missing);
+function requiredEnvironment(name, slot, context, missing) {
+  const value = process.env[name]?.trim();
+  if (!value) return absent(context.now, missing);
+  return sourceEvidenceFill(value, slot, context);
 }
 
 function catalogProof(slot, context) {
@@ -68,39 +61,35 @@ function catalogProof(slot, context) {
       record.environment.gate === expectedGate &&
       record.result === "pass" &&
       record.sourceCommit === context.sourceCommit &&
-      (slot.binding !== "apk" || record.apkDigest === context.apkDigest),
+      (slot.binding !== "apk" || record.apkDigest === context.apkDigest) &&
+      isFresh(slot, record, context.now, context.policy),
     ),
   );
   return matched ? pass(context.now, context.apkDigest) : fail(context.now, `no passing ${slot.id} record is available`);
 }
 
-async function emulatorProof(slot, context) {
-  const report = process.env.ANDROID_GATE_JOURNEY_REPORT;
-  if (!report || !(await exists(path.resolve(context.repositoryRoot, report)))) {
-    return fail(context.now, `missing emulator journey report for ${slot.id}`);
-  }
-  return pass(context.now, context.apkDigest);
+function emulatorProof(slot, context) {
+  const report = process.env.ANDROID_GATE_JOURNEY_REPORT?.trim();
+  if (!report) return fail(context.now, `missing emulator journey report for ${slot.id}`);
+  return sourceEvidenceFill(report, slot, context);
 }
 
 function physicalProof(slot, context) {
   const variable = `ANDROID_GATE_${slot.id.toUpperCase().replaceAll("-", "_")}`;
-  return requiredEnvironment(variable, context, context.now, "physical-device");
+  return requiredEnvironment(variable, slot, context, "physical-device");
 }
 
-async function signedApk(context) {
+function signedApk(slot, context) {
   if (!context.apkPath) return absent(context.now, "signed-apk");
-  const evidence = process.env.ANDROID_GATE_SIGNED_APK_EVIDENCE;
-  return evidence && (await exists(path.resolve(context.repositoryRoot, evidence)))
-    ? pass(context.now, context.apkDigest)
-    : fail(context.now, "missing signed APK verification evidence");
+  const evidence = process.env.ANDROID_GATE_SIGNED_APK_EVIDENCE?.trim();
+  if (!evidence) return fail(context.now, "missing signed APK verification evidence");
+  return sourceEvidenceFill(evidence, slot, context);
 }
 
-async function fileProof(variable, context, missing) {
-  const evidence = process.env[variable];
+function fileProof(variable, slot, context, missing) {
+  const evidence = process.env[variable]?.trim();
   if (!evidence) return absent(context.now, missing);
-  return (await exists(path.resolve(context.repositoryRoot, evidence)))
-    ? pass(context.now, context.apkDigest)
-    : fail(context.now, `evidence file does not exist: ${evidence}`);
+  return sourceEvidenceFill(evidence, slot, context);
 }
 
 export function createOwners({ repositoryRoot }) {
@@ -116,13 +105,28 @@ export function createOwners({ repositoryRoot }) {
     if (slot.id === "diagnostic-retry") return pass(context.now);
     if (slot.id === "quarantine-block") return context.run.hasQuarantine() ? { kind: "quarantined", observedAt: context.now, artifacts: [], detail: "quarantined evidence is present" } : pass(context.now);
     if (slot.owner === "catalog-read") return catalogProof(slot, context);
-    if (slot.owner === "run-archive") return hasCleanCandidatePair(context.catalog, context.apkDigest) ? pass(context.now, context.apkDigest) : fail(context.now, "two clean candidate runs are required");
+    if (slot.owner === "run-archive") {
+      return hasCleanCandidatePair(context.catalog, context.apkDigest, context.now, context.policy)
+        ? pass(context.now, context.apkDigest)
+        : fail(context.now, "two clean candidate runs are required");
+    }
     if (slot.owner === "emulator-journey") return emulatorProof(slot, context);
     if (slot.owner === "physical-journey") return physicalProof(slot, context);
-    if (slot.owner === "live-provider") return requiredEnvironment(`ANDROID_GATE_${slot.id.toUpperCase().replaceAll("-", "_")}`, context, context.now, "live-credentials");
-    if (slot.owner === "signed-apk") return signedApk(context);
-    if (slot.owner === "signer-recovery") return fileProof("ANDROID_GATE_SIGNER_RECOVERY_EVIDENCE", context, "approvals");
-    if (slot.owner === "release-set") return fileProof("ANDROID_GATE_RELEASE_SET_EVIDENCE", context, "approvals");
-    return fileProof("ANDROID_GATE_APPROVALS_EVIDENCE", context, slot.absentKind ?? "approvals");
+    if (slot.owner === "live-provider") {
+      return requiredEnvironment(
+        `ANDROID_GATE_${slot.id.toUpperCase().replaceAll("-", "_")}`,
+        slot,
+        context,
+        "live-credentials",
+      );
+    }
+    if (slot.owner === "signed-apk") return signedApk(slot, context);
+    if (slot.owner === "signer-recovery") {
+      return fileProof("ANDROID_GATE_SIGNER_RECOVERY_EVIDENCE", slot, context, "approvals");
+    }
+    if (slot.owner === "release-set") {
+      return fileProof("ANDROID_GATE_RELEASE_SET_EVIDENCE", slot, context, "approvals");
+    }
+    return fileProof("ANDROID_GATE_APPROVALS_EVIDENCE", slot, context, slot.absentKind ?? "approvals");
   };
 }

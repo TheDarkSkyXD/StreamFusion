@@ -1,4 +1,4 @@
-import { gateRecordId } from "./registry.mjs";
+import { gateRecordId, slotsFor } from "./registry.mjs";
 import { isFresh, matchesBinding, retryWasUsed } from "./freshness.mjs";
 
 function recordsById(records) {
@@ -105,23 +105,35 @@ export class GateRun {
   }
 }
 
-function isCleanCandidate(records, digest) {
+function isCleanCandidate(records, digest, now, policy) {
   const candidate = records.find((record) => record.id === "candidate-gate");
   const retry = records.find((record) => record.id === "diagnostic-retry");
+  if (
+    candidate?.result !== "pass" ||
+    candidate.apkDigest !== digest ||
+    retry?.result !== "pass" ||
+    retryWasUsed(retry) ||
+    records.some((record) => record.id.endsWith("-original"))
+  ) {
+    return false;
+  }
+  if (candidate.environment?.gate !== "candidate" || retry.environment?.gate !== "candidate") {
+    return false;
+  }
+  const slots = slotsFor("candidate");
+  const candidateSlot = slots.find((slot) => slot.id === "candidate-gate");
+  const retrySlot = slots.find((slot) => slot.id === "diagnostic-retry");
   return (
-    candidate?.result === "pass" &&
-    candidate.apkDigest === digest &&
-    retry?.result === "pass" &&
-    !retryWasUsed(retry) &&
-    !records.some((record) => record.id.endsWith("-original"))
+    isFresh(candidateSlot, candidate, now, policy) &&
+    isFresh(retrySlot, retry, now, policy)
   );
 }
 
-function candidateRunFacts(gateRuns, digest) {
+function candidateRunFacts(gateRuns, digest, now, policy) {
   return Object.entries(gateRuns ?? {})
     .map(([runId, records]) => {
       const gate = records.find((record) => record.id === "candidate-gate");
-      return { clean: isCleanCandidate(records, digest), gate, runId };
+      return { clean: isCleanCandidate(records, digest, now, policy), gate, runId };
     })
     .filter(({ gate }) => gate?.apkDigest === digest)
     .toSorted((left, right) => {
@@ -130,8 +142,8 @@ function candidateRunFacts(gateRuns, digest) {
     });
 }
 
-export function hasCleanCandidatePair(catalog, digest) {
-  const candidates = candidateRunFacts(catalog.gateRuns, digest);
+export function hasCleanCandidatePair(catalog, digest, now, policy) {
+  const candidates = candidateRunFacts(catalog.gateRuns, digest, now, policy);
   return candidates.some(
     (candidate, index) => index > 0 && candidate.clean && candidates[index - 1].clean,
   );

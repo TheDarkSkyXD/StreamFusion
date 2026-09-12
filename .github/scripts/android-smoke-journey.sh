@@ -48,7 +48,7 @@ run_step() {
 }
 
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 30
-adb install --no-streaming "$APK_PATH"
+adb install --no-streaming -r "$APK_PATH"
 adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1 >/dev/null
 await_test_id "app-shell-ready"
 capture "app-shell-ready"
@@ -57,4 +57,4 @@ run_step "nav-following" "screen-following-root"
 run_step "nav-watch" "screen-watch-root"
 run_step "nav-activity" "screen-activity-root"
 run_step "nav-more" "screen-more-root"
-printf '{"journey":"shell-navigation","result":"pass"}\n' > "$REPORT_PATH"
+printf '{"journey":"shell-navigation","result":"pass","observedAt":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" > "$REPORT_PATH"

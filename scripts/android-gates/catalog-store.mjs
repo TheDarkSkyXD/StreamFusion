@@ -145,6 +145,7 @@ export async function evidenceRecord({ repositoryRoot, run, slot, fill, now, ret
   };
   const content = `${JSON.stringify(canonical(report), null, 2)}\n`;
   const absolutePath = path.join(repositoryRoot, relativePath);
+  const observedAt = observedAtOrNow(fill, now);
   await mkdir(path.dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, content);
   return {
@@ -155,10 +156,13 @@ export async function evidenceRecord({ repositoryRoot, run, slot, fill, now, ret
     testVersion: `android-gates@1;retry=${retryUsed ? "used" : "unused"}`,
     environment: { gate: run.definition.id, retention: run.definition.retention, name: "android-gates" },
     device: deviceFor(slot, fill.kind === "absent"),
-    artifacts: [{ id: "gate-report", path: relativePath, sha256: hash(content), mediaType: "application/json" }],
+    artifacts: [
+      { id: "gate-report", path: relativePath, sha256: hash(content), mediaType: "application/json" },
+      ...(Array.isArray(fill.artifacts) ? fill.artifacts : []),
+    ],
     result: f04Result(fill),
-    observedAt: observedAtOrNow(fill, now),
-    expiresAt: expiry(run.definition, now),
+    observedAt,
+    expiresAt: expiry(run.definition, observedAt),
     links: [],
   };
 }

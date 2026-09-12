@@ -95,7 +95,6 @@ async function fillSlot(run, slot, options) {
 
 async function fillSummary(run, options) {
   const summaryId = gateRecordId(run.definition.id);
-  if (run.record(summaryId)) return;
   const verdict = run.prerequisiteVerdict(options.now, options.policy);
   const fill = verdict.pass && !options.digestMismatch
     ? { kind: "pass", observedAt: options.now, artifacts: [], apkDigest: options.apkDigest }

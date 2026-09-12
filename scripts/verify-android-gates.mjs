@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -14,7 +15,7 @@ function sourceCommit() {
 function defaultRunId(gate) {
   return process.env.GITHUB_RUN_ID
     ? `${process.env.GITHUB_RUN_ID}-${gate}`
-    : `local-${gate}`;
+    : `local-${gate}-${randomUUID()}`;
 }
 
 function parseArguments(argv) {
