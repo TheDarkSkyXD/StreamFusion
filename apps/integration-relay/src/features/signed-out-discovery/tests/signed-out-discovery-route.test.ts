@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   relayResponseEnvelopeSchema,
   signedOutCategoriesBodySchema,
+  signedOutCategoryBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryVideosBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema,
   type SignedOutSearchBody
@@ -26,6 +29,38 @@ function catalog(platform: DiscoveryPlatform): DiscoveryCatalog {
     },
     async search({ query }): Promise<SignedOutSearchBody> {
       return { categories: [], channels: [], platform, query, streams: [] };
+    },
+    async category({ categoryId }) {
+      return {
+        category: {
+          boxArtUrl: "https://example.com/box.png",
+          id: categoryId,
+          name: "Just Chatting",
+          platform
+        },
+        platform
+      };
+    },
+    async categoryStreams() {
+      return { platform, streams: [] };
+    },
+    async categoryClips() {
+      return platform === "kick"
+        ? {
+            kind: "unsupported",
+            platform,
+            reason: "kick-clips-unsupported"
+          }
+        : { clips: [], kind: "available", platform };
+    },
+    async categoryVideos() {
+      return platform === "kick"
+        ? {
+            kind: "unsupported",
+            platform,
+            reason: "kick-videos-unsupported"
+          }
+        : { kind: "available", platform, videos: [] };
     }
   };
 }
@@ -167,5 +202,62 @@ describe("signed-out discovery route", () => {
     expect(scopes).toContain(
       "discovery:top-streams:twitch:development:installation-1"
     );
+  });
+
+  it("returns category identity and typed Kick media gaps", async () => {
+    const { route } = createRoute();
+    expect(
+      (
+        await request(
+          route,
+          "/v1/discovery/category-clips?platform=twitch"
+        )
+      ).status
+    ).toBe(400);
+    const category = await request(
+      route,
+      "/v1/discovery/category?platform=twitch&categoryId=509658"
+    );
+    const clips = await request(
+      route,
+      "/v1/discovery/category-clips?platform=kick&categoryId=4&timeRange=all"
+    );
+    const videos = await request(
+      route,
+      "/v1/discovery/category-videos?platform=kick&categoryId=4&sort=recent"
+    );
+    const categoryBody: unknown = await category.json();
+    const clipsBody: unknown = await clips.json();
+    const videosBody: unknown = await videos.json();
+    expect(category.status).toBe(200);
+    expect(clips.status).toBe(200);
+    expect(videos.status).toBe(200);
+    if (
+      !relayResponseEnvelopeSchema.is(categoryBody) ||
+      !relayResponseEnvelopeSchema.is(clipsBody) ||
+      !relayResponseEnvelopeSchema.is(videosBody) ||
+      categoryBody.outcome.kind !== "success" ||
+      clipsBody.outcome.kind !== "success" ||
+      videosBody.outcome.kind !== "success"
+    ) {
+      throw new Error("Expected category discovery success envelopes");
+    }
+    expect(signedOutCategoryBodySchema.is(categoryBody.outcome.body)).toBe(
+      true
+    );
+    expect(signedOutCategoryClipsBodySchema.is(clipsBody.outcome.body)).toBe(
+      true
+    );
+    expect(signedOutCategoryVideosBodySchema.is(videosBody.outcome.body)).toBe(
+      true
+    );
+    expect(clipsBody.outcome.body).toMatchObject({
+      kind: "unsupported",
+      reason: "kick-clips-unsupported"
+    });
+    expect(videosBody.outcome.body).toMatchObject({
+      kind: "unsupported",
+      reason: "kick-videos-unsupported"
+    });
   });
 });

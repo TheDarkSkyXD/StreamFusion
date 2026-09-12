@@ -2,6 +2,10 @@ import {
   createRelayFailureEnvelope,
   createRelaySuccessEnvelope,
   signedOutCategoriesBodySchema,
+  signedOutCategoryBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryStreamsBodySchema,
+  signedOutCategoryVideosBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema,
   type JsonValue
@@ -13,6 +17,12 @@ import type {
   DiscoveryReadAuthorizer
 } from "../capabilities/discovery-catalog";
 import type { createSignedOutDiscoveryService } from "../domain/discovery-service";
+import {
+  commandFrom,
+  platformFrom,
+  routeKind,
+  type DiscoveryRouteKind
+} from "./discovery-route-command";
 
 const RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
@@ -28,7 +38,6 @@ type AvailableDiscoveryReadResult = Exclude<
   DiscoveryReadResult,
   { readonly kind: "unavailable" }
 >;
-type DiscoveryRouteKind = AvailableDiscoveryReadResult["kind"];
 
 export function createSignedOutDiscoveryRoute(input: {
   readonly authorizer: DiscoveryReadAuthorizer;
@@ -97,32 +106,6 @@ async function consumeInstallationLimit(
   });
 }
 
-function routeKind(
-  pathname: string,
-  method: string
-): DiscoveryRouteKind | null {
-  if (method !== "GET") return null;
-  if (pathname === "/v1/discovery/top-streams") return "top-streams";
-  if (pathname === "/v1/discovery/categories") return "categories";
-  if (pathname === "/v1/discovery/search") return "search";
-  return null;
-}
-
-function platformFrom(url: URL): DiscoveryPlatform | null {
-  const platform = url.searchParams.get("platform");
-  return platform === "twitch" || platform === "kick" ? platform : null;
-}
-
-function commandFrom(
-  kind: DiscoveryRouteKind,
-  platform: DiscoveryPlatform,
-  url: URL
-) {
-  if (kind !== "search") return { kind, platform };
-  const query = url.searchParams.get("q")?.trim() ?? "";
-  return query === "" ? null : { kind, platform, query };
-}
-
 function discoveryResponse(
   requestId: string,
   result: DiscoveryReadResult
@@ -140,7 +123,17 @@ function validBody(result: AvailableDiscoveryReadResult): JsonValue | null {
     return signedOutTopStreamsBodySchema.is(result.body) ? result.body : null;
   if (result.kind === "categories")
     return signedOutCategoriesBodySchema.is(result.body) ? result.body : null;
-  return signedOutSearchBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "search")
+    return signedOutSearchBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "category")
+    return signedOutCategoryBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "category-streams")
+    return signedOutCategoryStreamsBodySchema.is(result.body)
+      ? result.body
+      : null;
+  if (result.kind === "category-clips")
+    return signedOutCategoryClipsBodySchema.is(result.body) ? result.body : null;
+  return signedOutCategoryVideosBodySchema.is(result.body) ? result.body : null;
 }
 
 function success(requestId: string, body: JsonValue): Response {
