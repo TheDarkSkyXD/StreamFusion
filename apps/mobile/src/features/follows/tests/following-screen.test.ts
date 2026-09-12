@@ -69,7 +69,11 @@ describe("Following screen", () => {
       twitch: liveOutcome("twitch", "complete", [liveStream]),
     });
     const nodes = descendants(
-      FollowingTabBody({ onRetry: () => undefined, view }),
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        view,
+      }),
     );
     expect(
       nodes.some(
@@ -93,7 +97,11 @@ describe("Following screen", () => {
       tab: "live",
     });
     const nodes = descendants(
-      FollowingTabBody({ onRetry: () => undefined, view }),
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        view,
+      }),
     );
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Follow channels as a guest/);
@@ -113,11 +121,15 @@ describe("Following screen", () => {
       ],
       notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       query: "",
-      recorded: recordedOutcome({ platform: "kick", supported: false }),
+      recorded: [recordedOutcome({ platform: "kick", supported: false })],
       tab: "videos",
     });
     const nodes = descendants(
-      FollowingTabBody({ onRetry: () => undefined, view }),
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        view,
+      }),
     );
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Kick does not offer videos/);

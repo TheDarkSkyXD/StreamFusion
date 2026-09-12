@@ -1,5 +1,6 @@
 import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
 import {
+  isFollowEligibleForLiveNotification,
   isPerChannelLiveNotificationEnabled,
   type GuestFollow,
   type LiveNotificationPreferences,
@@ -16,11 +17,11 @@ import type {
   FollowingView,
   TabItems,
 } from "../capabilities/following-session";
+import { composeRecordedTab } from "./compose-recorded-tab";
 import {
   filterByChip,
   filterStreams,
   liveStreamFor,
-  recordedVisible,
 } from "./following-filters";
 import { matchesQuery } from "../utils/following-query";
 
@@ -31,7 +32,10 @@ export function composeFollowingView(input: {
   readonly membership: readonly GuestFollow[];
   readonly notifications: LiveNotificationPreferences;
   readonly query: string;
-  readonly recorded?: FollowedRecordedOutcome<Video> | FollowedRecordedOutcome<Clip>;
+  readonly recorded?: readonly (
+    | FollowedRecordedOutcome<Video>
+    | FollowedRecordedOutcome<Clip>
+  )[];
   readonly tab: FollowingTab;
   readonly kick?: FollowedReadOutcome<Stream>;
   readonly twitch?: FollowedReadOutcome<Stream>;
@@ -45,7 +49,7 @@ export function composeFollowingView(input: {
     categories: categoryItems(input, live),
     channels: channelItems(input, channels),
     chip: input.chip,
-    clips: recordedItems<Clip>(input, "clips"),
+    clips: composeRecordedTab<Clip>(recordedInput(input, "clips")),
     live: liveItems(input, live),
     membership: input.membership,
     notifications: input.notifications,
@@ -53,7 +57,28 @@ export function composeFollowingView(input: {
     query: input.query,
     systemPush: { kind: "stubbed", reason: "system-push-not-shipped" },
     tab: input.tab,
-    videos: recordedItems<Video>(input, "videos"),
+    videos: composeRecordedTab<Video>(recordedInput(input, "videos")),
+  };
+}
+
+function recordedInput<
+  T extends { readonly platform: Platform; readonly title: string },
+>(
+  input: Parameters<typeof composeFollowingView>[0],
+  activeTab: "videos" | "clips",
+) {
+  return {
+    activeTab,
+    chip: input.chip,
+    loadingRecorded: input.loadingRecorded,
+    membership: input.membership,
+    query: input.query,
+    tab: input.tab,
+    ...(input.tab === activeTab && input.recorded !== undefined
+      ? {
+          recorded: input.recorded as unknown as readonly FollowedRecordedOutcome<T>[],
+        }
+      : {}),
   };
 }
 
@@ -124,51 +149,6 @@ function categoryItems(
   });
 }
 
-function recordedItems<
-  T extends { readonly platform: Platform; readonly title: string },
->(
-  input: Parameters<typeof composeFollowingView>[0],
-  tab: "videos" | "clips",
-): TabItems<T> {
-  const recorded =
-    input.tab === tab
-      ? (input.recorded as FollowedRecordedOutcome<T> | undefined)
-      : undefined;
-  if (input.membership.length === 0) {
-    return { kind: "empty", reason: "no-membership" };
-  }
-  if (input.tab === tab && input.loadingRecorded) return { kind: "loading" };
-  if (recorded === undefined) {
-    return { kind: "empty", reason: "no-matches" };
-  }
-  if (!recorded.supported) {
-    return {
-      items: [],
-      kind: "unsupported",
-      reason: `${recorded.platform}-recorded-unsupported`,
-    };
-  }
-  if (recorded.failed) {
-    return {
-      items: [],
-      kind: "failed",
-      offline: recorded.offline,
-      retryablePlatforms: [recorded.platform],
-    };
-  }
-  return collectionItems({
-    chip: input.chip,
-    emptyWhenUnfiltered: "no-matches",
-    failedPlatforms: [],
-    items: recordedVisible(recorded.items, input.chip, input.query),
-    loading: false,
-    membership: input.membership,
-    offline: recorded.offline,
-    query: input.query,
-    stale: recorded.stale,
-  });
-}
-
 function collectionItems<T>(input: {
   readonly chip: FollowingChip;
   readonly emptyWhenUnfiltered: EmptyReason;
@@ -227,13 +207,24 @@ function channelRows(
   return membership.map((follow) => {
     const stream = liveStreamFor(streams, follow);
     return {
+      eligible: isFollowEligibleForLiveNotification({
+        channel: {
+          id: follow.channelId,
+          platform: follow.platform,
+          username: follow.channelLogin,
+        },
+        followSource: "guest",
+        preferences: notifications,
+      }),
       follow,
+      imported: { kind: "none" },
       isLive: stream !== null,
       notify: isPerChannelLiveNotificationEnabled(notifications, {
         id: follow.channelId,
         platform: follow.platform,
         username: follow.channelLogin,
       }),
+      origin: { kind: "guest" },
       platform: follow.platform,
       stream,
     };

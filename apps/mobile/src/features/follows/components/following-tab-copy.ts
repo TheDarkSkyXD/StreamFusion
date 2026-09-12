@@ -44,8 +44,8 @@ function readyCopy(tab: FollowingTab, stale: boolean): string {
       : `Showing saved ${tab} while a refresh is unavailable.`;
   }
   if (tab === "live") return "Live Guest Follows from Twitch and Kick.";
-  if (tab === "videos") return "Recent videos from a Guest Follow.";
-  if (tab === "clips") return "Clips from a Guest Follow.";
+  if (tab === "videos") return "Videos from your Guest Follows.";
+  if (tab === "clips") return "Clips from your Guest Follows.";
   if (tab === "categories") {
     return "Categories your live Guest Follows are in.";
   }

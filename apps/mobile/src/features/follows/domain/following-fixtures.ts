@@ -95,6 +95,30 @@ export function liveOutcome(
   };
 }
 
+export function followedVideo(input: {
+  readonly platform?: Platform;
+  readonly channelId?: string;
+  readonly id?: string;
+  readonly title?: string;
+}): Video {
+  const platform = input.platform ?? "twitch";
+  return {
+    channelAvatar: "https://example.com/a.png",
+    channelDisplayName: "Alice",
+    channelId: input.channelId ?? `${platform}-1`,
+    channelName: `${platform}live`,
+    duration: 60,
+    id: input.id ?? `${platform}-video`,
+    platform,
+    publishedAt: toSerializedTimestamp("2026-08-30T12:00:00.000Z"),
+    thumbnailUrl: "https://example.com/video.jpg",
+    title: input.title ?? "Past stream",
+    type: "archive",
+    url: "https://example.test/videos/video-1",
+    viewCount: 12,
+  };
+}
+
 export function recordedOutcome(input: {
   readonly platform: Platform;
   readonly supported?: boolean;

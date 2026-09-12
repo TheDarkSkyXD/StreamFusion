@@ -59,6 +59,7 @@ export function FollowingManageScreen({
         }}
         prefs={prefs}
       />
+      <NotificationTruths prefs={prefs} />
       <FollowingAddForm
         membership={membership.data ?? []}
         onAdded={refresh}
@@ -129,6 +130,33 @@ function ManageNotices({
   );
 }
 
+function NotificationTruths({
+  prefs,
+}: {
+  readonly prefs: LiveNotificationPreferences;
+}) {
+  return (
+    <View style={styles.card} testID="following-notification-truths">
+      <Text selectable style={styles.cardTitle}>
+        Live alert status
+      </Text>
+      <Text selectable style={styles.copy}>
+        Eligibility: Guest Follows {prefs.guestFollows ? "can" : "cannot"} use
+        in-app live alerts.
+      </Text>
+      <Text selectable style={styles.copy}>
+        Permission: not requested. This device stays signed out.
+      </Text>
+      <Text selectable style={styles.copy}>
+        Registration: not registered. System push is not shipped.
+      </Text>
+      <Text selectable style={styles.copy}>
+        Delivery: in-app preference only. No system notification is sent.
+      </Text>
+    </View>
+  );
+}
+
 function ManageRow({
   follow,
   notify,
@@ -153,8 +181,12 @@ function ManageRow({
       <Text selectable style={styles.copy}>
         {follow.platform} · {follow.channelLogin}
       </Text>
+      <Text selectable style={styles.copy}>
+        Guest Follow · not imported
+      </Text>
       <View style={styles.row}>
         <Pressable
+          accessibilityLabel={`Unfollow ${follow.displayName}`}
           accessibilityRole="button"
           onPress={() => {
             void session
@@ -172,6 +204,7 @@ function ManageRow({
           </Text>
         </Pressable>
         <Pressable
+          accessibilityLabel={`${notify ? "Disable" : "Enable"} live alerts for ${follow.displayName}`}
           accessibilityRole="button"
           onPress={() => {
             void session
@@ -196,6 +229,7 @@ function ManageRow({
           </Text>
         </Pressable>
         <Pressable
+          accessibilityLabel={`Open ${follow.displayName} on ${follow.platform}`}
           accessibilityRole="button"
           onPress={() => {
             void session.openProviderPage({

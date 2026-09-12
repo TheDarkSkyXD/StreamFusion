@@ -49,7 +49,9 @@ export function FollowingControls({
       <View style={styles.row}>
         {CHIPS.map((value) => (
           <Pressable
+            accessibilityLabel={`${value} filter`}
             accessibilityRole="button"
+            accessibilityState={{ selected: chip === value }}
             key={value}
             onPress={() => onChip(value)}
             style={[styles.chip, chip === value ? styles.selected : null]}
@@ -64,7 +66,9 @@ export function FollowingControls({
       <View style={styles.row}>
         {TABS.map((value) => (
           <Pressable
+            accessibilityLabel={`${value} tab`}
             accessibilityRole="button"
+            accessibilityState={{ selected: tab === value }}
             key={value}
             onPress={() => onTab(value)}
             style={[styles.chip, tab === value ? styles.selected : null]}

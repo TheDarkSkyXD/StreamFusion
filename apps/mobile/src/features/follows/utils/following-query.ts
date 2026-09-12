@@ -28,3 +28,18 @@ export function matchesQuery(
   if (needle.length === 0) return true;
   return fields.some((field) => field.toLowerCase().includes(needle));
 }
+
+export const RECORDED_READ_CONCURRENCY = 6;
+
+export async function mapPool<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  load: (item: T) => Promise<R>,
+): Promise<readonly R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    const batch = items.slice(index, index + concurrency);
+    results.push(...(await Promise.all(batch.map(load))));
+  }
+  return results;
+}

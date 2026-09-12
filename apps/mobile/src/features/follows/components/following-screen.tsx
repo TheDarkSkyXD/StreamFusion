@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { Platform } from "@streamfusion/core/platform";
 import type {
   FollowedClipPeriod,
   FollowedRecordedSort,
@@ -46,6 +47,9 @@ export function FollowingScreen({
       chip={chip}
       onChip={setChip}
       onOpenManage={onOpenManage}
+      onOpenProvider={(target) => {
+        void session.openProviderPage(target);
+      }}
       onPeriod={setPeriod}
       onQuery={setQuery}
       onRetry={() => live.refresh()}
@@ -64,6 +68,7 @@ function FollowingScreenBody({
   chip,
   onChip,
   onOpenManage,
+  onOpenProvider,
   onPeriod,
   onQuery,
   onRetry,
@@ -78,6 +83,10 @@ function FollowingScreenBody({
   readonly chip: FollowingChip;
   readonly onChip: (chip: FollowingChip) => void;
   readonly onOpenManage: () => void;
+  readonly onOpenProvider: (target: {
+    readonly platform: Platform;
+    readonly channelLogin: string;
+  }) => void;
   readonly onPeriod: (period: FollowedClipPeriod) => void;
   readonly onQuery: (query: string) => void;
   readonly onRetry: () => void;
@@ -126,7 +135,11 @@ function FollowingScreenBody({
           tab={tab}
         />
       ) : null}
-      <FollowingTabBody onRetry={onRetry} view={view} />
+      <FollowingTabBody
+        onOpenProvider={onOpenProvider}
+        onRetry={onRetry}
+        view={view}
+      />
     </ScrollView>
   );
 }
@@ -148,7 +161,9 @@ function RecordedControls({
     <View style={styles.row}>
       {(["recent", "views"] as const).map((value) => (
         <Pressable
+          accessibilityLabel={`Sort by ${value}`}
           accessibilityRole="button"
+          accessibilityState={{ selected: sort === value }}
           key={value}
           onPress={() => onSort(value)}
           style={[styles.chip, sort === value ? styles.selected : null]}
@@ -162,7 +177,9 @@ function RecordedControls({
       {tab === "clips"
         ? (["day", "week", "month", "all"] as const).map((value) => (
             <Pressable
+              accessibilityLabel={`Clips period ${value}`}
               accessibilityRole="button"
+              accessibilityState={{ selected: period === value }}
               key={value}
               onPress={() => onPeriod(value)}
               style={[styles.chip, period === value ? styles.selected : null]}

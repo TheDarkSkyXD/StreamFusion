@@ -5,6 +5,7 @@ import { composeFollowingView } from "../domain/compose-following-view";
 import { guestFollowMutation } from "../domain/guest-follow-mutation";
 import {
   followedStream,
+  followedVideo,
   guestFollow,
   liveOutcome,
   recordedOutcome,
@@ -149,7 +150,7 @@ describe("composeFollowingView recorded tabs", () => {
       membership: [kickFollow],
       notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       query: "",
-      recorded: recordedOutcome({ platform: "kick", supported: false }),
+      recorded: [recordedOutcome({ platform: "kick", supported: false })],
       tab: "videos",
     });
     expect(view.videos).toEqual({
@@ -157,5 +158,54 @@ describe("composeFollowingView recorded tabs", () => {
       kind: "unsupported",
       reason: "kick-recorded-unsupported",
     });
+  });
+
+  it("keeps Twitch videos when a Kick Guest Follow is unsupported", () => {
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [kickFollow, twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      recorded: [
+        recordedOutcome({ platform: "kick", supported: false }),
+        recordedOutcome({
+          items: [followedVideo({ id: "video-1", platform: "twitch" })],
+          platform: "twitch",
+        }),
+      ],
+      tab: "videos",
+    });
+    expect(view.videos.kind).toBe("ready");
+    expect(view.videos.kind === "ready" && view.videos.items[0]?.id).toBe(
+      "video-1",
+    );
+  });
+
+  it("marks Guest Follows ineligible when guest live alerts are off", () => {
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: {
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        guestFollows: false,
+      },
+      query: "",
+      tab: "channels",
+      twitch: liveOutcome("twitch", "complete"),
+    });
+    expect(view.channels.kind).toBe("ready");
+    expect(
+      view.channels.kind === "ready" && view.channels.items[0]?.eligible,
+    ).toBe(false);
+    expect(
+      view.channels.kind === "ready" && view.channels.items[0]?.origin,
+    ).toEqual({ kind: "guest" });
+    expect(
+      view.channels.kind === "ready" && view.channels.items[0]?.imported,
+    ).toEqual({ kind: "none" });
   });
 });

@@ -1,5 +1,6 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
+import type { Platform } from "@streamfusion/core/platform";
 
 import {
   mobileColors,
@@ -7,10 +8,26 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 
-export function FollowingStreamCard({ stream }: { readonly stream: Stream }) {
+export function FollowingStreamCard({
+  onOpenProvider,
+  stream,
+}: {
+  readonly onOpenProvider: (target: {
+    readonly platform: Platform;
+    readonly channelLogin: string;
+  }) => void;
+  readonly stream: Stream;
+}) {
   return (
-    <View
+    <Pressable
       accessibilityLabel={`${stream.channelDisplayName} live on ${stream.platform}`}
+      accessibilityRole="button"
+      onPress={() =>
+        onOpenProvider({
+          channelLogin: stream.channelName,
+          platform: stream.platform,
+        })
+      }
       style={styles.card}
       testID={`following-stream-${stream.platform}-${stream.id}`}
     >
@@ -50,12 +67,18 @@ export function FollowingStreamCard({ stream }: { readonly stream: Stream }) {
             stream.platform === "twitch" ? styles.twitchBadge : styles.kickBadge,
           ]}
         >
-          <Text selectable style={styles.platformLabel}>
+          <Text
+            selectable
+            style={[
+              styles.platformLabel,
+              stream.platform === "kick" ? styles.kickLabel : null,
+            ]}
+          >
             {stream.platform === "twitch" ? "TWITCH" : "KICK"}
           </Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -130,8 +153,9 @@ const styles = StyleSheet.create({
   },
   twitchBadge: { backgroundColor: "#9146ff" },
   kickBadge: { backgroundColor: "#53fc18" },
+  kickLabel: { color: mobileColors.background },
   platformLabel: {
-    color: mobileColors.background,
+    color: mobileColors.textPrimary,
     fontSize: 11,
     fontWeight: "700",
     lineHeight: 14,

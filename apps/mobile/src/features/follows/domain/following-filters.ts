@@ -45,6 +45,19 @@ export function liveStreamFor(
   );
 }
 
+export const MAX_RECORDED_FOLLOWS = 12;
+
+export function recordedFollows(
+  membership: readonly GuestFollow[],
+  chip: FollowingChip,
+): readonly GuestFollow[] {
+  const filtered =
+    chip === "twitch" || chip === "kick"
+      ? membership.filter((follow) => follow.platform === chip)
+      : membership;
+  return filtered.slice(0, MAX_RECORDED_FOLLOWS);
+}
+
 export function recordedVisible<
   T extends { readonly platform: Platform; readonly title: string },
 >(

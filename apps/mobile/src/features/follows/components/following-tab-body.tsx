@@ -14,13 +14,19 @@ import type {
   FollowingView,
   TabItems,
 } from "../capabilities/following-session";
+import { FollowingChannelCard } from "./following-channel-card";
 import { FollowingStreamCard } from "./following-stream-card";
 import { tabItemsCopy } from "./following-tab-copy";
 
 export function FollowingTabBody({
+  onOpenProvider,
   onRetry,
   view,
 }: {
+  readonly onOpenProvider: (target: {
+    readonly platform: Platform;
+    readonly channelLogin: string;
+  }) => void;
   readonly onRetry: (platform: Platform) => void;
   readonly view: FollowingView;
 }) {
@@ -37,11 +43,12 @@ export function FollowingTabBody({
         ? (items.items as readonly Stream[]).map((stream) => (
             <FollowingStreamCard
               key={`${stream.platform}:${stream.id}`}
+              onOpenProvider={onOpenProvider}
               stream={stream}
             />
           ))
         : null}
-      {view.tab === "channels" ? channelRows(items) : null}
+      {view.tab === "channels" ? channelRows(items, onOpenProvider) : null}
       {view.tab === "categories" ? categoryRows(items) : null}
       {view.tab === "videos" ? videoRows(items) : null}
       {view.tab === "clips" ? clipRows(items) : null}
@@ -82,21 +89,20 @@ function retryRow(
   );
 }
 
-function channelRows(items: TabItems<unknown>) {
+function channelRows(
+  items: TabItems<unknown>,
+  onOpenProvider: (target: {
+    readonly platform: Platform;
+    readonly channelLogin: string;
+  }) => void,
+) {
   if (items.kind === "loading" || items.kind === "empty") return null;
   return (items.items as readonly FollowingChannelRow[]).map((row) => (
-    <View
+    <FollowingChannelCard
       key={`${row.follow.platform}:${row.follow.channelId}`}
-      style={styles.card}
-      testID={`following-channel-${row.follow.platform}-${row.follow.channelId}`}
-    >
-      <Text selectable style={styles.title}>
-        {row.follow.displayName}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {row.isLive ? "Live" : "Offline"} · {row.follow.platform}
-      </Text>
-    </View>
+      onOpenProvider={onOpenProvider}
+      row={row}
+    />
   ));
 }
 

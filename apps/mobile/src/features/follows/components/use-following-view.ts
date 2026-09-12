@@ -1,8 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
-  type GuestFollow,
-} from "@streamfusion/core/follows";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 import type {
   FollowedClipPeriod,
   FollowedRecordedSort,
@@ -14,6 +11,8 @@ import type {
   FollowingTab,
 } from "../capabilities/following-session";
 import { composeFollowingView } from "../domain/compose-following-view";
+import { recordedFollows } from "../domain/following-filters";
+import { mapPool, RECORDED_READ_CONCURRENCY } from "../utils/following-query";
 
 export function followingQueryKey(
   part: "membership" | "live" | "notifications" | "recorded",
@@ -75,40 +74,30 @@ function useFollowingQueries(input: {
     queryKey: followingQueryKey("notifications"),
     retry: false,
   });
-  const recordedChannel = recordedFollow(membership.data ?? [], input.chip);
+  const follows = recordedFollows(membership.data ?? [], input.chip);
   const recordedEnabled =
-    (input.tab === "videos" || input.tab === "clips") &&
-    recordedChannel !== null;
+    (input.tab === "videos" || input.tab === "clips") && follows.length > 0;
   const recorded = useQuery({
     enabled: recordedEnabled,
     queryFn: ({ signal }) =>
-      input.session.hydrateRecorded({
-        channelId: recordedChannel?.channelId ?? "",
-        kind: input.tab === "clips" ? "clips" : "videos",
-        period: input.period,
-        platform: recordedChannel?.platform ?? "twitch",
-        sort: input.sort,
-        signal,
-      }),
+      mapPool(follows, RECORDED_READ_CONCURRENCY, (follow) =>
+        input.session.hydrateRecorded({
+          channelId: follow.channelId,
+          kind: input.tab === "clips" ? "clips" : "videos",
+          period: input.period,
+          platform: follow.platform,
+          sort: input.sort,
+          signal,
+        }),
+      ),
     queryKey: followingQueryKey("recorded", [
       input.tab,
-      recordedChannel?.platform ?? "",
-      recordedChannel?.channelId ?? "",
+      input.chip,
       input.sort,
       input.period,
+      ...follows.map((follow) => `${follow.platform}:${follow.channelId}`),
     ]),
     retry: false,
   });
   return { live, membership, notifications, recorded, recordedEnabled };
-}
-
-function recordedFollow(
-  membership: readonly GuestFollow[],
-  chip: FollowingChip,
-): GuestFollow | null {
-  const filtered =
-    chip === "twitch" || chip === "kick"
-      ? membership.filter((follow) => follow.platform === chip)
-      : membership;
-  return filtered[0] ?? null;
 }

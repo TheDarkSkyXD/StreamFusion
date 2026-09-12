@@ -59,6 +59,9 @@ export type FollowedRecordedOutcome<T> = {
 export type FollowingChannelRow = {
   readonly follow: GuestFollow;
   readonly isLive: boolean;
+  readonly origin: { readonly kind: "guest" };
+  readonly imported: { readonly kind: "none" };
+  readonly eligible: boolean;
   readonly notify: boolean;
   readonly platform: Platform;
   readonly stream: Stream | null;
