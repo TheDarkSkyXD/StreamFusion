@@ -5,9 +5,10 @@ import {
   ChevronRight,
   CircleAlert,
 } from "lucide-react-native";
-import { memo, useEffect } from "react";
+import { memo, useEffect, useRef } from "react";
 import {
   FlatList,
+  type FlatList as FlatListView,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -60,6 +61,7 @@ export function ActivityScreen({
   onOpen,
   onRefresh,
   onSelectFilter,
+  scrollRequest = 0,
 }: {
   readonly developmentProof?: DevelopmentActivityProofViewModel | null;
   readonly model: ActivityViewModel;
@@ -72,12 +74,19 @@ export function ActivityScreen({
   readonly onOpen: (location: ShellLocation) => void;
   readonly onRefresh: () => Promise<void>;
   readonly onSelectFilter: (filter: ActivityFilter) => void;
+  readonly scrollRequest?: number;
 }) {
+  const listRef = useRef<FlatListView<ActivityItem>>(null);
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ animated: false, offset: 0 });
+  }, [scrollRequest]);
+
   return (
     <FlatList
       contentContainerStyle={styles.listContent}
       contentInsetAdjustmentBehavior="automatic"
       data={model.items}
+      ref={listRef}
       keyExtractor={(item) => item.eventId}
       ListEmptyComponent={
         <ActivityEmptyState

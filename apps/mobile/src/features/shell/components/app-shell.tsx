@@ -51,6 +51,7 @@ import {
 } from "@mobile/features/auth/components/twitch-accounts-panel";
 
 import { DestinationIcon } from "./destination-icon";
+import { resolveHardwareBack } from "../domain/hardware-back";
 import {
   applyCompactNavigationTextMeasurement,
   type CompactNavigationLayout,
@@ -167,22 +168,34 @@ export function AppShell({
   const insets = useSafeAreaInsets();
   const placement = getShellNavigationPlacement(width);
 
+  const cancelDismissal = activity.cancelDismissal;
+  const hasDismissalConfirmation = activity.model.dismissalConfirmation !== null;
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
-        if (!canNavigateBack(navigation)) {
-          return false;
+        const decision = resolveHardwareBack({
+          canNavigateBack: canNavigateBack(navigation),
+          hasOverlay: hasDismissalConfirmation,
+        });
+        if (decision === "cancel-dismissal") {
+          cancelDismissal();
+          return true;
         }
-        dispatch({ type: "back" });
-        return true;
+        if (decision === "navigate-back") {
+          dispatch({ type: "back" });
+          return true;
+        }
+        return false;
       },
     );
     return () => subscription.remove();
-  }, [dispatch, navigation]);
+  }, [cancelDismissal, dispatch, hasDismissalConfirmation, navigation]);
 
   const navigationView = (
     <PrimaryNavigation
+      activityUnreadCount={activity.model.unreadCount}
       dispatch={dispatch}
       key={`${placement}:${width}:${fontScale}`}
       placement={placement}
@@ -465,6 +478,7 @@ function ShellScreen({
           }
           onRefresh={activity.refresh}
           onSelectFilter={activity.selectFilter}
+          scrollRequest={scrollRequest}
         />
       </View>
     );
@@ -864,10 +878,12 @@ function DevelopmentStatus({
 }
 
 function PrimaryNavigation({
+  activityUnreadCount,
   dispatch,
   placement,
   state,
 }: {
+  readonly activityUnreadCount: number;
   readonly dispatch: (action: ShellNavigationAction) => void;
   readonly placement: "bottom" | "rail";
   readonly state: ShellNavigationState;
@@ -917,7 +933,11 @@ function PrimaryNavigation({
         return (
           <Pressable
             accessibilityHint={`Switches to ${destination.label} and preserves other navigation histories`}
-            accessibilityLabel={destination.label}
+            accessibilityLabel={
+              destination.id === "activity" && activityUnreadCount > 0
+                ? `${destination.label}, ${activityUnreadCount} unread`
+                : destination.label
+            }
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             android_ripple={{
@@ -942,7 +962,13 @@ function PrimaryNavigation({
             ]}
             testID={`nav-${destination.id}`}
           >
-            <DestinationIcon color={color} destination={destination.id} />
+            <DestinationIcon
+              color={color}
+              destination={destination.id}
+              unreadCount={
+                destination.id === "activity" ? activityUnreadCount : 0
+              }
+            />
             <Text
               onTextLayout={
                 placement === "bottom" ? onTextLayout(layout) : undefined
