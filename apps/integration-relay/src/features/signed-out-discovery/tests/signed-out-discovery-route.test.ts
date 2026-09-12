@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   relayResponseEnvelopeSchema,
   signedOutCategoriesBodySchema,
+  signedOutChannelBodySchema,
+  signedOutClipsBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema,
+  signedOutVideosBodySchema,
   type SignedOutSearchBody
 } from "@streamfusion/core/relay";
 import { createTwitchHelixCatalog } from "../adapters/twitch-helix-catalog";
@@ -26,6 +29,38 @@ function catalog(platform: DiscoveryPlatform): DiscoveryCatalog {
     },
     async search({ query }): Promise<SignedOutSearchBody> {
       return { categories: [], channels: [], platform, query, streams: [] };
+    },
+    async channel() {
+      return {
+        channel: {
+          avatarUrl: "https://example.com/a.png",
+          displayName: "Alice",
+          id: "c1",
+          isLive: false,
+          isPartner: false,
+          isVerified: false,
+          platform,
+          username: "alice"
+        },
+        live: null,
+        platform
+      };
+    },
+    async videos() {
+      return {
+        channelId: "c1",
+        platform,
+        support: platform === "kick" ? "unsupported" : "available",
+        videos: []
+      };
+    },
+    async clips() {
+      return {
+        channelId: "c1",
+        clips: [],
+        platform,
+        support: platform === "kick" ? "unsupported" : "available"
+      };
     }
   };
 }
@@ -78,12 +113,12 @@ async function request(
 }
 
 describe("signed-out discovery route", () => {
-  it("rejects missing or invalid installation credentials", async () => {
+  it("serves guest reads without a bearer and rejects invalid credentials", async () => {
     const { route } = createRoute();
     expect(
       (await request(route, "/v1/discovery/top-streams?platform=twitch", null))
         .status
-    ).toBe(401);
+    ).toBe(200);
     expect(
       (await request(route, "/v1/discovery/top-streams?platform=twitch", "bad"))
         .status
@@ -167,5 +202,49 @@ describe("signed-out discovery route", () => {
     expect(scopes).toContain(
       "discovery:top-streams:twitch:development:installation-1"
     );
+  });
+
+  it("returns channel, videos, and Kick-unsupported clips envelopes", async () => {
+    const { route } = createRoute();
+    const missing = await request(
+      route,
+      "/v1/discovery/channel?platform=twitch"
+    );
+    expect(missing.status).toBe(400);
+    const channelResponse = await request(
+      route,
+      "/v1/discovery/channel?platform=twitch&login=alice"
+    );
+    const videosResponse = await request(
+      route,
+      "/v1/discovery/channel-videos?platform=twitch&id=c1"
+    );
+    const clipsResponse = await request(
+      route,
+      "/v1/discovery/channel-clips?platform=kick&login=alice"
+    );
+    const channel: unknown = await channelResponse.json();
+    const videos: unknown = await videosResponse.json();
+    const clips: unknown = await clipsResponse.json();
+    expect(channelResponse.status).toBe(200);
+    expect(videosResponse.status).toBe(200);
+    expect(clipsResponse.status).toBe(200);
+    if (
+      !relayResponseEnvelopeSchema.is(channel) ||
+      !relayResponseEnvelopeSchema.is(videos) ||
+      !relayResponseEnvelopeSchema.is(clips) ||
+      channel.outcome.kind !== "success" ||
+      videos.outcome.kind !== "success" ||
+      clips.outcome.kind !== "success"
+    ) {
+      throw new Error("Expected channel discovery success envelopes");
+    }
+    expect(signedOutChannelBodySchema.is(channel.outcome.body)).toBe(true);
+    expect(signedOutVideosBodySchema.is(videos.outcome.body)).toBe(true);
+    expect(signedOutClipsBodySchema.is(clips.outcome.body)).toBe(true);
+    expect(clips.outcome.body).toMatchObject({
+      platform: "kick",
+      support: "unsupported"
+    });
   });
 });

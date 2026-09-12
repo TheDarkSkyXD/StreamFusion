@@ -3,6 +3,7 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import { createKickOfficialChannelReader } from "./kick-official-channel-reader";
 
 const KICK_LIVESTREAMS = "https://api.kick.com/public/v1/livestreams?limit=20";
 
@@ -11,6 +12,7 @@ export function createKickOfficialReader(input: {
   readonly readAccessToken: () => Promise<string | null>;
 }) {
   return {
+    ...createKickOfficialChannelReader(input),
     platform: "kick" as const,
     async getCategories(read: {
       readonly signal?: AbortSignal;

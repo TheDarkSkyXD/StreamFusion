@@ -5,8 +5,11 @@ import {
   createRelayFailureEnvelope,
   createRelaySuccessEnvelope,
   signedOutCategoriesBodySchema,
+  signedOutChannelBodySchema,
+  signedOutClipsBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema,
+  signedOutVideosBodySchema,
 } from "@streamfusion/core/relay";
 
 const stream = {
@@ -43,6 +46,38 @@ const channel = {
   isPartner: false,
 };
 
+const video = {
+  id: "v1",
+  platform: "twitch",
+  channelId: "c1",
+  channelName: "alice",
+  channelDisplayName: "Alice",
+  channelAvatar: "https://example.com/a.png",
+  title: "Yesterday",
+  thumbnailUrl: "https://example.com/v.png",
+  duration: 120,
+  viewCount: 8,
+  publishedAt: "2026-09-11T00:00:00.000Z",
+  url: "https://twitch.tv/videos/v1",
+  type: "archive",
+};
+
+const clip = {
+  id: "clip1",
+  platform: "twitch",
+  channelId: "c1",
+  channelName: "alice",
+  channelDisplayName: "Alice",
+  channelAvatar: "https://example.com/a.png",
+  title: "Clip",
+  thumbnailUrl: "https://example.com/c.png",
+  clipUrl: "https://clips.twitch.tv/clip1",
+  duration: 20,
+  viewCount: 4,
+  createdAt: "2026-09-11T00:00:00.000Z",
+  creatorName: "bob",
+};
+
 test("signed-out discovery bodies accept exact Core content pages", () => {
   assert.equal(
     signedOutTopStreamsBodySchema.is({
@@ -69,6 +104,41 @@ test("signed-out discovery bodies accept exact Core content pages", () => {
     }),
     true,
   );
+  assert.equal(
+    signedOutChannelBodySchema.is({
+      platform: "twitch",
+      channel,
+      live: stream,
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutVideosBodySchema.is({
+      platform: "twitch",
+      channelId: "c1",
+      support: "available",
+      videos: [video],
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutClipsBodySchema.is({
+      platform: "kick",
+      channelId: "c1",
+      support: "unsupported",
+      clips: [],
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutClipsBodySchema.is({
+      platform: "twitch",
+      channelId: "c1",
+      support: "available",
+      clips: [clip],
+    }),
+    true,
+  );
 });
 
 test("signed-out discovery bodies reject extra provider fields", () => {
@@ -86,6 +156,15 @@ test("signed-out discovery bodies reject extra provider fields", () => {
       streams: [],
       channels: [],
       categories: [],
+    }),
+    false,
+  );
+  assert.equal(
+    signedOutVideosBodySchema.is({
+      platform: "kick",
+      channelId: "c1",
+      support: "unsupported",
+      videos: [video],
     }),
     false,
   );

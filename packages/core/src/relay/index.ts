@@ -23,13 +23,20 @@ export type {
 } from "./installation-identity.ts";
 export {
   signedOutCategoriesBodySchema,
+  signedOutChannelBodySchema,
+  signedOutClipsBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema,
+  signedOutVideosBodySchema,
 } from "./signed-out-discovery.ts";
 export type {
   SignedOutCategoriesBody,
+  SignedOutChannelBody,
+  SignedOutChannelSupport,
+  SignedOutClipsBody,
   SignedOutSearchBody,
   SignedOutTopStreamsBody,
+  SignedOutVideosBody,
 } from "./signed-out-discovery.ts";
 
 export type JsonPrimitive = boolean | null | number | string;

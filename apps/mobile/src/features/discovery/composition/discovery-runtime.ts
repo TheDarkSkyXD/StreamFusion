@@ -5,28 +5,21 @@ import { createKickOfficialReader } from "../adapters/kick/kick-official-reader"
 import { createRelaySignedOutReader } from "../adapters/relay/relay-signed-out-reader";
 import { createTwitchHelixReader } from "../adapters/twitch/twitch-helix-reader";
 import type {
-  HomeDiscoverySession,
+  DiscoverySession,
   InstallationIdentityRead,
   InstallationIdentitySource,
   NetworkRead,
   NetworkSource,
   PlatformReadOutcome,
-  PlatformReadPath,
   UserTokenRead,
   UserTokenSource,
 } from "../capabilities/platform-reads";
 import { createDiscoveryCacheStore } from "../data/cache-discovery-store";
-import { selectPlatformReadPath } from "../domain/platform-read-path";
-import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
-
-const AUTOMATIC_RETRY_CODES = new Set([
-  "kick-failed",
-  "relay-unavailable",
-  "twitch-failed",
-]);
+import { createChannelDiscoverySession } from "./channel-discovery-runtime";
+import { executePlatformRead, staleFromCache } from "./execute-platform-read";
 
 export function createDiscoveryRuntime(input: {
-  readonly cache: DisposableCache;
+  readonly cache: Parameters<typeof createDiscoveryCacheStore>[0];
   readonly fetch?: typeof globalThis.fetch;
   readonly installation: InstallationIdentitySource;
   readonly kickAccessToken: () => Promise<string | null>;
@@ -34,7 +27,7 @@ export function createDiscoveryRuntime(input: {
   readonly relayBaseUrl: string;
   readonly twitchClientId: string | null;
   readonly userTokens: UserTokenSource;
-}): HomeDiscoverySession {
+}): DiscoverySession {
   const cache = createDiscoveryCacheStore(input.cache);
   const request = input.fetch ?? globalThis.fetch;
   const twitch = createTwitchHelixReader({
@@ -54,55 +47,56 @@ export function createDiscoveryRuntime(input: {
     fetch: request,
     installation: () => input.installation.read(),
   });
-
+  const readers = { kick, relay, twitch };
   return {
     async readTopStreams(read) {
-      if (read.signal?.aborted) return cancelled(read.platform);
-      const userToken = await input.userTokens.read(read.platform);
       const installation = await input.installation.read();
       const network = await input.network.read();
-      const path = selectPlatformReadPath({
+      return executePlatformRead({
+        cacheFallback: (outcome, path) =>
+          withTopStreamsCache({
+            cache,
+            outcome,
+            path,
+            platform: read.platform,
+            ...(read.language === undefined ? {} : { language: read.language }),
+          }),
+        cacheWrite: (outcome) =>
+          cache.writeTopStreams({
+            items: outcome.items,
+            platform: read.platform,
+            ...(read.language === undefined ? {} : { language: read.language }),
+            ...(outcome.cursor === undefined ? {} : { cursor: outcome.cursor }),
+          }),
         installation,
         network,
         platform: read.platform,
-        userToken,
-      });
-      const pathInput = {
-        installation,
-        kick,
-        path,
-        relay,
-        twitch,
-        ...(read.language === undefined ? {} : { language: read.language }),
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      };
-      const first = await readAlongPath(pathInput);
-      const retried =
-        shouldRetryOnce(first) && read.signal?.aborted !== true
-          ? await readAlongPath(pathInput)
-          : first;
-      const annotated = annotateAuthLost(retried, userToken);
-      if (annotated.status === "complete" || annotated.status === "partial") {
-        if (annotated.items.length > 0) {
-          await cache.writeTopStreams({
-            items: annotated.items,
+        readDirect: () =>
+          read.platform === "twitch"
+            ? twitch.getTopStreams({
+                ...(read.language === undefined
+                  ? {}
+                  : { language: read.language }),
+                ...(read.signal === undefined ? {} : { signal: read.signal }),
+              })
+            : kick.getTopStreams(
+                read.signal === undefined ? {} : { signal: read.signal },
+              ),
+        readRelay: () =>
+          relay.getTopStreams({
             platform: read.platform,
-            ...(read.language === undefined ? {} : { language: read.language }),
-            ...(annotated.cursor === undefined
-              ? {}
-              : { cursor: annotated.cursor }),
-          });
-        }
-        return annotated;
-      }
-      return withCacheFallback({
-        cache,
-        outcome: annotated,
-        path,
-        platform: read.platform,
-        ...(read.language === undefined ? {} : { language: read.language }),
+            ...(read.signal === undefined ? {} : { signal: read.signal }),
+          }),
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+        userToken: { kind: "none" },
       });
     },
+    ...createChannelDiscoverySession({
+      cache: input.cache,
+      installation: input.installation,
+      network: input.network,
+      readers,
+    }),
   };
 }
 
@@ -119,7 +113,9 @@ export function userTokenFromTwitchSnapshot(snapshot: {
 
 export function installationIdentityFromStore(read: {
   readonly kind: string;
-  readonly state?: { readonly credential: { readonly credential: string } | null };
+  readonly state?: {
+    readonly credential: { readonly credential: string } | null;
+  };
 }): InstallationIdentityRead {
   if (read.kind === "ready" && read.state?.credential) {
     return { credential: read.state.credential.credential, kind: "ready" };
@@ -131,57 +127,11 @@ export function alwaysOnlineNetwork(): NetworkSource {
   return { read: async () => "online" };
 }
 
-async function readAlongPath(input: {
-  readonly installation: InstallationIdentityRead;
-  readonly kick: ReturnType<typeof createKickOfficialReader>;
-  readonly language?: string;
-  readonly path: PlatformReadPath;
-  readonly relay: ReturnType<typeof createRelaySignedOutReader>;
-  readonly signal?: AbortSignal;
-  readonly twitch: ReturnType<typeof createTwitchHelixReader>;
-}): Promise<PlatformReadOutcome<Stream>> {
-  if (input.path.kind === "unavailable") {
-    return unavailableOutcome(input.path);
-  }
-  if (input.path.kind === "direct") {
-    const direct =
-      input.path.platform === "twitch"
-        ? await input.twitch.getTopStreams({
-            ...(input.language === undefined ? {} : { language: input.language }),
-            ...(input.signal === undefined ? {} : { signal: input.signal }),
-          })
-        : await input.kick.getTopStreams(
-            input.signal === undefined ? {} : { signal: input.signal },
-          );
-    if (
-      direct.error?.code === "auth-lost" &&
-      input.installation.kind === "ready"
-    ) {
-      const relayed = await input.relay.getTopStreams({
-        platform: input.path.platform,
-        ...(input.signal === undefined ? {} : { signal: input.signal }),
-      });
-      if (relayed.status === "complete" || relayed.status === "partial") {
-        return {
-          ...relayed,
-          error: { code: "auth-lost", retry: "manual" },
-          status: "partial",
-        };
-      }
-    }
-    return direct;
-  }
-  return input.relay.getTopStreams({
-    platform: input.path.platform,
-    ...(input.signal === undefined ? {} : { signal: input.signal }),
-  });
-}
-
-async function withCacheFallback(input: {
+async function withTopStreamsCache(input: {
   readonly cache: ReturnType<typeof createDiscoveryCacheStore>;
   readonly language?: string;
   readonly outcome: PlatformReadOutcome<Stream>;
-  readonly path: PlatformReadPath;
+  readonly path: PlatformReadOutcome<Stream>["path"];
   readonly platform: Platform;
 }): Promise<PlatformReadOutcome<Stream>> {
   const stored = await input.cache.readTopStreams(
@@ -189,54 +139,15 @@ async function withCacheFallback(input: {
     input.language,
   );
   if (stored.kind === "miss") return input.outcome;
-  return {
+  return staleFromCache({
     cache: stored.cache,
     items: stored.items,
     path: input.path,
     platform: input.platform,
-    status: "stale",
-    ...(stored.cursor === undefined ? {} : { cursor: stored.cursor }),
-    ...(input.outcome.error === undefined ? {} : { error: input.outcome.error }),
-  };
-}
-
-function annotateAuthLost(
-  outcome: PlatformReadOutcome<Stream>,
-  userToken: UserTokenRead,
-): PlatformReadOutcome<Stream> {
-  if (userToken.kind !== "auth-lost" || outcome.status === "failed") {
-    return outcome;
-  }
-  return {
-    ...outcome,
-    error: { code: "auth-lost", retry: "manual" },
-    status: "partial",
-  };
-}
-
-function shouldRetryOnce(outcome: PlatformReadOutcome<Stream>): boolean {
-  return (
-    outcome.status === "failed" &&
-    outcome.error !== undefined &&
-    AUTOMATIC_RETRY_CODES.has(outcome.error.code)
-  );
-}
-
-function unavailableOutcome(
-  path: Extract<PlatformReadPath, { kind: "unavailable" }>,
-): PlatformReadOutcome<Stream> {
-  return {
-    cache: { kind: "miss" },
-    error: { code: path.reason, retry: path.reason === "cancelled" ? "none" : "manual" },
-    items: [],
-    path,
-    platform: path.platform,
-    status: "failed",
-  };
-}
-
-function cancelled(platform: Platform): PlatformReadOutcome<Stream> {
-  return unavailableOutcome({ kind: "unavailable", platform, reason: "cancelled" });
+    ...(input.outcome.error === undefined
+      ? {}
+      : { error: input.outcome.error }),
+  });
 }
 
 export type { NetworkRead };

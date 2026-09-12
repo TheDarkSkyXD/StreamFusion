@@ -39,7 +39,7 @@ describe("selectPlatformReadPath", () => {
     ).toEqual({ kind: "relay", platform: "twitch" });
   });
 
-  it("requires login when signed out with no installation", () => {
+  it("uses Relay for signed-out catalog reads without an installation", () => {
     expect(
       selectPlatformReadPath({
         installation: { kind: "none" },
@@ -47,11 +47,7 @@ describe("selectPlatformReadPath", () => {
         platform: "twitch",
         userToken: { kind: "none" },
       }),
-    ).toEqual({
-      kind: "unavailable",
-      platform: "twitch",
-      reason: "signed-out-login-required",
-    });
+    ).toEqual({ kind: "relay", platform: "twitch" });
   });
 
   it("does not send followed streams to Relay when signed out", () => {

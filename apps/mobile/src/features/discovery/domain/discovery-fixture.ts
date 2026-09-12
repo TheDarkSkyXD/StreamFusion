@@ -18,6 +18,7 @@ export function fixtureStream(
     channelName: `${platform}-live`,
     id,
     isLive: true,
+    categoryName: "Just Chatting",
     language: "en",
     platform,
     startedAt: null,

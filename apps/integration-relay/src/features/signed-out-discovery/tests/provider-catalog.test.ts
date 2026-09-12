@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   signedOutCategoriesBodySchema,
+  signedOutChannelBodySchema,
+  signedOutClipsBodySchema,
   signedOutSearchBodySchema,
-  signedOutTopStreamsBodySchema
+  signedOutTopStreamsBodySchema,
+  signedOutVideosBodySchema
 } from "@streamfusion/core/relay";
 import { createKickOfficialCatalog } from "../adapters/kick-official-catalog";
 import { createTwitchHelixCatalog } from "../adapters/twitch-helix-catalog";
@@ -292,5 +295,110 @@ describe("provider discovery catalogs", () => {
         )?.init?.headers
       ).get("Authorization")
     ).toBe("Bearer kick-app-token");
+  });
+
+  it("maps Twitch channel videos and marks Kick media unsupported", async () => {
+    const twitchUpstream = fakeFetch(
+      new Map([
+        [
+          "https://id.twitch.tv/oauth2/token",
+          { access_token: "twitch-app-token", expires_in: 3_600 }
+        ],
+        [
+          "https://api.twitch.tv/helix/users?login=alice",
+          {
+            data: [
+              {
+                broadcaster_type: "partner",
+                created_at: "2020-01-01T00:00:00Z",
+                description: "Hello",
+                display_name: "Alice",
+                id: "c1",
+                login: "alice",
+                profile_image_url: "https://cdn.test/a.png"
+              }
+            ]
+          }
+        ],
+        [
+          "https://api.twitch.tv/helix/channels?broadcaster_id=c1",
+          {
+            data: [
+              {
+                game_id: "509658",
+                game_name: "Just Chatting",
+                title: "Live now"
+              }
+            ]
+          }
+        ],
+        ["https://api.twitch.tv/helix/streams?user_id=c1", { data: [] }],
+        [
+          "https://api.twitch.tv/helix/videos?first=20&user_id=c1",
+          {
+            data: [
+              {
+                created_at: "2026-09-11T00:00:00Z",
+                duration: "1h2m3s",
+                id: "v1",
+                published_at: "2026-09-11T00:00:00Z",
+                thumbnail_url: "https://cdn.test/%{width}x%{height}.jpg",
+                title: "Yesterday",
+                type: "archive",
+                url: "https://twitch.tv/videos/v1",
+                view_count: 8
+              }
+            ]
+          }
+        ],
+        [
+          "https://api.twitch.tv/helix/clips?broadcaster_id=c1&first=20",
+          {
+            data: [
+              {
+                created_at: "2026-09-11T00:00:00Z",
+                creator_name: "bob",
+                duration: 20,
+                id: "clip1",
+                thumbnail_url: "https://cdn.test/c.png",
+                title: "Clip",
+                url: "https://clips.twitch.tv/clip1",
+                view_count: 4
+              }
+            ]
+          }
+        ]
+      ])
+    );
+    const twitch = createTwitchHelixCatalog({
+      credentials: {
+        clientId: "twitch-client",
+        clientSecret: ["twitch", "secret"].join("-")
+      },
+      fetch: twitchUpstream.fetch
+    });
+    const channel = await nonNull(twitch.channel({ login: "alice" }));
+    const videos = await nonNull(twitch.videos({ login: "alice" }));
+    const clips = await nonNull(twitch.clips({ login: "alice" }));
+    expect(signedOutChannelBodySchema.is(channel)).toBe(true);
+    expect(signedOutVideosBodySchema.is(videos)).toBe(true);
+    expect(signedOutClipsBodySchema.is(clips)).toBe(true);
+    expect(channel.live).toBeNull();
+    expect(videos.videos[0]?.duration).toBe(3723);
+    expect(clips.clips[0]?.creatorName).toBe("bob");
+
+    const kick = createKickOfficialCatalog({
+      credentials: {
+        clientId: "kick-client",
+        clientSecret: ["kick", "secret"].join("-")
+      },
+      fetch: async () => new Response(null, { status: 500 })
+    });
+    const kickVideos = await nonNull(kick.videos({ login: "alice" }));
+    const kickClips = await nonNull(kick.clips({ login: "alice" }));
+    expect(signedOutVideosBodySchema.is(kickVideos)).toBe(true);
+    expect(signedOutClipsBodySchema.is(kickClips)).toBe(true);
+    expect(kickVideos.support).toBe("unsupported");
+    expect(kickClips.support).toBe("unsupported");
   });
 });

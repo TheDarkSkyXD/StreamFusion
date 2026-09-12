@@ -11,6 +11,7 @@ export type ShellRouteId =
   | "activity/alert-preview"
   | "activity/job-preview"
   | "more/home"
+  | "more/channel"
   | "more/categories"
   | "more/multistream"
   | "more/history"
@@ -21,7 +22,10 @@ export type ShellRouteId =
 
 type StaticShellRouteId = Exclude<
   ShellRouteId,
-  "watch/session-preview" | "activity/alert-preview" | "activity/job-preview"
+  | "watch/session-preview"
+  | "activity/alert-preview"
+  | "activity/job-preview"
+  | "more/channel"
 >;
 
 export type ShellLocation =
@@ -38,7 +42,15 @@ export type ShellLocation =
           };
     }
   | { readonly route: "activity/alert-preview"; readonly eventId: string }
-  | { readonly route: "activity/job-preview"; readonly jobId: string };
+  | { readonly route: "activity/job-preview"; readonly jobId: string }
+  | {
+      readonly route: "more/channel";
+      readonly channel: {
+        readonly platform: Platform;
+        readonly id: string;
+        readonly username: string;
+      };
+    };
 
 export interface ShellDestination {
   readonly id: ShellDestinationId;
@@ -187,6 +199,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more-home",
     "Browse the combined Twitch and Kick recommendation feed.",
     "Home",
+    "more",
+  ),
+  "more/channel": route(
+    "more/channel",
+    "MORE",
+    "more-channel",
+    "Open a channel with Home, Videos, and Clips without starting Watch.",
+    "Channel",
     "more",
   ),
   "more/categories": route(
@@ -419,7 +439,8 @@ function isStaticRoute(value: unknown): value is StaticShellRouteId {
     Object.hasOwn(SHELL_ROUTES, value) &&
     value !== "watch/session-preview" &&
     value !== "activity/alert-preview" &&
-    value !== "activity/job-preview"
+    value !== "activity/job-preview" &&
+    value !== "more/channel"
   );
 }
 
@@ -438,6 +459,18 @@ function isShellLocation(value: unknown): value is ShellLocation {
       typeof value.jobId === "string" &&
       identifierPattern.test(value.jobId)
     );
+  if (value.route === "more/channel") {
+    return (
+      hasOnlyKeys(value, ["route", "channel"]) &&
+      isRecord(value.channel) &&
+      hasOnlyKeys(value.channel, ["platform", "id", "username"]) &&
+      isPlatform(value.channel.platform) &&
+      typeof value.channel.id === "string" &&
+      identifierPattern.test(value.channel.id) &&
+      typeof value.channel.username === "string" &&
+      channelLoginPattern.test(value.channel.username)
+    );
+  }
   if (value.route !== "watch/session-preview" || !isRecord(value.target))
     return false;
   if (value.target.kind === "preview")

@@ -28,7 +28,25 @@ export function createSignedOutDiscoveryService(input: {
           ? { kind: "unavailable" }
           : { body, kind: command.kind };
       }
-      const body = await catalog.search({ query: command.query });
+      if (command.kind === "search") {
+        const body = await catalog.search({ query: command.query });
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: command.kind };
+      }
+      if (command.kind === "channel") {
+        const body = await catalog.channel(command.lookup);
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: command.kind };
+      }
+      if (command.kind === "channel-videos") {
+        const body = await catalog.videos(command.lookup);
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: command.kind };
+      }
+      const body = await catalog.clips(command.lookup);
       return body === null
         ? { kind: "unavailable" }
         : { body, kind: command.kind };

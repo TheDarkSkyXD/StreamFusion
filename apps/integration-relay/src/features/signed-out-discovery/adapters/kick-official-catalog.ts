@@ -8,6 +8,7 @@ import type {
   AppCredentials,
   DiscoveryCatalog
 } from "../capabilities/discovery-catalog";
+import { createKickChannelReads } from "./kick-official-channel";
 
 type KickStream = SignedOutTopStreamsBody["streams"][number];
 type KickCategory = SignedOutCategoriesBody["categories"][number];
@@ -42,7 +43,8 @@ export function createKickOfficialCatalog(input: {
         client.get(`/public/v1/categories?${queryParams({ q: query })}`)
       ]);
       return searchBody(channels, categories, query);
-    }
+    },
+    ...createKickChannelReads((path) => client.get(path))
   };
 }
 function createKickClient(input: {

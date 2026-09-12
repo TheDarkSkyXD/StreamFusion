@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   mobileColors,
@@ -7,8 +7,15 @@ import {
 } from "@mobile/design/tokens";
 import type { Stream } from "@streamfusion/core/content";
 
-export function HomeStreamCard({ stream }: { readonly stream: Stream }) {
-  return (
+export function HomeStreamCard({
+  onOpen,
+  stream,
+}: {
+  readonly onOpen?: () => void;
+  readonly stream: Stream;
+}) {
+  const category = stream.categoryName ?? stream.language;
+  const card = (
     <View
       accessibilityLabel={`${stream.channelDisplayName} live on ${stream.platform}`}
       style={styles.card}
@@ -52,6 +59,13 @@ export function HomeStreamCard({ stream }: { readonly stream: Stream }) {
           <Text selectable style={styles.channel}>
             {stream.channelDisplayName}
           </Text>
+          {category ? (
+            <Text selectable style={styles.category}>
+              {stream.categoryName
+                ? `${stream.categoryName}${stream.language ? ` · ${stream.language}` : ""}`
+                : stream.language}
+            </Text>
+          ) : null}
         </View>
         <View
           style={[
@@ -67,6 +81,17 @@ export function HomeStreamCard({ stream }: { readonly stream: Stream }) {
         </View>
       </View>
     </View>
+  );
+  if (onOpen === undefined) return card;
+  return (
+    <Pressable
+      accessibilityHint="Opens channel details"
+      accessibilityRole="button"
+      android_ripple={{ color: mobileColors.surfaceRaised }}
+      onPress={onOpen}
+    >
+      {card}
+    </Pressable>
   );
 }
 
@@ -144,6 +169,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
+  },
+  category: {
+    color: mobileColors.textCategory,
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 18,
   },
   platformBadge: {
     borderRadius: mobileRadii.small,

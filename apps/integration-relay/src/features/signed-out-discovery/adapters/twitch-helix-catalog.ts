@@ -8,6 +8,7 @@ import type {
   AppCredentials,
   DiscoveryCatalog
 } from "../capabilities/discovery-catalog";
+import { createTwitchChannelReads } from "./twitch-helix-channel";
 
 type TwitchStream = SignedOutTopStreamsBody["streams"][number];
 type TwitchCategory = SignedOutCategoriesBody["categories"][number];
@@ -44,7 +45,8 @@ export function createTwitchHelixCatalog(input: {
         client.get(`/search/categories?${queryParams({ first: "20", query })}`)
       ]);
       return searchBody(channels, categories, query);
-    }
+    },
+    ...createTwitchChannelReads((path) => client.get(path))
   };
 }
 
