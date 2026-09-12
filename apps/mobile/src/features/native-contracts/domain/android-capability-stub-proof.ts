@@ -21,12 +21,14 @@ const proofCapabilities = [
   "maintenance",
 ] as const;
 
-function isMissingJob(value: unknown): boolean {
+function isMissingJob(value: unknown, jobId: string): boolean {
   return (
     typeof value === "object" &&
     value !== null &&
     "kind" in value &&
-    (value as { readonly kind: unknown }).kind === "missing"
+    "jobId" in value &&
+    (value as { readonly kind: unknown }).kind === "missing" &&
+    (value as { readonly jobId: unknown }).jobId === jobId
   );
 }
 
@@ -35,7 +37,7 @@ function failedCapability(
   result: AndroidNativeOperationResult<unknown>,
 ): string | undefined {
   if (capability === "media jobs") {
-    return result.kind === "completed" && isMissingJob(result.value)
+    return result.kind === "completed" && isMissingJob(result.value, proofId)
       ? undefined
       : "media jobs did not cancel a nonexistent job without starting work.";
   }

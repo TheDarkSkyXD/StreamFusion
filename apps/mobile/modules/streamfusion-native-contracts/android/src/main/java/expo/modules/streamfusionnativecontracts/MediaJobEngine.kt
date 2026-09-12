@@ -11,16 +11,18 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import org.json.JSONObject
 
 internal class MediaJobEngine(private val context: Context) {
   private val executor = Executors.newCachedThreadPool()
+  private val journalGuard = Any()
   private val owned = ConcurrentHashMap<String, Boolean>()
   private val workers = ConcurrentHashMap<String, Future<*>>()
   private val pauseFlags = ConcurrentHashMap<String, AtomicBoolean>()
   private val cancelFlags = ConcurrentHashMap<String, AtomicBoolean>()
 
   fun start(jobId: String, kind: String, sourceUri: String): Map<String, Any?> {
-    if (!JOB_ID.matches(jobId) || (kind != "download" && kind != "recording")) {
+    if (!MediaJobCodec.isValidJobId(jobId) || (kind != "download" && kind != "recording")) {
       return MediaJobCodec.missing(jobId)
     }
     val existing = readJournal(jobId)
@@ -33,28 +35,33 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   fun pause(jobId: String): Map<String, Any?> {
-    val journal = readJournal(jobId) ?: return MediaJobCodec.missing(jobId)
+    val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     pauseFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(true)
+    val workerRunning = workers[jobId]?.isDone == false
     writeJournal(
       jobId,
       journal.optString("kind"),
       journal.optInt("generation"),
-      "pausing",
+      if (workerRunning) "pausing" else "paused",
       journal.optJSONObject("checkpoint")?.optLong("byteOffset") ?: 0,
       journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
       artifactFrom(jobId).first,
       artifactFrom(jobId).second,
       artifactFrom(jobId).third,
-      true,
+      workerRunning,
       null,
-      "Pausing",
+      if (workerRunning) "Pausing" else "Paused",
       journal.optString("sourceUri"),
     )
+    if (!workerRunning) {
+      owned.remove(jobId)
+      stopServiceIfIdle()
+    }
     return snapshot(jobId)
   }
 
   fun resume(jobId: String): Map<String, Any?> {
-    val journal = readJournal(jobId) ?: return MediaJobCodec.missing(jobId)
+    val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     pauseFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(false)
     cancelFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(false)
     startService(jobId)
@@ -68,7 +75,7 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   fun cancel(jobId: String): Map<String, Any?> {
-    val journal = readJournal(jobId) ?: return MediaJobCodec.missing(jobId)
+    val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     cancelFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(true)
     workers.remove(jobId)?.cancel(true)
     owned.remove(jobId)
@@ -93,7 +100,7 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   fun retry(jobId: String): Map<String, Any?> {
-    val journal = readJournal(jobId) ?: return MediaJobCodec.missing(jobId)
+    val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     val nextGeneration = journal.optInt("generation").coerceAtLeast(1) + 1
     pauseFlags[jobId] = AtomicBoolean(false)
     cancelFlags[jobId] = AtomicBoolean(false)
@@ -118,7 +125,7 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   fun finalize(jobId: String): Map<String, Any?> {
-    val journal = readJournal(jobId) ?: return MediaJobCodec.missing(jobId)
+    val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     cancelFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(true)
     workers.remove(jobId)?.cancel(true)
     completeArtifact(jobId)
@@ -147,12 +154,38 @@ internal class MediaJobEngine(private val context: Context) {
     val root = jobsRoot()
     if (!root.isDirectory) return emptyList()
     return root.listFiles().orEmpty()
-      .filter { it.isDirectory }
+      .filter { it.isDirectory && MediaJobCodec.isValidJobId(it.name) }
       .mapNotNull { dir -> readJournal(dir.name)?.let { snapshot(dir.name)["value"] as? Map<String, Any?> } }
   }
 
+  fun restoreOwnedJobs(): List<String> {
+    val restored = mutableListOf<String>()
+    for (dir in jobsRoot().listFiles().orEmpty()) {
+      if (!dir.isDirectory || !MediaJobCodec.isValidJobId(dir.name)) continue
+      val journal = readJournal(dir.name) ?: continue
+      val phase = journal.optString("phase")
+      if (phase == "pausing" && workers[dir.name]?.isDone != false) {
+        writePausedWithoutWorker(dir.name, journal)
+        continue
+      }
+      if (!journal.optBoolean("serviceOwned") || phase !in ACTIVE_PHASES) continue
+      if (workers[dir.name]?.isDone == false) {
+        restored.add(dir.name)
+        continue
+      }
+      launchWorker(
+        dir.name,
+        journal.optString("kind"),
+        journal.optString("sourceUri"),
+        journal.optInt("generation"),
+      )
+      restored.add(dir.name)
+    }
+    return restored
+  }
+
   fun get(jobId: String): Map<String, Any?> {
-    if (readJournal(jobId) == null) return MediaJobCodec.missing(jobId)
+    if (journalOrMissing(jobId) == null) return MediaJobCodec.missing(jobId)
     return snapshot(jobId)
   }
 
@@ -174,39 +207,48 @@ internal class MediaJobEngine(private val context: Context) {
     val file = artifactFile(jobId)
     file.parentFile?.mkdirs()
     var written = if (file.exists()) file.length() else 0L
-    writeJournal(jobId, kind, generation, "running", written, written / 32, artifactKind(written, false), written, false, true, null, "Running", sourceUri)
+    if (!writeIfWorkerOwns(jobId, kind, generation, "running", written, written / 32, artifactKind(written, false), written, false, true, null, "Running", sourceUri)) {
+      return
+    }
     RandomAccessFile(file, "rw").use { access ->
       access.seek(written)
       val chunk = ByteArray(4_096) { 0x53 }
       while (written < target) {
         if (cancelFlags[jobId]?.get() == true) return
         if (pauseFlags[jobId]?.get() == true) {
-          writeJournal(jobId, kind, generation, "paused", written, written / 32, artifactKind(written, false), written, false, false, null, "Paused", sourceUri)
+          if (!writeIfWorkerOwns(jobId, kind, generation, "paused", written, written / 32, artifactKind(written, false), written, false, false, null, "Paused", sourceUri)) {
+            return
+          }
           owned.remove(jobId)
           stopServiceIfIdle()
           return
         }
         if (pressure && written >= 4_096) {
-          writeJournal(jobId, kind, generation, "failed-retryable", written, written / 32, "partial", written, false, false, "storage-pressure", "Stopped because storage is full.", sourceUri)
+          if (!writeIfWorkerOwns(jobId, kind, generation, "failed-retryable", written, written / 32, "partial", written, false, false, "storage-pressure", "Stopped because storage is full.", sourceUri)) {
+            return
+          }
           owned.remove(jobId)
           stopServiceIfIdle()
           return
         }
         val available = StatFs(context.filesDir.absolutePath).availableBytes
         if (available < 8_192) {
-          writeJournal(jobId, kind, generation, "failed-retryable", written, written / 32, artifactKind(written, false), written, false, false, "storage-pressure", "Stopped because storage is full.", sourceUri)
+          if (!writeIfWorkerOwns(jobId, kind, generation, "failed-retryable", written, written / 32, artifactKind(written, false), written, false, false, "storage-pressure", "Stopped because storage is full.", sourceUri)) {
+            return
+          }
           owned.remove(jobId)
           stopServiceIfIdle()
           return
         }
         access.write(chunk)
         written += chunk.size
-        writeJournal(jobId, kind, generation, "running", written, written / 32, "partial", written, false, true, null, "Running", sourceUri)
+        if (!writeIfWorkerOwns(jobId, kind, generation, "running", written, written / 32, "partial", written, false, true, null, "Running", sourceUri)) {
+          return
+        }
         TimeUnit.MILLISECONDS.sleep(120)
       }
     }
-    completeArtifact(jobId)
-    writeJournal(jobId, kind, generation, "completed", target, target / 32, "complete", target, true, false, null, "Completed", sourceUri)
+    if (!completeIfWorkerOwns(jobId, kind, sourceUri, generation, target)) return
     owned.remove(jobId)
     stopServiceIfIdle()
   }
@@ -231,8 +273,8 @@ internal class MediaJobEngine(private val context: Context) {
       if (artifact.second > 0 || artifact.third) "media-jobs/$jobId/artifact.bin" else null,
       artifact.second,
       owned.containsKey(jobId),
-      journal.optString("failureCode").ifEmpty { null },
-      journal.optString("statusMessage"),
+      MediaJobCodec.optionalString(journal, "failureCode"),
+      MediaJobCodec.optionalString(journal, "statusMessage") ?: "",
     )
     return MediaJobCodec.record(mapped, files)
   }
@@ -274,7 +316,74 @@ internal class MediaJobEngine(private val context: Context) {
       artifactKind, relative, artifactBytes, serviceOwned, failure, status,
     ).toMutableMap()
     journal["sourceUri"] = sourceUri
-    MediaJobCodec.writeJson(journalFile(jobId), journal)
+    synchronized(journalGuard) {
+      MediaJobCodec.writeJson(journalFile(jobId), journal)
+    }
+  }
+
+  private fun writeIfWorkerOwns(
+    jobId: String,
+    kind: String,
+    generation: Int,
+    phase: String,
+    byteOffset: Long,
+    durationMs: Long,
+    artifactKind: String,
+    artifactBytes: Long,
+    complete: Boolean,
+    serviceOwned: Boolean,
+    failure: String?,
+    status: String,
+    sourceUri: String,
+  ): Boolean {
+    synchronized(journalGuard) {
+      if (!workerOwnsJournal(jobId, generation)) return false
+      writeJournal(
+        jobId,
+        kind,
+        generation,
+        phase,
+        byteOffset,
+        durationMs,
+        artifactKind,
+        artifactBytes,
+        complete,
+        serviceOwned,
+        failure,
+        status,
+        sourceUri,
+      )
+      return true
+    }
+  }
+
+  private fun completeIfWorkerOwns(
+    jobId: String,
+    kind: String,
+    sourceUri: String,
+    generation: Int,
+    target: Long,
+  ): Boolean {
+    synchronized(journalGuard) {
+      if (!workerOwnsJournal(jobId, generation)) return false
+      completeArtifact(jobId)
+      writeJournal(
+        jobId,
+        kind,
+        generation,
+        "completed",
+        target,
+        target / 32,
+        "complete",
+        target,
+        true,
+        false,
+        null,
+        "Completed",
+        sourceUri,
+      )
+      return true
+    }
   }
 
   private fun startService(jobId: String) {
@@ -298,6 +407,34 @@ internal class MediaJobEngine(private val context: Context) {
   private fun artifactFile(jobId: String): File = File(jobDir(jobId), "artifact.bin")
   private fun completeFile(jobId: String): File = File(jobDir(jobId), "artifact.bin.complete")
   private fun readJournal(jobId: String) = MediaJobCodec.readJson(journalFile(jobId))
+  private fun journalOrMissing(jobId: String): JSONObject? {
+    if (!MediaJobCodec.isValidJobId(jobId)) return null
+    return readJournal(jobId)
+  }
+  private fun workerOwnsJournal(jobId: String, generation: Int): Boolean {
+    val journal = readJournal(jobId) ?: return false
+    if (journal.optInt("generation") != generation) return false
+    val phase = journal.optString("phase")
+    return phase != "canceled" && phase != "completed" && phase != "failed-terminal"
+  }
+  private fun writePausedWithoutWorker(jobId: String, journal: JSONObject) {
+    writeJournal(
+      jobId,
+      journal.optString("kind"),
+      journal.optInt("generation"),
+      "paused",
+      journal.optJSONObject("checkpoint")?.optLong("byteOffset") ?: 0,
+      journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
+      artifactFrom(jobId).first,
+      artifactFrom(jobId).second,
+      artifactFrom(jobId).third,
+      false,
+      null,
+      "Paused",
+      journal.optString("sourceUri"),
+    )
+    owned.remove(jobId)
+  }
   private fun completeArtifact(jobId: String) {
     artifactFile(jobId).parentFile?.mkdirs()
     if (!artifactFile(jobId).exists()) artifactFile(jobId).writeBytes(ByteArray(0))
@@ -312,7 +449,7 @@ internal class MediaJobEngine(private val context: Context) {
     if (complete) "complete" else if (bytes > 0) "partial" else "none"
 
   companion object {
-    private val JOB_ID = Regex("^[a-zA-Z0-9._:-]{1,256}$")
+    private val ACTIVE_PHASES = setOf("queued", "preparing", "running", "pausing", "finalizing")
     @Volatile private var instance: MediaJobEngine? = null
     fun get(context: Context): MediaJobEngine {
       val current = instance

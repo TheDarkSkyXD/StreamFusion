@@ -39,7 +39,9 @@ function isNonEmptyString(value: unknown): value is string {
 function asTimestamp(value: unknown): string | undefined {
   if (isSerializedTimestamp(value)) return value;
   if (typeof value === "number" && Number.isFinite(value)) {
-    const iso = new Date(value).toISOString();
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.valueOf())) return undefined;
+    const iso = parsed.toISOString();
     return isSerializedTimestamp(iso) ? iso : undefined;
   }
   if (typeof value === "string") {

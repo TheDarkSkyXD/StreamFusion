@@ -1,8 +1,10 @@
 package expo.modules.streamfusionnativecontracts
 
+import android.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -76,11 +78,30 @@ internal object MediaJobCodec {
 
   fun writeJson(file: File, journal: Map<String, Any?>) {
     file.parentFile?.mkdirs()
-    file.writeText(toJsonObject(journal).toString())
+    val atomic = AtomicFile(file)
+    val stream = atomic.startWrite()
+    try {
+      stream.write(toJsonObject(journal).toString().toByteArray(StandardCharsets.UTF_8))
+      atomic.finishWrite(stream)
+    } catch (error: Throwable) {
+      atomic.failWrite(stream)
+      throw error
+    }
   }
 
   fun readJson(file: File): JSONObject? =
     if (file.isFile) JSONObject(file.readText()) else null
+
+  fun optionalString(json: JSONObject, key: String): String? {
+    if (json.isNull(key)) return null
+    val value = json.optString(key)
+    return value.takeIf { it.isNotEmpty() }
+  }
+
+  fun isValidJobId(jobId: String): Boolean =
+    JOB_ID.matches(jobId) && jobId != "." && jobId != ".."
+
+  private val JOB_ID = Regex("^[a-zA-Z0-9._:-]{1,256}$")
 
   private fun toJsonObject(value: Map<*, *>): JSONObject {
     val json = JSONObject()

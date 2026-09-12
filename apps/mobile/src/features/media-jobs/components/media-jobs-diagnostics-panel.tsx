@@ -16,19 +16,23 @@ import {
 import { mediaJobPhaseLabel } from "../utils/media-job-labels";
 
 export function MediaJobsDiagnosticsPanel({
+  busy = false,
   jobs,
   onOpenJob,
   onRecover,
   onStartDownload,
   onStartRecording,
   onStartStoragePressure,
+  status,
 }: {
+  readonly busy?: boolean;
   readonly jobs: readonly MediaJobSnapshot[];
   readonly onOpenJob: (jobId: string) => void;
   readonly onRecover: () => void;
   readonly onStartDownload: () => void;
   readonly onStartRecording: () => void;
   readonly onStartStoragePressure: () => void;
+  readonly status?: string | null;
 }) {
   return (
     <View style={styles.panel} testID="media-jobs-diagnostics">
@@ -51,9 +55,16 @@ export function MediaJobsDiagnosticsPanel({
       <Text selectable style={styles.meta}>
         {MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI}
       </Text>
+      {status ? (
+        <Text selectable style={styles.body} testID="media-jobs-status">
+          {status}
+        </Text>
+      ) : null}
       <Pressable
         accessibilityLabel="Start fixture download"
         accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
         onPress={onStartDownload}
         style={styles.button}
         testID="media-jobs-start-download"
@@ -65,6 +76,8 @@ export function MediaJobsDiagnosticsPanel({
       <Pressable
         accessibilityLabel="Start fixture recording"
         accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
         onPress={onStartRecording}
         style={styles.button}
         testID="media-jobs-start-recording"
@@ -76,6 +89,8 @@ export function MediaJobsDiagnosticsPanel({
       <Pressable
         accessibilityLabel="Start storage pressure fixture"
         accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
         onPress={onStartStoragePressure}
         style={styles.button}
         testID="media-jobs-start-storage-pressure"
@@ -87,6 +102,8 @@ export function MediaJobsDiagnosticsPanel({
       <Pressable
         accessibilityLabel="Recover Media Jobs"
         accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
         onPress={onRecover}
         style={styles.button}
         testID="media-jobs-recover"

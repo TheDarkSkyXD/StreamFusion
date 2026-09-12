@@ -25,17 +25,29 @@ class MediaJobForegroundService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    val jobId = intent?.getStringExtra("jobId") ?: "media-job"
+    if (intent == null) {
+      val restored = MediaJobEngine.get(this).restoreOwnedJobs()
+      if (restored.isEmpty()) {
+        stopSelf(startId)
+        return START_NOT_STICKY
+      }
+      promoteForeground(restored.first())
+      return START_STICKY
+    }
+    promoteForeground(intent.getStringExtra("jobId") ?: "media-job")
+    return START_STICKY
+  }
+
+  override fun onBind(intent: Intent?): IBinder? = null
+
+  private fun promoteForeground(jobId: String) {
     val notification = notification("Media Job $jobId is running.")
     if (Build.VERSION.SDK_INT >= 34) {
       startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     } else {
       startForeground(NOTIFICATION_ID, notification)
     }
-    return START_STICKY
   }
-
-  override fun onBind(intent: Intent?): IBinder? = null
 
   private fun notification(text: String): Notification {
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

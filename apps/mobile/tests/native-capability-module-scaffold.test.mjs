@@ -9,19 +9,83 @@ const kotlinRoot = path.join(
   "android/src/main/java/expo/modules/streamfusionnativecontracts",
 );
 const modules = [
-  ["Playback", "StreamFusionPlayback", ["startFocusedSession", "enterPictureInPicture", "endFocusedSession"]],
-  ["MediaJobs", "StreamFusionMediaJobs", ["startRecoverableJob", "recoverJobs", "cancelRecoverableJob", "pauseRecoverableJob", "resumeRecoverableJob", "retryRecoverableJob", "finalizeRecoverableJob", "getRecoverableJob"]],
-  ["Captions", "StreamFusionCaptions", ["installEnglishModel", "startFocusedCaptionSession", "stopFocusedCaptionSession", "removeEnglishModel"]],
-  ["Diagnostics", "StreamFusionDiagnostics", ["queueDevelopmentResourceSnapshotFailure", "readResourceSnapshot"]],
-  ["Maintenance", "StreamFusionMaintenance", ["verifyDownloadedApk", "handoffVerifiedApk"]],
+  [
+    "Playback",
+    "StreamFusionPlayback",
+    ["startFocusedSession", "enterPictureInPicture", "endFocusedSession"],
+  ],
+  [
+    "MediaJobs",
+    "StreamFusionMediaJobs",
+    [
+      "startRecoverableJob",
+      "recoverJobs",
+      "cancelRecoverableJob",
+      "pauseRecoverableJob",
+      "resumeRecoverableJob",
+      "retryRecoverableJob",
+      "finalizeRecoverableJob",
+      "getRecoverableJob",
+    ],
+  ],
+  [
+    "Captions",
+    "StreamFusionCaptions",
+    [
+      "installEnglishModel",
+      "startFocusedCaptionSession",
+      "stopFocusedCaptionSession",
+      "removeEnglishModel",
+    ],
+  ],
+  [
+    "Diagnostics",
+    "StreamFusionDiagnostics",
+    ["queueDevelopmentResourceSnapshotFailure", "readResourceSnapshot"],
+  ],
+  [
+    "Maintenance",
+    "StreamFusionMaintenance",
+    ["verifyDownloadedApk", "handoffVerifiedApk"],
+  ],
 ];
 
+test("the Media Job engine fences generation, writes journals atomically, and stops empty sticky restarts", () => {
+  const engine = readFileSync(
+    path.join(kotlinRoot, "MediaJobEngine.kt"),
+    "utf8",
+  );
+  const codec = readFileSync(path.join(kotlinRoot, "MediaJobCodec.kt"), "utf8");
+  const service = readFileSync(
+    path.join(kotlinRoot, "MediaJobForegroundService.kt"),
+    "utf8",
+  );
+  assert.match(codec, /AtomicFile/u);
+  assert.match(codec, /finishWrite/u);
+  assert.match(codec, /json\.isNull\(key\)/u);
+  assert.match(codec, /jobId != "\.\."/u);
+  assert.match(engine, /writeIfWorkerOwns/u);
+  assert.match(engine, /completeIfWorkerOwns/u);
+  assert.match(engine, /synchronized\(journalGuard\)/u);
+  assert.match(engine, /journal\.optInt\("generation"\) != generation/u);
+  assert.match(engine, /if \(workerRunning\) "pausing" else "paused"/u);
+  assert.match(engine, /fun restoreOwnedJobs/u);
+  assert.match(service, /START_NOT_STICKY/u);
+  assert.match(service, /intent == null/u);
+  assert.match(service, /restoreOwnedJobs/u);
+});
+
 test("the Expo module keeps four contained stubs and one measured diagnostics contract", () => {
-  const config = JSON.parse(readFileSync(path.join(moduleRoot, "expo-module.config.json"), "utf8"));
+  const config = JSON.parse(
+    readFileSync(path.join(moduleRoot, "expo-module.config.json"), "utf8"),
+  );
   assert.deepEqual(config.platforms, ["android"]);
   assert.equal(config.android.modules.length, modules.length);
   for (const [className, moduleName, operations] of modules) {
-    const source = readFileSync(path.join(kotlinRoot, `StreamFusion${className}Module.kt`), "utf8");
+    const source = readFileSync(
+      path.join(kotlinRoot, `StreamFusion${className}Module.kt`),
+      "utf8",
+    );
     assert.match(source, new RegExp(`Name\\("${moduleName}"\\)`, "u"));
     assert.match(
       source,
@@ -44,6 +108,10 @@ test("the Expo module keeps four contained stubs and one measured diagnostics co
     } else {
       assert.match(source, /"NATIVE_OPERATION_UNSUPPORTED"/u);
     }
-    for (const operation of operations) assert.match(source, new RegExp(`AsyncFunction\\("${operation}"\\)`, "u"));
+    for (const operation of operations)
+      assert.match(
+        source,
+        new RegExp(`AsyncFunction\\("${operation}"\\)`, "u"),
+      );
   }
 });

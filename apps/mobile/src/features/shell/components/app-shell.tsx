@@ -250,7 +250,9 @@ export function AppShell({
               onQueueActivityReadFailure={onQueueActivityReadFailure}
               developmentActivityProof={developmentActivityProof}
               onExitDevelopmentActivityProof={onExitDevelopmentActivityProof}
-              onReplayDevelopmentActivityProof={onReplayDevelopmentActivityProof}
+              onReplayDevelopmentActivityProof={
+                onReplayDevelopmentActivityProof
+              }
               onRetryDevelopmentActivityProofCleanup={
                 onRetryDevelopmentActivityProofCleanup
               }
@@ -536,12 +538,14 @@ function ShellScreen({
       >
         <View style={styles.contentColumn}>
           <MediaJobScreen
+            busy={mediaJobsController.model.busy}
             onCommand={(command) => {
               void mediaJobsController.apply(command).then(() => {
                 void activity.refresh();
               });
             }}
             snapshot={mediaJobsController.model.selected}
+            status={mediaJobsController.model.status}
           />
         </View>
       </ScrollView>
@@ -628,7 +632,9 @@ function ShellScreen({
         {route.id === "more/diagnostics" ? (
           <>
             <MediaJobsDiagnosticsPanel
+              busy={mediaJobsController.model.busy}
               jobs={mediaJobsController.model.jobs}
+              status={mediaJobsController.model.status}
               onOpenJob={(jobId) =>
                 dispatch({
                   type: "navigate",
@@ -878,6 +884,7 @@ async function openStartedJob(
   dispatch: (action: ShellNavigationAction) => void,
 ): Promise<void> {
   const jobId = await start();
+  if (!jobId) return;
   await mediaJobsController.recover();
   await activity.refresh();
   dispatch({

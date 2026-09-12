@@ -309,6 +309,89 @@ test("Activity projection keeps failed-retryable active and preserves readAt", (
   assert.equal(next.body, "Completed");
 });
 
+test("journal parse rejects out-of-range numeric timestamps instead of throwing", () => {
+  const queued = createQueuedMediaJobSnapshot(intent());
+  assert.doesNotThrow(() => {
+    assert.equal(
+      parseMediaJobNativeJournal({
+        ...journal(queued),
+        checkpoint: {
+          ...queued.checkpoint,
+          updatedAt: Number.MAX_VALUE,
+        },
+      }),
+      null,
+    );
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(
+      parseMediaJobNativeJournal({
+        ...journal(queued),
+        checkpoint: {
+          ...queued.checkpoint,
+          updatedAt: 8.64e15 + 1,
+        },
+      }),
+      null,
+    );
+  });
+});
+
+test("reconcile matches the complete durable intent", () => {
+  const download = {
+    ...createQueuedMediaJobSnapshot(intent()),
+    phase: "running",
+    progress: { transferredBytes: 4096, totalBytes: null, durationMs: 120 },
+    statusMessage: "Running",
+  };
+  const recording = recordingIntent();
+  const recovered = reconcileMediaJob({
+    intent: recording,
+    product: download,
+    journal: null,
+    files: null,
+  });
+  assert.equal(recovered.intent.kind, "recording");
+  assert.equal(recovered.phase, "queued");
+  assert.equal(recovered.progress.transferredBytes, 0);
+});
+
+test("reconcile retains the accepted journal generation when checkpoint is omitted", () => {
+  const product = applyCommand(
+    {
+      ...createQueuedMediaJobSnapshot(intent()),
+      phase: "canceled",
+    },
+    { kind: "retry", jobId: asMediaJobId("job-download-1") },
+    later,
+  ).snapshot;
+  const accepted = reconcileMediaJob({
+    intent: product.intent,
+    product,
+    journal: journal(product, {
+      generation: 5,
+      checkpoint: null,
+      phase: "running",
+      serviceOwned: true,
+    }),
+    files: null,
+  });
+  assert.equal(accepted.checkpoint.generation, 5);
+  const stale = reconcileMediaJob({
+    intent: product.intent,
+    product: accepted,
+    journal: journal(createQueuedMediaJobSnapshot(intent()), {
+      generation: 2,
+      checkpoint: null,
+      phase: "paused",
+      serviceOwned: false,
+    }),
+    files: null,
+  });
+  assert.equal(stale.checkpoint.generation, 5);
+  assert.equal(stale.phase, "running");
+});
+
 test("journal parse treats a missing failureCode as null", () => {
   const { failureCode: _omitted, ...rest } = journal(
     createQueuedMediaJobSnapshot(intent()),

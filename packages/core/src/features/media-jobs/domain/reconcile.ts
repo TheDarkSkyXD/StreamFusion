@@ -1,9 +1,11 @@
 import { createQueuedMediaJobSnapshot } from "./commands.ts";
 import {
+  intentsEqual,
   isActivityTerminalMediaJobPhase,
   isInFlightMediaJobPhase,
   snapshotGeneration,
   type MediaJobArtifactStatus,
+  type MediaJobCheckpoint,
   type MediaJobFileEvidence,
   type MediaJobIntent,
   type MediaJobNativeJournal,
@@ -39,7 +41,7 @@ function matchingProduct(
   product: MediaJobSnapshot | null,
   intent: MediaJobIntent,
 ): MediaJobSnapshot | null {
-  return product?.intent.jobId === intent.jobId ? product : null;
+  return product && intentsEqual(product.intent, intent) ? product : null;
 }
 
 function matchingJournal(
@@ -51,6 +53,12 @@ function matchingJournal(
     !journal ||
     journal.jobId !== intent.jobId ||
     journal.kind !== intent.kind
+  ) {
+    return null;
+  }
+  if (
+    journal.checkpoint &&
+    journal.checkpoint.generation !== journal.generation
   ) {
     return null;
   }
@@ -81,13 +89,27 @@ function mergeJournal(
       totalBytes: product.progress.totalBytes,
       durationMs: journal.checkpoint?.durationMs ?? product.progress.durationMs,
     },
-    checkpoint: journal.checkpoint ?? product.checkpoint,
+    checkpoint: checkpointFromJournal(journal, product),
     artifact,
     service: owned
       ? { kind: "owned", notificationVisible: true }
       : { kind: "unowned" },
     statusMessage: statusFor(phase, journal, files),
     failureCode: failureFor(phase, journal),
+  };
+}
+
+function checkpointFromJournal(
+  journal: MediaJobNativeJournal,
+  product: MediaJobSnapshot,
+): MediaJobCheckpoint {
+  if (journal.checkpoint) return journal.checkpoint;
+  return {
+    generation: journal.generation,
+    byteOffset:
+      product.checkpoint?.byteOffset ?? product.progress.transferredBytes,
+    durationMs: product.checkpoint?.durationMs ?? product.progress.durationMs,
+    updatedAt: product.checkpoint?.updatedAt ?? product.intent.createdAt,
   };
 }
 

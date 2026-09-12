@@ -27,11 +27,15 @@ const commandOrder: readonly Exclude<MediaJobCommandName, "start">[] = [
 ];
 
 export function MediaJobScreen({
+  busy = false,
   onCommand,
   snapshot,
+  status,
 }: {
+  readonly busy?: boolean;
   readonly onCommand: (command: MediaJobCommandName) => void;
   readonly snapshot: MediaJobSnapshot | null;
+  readonly status?: string | null;
 }) {
   if (!snapshot) {
     return (
@@ -76,7 +80,7 @@ export function MediaJobScreen({
         {mediaJobPhaseLabel(snapshot.phase)}
       </Text>
       <Text selectable style={styles.body} testID="media-job-status">
-        {snapshot.statusMessage}
+        {status ?? snapshot.statusMessage}
       </Text>
       <Text selectable style={styles.body} testID="media-job-progress">
         {percent === null
@@ -98,6 +102,8 @@ export function MediaJobScreen({
             <Pressable
               accessibilityLabel={mediaJobCommandLabel(command)}
               accessibilityRole="button"
+              accessibilityState={{ busy, disabled: busy }}
+              disabled={busy}
               key={command}
               onPress={() => onCommand(command)}
               style={styles.button}

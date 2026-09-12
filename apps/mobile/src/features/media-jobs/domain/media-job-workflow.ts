@@ -51,7 +51,7 @@ async function applyJobCommand(
   const product = await options.product.get(jobId);
   const local = applyCommand(product, command, now);
   if (local.kind === "rejected") return local;
-  if (local.kind === "ok") await options.product.put(local.snapshot);
+  if (local.kind === "ignored" && command.kind !== "recover") return local;
   const native = await invokeNative(options.native, command);
   if (native.kind !== "completed") {
     const reason = native.failure.diagnostic;
@@ -76,7 +76,9 @@ async function applyJobCommand(
     files: native.value.files,
   });
   await persistProjection(options, snapshot, nowIso);
-  return { kind: "ok", snapshot };
+  return local.kind === "ignored"
+    ? { kind: "ignored", snapshot }
+    : { kind: "ok", snapshot };
 }
 
 async function recoverAllJobs(
@@ -153,6 +155,7 @@ async function recoverListedJobs(
   for (const product of productJobs) {
     const native = await options.native.getRecoverableJob(product.intent.jobId);
     if (native.kind !== "completed" || native.value.kind !== "record") {
+      await persistProjection(options, product, nowIso);
       recovered.push(product);
       continue;
     }
