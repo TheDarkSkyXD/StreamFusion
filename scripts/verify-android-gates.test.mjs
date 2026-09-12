@@ -14,9 +14,13 @@ import {
   evaluateGate,
   hasCleanCandidatePair,
 } from "./android-gates/gate-run.mjs";
-import { loadCatalog } from "./android-gates/catalog-store.mjs";
+import { evidenceRecord, loadCatalog } from "./android-gates/catalog-store.mjs";
+import { isFresh } from "./android-gates/freshness.mjs";
+import { validateCatalog } from "./verify-evidence.mjs";
+import { parseArguments } from "./verify-android-gates.mjs";
 
 const NOW = "2026-09-12T00:00:00.000Z";
+const FUTURE = "2026-09-13T00:00:00.000Z";
 const COMMIT = "a".repeat(40);
 const DIGEST = `sha256:${"b".repeat(64)}`;
 const policy = JSON.parse(
@@ -107,6 +111,78 @@ test("evaluateGate rejects a missing required slot", () => {
 
   assert.equal(verdict.pass, false);
   assert.equal(verdict.reason, "missing-slot");
+});
+
+test("parseArguments rejects a run id that is not a single path-safe segment", () => {
+  const commit = ["--source-commit", COMMIT];
+  for (const runId of ["../escape", "foo/bar", "foo\\bar", "..", ".", "/tmp/abs"]) {
+    assert.throws(
+      () => parseArguments(["--gate", "change", "--run-id", runId, ...commit]),
+      /--run-id/,
+    );
+  }
+  assert.equal(
+    parseArguments(["--gate", "change", "--run-id", "12345-change", ...commit]).runId,
+    "12345-change",
+  );
+});
+
+test("validateCatalog rejects a gateRuns key that is not a single path-safe segment", () => {
+  const catalog = {
+    schemaVersion: 2,
+    policyVersion: 1,
+    verifierVersion: "1.0.0",
+    capabilities: {},
+    gateRuns: { "../escape": [] },
+  };
+  assert.throws(() => validateCatalog(catalog, policy), /catalog\.gateRuns/);
+});
+
+test("evaluateGate rejects future-dated proof using its injected clock", () => {
+  const slots = slotsFor("change");
+  const records = slots.map((slot) =>
+    record(slot.id, {
+      environment: { gate: "change", retention: "development", name: "test" },
+      observedAt: FUTURE,
+    }),
+  );
+  const verdict = evaluateGate({
+    definition: GATE_DEFINITIONS.change,
+    records,
+    sourceCommit: COMMIT,
+    apkDigest: null,
+    now: NOW,
+    policy,
+  });
+
+  assert.equal(verdict.pass, false);
+  assert.equal(verdict.reason, "stale");
+});
+
+test("isFresh returns false when observedAt is after evaluatedAt", () => {
+  const exact = slotsFor("change").find((slot) => slot.id === "workspace-static");
+  const signer = slotsFor("public-release").find((slot) => slot.id === "signer-recovery");
+  assert.equal(isFresh(exact, { observedAt: FUTURE }, NOW, policy), false);
+  assert.equal(isFresh(signer, { observedAt: FUTURE }, NOW, policy), false);
+  assert.equal(isFresh(exact, { observedAt: NOW }, NOW, policy), true);
+});
+
+test("evidenceRecord uses the evaluation clock when fill.observedAt is in the future", async () => {
+  await fixture(async (root) => {
+    const entry = await evidenceRecord({
+      repositoryRoot: root,
+      run: {
+        runId: "safe-run",
+        definition: { id: "change", retention: "development" },
+        sourceCommit: COMMIT,
+        apkDigest: null,
+      },
+      slot: { id: "change-gate", deviceRole: "none", binding: "none" },
+      fill: { kind: "pass", observedAt: FUTURE },
+      now: NOW,
+    });
+    assert.equal(entry.observedAt, NOW);
+  });
 });
 
 test("evaluateGate rejects stale proof using its injected clock", () => {
