@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { D07_PROOF_TOKEN } from "../components/category-discovery-proof-controls";
 import { CategoryDetailView } from "../components/category-detail-screen";
 import { composeCategoryDetail } from "../domain/category-detail";
 import { defaultCategoryRequest } from "../domain/category-identity";
@@ -76,7 +77,7 @@ describe("Category detail screen", () => {
       nodes.some((node) => node.props.testID === "category-follow-reason"),
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.children === "D07 category discovery proof"),
+      nodes.some((node) => node.props.children === D07_PROOF_TOKEN),
     ).toBe(true);
   });
 

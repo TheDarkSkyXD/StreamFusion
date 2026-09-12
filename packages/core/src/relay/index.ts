@@ -46,6 +46,8 @@ export type {
   SignedOutCategoryVideosUnavailableReason,
   SignedOutClipTimeRange,
 } from "./signed-out-category-discovery.ts";
+export { toSerializedTimestamp } from "../foundations/contract-schema.ts";
+export type { SerializedTimestamp } from "../foundations/contract-schema.ts";
 
 export type JsonPrimitive = boolean | null | number | string;
 export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
