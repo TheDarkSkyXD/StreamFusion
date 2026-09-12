@@ -16,7 +16,8 @@ import {
 } from "./android-gates/gate-run.mjs";
 import { evidenceRecord, loadCatalog } from "./android-gates/catalog-store.mjs";
 import { isFresh } from "./android-gates/freshness.mjs";
-import { validateCatalog } from "./verify-evidence.mjs";
+import { createOwners } from "./android-gates/owners.mjs";
+import { assertRunId, validateCatalog } from "./verify-evidence.mjs";
 import { parseArguments } from "./verify-android-gates.mjs";
 
 const NOW = "2026-09-12T00:00:00.000Z";
@@ -86,7 +87,7 @@ function passingFill() {
 
 test("GitHub Actions workflows do not enable KVM or android-emulator-runner", async () => {
   const files = (await readdir(".github/workflows")).filter((name) =>
-    name.endsWith(".yml"),
+    name.endsWith(".yml") || name.endsWith(".yaml"),
   );
   for (const name of files) {
     const source = await readFile(`.github/workflows/${name}`, "utf8");
@@ -333,22 +334,259 @@ test("diagnostic retry retains its original proof and taints candidates", async 
 
     assert.ok(run.some((entry) => entry.id === "tablet-emulator-smoke-original"));
     assert.equal(
-      hasCleanCandidatePair({ gateRuns: { "retried-candidate": run } }, hash("apk")),
+      hasCleanCandidatePair(
+        { gateRuns: { "retried-candidate": run } },
+        hash("apk"),
+        NOW,
+        policy,
+      ),
       false,
     );
   });
 });
 
 test("two clean candidate runs satisfy the public-release predicate", () => {
-  const candidate = (runId) => [
+  const candidate = () => [
     record("candidate-gate", { apkDigest: DIGEST }),
     record("diagnostic-retry", { apkDigest: DIGEST }),
   ];
   assert.equal(
     hasCleanCandidatePair({
-      gateRuns: { "candidate-one": candidate("candidate-one"), "candidate-two": candidate("candidate-two") },
-    }, DIGEST),
+      gateRuns: { "candidate-one": candidate(), "candidate-two": candidate() },
+    }, DIGEST, NOW, policy),
     true,
+  );
+});
+
+test("hasCleanCandidatePair rejects records without candidate provenance", () => {
+  const stolen = [
+    record("candidate-gate", {
+      apkDigest: DIGEST,
+      environment: { gate: "change", retention: "development", name: "test" },
+    }),
+    record("diagnostic-retry", {
+      apkDigest: DIGEST,
+      environment: { gate: "change", retention: "development", name: "test" },
+    }),
+  ];
+  assert.equal(
+    hasCleanCandidatePair(
+      { gateRuns: { "stolen-one": stolen, "stolen-two": stolen } },
+      DIGEST,
+      NOW,
+      policy,
+    ),
+    false,
+  );
+});
+
+test("hasCleanCandidatePair rejects stale archived candidate runs", () => {
+  const stale = [
+    record("candidate-gate", { apkDigest: DIGEST, observedAt: "2026-09-01T00:00:00.000Z" }),
+    record("diagnostic-retry", { apkDigest: DIGEST, observedAt: "2026-09-01T00:00:00.000Z" }),
+  ];
+  assert.equal(
+    hasCleanCandidatePair(
+      { gateRuns: { "stale-one": stale, "stale-two": stale } },
+      DIGEST,
+      NOW,
+      policy,
+    ),
+    false,
+  );
+});
+
+test("fillSummary recomputes after a prerequisite record changes", async () => {
+  await fixture(async (root) => {
+    const changeEnvironment = { gate: "change", retention: "development", name: "test" };
+    await writeFile(
+      path.join(root, "catalog.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        policyVersion: 1,
+        verifierVersion: "1.0.0",
+        capabilities: {},
+        gateRuns: {
+          "stale-summary": [
+            record("workspace-static", { result: "fail", environment: changeEnvironment }),
+            record("change-gate", { result: "pass", environment: changeEnvironment }),
+          ],
+        },
+      }),
+    );
+    const runner = createGateRunner({
+      repositoryRoot: root,
+      catalogPath: path.join(root, "catalog.json"),
+      outputPath: path.join(root, "output.json"),
+      owner: async () => passingFill(),
+    });
+    const result = await runner.run({
+      gate: "change",
+      runId: "stale-summary",
+      now: NOW,
+      sourceCommit: COMMIT,
+    });
+    const catalog = JSON.parse(await readFile(path.join(root, "output.json"), "utf8"));
+
+    assert.equal(result.pass, false);
+    assert.equal(
+      catalog.gateRuns["stale-summary"].find((entry) => entry.id === "change-gate").result,
+      "fail",
+    );
+  });
+});
+
+test("createOwners reject stale catalog evidence", async () => {
+  const owners = createOwners({ repositoryRoot: process.cwd() });
+  const slot = slotsFor("main").find((item) => item.id === "change-gate");
+  const fill = await owners(slot, {
+    catalog: {
+      gateRuns: {
+        other: [
+          record("change-gate", {
+            environment: { gate: "change", retention: "development", name: "test" },
+            observedAt: "2026-09-01T00:00:00.000Z",
+          }),
+        ],
+      },
+    },
+    sourceCommit: COMMIT,
+    apkDigest: null,
+    now: NOW,
+    policy,
+  });
+  assert.equal(fill.kind, "fail");
+});
+
+test("createOwners reject unstructured approval evidence", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "android-owners-"));
+  const previous = process.env.ANDROID_GATE_APPROVALS_EVIDENCE;
+  process.env.ANDROID_GATE_APPROVALS_EVIDENCE = "approvals.json";
+  try {
+    await writeFile(path.join(root, "approvals.json"), "");
+    const owners = createOwners({ repositoryRoot: root });
+    const slot = slotsFor("public-release").find((item) => item.id === "approvals");
+    const fill = await owners(slot, {
+      sourceCommit: COMMIT,
+      apkDigest: DIGEST,
+      now: NOW,
+      policy,
+      repositoryRoot: root,
+    });
+    assert.equal(fill.kind, "fail");
+  } finally {
+    if (previous === undefined) delete process.env.ANDROID_GATE_APPROVALS_EVIDENCE;
+    else process.env.ANDROID_GATE_APPROVALS_EVIDENCE = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createOwners accept structured approval evidence", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "android-owners-"));
+  const previous = process.env.ANDROID_GATE_APPROVALS_EVIDENCE;
+  process.env.ANDROID_GATE_APPROVALS_EVIDENCE = "approvals.json";
+  try {
+    await writeFile(
+      path.join(root, "approvals.json"),
+      JSON.stringify({
+        result: "pass",
+        observedAt: NOW,
+        sourceCommit: COMMIT,
+        apkDigest: DIGEST,
+      }),
+    );
+    const owners = createOwners({ repositoryRoot: root });
+    const slot = slotsFor("public-release").find((item) => item.id === "approvals");
+    const fill = await owners(slot, {
+      sourceCommit: COMMIT,
+      apkDigest: DIGEST,
+      now: NOW,
+      policy,
+      repositoryRoot: root,
+    });
+    assert.equal(fill.kind, "pass");
+    assert.equal(fill.artifacts[0].id, "source-evidence");
+  } finally {
+    if (previous === undefined) delete process.env.ANDROID_GATE_APPROVALS_EVIDENCE;
+    else process.env.ANDROID_GATE_APPROVALS_EVIDENCE = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("evidenceRecord expires from accepted observedAt", async () => {
+  await fixture(async (root) => {
+    const entry = await evidenceRecord({
+      repositoryRoot: root,
+      run: {
+        runId: "expiry-run",
+        definition: { id: "change", retention: "development" },
+        sourceCommit: COMMIT,
+        apkDigest: null,
+      },
+      slot: { id: "change-gate", deviceRole: "none", binding: "none" },
+      fill: { kind: "pass", observedAt: "2026-09-11T00:00:00.000Z" },
+      now: NOW,
+    });
+    assert.equal(entry.observedAt, "2026-09-11T00:00:00.000Z");
+    assert.equal(entry.expiresAt, "2026-09-25T00:00:00.000Z");
+  });
+});
+
+test("evidenceRecord appends validated source artifacts", async () => {
+  await fixture(async (root) => {
+    const entry = await evidenceRecord({
+      repositoryRoot: root,
+      run: {
+        runId: "artifact-run",
+        definition: { id: "change", retention: "development" },
+        sourceCommit: COMMIT,
+        apkDigest: null,
+      },
+      slot: { id: "change-gate", deviceRole: "none", binding: "none" },
+      fill: {
+        kind: "pass",
+        observedAt: NOW,
+        artifacts: [
+          {
+            id: "source-evidence",
+            path: "approvals.json",
+            sha256: hash("approvals"),
+            mediaType: "application/json",
+          },
+        ],
+      },
+      now: NOW,
+    });
+    assert.equal(entry.artifacts.some((item) => item.id === "source-evidence"), true);
+    assert.equal(entry.artifacts.some((item) => item.id === "gate-report"), true);
+  });
+});
+
+test("parseArguments mint unique local run ids", () => {
+  const previous = process.env.GITHUB_RUN_ID;
+  delete process.env.GITHUB_RUN_ID;
+  try {
+    const first = parseArguments(["--gate", "change", "--source-commit", COMMIT]);
+    const second = parseArguments(["--gate", "change", "--source-commit", COMMIT]);
+    assert.match(first.runId, /^local-change-/);
+    assert.notEqual(first.runId, second.runId);
+    assert.doesNotThrow(() => assertRunId(first.runId, "--run-id"));
+  } finally {
+    if (previous === undefined) delete process.env.GITHUB_RUN_ID;
+    else process.env.GITHUB_RUN_ID = previous;
+  }
+});
+
+test("android smoke journey reinstalls the APK", async () => {
+  const script = await readFile(".github/scripts/android-smoke-journey.sh", "utf8");
+  assert.match(script, /adb install --no-streaming -r "\$APK_PATH"/);
+});
+
+test("change gate uploads evidence after a failed verdict", async () => {
+  const workflow = await readFile(".github/workflows/build.yml", "utf8");
+  assert.match(
+    workflow,
+    /name: Upload Change Gate evidence\n\s+if: \$\{\{\s*always\(\)\s*\}\}/,
   );
 });
 

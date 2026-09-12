@@ -19,7 +19,9 @@ function loadWorkflow(filename) {
 }
 
 function workflowFiles() {
-  return readdirSync(".github/workflows").filter((name) => name.endsWith(".yml"));
+  return readdirSync(".github/workflows").filter(
+    (name) => name.endsWith(".yml") || name.endsWith(".yaml"),
+  );
 }
 
 function stepNamed(job, name) {

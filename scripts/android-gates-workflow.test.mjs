@@ -14,7 +14,7 @@ async function workflow(name) {
 
 async function workflowFiles() {
   return (await readdir(".github/workflows")).filter((name) =>
-    name.endsWith(".yml"),
+    name.endsWith(".yml") || name.endsWith(".yaml"),
   );
 }
 
