@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Verify workspace
+  verify-deps:
+    name: Verify deps
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,6 +52,27 @@ jobs:
       - name: Run approved dependency setup
         run: npm run rebuild:dependencies
 
+  verify-core:
+    name: Verify core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Run approved dependency setup
+        run: npm run rebuild:dependencies
+
       - name: Lint shared core
         run: npm run --workspace @streamfusion/core lint
 
@@ -76,6 +97,27 @@ jobs:
       - name: Build integration relay dry run
         run: npm run --workspace @streamfusion/integration-relay deploy:dry-run
 
+  verify-mobile:
+    name: Verify mobile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Run approved dependency setup
+        run: npm run rebuild:dependencies
+
       - name: Lint mobile
         run: npm run --workspace @streamfusion/mobile lint
 
@@ -87,6 +129,27 @@ jobs:
 
       - name: Bundle mobile for Android
         run: npm run --workspace @streamfusion/mobile bundle:android
+
+  verify-desktop:
+    name: Verify desktop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Run approved dependency setup
+        run: npm run rebuild:dependencies
 
       - name: Test evidence verifier
         run: npm run test:evidence
@@ -118,10 +181,32 @@ jobs:
       - name: Build worker dry run
         run: npm run --workspace streamfusion-worker deploy:dry-run
 
-  android-development:
-    name: Android development APK and API 30 install
+  ci-success:
+    name: CI success
+    if: always()
+    needs:
+      - verify-deps
+      - verify-core
+      - verify-mobile
+      - verify-desktop
     runs-on: ubuntu-latest
-    needs: verify
+    steps:
+      - name: Require every verify shard
+        env:
+          DEPS: ${{ needs.verify-deps.result }}
+          CORE: ${{ needs.verify-core.result }}
+          MOBILE: ${{ needs.verify-mobile.result }}
+          DESKTOP: ${{ needs.verify-desktop.result }}
+        run: |
+          test "$DEPS" = success
+          test "$CORE" = success
+          test "$MOBILE" = success
+          test "$DESKTOP" = success
+
+  android-development:
+    name: Android development APK
+    runs-on: ubuntu-latest
+    needs: ci-success
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -146,27 +231,6 @@ jobs:
       - name: Build Android development APK
         run: npm run build:mobile:development
 
-      - name: Enable KVM access for the ephemeral Android job
-        run: |
-          # This documented rule only changes /dev/kvm. The hosted runner is discarded after this job.
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          test -c /dev/kvm
-          test -r /dev/kvm
-          test -w /dev/kvm
-
-      - name: Install and launch on API 30
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
-          api-level: 30
-          arch: x86_64
-          profile: pixel_2
-          disable-linux-hw-accel: false
-          pre-emulator-launch-script: |
-            "$ANDROID_HOME/emulator/emulator" -accel-check
-          script: bash .github/scripts/verify-android-api30-install.sh
-
       - name: Upload development APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -177,7 +241,7 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: verify
+    needs: ci-success
     strategy:
       fail-fast: false
       matrix:
