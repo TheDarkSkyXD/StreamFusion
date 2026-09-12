@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -79,6 +79,21 @@ async function fixture(run) {
 function passingFill() {
   return { kind: "pass", observedAt: NOW, artifacts: [], apkDigest: null };
 }
+
+test("GitHub Actions workflows do not enable KVM or android-emulator-runner", async () => {
+  const files = (await readdir(".github/workflows")).filter((name) =>
+    name.endsWith(".yml"),
+  );
+  for (const name of files) {
+    const source = await readFile(`.github/workflows/${name}`, "utf8");
+    assert.doesNotMatch(
+      source,
+      /android-emulator-runner|\/dev\/kvm|Enable KVM/,
+      name,
+    );
+    assert.doesNotMatch(source, /name:\s*.*\$\{\{\s*env\./, name);
+  }
+});
 
 test("evaluateGate rejects a missing required slot", () => {
   const verdict = evaluateGate({

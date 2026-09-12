@@ -1,15 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { load as loadYaml } from "js-yaml";
 
@@ -20,9 +10,16 @@ const VERIFY_SHARDS = [
   { id: "verify-desktop", name: "Verify desktop" },
 ];
 const VERIFY_SHARD_IDS = VERIFY_SHARDS.map((shard) => shard.id);
+const HOSTED_EMU_FORBIDDEN =
+  /android-emulator-runner|\/dev\/kvm|Enable KVM|android-smoke-journey\.sh/;
+const JOB_NAME_USES_ENV = /\$\{\{\s*env\./;
 
 function loadWorkflow(filename) {
   return loadYaml(readFileSync(`.github/workflows/${filename}`, "utf8"));
+}
+
+function workflowFiles() {
+  return readdirSync(".github/workflows").filter((name) => name.endsWith(".yml"));
 }
 
 function stepNamed(job, name) {
@@ -31,74 +28,6 @@ function stepNamed(job, name) {
 
 function jobRuns(job, command) {
   return job.steps.some((step) => step.run === command);
-}
-
-function parsePinnedActionScript(rawScript) {
-  return rawScript
-    .trim()
-    .split(/\r\n|\n|\r/)
-    .map((value) => value.trim())
-    .filter((value) => !value.startsWith("#") && value.length > 0);
-}
-
-function relativeShellPath(value) {
-  return `./${path.relative(process.cwd(), value).replaceAll("\\", "/")}`;
-}
-
-function shellQuote(value) {
-  return `'${value.replaceAll("'", "'\"'\"'")}'`;
-}
-
-function testShell() {
-  const gitBashPath = "C:/Program Files/Git/bin/bash.exe";
-
-  return process.platform === "win32" && existsSync(gitBashPath)
-    ? gitBashPath
-    : "bash";
-}
-
-function runPinnedActionScripts(commands, adbStubDirectory, environment) {
-  const assignments = Object.entries(environment)
-    .map(([name, value]) => `${name}=${shellQuote(value)}`)
-    .join(" ");
-
-  let result;
-  for (const command of commands) {
-    result = spawnSync(
-      testShell(),
-      [
-        "-c",
-        `PATH=${shellQuote(adbStubDirectory)}:"$PATH"; export PATH; ${assignments} sh -c ${shellQuote(command)}`,
-      ],
-      {
-        cwd: process.cwd(),
-        encoding: "utf8",
-        timeout: 10_000,
-      },
-    );
-    if (result.status !== 0) {
-      return result;
-    }
-  }
-
-  return result;
-}
-
-function writeEmulatorStub(directory) {
-  const emulatorPath = path.join(directory, "emulator", "emulator");
-
-  mkdirSync(path.dirname(emulatorPath), { recursive: true });
-  writeFileSync(
-    emulatorPath,
-    `#!/usr/bin/env bash
-set -eu
-printf '%s\\n' "$*" >> "$STUB_EMULATOR_LOG"
-if [ "\${STUB_EMULATOR_FAILURE:-0}" = "1" ]; then
-  exit 42
-fi
-`,
-  );
-  chmodSync(emulatorPath, 0o755);
 }
 
 test("the build workflow is CI-only and cannot publish a GitHub release", () => {
@@ -122,18 +51,40 @@ test("the build workflow is CI-only and cannot publish a GitHub release", () => 
     /npm --prefix apps\/desktop (?:ci|audit|rebuild)/,
   );
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
+  assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN);
+  assert.doesNotMatch(source, /api-level:\s*30/);
+  assert.equal(workflow.jobs["main-api30"], undefined);
+  assert.equal(workflow.jobs["main-current"], undefined);
+  assert.equal(workflow.jobs["main-gate"], undefined);
   assert.equal(
     existsSync(".github/scripts/verify-android-api30-install.sh"),
     false,
   );
+});
 
-  const androidInstallScript = readFileSync(
-    ".github/scripts/android-smoke-journey.sh",
-    "utf8",
-  );
-  assert.match(androidInstallScript, /uiautomator dump/);
-  assert.match(androidInstallScript, /app-shell-ready/);
-  assert.doesNotMatch(androidInstallScript, /\bpidof\b/);
+test("GitHub Actions workflows never enable KVM or name jobs with env context", () => {
+  for (const name of workflowFiles()) {
+    const source = readFileSync(`.github/workflows/${name}`, "utf8");
+    const workflow = loadWorkflow(name);
+
+    assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN, name);
+    assert.doesNotMatch(source, /name:\s*.*\$\{\{\s*env\./, name);
+    for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
+      assert.doesNotMatch(
+        String(job.name ?? ""),
+        JOB_NAME_USES_ENV,
+        `${name}:${id}`,
+      );
+      assert.ok(
+        (job.steps ?? []).every(
+          (step) =>
+            typeof step.uses !== "string" ||
+            !step.uses.includes("android-emulator-runner"),
+        ),
+        `${name}:${id}`,
+      );
+    }
+  }
 });
 
 test("verify shards and CI success form a fail-closed gate", () => {
@@ -256,6 +207,19 @@ test("verify shards keep the workspace commands from the former Verify workspace
   );
 });
 
+test("Android Change Gate runs on the desktop shard without a hosted emulator", () => {
+  const workflow = loadWorkflow("build.yml");
+  const desktop = workflow.jobs["verify-desktop"];
+  const change = stepNamed(desktop, "Android Change Gate");
+
+  assert.equal(change.env.ANDROID_GATE_FRAGMENT, "1");
+  assert.match(change.run, /--gate change/);
+  assert.equal(
+    stepNamed(desktop, "Enable KVM access for the ephemeral Android job"),
+    undefined,
+  );
+});
+
 test("Android CI builds the development APK without KVM or an emulator", () => {
   const workflow = loadWorkflow("build.yml");
   const android = workflow.jobs["android-development"];
@@ -274,122 +238,6 @@ test("Android CI builds the development APK without KVM or an emulator", () => {
       (step) =>
         typeof step.uses !== "string" ||
         !step.uses.includes("android-emulator-runner"),
-    ),
-  );
-});
-
-test("the API 30 job enables and verifies KVM before accelerated boot", () => {
-  const source = readFileSync(".github/workflows/build.yml", "utf8");
-  const workflow = loadWorkflow("build.yml");
-  const androidJob = workflow.jobs["main-api30"];
-  const kvmStep = androidJob.steps.find(
-    (step) => step.name === "Enable KVM access for the ephemeral Android job",
-  );
-  const emulatorStep = androidJob.steps.find(
-    (step) => step.name === "Run API 30 Android smoke journey",
-  );
-
-  assert.ok(kvmStep);
-  assert.ok(emulatorStep);
-  assert.ok(
-    workflow.jobs["verify-deps"].steps.some(
-      (step) =>
-        step.name === "Test checked-in workflow contracts" &&
-        step.run === "node --test scripts/release-workflow.test.mjs",
-    ),
-  );
-  assert.ok(
-    androidJob.steps.indexOf(kvmStep) < androidJob.steps.indexOf(emulatorStep),
-  );
-  assert.match(kvmStep.run, /KERNEL=="kvm"/);
-  assert.match(kvmStep.run, /--name-match=kvm/);
-  assert.match(kvmStep.run, /test -c \/dev\/kvm/);
-  assert.match(kvmStep.run, /test -r \/dev\/kvm/);
-  assert.match(kvmStep.run, /test -w \/dev\/kvm/);
-  assert.equal(emulatorStep.with["disable-linux-hw-accel"], false);
-  assert.match(
-    emulatorStep.with["pre-emulator-launch-script"],
-    /"\$ANDROID_HOME\/emulator\/emulator" -accel-check/,
-  );
-  assert.doesNotMatch(source, /-accel off/);
-  assert.match(emulatorStep.with.script, /android-smoke-journey\.sh/);
-  assert.equal(
-    existsSync(".github/scripts/android-smoke-journey.sh"),
-    true,
-  );
-});
-
-test("the pre-launch acceleration check uses the action SDK root", () => {
-  const workflow = loadWorkflow("build.yml");
-  const emulatorStep = workflow.jobs["main-api30"].steps.find(
-    (step) => step.name === "Run API 30 Android smoke journey",
-  );
-  const commands = parsePinnedActionScript(
-    emulatorStep.with["pre-emulator-launch-script"],
-  );
-  const directory = mkdtempSync(
-    path.join(process.cwd(), ".workflow SDK root's-"),
-  );
-  const fakePathDirectory = path.join(directory, "path");
-  const sdkDirectory = path.join(directory, "SDK with space's quote");
-  const emulatorLogPath = path.join(directory, "emulator.log");
-
-  mkdirSync(fakePathDirectory);
-  writeFileSync(
-    path.join(fakePathDirectory, "emulator"),
-    "#!/usr/bin/env bash\nexit 66\n",
-  );
-  chmodSync(path.join(fakePathDirectory, "emulator"), 0o755);
-  writeEmulatorStub(sdkDirectory);
-  try {
-    assert.deepEqual(commands, [
-      '"$ANDROID_HOME/emulator/emulator" -accel-check',
-    ]);
-    const successfulCheck = runPinnedActionScripts(
-      commands,
-      relativeShellPath(fakePathDirectory),
-      {
-        ANDROID_HOME: relativeShellPath(sdkDirectory),
-        STUB_EMULATOR_LOG: relativeShellPath(emulatorLogPath),
-      },
-    );
-
-    assert.equal(successfulCheck.status, 0, successfulCheck.stderr);
-    assert.equal(readFileSync(emulatorLogPath, "utf8"), "-accel-check\n");
-
-    const failedCheck = runPinnedActionScripts(
-      commands,
-      relativeShellPath(fakePathDirectory),
-      {
-        ANDROID_HOME: relativeShellPath(sdkDirectory),
-        STUB_EMULATOR_FAILURE: "1",
-        STUB_EMULATOR_LOG: relativeShellPath(emulatorLogPath),
-      },
-    );
-
-    assert.equal(failedCheck.status, 42);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("the Main gate reads both journey fragments after the jobs complete", () => {
-  const workflow = loadWorkflow("build.yml");
-  const finalizer = workflow.jobs["main-gate"];
-
-  assert.equal(finalizer.if, "${{ always() }}");
-  assert.deepEqual(finalizer.needs, [
-    "ci-success",
-    "main-api30",
-    "main-current",
-  ]);
-  assert.match(
-    finalizer.steps.find((step) => step.name === "Evaluate Main Gate").run,
-    /--gate main .*--read/,
-  );
-  assert.ok(
-    finalizer.steps.some(
-      (step) => step.name === "Download Main evidence fragments",
     ),
   );
 });
