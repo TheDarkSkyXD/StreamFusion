@@ -188,4 +188,69 @@ describe("createDiscoveryRuntime", () => {
     await client.refetchQueries({ queryKey: ["discovery", "top-streams", "twitch"] });
     expect(reads).toEqual(["twitch"]);
   });
+
+  it("keeps guest Twitch search unavailable and tries Kick without a token", async () => {
+    const urls: string[] = [];
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        urls.push(String(input));
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      },
+      installation: { read: async () => ({ kind: "none" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    const twitch = await session.search({ platform: "twitch", query: "arcade" });
+    const kick = await session.search({ platform: "kick", query: "arcade" });
+    expect(twitch.path).toEqual({
+      kind: "unavailable",
+      platform: "twitch",
+      reason: "guest-unavailable",
+    });
+    expect(kick.path).toEqual({ kind: "guest", platform: "kick" });
+    expect(urls.some((url) => url.includes("api.kick.com"))).toBe(true);
+    expect(urls.some((url) => url.includes("api.twitch.tv"))).toBe(false);
+  });
+
+  it("reads Relay search catalogs that include videos and clips", async () => {
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        const url = new URL(String(input));
+        expect(url.searchParams.get("query") ?? url.searchParams.get("q")).toBe(
+          "arcade",
+        );
+        return new Response(
+          JSON.stringify(
+            createRelaySuccessEnvelope({
+              body: {
+                categories: [],
+                channels: [],
+                clips: [],
+                platform: "twitch",
+                query: "arcade",
+                streams: [fixtureStream("twitch", "search-relay", 3)],
+                videos: [],
+              },
+              requestId: "req_signed_out_search_3",
+            }),
+          ),
+          { status: 200 },
+        );
+      },
+      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    const outcome = await session.search({ platform: "twitch", query: "arcade" });
+    expect(outcome.path).toEqual({ kind: "relay", platform: "twitch" });
+    expect(outcome.catalog.streams[0]?.id).toBe("search-relay");
+  });
 });

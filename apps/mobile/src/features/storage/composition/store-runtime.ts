@@ -551,6 +551,26 @@ export function createMobileStoreRuntime(
           return (await requireProductStore()).recordActivity(item, now());
         },
       },
+      searchHistory: {
+        async read() {
+          return (
+            (
+              await (
+                await requireProductStore()
+              ).getSetting("search-history.v1")
+            )?.value ?? null
+          );
+        },
+        async write(value, updatedAt) {
+          await (
+            await requireProductStore()
+          ).setSetting({
+            key: "search-history.v1",
+            updatedAt,
+            value,
+          });
+        },
+      },
       shellRestoration: {
         async clear() {
           await (

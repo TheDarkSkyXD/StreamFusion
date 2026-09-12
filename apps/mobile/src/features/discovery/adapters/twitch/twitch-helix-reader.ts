@@ -1,8 +1,18 @@
-import type { Category, Channel, Stream } from "@streamfusion/core/content";
+import type { Category, Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
-import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
+import type {
+  PlatformReadOutcome,
+  SearchReadOutcome,
+} from "../../capabilities/platform-reads";
+import { emptySearchCatalog, streamsFromLiveChannels } from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
+
+import {
+  helixCategories,
+  helixChannels,
+  helixStreams,
+} from "./helix-catalog-map";
 
 const HELIX = "https://api.twitch.tv/helix";
 
@@ -39,15 +49,46 @@ export function createTwitchHelixReader(input: {
       });
     },
     async search(read: {
+      readonly guest?: boolean;
       readonly query: string;
       readonly signal?: AbortSignal;
-    }): Promise<PlatformReadOutcome<Stream | Channel | Category>> {
-      return helixCollection({
-        input,
-        map: helixCategories,
-        path: `/search/categories?query=${encodeURIComponent(read.query)}&first=20`,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+    }): Promise<SearchReadOutcome> {
+      if (read.guest === true) {
+        return searchFailed("twitch", "guest-unavailable");
+      }
+      const [channels, categories] = await Promise.all([
+        helixCollection({
+          input,
+          map: helixChannels,
+          path: `/search/channels?query=${encodeURIComponent(read.query)}&first=20`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        }),
+        helixCollection({
+          input,
+          map: helixCategories,
+          path: `/search/categories?query=${encodeURIComponent(read.query)}&first=20`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        }),
+      ]);
+      if (channels.status === "failed") {
+        return searchFromOutcome(channels);
+      }
+      if (categories.status === "failed") {
+        return searchFromOutcome(categories);
+      }
+      return {
+        cache: { kind: "miss" },
+        catalog: {
+          categories: categories.items,
+          channels: channels.items,
+          clips: [],
+          streams: streamsFromLiveChannels(channels.items),
+          videos: [],
+        },
+        path: { kind: "direct", platform: "twitch" },
+        platform: "twitch",
+        status: "complete",
+      };
     },
     async getTopStreams(read: {
       readonly language?: string;
@@ -74,11 +115,9 @@ export function createTwitchHelixReader(input: {
         if (!response.ok) {
           return failed(response.status === 401 ? "auth-lost" : "twitch-failed");
         }
-        const payload: unknown = await response.json();
-        const items = helixStreams(payload);
         return {
           cache: { kind: "miss" },
-          items,
+          items: helixStreams(await response.json()),
           path: { kind: "direct", platform: "twitch" },
           platform: "twitch",
           status: "complete",
@@ -89,42 +128,6 @@ export function createTwitchHelixReader(input: {
       }
     },
   };
-}
-
-function helixStreams(value: unknown): readonly Stream[] {
-  if (typeof value !== "object" || value === null || !("data" in value)) {
-    return [];
-  }
-  const data = (value as { data: unknown }).data;
-  if (!Array.isArray(data)) return [];
-  return data.flatMap((row) => {
-    if (typeof row !== "object" || row === null) return [];
-    const record = row as Record<string, unknown>;
-    const id = stringField(record, "id");
-    if (id === "") return [];
-    return [
-      {
-        channelAvatar: "",
-        channelDisplayName: stringField(record, "user_name"),
-        channelId: stringField(record, "user_id"),
-        channelName: stringField(record, "user_login"),
-        id,
-        isLive: stringField(record, "type") === "live",
-        language: stringField(record, "language"),
-        platform: "twitch" as const,
-        startedAt: null,
-        tags: [],
-        thumbnailUrl: stringField(record, "thumbnail_url")
-          .replaceAll("{width}", "640")
-          .replaceAll("{height}", "360"),
-        title: stringField(record, "title"),
-        viewerCount:
-          typeof record.viewer_count === "number" && record.viewer_count >= 0
-            ? record.viewer_count
-            : 0,
-      },
-    ];
-  });
 }
 
 async function helixCollection<T>(input: {
@@ -169,28 +172,31 @@ async function helixCollection<T>(input: {
   }
 }
 
-function helixCategories(value: unknown): readonly Category[] {
-  if (typeof value !== "object" || value === null || !("data" in value)) {
-    return [];
-  }
-  const data = (value as { data: unknown }).data;
-  if (!Array.isArray(data)) return [];
-  return data.flatMap((row) => {
-    if (typeof row !== "object" || row === null) return [];
-    const record = row as Record<string, unknown>;
-    const id = stringField(record, "id");
-    if (id === "") return [];
-    return [
-      {
-        boxArtUrl: stringField(record, "box_art_url")
-          .replaceAll("{width}", "285")
-          .replaceAll("{height}", "380"),
-        id,
-        name: stringField(record, "name"),
-        platform: "twitch" as const,
-      },
-    ];
-  });
+function searchFromOutcome<T>(
+  outcome: PlatformReadOutcome<T>,
+): SearchReadOutcome {
+  return {
+    cache: outcome.cache,
+    catalog: emptySearchCatalog(),
+    path: outcome.path,
+    platform: "twitch",
+    status: outcome.status,
+    ...(outcome.error === undefined ? {} : { error: outcome.error }),
+  };
+}
+
+function searchFailed(
+  platform: Platform,
+  reason: "guest-unavailable",
+): SearchReadOutcome {
+  return {
+    cache: { kind: "miss" },
+    catalog: emptySearchCatalog(),
+    error: { code: reason, retry: "manual" },
+    path: { kind: "unavailable", platform, reason },
+    platform,
+    status: "failed",
+  };
 }
 
 function missingToken<T>(
@@ -230,11 +236,6 @@ function cancelled<T>(platform: Platform): PlatformReadOutcome<T> {
     platform,
     status: "failed",
   };
-}
-
-function stringField(record: Record<string, unknown>, key: string): string {
-  const value = record[key];
-  return typeof value === "string" ? value : "";
 }
 
 function isAbort(error: unknown): boolean {
