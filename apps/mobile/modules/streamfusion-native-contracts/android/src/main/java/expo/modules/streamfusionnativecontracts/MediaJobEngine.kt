@@ -202,9 +202,10 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   private fun writeChunks(jobId: String, kind: String, sourceUri: String, generation: Int) {
+    if (!MediaJobCodec.isValidJobId(jobId)) return
     val target = if (kind == "recording") 32_768L else 65_536L
     val pressure = sourceUri.contains("storage-pressure")
-    val file = artifactFile(jobId)
+    val file = artifactFile(jobId) ?: return
     file.parentFile?.mkdirs()
     var written = if (file.exists()) file.length() else 0L
     if (!writeIfWorkerOwns(jobId, kind, generation, "running", written, written / 32, artifactKind(written, false), written, false, true, null, "Running", sourceUri)) {
@@ -316,8 +317,9 @@ internal class MediaJobEngine(private val context: Context) {
       artifactKind, relative, artifactBytes, serviceOwned, failure, status,
     ).toMutableMap()
     journal["sourceUri"] = sourceUri
+    val target = journalFile(jobId) ?: return
     synchronized(journalGuard) {
-      MediaJobCodec.writeJson(journalFile(jobId), journal)
+      MediaJobCodec.writeJson(target, journal)
     }
   }
 
@@ -402,15 +404,28 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   private fun jobsRoot(): File = File(context.filesDir, "media-jobs")
-  private fun jobDir(jobId: String): File = File(jobsRoot(), jobId)
-  private fun journalFile(jobId: String): File = File(jobDir(jobId), "journal.json")
-  private fun artifactFile(jobId: String): File = File(jobDir(jobId), "artifact.bin")
-  private fun completeFile(jobId: String): File = File(jobDir(jobId), "artifact.bin.complete")
-  private fun readJournal(jobId: String) = MediaJobCodec.readJson(journalFile(jobId))
-  private fun journalOrMissing(jobId: String): JSONObject? {
+  private fun jobDir(jobId: String): File? {
     if (!MediaJobCodec.isValidJobId(jobId)) return null
-    return readJournal(jobId)
+    val root = jobsRoot()
+    val candidate = File(root, jobId)
+    return try {
+      val rootPath = root.canonicalFile
+      val resolved = candidate.canonicalFile
+      val prefix = rootPath.path.trimEnd(File.separatorChar) + File.separator
+      if (resolved != rootPath && !resolved.path.startsWith(prefix)) null else candidate
+    } catch (_: java.io.IOException) {
+      null
+    }
   }
+  private fun journalFile(jobId: String): File? = jobDir(jobId)?.let { File(it, "journal.json") }
+  private fun artifactFile(jobId: String): File? = jobDir(jobId)?.let { File(it, "artifact.bin") }
+  private fun completeFile(jobId: String): File? = jobDir(jobId)?.let { File(it, "artifact.bin.complete") }
+  private fun readJournal(jobId: String): JSONObject? {
+    if (!MediaJobCodec.isValidJobId(jobId)) return null
+    val file = journalFile(jobId) ?: return null
+    return MediaJobCodec.readJson(file)
+  }
+  private fun journalOrMissing(jobId: String): JSONObject? = readJournal(jobId)
   private fun workerOwnsJournal(jobId: String, generation: Int): Boolean {
     val journal = readJournal(jobId) ?: return false
     if (journal.optInt("generation") != generation) return false
@@ -436,13 +451,17 @@ internal class MediaJobEngine(private val context: Context) {
     owned.remove(jobId)
   }
   private fun completeArtifact(jobId: String) {
-    artifactFile(jobId).parentFile?.mkdirs()
-    if (!artifactFile(jobId).exists()) artifactFile(jobId).writeBytes(ByteArray(0))
-    completeFile(jobId).writeText("complete")
+    val artifact = artifactFile(jobId) ?: return
+    val marker = completeFile(jobId) ?: return
+    artifact.parentFile?.mkdirs()
+    if (!artifact.exists()) artifact.writeBytes(ByteArray(0))
+    marker.writeText("complete")
   }
   private fun artifactFrom(jobId: String): Triple<String, Long, Boolean> {
-    val bytes = if (artifactFile(jobId).exists()) artifactFile(jobId).length() else 0L
-    val complete = completeFile(jobId).isFile
+    val artifact = artifactFile(jobId)
+    val marker = completeFile(jobId)
+    val bytes = if (artifact?.exists() == true) artifact.length() else 0L
+    val complete = marker?.isFile == true
     return Triple(artifactKind(bytes, complete), bytes, complete)
   }
   private fun artifactKind(bytes: Long, complete: Boolean): String =

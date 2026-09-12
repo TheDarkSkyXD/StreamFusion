@@ -50,6 +50,22 @@ const modules = [
   ],
 ];
 
+test("Media Job ids reject path traversal before journal and artifact IO", () => {
+  const codec = readFileSync(path.join(kotlinRoot, "MediaJobCodec.kt"), "utf8");
+  const match = codec.match(
+    /JOB_ID = Regex\("(\^\[a-zA-Z0-9\._:-\]\{1,256\}\$)"\)/u,
+  );
+  assert.ok(match);
+  const jobId = new RegExp(match[1], "u");
+  assert.equal(jobId.test("download-1"), true);
+  assert.equal(jobId.test("../etc"), false);
+  assert.equal(jobId.test("foo/bar"), false);
+  assert.equal(jobId.test("foo\\bar"), false);
+  assert.equal(jobId.test("."), true);
+  assert.equal(jobId.test(".."), true);
+  assert.match(codec, /jobId != "\." && jobId != "\.\."/u);
+});
+
 test("the Media Job engine fences generation, writes journals atomically, and stops empty sticky restarts", () => {
   const engine = readFileSync(
     path.join(kotlinRoot, "MediaJobEngine.kt"),
@@ -60,10 +76,19 @@ test("the Media Job engine fences generation, writes journals atomically, and st
     path.join(kotlinRoot, "MediaJobForegroundService.kt"),
     "utf8",
   );
+  assert.match(codec, /\.tmp/u);
+  assert.match(codec, /renameTo/u);
   assert.match(codec, /AtomicFile/u);
   assert.match(codec, /finishWrite/u);
   assert.match(codec, /json\.isNull\(key\)/u);
+  assert.match(codec, /JOB_ID = Regex\("\^\[a-zA-Z0-9\._:-\]\{1,256\}\$"\)/u);
+  assert.match(codec, /jobId != "\."/u);
   assert.match(codec, /jobId != "\.\."/u);
+  assert.match(
+    engine,
+    /if \(!MediaJobCodec\.isValidJobId\(jobId\)\) return null/u,
+  );
+  assert.match(engine, /canonicalFile/u);
   assert.match(engine, /writeIfWorkerOwns/u);
   assert.match(engine, /completeIfWorkerOwns/u);
   assert.match(engine, /synchronized\(journalGuard\)/u);

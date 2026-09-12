@@ -4,6 +4,7 @@ import android.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.ZoneOffset
@@ -78,14 +79,26 @@ internal object MediaJobCodec {
 
   fun writeJson(file: File, journal: Map<String, Any?>) {
     file.parentFile?.mkdirs()
-    val atomic = AtomicFile(file)
-    val stream = atomic.startWrite()
+    val bytes = toJsonObject(journal).toString().toByteArray(StandardCharsets.UTF_8)
+    val tmp = File(file.parentFile, "${file.name}.tmp")
+    FileOutputStream(tmp).use { stream ->
+      stream.write(bytes)
+      stream.flush()
+      stream.fd.sync()
+    }
+    if (tmp.renameTo(file)) return
     try {
-      stream.write(toJsonObject(journal).toString().toByteArray(StandardCharsets.UTF_8))
-      atomic.finishWrite(stream)
-    } catch (error: Throwable) {
-      atomic.failWrite(stream)
-      throw error
+      val atomic = AtomicFile(file)
+      val stream = atomic.startWrite()
+      try {
+        stream.write(bytes)
+        atomic.finishWrite(stream)
+      } catch (error: Throwable) {
+        atomic.failWrite(stream)
+        throw error
+      }
+    } finally {
+      tmp.delete()
     }
   }
 
