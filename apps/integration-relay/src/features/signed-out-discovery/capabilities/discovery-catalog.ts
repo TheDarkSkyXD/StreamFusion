@@ -35,7 +35,9 @@ export interface DiscoveryCatalog {
   readonly platform: DiscoveryPlatform;
   topStreams(): Promise<SignedOutTopStreamsBody | null>;
   categories(): Promise<SignedOutCategoriesBody | null>;
-  search(input: { readonly query: string }): Promise<SignedOutSearchBody | null>;
+  search(input: {
+    readonly query: string;
+  }): Promise<SignedOutSearchBody | null>;
 }
 
 export interface DiscoveryReadAuthorizer {

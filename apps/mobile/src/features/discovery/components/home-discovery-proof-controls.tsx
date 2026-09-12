@@ -4,7 +4,7 @@ import {
   mobileColors,
   mobileRadii,
   mobileSizing,
-  mobileSpacing,
+  mobileSpacing
 } from "@mobile/design/tokens";
 import type { DiscoveryFixtureMode } from "../capabilities/platform-reads";
 
@@ -19,12 +19,12 @@ const PROOF_MODES = [
   "auth-lost",
   "cancelled",
   "relay-unavailable",
-  "retry-exhausted",
+  "retry-exhausted"
 ] as const satisfies readonly DiscoveryFixtureMode[];
 
 export function HomeDiscoveryProofControls({
   mode,
-  onSelect,
+  onSelect
 }: {
   readonly mode: DiscoveryFixtureMode;
   readonly onSelect: (mode: DiscoveryFixtureMode) => void;
@@ -33,6 +33,9 @@ export function HomeDiscoveryProofControls({
     <View style={styles.panel} testID="home-discovery-proof-controls">
       <Text selectable style={styles.label}>
         DEVELOPMENT PLATFORM READS
+      </Text>
+      <Text selectable style={styles.source} testID="home-proof-source">
+        issue-147-d04-f481
       </Text>
       <View style={styles.row}>
         {PROOF_MODES.map((next) => (
@@ -46,7 +49,7 @@ export function HomeDiscoveryProofControls({
             style={({ pressed }) => [
               styles.chip,
               mode === next ? styles.chipSelected : null,
-              pressed ? styles.pressed : null,
+              pressed ? styles.pressed : null
             ]}
             testID={`home-proof-${next}`}
           >
@@ -65,19 +68,26 @@ const styles = StyleSheet.create({
     backgroundColor: mobileColors.surfaceMuted,
     borderRadius: mobileRadii.large,
     gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
+    padding: mobileSpacing.medium
   },
   label: {
     color: mobileColors.textCategory,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
-    lineHeight: 16,
+    lineHeight: 16
+  },
+  source: {
+    color: mobileColors.textCategory,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    lineHeight: 16
   },
   row: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: mobileSpacing.small,
+    gap: mobileSpacing.small
   },
   chip: {
     alignItems: "center",
@@ -87,18 +97,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
+    paddingHorizontal: mobileSpacing.medium
   },
   chipSelected: {
-    backgroundColor: mobileColors.navigationSelected,
+    backgroundColor: mobileColors.navigationSelected
   },
   chipLabel: {
     color: mobileColors.textPrimary,
     fontSize: 13,
     fontWeight: "600",
-    lineHeight: 18,
+    lineHeight: 18
   },
   pressed: {
-    opacity: 0.76,
-  },
+    opacity: 0.76
+  }
 });

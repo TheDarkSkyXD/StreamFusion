@@ -60,7 +60,10 @@ function createTwitchClient(input: {
     if (input.credentials === null) return null;
     if (cachedToken !== null && now() < cachedToken.expiresAtEpochMs)
       return cachedToken.value;
-    const payload = await clientCredentialsToken(input.fetch, input.credentials);
+    const payload = await clientCredentialsToken(
+      input.fetch,
+      input.credentials
+    );
     if (payload === null) return null;
     cachedToken = {
       expiresAtEpochMs: now() + payload.expiresInSeconds * 1_000,
@@ -93,7 +96,10 @@ function createTwitchClient(input: {
 async function clientCredentialsToken(
   fetch: typeof globalThis.fetch,
   credentials: AppCredentials
-): Promise<{ readonly value: string; readonly expiresInSeconds: number } | null> {
+): Promise<{
+  readonly value: string;
+  readonly expiresInSeconds: number;
+} | null> {
   try {
     const response = await fetch(TWITCH_IDENTITY_URL, {
       body: new URLSearchParams({
@@ -267,7 +273,9 @@ function booleanAt(record: JsonRecord, key: string): boolean {
 
 function stringArrayAt(record: JsonRecord, key: string): readonly string[] {
   const value = record[key];
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function queryParams(input: Record<string, string>): string {

@@ -175,7 +175,10 @@ describe("provider discovery catalogs", () => {
                 channel: {
                   id: 3,
                   slug: "streamer",
-                  user: { profile_pic: "https://cdn.test/avatar.jpg", username: "Streamer" }
+                  user: {
+                    profile_pic: "https://cdn.test/avatar.jpg",
+                    username: "Streamer"
+                  }
                 },
                 id: 2,
                 language: "en",

@@ -47,10 +47,12 @@ export function isRelayEnvironment(value: string): value is RelayEnvironment {
   return RELAY_ENVIRONMENTS.has(value);
 }
 
-export function createRelayWorker(input: {
-  readonly fetch?: typeof globalThis.fetch;
-  readonly now?: () => number;
-} = {}) {
+export function createRelayWorker(
+  input: {
+    readonly fetch?: typeof globalThis.fetch;
+    readonly now?: () => number;
+  } = {}
+) {
   let routes: RelayRoutes | null = null;
   return {
     async fetch(request: Request, env: Env): Promise<Response> {

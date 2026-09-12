@@ -18,14 +18,20 @@ export function createSignedOutDiscoveryService(input: {
       if (catalog === undefined) return { kind: "unavailable" };
       if (command.kind === "top-streams") {
         const body = await catalog.topStreams();
-        return body === null ? { kind: "unavailable" } : { body, kind: command.kind };
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: command.kind };
       }
       if (command.kind === "categories") {
         const body = await catalog.categories();
-        return body === null ? { kind: "unavailable" } : { body, kind: command.kind };
+        return body === null
+          ? { kind: "unavailable" }
+          : { body, kind: command.kind };
       }
       const body = await catalog.search({ query: command.query });
-      return body === null ? { kind: "unavailable" } : { body, kind: command.kind };
+      return body === null
+        ? { kind: "unavailable" }
+        : { body, kind: command.kind };
     }
   };
 }

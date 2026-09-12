@@ -56,7 +56,10 @@ function createKickClient(input: {
     if (input.credentials === null) return null;
     if (cachedToken !== null && now() < cachedToken.expiresAtEpochMs)
       return cachedToken.value;
-    const payload = await clientCredentialsToken(input.fetch, input.credentials);
+    const payload = await clientCredentialsToken(
+      input.fetch,
+      input.credentials
+    );
     if (payload === null) return null;
     cachedToken = {
       expiresAtEpochMs: now() + payload.expiresInSeconds * 1_000,
@@ -85,7 +88,10 @@ function createKickClient(input: {
 async function clientCredentialsToken(
   fetch: typeof globalThis.fetch,
   credentials: AppCredentials
-): Promise<{ readonly value: string; readonly expiresInSeconds: number } | null> {
+): Promise<{
+  readonly value: string;
+  readonly expiresInSeconds: number;
+} | null> {
   try {
     const response = await fetch(KICK_IDENTITY_URL, {
       body: new URLSearchParams({
@@ -154,11 +160,16 @@ function searchBody(
 function toStream(record: JsonRecord): KickStream {
   const channel = recordAt(record, "channel") ?? record;
   const user = recordAt(channel, "user") ?? channel;
-  const category = recordAt(record, "category") ?? firstRecordAt(record, "categories");
+  const category =
+    recordAt(record, "category") ?? firstRecordAt(record, "categories");
   const categoryId = category === null ? "" : identifierAt(category, "id");
   const categoryName = category === null ? "" : stringAt(category, "name");
   return {
-    channelAvatar: firstString(user, ["profile_pic", "profile_picture", "avatar"]),
+    channelAvatar: firstString(user, [
+      "profile_pic",
+      "profile_picture",
+      "avatar"
+    ]),
     channelDisplayName: firstString(user, ["username", "name", "slug"]),
     channelId: firstIdentifier(channel, ["id", "slug"]),
     channelName: firstString(channel, ["slug", "username", "name"]),
@@ -278,7 +289,9 @@ function booleanAt(record: JsonRecord, key: string): boolean {
 }
 function stringArrayAt(record: JsonRecord, key: string): readonly string[] {
   const value = record[key];
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function queryParams(input: Record<string, string>): string {

@@ -44,20 +44,24 @@ export function createSignedOutDiscoveryRoute(input: {
     const kind = routeKind(url.pathname, request.method);
     if (kind === null) return null;
     const credential = bearerCredential(request);
-    if (credential === null) return failure(requestId, "unauthorized", 401, "never");
+    if (credential === null)
+      return failure(requestId, "unauthorized", 401, "never");
     const platform = platformFrom(url);
     if (!(await consumeAbuseLimit(input, request, kind, platform)))
       return failure(requestId, "rate_limited", 429, "after");
-    const installation = await input.authorizer.authenticatedInstallation(credential);
+    const installation =
+      await input.authorizer.authenticatedInstallation(credential);
     if (installation === null)
       return failure(requestId, "unauthorized", 401, "never");
-    if (platform === null) return failure(requestId, "invalid_request", 400, "never");
+    if (platform === null)
+      return failure(requestId, "invalid_request", 400, "never");
     if (!(await consumeInstallationLimit(input, kind, platform, installation)))
       return failure(requestId, "rate_limited", 429, "after");
     if ((await input.authorizer.authorizeRead(credential)) === null)
       return failure(requestId, "unauthorized", 401, "never");
     const command = commandFrom(kind, platform, url);
-    if (command === null) return failure(requestId, "invalid_request", 400, "never");
+    if (command === null)
+      return failure(requestId, "invalid_request", 400, "never");
     return discoveryResponse(requestId, await input.service.read(command));
   };
 }
@@ -93,7 +97,10 @@ async function consumeInstallationLimit(
   });
 }
 
-function routeKind(pathname: string, method: string): DiscoveryRouteKind | null {
+function routeKind(
+  pathname: string,
+  method: string
+): DiscoveryRouteKind | null {
   if (method !== "GET") return null;
   if (pathname === "/v1/discovery/top-streams") return "top-streams";
   if (pathname === "/v1/discovery/categories") return "categories";
@@ -154,7 +161,10 @@ function failure(
       createRelayFailureEnvelope({
         error: {
           code,
-          retry: retry === "after" ? { kind: "after", seconds: 60 } : { kind: "never" }
+          retry:
+            retry === "after"
+              ? { kind: "after", seconds: 60 }
+              : { kind: "never" }
         },
         requestId
       })

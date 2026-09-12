@@ -30,10 +30,12 @@ function catalog(platform: DiscoveryPlatform): DiscoveryCatalog {
   };
 }
 
-function createRoute(input: {
-  readonly allow?: boolean;
-  readonly catalogs?: readonly DiscoveryCatalog[];
-} = {}) {
+function createRoute(
+  input: {
+    readonly allow?: boolean;
+    readonly catalogs?: readonly DiscoveryCatalog[];
+  } = {}
+) {
   const scopes: string[] = [];
   const route = createSignedOutDiscoveryRoute({
     authorizer: {
@@ -65,8 +67,12 @@ async function request(
   path: string,
   credential: string | null = "valid-credential"
 ): Promise<Response> {
-  const headers = credential === null ? {} : { Authorization: `Bearer ${credential}` };
-  const response = await route(new Request(`https://relay.test${path}`, { headers }), "request-1");
+  const headers =
+    credential === null ? {} : { Authorization: `Bearer ${credential}` };
+  const response = await route(
+    new Request(`https://relay.test${path}`, { headers }),
+    "request-1"
+  );
   if (response === null) throw new Error("Expected discovery route response");
   return response;
 }
@@ -74,14 +80,25 @@ async function request(
 describe("signed-out discovery route", () => {
   it("rejects missing or invalid installation credentials", async () => {
     const { route } = createRoute();
-    expect((await request(route, "/v1/discovery/top-streams?platform=twitch", null)).status).toBe(401);
-    expect((await request(route, "/v1/discovery/top-streams?platform=twitch", "bad")).status).toBe(401);
+    expect(
+      (await request(route, "/v1/discovery/top-streams?platform=twitch", null))
+        .status
+    ).toBe(401);
+    expect(
+      (await request(route, "/v1/discovery/top-streams?platform=twitch", "bad"))
+        .status
+    ).toBe(401);
   });
 
   it("rejects unsupported platforms and empty search queries", async () => {
     const { route } = createRoute();
-    expect((await request(route, "/v1/discovery/categories?platform=other")).status).toBe(400);
-    expect((await request(route, "/v1/discovery/search?platform=twitch&q=%20")).status).toBe(400);
+    expect(
+      (await request(route, "/v1/discovery/categories?platform=other")).status
+    ).toBe(400);
+    expect(
+      (await request(route, "/v1/discovery/search?platform=twitch&q=%20"))
+        .status
+    ).toBe(400);
   });
 
   it("returns unavailable when the platform credentials are absent", async () => {
@@ -93,19 +110,32 @@ describe("signed-out discovery route", () => {
         })
       ]
     });
-    expect((await request(route, "/v1/discovery/top-streams?platform=twitch")).status).toBe(503);
+    expect(
+      (await request(route, "/v1/discovery/top-streams?platform=twitch")).status
+    ).toBe(503);
   });
 
   it("stops requests denied by the abuse rate limit", async () => {
     const { route } = createRoute({ allow: false });
-    expect((await request(route, "/v1/discovery/top-streams?platform=twitch")).status).toBe(429);
+    expect(
+      (await request(route, "/v1/discovery/top-streams?platform=twitch")).status
+    ).toBe(429);
   });
 
   it("returns Core-valid success envelopes", async () => {
     const { route, scopes } = createRoute();
-    const topResponse = await request(route, "/v1/discovery/top-streams?platform=twitch");
-    const categoriesResponse = await request(route, "/v1/discovery/categories?platform=kick");
-    const searchResponse = await request(route, "/v1/discovery/search?platform=twitch&q=arcade");
+    const topResponse = await request(
+      route,
+      "/v1/discovery/top-streams?platform=twitch"
+    );
+    const categoriesResponse = await request(
+      route,
+      "/v1/discovery/categories?platform=kick"
+    );
+    const searchResponse = await request(
+      route,
+      "/v1/discovery/search?platform=twitch&q=arcade"
+    );
     const top: unknown = await topResponse.json();
     const categories: unknown = await categoriesResponse.json();
     const search: unknown = await searchResponse.json();
@@ -127,9 +157,13 @@ describe("signed-out discovery route", () => {
       throw new Error("Expected signed-out discovery success envelopes");
     }
     expect(signedOutTopStreamsBodySchema.is(top.outcome.body)).toBe(true);
-    expect(signedOutCategoriesBodySchema.is(categories.outcome.body)).toBe(true);
+    expect(signedOutCategoriesBodySchema.is(categories.outcome.body)).toBe(
+      true
+    );
     expect(signedOutSearchBodySchema.is(search.outcome.body)).toBe(true);
-    expect(scopes).toContain("abuse:discovery:top-streams:twitch:unknown-client");
+    expect(scopes).toContain(
+      "abuse:discovery:top-streams:twitch:unknown-client"
+    );
     expect(scopes).toContain(
       "discovery:top-streams:twitch:development:installation-1"
     );

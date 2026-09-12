@@ -11,7 +11,7 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
-  View: "View",
+  View: "View"
 }));
 
 type ElementProps = Readonly<{
@@ -45,7 +45,7 @@ function descendants(node: unknown): readonly Element[] {
 function render(
   twitch: ReturnType<typeof fixtureOutcome>,
   kick: ReturnType<typeof fixtureOutcome>,
-  loading = false,
+  loading = false
 ) {
   const retried: string[] = [];
   const root = HomeLiveDiscoveryView({
@@ -53,7 +53,7 @@ function render(
     onRetry: (platform) => {
       retried.push(platform);
     },
-    view: composeHomeLiveDiscovery({ kick, loading, twitch }),
+    view: composeHomeLiveDiscovery({ kick, loading, twitch })
   });
   return { nodes: descendants(root), retried, root };
 }
@@ -62,20 +62,41 @@ describe("Home live discovery screen", () => {
   it("renders ready stream cards with live viewer counts", () => {
     const { nodes } = render(
       fixtureOutcome("twitch", "ready"),
-      fixtureOutcome("kick", "ready"),
+      fixtureOutcome("kick", "ready")
     );
     expect(
-      nodes.some((node) => node.props.testID === "home-stream-twitch-twitch-ready"),
+      nodes.some(
+        (node) => node.props.testID === "home-stream-twitch-twitch-ready"
+      )
     ).toBe(true);
     expect(
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children === "90 viewers",
-      ),
+          node.props.children === "90 viewers"
+      )
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
+  });
+
+  it("stamps the Home proof panel with the D04 source token", () => {
+    const root = HomeLiveDiscoveryView({
+      onOpenAccounts: () => undefined,
+      onRetry: () => undefined,
+      onSelectProofMode: () => undefined,
+      proofMode: "ready",
+      view: composeHomeLiveDiscovery({
+        kick: fixtureOutcome("kick", "ready"),
+        loading: false,
+        twitch: fixtureOutcome("twitch", "ready")
+      })
+    });
+    const nodes = descendants(root);
+    expect(
+      nodes.some((node) => node.props.testID === "home-proof-source")
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.children === "LIVE"),
+      nodes.some((node) => node.props.children === "issue-147-d04-f481")
     ).toBe(true);
   });
 
@@ -83,7 +104,7 @@ describe("Home live discovery screen", () => {
     const { nodes } = render(
       fixtureOutcome("twitch", "loading"),
       fixtureOutcome("kick", "loading"),
-      true,
+      true
     );
     const phase = nodes.find((node) => node.props.testID === "home-phase");
     expect(phase?.props.children).toMatch(/Loading/);
@@ -92,15 +113,17 @@ describe("Home live discovery screen", () => {
   it("keeps Kick visible when only Twitch failed and retries Twitch alone", () => {
     const { nodes, retried } = render(
       fixtureOutcome("twitch", "twitch-fail"),
-      fixtureOutcome("kick", "ready"),
+      fixtureOutcome("kick", "ready")
     );
-    expect(nodes.some((node) => node.props.testID === "home-retry-twitch")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "home-retry-twitch")
+    ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "home-retry-kick")).toBe(
-      false,
+      false
     );
-    const retry = nodes.find((node) => node.props.testID === "home-retry-twitch");
+    const retry = nodes.find(
+      (node) => node.props.testID === "home-retry-twitch"
+    );
     retry?.props.onPress?.();
     expect(retried).toEqual(["twitch"]);
   });
@@ -108,31 +131,29 @@ describe("Home live discovery screen", () => {
   it("surfaces stale cache age, auth-lost login, and Relay unavailability", () => {
     const stale = render(
       fixtureOutcome("twitch", "stale-cache"),
-      fixtureOutcome("kick", "stale-cache"),
+      fixtureOutcome("kick", "stale-cache")
     );
     expect(
-      stale.nodes.some((node) => node.props.testID === "home-cache-age-twitch"),
+      stale.nodes.some((node) => node.props.testID === "home-cache-age-twitch")
     ).toBe(true);
 
     const authLost = render(
       fixtureOutcome("twitch", "auth-lost"),
-      fixtureOutcome("kick", "ready"),
+      fixtureOutcome("kick", "ready")
     );
     expect(
-      authLost.nodes.some((node) => node.props.testID === "home-login"),
+      authLost.nodes.some((node) => node.props.testID === "home-login")
     ).toBe(true);
 
     const relayDown = render(
       fixtureOutcome("twitch", "relay-unavailable"),
-      fixtureOutcome("kick", "cache-miss"),
+      fixtureOutcome("kick", "cache-miss")
     );
     expect(
-      relayDown.nodes.some(
-        (node) => node.props.testID === "home-banner-twitch",
-      ),
+      relayDown.nodes.some((node) => node.props.testID === "home-banner-twitch")
     ).toBe(true);
     const phase = relayDown.nodes.find(
-      (node) => node.props.testID === "home-phase",
+      (node) => node.props.testID === "home-phase"
     );
     expect(phase?.props.children).toMatch(/could not be loaded/);
   });

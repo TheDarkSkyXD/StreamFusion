@@ -44,7 +44,10 @@ export function createSignedOutDiscoveryRelayRoute(input: {
           now: input.now
         }),
         createKickOfficialCatalog({
-          credentials: appCredentials(input.kickClientId, input.kickClientSecret),
+          credentials: appCredentials(
+            input.kickClientId,
+            input.kickClientSecret
+          ),
           fetch: input.fetch,
           now: input.now
         })
