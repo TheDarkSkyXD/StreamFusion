@@ -9,10 +9,14 @@ import {
 import {
   categorySchema,
   channelSchema,
+  clipSchema,
   streamSchema,
+  videoSchema,
   type Category,
   type Channel,
+  type Clip,
   type Stream,
+  type Video,
 } from "../features/content/domain/index.ts";
 import type { Platform } from "../platform/index.ts";
 
@@ -34,6 +38,8 @@ export type SignedOutSearchBody = {
   readonly streams: readonly Stream[];
   readonly channels: readonly Channel[];
   readonly categories: readonly Category[];
+  readonly videos: readonly Video[];
+  readonly clips: readonly Clip[];
 };
 
 export const signedOutTopStreamsBodySchema: ContractSchema<SignedOutTopStreamsBody> =
@@ -91,12 +97,16 @@ function isSignedOutSearchBody(value: unknown): value is SignedOutSearchBody {
       "streams",
       "channels",
       "categories",
+      "videos",
+      "clips",
     ]) &&
     isPlatform(value.platform) &&
     isString(value.query) &&
     value.query.length > 0 &&
     isArrayOf(value.streams, streamSchema.is) &&
     isArrayOf(value.channels, channelSchema.is) &&
-    isArrayOf(value.categories, categorySchema.is)
+    isArrayOf(value.categories, categorySchema.is) &&
+    isArrayOf(value.videos, videoSchema.is) &&
+    isArrayOf(value.clips, clipSchema.is)
   );
 }

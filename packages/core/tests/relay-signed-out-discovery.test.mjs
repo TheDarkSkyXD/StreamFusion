@@ -66,6 +66,8 @@ test("signed-out discovery bodies accept exact Core content pages", () => {
       streams: [stream],
       channels: [channel],
       categories: [category],
+      videos: [],
+      clips: [],
     }),
     true,
   );
@@ -86,6 +88,8 @@ test("signed-out discovery bodies reject extra provider fields", () => {
       streams: [],
       channels: [],
       categories: [],
+      videos: [],
+      clips: [],
     }),
     false,
   );
