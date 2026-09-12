@@ -7,6 +7,7 @@ import {
   parseConfiguredManifest
 } from "../features/installation-policy/composition/installation-policy-relay";
 import type { RelayEnvironment } from "../features/installation-policy/capabilities/installation-registry";
+import { createFollowedContentRelayRoute } from "../features/followed-content/composition/followed-content-relay";
 import { createSignedOutDiscoveryRelayRoute } from "../features/signed-out-discovery/composition/signed-out-discovery-relay";
 
 interface Env {
@@ -28,6 +29,7 @@ type RelayRoutes = {
   >;
   readonly database: D1Database;
   readonly discovery: ReturnType<typeof createSignedOutDiscoveryRelayRoute>;
+  readonly followedContent: ReturnType<typeof createFollowedContentRelayRoute>;
   readonly environment: RelayEnvironment;
   readonly kickClientId: string | undefined;
   readonly kickClientSecret: string | undefined;
@@ -82,6 +84,11 @@ export function createRelayWorker(
         if (response !== null) return response;
         const discoveryResponse = await routes.discovery(request, requestId);
         if (discoveryResponse !== null) return discoveryResponse;
+        const followedResponse = await routes.followedContent(
+          request,
+          requestId
+        );
+        if (followedResponse !== null) return followedResponse;
       } catch {
         return createRelayUnavailableResponse(requestId);
       }
@@ -138,6 +145,17 @@ function routesFor(input: {
       twitchClientId: input.env.TWITCH_CLIENT_ID,
       twitchClientSecret: input.env.TWITCH_CLIENT_SECRET
     }),
+    followedContent: createFollowedContentRelayRoute({
+      credentialSecret: input.env.RELAY_CREDENTIAL_HMAC_SECRET,
+      database: input.env.INSTALLATION_REGISTRY,
+      environment: input.env.RELAY_ENVIRONMENT,
+      fetch: input.fetch,
+      kickClientId: input.env.KICK_CLIENT_ID,
+      kickClientSecret: input.env.KICK_CLIENT_SECRET,
+      now: input.now,
+      twitchClientId: input.env.TWITCH_CLIENT_ID,
+      twitchClientSecret: input.env.TWITCH_CLIENT_SECRET
+    }),
     environment: input.env.RELAY_ENVIRONMENT,
     kickClientId: input.env.KICK_CLIENT_ID,
     kickClientSecret: input.env.KICK_CLIENT_SECRET,
@@ -175,7 +193,11 @@ function isRelayRequest(request: Request): boolean {
       (path === "/v1/capability-manifest" ||
         path === "/v1/discovery/top-streams" ||
         path === "/v1/discovery/categories" ||
-        path === "/v1/discovery/search"))
+        path === "/v1/discovery/search" ||
+        path === "/v1/followed-content/streams" ||
+        path === "/v1/followed-content/channels" ||
+        path === "/v1/followed-content/videos" ||
+        path === "/v1/followed-content/clips"))
   );
 }
 

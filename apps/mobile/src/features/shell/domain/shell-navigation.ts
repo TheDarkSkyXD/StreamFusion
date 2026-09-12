@@ -7,6 +7,7 @@ export type ShellRouteId =
   | ShellDestinationId
   | "search/result-preview"
   | "following/channel-preview"
+  | "following/manage"
   | "watch/session-preview"
   | "activity/alert-preview"
   | "activity/job-preview"
@@ -121,7 +122,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "following",
     "YOUR CHANNELS",
     "following-root",
-    "Live channels and Guest Follows will stay close without mixing in recommendations.",
+    "Live Guest Follows, videos, clips, categories, and channels stay here without mixing in recommendations.",
     "Following",
     "following",
   ),
@@ -131,6 +132,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "following-channel-preview",
     "A channel can open here without losing your place in any other destination.",
     "Channel preview",
+    "following",
+  ),
+  "following/manage": route(
+    "following/manage",
+    "FOLLOWING",
+    "following-manage",
+    "Add or remove Guest Follows, open provider pages, and choose live-alert preferences on this device.",
+    "Manage Guest Follows",
     "following",
   ),
   watch: route(

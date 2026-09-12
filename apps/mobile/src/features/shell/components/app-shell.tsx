@@ -51,6 +51,8 @@ import {
 } from "@mobile/features/auth/components/twitch-accounts-panel";
 import type { HomeDiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
+import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
+import { FollowingWorkspace } from "@mobile/features/follows/components/following-workspace";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -115,6 +117,7 @@ export function AppShell({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  followingSession,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -151,6 +154,7 @@ export function AppShell({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: HomeDiscoverySession;
+  readonly followingSession: FollowingSession;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -261,6 +265,7 @@ export function AppShell({
                 onDisableTwitchDevelopmentFixture
               }
               homeDiscovery={homeDiscovery}
+              followingSession={followingSession}
             />
           </View>
         </View>
@@ -409,6 +414,7 @@ function ShellScreen({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  followingSession,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -445,6 +451,7 @@ function ShellScreen({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: HomeDiscoverySession;
+  readonly followingSession: FollowingSession;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -504,6 +511,30 @@ function ShellScreen({
           onOpen={(nextLocation) =>
             dispatch({ type: "navigate", location: nextLocation })
           }
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "following" || location.route === "following/manage") {
+    return (
+      <View
+        style={styles.activityWorkspace}
+        testID={
+          location.route === "following"
+            ? "screen-following-root"
+            : "screen-following-manage"
+        }
+      >
+        <FollowingWorkspace
+          onOpenManage={() =>
+            dispatch({
+              type: "navigate",
+              location: { route: "following/manage" },
+            })
+          }
+          route={location.route}
+          session={followingSession}
         />
       </View>
     );
