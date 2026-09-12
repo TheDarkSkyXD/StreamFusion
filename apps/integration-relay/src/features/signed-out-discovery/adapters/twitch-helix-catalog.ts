@@ -8,6 +8,8 @@ import type {
   AppCredentials,
   DiscoveryCatalog
 } from "../capabilities/discovery-catalog";
+import { streamsFromLiveChannels } from "./live-streams-from-channels";
+import { fetchTwitchSearchMedia } from "./twitch-search-media";
 
 type TwitchStream = SignedOutTopStreamsBody["streams"][number];
 type TwitchCategory = SignedOutCategoriesBody["categories"][number];
@@ -39,11 +41,25 @@ export function createTwitchHelixCatalog(input: {
       return payload === null ? null : categoriesBody(payload);
     },
     async search({ query }) {
-      const [channels, categories] = await Promise.all([
+      const [channelsPayload, categoriesPayload] = await Promise.all([
         client.get(`/search/channels?${queryParams({ first: "20", query })}`),
         client.get(`/search/categories?${queryParams({ first: "20", query })}`)
       ]);
-      return searchBody(channels, categories, query);
+      if (channelsPayload === null || categoriesPayload === null) return null;
+      const channels = dataFrom(channelsPayload).map(toChannel);
+      const media = await fetchTwitchSearchMedia({
+        channels,
+        get: client.get
+      });
+      return {
+        categories: dataFrom(categoriesPayload).map(toCategory),
+        channels,
+        clips: media.clips,
+        platform: "twitch" as const,
+        query,
+        streams: streamsFromLiveChannels(channels),
+        videos: media.videos
+      };
     }
   };
 }
@@ -152,21 +168,6 @@ function categoriesBody(payload: unknown): SignedOutCategoriesBody {
     platform: "twitch" as const
   };
   return cursor === null ? body : { ...body, cursor };
-}
-
-function searchBody(
-  channelsPayload: unknown | null,
-  categoriesPayload: unknown | null,
-  query: string
-): SignedOutSearchBody | null {
-  if (channelsPayload === null || categoriesPayload === null) return null;
-  return {
-    categories: dataFrom(categoriesPayload).map(toCategory),
-    channels: dataFrom(channelsPayload).map(toChannel),
-    platform: "twitch",
-    query,
-    streams: []
-  };
 }
 
 function toStream(record: JsonRecord): TwitchStream {

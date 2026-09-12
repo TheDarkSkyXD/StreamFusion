@@ -1,7 +1,14 @@
 import type { Category, Channel, Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
-import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
+import type {
+  PlatformReadOutcome,
+  SearchReadOutcome,
+} from "../../capabilities/platform-reads";
+import {
+  emptySearchCatalog,
+  streamsFromLiveChannels,
+} from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
 
 const KICK_LIVESTREAMS = "https://api.kick.com/public/v1/livestreams?limit=20";
@@ -45,15 +52,41 @@ export function createKickOfficialReader(input: {
       };
     },
     async search(read: {
+      readonly guest?: boolean;
       readonly query: string;
       readonly signal?: AbortSignal;
-    }): Promise<PlatformReadOutcome<Stream | Channel | Category>> {
-      return kickCollection({
-        input,
-        map: kickStreams,
-        path: `https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(read.query)}`,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+    }): Promise<SearchReadOutcome> {
+      const [channels, categories] = await Promise.all([
+        kickCollection({
+          guest: read.guest === true,
+          input,
+          map: kickChannels,
+          path: `https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(read.query)}`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        }),
+        kickCollection({
+          guest: read.guest === true,
+          input,
+          map: kickCategories,
+          path: `https://api.kick.com/public/v1/categories?q=${encodeURIComponent(read.query)}`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        }),
+      ]);
+      if (channels.status === "failed") return searchFromKick(channels);
+      if (categories.status === "failed") return searchFromKick(categories);
+      return {
+        cache: { kind: "miss" },
+        catalog: {
+          categories: categories.items,
+          channels: channels.items,
+          clips: [],
+          streams: streamsFromLiveChannels(channels.items),
+          videos: [],
+        },
+        path: { kind: read.guest === true ? "guest" : "direct", platform: "kick" },
+        platform: "kick",
+        status: "complete",
+      };
     },
     async getTopStreams(read: {
       readonly signal?: AbortSignal;
@@ -101,6 +134,30 @@ export function createKickOfficialReader(input: {
   };
 }
 
+function kickChannels(value: unknown): readonly Channel[] {
+  return kickRows(value).flatMap((record) => {
+    const user =
+      typeof record.user === "object" && record.user !== null
+        ? (record.user as Record<string, unknown>)
+        : record;
+    const id = identifier(record, "id") || identifier(record, "slug");
+    if (id === "") return [];
+    return [
+      {
+        avatarUrl: stringField(user, "profile_pic") || stringField(user, "avatar"),
+        displayName:
+          stringField(user, "username") || stringField(record, "slug"),
+        id,
+        isLive: record.is_live === true,
+        isPartner: record.is_partner === true,
+        isVerified: record.verified === true,
+        platform: "kick" as const,
+        username: stringField(record, "slug") || stringField(user, "username"),
+      },
+    ];
+  });
+}
+
 function kickStreams(value: unknown): readonly Stream[] {
   const rows = Array.isArray(value)
     ? value
@@ -145,7 +202,22 @@ function kickStreams(value: unknown): readonly Stream[] {
   });
 }
 
+function kickRows(value: unknown): readonly Record<string, unknown>[] {
+  const rows = Array.isArray(value)
+    ? value
+    : typeof value === "object" &&
+        value !== null &&
+        Array.isArray((value as { data?: unknown }).data)
+      ? (value as { data: unknown[] }).data
+      : [];
+  return rows.filter(
+    (row): row is Record<string, unknown> =>
+      typeof row === "object" && row !== null,
+  );
+}
+
 async function kickCollection<T>(input: {
+  readonly guest?: boolean;
   readonly input: {
     readonly fetch: typeof globalThis.fetch;
     readonly readAccessToken: () => Promise<string | null>;
@@ -156,7 +228,7 @@ async function kickCollection<T>(input: {
 }): Promise<PlatformReadOutcome<T>> {
   if (input.signal?.aborted) return cancelled("kick");
   const accessToken = await input.input.readAccessToken();
-  if (accessToken === null) {
+  if (accessToken === null && input.guest !== true) {
     return {
       cache: { kind: "miss" },
       error: { code: "signed-out-login-required", retry: "manual" },
@@ -174,7 +246,7 @@ async function kickCollection<T>(input: {
     const response = await input.input.fetch(
       input.path,
       requestInit(
-        { Authorization: `Bearer ${accessToken}` },
+        accessToken === null ? {} : { Authorization: `Bearer ${accessToken}` },
         input.signal,
       ),
     );
@@ -216,6 +288,19 @@ function kickCategories(value: unknown): readonly Category[] {
       },
     ];
   });
+}
+
+function searchFromKick<T>(
+  outcome: PlatformReadOutcome<T>,
+): SearchReadOutcome {
+  return {
+    cache: outcome.cache,
+    catalog: emptySearchCatalog(),
+    path: outcome.path,
+    platform: "kick",
+    status: outcome.status,
+    ...(outcome.error === undefined ? {} : { error: outcome.error }),
+  };
 }
 
 function failed<T>(code: string): PlatformReadOutcome<T> {

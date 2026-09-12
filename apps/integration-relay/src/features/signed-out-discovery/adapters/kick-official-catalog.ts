@@ -8,6 +8,7 @@ import type {
   AppCredentials,
   DiscoveryCatalog
 } from "../capabilities/discovery-catalog";
+import { streamsFromLiveChannels } from "./live-streams-from-channels";
 
 type KickStream = SignedOutTopStreamsBody["streams"][number];
 type KickCategory = SignedOutCategoriesBody["categories"][number];
@@ -149,12 +150,15 @@ function searchBody(
   query: string
 ): SignedOutSearchBody | null {
   if (channelsPayload === null || categoriesPayload === null) return null;
+  const channels = dataFrom(channelsPayload).map(toChannel);
   return {
     categories: dataFrom(categoriesPayload).map(toCategory),
-    channels: dataFrom(channelsPayload).map(toChannel),
+    channels,
+    clips: [],
     platform: "kick",
     query,
-    streams: []
+    streams: streamsFromLiveChannels(channels),
+    videos: []
   };
 }
 function toStream(record: JsonRecord): KickStream {

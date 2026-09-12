@@ -7,13 +7,18 @@ import {
   type SignedOutSearchBody,
   type SignedOutTopStreamsBody,
 } from "@streamfusion/core/relay";
-import type { Category, Channel, Stream } from "@streamfusion/core/content";
+import type { Category, Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type {
   InstallationIdentityRead,
   PlatformReadOutcome,
+  SearchReadOutcome,
 } from "../../capabilities/platform-reads";
+import {
+  emptySearchCatalog,
+  streamsFromLiveChannels,
+} from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
 
 export function createRelaySignedOutReader(input: {
@@ -53,18 +58,12 @@ export function createRelaySignedOutReader(input: {
       readonly platform: Platform;
       readonly query: string;
       readonly signal?: AbortSignal;
-    }): Promise<PlatformReadOutcome<Stream | Channel | Category>> {
-      return relayRead({
+    }): Promise<SearchReadOutcome> {
+      return relaySearchRead({
         input,
-        inputRead: {
-          platform: inputRead.platform,
-          ...(inputRead.signal === undefined
-            ? {}
-            : { signal: inputRead.signal }),
-        },
-        parse: (platform, value) =>
-          relaySearchOutcome(platform, inputRead.query, value),
-        path: `v1/discovery/search?query=${encodeURIComponent(inputRead.query)}`,
+        query: inputRead.query,
+        platform: inputRead.platform,
+        ...(inputRead.signal === undefined ? {} : { signal: inputRead.signal }),
       });
     },
     async getTopStreams(inputRead: {
@@ -153,26 +152,119 @@ function relayCategoriesOutcome(
   };
 }
 
+async function relaySearchRead(options: {
+  readonly input: {
+    readonly baseUrl: string;
+    readonly fetch: typeof globalThis.fetch;
+    readonly installation: () => Promise<InstallationIdentityRead>;
+  };
+  readonly platform: Platform;
+  readonly query: string;
+  readonly signal?: AbortSignal;
+}): Promise<SearchReadOutcome> {
+  if (options.signal?.aborted) {
+    return {
+      cache: { kind: "miss" },
+      catalog: emptySearchCatalog(),
+      error: { code: "cancelled", retry: "none" },
+      path: { kind: "unavailable", platform: options.platform, reason: "cancelled" },
+      platform: options.platform,
+      status: "failed",
+    };
+  }
+  const identity = await options.input.installation();
+  if (identity.kind !== "ready") {
+    return {
+      cache: { kind: "miss" },
+      catalog: emptySearchCatalog(),
+      error: { code: "signed-out-login-required", retry: "manual" },
+      path: {
+        kind: "unavailable",
+        platform: options.platform,
+        reason: "signed-out-login-required",
+      },
+      platform: options.platform,
+      status: "failed",
+    };
+  }
+  try {
+    const url = new URL(
+      `v1/discovery/search?query=${encodeURIComponent(options.query)}`,
+      options.input.baseUrl,
+    );
+    url.searchParams.set("platform", options.platform);
+    const response = await options.input.fetch(
+      url.toString(),
+      requestInit(
+        { Authorization: `Bearer ${identity.credential}` },
+        options.signal,
+      ),
+    );
+    return relaySearchOutcome(
+      options.platform,
+      options.query,
+      await response.json(),
+    );
+  } catch (error) {
+    if (options.signal?.aborted || isAbort(error)) {
+      return {
+        cache: { kind: "miss" },
+        catalog: emptySearchCatalog(),
+        error: { code: "cancelled", retry: "none" },
+        path: {
+          kind: "unavailable",
+          platform: options.platform,
+          reason: "cancelled",
+        },
+        platform: options.platform,
+        status: "failed",
+      };
+    }
+    return searchFailed(options.platform);
+  }
+}
+
 function relaySearchOutcome(
   platform: Platform,
   query: string,
   value: unknown,
-): PlatformReadOutcome<Stream | Channel | Category> {
+): SearchReadOutcome {
   if (
     !relayResponseEnvelopeSchema.is(value) ||
     value.outcome.kind !== "success" ||
     !signedOutSearchBodySchema.is(value.outcome.body)
   ) {
-    return relayFailed(platform);
+    return searchFailed(platform);
   }
   const body: SignedOutSearchBody = value.outcome.body;
-  if (body.query !== query) return relayFailed(platform);
+  if (body.query !== query) return searchFailed(platform);
+  const streams =
+    body.streams.length > 0
+      ? body.streams
+      : streamsFromLiveChannels(body.channels);
   return {
     cache: { kind: "miss" },
-    items: [...body.streams, ...body.channels, ...body.categories],
+    catalog: {
+      categories: body.categories,
+      channels: body.channels,
+      clips: body.clips,
+      streams,
+      videos: body.videos,
+    },
     path: { kind: "relay", platform },
     platform,
     status: "complete",
+  };
+}
+
+function searchFailed(platform: Platform): SearchReadOutcome {
+  return {
+    cache: { kind: "miss" },
+    catalog: emptySearchCatalog(),
+    error: { code: "relay-unavailable", retry: "manual" },
+    path: { kind: "unavailable", platform, reason: "relay-unavailable" },
+    platform,
+    status: "failed",
   };
 }
 

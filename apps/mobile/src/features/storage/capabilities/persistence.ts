@@ -117,6 +117,11 @@ export interface ShellRestorationRepository {
   write(value: string, updatedAt: number): Promise<void>;
 }
 
+export interface SearchHistoryStore {
+  read(): Promise<string | null>;
+  write(value: string, updatedAt: number): Promise<void>;
+}
+
 export interface CapabilityProfileSnapshotStore {
   read(): Promise<string | null>;
   write(value: string, observedAtEpochMs: number): Promise<void>;
@@ -132,6 +137,7 @@ export interface MobileProductState {
   readonly capabilityProfile: CapabilityProfileSnapshotStore;
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
+  readonly searchHistory: SearchHistoryStore;
   readonly shellRestoration: ShellRestorationRepository;
 }
 

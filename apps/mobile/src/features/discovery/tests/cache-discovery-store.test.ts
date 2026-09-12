@@ -41,4 +41,43 @@ describe("discovery cache store", () => {
     });
     await expect(store.readTopStreams("kick")).resolves.toEqual({ kind: "miss" });
   });
+
+  it("round-trips search catalogs", async () => {
+    const rows = new Map<string, string>();
+    const cache: DisposableCache = {
+      async clear() {
+        rows.clear();
+      },
+      async get(key) {
+        const payload = rows.get(key);
+        return payload
+          ? {
+              ageMilliseconds: 10,
+              kind: "hit",
+              payload,
+              stale: false,
+            }
+          : { kind: "miss" };
+      },
+      async put(options) {
+        rows.set(options.key, options.payload);
+      },
+    };
+    const store = createDiscoveryCacheStore(cache);
+    await store.writeSearch({
+      catalog: {
+        categories: [],
+        channels: [],
+        clips: [],
+        streams: [fixtureStream("kick", "search-cached", 2)],
+        videos: [],
+      },
+      platform: "kick",
+      query: "arcade",
+    });
+    await expect(store.readSearch("kick", "arcade")).resolves.toMatchObject({
+      catalog: { streams: [{ id: "search-cached" }] },
+      kind: "hit",
+    });
+  });
 });

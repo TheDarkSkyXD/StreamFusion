@@ -5,7 +5,7 @@ import { createKickOfficialReader } from "../adapters/kick/kick-official-reader"
 import { createRelaySignedOutReader } from "../adapters/relay/relay-signed-out-reader";
 import { createTwitchHelixReader } from "../adapters/twitch/twitch-helix-reader";
 import type {
-  HomeDiscoverySession,
+  DiscoveryRuntime,
   InstallationIdentityRead,
   InstallationIdentitySource,
   NetworkRead,
@@ -18,6 +18,8 @@ import type {
 import { createDiscoveryCacheStore } from "../data/cache-discovery-store";
 import { selectPlatformReadPath } from "../domain/platform-read-path";
 import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
+
+import { readSearchCatalog } from "./search-runtime";
 
 const AUTOMATIC_RETRY_CODES = new Set([
   "kick-failed",
@@ -34,7 +36,7 @@ export function createDiscoveryRuntime(input: {
   readonly relayBaseUrl: string;
   readonly twitchClientId: string | null;
   readonly userTokens: UserTokenSource;
-}): HomeDiscoverySession {
+}): DiscoveryRuntime {
   const cache = createDiscoveryCacheStore(input.cache);
   const request = input.fetch ?? globalThis.fetch;
   const twitch = createTwitchHelixReader({
@@ -101,6 +103,23 @@ export function createDiscoveryRuntime(input: {
         path,
         platform: read.platform,
         ...(read.language === undefined ? {} : { language: read.language }),
+      });
+    },
+    async search(read) {
+      const userToken = await input.userTokens.read(read.platform);
+      const installation = await input.installation.read();
+      const network = await input.network.read();
+      return readSearchCatalog({
+        cache,
+        installation,
+        kick,
+        network,
+        platform: read.platform,
+        query: read.query,
+        relay,
+        twitch,
+        userToken,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
   };

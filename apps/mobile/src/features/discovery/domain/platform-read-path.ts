@@ -28,6 +28,24 @@ export function selectPlatformReadPath(input: {
   return unavailable(input.platform, "signed-out-login-required");
 }
 
+export function selectSearchReadPath(input: {
+  readonly installation: InstallationIdentityRead;
+  readonly network: NetworkRead;
+  readonly platform: Platform;
+  readonly userToken: UserTokenRead;
+}): PlatformReadPath {
+  if (input.network === "offline") {
+    return unavailable(input.platform, "offline");
+  }
+  if (input.userToken.kind === "ready") {
+    return { kind: "direct", platform: input.platform };
+  }
+  if (input.installation.kind === "ready") {
+    return { kind: "relay", platform: input.platform };
+  }
+  return { kind: "guest", platform: input.platform };
+}
+
 export function followedStreamsPath(input: {
   readonly platform: Platform;
   readonly userToken: UserTokenRead;

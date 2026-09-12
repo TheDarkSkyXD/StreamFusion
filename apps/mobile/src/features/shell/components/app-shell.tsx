@@ -49,8 +49,12 @@ import {
   type TwitchAccountActions,
   type TwitchAccountViewModel,
 } from "@mobile/features/auth/components/twitch-accounts-panel";
-import type { HomeDiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import type {
+  DiscoveryRuntime,
+  SearchHistoryRepository,
+} from "@mobile/features/discovery/capabilities/platform-reads";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
+import { UnifiedSearchScreen } from "@mobile/features/discovery/components/unified-search-screen";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -115,6 +119,7 @@ export function AppShell({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  searchHistory,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -150,7 +155,8 @@ export function AppShell({
   readonly kickAccountDevelopmentFixture: boolean;
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
-  readonly homeDiscovery: HomeDiscoverySession;
+  readonly homeDiscovery: DiscoveryRuntime;
+  readonly searchHistory: SearchHistoryRepository;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -261,6 +267,7 @@ export function AppShell({
                 onDisableTwitchDevelopmentFixture
               }
               homeDiscovery={homeDiscovery}
+              searchHistory={searchHistory}
             />
           </View>
         </View>
@@ -409,6 +416,7 @@ function ShellScreen({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  searchHistory,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -444,7 +452,8 @@ function ShellScreen({
   readonly kickAccountDevelopmentFixture: boolean;
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
-  readonly homeDiscovery: HomeDiscoverySession;
+  readonly homeDiscovery: DiscoveryRuntime;
+  readonly searchHistory: SearchHistoryRepository;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -504,6 +513,20 @@ function ShellScreen({
           onOpen={(nextLocation) =>
             dispatch({ type: "navigate", location: nextLocation })
           }
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "search") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-search-root">
+        <UnifiedSearchScreen
+          history={searchHistory}
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          session={homeDiscovery}
         />
       </View>
     );

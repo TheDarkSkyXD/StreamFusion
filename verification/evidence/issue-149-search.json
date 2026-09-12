@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "issue": 149,
+  "ticketId": "D06",
+  "mobileSourceCommit": "d145b5e8e32c4b9f25d7c9e7ab93e24c04edda18",
+  "observedAt": "2026-09-12T06:10:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "D06 Search receipt. It does not claim a typed query, local history mutation, software keyboard inset, or live Twitch or Kick catalog success."
+  },
+  "candidate": {
+    "apkSha256": "9d56c5eada18488281df9cb0d8ac15c2ace3e11e8dac56a4bfe6dd36d4820456",
+    "apkSizeBytes": 138209500,
+    "mobileTree": "c2d0908663e2ef8ce2748d1a4ad6a22c9d9aff21",
+    "discoveryTree": "aa574eef878d9be2e72cce30576133bd90365856",
+    "relaySignedOutDiscoveryTree": "4eb231088361d0e38fcc6443a421019e3322e27e",
+    "coreRelayTree": "1402bb540ef96577af1000eca52410cebf290192",
+    "provenance": "The installed Android development client loaded JavaScript from Metro for source d145b5e8. The Search proof panel printed issue-149-d06-ab06. The APK is a development client, not a release artifact bound to all JavaScript source."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Owned-slice checks passed for Core (58 tests, architecture, typecheck, lint), Mobile (44 node tests, 270 Vitest tests, architecture, typecheck, lint), and Relay (26 tests, architecture, environment isolation, secret scan, typecheck, lint).",
+        "Desktop preview smoke did not run here because Electron is uninstalled in this workspace."
+      ]
+    },
+    "api30-journey": {
+      "result": "pass",
+      "observations": [
+        "Mobile MCP listed emulator-5554, launched the rebuilt development client, and opened Metro. Later taps used mobile_click_on_screen_at_coordinates on the same APK.",
+        "Idle Search showed Search Twitch + Kick, Search works without signing in, token issue-149-d06-ab06, six result tabs, All / Twitch / Kick / Live only, history Last 10 per type, the bottom dock, and Search selected in the shell.",
+        "MCP taps selected All, Channels, Streams, Videos, and Categories. The Videos frame and the filters frame both show the platform row and Live only.",
+        "A later frame selected the stale-cache chip. Fixture results stay idle until a query is submitted, so that chip did not replace the signed-out copy.",
+        "The token frame still shows issue-149-d06-ab06 under the Expo developer menu."
+      ]
+    },
+    "live-platforms": {
+      "result": "residual",
+      "observations": [
+        "This workspace has no live Twitch or Kick user tokens and no signed-out Relay with official Platform credentials.",
+        "The live chip therefore proves the signed-out Search chrome, not a successful official catalog read."
+      ]
+    },
+    "offline-history": {
+      "result": "residual",
+      "observations": [
+        "Domain and repository tests cover add, repeat, remove, and confirmed clear for search-history.v1.",
+        "Mobile MCP type_keys reported arcade, but the dock never showed that text. Submit taps on the right dock also reloaded Expo. History mutation was not captured on device."
+      ]
+    },
+    "keyboard-insets": {
+      "result": "residual",
+      "observations": [
+        "apps/mobile/app.json sets expo.android.softwareKeyboardLayoutMode to resize. The Search screen wraps the dock in KeyboardAvoidingView.",
+        "dumpsys input_method reported mInputShown=false after field taps. No IME inset frame was captured."
+      ]
+    },
+    "accessibility": {
+      "result": "pass",
+      "observations": [
+        "Visible chips and the Search submit control meet the 48dp minimum on the captured frames. Search streams, Submit search, and history actions have accessibility labels in source.",
+        "This receipt does not include a TalkBack pass."
+      ]
+    }
+  }
+}

@@ -51,6 +51,7 @@ import {
   installationIdentityFromStore,
   userTokenFromTwitchSnapshot,
 } from "@mobile/features/discovery/composition/discovery-runtime";
+import { createSearchHistoryRepository } from "@mobile/features/discovery/composition/search-history-repository";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -71,6 +72,9 @@ const persistenceRuntime = createMobileStoreRuntime({
   random: secureRandom,
   secretStore: secureSecretStore,
 });
+const searchHistory = createSearchHistoryRepository(
+  persistenceRuntime.productState.searchHistory,
+);
 
 const developmentActivityProof = __DEV__
   ? createDevelopmentActivityProof({
@@ -370,6 +374,7 @@ export function MobileRuntime() {
           : undefined
       }
       homeDiscovery={homeDiscovery}
+      searchHistory={searchHistory}
     />
     </QueryClientProvider>
   );

@@ -71,6 +71,29 @@ describe("platform catalog readers", () => {
     });
   });
 
+  it("marks guest Twitch search unavailable and maps Kick guest catalogs", async () => {
+    const twitch = createTwitchHelixReader({
+      clientId: null,
+      fetch: async () => json({}),
+      readAccessToken: async () => null,
+    });
+    await expect(
+      twitch.search({ guest: true, query: "arcade" }),
+    ).resolves.toMatchObject({
+      path: { reason: "guest-unavailable" },
+    });
+    const kick = createKickOfficialReader({
+      fetch: async () => json({ data: [] }),
+      readAccessToken: async () => null,
+    });
+    await expect(
+      kick.search({ guest: true, query: "arcade" }),
+    ).resolves.toMatchObject({
+      path: { kind: "guest", platform: "kick" },
+      status: "complete",
+    });
+  });
+
   it("does not invent a Kick followed catalog", async () => {
     const signedOut = createKickOfficialReader({
       fetch: async () => json({}),
@@ -117,9 +140,11 @@ describe("platform catalog readers", () => {
               body: {
                 categories: [],
                 channels: [],
+                clips: [],
                 platform: "twitch",
                 query: "alice",
                 streams: [fixtureStream("twitch", "search-1", 1)],
+                videos: [],
               },
               requestId: "req_signed_out_search_1",
             }),
@@ -145,7 +170,9 @@ describe("platform catalog readers", () => {
     ).resolves.toMatchObject({ items: [{ id: "g1" }] });
     await expect(
       reader.search({ platform: "twitch", query: "alice" }),
-    ).resolves.toMatchObject({ items: [{ id: "search-1" }] });
+    ).resolves.toMatchObject({
+      catalog: { streams: [{ id: "search-1" }] },
+    });
     await expect(
       reader.getFollowedStreams({ platform: "twitch" }),
     ).resolves.toMatchObject({
