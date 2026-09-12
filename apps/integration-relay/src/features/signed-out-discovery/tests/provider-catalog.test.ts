@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   signedOutCategoriesBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryStreamsBodySchema,
+  signedOutCategoryVideosBodySchema,
   signedOutSearchBodySchema,
   signedOutTopStreamsBodySchema
 } from "@streamfusion/core/relay";
@@ -292,5 +295,150 @@ describe("provider discovery catalogs", () => {
         )?.init?.headers
       ).get("Authorization")
     ).toBe("Bearer kick-app-token");
+    const kickClips = await nonNull(
+      catalog.categoryClips({
+        categoryId: "4",
+        timeRange: "all"
+      })
+    );
+    const kickVideos = await nonNull(
+      catalog.categoryVideos({ categoryId: "4", sort: "recent" })
+    );
+    expect(signedOutCategoryClipsBodySchema.is(kickClips)).toBe(true);
+    expect(signedOutCategoryVideosBodySchema.is(kickVideos)).toBe(true);
+    expect(kickClips).toEqual({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-clips-unsupported"
+    });
+    expect(kickVideos).toEqual({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-videos-unsupported"
+    });
+    expect(upstream.calls.some((call) => call.url.includes("/clips"))).toBe(
+      false
+    );
+  });
+
+  it("maps Helix category streams, clips, and recorded videos", async () => {
+    const upstream = fakeFetch(
+      new Map([
+        [
+          "https://id.twitch.tv/oauth2/token",
+          { access_token: "twitch-app-token", expires_in: 3_600 }
+        ],
+        [
+          "https://api.twitch.tv/helix/streams?first=20&game_id=509658",
+          {
+            data: [
+              {
+                game_id: "509658",
+                game_name: "Just Chatting",
+                id: "stream-1",
+                language: "en",
+                thumbnail_url: "https://cdn.test/{width}x{height}.jpg",
+                title: "Hello",
+                type: "live",
+                user_id: "user-1",
+                user_login: "streamer",
+                user_name: "Streamer",
+                viewer_count: 42
+              }
+            ]
+          }
+        ],
+        [
+          "https://api.twitch.tv/helix/clips?first=20&game_id=509658",
+          {
+            data: [
+              {
+                broadcaster_id: "user-1",
+                broadcaster_name: "Streamer",
+                created_at: "2026-09-11T00:00:00Z",
+                creator_name: "Clipper",
+                duration: 12,
+                game_id: "509658",
+                id: "clip-1",
+                thumbnail_url: "https://cdn.test/clip.jpg",
+                title: "Clip",
+                url: "https://clips.twitch.tv/clip-1",
+                view_count: 9
+              }
+            ]
+          }
+        ],
+        [
+          "https://api.twitch.tv/helix/videos?first=20&game_id=509658&sort=time",
+          {
+            data: [
+              {
+                duration: "1h2m3s",
+                id: "video-1",
+                published_at: "2026-09-11T00:00:00Z",
+                thumbnail_url: "https://cdn.test/%{width}x%{height}.jpg",
+                title: "Archive",
+                type: "archive",
+                url: "https://twitch.tv/videos/video-1",
+                user_id: "user-1",
+                user_login: "streamer",
+                user_name: "Streamer",
+                view_count: 20
+              },
+              {
+                duration: "30s",
+                id: "live-1",
+                published_at: "2026-09-11T00:00:00Z",
+                thumbnail_url: "https://cdn.test/live.jpg",
+                title: "Live",
+                type: "live",
+                url: "https://twitch.tv/videos/live-1",
+                user_id: "user-1",
+                user_login: "streamer",
+                user_name: "Streamer",
+                view_count: 1
+              }
+            ]
+          }
+        ]
+      ])
+    );
+    const catalog = createTwitchHelixCatalog({
+      credentials: {
+        clientId: "twitch-client",
+        clientSecret: ["twitch", "secret"].join("-")
+      },
+      fetch: upstream.fetch
+    });
+    const streams = await nonNull(
+      catalog.categoryStreams({ categoryId: "509658" })
+    );
+    const clips = await nonNull(
+      catalog.categoryClips({ categoryId: "509658", timeRange: "all" })
+    );
+    const videos = await nonNull(
+      catalog.categoryVideos({ categoryId: "509658", sort: "recent" })
+    );
+    expect(signedOutCategoryStreamsBodySchema.is(streams)).toBe(true);
+    expect(signedOutCategoryClipsBodySchema.is(clips)).toBe(true);
+    expect(signedOutCategoryVideosBodySchema.is(videos)).toBe(true);
+    expect(clips.kind).toBe("available");
+    expect(videos.kind).toBe("available");
+    if (clips.kind === "available") {
+      expect(clips.clips[0]).toMatchObject({
+        createdAt: "2026-09-11T00:00:00.000Z",
+        id: "clip-1",
+        viewCount: 9
+      });
+    }
+    if (videos.kind === "available") {
+      expect(videos.videos).toHaveLength(1);
+      expect(videos.videos[0]).toMatchObject({
+        duration: 3723,
+        id: "video-1",
+        publishedAt: "2026-09-11T00:00:00.000Z",
+        type: "archive"
+      });
+    }
   });
 });

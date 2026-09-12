@@ -1,9 +1,14 @@
 import type {
   Category,
   Channel,
+  Clip,
   Stream,
+  Video,
 } from "@streamfusion/core/content";
-import type { DiscoveryProviderStatus } from "@streamfusion/core/discovery";
+import type {
+  ClipTimeRange,
+  DiscoveryProviderStatus,
+} from "@streamfusion/core/discovery";
 import type { Platform } from "@streamfusion/core/platform";
 
 export type UserTokenRead =
@@ -99,13 +104,62 @@ export interface NetworkSource {
   read(): Promise<NetworkRead>;
 }
 
-export interface HomeDiscoverySession {
+export interface DiscoverySession {
   readTopStreams(input: {
     readonly language?: string;
     readonly platform: Platform;
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Stream>>;
+  readCategories(input: {
+    readonly cursor?: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Category>>;
+  searchCategories(input: {
+    readonly platform: Platform;
+    readonly query: string;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Category>>;
+  readCategory(input: {
+    readonly categoryId: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Category>>;
+  readCategoryStreams(input: {
+    readonly categoryId: string;
+    readonly language?: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Stream>>;
+  readCategoryClips(input: {
+    readonly categoryId: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+    readonly timeRange: ClipTimeRange;
+  }): Promise<
+    | PlatformReadOutcome<Clip>
+    | {
+        readonly kind: "unsupported";
+        readonly reason: "kick-clips-unsupported";
+        readonly platform: Platform;
+      }
+  >;
+  readCategoryVideos(input: {
+    readonly categoryId: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+    readonly sort: "views" | "recent";
+  }): Promise<
+    | PlatformReadOutcome<Video>
+    | {
+        readonly kind: "unsupported";
+        readonly reason: "kick-videos-unsupported";
+        readonly platform: Platform;
+      }
+  >;
 }
+
+export type HomeDiscoverySession = DiscoverySession;
 
 export type DiscoveryFixtureMode =
   | "live"

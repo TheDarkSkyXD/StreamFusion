@@ -167,6 +167,132 @@ describe("createDiscoveryRuntime", () => {
     expect(outcome.status).toBe("complete");
   });
 
+  it("reads a guest category page through Relay", async () => {
+    const urls: string[] = [];
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        urls.push(String(input));
+        return new Response(
+          JSON.stringify(
+            createRelaySuccessEnvelope({
+              body: {
+                category: {
+                  boxArtUrl: "https://example.com/box.png",
+                  id: "509658",
+                  name: "Just Chatting",
+                  platform: "twitch",
+                },
+                platform: "twitch",
+              },
+              requestId: "req_signed_out_category_1",
+            }),
+          ),
+          { status: 200 },
+        );
+      },
+      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    const outcome = await session.readCategory({
+      categoryId: "509658",
+      platform: "twitch",
+    });
+    expect(outcome.status).toBe("complete");
+    expect(outcome.items[0]?.name).toBe("Just Chatting");
+    expect(urls[0]).toContain("v1/discovery/category?");
+    expect(urls[0]).toContain("categoryId=509658");
+  });
+
+  it("searches categories with the Relay q parameter", async () => {
+    const urls: string[] = [];
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        urls.push(String(input));
+        return new Response(
+          JSON.stringify(
+            createRelaySuccessEnvelope({
+              body: {
+                categories: [
+                  {
+                    boxArtUrl: "https://example.com/box.png",
+                    id: "g1",
+                    name: "Just Chatting",
+                    platform: "twitch",
+                  },
+                ],
+                channels: [],
+                platform: "twitch",
+                query: "just chatting",
+                streams: [],
+              },
+              requestId: "req_signed_out_search_cat_1",
+            }),
+          ),
+          { status: 200 },
+        );
+      },
+      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    const outcome = await session.searchCategories({
+      platform: "twitch",
+      query: "just chatting",
+    });
+    expect(outcome.items[0]?.id).toBe("g1");
+    expect(urls[0]).toContain("q=just+chatting");
+    expect(urls[0]).not.toContain("query=");
+  });
+
+  it("returns typed Kick clip and video gaps without fetching", async () => {
+    let calls = 0;
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async () => {
+        calls += 1;
+        throw new Error("should not fetch");
+      },
+      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    await expect(
+      session.readCategoryClips({
+        categoryId: "15",
+        platform: "kick",
+        timeRange: "all",
+      }),
+    ).resolves.toEqual({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-clips-unsupported",
+    });
+    await expect(
+      session.readCategoryVideos({
+        categoryId: "15",
+        platform: "kick",
+        sort: "recent",
+      }),
+    ).resolves.toEqual({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-videos-unsupported",
+    });
+    expect(calls).toBe(0);
+  });
+
   it("invalidates only one platform query key", async () => {
     const reads: string[] = [];
     const client = new QueryClient({

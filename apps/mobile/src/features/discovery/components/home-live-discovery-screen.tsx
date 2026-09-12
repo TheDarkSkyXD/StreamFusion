@@ -23,9 +23,11 @@ import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
 export function HomeLiveDiscoveryScreen({
   onOpenAccounts,
+  onOpenCategories,
   session,
 }: {
   readonly onOpenAccounts: () => void;
+  readonly onOpenCategories: () => void;
   readonly session: HomeDiscoverySession;
 }) {
   const [mode, setMode] = useState<DiscoveryFixtureMode>("live");
@@ -44,6 +46,7 @@ export function HomeLiveDiscoveryScreen({
   return (
     <HomeLiveDiscoveryView
       onOpenAccounts={onOpenAccounts}
+      onOpenCategories={onOpenCategories}
       onRetry={live.retry}
       view={view}
       {...(__DEV__
@@ -55,12 +58,14 @@ export function HomeLiveDiscoveryScreen({
 
 export function HomeLiveDiscoveryView({
   onOpenAccounts,
+  onOpenCategories,
   onRetry,
   onSelectProofMode,
   proofMode,
   view,
 }: {
   readonly onOpenAccounts: () => void;
+  readonly onOpenCategories: () => void;
   readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly proofMode?: DiscoveryFixtureMode;
@@ -79,6 +84,19 @@ export function HomeLiveDiscoveryView({
       <Text selectable style={styles.summary} testID="home-phase">
         {phaseCopy(view)}
       </Text>
+      <Pressable
+        accessibilityHint="Opens Categories inside More"
+        accessibilityLabel="Open Categories"
+        accessibilityRole="button"
+        android_ripple={{ color: mobileColors.surfaceRaised }}
+        onPress={onOpenCategories}
+        style={({ pressed }) => [styles.login, pressed ? styles.pressed : null]}
+        testID="open-categories"
+      >
+        <Text selectable style={styles.loginLabel}>
+          Categories
+        </Text>
+      </Pressable>
       {proofMode && onSelectProofMode ? (
         <HomeDiscoveryProofControls
           mode={proofMode}

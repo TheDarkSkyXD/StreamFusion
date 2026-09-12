@@ -31,6 +31,23 @@ export type {
   SignedOutSearchBody,
   SignedOutTopStreamsBody,
 } from "./signed-out-discovery.ts";
+export {
+  signedOutCategoryBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryStreamsBodySchema,
+  signedOutCategoryVideosBodySchema,
+} from "./signed-out-category-discovery.ts";
+export type {
+  SignedOutCategoryBody,
+  SignedOutCategoryClipsBody,
+  SignedOutCategoryClipsUnavailableReason,
+  SignedOutCategoryStreamsBody,
+  SignedOutCategoryVideosBody,
+  SignedOutCategoryVideosUnavailableReason,
+  SignedOutClipTimeRange,
+} from "./signed-out-category-discovery.ts";
+export { toSerializedTimestamp } from "../foundations/contract-schema.ts";
+export type { SerializedTimestamp } from "../foundations/contract-schema.ts";
 
 export type JsonPrimitive = boolean | null | number | string;
 export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];

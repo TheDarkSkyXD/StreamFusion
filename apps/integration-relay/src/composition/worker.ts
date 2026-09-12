@@ -175,7 +175,11 @@ function isRelayRequest(request: Request): boolean {
       (path === "/v1/capability-manifest" ||
         path === "/v1/discovery/top-streams" ||
         path === "/v1/discovery/categories" ||
-        path === "/v1/discovery/search"))
+        path === "/v1/discovery/search" ||
+        path === "/v1/discovery/category" ||
+        path === "/v1/discovery/category-streams" ||
+        path === "/v1/discovery/category-clips" ||
+        path === "/v1/discovery/category-videos"))
   );
 }
 

@@ -3,6 +3,7 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import { createTwitchHelixCategoryReads } from "./twitch-helix-category-reader";
 
 const HELIX = "https://api.twitch.tv/helix";
 
@@ -13,6 +14,7 @@ export function createTwitchHelixReader(input: {
   readonly readUserId?: () => Promise<string | null>;
 }) {
   return {
+    ...createTwitchHelixCategoryReads(input),
     platform: "twitch" as const,
     async getCategories(read: {
       readonly signal?: AbortSignal;

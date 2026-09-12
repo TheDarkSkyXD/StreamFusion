@@ -50,6 +50,7 @@ function render(
   const retried: string[] = [];
   const root = HomeLiveDiscoveryView({
     onOpenAccounts: () => undefined,
+    onOpenCategories: () => undefined,
     onRetry: (platform) => {
       retried.push(platform);
     },
@@ -77,11 +78,15 @@ describe("Home live discovery screen", () => {
       )
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "open-categories")).toBe(
+      true,
+    );
   });
 
   it("stamps the Home proof panel with the D04 source token", () => {
     const root = HomeLiveDiscoveryView({
       onOpenAccounts: () => undefined,
+      onOpenCategories: () => undefined,
       onRetry: () => undefined,
       onSelectProofMode: () => undefined,
       proofMode: "ready",

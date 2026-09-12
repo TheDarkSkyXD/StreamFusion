@@ -72,7 +72,8 @@ Native Twitch links cover tools and history unavailable through its public API.
 
 Roots: `apps/mobile/src/features/`.
 
-- `shell`: navigation, deep-link parsing, restoration, and app UI.
+- `shell`: navigation, deep-link parsing, restoration, and app UI. Category Detail is `more/category-detail` with a category identity payload; names may contain spaces.
+- `discovery`: guest Home live reads, Categories catalog, Category Detail (Live / Clips / Videos), search dock, and preference-backed language / clip window.
 - `activity`: activity presentation and operations.
 - `diagnostics`: app/device health and persistence diagnostics.
 - `capability-profile`: measured Android resource facts, pending workload admission, and visible runtime degradation policy.
@@ -100,9 +101,20 @@ support remain package-wide infrastructure.
 
 ## Integration Relay
 
-The current `apps/integration-relay/` is deployment/protocol infrastructure.
-`src/composition/worker.ts` validates its environment and returns unavailable or
-not-found envelopes. Product endpoints are planned, not implemented feature roots.
+`apps/integration-relay/` is a Cloudflare Worker that issues guest installation
+credentials and serves signed-out discovery reads. Product routes live under
+`src/features/signed-out-discovery/`:
+
+- `GET /v1/discovery/categories`
+- `GET /v1/discovery/top-streams`
+- `GET /v1/discovery/search?q=`
+- `GET /v1/discovery/category`
+- `GET /v1/discovery/category-streams`
+- `GET /v1/discovery/category-clips`
+- `GET /v1/discovery/category-videos`
+
+Kick clips and videos return typed unsupported bodies. Live catalog success still
+depends on official provider secrets in the Worker environment.
 
 ## Verification
 

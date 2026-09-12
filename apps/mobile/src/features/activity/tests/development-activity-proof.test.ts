@@ -135,6 +135,10 @@ function runtime(
         read: async () => null,
         write: async () => undefined,
       },
+      settings: {
+        read: async () => null,
+        write: async () => undefined,
+      },
       shellRestoration: {
         clear: async () => undefined,
         read: async () => null,

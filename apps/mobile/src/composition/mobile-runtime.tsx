@@ -51,6 +51,7 @@ import {
   installationIdentityFromStore,
   userTokenFromTwitchSnapshot,
 } from "@mobile/features/discovery/composition/discovery-runtime";
+import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -70,6 +71,12 @@ const persistenceRuntime = createMobileStoreRuntime({
   databaseDriver,
   random: secureRandom,
   secretStore: secureSecretStore,
+});
+
+const discoveryPreferences = createDiscoveryPreferenceStore({
+  readSetting: persistenceRuntime.productState.settings.read,
+  writeSetting: ({ key, updatedAt, value }) =>
+    persistenceRuntime.productState.settings.write(key, value, updatedAt),
 });
 
 const developmentActivityProof = __DEV__
@@ -370,6 +377,7 @@ export function MobileRuntime() {
           : undefined
       }
       homeDiscovery={homeDiscovery}
+      discoveryPreferences={discoveryPreferences}
     />
     </QueryClientProvider>
   );
