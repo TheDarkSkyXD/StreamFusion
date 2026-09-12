@@ -601,6 +601,54 @@ describe("encrypted store policy", () => {
     ).rejects.toThrow("newer than supported");
   });
 
+  it("exposes disposable cache without touching Product Store rows", async () => {
+    const opened = new Map<string, SqliteTestDatabase>();
+    const driver: EncryptedDatabaseDriver = {
+      backup: async () => undefined,
+      containsBytes: async () => false,
+      corrupt: async () => undefined,
+      delete: async (name) => {
+        opened.delete(name);
+      },
+      deleteQuarantines: async () => undefined,
+      exists: (name) => opened.has(name),
+      open: async (name) => {
+        const existing = opened.get(name);
+        if (existing) return existing;
+        const database = new SqliteTestDatabase();
+        opened.set(name, database);
+        return database;
+      },
+      quarantine: async () => "artifact",
+      restore: async () => undefined,
+    };
+    const runtime = createMobileStoreRuntime({
+      backupExcluded: true,
+      databaseDriver: driver,
+      random,
+      secretStore: memorySecrets(),
+    });
+    await expect(runtime.initialize()).resolves.toMatchObject({
+      kind: "ready",
+    });
+    await runtime.productState.activity.record(
+      activityItem({ eventId: "event:kept" }),
+    );
+    await runtime.disposableCache.put({
+      key: "discovery:top-streams:twitch:all",
+      payload: "{\"streams\":[]}",
+    });
+    await expect(
+      runtime.disposableCache.get("discovery:top-streams:twitch:all"),
+    ).resolves.toMatchObject({ kind: "hit", stale: false });
+    await runtime.disposableCache.clear();
+    await expect(
+      runtime.disposableCache.get("discovery:top-streams:twitch:all"),
+    ).resolves.toEqual({ kind: "miss" });
+    await expect(runtime.productState.activity.list()).resolves.toHaveLength(1);
+    await runtime.close();
+  });
+
   it("deletes expired cache entries before applying the LRU budget", async () => {
     const database = new CacheRecordingDatabase();
     const cache = new CacheStore(database, {

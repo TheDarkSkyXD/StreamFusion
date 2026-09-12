@@ -1,8 +1,9 @@
 import { KICK_ANDROID_REDIRECT_URI } from "@streamfusion/core/auth";
 import { PLATFORMS } from "@streamfusion/core/platform";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
@@ -44,6 +45,12 @@ import {
   createDevelopmentTwitchAuthFixture,
   DEVELOPMENT_TWITCH_CLIENT_ID,
 } from "@mobile/features/auth/adapters/twitch/development-twitch-auth-fixture";
+import {
+  alwaysOnlineNetwork,
+  createDiscoveryRuntime,
+  installationIdentityFromStore,
+  userTokenFromTwitchSnapshot,
+} from "@mobile/features/discovery/composition/discovery-runtime";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -188,6 +195,21 @@ const developmentKickController = createKickAccountSessionController({
   repository: developmentKickRepository,
 });
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      staleTime: 30_000,
+    },
+  },
+});
+
+function relayBaseUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_STREAMFUSION_RELAY_URL;
+  const raw =
+    configured && configured.length > 0 ? configured : "http://10.0.2.2:8787/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
 export function MobileRuntime() {
   const [activityProof, setActivityProof] = useState(
     () => developmentActivityProof?.snapshot() ?? null,
@@ -223,6 +245,49 @@ export function MobileRuntime() {
   const visibleKickAccount = useDevelopmentKickFixture
     ? developmentKickAccount
     : kickAccount;
+  const homeDiscovery = useMemo(
+    () =>
+      createDiscoveryRuntime({
+        cache: persistenceRuntime.disposableCache,
+        installation: {
+          async read() {
+            return installationIdentityFromStore(
+              await installationPolicyRuntime.identityStore.read(),
+            );
+          },
+        },
+        kickAccessToken: async () => {
+          const snapshot = await (useDevelopmentKickFixture
+            ? developmentKickRepository
+            : productionKickRepository
+          ).read();
+          const token = userTokenFromTwitchSnapshot(snapshot);
+          return token.kind === "ready" ? token.accessToken : null;
+        },
+        network: alwaysOnlineNetwork(),
+        relayBaseUrl: relayBaseUrl(),
+        twitchClientId: useDevelopmentTwitchFixture
+          ? DEVELOPMENT_TWITCH_CLIENT_ID
+          : twitchClientId,
+        userTokens: {
+          async read(platform) {
+            if (platform === "kick") {
+              const snapshot = await (useDevelopmentKickFixture
+                ? developmentKickRepository
+                : productionKickRepository
+              ).read();
+              return userTokenFromTwitchSnapshot(snapshot);
+            }
+            const snapshot = await (useDevelopmentTwitchFixture
+              ? developmentTwitchRepository
+              : productionTwitchRepository
+            ).read();
+            return userTokenFromTwitchSnapshot(snapshot);
+          },
+        },
+      }),
+    [useDevelopmentKickFixture, useDevelopmentTwitchFixture],
+  );
   useEffect(() => {
     if (!developmentActivityProof) return;
     const unsubscribe = developmentActivityProof.subscribe(setActivityProof);
@@ -230,6 +295,7 @@ export function MobileRuntime() {
     return unsubscribe;
   }, []);
   return (
+    <QueryClientProvider client={queryClient}>
     <AppShell
       activityRepository={
         developmentActivityProof?.repository ??
@@ -303,6 +369,8 @@ export function MobileRuntime() {
           ? () => setUseDevelopmentKickFixture(false)
           : undefined
       }
+      homeDiscovery={homeDiscovery}
     />
+    </QueryClientProvider>
   );
 }

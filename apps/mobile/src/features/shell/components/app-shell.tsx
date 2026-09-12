@@ -49,6 +49,8 @@ import {
   type TwitchAccountActions,
   type TwitchAccountViewModel,
 } from "@mobile/features/auth/components/twitch-accounts-panel";
+import type { HomeDiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -112,6 +114,7 @@ export function AppShell({
   kickAccountDevelopmentFixture,
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
+  homeDiscovery,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -147,6 +150,7 @@ export function AppShell({
   readonly kickAccountDevelopmentFixture: boolean;
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
+  readonly homeDiscovery: HomeDiscoverySession;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -256,6 +260,7 @@ export function AppShell({
               onDisableTwitchDevelopmentFixture={
                 onDisableTwitchDevelopmentFixture
               }
+              homeDiscovery={homeDiscovery}
             />
           </View>
         </View>
@@ -403,6 +408,7 @@ function ShellScreen({
   kickAccountDevelopmentFixture,
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
+  homeDiscovery,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -438,6 +444,7 @@ function ShellScreen({
   readonly kickAccountDevelopmentFixture: boolean;
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
+  readonly homeDiscovery: HomeDiscoverySession;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -497,6 +504,19 @@ function ShellScreen({
           onOpen={(nextLocation) =>
             dispatch({ type: "navigate", location: nextLocation })
           }
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/home") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-home">
+        <HomeLiveDiscoveryScreen
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          session={homeDiscovery}
         />
       </View>
     );
