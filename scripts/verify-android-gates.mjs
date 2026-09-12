@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createGateRunner } from "./android-gates/create-gate-runner.mjs";
+import { assertRunId } from "./verify-evidence.mjs";
 
 function sourceCommit() {
   const result = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" });
@@ -42,6 +43,7 @@ function parseArguments(argv) {
   }
   if (!request.gate) throw new Error("--gate is required");
   request.runId ??= defaultRunId(request.gate);
+  assertRunId(request.runId, "--run-id");
   request.sourceCommit ??= sourceCommit();
   if (request.incomingPath) request.incomingPath = path.resolve(request.incomingPath);
   if (request.apkPath) request.apkPath = path.resolve(request.apkPath);

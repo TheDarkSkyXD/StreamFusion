@@ -125,6 +125,14 @@ function reportPath(runId, slotId) {
   return path.posix.join("artifacts", "mobile-evidence", "android-gates", runId, `${slotId}.json`);
 }
 
+function observedAtOrNow(fill, now) {
+  const observedAt = Date.parse(fill.observedAt ?? now);
+  const evaluatedAt = Date.parse(now);
+  return Number.isFinite(observedAt) && observedAt <= evaluatedAt
+    ? (fill.observedAt ?? now)
+    : now;
+}
+
 export async function evidenceRecord({ repositoryRoot, run, slot, fill, now, retryUsed = false }) {
   const relativePath = reportPath(run.runId, slot.id);
   const report = {
@@ -149,7 +157,7 @@ export async function evidenceRecord({ repositoryRoot, run, slot, fill, now, ret
     device: deviceFor(slot, fill.kind === "absent"),
     artifacts: [{ id: "gate-report", path: relativePath, sha256: hash(content), mediaType: "application/json" }],
     result: f04Result(fill),
-    observedAt: fill.observedAt ?? now,
+    observedAt: observedAtOrNow(fill, now),
     expiresAt: expiry(run.definition, now),
     links: [],
   };

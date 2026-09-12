@@ -11,6 +11,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const VERIFIER_VERSION = "1.0.0";
+export const runIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const capabilityIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
@@ -51,6 +52,10 @@ function stringAt(value, location, pattern) {
     fail(location, "must be a string");
   if (pattern && !pattern.test(value)) fail(location, "has an invalid format");
   return value;
+}
+
+export function assertRunId(runId, location) {
+  stringAt(runId, location, runIdPattern);
 }
 
 function nullableDigestAt(value, location) {
@@ -309,7 +314,7 @@ function validateEvidenceRecord(raw, policy, location) {
 function validateGateRuns(raw, policy) {
   const gateRuns = objectAt(raw, "catalog.gateRuns");
   for (const [runId, records] of Object.entries(gateRuns)) {
-    stringAt(runId, `catalog.gateRuns.${runId}`);
+    assertRunId(runId, "catalog.gateRuns");
     const parsedRecords = arrayAt(records, `catalog.gateRuns.${runId}`);
     const recordIds = new Set();
     parsedRecords.forEach((record, index) => {

@@ -26,6 +26,7 @@ export function isFresh(slot, record, now, policy) {
   const observedAt = Date.parse(record.observedAt);
   const evaluatedAt = Date.parse(now);
   if (!Number.isFinite(observedAt) || !Number.isFinite(evaluatedAt)) return false;
+  if (observedAt > evaluatedAt) return false;
   if (slot.freshnessClass === "signer-recovery") {
     return evaluatedAt <= signerRecoveryExpiry(
       observedAt,
