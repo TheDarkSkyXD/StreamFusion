@@ -12,11 +12,12 @@
  * `process.stderr.write`) never sees them. Routing Chromium's log to a file
  * we own and tailing it back into our session log closes that gap.
  *
- * Why a `setInterval` stat poll instead of `fs.watch` / `fs.watchFile`:
- * `fs.watch` misses append-only growth on several platforms. `fs.watchFile`
- * uses `uv_fs_poll`, which can sample the post-append size as its first
- * baseline and then never emit. Comparing each tick to our `readPosition`
- * still delivers those lines. One stat per second in production.
+ * Why a `createManagedInterval` stat poll instead of `fs.watch` /
+ * `fs.watchFile`: `fs.watch` misses append-only growth on several
+ * platforms. `fs.watchFile` uses `uv_fs_poll`, which can sample the
+ * post-append size as its first baseline and then never emit. Comparing
+ * each tick to our `readPosition` still delivers those lines. One stat
+ * per second in production.
  *
  * No recursion guard needed: this tailer reads from disk and writes to a
  * DIFFERENT file (the main session log), so the logger's own write back to
@@ -27,6 +28,7 @@ import fs from "node:fs";
 
 import { isHarmlessChromiumNoise } from "@backend/logging/chromium-noise-filter";
 import { logger } from "@backend/logging/logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 
 export interface ChromiumLogTailerOpts {
   /** Absolute path of the file Chromium writes to. */
@@ -71,8 +73,6 @@ interface TailerState {
   readPosition: number;
   /** Carry-over for a line that didn't end with `\n` on the previous read. */
   carry: string;
-  /** True until `stop()` clears the poller. */
-  active: boolean;
 }
 
 /** Stop function returned from `startChromiumLogTailer`. Idempotent. */
@@ -85,7 +85,6 @@ export function startChromiumLogTailer(opts: ChromiumLogTailerOpts): StopChromiu
   const state: TailerState = {
     readPosition: 0,
     carry: "",
-    active: false,
   };
 
   // If the file already exists (Chromium started before us — true on resume),
@@ -148,14 +147,8 @@ export function startChromiumLogTailer(opts: ChromiumLogTailerOpts): StopChromiu
     }
   };
 
-  const timer = setInterval(poll, pollIntervalMs);
-  state.active = true;
-
-  return (): void => {
-    if (!state.active) return;
-    clearInterval(timer);
-    state.active = false;
-  };
+  const handle = createManagedInterval(poll, pollIntervalMs);
+  return handle.stop;
 }
 
 function isEnoent(error: unknown): boolean {

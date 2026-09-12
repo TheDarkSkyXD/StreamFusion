@@ -15,9 +15,9 @@
  *   5. Stop is idempotent — calling the returned fn twice is safe and
  *      a subsequent append does NOT produce more logger calls.
  *
- * Timing strategy: the tailer polls with `setInterval`. Tests use real
- * timers, a small pollIntervalMs, and either a short pause or `vi.waitFor`
- * so the first tick can run after an append.
+ * Timing strategy: the tailer polls with `createManagedInterval`. Tests
+ * use real timers, a small pollIntervalMs, and either a short pause or
+ * `vi.waitFor` so the first tick can run after an append.
  */
 
 import fs from "node:fs";
@@ -284,13 +284,9 @@ describe("startChromiumLogTailer — lifecycle", () => {
 
     const stop = mod.startChromiumLogTailer({ filePath, pollIntervalMs: POLL_MS });
 
-    // First stop releases the watcher.
     expect(() => stop()).not.toThrow();
-    // Second stop must be a no-op.
     expect(() => stop()).not.toThrow();
 
-    // Reset counters and confirm a subsequent append produces nothing — the
-    // watcher is no longer listening.
     logger.error.mockReset();
     await fsp.appendFile(filePath, "[1:0607/155145.309:ERROR:foo.cc(123)] after-stop\n", "utf8");
     await pause();
