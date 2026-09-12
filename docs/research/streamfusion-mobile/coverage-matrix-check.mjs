@@ -42,6 +42,32 @@ const ids = (text, pattern) => {
     [...text.matchAll(new RegExp(pattern.source, flags))].map((match) => match[1]),
   );
 };
+const parseContractIdentifiers = (markdown) =>
+  unique(
+    [...markdown.matchAll(/<!-- contract:(screen|panel|tab|action):([^ ]+) -->/g)].map(
+      ([, kind, name]) => `${kind}:${name}`,
+    ),
+  );
+const reconcileContractInventory = (contractIds, inventoryIds) => {
+  const contractSet = new Set(contractIds);
+  const inventorySet = new Set(inventoryIds);
+  const missingFromContract = inventoryIds.filter((id) => !contractSet.has(id));
+  const extraInContract = contractIds.filter((id) => !inventorySet.has(id));
+  const mismatches = [
+    missingFromContract.length > 0
+      ? `missingFromContract:\n${missingFromContract.join("\n")}`
+      : null,
+    extraInContract.length > 0
+      ? `extraInContract:\n${extraInContract.join("\n")}`
+      : null,
+  ].filter(Boolean);
+  if (mismatches.length === 0) {
+    return;
+  }
+  throw new Error(
+    `Contract identifiers do not match prototype inventory:\n${mismatches.join("\n")}`,
+  );
+};
 
 const definitions = between(
   prototype,
@@ -80,6 +106,8 @@ const discovered = [
   ...actions.map((id) => `action:${id}`),
   ...shellRoutes.map((id) => `shell-route:${id}`),
 ];
+const prototypeInventory = discovered.filter((id) => !id.startsWith("shell-route:"));
+reconcileContractInventory(parseContractIdentifiers(contract), prototypeInventory);
 
 const implemented = new Set([
   "screen:activity",

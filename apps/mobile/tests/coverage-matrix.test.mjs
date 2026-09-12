@@ -17,16 +17,30 @@ const ledgerPath = path.join(
   repositoryRoot,
   "docs/research/streamfusion-mobile/coverage-matrix-ledger.json",
 );
+const reportPath = path.join(
+  repositoryRoot,
+  "docs/research/streamfusion-mobile/coverage-matrix.md",
+);
 
 test("coverage matrix reconciles prototype, contract, and shell routes", () => {
+  const ledgerBefore = readFileSync(ledgerPath);
+  const reportBefore = readFileSync(reportPath);
   const result = spawnSync(process.execPath, [checker], {
     cwd: repositoryRoot,
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /Mobile coverage matrix:/);
+  assert.ok(
+    ledgerBefore.equals(readFileSync(ledgerPath)),
+    "coverage-matrix-ledger.json changed; committed artifact is stale",
+  );
+  assert.ok(
+    reportBefore.equals(readFileSync(reportPath)),
+    "coverage-matrix.md changed; committed artifact is stale",
+  );
 
-  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const ledger = JSON.parse(ledgerBefore.toString("utf8"));
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
   assert.equal(ledger.totals.discovered, 182);
