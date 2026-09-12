@@ -6,7 +6,10 @@ import {
   isString,
   type ContractSchema,
 } from "../../../foundations/contract-schema.ts";
-import { parseNativeFileEvidence, parseNativeJournal } from "./parse-journal.ts";
+import {
+  parseNativeFileEvidence,
+  parseNativeJournal,
+} from "./parse-journal.ts";
 import {
   MEDIA_JOB_SCHEMA_VERSION,
   asMediaJobGeneration,

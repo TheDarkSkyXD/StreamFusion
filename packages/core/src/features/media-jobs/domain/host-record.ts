@@ -1,6 +1,4 @@
-export function asHostRecord(
-  value: unknown,
-): Record<string, unknown> | null {
+export function asHostRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
