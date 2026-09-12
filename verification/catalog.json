@@ -839,6 +839,105 @@
         "https://github.com/TheDarkSkyXD/StreamFusion/issues/147"
       ]
     }
+    ],
+    "category-discovery": [
+      {
+        "id": "d07-guest-categories",
+        "sourceCommit": "aa1668a4191451dffcf7926b1f9d5ee0c10be4c1",
+        "apkDigest": "sha256:1596d999e5ca19d5404bcfc89a5c182bad55d6397c5cb1946eb5550022844d5e",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-150-d07-categories-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "categories-receipt",
+            "path": "verification/evidence/issue-150-categories.json",
+            "sha256": "sha256:e3dc021a9ab3286e60d9a168685ded61933206cbc6f2a7f0b5090b94c5c8541a",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "drive-observations",
+            "path": "verification/evidence/issue-150/drive-observations.json",
+            "sha256": "sha256:17cc6a39aaaaefa1f96d066ec68e768be3fb83cf1cceba2dbbe302f2aeccaee2",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "home-open-categories",
+            "path": "verification/evidence/issue-150/01-home.png",
+            "sha256": "sha256:35c7a241f107a1e8af2ac25d57a3a320dcade18bd0d72d61d4513ac4cede72dd",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "categories-live",
+            "path": "verification/evidence/issue-150/02-categories-live.png",
+            "sha256": "sha256:2b9e8a0d3840ac994bed0d5f2aeae6904baa5e5d51e70b174e02c4ce95a9ebc5",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "categories-ready",
+            "path": "verification/evidence/issue-150/03-categories-ready.png",
+            "sha256": "sha256:e3e0c4d5d954f0a97fc0198ba29a2f1617e84c2ff031c5c697e948efba25d856",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "just-chatting-card",
+            "path": "verification/evidence/issue-150/04-just-chatting-card.png",
+            "sha256": "sha256:bc71f9628ee33eb437efc5c7a247b82d06ae5916ec4fe06ffe9ed07fc6b308ff",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "category-detail-follow",
+            "path": "verification/evidence/issue-150/05-category-detail.png",
+            "sha256": "sha256:c57c3e4a36a29a65df6188ea153628ae1ac452c87ab637acf0e2f8eeb82e9333",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-videos-unsupported",
+            "path": "verification/evidence/issue-150/08-detail-kick-videos-scrolled.png",
+            "sha256": "sha256:721a66162c4272988b6a367f41cf706b1126a513d613d2b8014112f5b1a4703d",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "category-empty-filters",
+            "path": "verification/evidence/issue-150/10-detail-after-ready.png",
+            "sha256": "sha256:8e5dc5ed6fb0e7dfaca019cc71aaa0282964c010258bad01498aa63aebe954e9",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "categories-loading",
+            "path": "verification/evidence/issue-150/18-categories-loading-banner.png",
+            "sha256": "sha256:667e3f4acd508553eaa0a375d1a91467b55f08ff2ee65ac26e293a671dbba49f",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "twitch-live-fixture",
+            "path": "verification/evidence/issue-150/21-detail-twitch-live-stream.png",
+            "sha256": "sha256:6179343934f176ff1bf53f793635878bb7a1cdb81ef3992c3244b1a531f1d29e",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-clips-unsupported",
+            "path": "verification/evidence/issue-150/22-detail-kick-clips-body.png",
+            "sha256": "sha256:57c690963a124996dd96c15d7cba0addfe23ee8c8a2efc273ac6c6654835f0f0",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-12T07:00:33.000Z",
+        "expiresAt": "2026-09-26T07:00:33.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/150"
+        ]
+      }
     ]
   }
 }
