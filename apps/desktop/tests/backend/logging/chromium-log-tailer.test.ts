@@ -15,9 +15,9 @@
  *   5. Stop is idempotent — calling the returned fn twice is safe and
  *      a subsequent append does NOT produce more logger calls.
  *
- * Timing strategy: vitest fake timers do NOT drive `fs.watchFile`'s native
- * polling. We use real timers with a small pollIntervalMs and short `await`
- * pauses to let the OS fire the watcher between writes.
+ * Timing strategy: the tailer polls with `createManagedInterval`. Tests
+ * use real timers, a small pollIntervalMs, and either a short pause or
+ * `vi.waitFor` so the first tick can run after an append.
  */
 
 import fs from "node:fs";
@@ -80,8 +80,7 @@ afterEach(async () => {
       // best-effort
     }
   }
-  // Let watchFile finish unregistering before nuking the dir, otherwise
-  // Windows occasionally hangs on EBUSY.
+  // Give Windows a beat to release the last read handle before rm.
   await pause(80);
   try {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -94,6 +93,7 @@ afterEach(async () => {
 // Chromium prefix routing
 // ---------------------------------------------------------------------------
 
+// Guards: prefix routing must not depend on fs.watchFile reporting a size change (uv_fs_poll late baseline, issue 201)
 describe("startChromiumLogTailer — Chromium prefix routing", () => {
   it("routes an ERROR-level Chromium line appended to the file to logger.error", async () => {
     const { mod, logger } = await freshTailer();
@@ -151,6 +151,36 @@ describe("startChromiumLogTailer — Chromium prefix routing", () => {
       },
       { interval: POLL_MS, timeout: 2_000 }
     );
+  });
+
+  it("emits appended lines when fs.watchFile never reports a change", async () => {
+    const { mod, logger } = await freshTailer();
+    const filePath = path.join(tmpDir, "chromium.log");
+    await fsp.writeFile(filePath, "", "utf8");
+
+    const watchFile = vi.spyOn(fs, "watchFile").mockImplementation(() => undefined as never);
+    const unwatchFile = vi.spyOn(fs, "unwatchFile").mockImplementation(() => {});
+    try {
+      stopFns.push(mod.startChromiumLogTailer({ filePath, pollIntervalMs: POLL_MS }));
+      await fsp.appendFile(
+        filePath,
+        "[1:0607/155145.309:WARNING:foo.cc(123)] noisy\n",
+        "utf8"
+      );
+
+      await vi.waitFor(
+        () => {
+          expect(logger.warn).toHaveBeenCalledWith(
+            "Chromium",
+            "[1:0607/155145.309:WARNING:foo.cc(123)] noisy"
+          );
+        },
+        { interval: POLL_MS, timeout: 2_000 }
+      );
+    } finally {
+      watchFile.mockRestore();
+      unwatchFile.mockRestore();
+    }
   });
 });
 
@@ -254,13 +284,9 @@ describe("startChromiumLogTailer — lifecycle", () => {
 
     const stop = mod.startChromiumLogTailer({ filePath, pollIntervalMs: POLL_MS });
 
-    // First stop releases the watcher.
     expect(() => stop()).not.toThrow();
-    // Second stop must be a no-op.
     expect(() => stop()).not.toThrow();
 
-    // Reset counters and confirm a subsequent append produces nothing — the
-    // watcher is no longer listening.
     logger.error.mockReset();
     await fsp.appendFile(filePath, "[1:0607/155145.309:ERROR:foo.cc(123)] after-stop\n", "utf8");
     await pause();
