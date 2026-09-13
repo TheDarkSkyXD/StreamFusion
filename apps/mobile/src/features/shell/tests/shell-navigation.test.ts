@@ -90,6 +90,27 @@ describe("adaptive app shell", () => {
     expect(state.rootScrollRequests.following).toBe(1);
   });
 
+  it("keeps Guest Follow management inside Following", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "following",
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "following/manage" },
+    });
+    expect(getActiveShellRoute(state).id).toBe("following/manage");
+    expect(canNavigateBack(state)).toBe(true);
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(getActiveShellLocation(restored.state).route).toBe(
+      "following/manage",
+    );
+  });
+
   it("restores allowlisted locations and all independent histories", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
@@ -217,6 +238,73 @@ describe("adaptive app shell", () => {
         },
       },
     });
+  });
+
+  it("restores category detail including names with spaces", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "more",
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "more/categories" },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        category: {
+          boxArtUrl: "https://example.com/box.png",
+          id: "509658",
+          name: "Just Chatting",
+          otherId: "15",
+          platform: "twitch",
+        },
+        route: "more/category-detail",
+      },
+    });
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(getActiveShellLocation(restored.state)).toEqual({
+      category: {
+        boxArtUrl: "https://example.com/box.png",
+        id: "509658",
+        name: "Just Chatting",
+        otherId: "15",
+        platform: "twitch",
+      },
+      route: "more/category-detail",
+    });
+  });
+
+  it("rejects category detail restoration when the name is empty", () => {
+    expect(
+      restoreShellNavigationState(
+        JSON.stringify({
+          version: 1,
+          activeDestination: "more",
+          histories: {
+            search: [],
+            following: [],
+            watch: [],
+            activity: [],
+            more: [
+              {
+                category: {
+                  boxArtUrl: "https://example.com/box.png",
+                  id: "509658",
+                  name: "",
+                  platform: "twitch",
+                },
+                route: "more/category-detail",
+              },
+            ],
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
   it("keeps Home first and Accounts or maintenance last under More", () => {

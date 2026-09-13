@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "issue": 150,
+  "ticketId": "D07",
+  "mobileSourceCommit": "aa1668a4191451dffcf7926b1f9d5ee0c10be4c1",
+  "observedAt": "2026-09-12T07:00:33.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "D07 Categories and Category Detail receipt. It does not claim live Twitch or Kick catalog success, language-filtered clips or videos, or a signed-in category Follow."
+  },
+  "candidate": {
+    "apkSha256": "1596d999e5ca19d5404bcfc89a5c182bad55d6397c5cb1946eb5550022844d5e",
+    "apkSizeBytes": 330285210,
+    "mobileTree": "2bdf54e45ffa2cdaed47d0771b55908292120194",
+    "discoveryTree": "a89abf8ff08cd4f0edfa9fa29fcd76a6f9eb4872",
+    "relayTree": "a136a957d10609952d5b80c89d1fa7b97891abd3",
+    "coreTree": "046a701d7981e2ad775d990f1fc96513cb0ee562",
+    "provenance": "The installed Android development client loaded JavaScript from Metro for source aa1668a4. The Categories proof panel printed D07 category discovery proof. The APK is a development client, not a release artifact bound to all JavaScript source. The guest drive used ADB and UI Automator because Mobile MCP tools were not loaded in this session."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Owned-slice checks passed earlier on this branch for Core, Mobile, and Relay.",
+        "Desktop preview smoke did not run here because Electron is uninstalled in this workspace."
+      ]
+    },
+    "categories-catalog": {
+      "result": "pass",
+      "observations": [
+        "ADB relaunched the development client after a debug APK reinstall. The Home screen showed Open Categories as the text Categories under Live recommendations could not be loaded.",
+        "Categories live showed Categories could not be loaded, static language chips, and D07 category discovery proof. Hermes did not crash on Intl.DisplayNames or Array.toSorted.",
+        "loading showed Loading categories from Twitch and Kick.",
+        "ready showed a Just Chatting card with 130 viewers and a Search categories dock."
+      ]
+    },
+    "category-detail": {
+      "result": "pass",
+      "observations": [
+        "Just Chatting opened Category Detail with Follow and the guest-category-follow-requires-account copy. Guest Follows are for channels, not categories.",
+        "Tabs LIVE, CLIPS, and VIDEOS were present with Platform All, Twitch, and Kick on the merged card.",
+        "Kick videos showed Kick videos are explained unavailable. Showing Twitch VODs when Twitch is selected. Sort stayed Recent and Views.",
+        "Kick clips showed Clip time chips and Kick clips are explained unavailable.",
+        "Twitch Live ready showed Twitch catalog proof stream, 90 viewers, and Category media from the guest catalog.",
+        "One Videos filter path showed No category media matches these filters."
+      ]
+    },
+    "official-live-catalog": {
+      "result": "residual",
+      "observations": [
+        "This workspace has no official Twitch or Kick provider secrets on the signed-out relay. The live chip proves the signed-out unavailable path, not a successful official catalog read."
+      ]
+    },
+    "clips-videos-language-and-tags": {
+      "result": "residual",
+      "observations": [
+        "Clips and videos have no Helix language query. Language chips persist and apply to Live.",
+        "Tag filter stayed All plus the current tag. No extra tag catalog was driven.",
+        "The longer Kick clips MediaList sentence Kick clips are not available on the official guest catalog was in the view model and tests. The guest PNG captured the phase copy Kick clips are explained unavailable."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-150/01-home.png",
+      "sha256": "35c7a241f107a1e8af2ac25d57a3a320dcade18bd0d72d61d4513ac4cede72dd"
+    },
+    {
+      "path": "verification/evidence/issue-150/02-categories-live.png",
+      "sha256": "2b9e8a0d3840ac994bed0d5f2aeae6904baa5e5d51e70b174e02c4ce95a9ebc5"
+    },
+    {
+      "path": "verification/evidence/issue-150/03-categories-ready.png",
+      "sha256": "e3e0c4d5d954f0a97fc0198ba29a2f1617e84c2ff031c5c697e948efba25d856"
+    },
+    {
+      "path": "verification/evidence/issue-150/04-just-chatting-card.png",
+      "sha256": "bc71f9628ee33eb437efc5c7a247b82d06ae5916ec4fe06ffe9ed07fc6b308ff"
+    },
+    {
+      "path": "verification/evidence/issue-150/05-category-detail.png",
+      "sha256": "c57c3e4a36a29a65df6188ea153628ae1ac452c87ab637acf0e2f8eeb82e9333"
+    },
+    {
+      "path": "verification/evidence/issue-150/08-detail-kick-videos-scrolled.png",
+      "sha256": "721a66162c4272988b6a367f41cf706b1126a513d613d2b8014112f5b1a4703d"
+    },
+    {
+      "path": "verification/evidence/issue-150/10-detail-after-ready.png",
+      "sha256": "8e5dc5ed6fb0e7dfaca019cc71aaa0282964c010258bad01498aa63aebe954e9"
+    },
+    {
+      "path": "verification/evidence/issue-150/18-categories-loading-banner.png",
+      "sha256": "667e3f4acd508553eaa0a375d1a91467b55f08ff2ee65ac26e293a671dbba49f"
+    },
+    {
+      "path": "verification/evidence/issue-150/21-detail-twitch-live-stream.png",
+      "sha256": "6179343934f176ff1bf53f793635878bb7a1cdb81ef3992c3244b1a531f1d29e"
+    },
+    {
+      "path": "verification/evidence/issue-150/22-detail-kick-clips-body.png",
+      "sha256": "57c690963a124996dd96c15d7cba0addfe23ee8c8a2efc273ac6c6654835f0f0"
+    },
+    {
+      "path": "verification/evidence/issue-150/drive-observations.json",
+      "sha256": "17cc6a39aaaaefa1f96d066ec68e768be3fb83cf1cceba2dbbe302f2aeccaee2"
+    }
+  ]
+}

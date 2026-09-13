@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   relayResponseEnvelopeSchema,
   signedOutCategoriesBodySchema,
+  signedOutCategoryBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryVideosBodySchema,
   signedOutChannelBodySchema,
   signedOutClipsBodySchema,
   signedOutSearchBodySchema,
@@ -28,7 +31,15 @@ function catalog(platform: DiscoveryPlatform): DiscoveryCatalog {
       return { categories: [], platform };
     },
     async search({ query }): Promise<SignedOutSearchBody> {
-      return { categories: [], channels: [], platform, query, streams: [] };
+      return {
+        categories: [],
+        channels: [],
+        clips: [],
+        platform,
+        query,
+        streams: [],
+        videos: []
+      };
     },
     async channel() {
       return {
@@ -61,6 +72,38 @@ function catalog(platform: DiscoveryPlatform): DiscoveryCatalog {
         platform,
         support: platform === "kick" ? "unsupported" : "available"
       };
+    },
+    async category({ categoryId }) {
+      return {
+        category: {
+          boxArtUrl: "https://example.com/box.png",
+          id: categoryId,
+          name: "Just Chatting",
+          platform
+        },
+        platform
+      };
+    },
+    async categoryStreams() {
+      return { platform, streams: [] };
+    },
+    async categoryClips() {
+      return platform === "kick"
+        ? {
+            kind: "unsupported",
+            platform,
+            reason: "kick-clips-unsupported"
+          }
+        : { clips: [], kind: "available", platform };
+    },
+    async categoryVideos() {
+      return platform === "kick"
+        ? {
+            kind: "unsupported",
+            platform,
+            reason: "kick-videos-unsupported"
+          }
+        : { kind: "available", platform, videos: [] };
     }
   };
 }
@@ -113,12 +156,12 @@ async function request(
 }
 
 describe("signed-out discovery route", () => {
-  it("serves guest reads without a bearer and rejects invalid credentials", async () => {
+  it("rejects missing or invalid installation credentials", async () => {
     const { route } = createRoute();
     expect(
       (await request(route, "/v1/discovery/top-streams?platform=twitch", null))
         .status
-    ).toBe(200);
+    ).toBe(401);
     expect(
       (await request(route, "/v1/discovery/top-streams?platform=twitch", "bad"))
         .status
@@ -204,6 +247,59 @@ describe("signed-out discovery route", () => {
     );
   });
 
+  it("returns category identity and typed Kick media gaps", async () => {
+    const { route } = createRoute();
+    expect(
+      (await request(route, "/v1/discovery/category-clips?platform=twitch"))
+        .status
+    ).toBe(400);
+    const category = await request(
+      route,
+      "/v1/discovery/category?platform=twitch&categoryId=509658"
+    );
+    const clips = await request(
+      route,
+      "/v1/discovery/category-clips?platform=kick&categoryId=4&timeRange=all"
+    );
+    const videos = await request(
+      route,
+      "/v1/discovery/category-videos?platform=kick&categoryId=4&sort=recent"
+    );
+    const categoryBody: unknown = await category.json();
+    const clipsBody: unknown = await clips.json();
+    const videosBody: unknown = await videos.json();
+    expect(category.status).toBe(200);
+    expect(clips.status).toBe(200);
+    expect(videos.status).toBe(200);
+    if (
+      !relayResponseEnvelopeSchema.is(categoryBody) ||
+      !relayResponseEnvelopeSchema.is(clipsBody) ||
+      !relayResponseEnvelopeSchema.is(videosBody) ||
+      categoryBody.outcome.kind !== "success" ||
+      clipsBody.outcome.kind !== "success" ||
+      videosBody.outcome.kind !== "success"
+    ) {
+      throw new Error("Expected category discovery success envelopes");
+    }
+    expect(signedOutCategoryBodySchema.is(categoryBody.outcome.body)).toBe(
+      true
+    );
+    expect(signedOutCategoryClipsBodySchema.is(clipsBody.outcome.body)).toBe(
+      true
+    );
+    expect(signedOutCategoryVideosBodySchema.is(videosBody.outcome.body)).toBe(
+      true
+    );
+    expect(clipsBody.outcome.body).toMatchObject({
+      kind: "unsupported",
+      reason: "kick-clips-unsupported"
+    });
+    expect(videosBody.outcome.body).toMatchObject({
+      kind: "unsupported",
+      reason: "kick-videos-unsupported"
+    });
+  });
+
   it("returns channel, videos, and Kick-unsupported clips envelopes", async () => {
     const { route } = createRoute();
     const missing = await request(
@@ -246,5 +342,28 @@ describe("signed-out discovery route", () => {
       platform: "kick",
       support: "unsupported"
     });
+  });
+
+  it("accepts either query or q on Search", async () => {
+    const { route } = createRoute();
+    const named = await request(
+      route,
+      "/v1/discovery/search?platform=twitch&query=arcade"
+    );
+    expect(named.status).toBe(200);
+    const body: unknown = await named.json();
+    expect(relayResponseEnvelopeSchema.is(body)).toBe(true);
+    if (
+      !relayResponseEnvelopeSchema.is(body) ||
+      body.outcome.kind !== "success"
+    ) {
+      throw new Error("Expected a Search success envelope");
+    }
+    expect(signedOutSearchBodySchema.is(body.outcome.body)).toBe(true);
+    if (signedOutSearchBodySchema.is(body.outcome.body)) {
+      expect(body.outcome.body.query).toBe("arcade");
+      expect(body.outcome.body.videos).toEqual([]);
+      expect(body.outcome.body.clips).toEqual([]);
+    }
   });
 });

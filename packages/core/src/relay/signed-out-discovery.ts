@@ -38,6 +38,8 @@ export type SignedOutSearchBody = {
   readonly streams: readonly Stream[];
   readonly channels: readonly Channel[];
   readonly categories: readonly Category[];
+  readonly videos: readonly Video[];
+  readonly clips: readonly Clip[];
 };
 
 export type SignedOutChannelSupport = "available" | "unsupported";
@@ -132,13 +134,17 @@ function isSignedOutSearchBody(value: unknown): value is SignedOutSearchBody {
       "streams",
       "channels",
       "categories",
+      "videos",
+      "clips",
     ]) &&
     isPlatform(value.platform) &&
     isString(value.query) &&
     value.query.length > 0 &&
     isArrayOf(value.streams, streamSchema.is) &&
     isArrayOf(value.channels, channelSchema.is) &&
-    isArrayOf(value.categories, categorySchema.is)
+    isArrayOf(value.categories, categorySchema.is) &&
+    isArrayOf(value.videos, videoSchema.is) &&
+    isArrayOf(value.clips, clipSchema.is)
   );
 }
 

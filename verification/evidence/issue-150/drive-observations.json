@@ -1,0 +1,146 @@
+{
+  "packageName": "com.thedarkskyxd.streamfusion.dev",
+  "driver": "adb-uiautomator",
+  "mobileSourceCommit": "aa1668a4191451dffcf7926b1f9d5ee0c10be4c1",
+  "apkSha256": "1596d999e5ca19d5404bcfc89a5c182bad55d6397c5cb1946eb5550022844d5e",
+  "observedAt": "2026-09-12T07:00:33.000Z",
+  "artifacts": [
+    {
+      "name": "01-home",
+      "path": "verification/evidence/issue-150/01-home.png",
+      "sha256": "sha256:35c7a241f107a1e8af2ac25d57a3a320dcade18bd0d72d61d4513ac4cede72dd"
+    },
+    {
+      "name": "02-categories-live",
+      "path": "verification/evidence/issue-150/02-categories-live.png",
+      "sha256": "sha256:2b9e8a0d3840ac994bed0d5f2aeae6904baa5e5d51e70b174e02c4ce95a9ebc5"
+    },
+    {
+      "name": "03-categories-ready",
+      "path": "verification/evidence/issue-150/03-categories-ready.png",
+      "sha256": "sha256:e3e0c4d5d954f0a97fc0198ba29a2f1617e84c2ff031c5c697e948efba25d856"
+    },
+    {
+      "name": "04-just-chatting-card",
+      "path": "verification/evidence/issue-150/04-just-chatting-card.png",
+      "sha256": "sha256:bc71f9628ee33eb437efc5c7a247b82d06ae5916ec4fe06ffe9ed07fc6b308ff"
+    },
+    {
+      "name": "05-category-detail",
+      "path": "verification/evidence/issue-150/05-category-detail.png",
+      "sha256": "sha256:c57c3e4a36a29a65df6188ea153628ae1ac452c87ab637acf0e2f8eeb82e9333"
+    },
+    {
+      "name": "08-detail-kick-videos-scrolled",
+      "path": "verification/evidence/issue-150/08-detail-kick-videos-scrolled.png",
+      "sha256": "sha256:721a66162c4272988b6a367f41cf706b1126a513d613d2b8014112f5b1a4703d"
+    },
+    {
+      "name": "10-detail-empty-filters",
+      "path": "verification/evidence/issue-150/10-detail-after-ready.png",
+      "sha256": "sha256:8e5dc5ed6fb0e7dfaca019cc71aaa0282964c010258bad01498aa63aebe954e9"
+    },
+    {
+      "name": "18-categories-loading-banner",
+      "path": "verification/evidence/issue-150/18-categories-loading-banner.png",
+      "sha256": "sha256:667e3f4acd508553eaa0a375d1a91467b55f08ff2ee65ac26e293a671dbba49f"
+    },
+    {
+      "name": "21-detail-twitch-live-stream",
+      "path": "verification/evidence/issue-150/21-detail-twitch-live-stream.png",
+      "sha256": "sha256:6179343934f176ff1bf53f793635878bb7a1cdb81ef3992c3244b1a531f1d29e"
+    },
+    {
+      "name": "22-detail-kick-clips-body",
+      "path": "verification/evidence/issue-150/22-detail-kick-clips-body.png",
+      "sha256": "sha256:57c690963a124996dd96c15d7cba0addfe23ee8c8a2efc273ac6c6654835f0f0"
+    }
+  ],
+  "observations": [
+    {
+      "step": "01-home",
+      "proof": "Home Categories entry is visible",
+      "texts": [
+        "Home",
+        "Live recommendations could not be loaded.",
+        "Categories",
+        "issue-147-d04-f481"
+      ]
+    },
+    {
+      "step": "02-categories-live",
+      "proof": "D07 category discovery proof",
+      "texts": [
+        "Categories could not be loaded.",
+        "All languages",
+        "English",
+        "D07 category discovery proof"
+      ]
+    },
+    {
+      "step": "03-categories-ready",
+      "justChatting": true,
+      "texts": ["Just Chatting", "ready", "D07 category discovery proof"]
+    },
+    {
+      "step": "04-just-chatting-card",
+      "viewers": "130 viewers",
+      "texts": ["Just Chatting", "130 viewers"]
+    },
+    {
+      "step": "05-category-detail",
+      "followReason": true,
+      "texts": [
+        "Just Chatting",
+        "Follow",
+        "Category Follow needs a signed-in provider account. Guest Follows are for channels, not categories.",
+        "LIVE",
+        "CLIPS",
+        "VIDEOS",
+        "Kick"
+      ]
+    },
+    {
+      "step": "08-detail-kick-videos-scrolled",
+      "unsupported": true,
+      "texts": [
+        "Kick videos are explained unavailable. Showing Twitch VODs when Twitch is selected.",
+        "Recent",
+        "Views"
+      ]
+    },
+    {
+      "step": "10-detail-empty-filters",
+      "empty": true,
+      "texts": ["No category media matches these filters.", "Recent", "Views"]
+    },
+    {
+      "step": "18-categories-loading-banner",
+      "loading": true,
+      "texts": ["Loading categories from Twitch and Kick.", "loading"]
+    },
+    {
+      "step": "21-detail-twitch-live-stream",
+      "liveStream": true,
+      "texts": [
+        "Twitch catalog proof stream",
+        "90 viewers",
+        "Category media from the guest catalog.",
+        "ready"
+      ]
+    },
+    {
+      "step": "22-detail-kick-clips-body",
+      "unsupported": true,
+      "texts": [
+        "Kick clips are explained unavailable.",
+        "Clip time",
+        "All time",
+        "Day",
+        "Week",
+        "Month",
+        "Views"
+      ]
+    }
+  ]
+}

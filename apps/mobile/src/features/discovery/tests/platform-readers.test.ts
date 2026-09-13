@@ -71,6 +71,29 @@ describe("platform catalog readers", () => {
     });
   });
 
+  it("marks guest Twitch search unavailable and maps Kick guest catalogs", async () => {
+    const twitch = createTwitchHelixReader({
+      clientId: null,
+      fetch: async () => json({}),
+      readAccessToken: async () => null,
+    });
+    await expect(
+      twitch.search({ guest: true, query: "arcade" }),
+    ).resolves.toMatchObject({
+      path: { reason: "guest-unavailable" },
+    });
+    const kick = createKickOfficialReader({
+      fetch: async () => json({ data: [] }),
+      readAccessToken: async () => null,
+    });
+    await expect(
+      kick.search({ guest: true, query: "arcade" }),
+    ).resolves.toMatchObject({
+      path: { kind: "guest", platform: "kick" },
+      status: "complete",
+    });
+  });
+
   it("does not invent a Kick followed catalog", async () => {
     const signedOut = createKickOfficialReader({
       fetch: async () => json({}),
@@ -117,9 +140,11 @@ describe("platform catalog readers", () => {
               body: {
                 categories: [],
                 channels: [],
+                clips: [],
                 platform: "twitch",
                 query: "alice",
                 streams: [fixtureStream("twitch", "search-1", 1)],
+                videos: [],
               },
               requestId: "req_signed_out_search_1",
             }),
@@ -145,11 +170,108 @@ describe("platform catalog readers", () => {
     ).resolves.toMatchObject({ items: [{ id: "g1" }] });
     await expect(
       reader.search({ platform: "twitch", query: "alice" }),
-    ).resolves.toMatchObject({ items: [{ id: "search-1" }] });
+    ).resolves.toMatchObject({
+      catalog: { streams: [{ id: "search-1" }] },
+    });
     await expect(
       reader.getFollowedStreams({ platform: "twitch" }),
     ).resolves.toMatchObject({
       path: { reason: "signed-out-login-required" },
+    });
+  });
+
+  it("drops live Helix videos and stamps clip windows as exact ISO", async () => {
+    const urls: string[] = [];
+    const reader = createTwitchHelixReader({
+      clientId: "client",
+      fetch: async (input) => {
+        urls.push(String(input));
+        if (String(input).includes("/videos")) {
+          return json({
+            data: [
+              {
+                id: "live-1",
+                published_at: "2026-09-11T00:00:00Z",
+                thumbnail_url: "https://example.com/{width}x{height}.jpg",
+                title: "Live leak",
+                type: "live",
+                url: "https://twitch.tv/videos/live-1",
+                user_id: "u1",
+                user_login: "alice",
+                user_name: "Alice",
+                view_count: 9,
+                duration: "1h2m3s",
+              },
+              {
+                id: "vod-1",
+                published_at: "2026-09-11T00:00:00Z",
+                thumbnail_url: "https://example.com/{width}x{height}.jpg",
+                title: "Archive",
+                type: "archive",
+                url: "https://twitch.tv/videos/vod-1",
+                user_id: "u1",
+                user_login: "alice",
+                user_name: "Alice",
+                view_count: 4,
+                duration: "1h2m3s",
+              },
+            ],
+          });
+        }
+        return json({
+          data: [
+            {
+              broadcaster_id: "u1",
+              broadcaster_name: "Alice",
+              created_at: "2026-09-11T00:00:00Z",
+              creator_name: "Bob",
+              duration: 12,
+              id: "clip-1",
+              thumbnail_url: "https://example.com/clip.jpg",
+              title: "Clip",
+              url: "https://clips.twitch.tv/clip-1",
+              view_count: 3,
+            },
+          ],
+        });
+      },
+      readAccessToken: async () => "user",
+    });
+    const videos = await reader.getCategoryVideos({
+      categoryId: "509658",
+      sort: "recent",
+    });
+    expect(videos.items.map((item) => item.id)).toEqual(["vod-1"]);
+    expect(videos.items[0]).toMatchObject({ duration: 3723, type: "archive" });
+    const clips = await reader.getCategoryClips({
+      categoryId: "509658",
+      timeRange: "day",
+    });
+    expect(clips.items[0]?.id).toBe("clip-1");
+    const clipUrl = new URL(urls.find((url) => url.includes("/clips")) ?? "");
+    expect(clipUrl.searchParams.get("started_at")?.endsWith("Z")).toBe(true);
+    expect(clipUrl.searchParams.get("ended_at")?.endsWith("Z")).toBe(true);
+    expect(clipUrl.searchParams.get("started_at")).toBe(
+      new Date(clipUrl.searchParams.get("started_at") ?? "").toISOString(),
+    );
+  });
+
+  it("does not invent Kick clips or videos", async () => {
+    const reader = createKickOfficialReader({
+      fetch: async () => {
+        throw new Error("should not fetch");
+      },
+      readAccessToken: async () => "user",
+    });
+    expect(reader.unsupportedClips()).toEqual({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-clips-unsupported",
+    });
+    expect(reader.unsupportedVideos()).toEqual({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-videos-unsupported",
     });
   });
 });

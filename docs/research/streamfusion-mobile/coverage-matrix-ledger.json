@@ -1,0 +1,2170 @@
+{
+  "schemaVersion": 1,
+  "issue": 195,
+  "designAuthority": [
+    "docs/research/streamfusion-mobile/prototypes/android-navigation-prototype.html",
+    "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md",
+    "docs/research/streamfusion-mobile/android-navigation-and-interaction-model.md"
+  ],
+  "totals": {
+    "discovered": 182,
+    "implemented": 12,
+    "partial": 13,
+    "placeholder": 23,
+    "missing": 134
+  },
+  "entries": [
+    {
+      "id": "screen:search",
+      "kind": "screen",
+      "name": "search",
+      "status": "placeholder",
+      "owners": [
+        130,
+        132,
+        133,
+        147,
+        149
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:home",
+      "kind": "screen",
+      "name": "home",
+      "status": "placeholder",
+      "owners": [
+        130,
+        131,
+        132,
+        147,
+        148
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:categories",
+      "kind": "screen",
+      "name": "categories",
+      "status": "placeholder",
+      "owners": [
+        130,
+        132,
+        133,
+        147,
+        150
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:category-detail",
+      "kind": "screen",
+      "name": "category-detail",
+      "status": "missing",
+      "owners": [
+        130,
+        132,
+        133,
+        147,
+        150
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:following",
+      "kind": "screen",
+      "name": "following",
+      "status": "placeholder",
+      "owners": [
+        134,
+        147,
+        151
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:channel",
+      "kind": "screen",
+      "name": "channel",
+      "status": "placeholder",
+      "owners": [
+        130,
+        132,
+        133,
+        147,
+        148,
+        151
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:watch",
+      "kind": "screen",
+      "name": "watch",
+      "status": "placeholder",
+      "owners": [
+        152,
+        153,
+        156,
+        157,
+        167
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:video",
+      "kind": "screen",
+      "name": "video",
+      "status": "missing",
+      "owners": [
+        133,
+        153,
+        154
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:multi",
+      "kind": "screen",
+      "name": "multi",
+      "status": "placeholder",
+      "owners": [
+        143,
+        160,
+        167
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:history",
+      "kind": "screen",
+      "name": "history",
+      "status": "placeholder",
+      "owners": [
+        155
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:activity",
+      "kind": "screen",
+      "name": "activity",
+      "status": "implemented",
+      "owners": [
+        141,
+        151,
+        172,
+        173,
+        174
+      ],
+      "implementation": [
+        "apps/mobile/src/features/activity/components/activity-screen.tsx"
+      ],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:moderation-home",
+      "kind": "screen",
+      "name": "moderation-home",
+      "status": "placeholder",
+      "owners": [
+        159,
+        168
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:moderation",
+      "kind": "screen",
+      "name": "moderation",
+      "status": "missing",
+      "owners": [
+        159,
+        168
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings",
+      "kind": "screen",
+      "name": "settings",
+      "status": "placeholder",
+      "owners": [
+        167,
+        168,
+        170
+      ],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:accounts",
+      "kind": "screen",
+      "name": "accounts",
+      "status": "partial",
+      "owners": [
+        135,
+        145,
+        146,
+        151
+      ],
+      "implementation": [
+        "apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx"
+      ],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:system",
+      "kind": "screen",
+      "name": "system",
+      "status": "partial",
+      "owners": [
+        143,
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx"
+      ],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:more",
+      "kind": "screen",
+      "name": "more",
+      "status": "implemented",
+      "owners": [
+        139,
+        141
+      ],
+      "implementation": [
+        "apps/mobile/src/features/shell/components/app-shell.tsx"
+      ],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-appearance",
+      "kind": "screen",
+      "name": "settings-appearance",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-playback",
+      "kind": "screen",
+      "name": "settings-playback",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-player-controls",
+      "kind": "screen",
+      "name": "settings-player-controls",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-buffer",
+      "kind": "screen",
+      "name": "settings-buffer",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-multiview",
+      "kind": "screen",
+      "name": "settings-multiview",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-notifications",
+      "kind": "screen",
+      "name": "settings-notifications",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-chat",
+      "kind": "screen",
+      "name": "settings-chat",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-predictions",
+      "kind": "screen",
+      "name": "settings-predictions",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-adblock",
+      "kind": "screen",
+      "name": "settings-adblock",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-proxy",
+      "kind": "screen",
+      "name": "settings-proxy",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-integrations",
+      "kind": "screen",
+      "name": "settings-integrations",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-api-tokens",
+      "kind": "screen",
+      "name": "settings-api-tokens",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-updates",
+      "kind": "screen",
+      "name": "settings-updates",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-diagnostics",
+      "kind": "screen",
+      "name": "settings-diagnostics",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-logs",
+      "kind": "screen",
+      "name": "settings-logs",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-report-bug",
+      "kind": "screen",
+      "name": "settings-report-bug",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "screen:settings-about",
+      "kind": "screen",
+      "name": "settings-about",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:appearance",
+      "kind": "panel",
+      "name": "appearance",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:playback",
+      "kind": "panel",
+      "name": "playback",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:player-controls",
+      "kind": "panel",
+      "name": "player-controls",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:buffer",
+      "kind": "panel",
+      "name": "buffer",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:multiview",
+      "kind": "panel",
+      "name": "multiview",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:notifications",
+      "kind": "panel",
+      "name": "notifications",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:chat",
+      "kind": "panel",
+      "name": "chat",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:predictions",
+      "kind": "panel",
+      "name": "predictions",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:adblock",
+      "kind": "panel",
+      "name": "adblock",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:proxy",
+      "kind": "panel",
+      "name": "proxy",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:integrations",
+      "kind": "panel",
+      "name": "integrations",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:api-tokens",
+      "kind": "panel",
+      "name": "api-tokens",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:updates",
+      "kind": "panel",
+      "name": "updates",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:diagnostics",
+      "kind": "panel",
+      "name": "diagnostics",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:logs",
+      "kind": "panel",
+      "name": "logs",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:report-bug",
+      "kind": "panel",
+      "name": "report-bug",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "panel:about",
+      "kind": "panel",
+      "name": "about",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:search:all",
+      "kind": "tab",
+      "name": "search:all",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:search:channels",
+      "kind": "tab",
+      "name": "search:channels",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:search:streams",
+      "kind": "tab",
+      "name": "search:streams",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:search:videos",
+      "kind": "tab",
+      "name": "search:videos",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:search:clips",
+      "kind": "tab",
+      "name": "search:clips",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:search:categories",
+      "kind": "tab",
+      "name": "search:categories",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:following:live",
+      "kind": "tab",
+      "name": "following:live",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:following:videos",
+      "kind": "tab",
+      "name": "following:videos",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:following:clips",
+      "kind": "tab",
+      "name": "following:clips",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:following:categories",
+      "kind": "tab",
+      "name": "following:categories",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:following:channels",
+      "kind": "tab",
+      "name": "following:channels",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:category-detail:live",
+      "kind": "tab",
+      "name": "category-detail:live",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:category-detail:clips",
+      "kind": "tab",
+      "name": "category-detail:clips",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:category-detail:videos",
+      "kind": "tab",
+      "name": "category-detail:videos",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:channel:home",
+      "kind": "tab",
+      "name": "channel:home",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:channel:videos",
+      "kind": "tab",
+      "name": "channel:videos",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:channel:clips",
+      "kind": "tab",
+      "name": "channel:clips",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:watch:chat",
+      "kind": "tab",
+      "name": "watch:chat",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:watch:info",
+      "kind": "tab",
+      "name": "watch:info",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:watch:related",
+      "kind": "tab",
+      "name": "watch:related",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:video:details",
+      "kind": "tab",
+      "name": "video:details",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:video:comments",
+      "kind": "tab",
+      "name": "video:comments",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:video:related",
+      "kind": "tab",
+      "name": "video:related",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:activity:all",
+      "kind": "tab",
+      "name": "activity:all",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:activity:channels",
+      "kind": "tab",
+      "name": "activity:channels",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:activity:jobs",
+      "kind": "tab",
+      "name": "activity:jobs",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:chat",
+      "kind": "tab",
+      "name": "moderation:chat",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:retention",
+      "kind": "tab",
+      "name": "moderation:retention",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:mod-log",
+      "kind": "tab",
+      "name": "moderation:mod-log",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:banned",
+      "kind": "tab",
+      "name": "moderation:banned",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:engagement",
+      "kind": "tab",
+      "name": "moderation:engagement",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:unban",
+      "kind": "tab",
+      "name": "moderation:unban",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:moderators",
+      "kind": "tab",
+      "name": "moderation:moderators",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:vips",
+      "kind": "tab",
+      "name": "moderation:vips",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:activity",
+      "kind": "tab",
+      "name": "moderation:activity",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:moderation:active-mods",
+      "kind": "tab",
+      "name": "moderation:active-mods",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:settings-diagnostics:overview",
+      "kind": "tab",
+      "name": "settings-diagnostics:overview",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:settings-diagnostics:resources",
+      "kind": "tab",
+      "name": "settings-diagnostics:resources",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:settings-diagnostics:io",
+      "kind": "tab",
+      "name": "settings-diagnostics:io",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:settings-diagnostics:traces",
+      "kind": "tab",
+      "name": "settings-diagnostics:traces",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:settings-diagnostics:logs-reports",
+      "kind": "tab",
+      "name": "settings-diagnostics:logs-reports",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "tab:settings-diagnostics:developer-tools",
+      "kind": "tab",
+      "name": "settings-diagnostics:developer-tools",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:search",
+      "kind": "action",
+      "name": "search",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:open-category",
+      "kind": "action",
+      "name": "open-category",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:repeat-search",
+      "kind": "action",
+      "name": "repeat-search",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:remove-search",
+      "kind": "action",
+      "name": "remove-search",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:search-tab",
+      "kind": "action",
+      "name": "search-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:search-platform",
+      "kind": "action",
+      "name": "search-platform",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:toggle-live-only",
+      "kind": "action",
+      "name": "toggle-live-only",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:clear-search-history",
+      "kind": "action",
+      "name": "clear-search-history",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:category-tab",
+      "kind": "action",
+      "name": "category-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:following-tab",
+      "kind": "action",
+      "name": "following-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:channel-tab",
+      "kind": "action",
+      "name": "channel-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-play-pause",
+      "kind": "action",
+      "name": "player-play-pause",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-seek-back",
+      "kind": "action",
+      "name": "player-seek-back",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-seek-forward",
+      "kind": "action",
+      "name": "player-seek-forward",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-mute",
+      "kind": "action",
+      "name": "player-mute",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-speed",
+      "kind": "action",
+      "name": "player-speed",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-quality",
+      "kind": "action",
+      "name": "player-quality",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-theater",
+      "kind": "action",
+      "name": "player-theater",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-stats",
+      "kind": "action",
+      "name": "player-stats",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-fullscreen",
+      "kind": "action",
+      "name": "player-fullscreen",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-pip",
+      "kind": "action",
+      "name": "player-pip",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:player-captions",
+      "kind": "action",
+      "name": "player-captions",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:toggle-chat",
+      "kind": "action",
+      "name": "toggle-chat",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:chat-emotes",
+      "kind": "action",
+      "name": "chat-emotes",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:chat-context",
+      "kind": "action",
+      "name": "chat-context",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:chat-send",
+      "kind": "action",
+      "name": "chat-send",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:channel-follow",
+      "kind": "action",
+      "name": "channel-follow",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:multistream-add",
+      "kind": "action",
+      "name": "multistream-add",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:job-record",
+      "kind": "action",
+      "name": "job-record",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:job-download",
+      "kind": "action",
+      "name": "job-download",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:job-details",
+      "kind": "action",
+      "name": "job-details",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:watch-tab",
+      "kind": "action",
+      "name": "watch-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:video-tab",
+      "kind": "action",
+      "name": "video-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:audio-owner",
+      "kind": "action",
+      "name": "audio-owner",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:multistream-edit",
+      "kind": "action",
+      "name": "multistream-edit",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:multi-chat-mode",
+      "kind": "action",
+      "name": "multi-chat-mode",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:restore-slot",
+      "kind": "action",
+      "name": "restore-slot",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:cool-device",
+      "kind": "action",
+      "name": "cool-device",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:multi-chat-channel",
+      "kind": "action",
+      "name": "multi-chat-channel",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:history-remove",
+      "kind": "action",
+      "name": "history-remove",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:history-clear",
+      "kind": "action",
+      "name": "history-clear",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:activity-dismiss-item",
+      "kind": "action",
+      "name": "activity-dismiss-item",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:activity-mark-read",
+      "kind": "action",
+      "name": "activity-mark-read",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:activity-clear-completed",
+      "kind": "action",
+      "name": "activity-clear-completed",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [
+        "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts"
+      ],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:activity-tab",
+      "kind": "action",
+      "name": "activity-tab",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:moderation-switch",
+      "kind": "action",
+      "name": "moderation-switch",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:moderation-tools",
+      "kind": "action",
+      "name": "moderation-tools",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:moderation-tab",
+      "kind": "action",
+      "name": "moderation-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:toggle-setting",
+      "kind": "action",
+      "name": "toggle-setting",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:cycle-setting",
+      "kind": "action",
+      "name": "cycle-setting",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:caption-model",
+      "kind": "action",
+      "name": "caption-model",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:check-updates",
+      "kind": "action",
+      "name": "check-updates",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:diagnostics-tab",
+      "kind": "action",
+      "name": "diagnostics-tab",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:connect-account",
+      "kind": "action",
+      "name": "connect-account",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:manage-account",
+      "kind": "action",
+      "name": "manage-account",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:copy-account-code",
+      "kind": "action",
+      "name": "copy-account-code",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:open-account-verification",
+      "kind": "action",
+      "name": "open-account-verification",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:cancel-account-connect",
+      "kind": "action",
+      "name": "cancel-account-connect",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:retry-account-connect",
+      "kind": "action",
+      "name": "retry-account-connect",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:disconnect-account",
+      "kind": "action",
+      "name": "disconnect-account",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:notification-permission",
+      "kind": "action",
+      "name": "notification-permission",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:run-check",
+      "kind": "action",
+      "name": "run-check",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:toggle-density",
+      "kind": "action",
+      "name": "toggle-density",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:retry-installation-registration",
+      "kind": "action",
+      "name": "retry-installation-registration",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:refresh-capability-policy",
+      "kind": "action",
+      "name": "refresh-capability-policy",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:mini-player-pause",
+      "kind": "action",
+      "name": "mini-player-pause",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:dismiss-player",
+      "kind": "action",
+      "name": "dismiss-player",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:demo-option",
+      "kind": "action",
+      "name": "demo-option",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:close-sheet",
+      "kind": "action",
+      "name": "close-sheet",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:confirm-sheet",
+      "kind": "action",
+      "name": "confirm-sheet",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "action:sheet-fixture-action",
+      "kind": "action",
+      "name": "sheet-fixture-action",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:search",
+      "kind": "shell-route",
+      "name": "search",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:search/result-preview",
+      "kind": "shell-route",
+      "name": "search/result-preview",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:following",
+      "kind": "shell-route",
+      "name": "following",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:following/channel-preview",
+      "kind": "shell-route",
+      "name": "following/channel-preview",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:watch",
+      "kind": "shell-route",
+      "name": "watch",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:watch/session-preview",
+      "kind": "shell-route",
+      "name": "watch/session-preview",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:activity",
+      "kind": "shell-route",
+      "name": "activity",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [
+        "apps/mobile/src/features/activity/components/activity-screen.tsx"
+      ],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:activity/alert-preview",
+      "kind": "shell-route",
+      "name": "activity/alert-preview",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:activity/job-preview",
+      "kind": "shell-route",
+      "name": "activity/job-preview",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more",
+      "kind": "shell-route",
+      "name": "more",
+      "status": "implemented",
+      "owners": [],
+      "implementation": [],
+      "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/home",
+      "kind": "shell-route",
+      "name": "more/home",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/categories",
+      "kind": "shell-route",
+      "name": "more/categories",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/multistream",
+      "kind": "shell-route",
+      "name": "more/multistream",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/history",
+      "kind": "shell-route",
+      "name": "more/history",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/moderation",
+      "kind": "shell-route",
+      "name": "more/moderation",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/settings",
+      "kind": "shell-route",
+      "name": "more/settings",
+      "status": "placeholder",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/diagnostics",
+      "kind": "shell-route",
+      "name": "more/diagnostics",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/accounts",
+      "kind": "shell-route",
+      "name": "more/accounts",
+      "status": "partial",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    }
+  ],
+  "gaps": [
+    {
+      "id": "GAP-195-01",
+      "status": "escalated",
+      "finding": "More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order.",
+      "owners": [
+        104,
+        139,
+        195
+      ]
+    },
+    {
+      "id": "GAP-195-02",
+      "status": "owned-elsewhere",
+      "finding": "Search, Following, Watch, Home, Categories, History, Moderation, and Settings remain placeholders. Feature issues own those screens.",
+      "owners": [
+        147,
+        148,
+        149,
+        150,
+        152,
+        155,
+        159,
+        167
+      ]
+    },
+    {
+      "id": "GAP-195-03",
+      "status": "owned-elsewhere",
+      "finding": "The 17 Settings panels and six Diagnostics tabs have no Mobile routes or tab components.",
+      "owners": [
+        143,
+        167,
+        170,
+        171
+      ]
+    },
+    {
+      "id": "GAP-195-04",
+      "status": "owned-elsewhere",
+      "finding": "Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only.",
+      "owners": [
+        151,
+        163,
+        172,
+        173,
+        174
+      ]
+    },
+    {
+      "id": "GAP-195-05",
+      "status": "open",
+      "finding": "More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features.",
+      "owners": [
+        195,
+        196
+      ]
+    }
+  ]
+}

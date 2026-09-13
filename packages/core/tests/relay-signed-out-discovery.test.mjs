@@ -5,6 +5,10 @@ import {
   createRelayFailureEnvelope,
   createRelaySuccessEnvelope,
   signedOutCategoriesBodySchema,
+  signedOutCategoryBodySchema,
+  signedOutCategoryClipsBodySchema,
+  signedOutCategoryStreamsBodySchema,
+  signedOutCategoryVideosBodySchema,
   signedOutChannelBodySchema,
   signedOutClipsBodySchema,
   signedOutSearchBodySchema,
@@ -77,7 +81,6 @@ const clip = {
   createdAt: "2026-09-11T00:00:00.000Z",
   creatorName: "bob",
 };
-
 test("signed-out discovery bodies accept exact Core content pages", () => {
   assert.equal(
     signedOutTopStreamsBodySchema.is({
@@ -101,6 +104,8 @@ test("signed-out discovery bodies accept exact Core content pages", () => {
       streams: [stream],
       channels: [channel],
       categories: [category],
+      videos: [],
+      clips: [],
     }),
     true,
   );
@@ -141,6 +146,71 @@ test("signed-out discovery bodies accept exact Core content pages", () => {
   );
 });
 
+test("signed-out category bodies accept pages and typed Kick gaps", () => {
+  assert.equal(
+    signedOutCategoryBodySchema.is({
+      platform: "twitch",
+      category,
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryStreamsBodySchema.is({
+      platform: "kick",
+      streams: [stream],
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryClipsBodySchema.is({
+      kind: "available",
+      platform: "twitch",
+      clips: [clip],
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryClipsBodySchema.is({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-clips-unsupported",
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryVideosBodySchema.is({
+      kind: "available",
+      platform: "twitch",
+      videos: [video],
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryVideosBodySchema.is({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-videos-unsupported",
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryClipsBodySchema.is({
+      kind: "available",
+      platform: "kick",
+      clips: [],
+    }),
+    true,
+  );
+  assert.equal(
+    signedOutCategoryVideosBodySchema.is({
+      kind: "unsupported",
+      platform: "kick",
+      reason: "kick-clips-unsupported",
+    }),
+    false,
+  );
+});
+
 test("signed-out discovery bodies reject extra provider fields", () => {
   assert.equal(
     signedOutTopStreamsBodySchema.is({
@@ -156,6 +226,8 @@ test("signed-out discovery bodies reject extra provider fields", () => {
       streams: [],
       channels: [],
       categories: [],
+      videos: [],
+      clips: [],
     }),
     false,
   );

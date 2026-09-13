@@ -17,6 +17,7 @@ import {
 import { useInstallationPolicyController } from "@mobile/features/installation-policy/components/use-installation-policy-controller";
 import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
 import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
+import { createMediaJobsRuntime } from "@mobile/features/media-jobs/composition/media-jobs-runtime";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
 import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/expo-secure-random-source";
 import { createExpoSecureSecretStore } from "@mobile/features/storage/adapters/expo-secure-secret-store";
@@ -51,6 +52,9 @@ import {
   installationIdentityFromStore,
   userTokenFromTwitchSnapshot,
 } from "@mobile/features/discovery/composition/discovery-runtime";
+import { createSearchHistoryRepository } from "@mobile/features/discovery/composition/search-history-repository";
+import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
+import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -70,6 +74,15 @@ const persistenceRuntime = createMobileStoreRuntime({
   databaseDriver,
   random: secureRandom,
   secretStore: secureSecretStore,
+});
+const searchHistory = createSearchHistoryRepository(
+  persistenceRuntime.productState.searchHistory,
+);
+
+const discoveryPreferences = createDiscoveryPreferenceStore({
+  readSetting: persistenceRuntime.productState.settings.read,
+  writeSetting: ({ key, updatedAt, value }) =>
+    persistenceRuntime.productState.settings.write(key, value, updatedAt),
 });
 
 const developmentActivityProof = __DEV__
@@ -95,6 +108,12 @@ const appLinks = createExpoAppLinkSource();
 const capabilityProfileRuntime = createCapabilityProfileRuntime({
   diagnostics: androidCapabilityRuntime.contracts.diagnostics,
   store: persistenceRuntime.productState.capabilityProfile,
+});
+
+const mediaJobs = createMediaJobsRuntime({
+  activity: persistenceRuntime.productState.activity,
+  native: androidCapabilityRuntime.contracts.mediaJobs,
+  product: persistenceRuntime.productState.mediaJobs,
 });
 
 const installationPolicyRuntime = createInstallationPolicyRuntime({
@@ -210,6 +229,22 @@ function relayBaseUrl(): string {
     configured && configured.length > 0 ? configured : "http://10.0.2.2:8787/";
   return raw.endsWith("/") ? raw : `${raw}/`;
 }
+
+const followingNetwork = alwaysOnlineNetwork();
+const followingSession = createFollowingRuntime({
+  cache: persistenceRuntime.disposableCache,
+  guestFollows: persistenceRuntime.productState.guestFollows,
+  installation: async () => {
+    const identity = installationIdentityFromStore(
+      await installationPolicyRuntime.identityStore.read(),
+    );
+    return identity.kind === "ready" ? identity : { kind: "none" };
+  },
+  liveNotifications: persistenceRuntime.productState.liveNotifications,
+  network: () => followingNetwork.read(),
+  relayBaseUrl: relayBaseUrl(),
+});
+
 export function MobileRuntime() {
   const [activityProof, setActivityProof] = useState(
     () => developmentActivityProof?.snapshot() ?? null,
@@ -370,6 +405,10 @@ export function MobileRuntime() {
           : undefined
       }
       homeDiscovery={homeDiscovery}
+      mediaJobs={mediaJobs}
+      searchHistory={searchHistory}
+      discoveryPreferences={discoveryPreferences}
+      followingSession={followingSession}
     />
     </QueryClientProvider>
   );

@@ -46,6 +46,10 @@
       "types": "./src/relay/index.ts",
       "default": "./src/relay/index.ts"
     },
+    "./media-jobs": {
+      "types": "./src/media-jobs/index.ts",
+      "default": "./src/media-jobs/index.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./src/testing/index.ts"

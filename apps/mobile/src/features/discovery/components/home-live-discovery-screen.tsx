@@ -23,10 +23,12 @@ import { HomeStreamCard } from "./home-stream-card";
 import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
 export function HomeLiveDiscoveryScreen({
+  onOpenAccounts,
   onOpenCategories,
   onOpenChannel,
   session,
 }: {
+  readonly onOpenAccounts: () => void;
   readonly onOpenCategories: () => void;
   readonly onOpenChannel: (channel: ChannelIdentity) => void;
   readonly session: DiscoverySession;
@@ -46,6 +48,7 @@ export function HomeLiveDiscoveryScreen({
         });
   return (
     <HomeLiveDiscoveryView
+      onOpenAccounts={onOpenAccounts}
       onOpenCategories={onOpenCategories}
       onOpenChannel={onOpenChannel}
       onRetry={live.retry}
@@ -56,6 +59,7 @@ export function HomeLiveDiscoveryScreen({
 }
 
 export function HomeLiveDiscoveryView({
+  onOpenAccounts,
   onOpenCategories,
   onOpenChannel,
   onRetry,
@@ -63,6 +67,7 @@ export function HomeLiveDiscoveryView({
   proofMode,
   view,
 }: {
+  readonly onOpenAccounts: () => void;
   readonly onOpenCategories: () => void;
   readonly onOpenChannel: (channel: ChannelIdentity) => void;
   readonly onRetry: (platform: Platform) => void;
@@ -104,14 +109,35 @@ export function HomeLiveDiscoveryView({
       <Text selectable style={styles.summary} testID="home-phase">
         {phaseCopy(view)}
       </Text>
+      <Pressable
+        accessibilityHint="Opens Categories inside More"
+        accessibilityLabel="Open Categories"
+        accessibilityRole="button"
+        android_ripple={{ color: mobileColors.surfaceRaised }}
+        onPress={onOpenCategories}
+        style={({ pressed }) => [styles.login, pressed ? styles.pressed : null]}
+        testID="open-categories"
+      >
+        <Text selectable style={styles.loginLabel}>
+          Categories
+        </Text>
+      </Pressable>
       {proofMode && onSelectProofMode ? (
         <HomeDiscoveryProofControls
           mode={proofMode}
           onSelect={onSelectProofMode}
         />
       ) : null}
-      <HomeProviderBanner onRetry={onRetry} outcome={view.providers.twitch} />
-      <HomeProviderBanner onRetry={onRetry} outcome={view.providers.kick} />
+      <HomeProviderBanner
+        onOpenAccounts={onOpenAccounts}
+        onRetry={onRetry}
+        outcome={view.providers.twitch}
+      />
+      <HomeProviderBanner
+        onOpenAccounts={onOpenAccounts}
+        onRetry={onRetry}
+        outcome={view.providers.kick}
+      />
       {view.streams.map((stream) => (
         <HomeStreamCard
           key={`${stream.platform}:${stream.id}`}
@@ -184,6 +210,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     lineHeight: 24,
+  },
+  login: {
+    alignItems: "center",
+    backgroundColor: mobileColors.textPrimary,
+    borderRadius: mobileRadii.medium,
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+  },
+  loginLabel: {
+    color: mobileColors.background,
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
   },
   pressed: {
     opacity: 0.76,

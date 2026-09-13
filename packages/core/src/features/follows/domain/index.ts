@@ -34,5 +34,12 @@ export type {
   FollowMutation,
   FollowSourceFor,
 } from "./follow-policy.ts";
+export {
+  findGuestFollow,
+  guestFollowKey,
+  guestFollowSchema,
+  parseGuestFollowWrite,
+} from "./guest-follow.ts";
+export type { GuestFollow, GuestFollowIdentity } from "./guest-follow.ts";
 
 export type FollowSource = FollowSourceFor<Platform>;
