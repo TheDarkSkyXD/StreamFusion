@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   followedStreamsPath,
   selectPlatformReadPath,
+  selectSearchReadPath,
 } from "../domain/platform-read-path";
 
 describe("selectPlatformReadPath", () => {
@@ -48,6 +49,25 @@ describe("selectPlatformReadPath", () => {
         userToken: { kind: "none" },
       }),
     ).toEqual({ kind: "relay", platform: "twitch" });
+  });
+
+  it("keeps guest Search available when signed out with no installation", () => {
+    expect(
+      selectSearchReadPath({
+        installation: { kind: "none" },
+        network: "online",
+        platform: "twitch",
+        userToken: { kind: "none" },
+      }),
+    ).toEqual({ kind: "guest", platform: "twitch" });
+    expect(
+      selectSearchReadPath({
+        installation: { kind: "none" },
+        network: "online",
+        platform: "kick",
+        userToken: { kind: "auth-lost" },
+      }),
+    ).toEqual({ kind: "guest", platform: "kick" });
   });
 
   it("does not send followed streams to Relay when signed out", () => {

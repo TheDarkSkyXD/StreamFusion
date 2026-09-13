@@ -7,6 +7,7 @@ export type ShellRouteId =
   | ShellDestinationId
   | "search/result-preview"
   | "following/channel-preview"
+  | "following/manage"
   | "watch/session-preview"
   | "activity/alert-preview"
   | "activity/job-preview"
@@ -18,7 +19,8 @@ export type ShellRouteId =
   | "more/moderation"
   | "more/settings"
   | "more/diagnostics"
-  | "more/accounts";
+  | "more/accounts"
+  | "more/category-detail";
 
 type StaticShellRouteId = Exclude<
   ShellRouteId,
@@ -26,6 +28,7 @@ type StaticShellRouteId = Exclude<
   | "activity/alert-preview"
   | "activity/job-preview"
   | "more/channel"
+  | "more/category-detail"
 >;
 
 export type ShellLocation =
@@ -49,6 +52,16 @@ export type ShellLocation =
         readonly platform: Platform;
         readonly id: string;
         readonly username: string;
+      };
+    }
+  | {
+      readonly route: "more/category-detail";
+      readonly category: {
+        readonly id: string;
+        readonly name: string;
+        readonly platform: Platform;
+        readonly boxArtUrl: string;
+        readonly otherId?: string;
       };
     };
 
@@ -133,7 +146,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "following",
     "YOUR CHANNELS",
     "following-root",
-    "Live channels and Guest Follows will stay close without mixing in recommendations.",
+    "Live Guest Follows, videos, clips, categories, and channels stay here without mixing in recommendations.",
     "Following",
     "following",
   ),
@@ -143,6 +156,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "following-channel-preview",
     "A channel can open here without losing your place in any other destination.",
     "Channel preview",
+    "following",
+  ),
+  "following/manage": route(
+    "following/manage",
+    "FOLLOWING",
+    "following-manage",
+    "Add or remove Guest Follows, open provider pages, and choose live-alert preferences on this device.",
+    "Manage Guest Follows",
     "following",
   ),
   watch: route(
@@ -263,6 +284,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more-accounts",
     "Connect Platforms and manage account state without making identity a sixth destination.",
     "Accounts and maintenance",
+    "more",
+  ),
+  "more/category-detail": route(
+    "more/category-detail",
+    "CATEGORIES",
+    "more-category-detail",
+    "Inspect live streams, clips, and Twitch videos for one category.",
+    "Category",
     "more",
   ),
 };
@@ -440,7 +469,8 @@ function isStaticRoute(value: unknown): value is StaticShellRouteId {
     value !== "watch/session-preview" &&
     value !== "activity/alert-preview" &&
     value !== "activity/job-preview" &&
-    value !== "more/channel"
+    value !== "more/channel" &&
+    value !== "more/category-detail"
   );
 }
 
@@ -471,6 +501,9 @@ function isShellLocation(value: unknown): value is ShellLocation {
       channelLoginPattern.test(value.channel.username)
     );
   }
+  if (value.route === "more/category-detail") {
+    return isCategoryDetailLocation(value);
+  }
   if (value.route !== "watch/session-preview" || !isRecord(value.target))
     return false;
   if (value.target.kind === "preview")
@@ -492,6 +525,29 @@ function isShellLocation(value: unknown): value is ShellLocation {
     identifierPattern.test(value.target.channelId) &&
     typeof value.target.channelLogin === "string" &&
     channelLoginPattern.test(value.target.channelLogin)
+  );
+}
+
+function isCategoryDetailLocation(
+  value: Readonly<Record<string, unknown>>,
+): boolean {
+  if (!hasOnlyKeys(value, ["route", "category"]) || !isRecord(value.category)) {
+    return false;
+  }
+  const category = value.category;
+  return (
+    hasOnlyKeys(category, ["id", "name", "platform", "boxArtUrl", "otherId"]) &&
+    typeof category.id === "string" &&
+    identifierPattern.test(category.id) &&
+    typeof category.name === "string" &&
+    category.name.length >= 1 &&
+    category.name.length <= 128 &&
+    isPlatform(category.platform) &&
+    typeof category.boxArtUrl === "string" &&
+    category.boxArtUrl.length <= 2048 &&
+    (category.otherId === undefined ||
+      (typeof category.otherId === "string" &&
+        identifierPattern.test(category.otherId)))
   );
 }
 

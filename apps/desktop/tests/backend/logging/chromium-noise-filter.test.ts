@@ -277,9 +277,9 @@ describe("chromium-log-tailer — noise demotion", () => {
     const noiseLine =
       "[26712:0607/155145.309:ERROR:direct_composition_support.cc(1122)] QueryInterface to IDCompositionDevice4 failed: No such interface supported (0x80004002)";
     await fsp.appendFile(filePath, `${noiseLine}\n`, "utf8");
-    await pause();
-
-    expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    await vi.waitFor(() => {
+      expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    });
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -293,9 +293,9 @@ describe("chromium-log-tailer — noise demotion", () => {
     const noiseLine =
       "[54552:0608/192841.367:ERROR:shared_image_manager.cc(401)] SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox.";
     await fsp.appendFile(filePath, `${noiseLine}\n`, "utf8");
-    await pause();
-
-    expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    await vi.waitFor(() => {
+      expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    });
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -309,9 +309,9 @@ describe("chromium-log-tailer — noise demotion", () => {
     const noiseLine =
       "[33224:0608/215341.464:ERROR:backend_impl.cc(1908)] Invalid cache (current) size";
     await fsp.appendFile(filePath, `${noiseLine}\n`, "utf8");
-    await pause();
-
-    expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    await vi.waitFor(() => {
+      expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    });
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -325,9 +325,9 @@ describe("chromium-log-tailer — noise demotion", () => {
     const noiseLine =
       "[33224:0608/215727.961:ERROR:ssl_client_socket_impl.cc(877)] handshake failed; returned -1, SSL error code 1, net_error -101";
     await fsp.appendFile(filePath, `${noiseLine}\n`, "utf8");
-    await pause();
-
-    expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    await vi.waitFor(() => {
+      expect(logger.debug).toHaveBeenCalledWith("Chromium", noiseLine);
+    });
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -357,9 +357,9 @@ describe("chromium-log-tailer — noise demotion", () => {
     const turnWarning =
       "[22460:0608/154909.231:WARNING:turn_port.cc(1455)] Port[64ee600:0:1:0:relay:Net[{F088CF09-876F-463C-9F47-DEC20DF8174D}:192.168.10.x/24:Ethernet:id=5]]: Received TURN allocate error response, id=705a494b4a4259324a344770, code=400, rtt=50";
     await fsp.appendFile(filePath, `${turnWarning}\n`, "utf8");
-    await pause();
-
-    expect(logger.debug).toHaveBeenCalledWith("Chromium", turnWarning);
+    await vi.waitFor(() => {
+      expect(logger.debug).toHaveBeenCalledWith("Chromium", turnWarning);
+    });
     expect(logger.warn).not.toHaveBeenCalledWith("Chromium", turnWarning);
   });
 });

@@ -123,7 +123,7 @@ Each prototype `data-screen` control is the assigned `navigate:<route-id>` actio
 
 Source anchors: `searchScreen`, `searchResults`, and `searchHistory`.
 
-`search` renders, in order, a title, the local thumb-reachable Search dock or a focused field, result-type tabs, Platform and Live-only filters, a local-history heading and clear control, history rows, a result heading, and the selected result composition. All-results uses a best-match channel row, live stream cards, and category cards. Channels uses channel rows. Streams uses stream cards. Videos and Clips use recorded rows. Categories uses category cards.
+`search` renders, in order, a title, the local thumb-reachable Search dock or a focused field, result-type tabs, Platform and Live-only filters, a local-history heading and clear control, history rows, a result heading, and the selected result composition. All-results uses a best-match channel row, live stream cards, capped Videos and Clips rows, and category cards. Channels uses channel rows. Streams uses stream cards. Videos and Clips use recorded rows. Categories uses category cards.
 
 `submit-search`, `clear-search-field`, and `open-search-dock` are assigned controls. They preserve the current query context and use the normal stale-request cancellation path. `repeat-search`, `remove-search`, `clear-search-history`, `search-tab`, `search-platform`, and `toggle-live-only` use the declared action contract. Search history rows contain a type marker, local-device source, repeat action, and remove action. The clear operation affects only search history.
 

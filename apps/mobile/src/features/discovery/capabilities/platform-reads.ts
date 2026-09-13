@@ -5,7 +5,11 @@ import type {
   Stream,
   Video,
 } from "@streamfusion/core/content";
-import type { DiscoveryProviderStatus } from "@streamfusion/core/discovery";
+import type {
+  ClipTimeRange,
+  DiscoveryProviderStatus,
+  SearchIntent,
+} from "@streamfusion/core/discovery";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
 export type UserTokenRead =
@@ -22,6 +26,7 @@ export type NetworkRead = "online" | "offline";
 export type PlatformReadPath =
   | { readonly kind: "direct"; readonly platform: Platform }
   | { readonly kind: "relay"; readonly platform: Platform }
+  | { readonly kind: "guest"; readonly platform: Platform }
   | {
       readonly kind: "unavailable";
       readonly platform: Platform;
@@ -29,6 +34,7 @@ export type PlatformReadPath =
         | "relay-unavailable"
         | "auth-lost"
         | "signed-out-login-required"
+        | "guest-unavailable"
         | "offline"
         | "cancelled";
     };
@@ -69,6 +75,49 @@ export type HomeLiveDiscoveryView = {
 
 export type DiscoveryPageKind = "top-streams" | "categories" | "search";
 
+export type SearchHistoryScope = "channels" | "streams" | "categories";
+
+export type SearchHistoryByScope = Readonly<
+  Record<SearchHistoryScope, readonly string[]>
+>;
+
+export type SearchCatalogPage = {
+  readonly streams: readonly Stream[];
+  readonly channels: readonly Channel[];
+  readonly categories: readonly Category[];
+  readonly videos: readonly Video[];
+  readonly clips: readonly Clip[];
+};
+
+export type SearchReadOutcome = {
+  readonly platform: Platform;
+  readonly path: PlatformReadPath;
+  readonly status: DiscoveryProviderStatus;
+  readonly catalog: SearchCatalogPage;
+  readonly cache: CacheProjection;
+  readonly error?: { readonly code: string; readonly retry: PlatformReadRetry };
+};
+
+export type UnifiedSearchPhase =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "empty"
+  | "partial"
+  | "offline-cache"
+  | "failed";
+
+export type UnifiedSearchView = {
+  readonly phase: UnifiedSearchPhase;
+  readonly intent: SearchIntent | null;
+  readonly collection: SearchCatalogPage;
+  readonly bestMatch: Channel | null;
+  readonly providers: Readonly<Record<Platform, SearchReadOutcome>>;
+  readonly retryablePlatforms: readonly Platform[];
+  readonly history: SearchHistoryByScope;
+  readonly historyConfirmClear: boolean;
+};
+
 export interface PlatformCatalogReader {
   readonly platform: Platform;
   getTopStreams(input?: {
@@ -80,10 +129,9 @@ export interface PlatformCatalogReader {
   }): Promise<PlatformReadOutcome<Category>>;
   search(input: {
     readonly query: string;
+    readonly guest?: boolean;
     readonly signal?: AbortSignal;
-  }): Promise<
-    PlatformReadOutcome<Stream | Channel | Category>
-  >;
+  }): Promise<SearchReadOutcome>;
   getFollowedStreams(input?: {
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Stream>>;
@@ -99,14 +147,6 @@ export interface InstallationIdentitySource {
 
 export interface NetworkSource {
   read(): Promise<NetworkRead>;
-}
-
-export interface HomeDiscoverySession {
-  readTopStreams(input: {
-    readonly language?: string;
-    readonly platform: Platform;
-    readonly signal?: AbortSignal;
-  }): Promise<PlatformReadOutcome<Stream>>;
 }
 
 export type ChannelPageOutcome = {
@@ -157,7 +197,77 @@ export type ChannelDetailView = {
   readonly page: ChannelPageOutcome;
 };
 
-export interface DiscoverySession extends HomeDiscoverySession {
+export interface SearchHistoryRepository {
+  read(): Promise<SearchHistoryByScope>;
+  write(value: SearchHistoryByScope, updatedAt: number): Promise<void>;
+}
+
+export interface SearchSession {
+  search(input: {
+    readonly platform: Platform;
+    readonly query: string;
+    readonly signal?: AbortSignal;
+  }): Promise<SearchReadOutcome>;
+}
+
+export interface DiscoverySession {
+  readTopStreams(input: {
+    readonly language?: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Stream>>;
+  readCategories(input: {
+    readonly cursor?: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Category>>;
+  searchCategories(input: {
+    readonly platform: Platform;
+    readonly query: string;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Category>>;
+  readCategory(input: {
+    readonly categoryId: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Category>>;
+  readCategoryStreams(input: {
+    readonly categoryId: string;
+    readonly language?: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+  }): Promise<PlatformReadOutcome<Stream>>;
+  readCategoryClips(input: {
+    readonly categoryId: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+    readonly timeRange: ClipTimeRange;
+  }): Promise<
+    | PlatformReadOutcome<Clip>
+    | {
+        readonly kind: "unsupported";
+        readonly reason: "kick-clips-unsupported";
+        readonly platform: Platform;
+      }
+  >;
+  readCategoryVideos(input: {
+    readonly categoryId: string;
+    readonly platform: Platform;
+    readonly signal?: AbortSignal;
+    readonly sort: "views" | "recent";
+  }): Promise<
+    | PlatformReadOutcome<Video>
+    | {
+        readonly kind: "unsupported";
+        readonly reason: "kick-videos-unsupported";
+        readonly platform: Platform;
+      }
+  >;
+  search(input: {
+    readonly platform: Platform;
+    readonly query: string;
+    readonly signal?: AbortSignal;
+  }): Promise<SearchReadOutcome>;
   readChannel(input: {
     readonly channel: ChannelIdentity;
     readonly signal?: AbortSignal;
@@ -171,6 +281,9 @@ export interface DiscoverySession extends HomeDiscoverySession {
     readonly signal?: AbortSignal;
   }): Promise<ChannelMediaRead<Clip>>;
 }
+
+export type HomeDiscoverySession = DiscoverySession;
+export type DiscoveryRuntime = DiscoverySession;
 
 export type DiscoveryFixtureMode =
   | "live"

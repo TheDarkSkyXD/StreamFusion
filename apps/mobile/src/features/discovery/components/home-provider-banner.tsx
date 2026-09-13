@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import {
@@ -11,11 +10,13 @@ import {
 import type { PlatformReadOutcome } from "../capabilities/platform-reads";
 
 export function HomeProviderBanner({
+  onOpenAccounts,
   onRetry,
   outcome,
 }: {
+  readonly onOpenAccounts: () => void;
   readonly onRetry: (platform: Platform) => void;
-  readonly outcome: PlatformReadOutcome<Stream>;
+  readonly outcome: PlatformReadOutcome<unknown>;
 }) {
   const message = bannerMessage(outcome);
   if (message === null) return null;
@@ -50,12 +51,29 @@ export function HomeProviderBanner({
             {`Retry ${outcome.platform}`}
           </Text>
         </Pressable>
+      ) : outcome.error?.code === "auth-lost" ||
+        (outcome.path.kind === "unavailable" &&
+          outcome.path.reason === "signed-out-login-required") ? (
+        <Pressable
+          accessibilityLabel={`Sign in to ${outcome.platform}`}
+          accessibilityRole="button"
+          onPress={onOpenAccounts}
+          style={({ pressed }) => [
+            styles.retry,
+            pressed ? styles.pressed : null,
+          ]}
+          testID={`home-login-${outcome.platform}`}
+        >
+          <Text selectable style={styles.retryLabel}>
+            Sign in
+          </Text>
+        </Pressable>
       ) : null}
     </View>
   );
 }
 
-function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
+function bannerMessage(outcome: PlatformReadOutcome<unknown>): string | null {
   if (outcome.error?.code === "auth-lost") {
     return `${platformLabel(outcome.platform)} catalog can still use Relay.`;
   }
@@ -78,7 +96,7 @@ function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
     return `${platformLabel(outcome.platform)} Relay is unavailable.`;
   }
   if (outcome.status === "failed") {
-    return `${platformLabel(outcome.platform)} live reads failed.`;
+    return `${platformLabel(outcome.platform)} catalog read failed.`;
   }
   if (
     outcome.status === "stale" ||
@@ -89,7 +107,7 @@ function bannerMessage(outcome: PlatformReadOutcome<Stream>): string | null {
   return null;
 }
 
-function cacheAge(outcome: PlatformReadOutcome<Stream>): string | null {
+function cacheAge(outcome: PlatformReadOutcome<unknown>): string | null {
   if (outcome.cache.kind !== "hit") return null;
   const minutes = Math.max(
     1,
@@ -98,7 +116,7 @@ function cacheAge(outcome: PlatformReadOutcome<Stream>): string | null {
   return `Cached ${minutes} min ago`;
 }
 
-function viewRetryable(outcome: PlatformReadOutcome<Stream>): boolean {
+function viewRetryable(outcome: PlatformReadOutcome<unknown>): boolean {
   return (
     (outcome.error?.retry === "manual" ||
       outcome.error?.retry === "after" ||

@@ -31,7 +31,11 @@ vi.mock("lucide-react-native", () => ({
 
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
-  return { ...actual, useEffect: vi.fn() };
+  return {
+    ...actual,
+    useEffect: vi.fn(),
+    useRef: () => ({ current: null }),
+  };
 });
 
 type ElementProps = Readonly<{

@@ -141,7 +141,7 @@ test("the root workspace owns npm policy and application startup", () => {
   );
   assert.equal(
     rootPackage.scripts["test:evidence"],
-    "node --test scripts/verify-evidence.test.mjs scripts/verify-core-extraction-complete.test.mjs scripts/relocate-feature-files.test.mjs",
+    "node --test scripts/verify-evidence.test.mjs scripts/verify-android-gates.test.mjs scripts/android-gates-workflow.test.mjs scripts/verify-core-extraction-complete.test.mjs scripts/relocate-feature-files.test.mjs verification/verify-receipt-artifacts.test.mjs",
   );
   assert.match(rootPackage.scripts.test, /npm run test:evidence/);
   assert.match(rootPackage.scripts["test:all"], /npm run test:evidence/);

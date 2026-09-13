@@ -20,10 +20,14 @@ import {
   readSchemaVersion,
   type StoreMigration,
 } from "../data/migrations";
+import { createProductMediaJobStore } from "@mobile/features/media-jobs/data/product-media-jobs-store";
+import { GuestFollowStore } from "../data/guest-follow-store";
+import { LiveNotificationStore } from "../data/live-notification-store";
 import { ProductStore } from "../data/product-store";
 
 const keyPattern = /^[a-f0-9]{64}$/u;
-const activityProofNamespacePattern = /^activity-proof-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
+const activityProofNamespacePattern =
+  /^activity-proof-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
 type PersistenceStartupCause = PersistenceStartupDiagnostic["cause"];
 
@@ -57,6 +61,8 @@ interface OpenStoreSet {
   readonly cacheDatabase: StoreDatabase;
   readonly cacheSchemaVersion: number;
   readonly cipherVersion: string;
+  readonly guestFollows: GuestFollowStore;
+  readonly liveNotifications: LiveNotificationStore;
   readonly product: ProductStore;
   readonly productDatabase: StoreDatabase;
   readonly productSchemaVersion: number;
@@ -281,12 +287,17 @@ export function createMobileStoreRuntime(
   let productClosed = false;
 
   async function requireProductStore(): Promise<ProductStore> {
-    if (closeStarted) throw new Error("The encrypted Product Store is closing.");
+    return (await requireOpenStores()).product;
+  }
+
+  async function requireOpenStores(): Promise<OpenStoreSet> {
+    if (closeStarted)
+      throw new Error("The encrypted Product Store is closing.");
     const state = await (initializePromise ??= initialize());
     if (state.kind !== "ready" || !stores) {
       throw new Error("The encrypted Product Store is unavailable.");
     }
-    return stores.product;
+    return stores;
   }
 
   async function requireCacheStore(): Promise<CacheStore> {
@@ -423,6 +434,8 @@ export function createMobileStoreRuntime(
         cacheDatabase,
         cacheSchemaVersion,
         cipherVersion: productResult.database.cipherVersion,
+        guestFollows: new GuestFollowStore(productResult.database),
+        liveNotifications: new LiveNotificationStore(productResult.database),
         product: new ProductStore(productResult.database),
         productDatabase: productResult.database,
         productSchemaVersion: productResult.schemaVersion,
@@ -468,6 +481,25 @@ export function createMobileStoreRuntime(
       },
     },
     productState: {
+      guestFollows: {
+        async list() {
+          return (await requireOpenStores()).guestFollows.list();
+        },
+        async remove(identity) {
+          await (await requireOpenStores()).guestFollows.remove(identity);
+        },
+        async upsert(value) {
+          return (await requireOpenStores()).guestFollows.upsert(value);
+        },
+      },
+      liveNotifications: {
+        async read() {
+          return (await requireOpenStores()).liveNotifications.read();
+        },
+        async write(value) {
+          return (await requireOpenStores()).liveNotifications.write(value);
+        },
+      },
       capabilityProfile: {
         async read() {
           return (
@@ -551,6 +583,42 @@ export function createMobileStoreRuntime(
           return (await requireProductStore()).recordActivity(item, now());
         },
       },
+      mediaJobs: {
+        async get(jobId) {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).get(jobId);
+        },
+        async list() {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).list();
+        },
+        async put(snapshot) {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).put(
+            snapshot,
+          );
+        },
+      },
+      searchHistory: {
+        async read() {
+          return (
+            (
+              await (
+                await requireProductStore()
+              ).getSetting("search-history.v1")
+            )?.value ?? null
+          );
+        },
+        async write(value, updatedAt) {
+          await (
+            await requireProductStore()
+          ).setSetting({
+            key: "search-history.v1",
+            updatedAt,
+            value,
+          });
+        },
+      },
       shellRestoration: {
         async clear() {
           await (
@@ -574,6 +642,16 @@ export function createMobileStoreRuntime(
             updatedAt,
             value,
           });
+        },
+      },
+      settings: {
+        async read(key: string) {
+          return (await (await requireProductStore()).getSetting(key))?.value ?? null;
+        },
+        async write(key: string, value: string, updatedAt: number) {
+          await (
+            await requireProductStore()
+          ).setSetting({ key, updatedAt, value });
         },
       },
     },
@@ -614,7 +692,9 @@ export function createMobileStoreRuntime(
     },
     initialize() {
       if (closeStarted && !stores)
-        return Promise.reject(new Error("The encrypted Product Store is closed."));
+        return Promise.reject(
+          new Error("The encrypted Product Store is closed."),
+        );
       initializePromise ??= initialize();
       return initializePromise;
     },

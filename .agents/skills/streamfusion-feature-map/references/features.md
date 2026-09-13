@@ -72,12 +72,15 @@ Native Twitch links cover tools and history unavailable through its public API.
 
 Roots: `apps/mobile/src/features/`.
 
-- `shell`: navigation, deep-link parsing, restoration, and app UI.
+- `shell`: navigation, deep-link parsing, restoration, and app UI. Category Detail is `more/category-detail` with a category identity payload; names may contain spaces.
+- `discovery`: guest Home live reads, Categories catalog, Category Detail (Live / Clips / Videos), search dock, and preference-backed language / clip window.
 - `activity`: activity presentation and operations.
 - `diagnostics`: app/device health and persistence diagnostics.
 - `capability-profile`: measured Android resource facts, pending workload admission, and visible runtime degradation policy.
 - `native-contracts`: typed Android capability ports, Expo adapters, safe proof control, and Kotlin Expo modules.
 - `storage`: encrypted Product/Cache stores, migrations, recovery, and native adapters.
+- `media-jobs`: durable Media Job engine, fixture start surface, Activity job details, and recoverable native work.
+- `follows`: Guest Follows, Following destination, followed-content hydration, and live-notification prefs.
 
 Expo's `apps/mobile/app/` entries delegate to
 `apps/mobile/src/composition/mobile-runtime.tsx`. Shared design tokens stay under
@@ -93,16 +96,39 @@ is the required Wrangler entry. This worker does not proxy product reads or chat
 ## Shared Core
 
 `packages/core/src/features/` owns shared `activity`, `auth`, `chat`, `content`,
-`discovery`, `follows`, and `reliability` contracts and workflows. Runtimes consume
+`discovery`, `follows`, `media-jobs`, and `reliability` contracts and workflows. Runtimes consume
 declared `@streamfusion/core/<subpath>` exports. They do not deep-import feature
 internals. Platform vocabulary, contract foundations, relay envelopes, and testing
 support remain package-wide infrastructure.
 
 ## Integration Relay
 
-The current `apps/integration-relay/` is deployment/protocol infrastructure.
-`src/composition/worker.ts` validates its environment and returns unavailable or
-not-found envelopes. Product endpoints are planned, not implemented feature roots.
+`apps/integration-relay/` is a Cloudflare Worker that issues guest installation
+credentials and serves signed-out discovery and followed-content reads. Product
+routes live under `src/features/signed-out-discovery/` and
+`src/features/followed-content/`:
+
+- `GET /v1/discovery/categories`
+- `GET /v1/discovery/top-streams`
+- `GET /v1/discovery/search?query=` (also accepts `q`)
+- `GET /v1/discovery/channel`
+- `GET /v1/discovery/channel-videos`
+- `GET /v1/discovery/channel-clips`
+- `GET /v1/discovery/category`
+- `GET /v1/discovery/category-streams`
+- `GET /v1/discovery/category-clips`
+- `GET /v1/discovery/category-videos`
+- `GET /v1/followed-content/streams`
+- `GET /v1/followed-content/channels`
+- `GET /v1/followed-content/videos`
+- `GET /v1/followed-content/clips`
+
+Official Twitch and Kick adapters fill top streams, categories, Search pages,
+channel detail, and followed-content identity reads. Kick clips and videos return
+typed unsupported bodies. Live catalog success still depends on official provider
+secrets in the Worker environment. `src/composition/worker.ts` allowlists those
+routes, validates the installation, and returns unavailable or not-found envelopes
+for everything else.
 
 ## Verification
 

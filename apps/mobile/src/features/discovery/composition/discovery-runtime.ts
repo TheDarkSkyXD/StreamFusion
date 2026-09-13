@@ -1,5 +1,4 @@
-import type { Stream } from "@streamfusion/core/content";
-import type { Platform } from "@streamfusion/core/platform";
+import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
 
 import { createKickOfficialReader } from "../adapters/kick/kick-official-reader";
 import { createRelaySignedOutReader } from "../adapters/relay/relay-signed-out-reader";
@@ -8,18 +7,22 @@ import type {
   DiscoverySession,
   InstallationIdentityRead,
   InstallationIdentitySource,
-  NetworkRead,
   NetworkSource,
-  PlatformReadOutcome,
   UserTokenRead,
   UserTokenSource,
 } from "../capabilities/platform-reads";
 import { createDiscoveryCacheStore } from "../data/cache-discovery-store";
 import { createChannelDiscoverySession } from "./channel-discovery-runtime";
-import { executePlatformRead, staleFromCache } from "./execute-platform-read";
+import { readSearchCatalog } from "./search-runtime";
+import {
+  availableMedia,
+  cachedRead,
+  liveRead,
+  signalOf,
+} from "./discovery-session-read";
 
 export function createDiscoveryRuntime(input: {
-  readonly cache: Parameters<typeof createDiscoveryCacheStore>[0];
+  readonly cache: DisposableCache;
   readonly fetch?: typeof globalThis.fetch;
   readonly installation: InstallationIdentitySource;
   readonly kickAccessToken: () => Promise<string | null>;
@@ -47,48 +50,153 @@ export function createDiscoveryRuntime(input: {
     fetch: request,
     installation: () => input.installation.read(),
   });
+  const sources = { input, kick, relay, twitch };
   const readers = { kick, relay, twitch };
+
   return {
-    async readTopStreams(read) {
-      const installation = await input.installation.read();
-      const network = await input.network.read();
-      return executePlatformRead({
-        cacheFallback: (outcome, path) =>
-          withTopStreamsCache({
-            cache,
-            outcome,
-            path,
-            platform: read.platform,
-            ...(read.language === undefined ? {} : { language: read.language }),
-          }),
-        cacheWrite: (outcome) =>
+    readTopStreams(read) {
+      return cachedRead({
+        cacheFallback: (platform, language) =>
+          cache.readTopStreams(platform, language),
+        readDirect: (platform, extra) =>
+          platform === "twitch"
+            ? twitch.getTopStreams(extra)
+            : kick.getTopStreams(extra),
+        readRelay: (platform, extra) =>
+          relay.getTopStreams({ platform, ...signalOf(extra) }),
+        sources,
+        writeCache: (outcome, platform, language) =>
           cache.writeTopStreams({
             items: outcome.items,
-            platform: read.platform,
-            ...(read.language === undefined ? {} : { language: read.language }),
+            platform,
+            ...(language === undefined ? {} : { language }),
             ...(outcome.cursor === undefined ? {} : { cursor: outcome.cursor }),
           }),
-        installation,
-        network,
-        platform: read.platform,
-        readDirect: () =>
-          read.platform === "twitch"
-            ? twitch.getTopStreams({
+        ...read,
+      });
+    },
+    readCategories(read) {
+      return cachedRead({
+        cacheFallback: (platform) => cache.readCategories(platform),
+        readDirect: (platform, extra) =>
+          platform === "twitch"
+            ? twitch.getCategories(extra)
+            : kick.getCategories(extra),
+        readRelay: (platform, extra) =>
+          relay.getCategories({ platform, ...signalOf(extra) }),
+        sources,
+        writeCache: (outcome, platform) =>
+          cache.writeCategories({
+            items: outcome.items,
+            platform,
+            ...(outcome.cursor === undefined ? {} : { cursor: outcome.cursor }),
+          }),
+        ...read,
+      });
+    },
+    searchCategories(read) {
+      return liveRead({
+        readDirect: (platform, extra) =>
+          platform === "twitch"
+            ? twitch.searchCategories({ query: read.query, ...extra })
+            : kick.searchCategories({ query: read.query, ...extra }),
+        readRelay: (platform, extra) =>
+          relay.searchCategories({
+            platform,
+            query: read.query,
+            ...signalOf(extra),
+          }),
+        sources,
+        ...read,
+      });
+    },
+    readCategory(read) {
+      return liveRead({
+        readDirect: (platform, extra) =>
+          platform === "twitch"
+            ? twitch.getCategory({ categoryId: read.categoryId, ...extra })
+            : kick.getCategory({ categoryId: read.categoryId, ...extra }),
+        readRelay: (platform, extra) =>
+          relay.getCategory({
+            categoryId: read.categoryId,
+            platform,
+            ...signalOf(extra),
+          }),
+        sources,
+        ...read,
+      });
+    },
+    readCategoryStreams(read) {
+      return liveRead({
+        readDirect: (platform, extra) =>
+          platform === "twitch"
+            ? twitch.getCategoryStreams({
+                categoryId: read.categoryId,
+                ...extra,
                 ...(read.language === undefined
                   ? {}
                   : { language: read.language }),
-                ...(read.signal === undefined ? {} : { signal: read.signal }),
               })
-            : kick.getTopStreams(
-                read.signal === undefined ? {} : { signal: read.signal },
-              ),
-        readRelay: () =>
-          relay.getTopStreams({
-            platform: read.platform,
-            ...(read.signal === undefined ? {} : { signal: read.signal }),
+            : kick.getCategoryStreams({
+                categoryId: read.categoryId,
+                ...extra,
+                ...(read.language === undefined
+                  ? {}
+                  : { language: read.language }),
+              }),
+        readRelay: (platform, extra) =>
+          relay.getCategoryStreams({
+            categoryId: read.categoryId,
+            platform,
+            ...signalOf(extra),
+            ...(read.language === undefined ? {} : { language: read.language }),
           }),
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-        userToken: { kind: "none" },
+        sources,
+        ...read,
+      });
+    },
+    async readCategoryClips(read) {
+      if (read.platform === "kick") return kick.unsupportedClips();
+      return liveRead({
+        readDirect: (_platform, extra) =>
+          twitch.getCategoryClips({
+            categoryId: read.categoryId,
+            timeRange: read.timeRange,
+            ...extra,
+          }),
+        readRelay: async (platform, extra) =>
+          availableMedia(
+            await relay.getCategoryClips({
+              categoryId: read.categoryId,
+              platform,
+              timeRange: read.timeRange,
+              ...signalOf(extra),
+            }),
+          ),
+        sources,
+        ...read,
+      });
+    },
+    async readCategoryVideos(read) {
+      if (read.platform === "kick") return kick.unsupportedVideos();
+      return liveRead({
+        readDirect: (_platform, extra) =>
+          twitch.getCategoryVideos({
+            categoryId: read.categoryId,
+            sort: read.sort,
+            ...extra,
+          }),
+        readRelay: async (platform, extra) =>
+          availableMedia(
+            await relay.getCategoryVideos({
+              categoryId: read.categoryId,
+              platform,
+              sort: read.sort,
+              ...signalOf(extra),
+            }),
+          ),
+        sources,
+        ...read,
       });
     },
     ...createChannelDiscoverySession({
@@ -97,6 +205,23 @@ export function createDiscoveryRuntime(input: {
       network: input.network,
       readers,
     }),
+    async search(read) {
+      const userToken = await input.userTokens.read(read.platform);
+      const installation = await input.installation.read();
+      const network = await input.network.read();
+      return readSearchCatalog({
+        cache,
+        installation,
+        kick,
+        network,
+        platform: read.platform,
+        query: read.query,
+        relay,
+        twitch,
+        userToken,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
+    },
   };
 }
 
@@ -113,9 +238,7 @@ export function userTokenFromTwitchSnapshot(snapshot: {
 
 export function installationIdentityFromStore(read: {
   readonly kind: string;
-  readonly state?: {
-    readonly credential: { readonly credential: string } | null;
-  };
+  readonly state?: { readonly credential: { readonly credential: string } | null };
 }): InstallationIdentityRead {
   if (read.kind === "ready" && read.state?.credential) {
     return { credential: read.state.credential.credential, kind: "ready" };
@@ -127,27 +250,4 @@ export function alwaysOnlineNetwork(): NetworkSource {
   return { read: async () => "online" };
 }
 
-async function withTopStreamsCache(input: {
-  readonly cache: ReturnType<typeof createDiscoveryCacheStore>;
-  readonly language?: string;
-  readonly outcome: PlatformReadOutcome<Stream>;
-  readonly path: PlatformReadOutcome<Stream>["path"];
-  readonly platform: Platform;
-}): Promise<PlatformReadOutcome<Stream>> {
-  const stored = await input.cache.readTopStreams(
-    input.platform,
-    input.language,
-  );
-  if (stored.kind === "miss") return input.outcome;
-  return staleFromCache({
-    cache: stored.cache,
-    items: stored.items,
-    path: input.path,
-    platform: input.platform,
-    ...(input.outcome.error === undefined
-      ? {}
-      : { error: input.outcome.error }),
-  });
-}
-
-export type { NetworkRead };
+export type { NetworkRead } from "../capabilities/platform-reads";

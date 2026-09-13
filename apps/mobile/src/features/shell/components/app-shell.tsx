@@ -38,6 +38,10 @@ import {
 } from "@mobile/features/activity/components/activity-screen";
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
+import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
+import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
+import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
+import type { MediaJobWorkflow } from "@mobile/features/media-jobs/capabilities/media-jobs";
 import { NativeCapabilityStubProofControl } from "@mobile/features/native-contracts/components/native-capability-stub-proof-control";
 import { CapabilityProfilePanel } from "@mobile/features/capability-profile/components/capability-profile-panel";
 import { DevelopmentResourceFailureProofControl } from "@mobile/features/capability-profile/components/development-resource-failure-proof-control";
@@ -49,11 +53,21 @@ import {
   type TwitchAccountActions,
   type TwitchAccountViewModel,
 } from "@mobile/features/auth/components/twitch-accounts-panel";
-import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import type { DiscoveryPreferenceStore } from "@mobile/features/discovery/capabilities/discovery-preferences";
+import type {
+  DiscoverySession,
+  SearchHistoryRepository,
+} from "@mobile/features/discovery/capabilities/platform-reads";
+import { CategoriesScreen } from "@mobile/features/discovery/components/categories-screen";
+import { CategoryDetailScreen } from "@mobile/features/discovery/components/category-detail-screen";
 import { ChannelDetailScreen } from "@mobile/features/discovery/components/channel-detail-screen";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
+import { UnifiedSearchScreen } from "@mobile/features/discovery/components/unified-search-screen";
+import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
+import { FollowingWorkspace } from "@mobile/features/follows/components/following-workspace";
 
 import { DestinationIcon } from "./destination-icon";
+import { resolveHardwareBack } from "../domain/hardware-back";
 import {
   applyCompactNavigationTextMeasurement,
   type CompactNavigationLayout,
@@ -116,6 +130,10 @@ export function AppShell({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  mediaJobs,
+  searchHistory,
+  discoveryPreferences,
+  followingSession,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -152,6 +170,10 @@ export function AppShell({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: DiscoverySession;
+  readonly mediaJobs: MediaJobWorkflow;
+  readonly searchHistory: SearchHistoryRepository;
+  readonly discoveryPreferences: DiscoveryPreferenceStore;
+  readonly followingSession: FollowingSession;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -168,26 +190,45 @@ export function AppShell({
     restoration: shellRestoration,
   });
   const { dispatch, state: navigation } = lifecycle;
+  const location = getActiveShellLocation(navigation);
+  const selectedJobId =
+    location.route === "activity/job-preview" ? location.jobId : undefined;
+  const mediaJobsController = useMediaJobsController({
+    selectedJobId,
+    workflow: mediaJobs,
+  });
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const placement = getShellNavigationPlacement(width);
+
+  const cancelDismissal = activity.cancelDismissal;
+  const hasDismissalConfirmation = activity.model.dismissalConfirmation !== null;
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
-        if (!canNavigateBack(navigation)) {
-          return false;
+        const decision = resolveHardwareBack({
+          canNavigateBack: canNavigateBack(navigation),
+          hasOverlay: hasDismissalConfirmation,
+        });
+        if (decision === "cancel-dismissal") {
+          cancelDismissal();
+          return true;
         }
-        dispatch({ type: "back" });
-        return true;
+        if (decision === "navigate-back") {
+          dispatch({ type: "back" });
+          return true;
+        }
+        return false;
       },
     );
     return () => subscription.remove();
-  }, [dispatch, navigation]);
+  }, [cancelDismissal, dispatch, hasDismissalConfirmation, navigation]);
 
   const navigationView = (
     <PrimaryNavigation
+      activityUnreadCount={activity.model.unreadCount}
       dispatch={dispatch}
       key={`${placement}:${width}:${fontScale}`}
       placement={placement}
@@ -238,7 +279,9 @@ export function AppShell({
               onQueueActivityReadFailure={onQueueActivityReadFailure}
               developmentActivityProof={developmentActivityProof}
               onExitDevelopmentActivityProof={onExitDevelopmentActivityProof}
-              onReplayDevelopmentActivityProof={onReplayDevelopmentActivityProof}
+              onReplayDevelopmentActivityProof={
+                onReplayDevelopmentActivityProof
+              }
               onRetryDevelopmentActivityProofCleanup={
                 onRetryDevelopmentActivityProofCleanup
               }
@@ -262,6 +305,10 @@ export function AppShell({
                 onDisableTwitchDevelopmentFixture
               }
               homeDiscovery={homeDiscovery}
+              mediaJobsController={mediaJobsController}
+              searchHistory={searchHistory}
+              discoveryPreferences={discoveryPreferences}
+              followingSession={followingSession}
             />
           </View>
         </View>
@@ -324,6 +371,7 @@ function ShellHeader({
   readonly state: ShellNavigationState;
 }) {
   const route = getActiveShellRoute(state);
+  const location = getActiveShellLocation(state);
   const showsBack = canNavigateBack(state);
   return (
     <View style={styles.header}>
@@ -354,7 +402,9 @@ function ShellHeader({
           {route.eyebrow}
         </Text>
         <Text accessibilityRole="header" selectable style={styles.headerText}>
-          {route.title}
+          {location.route === "more/category-detail"
+            ? location.category.name
+            : route.title}
         </Text>
       </View>
       <Pressable
@@ -410,6 +460,10 @@ function ShellScreen({
   onEnableKickDevelopmentFixture,
   onDisableKickDevelopmentFixture,
   homeDiscovery,
+  mediaJobsController,
+  searchHistory,
+  discoveryPreferences,
+  followingSession,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -446,6 +500,10 @@ function ShellScreen({
   readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: DiscoverySession;
+  readonly mediaJobsController: ReturnType<typeof useMediaJobsController>;
+  readonly searchHistory: SearchHistoryRepository;
+  readonly discoveryPreferences: DiscoveryPreferenceStore;
+  readonly followingSession: FollowingSession;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -473,6 +531,7 @@ function ShellScreen({
           }
           onRefresh={activity.refresh}
           onSelectFilter={activity.selectFilter}
+          scrollRequest={scrollRequest}
         />
       </View>
     );
@@ -510,10 +569,76 @@ function ShellScreen({
     );
   }
 
+  if (location.route === "activity/job-preview") {
+    return (
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        contentInsetAdjustmentBehavior="automatic"
+        ref={scrollView}
+        style={styles.screenScroll}
+        testID="screen-activity-job-preview"
+      >
+        <View style={styles.contentColumn}>
+          <MediaJobScreen
+            busy={mediaJobsController.model.busy}
+            onCommand={(command) => {
+              void mediaJobsController.apply(command).then(() => {
+                void activity.refresh();
+              });
+            }}
+            snapshot={mediaJobsController.model.selected}
+            status={mediaJobsController.model.status}
+          />
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (location.route === "following" || location.route === "following/manage") {
+    return (
+      <View
+        style={styles.activityWorkspace}
+        testID={
+          location.route === "following"
+            ? "screen-following-root"
+            : "screen-following-manage"
+        }
+      >
+        <FollowingWorkspace
+          onOpenManage={() =>
+            dispatch({
+              type: "navigate",
+              location: { route: "following/manage" },
+            })
+          }
+          route={location.route}
+          session={followingSession}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "search") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-search-root">
+        <UnifiedSearchScreen
+          history={searchHistory}
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
   if (location.route === "more/home") {
     return (
       <View style={styles.activityWorkspace} testID="screen-more-home">
         <HomeLiveDiscoveryScreen
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
           onOpenCategories={() =>
             dispatch({ type: "navigate", location: { route: "more/categories" } })
           }
@@ -534,6 +659,41 @@ function ShellScreen({
       <View style={styles.activityWorkspace} testID="screen-more-channel">
         <ChannelDetailScreen
           channel={location.channel}
+          session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/categories") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-categories">
+        <CategoriesScreen
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          onOpenCategory={(category) =>
+            dispatch({
+              type: "navigate",
+              location: { category, route: "more/category-detail" },
+            })
+          }
+          preferences={discoveryPreferences}
+          session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/category-detail") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-category-detail">
+        <CategoryDetailScreen
+          category={location.category}
+          onOpenAccounts={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          preferences={discoveryPreferences}
           session={homeDiscovery}
         />
       </View>
@@ -606,6 +766,46 @@ function ShellScreen({
         )}
         {route.id === "more/diagnostics" ? (
           <>
+            <MediaJobsDiagnosticsPanel
+              busy={mediaJobsController.model.busy}
+              jobs={mediaJobsController.model.jobs}
+              status={mediaJobsController.model.status}
+              onOpenJob={(jobId) =>
+                dispatch({
+                  type: "navigate",
+                  location: { route: "activity/job-preview", jobId },
+                })
+              }
+              onRecover={() => {
+                void mediaJobsController.recover().then(() => {
+                  void activity.refresh();
+                });
+              }}
+              onStartDownload={() => {
+                void openStartedJob(
+                  mediaJobsController.startDownload,
+                  mediaJobsController,
+                  activity,
+                  dispatch,
+                );
+              }}
+              onStartRecording={() => {
+                void openStartedJob(
+                  mediaJobsController.startRecording,
+                  mediaJobsController,
+                  activity,
+                  dispatch,
+                );
+              }}
+              onStartStoragePressure={() => {
+                void openStartedJob(
+                  mediaJobsController.startStoragePressure,
+                  mediaJobsController,
+                  activity,
+                  dispatch,
+                );
+              }}
+            />
             <CapabilityProfilePanel
               model={capabilityProfile}
               onRetry={onRetryCapabilityProfile}
@@ -812,6 +1012,22 @@ function RootPreviewAction({
   );
 }
 
+async function openStartedJob(
+  start: () => Promise<string>,
+  mediaJobsController: ReturnType<typeof useMediaJobsController>,
+  activity: ReturnType<typeof useActivityController>,
+  dispatch: (action: ShellNavigationAction) => void,
+): Promise<void> {
+  const jobId = await start();
+  if (!jobId) return;
+  await mediaJobsController.recover();
+  await activity.refresh();
+  dispatch({
+    type: "navigate",
+    location: { route: "activity/job-preview", jobId },
+  });
+}
+
 function NestedRouteState({ location }: { readonly location: ShellLocation }) {
   const route = SHELL_ROUTES[location.route];
   const detail =
@@ -902,10 +1118,12 @@ function DevelopmentStatus({
 }
 
 function PrimaryNavigation({
+  activityUnreadCount,
   dispatch,
   placement,
   state,
 }: {
+  readonly activityUnreadCount: number;
   readonly dispatch: (action: ShellNavigationAction) => void;
   readonly placement: "bottom" | "rail";
   readonly state: ShellNavigationState;
@@ -955,7 +1173,11 @@ function PrimaryNavigation({
         return (
           <Pressable
             accessibilityHint={`Switches to ${destination.label} and preserves other navigation histories`}
-            accessibilityLabel={destination.label}
+            accessibilityLabel={
+              destination.id === "activity" && activityUnreadCount > 0
+                ? `${destination.label}, ${activityUnreadCount} unread`
+                : destination.label
+            }
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             android_ripple={{
@@ -980,7 +1202,13 @@ function PrimaryNavigation({
             ]}
             testID={`nav-${destination.id}`}
           >
-            <DestinationIcon color={color} destination={destination.id} />
+            <DestinationIcon
+              color={color}
+              destination={destination.id}
+              unreadCount={
+                destination.id === "activity" ? activityUnreadCount : 0
+              }
+            />
             <Text
               onTextLayout={
                 placement === "bottom" ? onTextLayout(layout) : undefined

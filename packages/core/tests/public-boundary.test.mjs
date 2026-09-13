@@ -23,6 +23,7 @@ const publicSubpaths = [
   "activity",
   "reliability",
   "relay",
+  "media-jobs",
   "testing",
 ];
 

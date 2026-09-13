@@ -2,6 +2,12 @@ import type {
   ActivityItem,
   SerializedTimestamp,
 } from "@streamfusion/core/activity";
+import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
+import type {
+  GuestFollow,
+  LiveNotificationPreferences,
+} from "@streamfusion/core/follows";
+import type { Platform } from "@streamfusion/core/platform";
 
 export type PersistenceUnavailableReason =
   | "secure-store-unavailable"
@@ -117,6 +123,11 @@ export interface ShellRestorationRepository {
   write(value: string, updatedAt: number): Promise<void>;
 }
 
+export interface SearchHistoryStore {
+  read(): Promise<string | null>;
+  write(value: string, updatedAt: number): Promise<void>;
+}
+
 export interface CapabilityProfileSnapshotStore {
   read(): Promise<string | null>;
   write(value: string, observedAtEpochMs: number): Promise<void>;
@@ -127,11 +138,41 @@ export interface InstallationPolicySnapshotStore {
   write(value: string, updatedAtEpochMs: number): Promise<void>;
 }
 
+export interface MediaJobRepository {
+  get(jobId: string): Promise<MediaJobSnapshot | null>;
+  list(): Promise<readonly MediaJobSnapshot[]>;
+  put(snapshot: MediaJobSnapshot): Promise<void>;
+}
+
+export interface ProductSettingsStore {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string, updatedAt: number): Promise<void>;
+}
+
+export interface GuestFollowRepository {
+  list(): Promise<readonly GuestFollow[]>;
+  remove(identity: {
+    readonly platform: Platform;
+    readonly channelId: string;
+  }): Promise<void>;
+  upsert(value: unknown): Promise<GuestFollow>;
+}
+
+export interface LiveNotificationPreferenceStore {
+  read(): Promise<LiveNotificationPreferences>;
+  write(value: unknown): Promise<LiveNotificationPreferences>;
+}
+
 export interface MobileProductState {
   readonly activity: ActivityRepository;
   readonly capabilityProfile: CapabilityProfileSnapshotStore;
+  readonly guestFollows: GuestFollowRepository;
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
+  readonly mediaJobs: MediaJobRepository;
+  readonly searchHistory: SearchHistoryStore;
+  readonly settings: ProductSettingsStore;
+  readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly shellRestoration: ShellRestorationRepository;
 }
 
