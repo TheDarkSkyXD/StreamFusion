@@ -699,7 +699,6 @@ function ShellScreen({
       </View>
     );
   }
-  }
 
   if (location.route === "more/accounts") {
     return (
