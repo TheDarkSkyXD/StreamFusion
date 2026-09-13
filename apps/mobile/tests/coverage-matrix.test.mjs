@@ -43,16 +43,30 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   const ledger = JSON.parse(ledgerBefore.toString("utf8"));
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
-  assert.equal(ledger.totals.discovered, 182);
-  assert.equal(ledger.totals.implemented, 12);
+  assert.equal(ledger.totals.discovered, 185);
+  assert.equal(ledger.totals.implemented, 26);
   assert.equal(ledger.totals.partial, 13);
-  assert.equal(ledger.totals.placeholder, 23);
-  assert.equal(ledger.totals.missing, 134);
+  assert.equal(ledger.totals.placeholder, 13);
+  assert.equal(ledger.totals.missing, 133);
   assert.equal(ledger.gaps.length, 5);
   assert.ok(ledger.gaps.some((gap) => gap.id === "GAP-195-01"));
   assert.ok(
     ledger.entries.some(
       (entry) => entry.id === "shell-route:activity" && entry.status === "implemented",
+    ),
+  );
+  assert.ok(
+    ledger.entries.some(
+      (entry) =>
+        entry.id === "shell-route:more/category-detail" &&
+        entry.status === "implemented",
+    ),
+  );
+  assert.ok(
+    ledger.entries.some(
+      (entry) =>
+        entry.id === "shell-route:following/manage" &&
+        entry.status === "implemented",
     ),
   );
 });

@@ -9,11 +9,11 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 12 |
+| Implemented | 26 |
 | Partial | 13 |
-| Placeholder | 23 |
-| Missing | 134 |
-| Discovered | 182 |
+| Placeholder | 13 |
+| Missing | 133 |
+| Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
 Placeholder means the shell can open a saved-place route.
@@ -33,12 +33,12 @@ Missing means no route or control exists yet.
 
 | Id | Status | Owners | Implementation | Verification |
 | --- | --- | --- | --- | --- |
-| `screen:search` | placeholder | #130, #132, #133, #147, #149 | — | missing |
-| `screen:home` | placeholder | #130, #131, #132, #147, #148 | — | missing |
-| `screen:categories` | placeholder | #130, #132, #133, #147, #150 | — | missing |
-| `screen:category-detail` | missing | #130, #132, #133, #147, #150 | — | missing |
-| `screen:following` | placeholder | #134, #147, #151 | — | missing |
-| `screen:channel` | placeholder | #130, #132, #133, #147, #148, #151 | — | missing |
+| `screen:search` | implemented | #130, #132, #133, #147, #149 | apps/mobile/src/features/discovery/components/unified-search-screen.tsx | tests |
+| `screen:home` | implemented | #130, #131, #132, #147, #148 | apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx | tests |
+| `screen:categories` | implemented | #130, #132, #133, #147, #150 | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |
+| `screen:category-detail` | implemented | #130, #132, #133, #147, #150 | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
+| `screen:following` | implemented | #134, #147, #151 | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
+| `screen:channel` | implemented | #130, #132, #133, #147, #148, #151 | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `screen:watch` | placeholder | #152, #153, #156, #157, #167 | — | missing |
 | `screen:video` | missing | #133, #153, #154 | — | missing |
 | `screen:multi` | placeholder | #143, #160, #167 | — | missing |
@@ -197,37 +197,40 @@ Missing means no route or control exists yet.
 | `action:close-sheet` | missing | — | — | missing |
 | `action:confirm-sheet` | missing | — | — | missing |
 | `action:sheet-fixture-action` | missing | — | — | missing |
-| `shell-route:search` | placeholder | — | — | missing |
+| `shell-route:search` | implemented | — | apps/mobile/src/features/discovery/components/unified-search-screen.tsx | tests |
 | `shell-route:search/result-preview` | placeholder | — | — | missing |
-| `shell-route:following` | placeholder | — | — | missing |
+| `shell-route:following` | implemented | — | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
 | `shell-route:following/channel-preview` | placeholder | — | — | missing |
+| `shell-route:following/manage` | implemented | — | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
 | `shell-route:watch` | placeholder | — | — | missing |
 | `shell-route:watch/session-preview` | placeholder | — | — | missing |
 | `shell-route:activity` | implemented | — | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `shell-route:activity/alert-preview` | implemented | — | — | tests |
-| `shell-route:activity/job-preview` | placeholder | — | — | missing |
+| `shell-route:activity/job-preview` | implemented | — | apps/mobile/src/features/media-jobs/components/media-job-screen.tsx | tests |
 | `shell-route:more` | implemented | — | — | tests |
-| `shell-route:more/home` | placeholder | — | — | missing |
-| `shell-route:more/categories` | placeholder | — | — | missing |
+| `shell-route:more/home` | implemented | — | apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx | tests |
+| `shell-route:more/channel` | implemented | — | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
+| `shell-route:more/categories` | implemented | — | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |
 | `shell-route:more/multistream` | placeholder | — | — | missing |
 | `shell-route:more/history` | placeholder | — | — | missing |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
 | `shell-route:more/settings` | placeholder | — | — | missing |
 | `shell-route:more/diagnostics` | partial | — | — | missing |
 | `shell-route:more/accounts` | partial | — | — | missing |
+| `shell-route:more/category-detail` | implemented | — | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
 
 ## Gap register
 
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Search, Following, Watch, Home, Categories, History, Moderation, and Settings remain placeholders. Feature issues own those screens. | #147, #148, #149, #150, #152, #155, #159, #167 |
+| `GAP-195-02` | owned-elsewhere | Watch, History, Moderation, and Settings remain placeholders. Feature issues own those screens. | #147, #148, #149, #150, #152, #155, #159, #167 |
 | `GAP-195-03` | owned-elsewhere | The 17 Settings panels and six Diagnostics tabs have no Mobile routes or tab components. | #143, #167, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only. | #151, #163, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 
 ## This increment
 
-The Activity destination shows an unread badge. Android Back cancels an Activity dismissal confirmation before it pops a route. Reselecting Activity scrolls the inbox to the top. Search, Following, Watch, Settings, and Diagnostics tabs stay with their owners.
+Guest Search, Home, Channel Detail, Categories, Following, and Media Job preview land in this candidate. Watch, History, Moderation, Settings, and remaining Diagnostics tabs stay with their owners.
 
 Run `node docs/research/streamfusion-mobile/coverage-matrix-check.mjs` after a contract or shell-route change.

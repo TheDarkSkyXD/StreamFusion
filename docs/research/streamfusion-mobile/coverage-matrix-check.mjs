@@ -121,7 +121,21 @@ const implemented = new Set([
   "action:activity-clear-completed",
   "shell-route:activity",
   "shell-route:activity/alert-preview",
+  "shell-route:activity/job-preview",
   "shell-route:more",
+  "screen:search",
+  "screen:home",
+  "screen:categories",
+  "screen:category-detail",
+  "screen:following",
+  "screen:channel",
+  "shell-route:search",
+  "shell-route:following",
+  "shell-route:following/manage",
+  "shell-route:more/home",
+  "shell-route:more/channel",
+  "shell-route:more/categories",
+  "shell-route:more/category-detail",
 ]);
 
 const partial = new Set([
@@ -141,25 +155,15 @@ const partial = new Set([
 ]);
 
 const placeholder = new Set([
-  "screen:search",
-  "screen:home",
-  "screen:categories",
-  "screen:following",
-  "screen:channel",
   "screen:watch",
   "screen:multi",
   "screen:history",
   "screen:moderation-home",
   "screen:settings",
-  "shell-route:search",
   "shell-route:search/result-preview",
-  "shell-route:following",
   "shell-route:following/channel-preview",
   "shell-route:watch",
   "shell-route:watch/session-preview",
-  "shell-route:activity/job-preview",
-  "shell-route:more/home",
-  "shell-route:more/categories",
   "shell-route:more/multistream",
   "shell-route:more/history",
   "shell-route:more/moderation",
@@ -199,6 +203,48 @@ const paths = {
   ],
   "shell-route:activity": [
     "apps/mobile/src/features/activity/components/activity-screen.tsx",
+  ],
+  "shell-route:activity/job-preview": [
+    "apps/mobile/src/features/media-jobs/components/media-job-screen.tsx",
+  ],
+  "screen:search": [
+    "apps/mobile/src/features/discovery/components/unified-search-screen.tsx",
+  ],
+  "screen:home": [
+    "apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx",
+  ],
+  "screen:categories": [
+    "apps/mobile/src/features/discovery/components/categories-screen.tsx",
+  ],
+  "screen:category-detail": [
+    "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
+  ],
+  "screen:following": [
+    "apps/mobile/src/features/follows/components/following-workspace.tsx",
+  ],
+  "screen:channel": [
+    "apps/mobile/src/features/discovery/components/channel-detail-screen.tsx",
+  ],
+  "shell-route:search": [
+    "apps/mobile/src/features/discovery/components/unified-search-screen.tsx",
+  ],
+  "shell-route:following": [
+    "apps/mobile/src/features/follows/components/following-workspace.tsx",
+  ],
+  "shell-route:following/manage": [
+    "apps/mobile/src/features/follows/components/following-workspace.tsx",
+  ],
+  "shell-route:more/home": [
+    "apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx",
+  ],
+  "shell-route:more/channel": [
+    "apps/mobile/src/features/discovery/components/channel-detail-screen.tsx",
+  ],
+  "shell-route:more/categories": [
+    "apps/mobile/src/features/discovery/components/categories-screen.tsx",
+  ],
+  "shell-route:more/category-detail": [
+    "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
   ],
   "action:activity-clear-completed": [
     "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts",
@@ -261,7 +307,7 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Search, Following, Watch, Home, Categories, History, Moderation, and Settings remain placeholders. Feature issues own those screens.",
+      "Watch, History, Moderation, and Settings remain placeholders. Feature issues own those screens.",
     owners: [147, 148, 149, 150, 152, 155, 159, 167],
   },
   {
@@ -366,7 +412,7 @@ ${gapRows}
 
 ## This increment
 
-The Activity destination shows an unread badge. Android Back cancels an Activity dismissal confirmation before it pops a route. Reselecting Activity scrolls the inbox to the top. Search, Following, Watch, Settings, and Diagnostics tabs stay with their owners.
+Guest Search, Home, Channel Detail, Categories, Following, and Media Job preview land in this candidate. Watch, History, Moderation, Settings, and remaining Diagnostics tabs stay with their owners.
 
 Run \`node docs/research/streamfusion-mobile/coverage-matrix-check.mjs\` after a contract or shell-route change.
 `;
