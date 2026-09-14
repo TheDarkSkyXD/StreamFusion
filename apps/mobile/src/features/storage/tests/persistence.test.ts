@@ -509,11 +509,11 @@ describe("encrypted store policy", () => {
     const database = new MigrationDatabase();
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(4);
+    ).resolves.toBe(5);
     const statements = database.statements.length;
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(4);
+    ).resolves.toBe(5);
     expect(database.statements).toHaveLength(statements);
   });
 
@@ -524,13 +524,18 @@ describe("encrypted store policy", () => {
     ).resolves.toBe(1);
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(4);
+    ).resolves.toBe(5);
     expect(database.statements).toContain(
       "ALTER TABLE activity_items ADD COLUMN dismissed_at INTEGER",
     );
     expect(database.statements).toContain(
       "ALTER TABLE history_items ADD COLUMN thumbnail_url TEXT NOT NULL DEFAULT ''",
     );
+    expect(
+      database.statements.some((statement) =>
+        statement.includes("CREATE TABLE IF NOT EXISTS multistream_layout"),
+      ),
+    ).toBe(true);
   });
 
   it("migrates and dismisses a real SQLite Product row without changing duplicate identity", async () => {
@@ -598,7 +603,7 @@ describe("encrypted store policy", () => {
 
   it("rejects a database newer than the supported schema", async () => {
     const database = new MigrationDatabase();
-    await database.execute("PRAGMA user_version = 5");
+    await database.execute("PRAGMA user_version = 6");
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
     ).rejects.toThrow("newer than supported");
@@ -768,7 +773,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
-        productSchemaVersion: 4,
+        productSchemaVersion: 5,
         recoveredProductStore: false,
       },
       allPassed,
@@ -784,7 +789,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
-        productSchemaVersion: 4,
+        productSchemaVersion: 5,
         recoveredProductStore: false,
       },
       null,

@@ -742,6 +742,216 @@
         "links": [
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/143"
         ]
+      },
+      {
+        "id": "change-gate",
+        "sourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-160-w09-multistream-v1",
+        "result": "pass",
+        "observedAt": "2026-09-14T23:36:00.000Z",
+        "expiresAt": "2026-09-28T23:36:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/160"
+        ],
+        "apkDigest": null,
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "multistream-receipt",
+            "path": "verification/evidence/issue-160-multistream.json",
+            "sha256": "sha256:205399b356bdfa0cd3659bae5b4381e18fe56eedfb19fc411307a3570d5b1e7c",
+            "mediaType": "application/json"
+          }
+        ]
+      },
+      {
+        "id": "lowest-device",
+        "sourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-160-w09-multistream-v1",
+        "result": "pass",
+        "observedAt": "2026-09-14T23:36:00.000Z",
+        "expiresAt": "2026-09-28T23:36:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/160"
+        ],
+        "apkDigest": "sha256:93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "multistream-receipt",
+            "path": "verification/evidence/issue-160-multistream.json",
+            "sha256": "sha256:205399b356bdfa0cd3659bae5b4381e18fe56eedfb19fc411307a3570d5b1e7c",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "empty-room",
+            "path": "verification/evidence/issue-160/01-multistream-empty.png",
+            "sha256": "sha256:2358939f49558e06da9999870f4147c796faedfd1af7dc5652accc166da810fd",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "retained-third",
+            "path": "verification/evidence/issue-160/06-retained-third.png",
+            "sha256": "sha256:0df3096172be411c740a6b35ee7f3aa69aa1aca455f79db1cc871ad7b043c39b",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "constrained-device",
+        "sourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-160-w09-multistream-v1",
+        "result": "pass",
+        "observedAt": "2026-09-14T23:36:00.000Z",
+        "expiresAt": "2026-09-28T23:36:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/160"
+        ],
+        "apkDigest": "sha256:93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "three-configured",
+            "path": "verification/evidence/issue-160/07-edit-sheet.png",
+            "sha256": "sha256:c33bff079bdbf5062bc877e8bb2f26987f19bf80350f8e35a12defe28554954c",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "audio-owner",
+            "path": "verification/evidence/issue-160/08-audio-owner.png",
+            "sha256": "sha256:e1955505a2ff69ac0f52c4271ab0b9022ac2c30fb332c95b98655fabd31f2b60",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "tablet-foldable",
+        "sourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-160-w09-multistream-v1",
+        "result": "pass",
+        "observedAt": "2026-09-14T23:36:00.000Z",
+        "expiresAt": "2026-09-28T23:36:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/160"
+        ],
+        "apkDigest": "sha256:93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "tablet-chrome",
+            "path": "verification/evidence/issue-160/11-tablet-width.png",
+            "sha256": "sha256:37c035e41c7ee730118c4f9659e7142622d6edf03dd69d1bd599a92a6fdd6ec7",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "thermal-proof",
+        "sourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-160-w09-multistream-v1",
+        "result": "pass",
+        "observedAt": "2026-09-14T23:36:00.000Z",
+        "expiresAt": "2026-09-28T23:36:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/160"
+        ],
+        "apkDigest": "sha256:93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "restore-and-cool",
+            "path": "verification/evidence/issue-160/09-restore-slot.png",
+            "sha256": "sha256:92d5a6ff23fbe464e20070bd0a2c1f840ece3908d9d050fa8116fc2b02f6edff",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "pip-handoff",
+        "sourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-160-w09-multistream-v1",
+        "result": "pass",
+        "observedAt": "2026-09-14T23:36:00.000Z",
+        "expiresAt": "2026-09-28T23:36:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/160"
+        ],
+        "apkDigest": "sha256:93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "pip-handoff",
+            "path": "verification/evidence/issue-160/12-pip-handoff.png",
+            "sha256": "sha256:45a4c72f9e66897d8fc8b461172aaba20137c1acf29f1492833377492167f038",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "process-death-restore",
+            "path": "verification/evidence/issue-160/14-restored-after-death.png",
+            "sha256": "sha256:f594ac7166ada113202f08aabc75f7d22aeb97252f52206cfc8e7773c8a0686e",
+            "mediaType": "image/png"
+          }
+        ]
       }
     ],
     "platform-account-auth": [

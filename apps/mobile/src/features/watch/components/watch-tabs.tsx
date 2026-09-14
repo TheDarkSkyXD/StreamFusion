@@ -17,6 +17,7 @@ import type {
 export function WatchTabs({
   chat,
   info,
+  onAddToMultistream,
   onOpenRelated,
   onSelect,
   recorded = false,
@@ -25,6 +26,7 @@ export function WatchTabs({
 }: {
   readonly chat: WatchChatAvailability;
   readonly info: WatchInfo | null;
+  readonly onAddToMultistream?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onSelect: (tab: WatchTab) => void;
   readonly recorded?: boolean;
@@ -55,7 +57,12 @@ export function WatchTabs({
       </View>
       {tab === "chat" ? <ChatPane chat={chat} /> : null}
       {tab === "comments" ? <CommentsPane /> : null}
-      {tab === "info" ? <InfoPane info={info} /> : null}
+      {tab === "info" ? (
+        <InfoPane
+          info={info}
+          {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
+        />
+      ) : null}
       {tab === "related" ? (
         <RelatedPane onOpenRelated={onOpenRelated} related={related} />
       ) : null}
@@ -110,7 +117,13 @@ function ChatPane({ chat }: { readonly chat: WatchChatAvailability }) {
   );
 }
 
-function InfoPane({ info }: { readonly info: WatchInfo | null }) {
+function InfoPane({
+  info,
+  onAddToMultistream,
+}: {
+  readonly info: WatchInfo | null;
+  readonly onAddToMultistream?: () => void;
+}) {
   if (!info) {
     return (
       <View style={styles.pane} testID="watch-info">
@@ -140,6 +153,9 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
         <Text selectable style={styles.body}>
           {`${info.channel.displayName} · ${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
         </Text>
+        <Text selectable style={styles.body}>
+          Multistream keeps live channels only.
+        </Text>
       </View>
     );
   }
@@ -163,6 +179,20 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
       <Text selectable style={styles.body}>
         {`${info.channel.displayName} · ${info.stream.viewerCount} viewers`}
       </Text>
+      {onAddToMultistream ? (
+        <Pressable
+          accessibilityHint="Adds this live channel to the Multistream room"
+          accessibilityLabel="Add to Multistream"
+          accessibilityRole="button"
+          onPress={onAddToMultistream}
+          style={styles.relatedRow}
+          testID="watch-add-multistream"
+        >
+          <Text selectable style={styles.title}>
+            Add to Multistream
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

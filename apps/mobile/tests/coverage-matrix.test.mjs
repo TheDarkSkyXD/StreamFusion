@@ -44,10 +44,10 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
   assert.equal(ledger.totals.discovered, 185);
-  assert.equal(ledger.totals.implemented, 66);
+  assert.equal(ledger.totals.implemented, 73);
   assert.equal(ledger.totals.partial, 14);
-  assert.equal(ledger.totals.placeholder, 7);
-  assert.equal(ledger.totals.missing, 98);
+  assert.equal(ledger.totals.placeholder, 5);
+  assert.equal(ledger.totals.missing, 93);
   assert.equal(ledger.gaps.length, 5);
   assert.ok(ledger.gaps.some((gap) => gap.id === "GAP-195-01"));
   assert.ok(
@@ -109,6 +109,13 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
     "shell-route:more/history",
     "action:history-clear",
     "action:history-remove",
+    "screen:multi",
+    "shell-route:more/multistream",
+    "action:multistream-add",
+    "action:multistream-edit",
+    "action:audio-owner",
+    "action:restore-slot",
+    "action:cool-device",
   ]) {
     assert.ok(
       ledger.entries.some(

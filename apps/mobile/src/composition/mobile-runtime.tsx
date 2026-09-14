@@ -56,6 +56,7 @@ import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
+import { createGuestMultistreamScreen } from "@mobile/features/multistream/composition/guest-multistream-screen";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -341,7 +342,18 @@ export function MobileRuntime() {
       }),
     [homeDiscovery],
   );
+  const multistream = useMemo(
+    () =>
+      createGuestMultistreamScreen({
+        fetch: connectivitySession.fetch,
+        playback: androidCapabilityRuntime.contracts.playback,
+        policyStore: installationPolicyRuntime.policyStore,
+        repository: persistenceRuntime.productState.multistream,
+      }),
+    [],
+  );
   useEffect(() => () => void watch.runtime.session.dispose(), [watch]);
+  useEffect(() => () => void multistream.playback.dispose(), [multistream]);
   useEffect(() => {
     if (!developmentActivityProof) return;
     const unsubscribe = developmentActivityProof.subscribe(setActivityProof);
@@ -430,6 +442,7 @@ export function MobileRuntime() {
       followingSession={followingSession}
       connectivitySession={connectivitySession}
       watch={watch}
+      multistream={multistream}
     />
     </QueryClientProvider>
   );

@@ -24,7 +24,7 @@ export interface CapabilityProfile {
     | "physical-candidate"
     | "unsupported";
   readonly admission: {
-    readonly activeVideoLimit: "unexercised";
+    readonly activeVideoLimit: number;
     readonly captionSession: "unexercised";
     readonly download: "unexercised";
     readonly lowestProfile: "not-qualified";
@@ -81,7 +81,7 @@ export function createCapabilityProfile(
   return {
     apiAbiFormFactorEligibility: apiAbiFormFactorEligibility(observation),
     admission: {
-      activeVideoLimit: "unexercised",
+      activeVideoLimit: measureActiveVideoLimit(observation).limit,
       captionSession: "unexercised",
       download: "unexercised",
       lowestProfile: "not-qualified",
@@ -89,6 +89,31 @@ export function createCapabilityProfile(
     },
     observation,
   };
+}
+
+const GIB = 1_073_741_824;
+const VIDEO_MIME = /avc|hevc|h263|vp8|vp9|av01|mpeg4|dolby-vision/iu;
+
+export function measureActiveVideoLimit(observation: AndroidResourceSnapshot): {
+  readonly limit: number;
+  readonly reason: string;
+} {
+  const videoDecoders = observation.decoders.filter((decoder) =>
+    decoder.mimeTypes.some((mime) => VIDEO_MIME.test(mime)),
+  );
+  const hardware = videoDecoders.filter((decoder) => decoder.hardwareAccelerated)
+    .length;
+  const ramGb = observation.memory.totalBytes / GIB;
+  let limit = 1;
+  if (hardware === 0 && ramGb >= 4) limit = 2;
+  if (hardware >= 2 && ramGb >= 3) limit = 2;
+  if (hardware >= 4 && ramGb >= 6) limit = 4;
+  if (hardware >= 6 && ramGb >= 8) limit = 6;
+  const reason =
+    hardware === 0
+      ? `Measured ${limit} concurrent live decoder${limit === 1 ? "" : "s"} from software decode and ${ramGb.toFixed(1)} GiB RAM.`
+      : `Measured ${limit} concurrent live decoder${limit === 1 ? "" : "s"} from ${hardware} hardware video decoders and ${ramGb.toFixed(1)} GiB RAM.`;
+  return { limit, reason };
 }
 
 export function serializeCapabilityProfile(profile: CapabilityProfile): string {
@@ -315,7 +340,8 @@ function transition(
       consumerStatus: state.stage >= 1
         ? [
             "Diagnostics sampling now uses the reduced foreground cadence.",
-            "Playback, Media Jobs, captions, and storage mitigation consumers remain unavailable until their typed Android modules are implemented.",
+            "Multistream applies the measured active-video limit and ordered decoder degradation.",
+            "Captions, recording, and downloads remain unexercised until their typed Android modules are implemented.",
           ]
         : ["Diagnostics sampling uses the normal foreground cadence."],
       recoveryCondition,

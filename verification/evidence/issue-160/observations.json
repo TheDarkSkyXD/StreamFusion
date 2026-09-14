@@ -1,0 +1,50 @@
+{
+  "artifacts": [
+    {
+      "name": "01-multistream-empty",
+      "path": "verification/evidence/issue-160/01-multistream-empty.png",
+      "sha256": "sha256:2358939f49558e06da9999870f4147c796faedfd1af7dc5652accc166da810fd"
+    },
+    {
+      "name": "06-retained-third",
+      "path": "verification/evidence/issue-160/06-retained-third.png",
+      "sha256": "sha256:0df3096172be411c740a6b35ee7f3aa69aa1aca455f79db1cc871ad7b043c39b"
+    },
+    {
+      "name": "07-edit-sheet",
+      "path": "verification/evidence/issue-160/07-edit-sheet.png",
+      "sha256": "sha256:c33bff079bdbf5062bc877e8bb2f26987f19bf80350f8e35a12defe28554954c"
+    },
+    {
+      "name": "08-audio-owner",
+      "path": "verification/evidence/issue-160/08-audio-owner.png",
+      "sha256": "sha256:e1955505a2ff69ac0f52c4271ab0b9022ac2c30fb332c95b98655fabd31f2b60"
+    },
+    {
+      "name": "09-restore-slot",
+      "path": "verification/evidence/issue-160/09-restore-slot.png",
+      "sha256": "sha256:92d5a6ff23fbe464e20070bd0a2c1f840ece3908d9d050fa8116fc2b02f6edff"
+    },
+    {
+      "name": "11-tablet-width",
+      "path": "verification/evidence/issue-160/11-tablet-width.png",
+      "sha256": "sha256:37c035e41c7ee730118c4f9659e7142622d6edf03dd69d1bd599a92a6fdd6ec7"
+    },
+    {
+      "name": "12-pip-handoff",
+      "path": "verification/evidence/issue-160/12-pip-handoff.png",
+      "sha256": "sha256:45a4c72f9e66897d8fc8b461172aaba20137c1acf29f1492833377492167f038"
+    },
+    {
+      "name": "14-restored-after-death",
+      "path": "verification/evidence/issue-160/14-restored-after-death.png",
+      "sha256": "sha256:f594ac7166ada113202f08aabc75f7d22aeb97252f52206cfc8e7773c8a0686e"
+    }
+  ],
+  "notes": [
+    "API 30 emulator measured 1 concurrent live decoder from 3 hardware video decoders and 1.9 GiB RAM.",
+    "Three live Twitch channels were configured: xqc, zackrawrr, and jynxzi.",
+    "Guest chat and captions stay explicit disconnected copy.",
+    "Landscape chrome was photographed; the three-slot grid was photographed in portrait."
+  ]
+}

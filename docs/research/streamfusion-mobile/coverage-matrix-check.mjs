@@ -176,6 +176,13 @@ const implemented = new Set([
   "shell-route:more/history",
   "action:history-clear",
   "action:history-remove",
+  "screen:multi",
+  "shell-route:more/multistream",
+  "action:multistream-add",
+  "action:multistream-edit",
+  "action:audio-owner",
+  "action:restore-slot",
+  "action:cool-device",
 ]);
 
 const partial = new Set([
@@ -196,12 +203,10 @@ const partial = new Set([
 ]);
 
 const placeholder = new Set([
-  "screen:multi",
   "screen:moderation-home",
   "screen:settings",
   "shell-route:search/result-preview",
   "shell-route:following/channel-preview",
-  "shell-route:more/multistream",
   "shell-route:more/moderation",
 ]);
 
@@ -259,6 +264,12 @@ const owners = {
   "shell-route:more/history": [155],
   "action:history-clear": [155],
   "action:history-remove": [155],
+  "shell-route:more/multistream": [160],
+  "action:multistream-add": [160],
+  "action:multistream-edit": [160],
+  "action:audio-owner": [160],
+  "action:restore-slot": [160],
+  "action:cool-device": [160],
 };
 
 const paths = {
@@ -443,6 +454,28 @@ const paths = {
   ],
   "action:history-remove": [
     "apps/mobile/src/features/media-library/components/history-row.tsx",
+  ],
+  "screen:multi": [
+    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
+  ],
+  "shell-route:more/multistream": [
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "apps/mobile/src/features/multistream/components/multistream-screen.tsx",
+  ],
+  "action:multistream-add": [
+    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
+  ],
+  "action:multistream-edit": [
+    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
+  ],
+  "action:audio-owner": [
+    "apps/mobile/src/features/multistream/components/multistream-slot.tsx",
+  ],
+  "action:restore-slot": [
+    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
+  ],
+  "action:cool-device": [
+    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
   ],
 };
 

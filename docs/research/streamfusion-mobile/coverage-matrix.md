@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 66 |
+| Implemented | 73 |
 | Partial | 14 |
-| Placeholder | 7 |
-| Missing | 98 |
+| Placeholder | 5 |
+| Missing | 93 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -41,7 +41,7 @@ Missing means no route or control exists yet.
 | `screen:channel` | implemented | #130, #132, #133, #147, #148, #151 | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `screen:watch` | implemented | #152, #153, #156, #157, #167 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:video` | implemented | #133, #153, #154 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
-| `screen:multi` | placeholder | #143, #160, #167 | — | missing |
+| `screen:multi` | implemented | #143, #160, #167 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
 | `screen:history` | implemented | #155 | apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `screen:activity` | implemented | #141, #151, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `screen:moderation-home` | placeholder | #159, #168 | — | missing |
@@ -153,17 +153,17 @@ Missing means no route or control exists yet.
 | `action:chat-context` | missing | — | — | missing |
 | `action:chat-send` | missing | — | — | missing |
 | `action:channel-follow` | implemented | #151 | apps/mobile/src/features/discovery/components/channel-header.tsx | tests |
-| `action:multistream-add` | missing | — | — | missing |
+| `action:multistream-add` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
 | `action:job-record` | missing | — | — | missing |
 | `action:job-download` | missing | — | — | missing |
 | `action:job-details` | missing | — | — | missing |
 | `action:watch-tab` | missing | — | — | missing |
 | `action:video-tab` | missing | — | — | missing |
-| `action:audio-owner` | missing | — | — | missing |
-| `action:multistream-edit` | missing | — | — | missing |
+| `action:audio-owner` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-slot.tsx | tests |
+| `action:multistream-edit` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
 | `action:multi-chat-mode` | missing | — | — | missing |
-| `action:restore-slot` | missing | — | — | missing |
-| `action:cool-device` | missing | — | — | missing |
+| `action:restore-slot` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
+| `action:cool-device` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
 | `action:multi-chat-channel` | missing | — | — | missing |
 | `action:history-remove` | implemented | #155 | apps/mobile/src/features/media-library/components/history-row.tsx | tests |
 | `action:history-clear` | implemented | #155 | apps/mobile/src/features/media-library/components/history-view.tsx | tests |
@@ -211,7 +211,7 @@ Missing means no route or control exists yet.
 | `shell-route:more/home` | implemented | — | apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx | tests |
 | `shell-route:more/channel` | implemented | — | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `shell-route:more/categories` | implemented | — | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |
-| `shell-route:more/multistream` | placeholder | — | — | missing |
+| `shell-route:more/multistream` | implemented | #160 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/multistream/components/multistream-screen.tsx | tests |
 | `shell-route:more/history` | implemented | #155 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
 | `shell-route:more/settings` | partial | #162, #169 | apps/mobile/src/features/shell/components/app-shell.tsx | missing |

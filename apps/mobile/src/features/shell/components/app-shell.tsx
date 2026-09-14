@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import {
   BackHandler,
   KeyboardAvoidingView,
@@ -39,6 +39,15 @@ import {
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
 import { HistoryScreen } from "@mobile/features/media-library/components/history-screen";
+import { MultistreamScreen } from "@mobile/features/multistream/components/multistream-screen";
+import type { MultistreamRepository } from "@mobile/features/multistream/capabilities/multistream";
+import type { MultistreamPlayback } from "@mobile/features/multistream/domain/multistream-playback";
+import {
+  addMultistreamSlot,
+  emptyMultistreamLayout,
+  slotFromAddSource,
+} from "@mobile/features/multistream/domain/multistream-layout";
+import type { PlayerSurfaceProps, WatchScreenRuntime } from "@mobile/features/watch/components/watch-screen";
 import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
 import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
 import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
@@ -73,7 +82,6 @@ import { WatchRoute } from "@mobile/features/watch/components/watch-route";
 import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
 import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watch-session";
 import { isPictureInPictureSurface } from "@mobile/features/watch/domain/player-presentation";
-import type { WatchScreenRuntime } from "@mobile/features/watch/components/watch-screen";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { DestinationIcon } from "./destination-icon";
@@ -115,6 +123,12 @@ const previewRoutes: Readonly<
   watch: { route: "watch/session-preview", target: { kind: "preview" } },
 };
 
+type MultistreamRuntime = {
+  readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
+  readonly playback: MultistreamPlayback;
+  readonly repository: MultistreamRepository;
+};
+
 export function AppShell({
   activityRepository,
   developmentActivityProof,
@@ -153,6 +167,7 @@ export function AppShell({
   followingSession,
   connectivitySession,
   watch,
+  multistream,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -195,6 +210,7 @@ export function AppShell({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly watch: WatchScreenRuntime;
+  readonly multistream: MultistreamRuntime;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -226,6 +242,10 @@ export function AppShell({
     }
     watch.runtime.session.conceal();
   }, [pictureInPictureSurface, watchingWatch, watch.runtime.session]);
+  useEffect(() => {
+    if (location.route !== "more/multistream") return;
+    void watch.runtime.session.dismiss();
+  }, [location.route, watch.runtime.session]);
   const selectedJobId =
     location.route === "activity/job-preview" ? location.jobId : undefined;
   const mediaJobsController = useMediaJobsController({
@@ -353,6 +373,7 @@ export function AppShell({
               followingSession={followingSession}
               connectivitySession={connectivitySession}
               watch={watch}
+              multistream={multistream}
             />
             <WatchMiniPlayerHost
               hidden={watchingWatch || pictureInPictureSurface}
@@ -538,6 +559,7 @@ function ShellScreen({
   followingSession,
   connectivitySession,
   watch,
+  multistream,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -580,6 +602,7 @@ function ShellScreen({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly watch: WatchScreenRuntime;
+  readonly multistream: MultistreamRuntime;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -600,6 +623,26 @@ function ShellScreen({
     });
   };
 
+  const addLiveToMultistream = async (target: WatchTarget) => {
+    if (!target.media) {
+      const current =
+        (await multistream.repository.read()) ?? emptyMultistreamLayout();
+      const result = addMultistreamSlot(
+        current,
+        slotFromAddSource({ kind: "live", target }),
+        Date.now(),
+      );
+      if (result.kind === "applied") {
+        await multistream.repository.write(result.layout);
+      }
+    }
+    await watch.runtime.session.dismiss();
+    dispatch({
+      type: "navigate",
+      location: { route: "more/multistream" },
+    });
+  };
+
   if (location.route === "watch" || location.route === "watch/session-preview") {
     const target =
       location.route === "watch/session-preview" &&
@@ -609,6 +652,7 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
+          onAddToMultistream={addLiveToMultistream}
           onOpenRelated={(stream) =>
             openWatch({
               channelId: stream.channelId,
@@ -776,6 +820,7 @@ function ShellScreen({
         <ChannelDetailScreen
           channel={location.channel}
           following={followingSession}
+          onAddToMultistream={addLiveToMultistream}
           onWatch={openWatch}
           session={homeDiscovery}
         />
@@ -825,6 +870,24 @@ function ShellScreen({
           onWatch={openWatch}
           readNetwork={() => connectivitySession.readNetwork()}
           repository={watch.history}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/multistream") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-multistream-root">
+        <MultistreamScreen
+          onAddFromSearch={() =>
+            dispatch({ type: "navigate", location: { route: "search" } })
+          }
+          onCoolDevice={onRetryCapabilityProfile}
+          playback={multistream.playback}
+          PlayerSurface={multistream.PlayerSurface}
+          profile={capabilityProfile.profile}
+          repository={multistream.repository}
+          stage={capabilityProfile.projection?.stage ?? 0}
         />
       </View>
     );

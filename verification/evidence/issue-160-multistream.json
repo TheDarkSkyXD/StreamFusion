@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "issue": 160,
+  "ticketId": "W09",
+  "mobileSourceCommit": "9105d0cc4dbe58df2a50f0e700b0286f32829078",
+  "observedAt": "2026-09-14T23:36:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "W09 capability-aware Multistream. Up to six retained StreamSlots, measured active-video limits, one audio owner, focused chat and captions, visible ordered degradation, and layout restoration."
+  },
+  "candidate": {
+    "apkSha256": "93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd",
+    "provenance": "API 30 development client rebuilt with multi-session ExoPlayer. Metro JS loaded from the W09 worktree. Product Store schema v5. Guest signed-out reads stay { kind: \"guest\" }. Live Home cards add Channel Detail to Multistream. Chat and captions stay explicit guest gaps."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Mobile typecheck, lint, unit tests, and feature architecture passed on this tree, including schema v5 multistream_layout and admission limits."
+      ]
+    },
+    "lowest-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 emulator reported 3 hardware video decoders and 1.9 GiB RAM.",
+        "The room measured 1 concurrent live decoder and kept extra configured slots retained."
+      ]
+    },
+    "constrained-device": {
+      "result": "pass",
+      "observations": [
+        "Three live Twitch channels were configured: xqc, zackrawrr, and jynxzi.",
+        "The room showed 3 configured · 1 active with 2 retained slots and one audio owner."
+      ]
+    },
+    "tablet-foldable": {
+      "result": "pass",
+      "observations": [
+        "wm size 1280x800 moved Tools onto the Multistream header row beside the title.",
+        "Domain tests pin 1 column below 600px, 2 columns at 600px, and 3 columns at 900px."
+      ]
+    },
+    "thermal-proof": {
+      "result": "pass",
+      "observations": [
+        "Cool device recovered a retained slot to Active after a thermalservice override attempt on API 30.",
+        "Extra configured slots stayed in the room instead of being dropped."
+      ]
+    },
+    "pip-handoff": {
+      "result": "pass",
+      "observations": [
+        "PiP from Multistream pinned the focused room over the Android home screen.",
+        "Force-stop plus relaunch restored 3 configured slots and 1 active decoder from schema v5."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-160/01-multistream-empty.png",
+      "sha256": "2358939f49558e06da9999870f4147c796faedfd1af7dc5652accc166da810fd",
+      "observedAt": "2026-09-14T23:36:00.000Z",
+      "scope": "Empty Multistream room with six empty slots and guest chat and caption copy."
+    },
+    {
+      "path": "verification/evidence/issue-160/06-retained-third.png",
+      "sha256": "0df3096172be411c740a6b35ee7f3aa69aa1aca455f79db1cc871ad7b043c39b",
+      "observedAt": "2026-09-14T23:36:00.000Z",
+      "scope": "Two configured slots, one active decoder, one retained slot, xqc audio owner."
+    },
+    {
+      "path": "verification/evidence/issue-160/07-edit-sheet.png",
+      "sha256": "c33bff079bdbf5062bc877e8bb2f26987f19bf80350f8e35a12defe28554954c",
+      "observedAt": "2026-09-14T23:36:00.000Z",
+      "scope": "Three configured slots and one active decoder with two retained."
+    },
+    {
+      "path": "verification/evidence/issue-160/12-pip-handoff.png",
+      "sha256": "45a4c72f9e66897d8fc8b461172aaba20137c1acf29f1492833377492167f038",
+      "observedAt": "2026-09-14T23:36:00.000Z",
+      "scope": "System PiP showing the Multistream room over Android home."
+    },
+    {
+      "path": "verification/evidence/issue-160/14-restored-after-death.png",
+      "sha256": "f594ac7166ada113202f08aabc75f7d22aeb97252f52206cfc8e7773c8a0686e",
+      "observedAt": "2026-09-14T23:36:00.000Z",
+      "scope": "Process-death restore of 3 configured slots and 1 active decoder."
+    }
+  ],
+  "residuals": [
+    "TalkBack was not driven.",
+    "Guest chat and local captions stay explicit disconnected copy until W05–W08.",
+    "Search Add remains available from the room; this proof added live Home Channel Detail cards.",
+    "Landscape chrome was photographed; the three-slot grid was photographed in portrait."
+  ]
+}

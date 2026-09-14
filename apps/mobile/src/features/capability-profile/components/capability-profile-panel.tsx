@@ -68,10 +68,10 @@ export function CapabilityProfilePanel({
               : `Thermal status unavailable. ${model.profile.observation.thermal.detail}`}
           </Text>
           <Text selectable style={styles.body}>
-            {`${model.profile.observation.decoders.length} decoder records observed. Decoder inventory is not a concurrent-video qualification.`}
+            {`${model.profile.observation.decoders.length} decoder records observed. Decoder inventory feeds the measured active-video limit.`}
           </Text>
           <Text selectable style={styles.body}>
-            Active video, captions, recording, and downloads remain unexercised. This device is not lowest-profile qualified.
+            {`Active video limit is ${model.profile.admission.activeVideoLimit} concurrent live decoder${model.profile.admission.activeVideoLimit === 1 ? "" : "s"}. Captions, recording, and downloads remain unexercised. This device is not lowest-profile qualified.`}
           </Text>
           <Text selectable style={styles.body}>
             {model.persistence === "history-confirmed"

@@ -18,6 +18,7 @@ import {
 export function ChannelHeader({
   channel,
   follow,
+  onAddToMultistream,
   onFollow,
   onOpenProviderPage,
   onWatch,
@@ -25,6 +26,7 @@ export function ChannelHeader({
 }: {
   readonly channel: Channel;
   readonly follow: FollowView;
+  readonly onAddToMultistream?: () => void;
   readonly onFollow: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onWatch: () => void;
@@ -38,6 +40,9 @@ export function ChannelHeader({
   const followLabel = followActionLabel(follow);
   const watchEnabled = watch.kind === "available";
   const watchCopy = watchAvailabilityCopy(watch);
+  const addCopy = watchEnabled
+    ? "Adds this live channel to the Multistream room."
+    : "Multistream keeps live channels only.";
   return (
     <View style={styles.header} testID="channel-header">
       {channel.avatarUrl ? (
@@ -123,6 +128,30 @@ export function ChannelHeader({
         </Pressable>
         <Text selectable style={styles.followReason} testID="channel-watch-reason">
           {watchCopy}
+        </Text>
+        <Pressable
+          accessibilityHint={addCopy}
+          accessibilityLabel="Add to Multistream"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !watchEnabled }}
+          disabled={!watchEnabled}
+          onPress={() => onAddToMultistream?.()}
+          style={[styles.watch, watchEnabled ? styles.watchEnabled : null]}
+          testID="channel-add-multistream"
+        >
+          <Text
+            selectable
+            style={[styles.watchLabel, watchEnabled ? styles.watchLabelEnabled : null]}
+          >
+            Add to Multistream
+          </Text>
+        </Pressable>
+        <Text
+          selectable
+          style={styles.followReason}
+          testID="channel-add-multistream-reason"
+        >
+          {addCopy}
         </Text>
       </View>
     </View>

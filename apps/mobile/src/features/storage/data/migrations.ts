@@ -73,6 +73,16 @@ export const productMigrations: readonly StoreMigration[] = [
       "ALTER TABLE history_items ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0",
     ],
   },
+  {
+    version: 5,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS multistream_layout (
+        id TEXT PRIMARY KEY NOT NULL,
+        payload TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      ) STRICT`,
+    ],
+  },
 ];
 
 export const cacheMigrations: readonly StoreMigration[] = [

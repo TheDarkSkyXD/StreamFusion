@@ -23,10 +23,12 @@ const chat = {
 };
 
 export function WatchRoute({
+  onAddToMultistream,
   onOpenRelated,
   screen,
   target,
 }: {
+  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget | null;
@@ -40,15 +42,18 @@ export function WatchRoute({
       onOpenRelated={onOpenRelated}
       screen={screen}
       target={resolved}
+      {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
     />
   );
 }
 
 function WatchSessionRoute({
+  onAddToMultistream,
   onOpenRelated,
   screen,
   target,
 }: {
+  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget;
@@ -125,6 +130,9 @@ function WatchSessionRoute({
       playback={playback}
       tab={tab}
       target={target}
+      {...(onAddToMultistream === undefined || target.media
+        ? {}
+        : { onAddToMultistream: () => onAddToMultistream(target) })}
     />
   );
 }

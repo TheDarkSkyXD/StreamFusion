@@ -25,23 +25,18 @@ object FocusedPlaybackSessionOwner {
   private val lock = Any()
   private val main = Handler(Looper.getMainLooper())
   private val views = mutableSetOf<StreamFusionPlaybackView>()
-  private var player: ExoPlayer? = null
-  private var activeSessionId: String? = null
+  private val sessions = LinkedHashMap<String, Session>()
   private var emit: ((Map<String, Any>) -> Unit)? = null
-  private var muted = false
   private var pictureInPictureActive = false
   private var pictureInPictureRequested = false
-  private var selectedQuality = "auto"
-  private var volumeBeforeMute = 1f
+  private var pictureInPictureSessionId: String? = null
   private var applicationContext: Context? = null
   private var hostActivity: WeakReference<Activity>? = null
   private val progressTicker = object : Runnable {
     override fun run() {
-      val snapshot = synchronized(lock) { player to activeSessionId }
-      val exo = snapshot.first
-      val sessionId = snapshot.second
-      if (exo == null || sessionId == null) return
-      publish(progressEvent(sessionId, exo))
+      val snapshot = synchronized(lock) { sessions.values.map { it.sessionId to it.player } }
+      if (snapshot.isEmpty()) return
+      snapshot.forEach { (sessionId, exo) -> publish(progressEvent(sessionId, exo)) }
       main.postDelayed(this, 500)
     }
   }
@@ -80,56 +75,35 @@ object FocusedPlaybackSessionOwner {
         .build(),
     )
     val previous = synchronized(lock) {
-      val outgoing = player
-      views.forEach { it.detachPlayer() }
-      player = exo
-      activeSessionId = sessionId
       applicationContext = context.applicationContext
       if (context is Activity) {
         hostActivity = WeakReference(context)
       }
-      muted = false
-      pictureInPictureActive = false
-      pictureInPictureRequested = false
-      selectedQuality = "auto"
-      volumeBeforeMute = 1f
+      val outgoing = sessions.remove(sessionId)?.player
+      sessions[sessionId] = Session(sessionId, exo)
+      bindViewsLocked()
       outgoing
     }
     previous?.release()
-    stopProgressTicker()
     exo.prepare()
     exo.playWhenReady = true
-    synchronized(lock) {
-      if (player !== exo) {
-        return@onMain mapOf("kind" to "invalid")
-      }
-      bindViewsLocked()
-    }
     startProgressTicker()
     sessionCompleted(context, sessionId)
   }
 
   fun end(sessionId: String): Map<String, Any> = onMain {
     val outgoing = synchronized(lock) {
-      if (activeSessionId != sessionId) {
-        return@onMain mapOf(
-          "kind" to "completed",
-          "value" to mapOf("kind" to "missing", "sessionId" to sessionId),
-        )
+      val current = sessions.remove(sessionId) ?: return@onMain missing(sessionId)
+      if (pictureInPictureSessionId == sessionId) {
+        pictureInPictureActive = false
+        pictureInPictureRequested = false
+        pictureInPictureSessionId = null
       }
-      val current = player
-      views.forEach { it.detachPlayer() }
-      player = null
-      activeSessionId = null
-      applicationContext = null
-      muted = false
-      pictureInPictureActive = false
-      pictureInPictureRequested = false
-      selectedQuality = "auto"
-      current
+      bindViewsLocked()
+      current.player
     }
-    outgoing?.release()
-    stopProgressTicker()
+    outgoing.release()
+    if (synchronized(lock) { sessions.isEmpty() }) stopProgressTicker()
     mapOf(
       "kind" to "completed",
       "value" to mapOf(
@@ -143,73 +117,73 @@ object FocusedPlaybackSessionOwner {
   }
 
   fun setPlaying(sessionId: String, playing: Boolean): Map<String, Any> = onMain {
-    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
-    current.playWhenReady = playing
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    current.player.playWhenReady = playing
     sessionCompleted(null, sessionId)
   }
 
   fun setMuted(sessionId: String, nextMuted: Boolean): Map<String, Any> = onMain {
-    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
-    if (nextMuted && !muted) {
-      volumeBeforeMute = current.volume
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    if (nextMuted && !current.muted) {
+      current.volumeBeforeMute = current.player.volume
     }
-    muted = nextMuted
-    current.volume = if (nextMuted) 0f else volumeBeforeMute
+    current.muted = nextMuted
+    current.player.volume = if (nextMuted) 0f else current.volumeBeforeMute
     sessionCompleted(null, sessionId)
   }
 
   fun setVolume(sessionId: String, volume: Float): Map<String, Any> = onMain {
-    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
     val clamped = volume.coerceIn(0f, 1f)
-    volumeBeforeMute = clamped
-    if (!muted) {
-      current.volume = clamped
+    current.volumeBeforeMute = clamped
+    if (!current.muted) {
+      current.player.volume = clamped
     }
     sessionCompleted(null, sessionId)
   }
 
   fun listQualities(sessionId: String): Map<String, Any> = onMain {
-    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
-    qualityCompleted(sessionId, current)
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    qualityCompleted(current)
   }
 
   fun setQuality(sessionId: String, quality: String): Map<String, Any> = onMain {
-    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
     if (quality == "auto") {
-      current.trackSelectionParameters = current.trackSelectionParameters
+      current.player.trackSelectionParameters = current.player.trackSelectionParameters
         .buildUpon()
         .clearVideoSizeConstraints()
         .build()
-      selectedQuality = "auto"
-      return@onMain qualityCompleted(sessionId, current)
+      current.selectedQuality = "auto"
+      return@onMain qualityCompleted(current)
     }
     val height = quality.removeSuffix("p").toIntOrNull()
       ?: return@onMain mapOf("kind" to "invalid")
-    current.trackSelectionParameters = current.trackSelectionParameters
+    current.player.trackSelectionParameters = current.player.trackSelectionParameters
       .buildUpon()
       .setMaxVideoSize(Int.MAX_VALUE, height)
       .build()
-    selectedQuality = quality
-    qualityCompleted(sessionId, current)
+    current.selectedQuality = quality
+    qualityCompleted(current)
   }
 
   fun seekTo(sessionId: String, positionMs: Double): Map<String, Any> = onMain {
-    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
-    val duration = current.duration
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    val duration = current.player.duration
     if (
-      !current.isCurrentMediaItemSeekable ||
+      !current.player.isCurrentMediaItemSeekable ||
       duration <= 0L ||
       duration == C.TIME_UNSET
     ) {
       return@onMain unsupported("Seeking is not available for this live session.")
     }
-    current.seekTo(positionMs.toLong().coerceIn(0L, duration))
-    publish(progressEvent(sessionId, current))
+    current.player.seekTo(positionMs.toLong().coerceIn(0L, duration))
+    publish(progressEvent(sessionId, current.player))
     sessionCompleted(null, sessionId)
   }
 
   fun enterPictureInPicture(activity: Activity?, sessionId: String): Map<String, Any> = onMain {
-    requirePlayer(sessionId) ?: return@onMain missing(sessionId)
+    requireSession(sessionId) ?: return@onMain missing(sessionId)
     val host = resolveHost(activity)
     if (host == null) {
       return@onMain unsupported("Picture in Picture needs the current Activity.")
@@ -218,6 +192,7 @@ object FocusedPlaybackSessionOwner {
       return@onMain unsupported("Picture in Picture is not available on this device.")
     }
     pictureInPictureRequested = true
+    pictureInPictureSessionId = sessionId
     val entered = try {
       host.enterPictureInPictureMode(
         PictureInPictureParams.Builder()
@@ -226,10 +201,12 @@ object FocusedPlaybackSessionOwner {
       )
     } catch (_: IllegalStateException) {
       pictureInPictureRequested = false
+      pictureInPictureSessionId = null
       return@onMain unsupported("Picture in Picture could not start from this screen.")
     }
     if (!entered) {
       pictureInPictureRequested = false
+      pictureInPictureSessionId = null
       return@onMain unsupported("The system refused Picture in Picture.")
     }
     pictureInPictureActive = true
@@ -241,23 +218,23 @@ object FocusedPlaybackSessionOwner {
       pictureInPictureRequested || pictureInPictureActive
     }
     if (skip) return@onMain
-    val current = synchronized(lock) { player }
-    current?.playWhenReady = false
+    val players = synchronized(lock) { sessions.values.map { it.player } }
+    players.forEach { it.playWhenReady = false }
   }
 
   fun onForeground(activity: Activity?) = onMain {
     val inPip = activity?.isInPictureInPictureMode == true
     if (inPip) {
-      synchronized(lock) {
-        pictureInPictureActive = true
-      }
+      synchronized(lock) { pictureInPictureActive = true }
       return@onMain
     }
     val sessionId = synchronized(lock) {
       val wasActive = pictureInPictureActive || pictureInPictureRequested
       pictureInPictureRequested = false
       pictureInPictureActive = false
-      if (wasActive) activeSessionId else null
+      val id = if (wasActive) pictureInPictureSessionId else null
+      pictureInPictureSessionId = null
+      id
     }
     if (sessionId != null) {
       publish(
@@ -272,17 +249,15 @@ object FocusedPlaybackSessionOwner {
   fun release() = onMain {
     val outgoing = synchronized(lock) {
       views.forEach { it.detachPlayer() }
-      val current = player
-      player = null
-      activeSessionId = null
+      val players = sessions.values.map { it.player }
+      sessions.clear()
       applicationContext = null
-      muted = false
       pictureInPictureActive = false
       pictureInPictureRequested = false
-      selectedQuality = "auto"
-      current
+      pictureInPictureSessionId = null
+      players
     }
-    outgoing?.release()
+    outgoing.forEach { it.release() }
     stopProgressTicker()
   }
 
@@ -302,28 +277,20 @@ object FocusedPlaybackSessionOwner {
 
   fun bindIfMatches(view: StreamFusionPlaybackView, sessionId: String?) = onMain {
     synchronized(lock) {
-      if (sessionId != null && sessionId == activeSessionId) {
-        view.attachPlayer(player)
-      } else {
-        view.detachPlayer()
-      }
+      val player = sessionId?.let { sessions[it]?.player }
+      if (player != null) view.attachPlayer(player) else view.detachPlayer()
     }
   }
 
   private fun bindViewsLocked() {
-    val current = player
-    val sessionId = activeSessionId
     views.forEach { view ->
-      if (sessionId != null && view.boundSessionId() == sessionId) {
-        view.attachPlayer(current)
-      } else {
-        view.detachPlayer()
-      }
+      val player = view.boundSessionId()?.let { sessions[it]?.player }
+      if (player != null) view.attachPlayer(player) else view.detachPlayer()
     }
   }
 
-  private fun requirePlayer(sessionId: String): ExoPlayer? = synchronized(lock) {
-    if (activeSessionId != sessionId) null else player
+  private fun requireSession(sessionId: String): Session? = synchronized(lock) {
+    sessions[sessionId]
   }
 
   private fun missing(sessionId: String) = mapOf(
@@ -357,12 +324,12 @@ object FocusedPlaybackSessionOwner {
     ),
   )
 
-  private fun qualityCompleted(sessionId: String, current: ExoPlayer) = mapOf(
+  private fun qualityCompleted(current: Session) = mapOf(
     "kind" to "completed",
     "value" to mapOf(
-      "qualities" to videoQualities(current),
-      "selected" to selectedQuality,
-      "sessionId" to sessionId,
+      "qualities" to videoQualities(current.player),
+      "selected" to current.selectedQuality,
+      "sessionId" to current.sessionId,
     ),
   )
 
@@ -451,25 +418,30 @@ object FocusedPlaybackSessionOwner {
     return result as T
   }
 
+  private class Session(
+    val sessionId: String,
+    val player: ExoPlayer,
+    var muted: Boolean = false,
+    var selectedQuality: String = "auto",
+    var volumeBeforeMute: Float = 1f,
+  )
+
   private class SessionListener(
     private val sessionId: String,
   ) : Player.Listener {
     override fun onTracksChanged(tracks: Tracks) {
-      val current = synchronized(lock) { activeSessionId }
-      if (current != sessionId) return
-      if (synchronized(lock) { player?.playWhenReady == true }) {
+      val session = synchronized(lock) { sessions[sessionId] } ?: return
+      if (session.player.playWhenReady) {
         publish(mapOf("kind" to "playing", "sessionId" to sessionId))
       }
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
-      val current = synchronized(lock) { activeSessionId }
-      if (current != sessionId) return
+      val session = synchronized(lock) { sessions[sessionId] } ?: return
       when (playbackState) {
         Player.STATE_BUFFERING -> publish(mapOf("kind" to "buffering", "sessionId" to sessionId))
         Player.STATE_READY -> {
-          val playing = synchronized(lock) { player?.playWhenReady == true }
-          if (playing) {
+          if (session.player.playWhenReady) {
             publish(mapOf("kind" to "playing", "sessionId" to sessionId))
           } else {
             publish(
@@ -486,8 +458,7 @@ object FocusedPlaybackSessionOwner {
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-      val current = synchronized(lock) { activeSessionId }
-      if (current != sessionId) return
+      synchronized(lock) { sessions[sessionId] } ?: return
       if (playWhenReady) {
         publish(mapOf("kind" to "playing", "sessionId" to sessionId))
         return
@@ -508,8 +479,7 @@ object FocusedPlaybackSessionOwner {
     }
 
     override fun onPlayerError(error: PlaybackException) {
-      val current = synchronized(lock) { activeSessionId }
-      if (current != sessionId) return
+      synchronized(lock) { sessions[sessionId] } ?: return
       publish(
         mapOf(
           "kind" to "failed",

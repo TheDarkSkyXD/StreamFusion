@@ -55,11 +55,11 @@ const workload = {
 } as const;
 
 describe("Capability Profile", () => {
-  it("separates API ABI eligibility from unexercised workload admission", () => {
+  it("separates API ABI eligibility from measured active-video admission", () => {
     const profile = createCapabilityProfile(snapshot(10));
     expect(profile.apiAbiFormFactorEligibility).toBe("development-emulator");
     expect(profile.admission).toEqual({
-      activeVideoLimit: "unexercised",
+      activeVideoLimit: 2,
       captionSession: "unexercised",
       download: "unexercised",
       lowestProfile: "not-qualified",

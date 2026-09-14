@@ -4,6 +4,7 @@ import type {
 } from "@streamfusion/core/activity";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
+import type { MultistreamRepository } from "@mobile/features/multistream/capabilities/multistream";
 import type {
   GuestFollow,
   LiveNotificationPreferences,
@@ -171,6 +172,7 @@ export interface MobileProductState {
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
   readonly mediaJobs: MediaJobRepository;
+  readonly multistream: MultistreamRepository;
   readonly watchHistory: WatchHistoryRepository;
   readonly searchHistory: SearchHistoryStore;
   readonly settings: ProductSettingsStore;

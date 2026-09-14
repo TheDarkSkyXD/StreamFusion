@@ -247,7 +247,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more/multistream",
     "MORE",
     "more-multistream",
-    "Configure a room here, then continue in Watch with one focused audio source.",
+    "Keep a measured Multistream room here with retained slots, one audio owner, and ordered decoder degradation.",
     "Multistream",
     "more",
   ),

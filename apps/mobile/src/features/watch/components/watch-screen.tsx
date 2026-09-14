@@ -41,6 +41,7 @@ export function WatchScreen({
   PlayerSurface,
   chat,
   inspection,
+  onAddToMultistream,
   onOpenProviderPage,
   onOpenRelated,
   onRetry,
@@ -61,6 +62,7 @@ export function WatchScreen({
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly chat: WatchChatAvailability;
   readonly inspection: WatchInspection | null;
+  readonly onAddToMultistream?: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onRetry: () => void;
@@ -161,6 +163,9 @@ export function WatchScreen({
             recorded={Boolean(target.media)}
             related={inspection?.related ?? null}
             tab={tab}
+            {...(onAddToMultistream === undefined
+              ? {}
+              : { onAddToMultistream })}
           />
         </>
       )}

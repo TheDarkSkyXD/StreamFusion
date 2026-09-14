@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 66,
+    "implemented": 73,
     "partial": 14,
-    "placeholder": 7,
-    "missing": 98
+    "placeholder": 5,
+    "missing": 93
   },
   "entries": [
     {
@@ -167,14 +167,16 @@
       "id": "screen:multi",
       "kind": "screen",
       "name": "multi",
-      "status": "placeholder",
+      "status": "implemented",
       "owners": [
         143,
         160,
         167
       ],
-      "implementation": [],
-      "verification": "missing",
+      "implementation": [
+        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1587,10 +1589,14 @@
       "id": "action:multistream-add",
       "kind": "action",
       "name": "multistream-add",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        160
+      ],
+      "implementation": [
+        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1653,10 +1659,14 @@
       "id": "action:audio-owner",
       "kind": "action",
       "name": "audio-owner",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        160
+      ],
+      "implementation": [
+        "apps/mobile/src/features/multistream/components/multistream-slot.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1664,10 +1674,14 @@
       "id": "action:multistream-edit",
       "kind": "action",
       "name": "multistream-edit",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        160
+      ],
+      "implementation": [
+        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1686,10 +1700,14 @@
       "id": "action:restore-slot",
       "kind": "action",
       "name": "restore-slot",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        160
+      ],
+      "implementation": [
+        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1697,10 +1715,14 @@
       "id": "action:cool-device",
       "kind": "action",
       "name": "cool-device",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        160
+      ],
+      "implementation": [
+        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2265,10 +2287,15 @@
       "id": "shell-route:more/multistream",
       "kind": "shell-route",
       "name": "more/multistream",
-      "status": "placeholder",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        160
+      ],
+      "implementation": [
+        "apps/mobile/src/features/shell/components/app-shell.tsx",
+        "apps/mobile/src/features/multistream/components/multistream-screen.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
