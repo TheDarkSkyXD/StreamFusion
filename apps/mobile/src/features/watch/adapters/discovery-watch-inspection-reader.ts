@@ -27,7 +27,7 @@ export function createDiscoveryWatchInspectionReader(
         },
         signal,
       });
-      const info = infoFrom(page);
+      const info = infoFrom(page, target);
       return {
         info,
         related: await relatedFrom(session, signal, target, page),
@@ -37,7 +37,16 @@ export function createDiscoveryWatchInspectionReader(
   };
 }
 
-function infoFrom(page: ChannelPageOutcome): WatchInfo {
+function infoFrom(page: ChannelPageOutcome, target: WatchTarget): WatchInfo {
+  if (page.channel && target.media) {
+    return {
+      channel: page.channel,
+      durationSeconds: target.media.durationSeconds,
+      kind: "recorded",
+      mediaKind: target.media.kind,
+      title: target.media.title,
+    };
+  }
   if (page.channel && page.live && page.live.isLive) {
     return { channel: page.channel, kind: "live", stream: page.live };
   }

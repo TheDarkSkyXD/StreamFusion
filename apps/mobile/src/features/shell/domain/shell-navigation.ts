@@ -1,4 +1,8 @@
 import type { Platform } from "@streamfusion/core/platform";
+import {
+  isWatchChannelTarget,
+  type ShellWatchMedia,
+} from "./shell-watch-target";
 
 export type ShellDestinationId =
   "search" | "following" | "watch" | "activity" | "more";
@@ -42,6 +46,7 @@ export type ShellLocation =
             readonly platform: Platform;
             readonly channelId: string;
             readonly channelLogin: string;
+            readonly media?: ShellWatchMedia;
           };
     }
   | { readonly route: "activity/alert-preview"; readonly eventId: string }
@@ -514,17 +519,7 @@ function isShellLocation(value: unknown): value is ShellLocation {
   return (
     value.target.kind === "channel" &&
     hasOnlyKeys(value, ["route", "target"]) &&
-    hasOnlyKeys(value.target, [
-      "kind",
-      "platform",
-      "channelId",
-      "channelLogin",
-    ]) &&
-    isPlatform(value.target.platform) &&
-    typeof value.target.channelId === "string" &&
-    identifierPattern.test(value.target.channelId) &&
-    typeof value.target.channelLogin === "string" &&
-    channelLoginPattern.test(value.target.channelLogin)
+    isWatchChannelTarget(value.target)
   );
 }
 

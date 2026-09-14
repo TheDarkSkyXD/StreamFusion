@@ -4,7 +4,8 @@ export function asHlsSourceUri(value: string): HlsSourceUri | undefined {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:") return undefined;
-    if (!url.pathname.toLowerCase().includes(".m3u8")) return undefined;
+    const path = url.pathname.toLowerCase();
+    if (!path.includes(".m3u8") && !path.endsWith(".mp4")) return undefined;
     return value as HlsSourceUri;
   } catch {
     return undefined;

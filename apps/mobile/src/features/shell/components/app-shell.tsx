@@ -96,6 +96,10 @@ import {
   type ShellNavigationState,
 } from "../domain/shell-navigation";
 import {
+  locationTargetFromWatch,
+  watchTargetFromLocation,
+} from "../domain/shell-watch-target";
+import {
   useShellLifecycleController,
   type ShellLifecycleStatus,
 } from "./shell-lifecycle-controller";
@@ -585,12 +589,7 @@ function ShellScreen({
       type: "navigate",
       location: {
         route: "watch/session-preview",
-        target: {
-          channelId: target.channelId,
-          channelLogin: target.channelName,
-          kind: "channel",
-          platform: target.platform,
-        },
+        target: locationTargetFromWatch(target),
       },
     });
   };
@@ -599,11 +598,7 @@ function ShellScreen({
     const target =
       location.route === "watch/session-preview" &&
       location.target.kind === "channel"
-        ? {
-            channelId: location.target.channelId,
-            channelName: location.target.channelLogin,
-            platform: location.target.platform,
-          }
+        ? watchTargetFromLocation(location.target)
         : null;
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
@@ -734,6 +729,13 @@ function ShellScreen({
           onOpenAccounts={() =>
             dispatch({ type: "navigate", location: { route: "more/accounts" } })
           }
+          onOpenChannel={(channel) =>
+            dispatch({
+              type: "navigate",
+              location: { channel, route: "more/channel" },
+            })
+          }
+          onWatch={openWatch}
           session={homeDiscovery}
         />
       </View>

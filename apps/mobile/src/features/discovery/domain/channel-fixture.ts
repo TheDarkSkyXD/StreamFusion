@@ -142,7 +142,16 @@ export function fixtureChannelDetail(
       clips: unsupportedMedia("kick", "clips"),
       loading: mode === "loading",
       page: fixtureChannelPage(platform, mode === "kick-unsupported" ? "ready" : mode),
-      videos: unsupportedMedia("kick", "videos"),
+      videos: {
+        kind: "page",
+        outcome: {
+          cache: { kind: "miss" },
+          items: mode === "channel-empty" ? [] : [fixtureVideo(platform)],
+          path: { kind: "guest", platform },
+          platform,
+          status: "complete",
+        },
+      },
     });
   }
   return composeChannelDetail({

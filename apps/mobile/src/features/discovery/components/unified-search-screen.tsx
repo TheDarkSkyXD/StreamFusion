@@ -6,6 +6,7 @@ import {
   Text,
 } from "react-native";
 import type { SearchResultType } from "@streamfusion/core/discovery";
+import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import type {
@@ -14,7 +15,9 @@ import type {
   SearchSession,
   UnifiedSearchView as UnifiedSearchModel,
 } from "../capabilities/platform-reads";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 import { historyScopeForTab } from "../domain/search-history";
+import { watchTargetFromClip, watchTargetFromVideo } from "../domain/channel-watch-target";
 
 import { SearchDock } from "./search-dock";
 import {
@@ -30,10 +33,14 @@ import { useUnifiedSearch } from "./use-unified-search";
 export function UnifiedSearchScreen({
   history,
   onOpenAccounts,
+  onOpenChannel,
+  onWatch,
   session,
 }: {
   readonly history: SearchHistoryRepository;
   readonly onOpenAccounts: () => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly session: SearchSession;
 }) {
   const [draft, setDraft] = useState("");
@@ -77,8 +84,10 @@ export function UnifiedSearchScreen({
       onRetry={live.retry}
       onSelectPlatform={setPlatform}
       onSelectTab={setTab}
-      onSubmit={() => submit(draft)}
+      onSubmit={(value) => submit(value ?? draft)}
       onToggleLiveOnly={() => setLiveOnly((current) => !current)}
+      {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
+      {...(onWatch === undefined ? {} : { onWatch })}
       platform={platform}
       tab={tab}
       view={live.view}
@@ -103,6 +112,8 @@ export function UnifiedSearchView({
   onSelectTab,
   onSubmit,
   onToggleLiveOnly,
+  onOpenChannel,
+  onWatch,
   platform,
   proofMode,
   tab,
@@ -122,8 +133,10 @@ export function UnifiedSearchView({
   readonly onSelectPlatform: (platform: SearchPlatformFilter) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly onSelectTab: (tab: SearchResultType) => void;
-  readonly onSubmit: () => void;
+  readonly onSubmit: (value?: string) => void;
   readonly onToggleLiveOnly: () => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly platform: SearchPlatformFilter;
   readonly proofMode?: DiscoveryFixtureMode;
   readonly tab: SearchResultType;
@@ -168,16 +181,20 @@ export function UnifiedSearchView({
           onRepeat={onRepeatHistory}
           scope={historyScopeForTab(tab)}
         />
-        <SearchProviderBanner
-          onOpenAccounts={onOpenAccounts}
-          onRetry={onRetry}
-          outcome={view.providers.twitch}
-        />
-        <SearchProviderBanner
-          onOpenAccounts={onOpenAccounts}
-          onRetry={onRetry}
-          outcome={view.providers.kick}
-        />
+        {view.intent ? (
+          <>
+            <SearchProviderBanner
+              onOpenAccounts={onOpenAccounts}
+              onRetry={onRetry}
+              outcome={view.providers.twitch}
+            />
+            <SearchProviderBanner
+              onOpenAccounts={onOpenAccounts}
+              onRetry={onRetry}
+              outcome={view.providers.kick}
+            />
+          </>
+        ) : null}
         {view.phase === "idle" ? null : (
           <>
             <Text selectable style={styles.heading}>
@@ -188,7 +205,26 @@ export function UnifiedSearchView({
                 No matching channels, streams, videos, clips, or categories.
               </Text>
             ) : null}
-            <SearchResultsView view={view} />
+            <SearchResultsView
+              view={view}
+              {...(onOpenChannel === undefined
+                ? {}
+                : {
+                    onOpenChannel: (channel) =>
+                      onOpenChannel({
+                        id: channel.id,
+                        platform: channel.platform,
+                        username: channel.username,
+                      }),
+                  })}
+              {...(onWatch === undefined
+                ? {}
+                : {
+                    onWatchClip: (clip) => onWatch(watchTargetFromClip(clip)),
+                    onWatchVideo: (video) =>
+                      onWatch(watchTargetFromVideo(video)),
+                  })}
+            />
           </>
         )}
       </ScrollView>

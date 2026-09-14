@@ -18,7 +18,7 @@ describe("selectPlatformReadPath", () => {
     ).toEqual({ kind: "direct", platform: "twitch" });
   });
 
-  it("uses Relay when signed out and an installation credential is ready", () => {
+  it("uses guest catalogs when signed out even if an installation exists", () => {
     expect(
       selectPlatformReadPath({
         installation: { credential: "install", kind: "ready" },
@@ -26,10 +26,10 @@ describe("selectPlatformReadPath", () => {
         platform: "kick",
         userToken: { kind: "none" },
       }),
-    ).toEqual({ kind: "relay", platform: "kick" });
+    ).toEqual({ kind: "guest", platform: "kick" });
   });
 
-  it("keeps auth-lost catalog on Relay when an installation exists", () => {
+  it("keeps auth-lost catalog on guest public reads", () => {
     expect(
       selectPlatformReadPath({
         installation: { credential: "install", kind: "ready" },
@@ -37,10 +37,10 @@ describe("selectPlatformReadPath", () => {
         platform: "twitch",
         userToken: { kind: "auth-lost" },
       }),
-    ).toEqual({ kind: "relay", platform: "twitch" });
+    ).toEqual({ kind: "guest", platform: "twitch" });
   });
 
-  it("uses Relay for signed-out catalog reads without an installation", () => {
+  it("uses guest public catalogs when signed out without an installation", () => {
     expect(
       selectPlatformReadPath({
         installation: { kind: "none" },
@@ -48,10 +48,18 @@ describe("selectPlatformReadPath", () => {
         platform: "twitch",
         userToken: { kind: "none" },
       }),
-    ).toEqual({ kind: "relay", platform: "twitch" });
+    ).toEqual({ kind: "guest", platform: "twitch" });
+    expect(
+      selectPlatformReadPath({
+        installation: { kind: "none" },
+        network: "online",
+        platform: "kick",
+        userToken: { kind: "none" },
+      }),
+    ).toEqual({ kind: "guest", platform: "kick" });
   });
 
-  it("keeps guest Search available when signed out with no installation", () => {
+  it("keeps guest Search available when signed out, including with an installation", () => {
     expect(
       selectSearchReadPath({
         installation: { kind: "none" },
@@ -62,7 +70,7 @@ describe("selectPlatformReadPath", () => {
     ).toEqual({ kind: "guest", platform: "twitch" });
     expect(
       selectSearchReadPath({
-        installation: { kind: "none" },
+        installation: { credential: "install", kind: "ready" },
         network: "online",
         platform: "kick",
         userToken: { kind: "auth-lost" },

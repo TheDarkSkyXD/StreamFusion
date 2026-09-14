@@ -52,7 +52,14 @@ function WatchSessionRoute({
   const peek = useWatchPeek(session);
   const inspection = useQuery({
     queryFn: ({ signal }) => screen.runtime.inspection.read({ signal, target }),
-    queryKey: ["watch-inspection", target.platform, target.channelId, target.channelName],
+    queryKey: [
+      "watch-inspection",
+      target.platform,
+      target.channelId,
+      target.channelName,
+      target.media?.kind ?? "live",
+      target.media?.id ?? "",
+    ],
   });
   useEffect(() => {
     if (peek.kind !== "active" || peek.presentation.presentation !== "fullscreen") {
@@ -66,6 +73,16 @@ function WatchSessionRoute({
   }, [peek, session]);
   const qualityOptions =
     peek.kind === "active" ? peek.qualities : (["auto"] as const);
+  const seek = (deltaMs: number) => {
+    if (peek.kind !== "active" || !peek.progress.seekable) return;
+    const next = peek.progress.positionMs + deltaMs;
+    if (deltaMs < 0) {
+      void session.seekTo(Math.max(0, next));
+      return;
+    }
+    const duration = peek.progress.durationMs;
+    void session.seekTo(duration > 0 ? Math.min(duration, next) : next);
+  };
   return (
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
@@ -95,6 +112,8 @@ function WatchSessionRoute({
       onRetry={() => {
         void session.start(target);
       }}
+      onSeekBack={() => seek(-10_000)}
+      onSeekForward={() => seek(10_000)}
       onSelectTab={setTab}
       onStart={() => {
         void session.start(target);

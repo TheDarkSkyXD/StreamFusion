@@ -93,6 +93,13 @@ export type NativePlaybackEvent =
     }
   | { readonly kind: "ended"; readonly sessionId: string }
   | {
+      readonly durationMs: number;
+      readonly kind: "progress";
+      readonly positionMs: number;
+      readonly seekable: boolean;
+      readonly sessionId: string;
+    }
+  | {
       readonly kind: "picture-in-picture-exited";
       readonly sessionId: string;
     }
@@ -122,6 +129,10 @@ export interface AndroidPlaybackContractPort extends AndroidCapabilityContractPo
   setMuted(
     sessionId: string,
     muted: boolean,
+  ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
+  seekTo(
+    sessionId: string,
+    positionMs: number,
   ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
   setPlaying(
     sessionId: string,

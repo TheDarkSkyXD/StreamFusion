@@ -20,10 +20,14 @@ export function PlayerControls({
   onPip,
   onPlayPause,
   onQuality,
+  onSeekBack,
+  onSeekForward,
   paused,
   pipAvailable,
   pipPhase,
+  progress,
   quality,
+  seekable,
 }: {
   readonly fullscreen: boolean;
   readonly muted: boolean;
@@ -32,10 +36,14 @@ export function PlayerControls({
   readonly onPip: () => void;
   readonly onPlayPause: () => void;
   readonly onQuality: () => void;
+  readonly onSeekBack?: () => void;
+  readonly onSeekForward?: () => void;
   readonly paused: boolean;
   readonly pipAvailable: boolean;
   readonly pipPhase: PictureInPicturePhase;
+  readonly progress?: { readonly durationMs: number; readonly positionMs: number };
   readonly quality: string;
+  readonly seekable: boolean;
 }) {
   const pipStatus = pictureInPictureStatusCopy(pipPhase);
   const pipBusy = pipPhase === "requesting" || pipPhase === "active";
@@ -47,6 +55,9 @@ export function PlayerControls({
           onPress={onPlayPause}
           testID="player-play-pause"
         />
+        {seekable && onSeekBack && onSeekForward ? (
+          <SeekControls onSeekBack={onSeekBack} onSeekForward={onSeekForward} />
+        ) : null}
         <Control
           label={muted ? "Unmute" : "Mute"}
           onPress={onMute}
@@ -69,6 +80,11 @@ export function PlayerControls({
           testID="player-pip"
         />
       </View>
+      {seekable && progress ? (
+        <Text selectable style={styles.status} testID="player-progress">
+          {`${formatClock(progress.positionMs)} / ${formatClock(progress.durationMs)}`}
+        </Text>
+      ) : null}
       {pipStatus ? (
         <Text selectable style={styles.status} testID="player-pip-status">
           {pipStatus}
@@ -79,12 +95,44 @@ export function PlayerControls({
           {FULLSCREEN_LIFECYCLE_COPY}
         </Text>
       ) : null}
-      <Text selectable style={styles.limitation}>
-        Live playback cannot seek or change speed. Captions, theater, and stats
-        stay unavailable until those capabilities ship.
-      </Text>
+      {seekable ? null : (
+        <Text selectable style={styles.limitation}>
+          Live playback cannot seek or change speed. Captions, theater, and stats
+          stay unavailable until those capabilities ship.
+        </Text>
+      )}
     </View>
   );
+}
+
+function SeekControls({
+  onSeekBack,
+  onSeekForward,
+}: {
+  readonly onSeekBack: () => void;
+  readonly onSeekForward: () => void;
+}) {
+  return (
+    <>
+      <Control
+        label="Back 10 seconds"
+        onPress={onSeekBack}
+        testID="player-seek-back"
+      />
+      <Control
+        label="Forward 10 seconds"
+        onPress={onSeekForward}
+        testID="player-seek-forward"
+      />
+    </>
+  );
+}
+
+function formatClock(milliseconds: number): string {
+  const total = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 function pipControlLabel(

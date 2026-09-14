@@ -22,9 +22,9 @@ const ALL_MEDIA_LIMIT = 6;
 const emptyOutcome = (platform: Platform): SearchReadOutcome => ({
   cache: { kind: "miss" },
   catalog: emptySearchCatalog(),
-  path: { kind: "unavailable", platform, reason: "cancelled" },
+  path: { kind: "guest", platform },
   platform,
-  status: "failed",
+  status: "complete",
 });
 
 export function composeUnifiedSearch(input: {

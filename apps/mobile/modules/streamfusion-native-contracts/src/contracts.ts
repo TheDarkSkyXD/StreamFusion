@@ -11,6 +11,7 @@ interface NativePlaybackModule {
   enterPictureInPicture(sessionId: unknown): Promise<unknown>;
   getContractVersion(): number;
   listQualities(sessionId: unknown): Promise<unknown>;
+  seekTo(sessionId: unknown, positionMs: unknown): Promise<unknown>;
   setMuted(sessionId: unknown, muted: unknown): Promise<unknown>;
   setPlaying(sessionId: unknown, playing: unknown): Promise<unknown>;
   setQuality(sessionId: unknown, quality: unknown): Promise<unknown>;

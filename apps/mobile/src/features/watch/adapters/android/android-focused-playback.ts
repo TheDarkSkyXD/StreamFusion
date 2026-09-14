@@ -48,6 +48,8 @@ export function createAndroidFocusedPlaybackPort(
       mapControl(sessionId, await contract.setPlaying(sessionId, playing)),
     setQuality: async (sessionId, quality) =>
       mapQuality(sessionId, await contract.setQuality(sessionId, quality)),
+    seekTo: async (sessionId, positionMs) =>
+      mapControl(sessionId, await contract.seekTo(sessionId, positionMs)),
     setVolume: async (sessionId, volume) =>
       mapControl(sessionId, await contract.setVolume(sessionId, volume)),
     subscribe(listener) {

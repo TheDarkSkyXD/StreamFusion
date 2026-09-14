@@ -9,6 +9,7 @@ import { emptySearchCatalog, streamsFromLiveChannels } from "../../domain/search
 import { requestInit } from "../../utils/optional";
 import { createTwitchHelixCategoryReads } from "./twitch-helix-category-reader";
 import { createTwitchHelixChannelReader } from "./twitch-helix-channel-reader";
+import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
 
 import {
   helixCategories,
@@ -24,6 +25,7 @@ export function createTwitchHelixReader(input: {
   readonly readAccessToken: () => Promise<string | null>;
   readonly readUserId?: () => Promise<string | null>;
 }) {
+  const guest = createTwitchGqlGuestReader({ fetch: input.fetch });
   return {
     ...createTwitchHelixCategoryReads(input),
     ...createTwitchHelixChannelReader(input),
@@ -31,6 +33,9 @@ export function createTwitchHelixReader(input: {
     async getCategories(read: {
       readonly signal?: AbortSignal;
     } = {}): Promise<PlatformReadOutcome<Category>> {
+      if ((await input.readAccessToken()) === null) {
+        return guest.getCategories(read);
+      }
       return helixCollection({
         input,
         map: helixCategories,
@@ -57,8 +62,8 @@ export function createTwitchHelixReader(input: {
       readonly query: string;
       readonly signal?: AbortSignal;
     }): Promise<SearchReadOutcome> {
-      if (read.guest === true) {
-        return searchFailed("twitch", "guest-unavailable");
+      if (read.guest === true || (await input.readAccessToken()) === null) {
+        return guest.search(read);
       }
       const [channels, categories] = await Promise.all([
         helixCollection({
@@ -101,7 +106,7 @@ export function createTwitchHelixReader(input: {
       if (read.signal?.aborted) return cancelled("twitch");
       const accessToken = await input.readAccessToken();
       if (accessToken === null || input.clientId === null) {
-        return missingToken("twitch", "signed-out-login-required");
+        return guest.getTopStreams(read);
       }
       const params = new URLSearchParams({ first: "20" });
       if (read.language) params.set("language", read.language);
@@ -186,20 +191,6 @@ function searchFromOutcome<T>(
     platform: "twitch",
     status: outcome.status,
     ...(outcome.error === undefined ? {} : { error: outcome.error }),
-  };
-}
-
-function searchFailed(
-  platform: Platform,
-  reason: "guest-unavailable",
-): SearchReadOutcome {
-  return {
-    cache: { kind: "miss" },
-    catalog: emptySearchCatalog(),
-    error: { code: reason, retry: "manual" },
-    path: { kind: "unavailable", platform, reason },
-    platform,
-    status: "failed",
   };
 }
 

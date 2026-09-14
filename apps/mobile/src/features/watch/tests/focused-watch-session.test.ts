@@ -81,6 +81,10 @@ function playbackPort(
       kind: "listed" as const,
       catalog: { qualities: ["auto"], selected: "auto", sessionId },
     }),
+    seekTo: async (sessionId) => ({
+      kind: "applied" as const,
+      session: { pictureInPictureEligible: false, sessionId },
+    }),
     setMuted: async (sessionId) => ({
       kind: "applied" as const,
       session: { pictureInPictureEligible: false, sessionId },
@@ -321,5 +325,81 @@ describe("focused watch session", () => {
       presentation: { pip: "returned", presentation: "watch" },
     });
     expect(playback.ended).toEqual([]);
+  });
+
+  it("routes recorded Watch targets to recorded sources and seeks", async () => {
+    const started: string[] = [];
+    const seeks: number[] = [];
+    const recorded = {
+      kickVideo: {
+        integration: "kick-v2-video" as const,
+        platform: "kick" as const,
+        resolve: async () => ({
+          failure: { detail: "unused", kind: "invalid-response" as const },
+          integration: "kick-v2-video" as const,
+          kind: "unavailable" as const,
+        }),
+      },
+      twitchClip: {
+        integration: "twitch-gql-clip" as const,
+        platform: "twitch" as const,
+        resolve: async () => ({
+          failure: { detail: "unused", kind: "invalid-response" as const },
+          integration: "twitch-gql-clip" as const,
+          kind: "unavailable" as const,
+        }),
+      },
+      twitchVideo: {
+        integration: "twitch-gql-vod" as const,
+        platform: "twitch" as const,
+        resolve: async () => ({
+          integration: "twitch-gql-vod" as const,
+          kind: "resolved" as const,
+          requestHeaders: twitchHlsRequestHeaders(),
+          sourceUri,
+        }),
+      },
+    };
+    const session = createFocusedWatchSession({
+      playback: playbackPort({
+        async start(input) {
+          started.push(input.sourceUri);
+          return {
+            kind: "started",
+            session: {
+              pictureInPictureEligible: false,
+              sessionId: input.sessionId,
+            },
+          };
+        },
+        async seekTo(_sessionId, positionMs) {
+          seeks.push(positionMs);
+          return {
+            kind: "applied",
+            session: { pictureInPictureEligible: false, sessionId: "watch:1" },
+          };
+        },
+      }),
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      recorded,
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(async () => {
+        throw new Error("live source must not run for recordings");
+      }),
+    });
+    const vod: WatchTarget = {
+      ...target,
+      media: {
+        durationSeconds: 120,
+        id: "123",
+        kind: "video",
+        title: "Archive",
+      },
+    };
+    await expect(session.start(vod)).resolves.toMatchObject({ kind: "started" });
+    expect(started).toEqual([sourceUri]);
+    await session.seekTo(10_000);
+    expect(seeks).toEqual([10_000]);
   });
 });

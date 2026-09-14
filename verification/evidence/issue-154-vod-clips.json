@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "issue": 154,
+  "ticketId": "W03",
+  "mobileSourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+  "observedAt": "2026-09-14T19:00:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "W03 Watch Videos and Clips on guest Twitch GQL and Kick public catalog. Kick clips stay explained-unavailable. Guest Search video and clip tabs stay empty; Channel Detail is the playback path."
+  },
+  "candidate": {
+    "apkSha256": "4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+    "provenance": "API 30 development client with playback contract v3. Metro JS loaded from the W02 worktree. Twitch VODs and clips used GQL without Relay. Kick VODs used kick.com public videos. Kick clips used official public API absence copy."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Mobile lint, unit tests, architecture, and typecheck ran on this tree before landing."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "observations": [
+        "Twitch xQc Videos listed a real broadcast and Watch played HLS with Pause and Details.",
+        "Kick xQc Videos listed a real VOD and Watch played Kick HLS.",
+        "Twitch Clips listed live titles including Me on stream, holy sync, mental take, and Annual 2k scan. Watch played the clip MP4."
+      ]
+    },
+    "live-platforms": {
+      "result": "pass",
+      "observations": [
+        "Twitch guest videos and clips came from gql.twitch.tv, not fixtures.",
+        "Kick guest videos came from kick.com/api/v2/channels/{slug}/videos.",
+        "Guest Search still returns empty videos and clips arrays. Channel Detail is the working media path."
+      ]
+    },
+    "compatibility-canary": {
+      "result": "pass",
+      "observations": [
+        "Kick Clips showed first-class copy that Kick does not publish clips on the official public API.",
+        "The Watch route did not invent a Kick clip playback URL."
+      ]
+    },
+    "seeking": {
+      "result": "pass",
+      "observations": [
+        "Twitch VOD Back 10s and Forward 10s moved progress on the same session.",
+        "Twitch clip progress showed 0:06 / 1:00 then seek to 0:32 / 1:00 on mental take."
+      ]
+    },
+    "accessibility": {
+      "result": "pass",
+      "observations": [
+        "Watch transport buttons expose visible Pause, Back 10s, Forward 10s, Mute, Quality, Fullscreen, and Picture in Picture labels on 48dp targets.",
+        "This receipt does not include a TalkBack pass."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-154/xqc-channel-videos-tab.png",
+      "sha256": "3c3b8e343310fba44a00e0e52dbce05d571c6b637dd881b878b3ec795fa0fc54",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch xQc Videos tab with a real guest VOD list."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-channel-home-videos.png",
+      "sha256": "85423748100bd5f8a39b268bf94f8fbfc22cc9e3a7b00ed5f35facc903291876",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch xQc Channel Home recent broadcasts after staggered GQL."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-vod-watch.png",
+      "sha256": "60e192137ba67281f460941f92fff796783767355953a80928bd51f6d0edeb40",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch VOD session preview before Start watching."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-vod-playing.png",
+      "sha256": "7aaebbc3862efb7197644c283e0b63680f97cda1e638867de5e5bb7139b4d3c1",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch VOD HLS playing with transport controls."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-vod-seek-back.png",
+      "sha256": "1f9180340bc317386c7db7f88a57241e7587d0ccdd5aee3f707569c6edf57c61",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch VOD Back 10s on the same session."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-vod-seek-forward.png",
+      "sha256": "d505ce91e013b23b72ffafd7fb2d8d205bd9d0d5cbc071a9e0581291d2fe5512",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch VOD Forward 10s on the same session."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-vod-related.png",
+      "sha256": "80482c863bcb042a3668246d31a31167140e6dbac71586b0bbbc4067a4d0683b",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Watch Related tab on a Twitch VOD."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-vod-comments.png",
+      "sha256": "c1d7487bde0edbbab9c3dac0086930b158a3c79a4e2d29e9ec20344c111e7ff8",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Watch Comments placeholder ownership on a Twitch VOD."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-kick-channel.png",
+      "sha256": "2a825be1bbe5ddefdec9a195207442bc5011e713b89db46bdd417d01f644fc9e",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Kick xQc Channel Detail from guest Search."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-kick-videos-tab.png",
+      "sha256": "0d6c031a083ff8f71785f5e39cc5cef81df754a752f491671f041518e8093634",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Kick xQc Videos tab with public catalog VODs."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-kick-vod-preview.png",
+      "sha256": "688f74f74c548118d47afa9be3efe801c2685f8a184c45b0dcbc51cd6d6eb39d",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Kick VOD session preview before Start watching."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-kick-vod-playing.png",
+      "sha256": "c63cf0c697d8f9add129600d075db3caaffc1fcf3e3b9cac49e5922669b32820",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Kick VOD HLS playing with transport controls."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-kick-clips-unsupported.png",
+      "sha256": "1ba26ec2090b25cba9e2db954d3b5e8b8c7810a78a492279c5917c0b1299d2cf",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Kick Clips explained-unavailable on the official public API."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-twitch-clips-tab.png",
+      "sha256": "a392555f1217e5de8a39b690a99fdea701a2f870e733a13fb043e52157cdb038",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch xQc Clips tab with live GQL titles."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-twitch-clip-preview.png",
+      "sha256": "9a681e1d65dc36f3cfc8ae0c6eecd7dc6371ceedfdebad19701716446e89e582",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch clip session preview for holy sync."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-twitch-clip-playing.png",
+      "sha256": "f1ec6df94494f65d11749274333c8e83941d6e6025306e3e5a8b4f2bb3557451",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch clip MP4 playing with Pause and seek."
+    },
+    {
+      "path": "verification/evidence/issue-154/xqc-twitch-clip-seek.png",
+      "sha256": "e15272436aa7fdf4ac7bb054ab0a1547e4f43b60494f53b0cbf6c5d641711561",
+      "observedAt": "2026-09-14T19:00:00.000Z",
+      "scope": "Twitch clip seek to 0:32 / 1:00 on mental take."
+    }
+  ],
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+  ]
+}

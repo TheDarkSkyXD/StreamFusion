@@ -54,6 +54,18 @@ describe("composeUnifiedSearch", () => {
     expect(view.phase).toBe("loading");
   });
 
+  it("does not mark idle providers as retryable failures", () => {
+    const view = composeUnifiedSearch({
+      history: emptySearchHistory(),
+      intent: null,
+      loading: false,
+    });
+    expect(view.phase).toBe("idle");
+    expect(view.retryablePlatforms).toEqual([]);
+    expect(view.providers.twitch.status).toBe("complete");
+    expect(view.providers.kick.status).toBe("complete");
+  });
+
   it("keeps Kick when Twitch fails and lists only the failed platform for retry", () => {
     const view = composeUnifiedSearch({
       history: emptySearchHistory(),

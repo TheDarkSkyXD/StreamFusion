@@ -140,7 +140,7 @@ function pendingMedia<T>(
   platform: Platform,
   media: "videos" | "clips",
 ): ChannelMediaRead<T> {
-  if (platform === "kick") {
+  if (platform === "kick" && media === "clips") {
     return unsupportedMedia(platform, media);
   }
   return {

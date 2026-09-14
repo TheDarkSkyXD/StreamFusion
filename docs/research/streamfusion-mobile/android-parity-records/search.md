@@ -15,7 +15,7 @@ Search channels, streams, videos, clips, and categories across Twitch and Kick. 
 
 ## Android outcome
 
-Guest Search works signed-out. The Search destination shows a bottom dock, typed ten-entry history, All / Channels / Streams / Videos / Clips / Categories tabs, All / Twitch / Kick plus Live-only filters, and typed result cards. Guest Twitch without Relay or an app token reports `guest-unavailable` with Retry. It does not require Sign in. Kick guest uses official public catalog reads. Videos and clips come from Relay Twitch Helix. Kick videos and clips stay empty until an official public media contract exists.
+Guest Search works signed-out without Relay. The Search destination shows a bottom dock, typed ten-entry history, All / Channels / Streams / Videos / Clips / Categories tabs, All / Twitch / Kick plus Live-only filters, and typed result cards. Guest Twitch channel search uses GQL. Kick guest uses official public catalog reads. Guest Search video and clip tabs stay empty. Channel Detail owns videos and clips for Watch.
 
 Local history is Product Store `search-history.v1`. Repeat, remove, and confirmed clear apply only to the current history scope. All, Channels, Videos, and Clips record under `channels`. Streams and Categories keep their own scopes.
 
@@ -30,8 +30,8 @@ Local history is Product Store `search-history.v1`. Repeat, remove, and confirme
 
 ## Evidence residuals
 
-`live-platforms`, `offline-history`, and `keyboard-insets` stay residual on this APK. Live catalog success still needs Relay credentials or official app tokens. A typed query, history mutation, and IME inset were not captured on device.
+`offline-history` and `keyboard-insets` stay residual on this APK. A typed history mutation and IME inset were not captured on this APK after the guest catalog landing. Guest Search video and clip tabs stay empty by design.
 
 ## Blocking for public release
 
-Live Twitch and Kick catalog success still depends on Relay credentials or official app tokens. Channel Detail and Watch from a Search result stay on later tickets. OAuth stays on #145 and #146.
+OAuth stays on #145 and #146. Typed Watch History stays on #155.

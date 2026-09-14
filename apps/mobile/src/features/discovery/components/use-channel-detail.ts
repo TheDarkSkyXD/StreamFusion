@@ -1,8 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ChannelIdentity } from "@streamfusion/core/platform";
+import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
-import type { DiscoverySession } from "../capabilities/platform-reads";
-import { composeChannelDetail } from "../domain/channel-detail";
+import type {
+  ChannelMediaRead,
+  DiscoverySession,
+} from "../capabilities/platform-reads";
+import { composeChannelDetail, unsupportedMedia } from "../domain/channel-detail";
 
 export function channelQueryKey(
   channel: ChannelIdentity,
@@ -25,6 +28,7 @@ export function channelClipsQueryKey(
 export function useChannelDetail(input: {
   readonly channel: ChannelIdentity;
   readonly enabled?: boolean;
+  readonly loadClips?: boolean;
   readonly session: DiscoverySession;
 }) {
   const queryClient = useQueryClient();
@@ -40,7 +44,7 @@ export function useChannelDetail(input: {
     retry: false,
   });
   const videos = useQuery({
-    enabled,
+    enabled: enabled && page.isFetched,
     queryFn: ({ signal }) =>
       input.session.readChannelVideos({
         channel: input.channel,
@@ -50,7 +54,7 @@ export function useChannelDetail(input: {
     retry: false,
   });
   const clips = useQuery({
-    enabled,
+    enabled: enabled && page.isFetched && input.loadClips === true,
     queryFn: ({ signal }) =>
       input.session.readChannelClips({
         channel: input.channel,
@@ -70,10 +74,50 @@ export function useChannelDetail(input: {
       });
     },
     view: composeChannelDetail({
-      loading: enabled && (page.isPending || videos.isPending || clips.isPending),
-      ...(clips.data === undefined ? {} : { clips: clips.data }),
+      loading:
+        enabled && (page.isLoading || videos.isLoading || clips.isLoading),
       ...(page.data === undefined ? {} : { page: page.data }),
-      ...(videos.data === undefined ? {} : { videos: videos.data }),
+      ...optionalLane("clips", clips, input.channel.platform),
+      ...optionalLane("videos", videos, input.channel.platform),
     }),
+  };
+}
+
+function optionalLane<T, K extends "clips" | "videos">(
+  media: K,
+  query: {
+    readonly data?: ChannelMediaRead<T> | undefined;
+    readonly isError: boolean;
+  },
+  platform: Platform,
+): { readonly [P in K]: ChannelMediaRead<T> } | Record<string, never> {
+  if (query.data !== undefined) {
+    return { [media]: query.data } as { readonly [P in K]: ChannelMediaRead<T> };
+  }
+  if (query.isError) {
+    return { [media]: failedLane(platform, media) } as {
+      readonly [P in K]: ChannelMediaRead<T>;
+    };
+  }
+  return {};
+}
+
+function failedLane<T>(
+  platform: Platform,
+  media: "videos" | "clips",
+): ChannelMediaRead<T> {
+  if (platform === "kick" && media === "clips") {
+    return unsupportedMedia(platform, media);
+  }
+  return {
+    kind: "page",
+    outcome: {
+      cache: { kind: "miss" },
+      error: { code: "twitch-failed", retry: "manual" },
+      items: [],
+      path: { kind: "guest", platform },
+      platform,
+      status: "failed",
+    },
   };
 }

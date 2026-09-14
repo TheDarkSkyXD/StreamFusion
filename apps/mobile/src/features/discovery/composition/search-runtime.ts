@@ -83,18 +83,11 @@ async function searchAlongPath(input: {
           query: input.query,
           ...(input.signal === undefined ? {} : { signal: input.signal }),
         })
-      : {
-          cache: { kind: "miss" },
-          catalog: emptySearchCatalog(),
-          error: { code: "guest-unavailable", retry: "manual" },
-          path: {
-            kind: "unavailable",
-            platform: "twitch",
-            reason: "guest-unavailable",
-          },
-          platform: "twitch",
-          status: "failed",
-        };
+      : input.twitch.search({
+          guest: true,
+          query: input.query,
+          ...(input.signal === undefined ? {} : { signal: input.signal }),
+        });
   }
   if (input.path.kind === "direct") {
     const direct =

@@ -58,18 +58,12 @@ export function createChannelDiscoverySession(input: {
         readDirect: () =>
           directChannel(input.readers, read.channel, read.signal),
         readRelay: () =>
-          input.readers.relay.getChannel({
-            channel: read.channel,
-            ...(read.signal === undefined ? {} : { signal: read.signal }),
-          }),
+          input.readers.relay.getChannel(channelRead(read.channel, read.signal)),
         ...(read.signal === undefined ? {} : { signal: read.signal }),
         userToken: context.userToken,
       });
     },
     async readChannelVideos(read) {
-      if (read.channel.platform === "kick") {
-        return unsupportedMedia("kick", "videos");
-      }
       return {
         kind: "page",
         outcome: await readVideos(input, cache, read),
@@ -116,15 +110,11 @@ async function readVideos(
     network: context.network,
     platform: read.channel.platform,
     readDirect: () =>
-      input.readers.twitch.getChannelVideos({
-        channel: read.channel,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      }),
+      directVideos(input.readers, read.channel, read.signal),
     readRelay: () =>
-      input.readers.relay.getChannelVideos({
-        channel: read.channel,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      }),
+      input.readers.relay.getChannelVideos(
+        channelRead(read.channel, read.signal),
+      ),
     ...(read.signal === undefined ? {} : { signal: read.signal }),
     userToken: context.userToken,
   });
@@ -159,15 +149,13 @@ async function readClips(
     network: context.network,
     platform: read.channel.platform,
     readDirect: () =>
-      input.readers.twitch.getChannelClips({
-        channel: read.channel,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      }),
+      input.readers.twitch.getChannelClips(
+        channelRead(read.channel, read.signal),
+      ),
     readRelay: () =>
-      input.readers.relay.getChannelClips({
-        channel: read.channel,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      }),
+      input.readers.relay.getChannelClips(
+        channelRead(read.channel, read.signal),
+      ),
     ...(read.signal === undefined ? {} : { signal: read.signal }),
     userToken: context.userToken,
   });
@@ -188,15 +176,30 @@ async function readContext(
   return { installation, network, userToken: { kind: "none" as const } };
 }
 
+function directVideos(
+  readers: Readers,
+  channel: ChannelIdentity,
+  signal?: AbortSignal,
+): Promise<PlatformReadOutcome<Video>> {
+  const read = channelRead(channel, signal);
+  return channel.platform === "kick"
+    ? readers.kick.getChannelVideos(read)
+    : readers.twitch.getChannelVideos(read);
+}
+
+function channelRead(
+  channel: ChannelIdentity,
+  signal?: AbortSignal,
+): { readonly channel: ChannelIdentity } | { readonly channel: ChannelIdentity; readonly signal: AbortSignal } {
+  return signal === undefined ? { channel } : { channel, signal };
+}
+
 function directChannel(
   readers: Readers,
   channel: ChannelIdentity,
   signal?: AbortSignal,
 ): Promise<ChannelPageOutcome> {
-  const read = {
-    channel,
-    ...(signal === undefined ? {} : { signal }),
-  };
+  const read = channelRead(channel, signal);
   return channel.platform === "twitch"
     ? readers.twitch.getChannel(read)
     : readers.kick.getChannel(read);

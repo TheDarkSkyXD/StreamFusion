@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import type { Clip, Video, Channel } from "@streamfusion/core/content";
 import type { SearchResultType } from "@streamfusion/core/discovery";
 
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
@@ -14,8 +15,14 @@ import {
 } from "./search-cards";
 
 export function SearchResultsView({
+  onOpenChannel,
+  onWatchClip,
+  onWatchVideo,
   view,
 }: {
+  readonly onOpenChannel?: (channel: Channel) => void;
+  readonly onWatchClip?: (clip: Clip) => void;
+  readonly onWatchVideo?: (video: Video) => void;
   readonly view: UnifiedSearchView;
 }) {
   const tab = view.intent?.resultType ?? "all";
@@ -27,6 +34,7 @@ export function SearchResultsView({
           <SearchChannelCard
             channel={channel}
             key={`${channel.platform}:${channel.id}`}
+            {...watchProp("onOpen", onOpenChannel ? () => onOpenChannel(channel) : undefined)}
           />
         ))}
       </Section>
@@ -46,23 +54,12 @@ export function SearchResultsView({
   }
   if (tab === "videos") {
     return (
-      <Section title="Videos">
-        {collection.videos.map((video) => (
-          <SearchVideoCard
-            key={`${video.platform}:${video.id}`}
-            video={video}
-          />
-        ))}
-      </Section>
+      <Section title="Videos">{videoCards(collection.videos, onWatchVideo)}</Section>
     );
   }
   if (tab === "clips") {
     return (
-      <Section title="Clips">
-        {collection.clips.map((clip) => (
-          <SearchClipCard clip={clip} key={`${clip.platform}:${clip.id}`} />
-        ))}
-      </Section>
+      <Section title="Clips">{clipCards(collection.clips, onWatchClip)}</Section>
     );
   }
   if (tab === "categories") {
@@ -81,7 +78,18 @@ export function SearchResultsView({
     <View style={styles.stack} testID="search-results-all">
       {view.bestMatch ? (
         <Section title="Best match">
-          <SearchChannelCard channel={view.bestMatch} />
+          <SearchChannelCard
+            channel={view.bestMatch}
+            {...watchProp(
+              "onOpen",
+              onOpenChannel
+                ? () => {
+                    const match = view.bestMatch;
+                    if (match) onOpenChannel(match);
+                  }
+                : undefined,
+            )}
+          />
         </Section>
       ) : null}
       {collection.streams.length > 0 ? (
@@ -96,19 +104,12 @@ export function SearchResultsView({
       ) : null}
       {collection.videos.length > 0 ? (
         <Section title="Videos">
-          {collection.videos.map((video) => (
-            <SearchVideoCard
-              key={`${video.platform}:${video.id}`}
-              video={video}
-            />
-          ))}
+          {videoCards(collection.videos, onWatchVideo)}
         </Section>
       ) : null}
       {collection.clips.length > 0 ? (
         <Section title="Clips">
-          {collection.clips.map((clip) => (
-            <SearchClipCard clip={clip} key={`${clip.platform}:${clip.id}`} />
-          ))}
+          {clipCards(collection.clips, onWatchClip)}
         </Section>
       ) : null}
       {collection.categories.length > 0 ? (
@@ -123,6 +124,39 @@ export function SearchResultsView({
       ) : null}
     </View>
   );
+}
+
+function videoCards(
+  videos: readonly Video[],
+  onWatchVideo?: (video: Video) => void,
+) {
+  return videos.map((video) => (
+    <SearchVideoCard
+      key={`${video.platform}:${video.id}`}
+      video={video}
+      {...watchProp("onWatch", onWatchVideo)}
+    />
+  ));
+}
+
+function clipCards(
+  clips: readonly Clip[],
+  onWatchClip?: (clip: Clip) => void,
+) {
+  return clips.map((clip) => (
+    <SearchClipCard
+      clip={clip}
+      key={`${clip.platform}:${clip.id}`}
+      {...watchProp("onWatch", onWatchClip)}
+    />
+  ));
+}
+
+function watchProp<K extends string, V>(
+  key: K,
+  value: V | undefined,
+): { readonly [P in K]: V } | Record<string, never> {
+  return value === undefined ? {} : ({ [key]: value } as { readonly [P in K]: V });
 }
 
 function Section({

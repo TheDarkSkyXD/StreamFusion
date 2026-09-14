@@ -164,8 +164,14 @@ const implemented = new Set([
   "action:player-quality",
   "action:player-fullscreen",
   "action:player-pip",
+  "action:player-seek-back",
+  "action:player-seek-forward",
   "action:mini-player-pause",
   "action:dismiss-player",
+  "screen:video",
+  "tab:watch:chat",
+  "tab:watch:info",
+  "tab:watch:related",
 ]);
 
 const partial = new Set([
@@ -210,10 +216,15 @@ const owners = {
   "action:player-quality": [152, 153],
   "action:player-fullscreen": [152, 153],
   "action:player-pip": [153],
+  "action:player-seek-back": [154],
+  "action:player-seek-forward": [154],
   "action:mini-player-pause": [152, 153],
   "action:dismiss-player": [152, 153],
   "screen:watch": [152, 153, 156, 157, 167],
   "screen:video": [133, 153, 154],
+  "tab:watch:chat": [152, 156],
+  "tab:watch:info": [152, 154],
+  "tab:watch:related": [152, 154],
   "screen:multi": [143, 160, 167],
   "screen:history": [155],
   "screen:activity": [141, 151, 172, 173, 174],
@@ -352,6 +363,18 @@ const paths = {
   "screen:watch": [
     "apps/mobile/src/features/watch/components/watch-screen.tsx",
   ],
+  "screen:video": [
+    "apps/mobile/src/features/watch/components/watch-screen.tsx",
+  ],
+  "tab:watch:chat": [
+    "apps/mobile/src/features/watch/components/watch-tabs.tsx",
+  ],
+  "tab:watch:info": [
+    "apps/mobile/src/features/watch/components/watch-tabs.tsx",
+  ],
+  "tab:watch:related": [
+    "apps/mobile/src/features/watch/components/watch-tabs.tsx",
+  ],
   "shell-route:watch": [
     "apps/mobile/src/features/watch/components/watch-route.tsx",
   ],
@@ -389,6 +412,12 @@ const paths = {
     "apps/mobile/src/features/watch/components/player-controls.tsx",
   ],
   "action:player-pip": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:player-seek-back": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:player-seek-forward": [
     "apps/mobile/src/features/watch/components/player-controls.tsx",
   ],
   "action:mini-player-pause": [
@@ -455,7 +484,7 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch is implemented for guest live HLS. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
+      "Watch covers guest live HLS and recorded Twitch/Kick video plus Twitch clips. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
     owners: [147, 148, 149, 150, 152, 155, 159, 167],
   },
   {
@@ -560,7 +589,7 @@ ${gapRows}
 
 ## This increment
 
-Guest Search, Home, Channel Detail, Categories, Following, and Media Job preview land in this candidate. Watch, History, Moderation, Settings, and remaining Diagnostics tabs stay with their owners.
+Guest Search, Home, Channel Detail, Categories, Following, Watch, recorded video/clip playback, and Media Job preview land in this candidate. History, Moderation, Settings, and remaining Diagnostics tabs stay with their owners.
 
 Run \`node docs/research/streamfusion-mobile/coverage-matrix-check.mjs\` after a contract or shell-route change.
 `;

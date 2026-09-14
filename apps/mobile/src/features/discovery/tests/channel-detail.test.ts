@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { MediaTab } from "../components/channel-detail-media";
 import { ChannelDetailBody } from "../components/channel-detail-screen";
 import { composeChannelDetail, unsupportedMedia } from "../domain/channel-detail";
 import {
@@ -87,12 +88,12 @@ describe("channel detail compose", () => {
     expect(view.phase).toBe("ready");
   });
 
-  it("marks Kick videos and clips unsupported", () => {
+  it("marks Kick clips unsupported and lists Kick videos", () => {
     const view = fixtureChannelDetail(
       { id: "kick-c1", platform: "kick", username: "kick-live" },
       "kick-unsupported",
     );
-    expect(view.videos).toEqual(unsupportedMedia("kick", "videos"));
+    expect(view.videos.kind).toBe("page");
     expect(view.clips).toEqual(unsupportedMedia("kick", "clips"));
   });
 });
@@ -182,7 +183,49 @@ describe("channel detail screen", () => {
     expect(nodes.some((node) => node.props.children === "Unfollow")).toBe(true);
   });
 
-  it("shows Kick unsupported copy for videos and clips", () => {
+  it("shows loading copy while guest clips are still partial", () => {
+    const nodes = descendants(
+      MediaTab({
+        kind: "clips",
+        lane: {
+          kind: "page",
+          outcome: {
+            cache: { kind: "miss" },
+            items: [],
+            path: { kind: "guest", platform: "twitch" },
+            platform: "twitch",
+            status: "partial",
+          },
+        },
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "channel-clips-loading")).toBe(
+      true,
+    );
+  });
+
+  it("shows empty copy after a completed guest clips read with no items", () => {
+    const nodes = descendants(
+      MediaTab({
+        kind: "clips",
+        lane: {
+          kind: "page",
+          outcome: {
+            cache: { kind: "miss" },
+            items: [],
+            path: { kind: "guest", platform: "twitch" },
+            platform: "twitch",
+            status: "complete",
+          },
+        },
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "channel-clips-empty")).toBe(
+      true,
+    );
+  });
+
+  it("shows Kick video rows and unsupported clips copy", () => {
     const videos = descendants(
       ChannelDetailBody(
         bodyProps(
@@ -202,7 +245,7 @@ describe("channel detail screen", () => {
       ),
     );
     expect(
-      videos.some((node) => node.props.testID === "channel-videos-unsupported"),
+      videos.some((node) => node.props.testID === "channel-videos-list"),
     ).toBe(true);
     expect(
       clips.some((node) => node.props.testID === "channel-clips-unsupported"),

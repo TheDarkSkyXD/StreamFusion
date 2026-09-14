@@ -35,6 +35,16 @@ object FocusedPlaybackSessionOwner {
   private var volumeBeforeMute = 1f
   private var applicationContext: Context? = null
   private var hostActivity: WeakReference<Activity>? = null
+  private val progressTicker = object : Runnable {
+    override fun run() {
+      val snapshot = synchronized(lock) { player to activeSessionId }
+      val exo = snapshot.first
+      val sessionId = snapshot.second
+      if (exo == null || sessionId == null) return
+      publish(progressEvent(sessionId, exo))
+      main.postDelayed(this, 500)
+    }
+  }
 
   fun attachEmitter(next: (Map<String, Any>) -> Unit) {
     synchronized(lock) { emit = next }
@@ -51,7 +61,7 @@ object FocusedPlaybackSessionOwner {
     if (sessionId.isNullOrBlank() || !SESSION_ID.matches(sessionId)) {
       return@onMain mapOf("kind" to "invalid")
     }
-    if (sourceUri.isNullOrBlank() || !isHttpsHls(sourceUri)) {
+    if (sourceUri.isNullOrBlank() || !isHttpsMedia(sourceUri)) {
       return@onMain mapOf("kind" to "invalid")
     }
     val requestHeaders = requestHeaders(request)
@@ -66,7 +76,7 @@ object FocusedPlaybackSessionOwner {
     exo.setMediaItem(
       MediaItem.Builder()
         .setUri(sourceUri)
-        .setMimeType(MimeTypes.APPLICATION_M3U8)
+        .setMimeType(mimeType(sourceUri))
         .build(),
     )
     val previous = synchronized(lock) {
@@ -86,6 +96,7 @@ object FocusedPlaybackSessionOwner {
       outgoing
     }
     previous?.release()
+    stopProgressTicker()
     exo.prepare()
     exo.playWhenReady = true
     synchronized(lock) {
@@ -94,6 +105,7 @@ object FocusedPlaybackSessionOwner {
       }
       bindViewsLocked()
     }
+    startProgressTicker()
     sessionCompleted(context, sessionId)
   }
 
@@ -117,6 +129,7 @@ object FocusedPlaybackSessionOwner {
       current
     }
     outgoing?.release()
+    stopProgressTicker()
     mapOf(
       "kind" to "completed",
       "value" to mapOf(
@@ -178,6 +191,21 @@ object FocusedPlaybackSessionOwner {
       .build()
     selectedQuality = quality
     qualityCompleted(sessionId, current)
+  }
+
+  fun seekTo(sessionId: String, positionMs: Double): Map<String, Any> = onMain {
+    val current = requirePlayer(sessionId) ?: return@onMain missing(sessionId)
+    val duration = current.duration
+    if (
+      !current.isCurrentMediaItemSeekable ||
+      duration <= 0L ||
+      duration == C.TIME_UNSET
+    ) {
+      return@onMain unsupported("Seeking is not available for this live session.")
+    }
+    current.seekTo(positionMs.toLong().coerceIn(0L, duration))
+    publish(progressEvent(sessionId, current))
+    sessionCompleted(null, sessionId)
   }
 
   fun enterPictureInPicture(activity: Activity?, sessionId: String): Map<String, Any> = onMain {
@@ -255,6 +283,7 @@ object FocusedPlaybackSessionOwner {
       current
     }
     outgoing?.release()
+    stopProgressTicker()
   }
 
   fun register(view: StreamFusionPlaybackView) = onMain {
@@ -360,10 +389,40 @@ object FocusedPlaybackSessionOwner {
     return headers
   }
 
-  private fun isHttpsHls(sourceUri: String): Boolean {
+  private fun isHttpsMedia(sourceUri: String): Boolean {
     val uri = Uri.parse(sourceUri)
     val path = uri.path.orEmpty().lowercase()
-    return uri.scheme == "https" && path.contains(".m3u8")
+    return uri.scheme == "https" && (path.contains(".m3u8") || path.endsWith(".mp4"))
+  }
+
+  private fun mimeType(sourceUri: String): String {
+    return if (sourceUri.lowercase().contains(".m3u8")) {
+      MimeTypes.APPLICATION_M3U8
+    } else {
+      MimeTypes.APPLICATION_MP4
+    }
+  }
+
+  private fun startProgressTicker() {
+    main.removeCallbacks(progressTicker)
+    main.post(progressTicker)
+  }
+
+  private fun stopProgressTicker() {
+    main.removeCallbacks(progressTicker)
+  }
+
+  private fun progressEvent(sessionId: String, exo: ExoPlayer): Map<String, Any> {
+    val duration = exo.duration
+    val seekable =
+      exo.isCurrentMediaItemSeekable && duration > 0L && duration != C.TIME_UNSET
+    return mapOf(
+      "kind" to "progress",
+      "sessionId" to sessionId,
+      "positionMs" to exo.currentPosition.toDouble(),
+      "durationMs" to if (duration == C.TIME_UNSET) 0.0 else duration.toDouble(),
+      "seekable" to seekable,
+    )
   }
 
   private fun publish(event: Map<String, Any>) {

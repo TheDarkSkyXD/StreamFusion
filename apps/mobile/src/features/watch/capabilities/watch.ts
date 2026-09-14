@@ -27,9 +27,25 @@ export type PlayerPresentationState = {
   readonly snapRegion: MiniPlayerSnapRegion;
 };
 
-export type WatchTarget = StreamChannelIdentity;
+export type WatchMedia = {
+  readonly durationSeconds: number;
+  readonly id: string;
+  readonly kind: "clip" | "video";
+  readonly sourceUri?: string;
+  readonly title: string;
+};
 
-export type WatchTab = "chat" | "info" | "related";
+export type WatchTarget = StreamChannelIdentity & {
+  readonly media?: WatchMedia;
+};
+
+export type PlaybackProgress = {
+  readonly durationMs: number;
+  readonly positionMs: number;
+  readonly seekable: boolean;
+};
+
+export type WatchTab = "chat" | "comments" | "info" | "related";
 
 export type WatchChatAvailability = {
   readonly detail: string;
@@ -54,6 +70,13 @@ export type WatchInfo =
       readonly channel: Channel;
       readonly kind: "live";
       readonly stream: Stream;
+    }
+  | {
+      readonly channel: Channel;
+      readonly durationSeconds: number;
+      readonly kind: "recorded";
+      readonly mediaKind: WatchMedia["kind"];
+      readonly title: string;
     }
   | {
       readonly channel: Channel;
@@ -93,7 +116,12 @@ export const PLAYBACK_COMPATIBILITY_CAPABILITY = {
   twitch: "compat.playback.twitch-gql-usher",
 } as const satisfies Readonly<Record<Platform, string>>;
 
-export type PlaybackIntegration = "kick-v1-playback-url" | "twitch-gql-usher";
+export type PlaybackIntegration =
+  | "kick-v1-playback-url"
+  | "kick-v2-video"
+  | "twitch-gql-clip"
+  | "twitch-gql-usher"
+  | "twitch-gql-vod";
 
 export type PlaybackCompatibilityDecision =
   | { readonly kind: "enabled"; readonly sequence: number }
@@ -151,6 +179,12 @@ export type LivePlaybackSources = {
   readonly [TPlatform in Platform]: LivePlaybackSourceResolver<TPlatform>;
 };
 
+export type RecordedPlaybackSources = {
+  readonly kickVideo: LivePlaybackSourceResolver<"kick">;
+  readonly twitchClip: LivePlaybackSourceResolver<"twitch">;
+  readonly twitchVideo: LivePlaybackSourceResolver<"twitch">;
+};
+
 export type NativePlaybackFailureCode =
   | "PLAYBACK_DECODER_UNSUPPORTED"
   | "PLAYBACK_NETWORK_FAILED"
@@ -166,6 +200,13 @@ export type NativePlaybackEvent =
       readonly sessionId: string;
     }
   | { readonly kind: "ended"; readonly sessionId: string }
+  | {
+      readonly durationMs: number;
+      readonly kind: "progress";
+      readonly positionMs: number;
+      readonly seekable: boolean;
+      readonly sessionId: string;
+    }
   | {
       readonly kind: "picture-in-picture-exited";
       readonly sessionId: string;
@@ -235,6 +276,10 @@ export interface FocusedPlaybackPort {
   setPlaying(
     sessionId: string,
     playing: boolean,
+  ): Promise<FocusedPlaybackControlResult>;
+  seekTo(
+    sessionId: string,
+    positionMs: number,
   ): Promise<FocusedPlaybackControlResult>;
   setQuality(
     sessionId: string,
@@ -346,6 +391,7 @@ export type WatchPeek =
       readonly kind: "active";
       readonly muted: boolean;
       readonly presentation: PlayerPresentationState;
+      readonly progress: PlaybackProgress;
       readonly quality: string;
       readonly qualities: readonly string[];
       readonly state: Extract<FocusedWatchState, { kind: "active" }>;
@@ -364,6 +410,7 @@ export interface FocusedWatchSession {
   requestPictureInPicture(): Promise<FocusedPictureInPictureResult | { readonly kind: "idle" }>;
   restoreFromPictureInPicture(): void;
   reveal(): void;
+  seekTo(positionMs: number): Promise<void>;
   setMuted(muted: boolean): Promise<void>;
   setPlaying(playing: boolean): Promise<void>;
   setQuality(quality: string): Promise<void>;

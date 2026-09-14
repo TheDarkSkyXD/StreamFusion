@@ -8,7 +8,7 @@ class StreamFusionPlaybackModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("StreamFusionPlayback")
     Events("onNativePlayback")
-    Function("getContractVersion") { 2 }
+    Function("getContractVersion") { 3 }
     OnCreate {
       FocusedPlaybackSessionOwner.attachEmitter { event ->
         sendEvent("onNativePlayback", event)
@@ -51,6 +51,9 @@ class StreamFusionPlaybackModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("setQuality") { sessionId: String, quality: String ->
       FocusedPlaybackSessionOwner.setQuality(sessionId, quality)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("seekTo") { sessionId: String, positionMs: Double ->
+      FocusedPlaybackSessionOwner.seekTo(sessionId, positionMs)
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("enterPictureInPicture") { sessionId: String ->
       val activity = appContext.currentActivity

@@ -57,6 +57,11 @@ const peek: Extract<WatchPeek, { kind: "active" }> = {
     previous: "watch",
     snapRegion: "bottom-end",
   },
+  progress: {
+    durationMs: 0,
+    positionMs: 0,
+    seekable: false,
+  },
   quality: "auto",
   qualities: ["auto"],
   state: {

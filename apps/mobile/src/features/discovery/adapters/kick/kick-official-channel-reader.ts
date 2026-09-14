@@ -1,14 +1,23 @@
-import type { Channel, Stream } from "@streamfusion/core/content";
+import type { Channel, Stream, Video } from "@streamfusion/core/content";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
-import type { ChannelPageOutcome } from "../../capabilities/platform-reads";
+import type {
+  ChannelPageOutcome,
+  PlatformReadOutcome,
+} from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import { readKickPublicChannelVideos } from "./kick-public-videos";
 import {
   canonicalTimestamp,
   identifierField,
   numberField,
   stringField,
 } from "../../utils/helix-media";
+import {
+  kickPublicChannelUrl,
+  mapKickPublicChannel,
+  mapKickPublicLive,
+} from "./kick-public-catalog";
 
 const KICK_CHANNELS = "https://api.kick.com/public/v1/channels";
 
@@ -23,8 +32,10 @@ export function createKickOfficialChannelReader(input: {
     }): Promise<ChannelPageOutcome> {
       if (read.signal?.aborted) return failed("cancelled");
       const accessToken = await input.readAccessToken();
-      if (accessToken === null) return failed("signed-out-login-required");
       const slug = read.channel.username || read.channel.id;
+      if (accessToken === null) {
+        return kickPublicChannelPage(input.fetch, slug, read.signal);
+      }
       try {
         const response = await input.fetch(
           `${KICK_CHANNELS}?slug[]=${encodeURIComponent(slug)}`,
@@ -47,6 +58,16 @@ export function createKickOfficialChannelReader(input: {
       } catch {
         return failed(read.signal?.aborted ? "cancelled" : "kick-failed");
       }
+    },
+    async getChannelVideos(read: {
+      readonly channel: ChannelIdentity;
+      readonly signal?: AbortSignal;
+    }): Promise<PlatformReadOutcome<Video>> {
+      return readKickPublicChannelVideos({
+        fetchImpl: input.fetch,
+        slug: read.channel.username || read.channel.id,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
     },
   };
 }
@@ -148,4 +169,31 @@ function failed(code: string): ChannelPageOutcome {
     platform: "kick",
     status: "failed",
   };
+}
+
+async function kickPublicChannelPage(
+  fetchImpl: typeof globalThis.fetch,
+  slug: string,
+  signal?: AbortSignal,
+): Promise<ChannelPageOutcome> {
+  try {
+    const response = await fetchImpl(
+      kickPublicChannelUrl(slug),
+      requestInit({ Accept: "application/json" }, signal),
+    );
+    if (!response.ok) return failed("kick-failed");
+    const payload: unknown = await response.json();
+    const channel = mapKickPublicChannel(payload);
+    if (channel === null) return failed("kick-failed");
+    return {
+      cache: { kind: "miss" },
+      channel,
+      live: channel.isLive ? mapKickPublicLive(payload, channel) : null,
+      path: { kind: "guest", platform: "kick" },
+      platform: "kick",
+      status: "complete",
+    };
+  } catch {
+    return failed(signal?.aborted ? "cancelled" : "kick-failed");
+  }
 }

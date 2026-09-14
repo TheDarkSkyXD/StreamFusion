@@ -48,6 +48,8 @@ export function WatchScreen({
   onPip,
   onPlayPause,
   onQuality,
+  onSeekBack,
+  onSeekForward,
   onToggleFullscreen,
   peek,
   playback,
@@ -66,6 +68,8 @@ export function WatchScreen({
   readonly onPip?: () => void;
   readonly onPlayPause?: () => void;
   readonly onQuality?: () => void;
+  readonly onSeekBack?: () => void;
+  readonly onSeekForward?: () => void;
   readonly onToggleFullscreen?: () => void;
   readonly peek?: WatchPeek;
   readonly playback: FocusedWatchState;
@@ -77,6 +81,14 @@ export function WatchScreen({
     peek?.kind === "active" && peek.presentation.presentation === "fullscreen";
   const pipSurface =
     peek?.kind === "active" && isPictureInPictureSurface(peek.presentation);
+  const showControls =
+    peek?.kind === "active" &&
+    !pipSurface &&
+    onMute &&
+    onPip &&
+    onPlayPause &&
+    onQuality &&
+    onToggleFullscreen;
   return (
     <View
       style={[styles.screen, pipSurface ? styles.pipScreen : null]}
@@ -101,13 +113,7 @@ export function WatchScreen({
             </Text>
           </View>
         )}
-        {peek?.kind === "active" &&
-        !pipSurface &&
-        onMute &&
-        onPip &&
-        onPlayPause &&
-        onQuality &&
-        onToggleFullscreen ? (
+        {showControls && peek.kind === "active" ? (
           <PlayerControls
             fullscreen={fullscreen}
             muted={peek.muted}
@@ -116,10 +122,14 @@ export function WatchScreen({
             onPip={onPip}
             onPlayPause={onPlayPause}
             onQuality={onQuality}
+            {...(onSeekBack === undefined ? {} : { onSeekBack })}
+            {...(onSeekForward === undefined ? {} : { onSeekForward })}
             paused={peek.state.phase === "paused"}
             pipAvailable={peek.state.session.pictureInPictureEligible}
             pipPhase={peek.presentation.pip}
+            progress={peek.progress}
             quality={peek.quality}
+            seekable={peek.progress.seekable}
           />
         ) : null}
       </View>
@@ -146,6 +156,7 @@ export function WatchScreen({
             info={inspection?.info ?? null}
             onOpenRelated={onOpenRelated}
             onSelect={onSelectTab}
+            recorded={Boolean(target.media)}
             related={inspection?.related ?? null}
             tab={tab}
           />
@@ -191,7 +202,7 @@ export function WatchEmptyState() {
         Watch
       </Text>
       <Text selectable style={styles.body}>
-        Select a live stream to watch.
+        Select a live stream or recording to watch.
       </Text>
     </View>
   );

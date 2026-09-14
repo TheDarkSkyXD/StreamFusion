@@ -175,7 +175,7 @@ async function readAlongPath<T>(input: {
   readonly readRelay: () => Promise<PlatformReadOutcome<T>>;
 }): Promise<PlatformReadOutcome<T>> {
   if (input.path.kind === "unavailable") return unavailableOutcome(input.path);
-  if (input.path.kind === "direct") {
+  if (input.path.kind === "direct" || input.path.kind === "guest") {
     const direct = await input.readDirect();
     if (
       direct.error?.code === "auth-lost" &&

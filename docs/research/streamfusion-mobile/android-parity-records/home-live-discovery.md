@@ -15,9 +15,9 @@ Browse live streams, channel cards, and current platform availability from Home.
 
 ## Android outcome
 
-Guest Home works signed-out. More lists Home first. Combined Twitch and Kick recommendation cards use 16:9 thumbs, live state, and viewer counts. Twitch without Relay or an app token reports `guest-unavailable` with Retry. It does not require Sign in. Stale cache shows cached recommendations with age copy.
+Guest Home works signed-out without Relay or an app token. More lists Home first. Combined Twitch and Kick recommendation cards use 16:9 thumbs, live state, and viewer counts. Twitch guest reads GQL. Kick guest reads public featured livestreams. Stale cache shows cached recommendations with age copy.
 
-Channel Detail keeps Home, Videos, and Clips. Kick videos and clips show first-class unsupported copy. Follow uses `channel-follow`. Guest Follow writes a local channel follow. Watch opens the guest live player when a playback URL exists. OAuth stays on #145 and #146.
+Channel Detail keeps Home, Videos, and Clips. Twitch videos and clips load from GQL. Kick videos load from the public catalog. Kick clips stay explained-unavailable. Follow uses `channel-follow`. Guest Follow writes a local channel follow. Watch opens the guest live player when a playback URL exists. OAuth stays on #145 and #146.
 
 ## Required evidence
 
@@ -30,8 +30,8 @@ Channel Detail keeps Home, Videos, and Clips. Kick videos and clips show first-c
 
 ## Evidence residuals
 
-`tablet-layout`, `live-platforms`, and `accessibility` stay residual on this APK. Live catalog success still needs Relay credentials or official app tokens. TalkBack, large text, and a tablet AVD were not driven. The 2026-09-12 frames predate Guest Follow (#225) and guest Watch (#227). Those PNGs still show the earlier degrade copy.
+`tablet-layout` and `accessibility` stay residual on this APK. TalkBack, large text, and a tablet AVD were not driven. Live guest Twitch and Kick Home now succeed without Relay; later W03 frames supersede the 2026-09-12 degrade copy.
 
 ## Blocking for public release
 
-Live Twitch and Kick catalog success still depends on Relay credentials or official app tokens. OAuth stays on #145 and #146.
+OAuth stays on #145 and #146.

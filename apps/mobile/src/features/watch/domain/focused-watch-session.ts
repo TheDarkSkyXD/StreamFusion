@@ -1,26 +1,21 @@
-import { streamsMatchChannelIdentity } from "@streamfusion/core/platform";
-
 import type {
   FocusedPlaybackPort,
-  FocusedPlaybackProtection,
   FocusedPlaybackProtectionPort,
   FocusedPictureInPictureResult,
   FocusedWatchSession,
   FocusedWatchState,
-  LivePlaybackSourceResolution,
   LivePlaybackSources,
   MiniPlayerSnapRegion,
   NativePlaybackEvent,
   PlaybackCompatibilityPolicy,
-  PlaybackIntegration,
-  PlaybackPhase,
-  PlaybackSessionState,
-  WatchPlaybackFailure,
+  PlaybackProgress,
+  RecordedPlaybackSources,
   WatchPeek,
   WatchSessionIdSource,
   WatchStartResult,
   WatchTarget,
 } from "../capabilities/watch";
+import { sameWatchTarget } from "./watch-target";
 import {
   INITIAL_PLAYER_PRESENTATION,
   applyPictureInPictureResult,
@@ -33,8 +28,17 @@ import {
   revealInWatch,
   type PlayerPresentationState,
 } from "./player-presentation";
-
-const IDLE_PEEK: WatchPeek = { kind: "idle" };
+import { nextNativePlayback } from "./focused-watch-native-events";
+import {
+  IDLE_PEEK,
+  IDLE_PROGRESS,
+  toWatchState,
+  type CurrentSession,
+} from "./focused-watch-session-state";
+import {
+  runFocusedWatchStart,
+  startResultFrom,
+} from "./start-focused-watch";
 
 function afterPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -50,6 +54,7 @@ export function createFocusedWatchSession(input: {
   readonly playback: FocusedPlaybackPort;
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
+  readonly recorded?: RecordedPlaybackSources;
   readonly sessionIds: WatchSessionIdSource;
   readonly sources: LivePlaybackSources;
 }): FocusedWatchSession {
@@ -61,6 +66,7 @@ export function createFocusedWatchSession(input: {
   let volume = 1;
   let quality = "auto";
   let qualities: readonly string[] = ["auto"];
+  let progress: PlaybackProgress = IDLE_PROGRESS;
   let cachedPeek: WatchPeek = IDLE_PEEK;
   let cachedSnapshot: FocusedWatchState | null = null;
   let cachedSnapshotTarget: WatchTarget | null = null;
@@ -75,9 +81,10 @@ export function createFocusedWatchSession(input: {
       kind: "active",
       muted,
       presentation,
+      progress,
       quality,
       qualities,
-      state: toState(current) as Extract<FocusedWatchState, { kind: "active" }>,
+      state: toWatchState(current) as Extract<FocusedWatchState, { kind: "active" }>,
       volume,
     };
   };
@@ -112,53 +119,42 @@ export function createFocusedWatchSession(input: {
   }
 
   function applyNativeEvent(event: NativePlaybackEvent): void {
-    if (current?.kind !== "active" || current.session.sessionId !== event.sessionId) {
-      return;
-    }
-    if (event.kind === "picture-in-picture-exited") {
-      presentation = returnFromPictureInPicture(presentation);
-      notify();
-      return;
-    }
-    if (event.kind === "ended") {
+    if (!current) return;
+    const next = nextNativePlayback({
+      current,
+      event,
+      presentation,
+      progress,
+    });
+    if (next.kind === "ignore") return;
+    if (next.releaseLease && current.kind === "active") {
       current.lease.release();
-      current = {
-        integration: current.integration,
-        kind: "ended",
-        sessionId: event.sessionId,
-        target: current.target,
-      };
-      notify();
-      return;
     }
-    if (event.kind === "failed") {
-      current.lease.release();
-      current = {
-        failure: {
-          code: event.code,
-          detail: event.detail,
-          integration: current.integration,
-          kind: "playback-failed",
-          lastSuccessfulStage: "native-session-started",
-          platform: current.target.platform,
-          recovery: ["retry", "open-provider"],
-        },
-        kind: "failed",
-        target: current.target,
-      };
-      notify();
-      return;
-    }
-    current = { ...current, phase: phaseFrom(event) };
+    current = next.current;
+    presentation = next.presentation;
+    progress = next.progress;
     notify();
-    if (event.kind === "playing") {
-      void refreshQualities();
-    }
+    if (next.refreshQualities) void refreshQualities();
   }
 
   async function abandon(sessionId: string): Promise<void> {
     const result = await input.playback.end(sessionId);
     if (result.kind === "unavailable") return;
+  }
+
+  async function resetToReady(target: WatchTarget): Promise<void> {
+    generation += 1;
+    presentation = INITIAL_PLAYER_PRESENTATION;
+    if (current?.kind === "active") {
+      const sessionId = current.session.sessionId;
+      current.lease.release();
+      current = { kind: "ready", target };
+      notify();
+      await abandon(sessionId);
+      return;
+    }
+    current = { kind: "ready", target };
+    notify();
   }
 
   return {
@@ -170,14 +166,14 @@ export function createFocusedWatchSession(input: {
       if (
         cachedSnapshot &&
         cachedSnapshotTarget &&
-        streamsMatchChannelIdentity(cachedSnapshotTarget, target)
+        sameWatchTarget(cachedSnapshotTarget, target)
       ) {
         return cachedSnapshot;
       }
       cachedSnapshotTarget = target;
       cachedSnapshot =
-        current && streamsMatchChannelIdentity(current.target, target)
-          ? toState(current)
+        current && sameWatchTarget(current.target, target)
+          ? toWatchState(current)
           : { kind: "ready", target };
       return cachedSnapshot;
     },
@@ -236,6 +232,10 @@ export function createFocusedWatchSession(input: {
         notify();
       }
     },
+    async seekTo(positionMs) {
+      if (current?.kind !== "active") return;
+      await input.playback.seekTo(current.session.sessionId, positionMs);
+    },
     async requestPictureInPicture(): Promise<
       FocusedPictureInPictureResult | { readonly kind: "idle" }
     > {
@@ -276,84 +276,31 @@ export function createFocusedWatchSession(input: {
         await abandon(previous.session.sessionId);
       }
       if (attempt !== generation) return { kind: "cancelled" };
-      const integration: PlaybackIntegration =
-        target.platform === "twitch" ? "twitch-gql-usher" : "kick-v1-playback-url";
-      const controller = new AbortController();
-      const policy = await input.policy.read(target.platform);
-      if (attempt !== generation) {
-        controller.abort();
-        return { kind: "cancelled" };
-      }
-      if (policy.kind === "disabled") {
-        const failed: WatchStartResult = {
-          failure: {
-            integration,
-            kind: "compatibility-disabled",
-            lastSuccessfulStage: "none",
-            platform: target.platform,
-            reason: policy.reason,
-            recovery: ["refresh-policy", "open-provider"],
-          },
-          kind: "failed",
-        };
-        current = { failure: failed.failure, kind: "failed", target };
-        notify();
-        return failed;
-      }
-      const resolved = await resolveSource(input.sources, target, controller.signal);
-      if (attempt !== generation) return { kind: "cancelled" };
-      if (resolved.kind === "unavailable") {
-        if (resolved.failure.kind === "cancelled") return { kind: "cancelled" };
-        const failed: WatchStartResult = {
-          failure: {
-            code: resolved.failure.kind,
-            detail: resolved.failure.detail,
-            integration,
-            kind: "source-unavailable",
-            lastSuccessfulStage: "policy-authorized",
-            platform: target.platform,
-            recovery: ["retry", "open-provider"],
-          },
-          kind: "failed",
-        };
-        current = { failure: failed.failure, kind: "failed", target };
-        notify();
-        return failed;
-      }
-      const sessionId = input.sessionIds.create();
-      const started = await input.playback.start({
-        requestHeaders: resolved.requestHeaders,
-        sessionId,
-        sourceUri: resolved.sourceUri,
+      const outcome = await runFocusedWatchStart({
+        attempt,
+        generation: () => generation,
+        playback: input.playback,
+        policy: input.policy,
+        protection: input.protection,
+        sessionIds: input.sessionIds,
+        sources: input.sources,
+        target,
+        ...(input.recorded === undefined ? {} : { recorded: input.recorded }),
       });
-      if (attempt !== generation) {
-        void abandon(sessionId);
-        return { kind: "cancelled" };
-      }
-      if (started.kind === "unavailable") {
-        const failed: WatchStartResult = {
-          failure: {
-            detail: started.failure.detail,
-            integration,
-            kind: "native-unavailable",
-            lastSuccessfulStage: "source-resolved",
-            platform: target.platform,
-            recovery: ["retry", "open-provider"],
-          },
-          kind: "failed",
-        };
-        current = { failure: failed.failure, kind: "failed", target };
+      if (outcome.kind === "cancelled") return { kind: "cancelled" };
+      if (outcome.kind === "failed") {
+        current = { failure: outcome.failure, kind: "failed", target };
         notify();
-        return failed;
+        return startResultFrom(outcome);
       }
       current = {
-        integration,
+        integration: outcome.integration,
         kind: "active",
-        lease: input.protection.acquire(started.session.sessionId),
+        lease: outcome.lease,
         phase: "buffering",
-        policySequence: policy.sequence,
+        policySequence: outcome.policySequence,
         protection: input.protection.snapshot(),
-        session: started.session,
+        session: outcome.session,
         target,
       };
       presentation = INITIAL_PLAYER_PRESENTATION;
@@ -361,41 +308,17 @@ export function createFocusedWatchSession(input: {
       volume = 1;
       quality = "auto";
       qualities = ["auto"];
+      progress = IDLE_PROGRESS;
       notify();
-      return { kind: "started", session: started.session };
+      return startResultFrom(outcome);
     },
     async leave(target) {
-      if (!current || !streamsMatchChannelIdentity(current.target, target)) {
-        return;
-      }
-      generation += 1;
-      presentation = INITIAL_PLAYER_PRESENTATION;
-      if (current.kind === "active") {
-        const sessionId = current.session.sessionId;
-        current.lease.release();
-        current = { kind: "ready", target };
-        notify();
-        await abandon(sessionId);
-        return;
-      }
-      current = { kind: "ready", target };
-      notify();
+      if (!current || !sameWatchTarget(current.target, target)) return;
+      await resetToReady(target);
     },
     async dismiss() {
       if (!current) return;
-      const target = current.target;
-      generation += 1;
-      presentation = INITIAL_PLAYER_PRESENTATION;
-      if (current.kind === "active") {
-        const sessionId = current.session.sessionId;
-        current.lease.release();
-        current = { kind: "ready", target };
-        notify();
-        await abandon(sessionId);
-        return;
-      }
-      current = { kind: "ready", target };
-      notify();
+      await resetToReady(current.target);
     },
     async dispose() {
       generation += 1;
@@ -409,60 +332,4 @@ export function createFocusedWatchSession(input: {
       current = null;
     },
   };
-}
-
-type CurrentSession =
-  | { readonly kind: "ready"; readonly target: WatchTarget }
-  | { readonly kind: "resolving"; readonly target: WatchTarget }
-  | {
-      readonly integration: PlaybackIntegration;
-      readonly kind: "active";
-      readonly lease: { release(): void };
-      readonly phase: PlaybackPhase;
-      readonly policySequence: number;
-      readonly protection: FocusedPlaybackProtection;
-      readonly session: PlaybackSessionState;
-      readonly target: WatchTarget;
-    }
-  | {
-      readonly integration: PlaybackIntegration;
-      readonly kind: "ended";
-      readonly sessionId: string;
-      readonly target: WatchTarget;
-    }
-  | {
-      readonly failure: WatchPlaybackFailure;
-      readonly kind: "failed";
-      readonly target: WatchTarget;
-    };
-
-function toState(current: CurrentSession): FocusedWatchState {
-  if (current.kind === "active") {
-    const { lease: _lease, ...state } = current;
-    return state;
-  }
-  return current;
-}
-
-async function resolveSource(
-  sources: LivePlaybackSources,
-  target: WatchTarget,
-  signal: AbortSignal,
-): Promise<LivePlaybackSourceResolution> {
-  if (target.platform === "kick") {
-    return sources.kick.resolve({
-      signal,
-      target: { ...target, platform: "kick" },
-    });
-  }
-  return sources.twitch.resolve({
-    signal,
-    target: { ...target, platform: "twitch" },
-  });
-}
-
-function phaseFrom(event: NativePlaybackEvent): PlaybackPhase {
-  if (event.kind === "paused") return "paused";
-  if (event.kind === "playing") return "playing";
-  return "buffering";
 }

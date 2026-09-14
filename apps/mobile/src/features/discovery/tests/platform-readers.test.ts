@@ -71,16 +71,17 @@ describe("platform catalog readers", () => {
     });
   });
 
-  it("marks guest Twitch search unavailable and maps Kick guest catalogs", async () => {
+  it("maps signed-out Twitch GQL search and Kick public catalogs", async () => {
     const twitch = createTwitchHelixReader({
       clientId: null,
-      fetch: async () => json({}),
+      fetch: async () => json({ data: { user: null, games: { edges: [] } } }),
       readAccessToken: async () => null,
     });
     await expect(
       twitch.search({ guest: true, query: "arcade" }),
     ).resolves.toMatchObject({
-      path: { reason: "guest-unavailable" },
+      path: { kind: "guest", platform: "twitch" },
+      status: "complete",
     });
     const kick = createKickOfficialReader({
       fetch: async () => json({ data: [] }),
@@ -89,6 +90,35 @@ describe("platform catalog readers", () => {
     await expect(
       kick.search({ guest: true, query: "arcade" }),
     ).resolves.toMatchObject({
+      path: { kind: "guest", platform: "kick" },
+      status: "complete",
+    });
+  });
+
+  it("maps signed-out Kick featured livestreams without a token", async () => {
+    const reader = createKickOfficialReader({
+      fetch: async (input) => {
+        expect(String(input)).toContain("featured-livestreams");
+        return json({
+          data: [
+            {
+              id: 11,
+              session_title: "Live on Kick",
+              viewer_count: 9,
+              thumbnail: { src: "https://example.com/kick.webp" },
+              channel: {
+                id: 22,
+                slug: "absi",
+                user: { username: "Absi", profilepic: "https://example.com/a.webp" },
+              },
+            },
+          ],
+        });
+      },
+      readAccessToken: async () => null,
+    });
+    await expect(reader.getTopStreams()).resolves.toMatchObject({
+      items: [{ channelName: "absi", title: "Live on Kick" }],
       path: { kind: "guest", platform: "kick" },
       status: "complete",
     });
@@ -256,7 +286,7 @@ describe("platform catalog readers", () => {
     );
   });
 
-  it("does not invent Kick clips or videos", async () => {
+  it("does not invent Kick clips", async () => {
     const reader = createKickOfficialReader({
       fetch: async () => {
         throw new Error("should not fetch");
@@ -268,13 +298,157 @@ describe("platform catalog readers", () => {
       platform: "kick",
       reason: "kick-clips-unsupported",
     });
-    expect(reader.unsupportedVideos()).toEqual({
-      kind: "unsupported",
-      platform: "kick",
-      reason: "kick-videos-unsupported",
+  });
+
+  // Guards: Kick public video dates without milliseconds must still map
+  it("reads Kick channel videos from the public catalog", async () => {
+    const urls: string[] = [];
+    const reader = createKickOfficialReader({
+      fetch: async (input) => {
+        urls.push(String(input));
+        return json([
+          {
+            created_at: "2026-09-01T00:00:00Z",
+            duration: 61_000,
+            id: 42,
+            session_title: "Archive",
+            source: "https://stream.kick.com/video.m3u8",
+            thumbnail: { src: "https://example.com/thumb.jpg" },
+            views: 9,
+            video: { uuid: "u" },
+          },
+        ]);
+      },
+      readAccessToken: async () => null,
+    });
+    const videos = await reader.getChannelVideos({
+      channel: { id: "xqc", platform: "kick", username: "xqc" },
+    });
+    expect(videos.status).toBe("complete");
+    expect(videos.items[0]).toMatchObject({
+      duration: 61,
+      id: "42",
+      publishedAt: "2026-09-01T00:00:00.000Z",
+      title: "Archive",
+      url: "https://stream.kick.com/video.m3u8",
+    });
+    expect(urls[0]).toContain("kick.com/api/v2/channels/xqc/videos");
+  });
+
+  // Guards: guest Twitch GQL video dates without milliseconds must still map
+  it("maps guest Twitch GQL videos whose publishedAt lacks milliseconds", async () => {
+    const reader = createTwitchHelixReader({
+      clientId: null,
+      fetch: async () => json(gqlArchiveWithoutMillis()),
+      readAccessToken: async () => null,
+    });
+    const videos = await reader.getChannelVideos({
+      channel: { id: "71092938", platform: "twitch", username: "xqc" },
+    });
+    expect(videos.status).toBe("complete");
+    expect(videos.items).toHaveLength(1);
+    expect(videos.items[0]).toMatchObject({
+      id: "2873333195",
+      publishedAt: "2026-09-13T18:00:50.000Z",
+      title: "Archive",
+    });
+  });
+
+  // Guards: guest Twitch clips must use ClipsFilter LAST_MONTH, not an invalid MONTH period
+  it("requests guest Twitch channel clips with LAST_MONTH filter", async () => {
+    const bodies: unknown[] = [];
+    const reader = createTwitchHelixReader({
+      clientId: null,
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body ?? "{}")));
+        return json(gqlClips());
+      },
+      readAccessToken: async () => null,
+    });
+    const clips = await reader.getChannelClips({
+      channel: { id: "71092938", platform: "twitch", username: "xqc" },
+    });
+    expect(bodies[0]).toMatchObject({
+      query: expect.stringContaining("$criteria:ClipsFilter"),
+      variables: { criteria: "LAST_MONTH", limit: 20, login: "xqc" },
+    });
+    expect(clips.status).toBe("complete");
+    expect(clips.items[0]).toMatchObject({
+      duration: 7,
+      id: "AbstemiousSillyPuppyBCouch-x_zVHj6Yc6UvUVuu",
+      title: "Me on stream",
     });
   });
 });
+
+function gqlArchiveWithoutMillis(): unknown {
+  return {
+    data: {
+      user: {
+        displayName: "xQc",
+        id: "71092938",
+        login: "xqc",
+        profileImageURL: "https://example.com/xqc.png",
+        videos: {
+          edges: [
+            {
+              node: {
+                broadcastType: "ARCHIVE",
+                id: "2873333195",
+                lengthSeconds: 43743,
+                owner: {
+                  displayName: "xQc",
+                  id: "71092938",
+                  login: "xqc",
+                  profileImageURL: "https://example.com/xqc.png",
+                },
+                previewThumbnailURL: "https://example.com/t.jpg",
+                publishedAt: "2026-09-13T18:00:50Z",
+                title: "Archive",
+                viewCount: 12,
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+}
+
+function gqlClips(): unknown {
+  return {
+    data: {
+      user: {
+        displayName: "xQc",
+        id: "71092938",
+        login: "xqc",
+        profileImageURL: "https://example.com/xqc.png",
+        clips: {
+          edges: [
+            {
+              node: {
+                broadcaster: {
+                  displayName: "xQc",
+                  id: "71092938",
+                  login: "xqc",
+                  profileImageURL: "https://example.com/xqc.png",
+                },
+                createdAt: "2026-09-01T00:00:00Z",
+                durationSeconds: 7,
+                id: "3133684469",
+                slug: "AbstemiousSillyPuppyBCouch-x_zVHj6Yc6UvUVuu",
+                thumbnailURL: "https://example.com/c.jpg",
+                title: "Me on stream",
+                url: "https://clips.twitch.tv/AbstemiousSillyPuppyBCouch-x_zVHj6Yc6UvUVuu",
+                viewCount: 12,
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+}
 
 function json(value: unknown): Response {
   return new Response(JSON.stringify(value), { status: 200 });

@@ -31,12 +31,21 @@ export function appLinkIntentToLocation(intent: AppLinkIntent): ShellLocation {
   }
   return {
     route: "watch/session-preview",
-    target: {
-      kind: "channel",
-      platform: intent.platform,
-      channelId: intent.channelId,
-      channelLogin: intent.channelLogin,
-    },
+    target:
+      intent.media === undefined
+        ? {
+            kind: "channel",
+            platform: intent.platform,
+            channelId: intent.channelId,
+            channelLogin: intent.channelLogin,
+          }
+        : {
+            kind: "channel",
+            platform: intent.platform,
+            channelId: intent.channelId,
+            channelLogin: intent.channelLogin,
+            media: intent.media,
+          },
   };
 }
 

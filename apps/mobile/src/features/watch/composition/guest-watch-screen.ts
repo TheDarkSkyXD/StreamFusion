@@ -8,8 +8,11 @@ import { AndroidMedia3PlayerSurface } from "../adapters/android/android-media3-p
 import { createDiscoveryWatchInspectionReader } from "../adapters/discovery-watch-inspection-reader";
 import { createMemoryPlaybackProtection } from "../adapters/focused-playback-protection";
 import { createKickLivePlaybackSource } from "../adapters/kick/kick-live-playback-source";
+import { createKickVideoPlaybackSource } from "../adapters/kick/kick-vod-playback-source";
 import { createPlaybackCompatibilityPolicy } from "../adapters/playback-compatibility-policy";
+import { createTwitchClipPlaybackSource } from "../adapters/twitch/twitch-clip-playback-source";
 import { createTwitchLivePlaybackSource } from "../adapters/twitch/twitch-live-playback-source";
+import { createTwitchVodPlaybackSource } from "../adapters/twitch/twitch-vod-playback-source";
 import { createExpoWatchProviderFallback } from "../adapters/expo-watch-provider-fallback";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
@@ -37,6 +40,11 @@ export function createGuestWatchScreen(input: {
       ),
       protection: createMemoryPlaybackProtection(),
       sessionIds: input.sessionIds,
+      recorded: {
+        kickVideo: createKickVideoPlaybackSource({ fetch: input.fetch }),
+        twitchClip: createTwitchClipPlaybackSource({ fetch: input.fetch }),
+        twitchVideo: createTwitchVodPlaybackSource({ fetch: input.fetch }),
+      },
       sources: {
         kick: createKickLivePlaybackSource({ fetch: input.fetch }),
         twitch: createTwitchLivePlaybackSource({ fetch: input.fetch }),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import {
@@ -9,21 +9,19 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 import type {
   ChannelDetailTab,
   ChannelDetailView as ChannelDetailModel,
-  ChannelMediaRead,
   DiscoverySession,
 } from "../capabilities/platform-reads";
-import { mediaItems } from "../domain/channel-detail";
 import {
   type ChannelFixtureMode,
 } from "../domain/channel-fixture";
 import { ChannelHeader } from "./channel-header";
-import { ChannelMediaRow } from "./channel-media-row";
+import { HomeTab, MediaTab } from "./channel-detail-media";
 import { ChannelProofControls } from "./channel-proof-controls";
 import { ChannelTabs } from "./channel-tabs";
-import { HomeStreamCard } from "./home-stream-card";
 import { useChannelDetail } from "./use-channel-detail";
 import { useChannelFollow } from "./use-channel-follow";
 
@@ -35,15 +33,13 @@ export function ChannelDetailScreen({
 }: {
   readonly channel: ChannelIdentity;
   readonly following: FollowingSession;
-  readonly onWatch?: (target: {
-    readonly channelId: string;
-    readonly channelName: string;
-    readonly platform: ChannelIdentity["platform"];
-  }) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly session: DiscoverySession;
 }) {
+  const [tab, setTab] = useState<ChannelDetailTab>("home");
   const live = useChannelDetail({
     channel,
+    loadClips: tab === "clips",
     session,
   });
   const follow = useChannelFollow({
@@ -56,8 +52,10 @@ export function ChannelDetailScreen({
       onFollow={follow.toggle}
       onOpenProviderPage={follow.openProviderPage}
       onRetry={live.retry}
+      onSelectTab={setTab}
+      tab={tab}
       view={{ ...live.view, follow: follow.follow }}
-      {...(onWatch === undefined ? {} : { onWatch })}
+      {...watchProp(onWatch)}
     />
   );
 }
@@ -68,8 +66,10 @@ export function ChannelDetailView({
   onOpenProviderPage,
   onRetry,
   onSelectProofMode,
+  onSelectTab,
   onWatch,
   proofMode,
+  tab,
   view,
 }: {
   readonly channel: ChannelIdentity;
@@ -77,25 +77,22 @@ export function ChannelDetailView({
   readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
-  readonly onWatch?: (target: {
-    readonly channelId: string;
-    readonly channelName: string;
-    readonly platform: ChannelIdentity["platform"];
-  }) => void;
+  readonly onSelectTab: (tab: ChannelDetailTab) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly proofMode?: ChannelFixtureMode;
+  readonly tab: ChannelDetailTab;
   readonly view: ChannelDetailModel;
 }) {
-  const [tab, setTab] = useState<ChannelDetailTab>("home");
   return (
     <ChannelDetailBody
       channel={channel}
       onFollow={onFollow}
       onOpenProviderPage={onOpenProviderPage}
       onRetry={onRetry}
-      onSelectTab={setTab}
+      onSelectTab={onSelectTab}
       tab={tab}
-      {...(onWatch === undefined ? {} : { onWatch })}
       view={view}
+      {...watchProp(onWatch)}
       {...(onSelectProofMode === undefined
         ? {}
         : { onSelectProofMode, proofMode })}
@@ -121,11 +118,7 @@ export function ChannelDetailBody({
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
   readonly onSelectTab: (tab: ChannelDetailTab) => void;
-  readonly onWatch?: (target: {
-    readonly channelId: string;
-    readonly channelName: string;
-    readonly platform: ChannelIdentity["platform"];
-  }) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly proofMode?: ChannelFixtureMode;
   readonly tab: ChannelDetailTab;
   readonly view: ChannelDetailModel;
@@ -181,85 +174,14 @@ export function ChannelDetailBody({
         </Pressable>
       ) : null}
       <ChannelTabs onSelect={onSelectTab} tab={tab} />
-      {tab === "home" ? <HomeTab view={view} /> : null}
-      {tab === "videos" ? <MediaTab kind="videos" lane={view.videos} /> : null}
-      {tab === "clips" ? <MediaTab kind="clips" lane={view.clips} /> : null}
-    </ScrollView>
-  );
-}
-
-function HomeTab({ view }: { readonly view: ChannelDetailModel }) {
-  return (
-    <View style={styles.section} testID="channel-home-tab">
-      {view.live ? (
-        <HomeStreamCard stream={view.live} />
-      ) : (
-        <Text selectable style={styles.meta} testID="channel-offline">
-          This channel is offline.
-        </Text>
-      )}
-      {view.channel?.bio ? (
-        <View style={styles.about} testID="channel-about">
-          <Text selectable style={styles.aboutTitle}>
-            About
-          </Text>
-          <Text selectable style={styles.meta}>
-            {view.channel.bio}
-          </Text>
-          {view.channel.categoryName ? (
-            <Text selectable style={styles.meta}>
-              {view.channel.categoryName}
-            </Text>
-          ) : null}
-        </View>
+      {tab === "home" ? <HomeTab {...watchProp(onWatch)} view={view} /> : null}
+      {tab === "videos" ? (
+        <MediaTab kind="videos" lane={view.videos} {...watchProp(onWatch)} />
       ) : null}
-      <Text selectable style={styles.sectionTitle}>
-        Recent broadcasts
-      </Text>
-      <MediaTab kind="videos" lane={view.videos} />
-    </View>
-  );
-}
-
-function MediaTab({
-  kind,
-  lane,
-}: {
-  readonly kind: "videos" | "clips";
-  readonly lane: ChannelMediaRead<
-    | import("@streamfusion/core/content").Clip
-    | import("@streamfusion/core/content").Video
-  >;
-}) {
-  if (lane.kind === "unsupported") {
-    return (
-      <Text
-        selectable
-        style={styles.meta}
-        testID={`channel-${kind}-unsupported`}
-      >
-        {kind === "videos"
-          ? "Kick does not publish videos on the official public API."
-          : "Kick does not publish clips on the official public API."}
-      </Text>
-    );
-  }
-  const items = mediaItems(lane);
-  if (items.length === 0) {
-    return (
-      <Text selectable style={styles.meta} testID={`channel-${kind}-empty`}>
-        {kind === "videos"
-          ? "No videos are available."
-          : "No clips are available."}
-      </Text>
-    );
-  }
-  return (
-    <View style={styles.section} testID={`channel-${kind}-list`}>
-      {items.map((item) => (
-        <ChannelMediaRow item={item} key={`${item.platform}:${item.id}`} />
-      ))}
-    </View>
+      {tab === "clips" ? (
+        <MediaTab kind="clips" lane={view.clips} {...watchProp(onWatch)} />
+      ) : null}
+    </ScrollView>
   );
 }
 
@@ -271,6 +193,12 @@ function phaseCopy(view: ChannelDetailModel, channel: ChannelIdentity): string {
     return "Showing a cached channel while a live read is unavailable.";
   }
   return `${channel.username} on ${channel.platform}.`;
+}
+
+function watchProp(
+  onWatch?: (target: WatchTarget) => void,
+): { readonly onWatch: (target: WatchTarget) => void } | Record<string, never> {
+  return onWatch === undefined ? {} : { onWatch };
 }
 
 const styles = StyleSheet.create({
@@ -298,27 +226,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 21,
-  },
-  section: { gap: mobileSpacing.small },
-  sectionTitle: {
-    color: mobileColors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
-  },
-  about: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
-  },
-  aboutTitle: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
   },
   retry: {
     alignItems: "center",

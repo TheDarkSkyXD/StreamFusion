@@ -58,8 +58,8 @@ function describe(capability: AndroidCapabilityId): string {
 }
 
 function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
-  if (capability === "diagnostics") return 3;
-  if (capability === "media-jobs" || capability === "playback") return 2;
+  if (capability === "diagnostics" || capability === "playback") return 3;
+  if (capability === "media-jobs") return 2;
   return 1;
 }
 
@@ -151,6 +151,10 @@ function object(value: unknown): Readonly<Record<string, unknown>> | undefined {
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function sha256(value: unknown): string | undefined {
@@ -283,6 +287,19 @@ function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
     (event.reason === "background" || event.reason === "user")
   ) {
     return { kind: "paused", reason: event.reason, sessionId };
+  }
+  if (event.kind === "progress") {
+    const positionMs = finiteNumber(event.positionMs);
+    const durationMs = finiteNumber(event.durationMs);
+    return positionMs !== undefined && durationMs !== undefined
+      ? {
+          durationMs,
+          kind: "progress",
+          positionMs,
+          seekable: event.seekable === true,
+          sessionId,
+        }
+      : undefined;
   }
   if (event.kind === "failed") {
     const code = PLAYBACK_FAILURE_CODES.find((item) => item === event.code);
@@ -659,6 +676,16 @@ export function createAndroidPlaybackContractPort(
         (value) => {
           const catalog = playbackQualities(value);
           return catalog?.sessionId === sessionId ? catalog : undefined;
+        },
+      ),
+    seekTo: (sessionId, positionMs) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.seekTo(sessionId, positionMs),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === sessionId ? state : undefined;
         },
       ),
     setVolume: (sessionId, volume) =>

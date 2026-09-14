@@ -26,8 +26,9 @@ const unsupported = async () => ({
 const playbackBinding: ExpoPlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
-  getContractVersion: () => 2,
+  getContractVersion: () => 3,
   listQualities: unsupported,
+  seekTo: unsupported,
   setMuted: unsupported,
   setPlaying: unsupported,
   setQuality: unsupported,
@@ -161,7 +162,7 @@ describe("Android capability module contracts", () => {
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 2, kind: "ready" },
-      { capability: "playback", contractVersion: 2, kind: "ready" },
+      { capability: "playback", contractVersion: 3, kind: "ready" },
     ]);
     await expect(
       contracts.playback.enterPictureInPicture("watch-1"),

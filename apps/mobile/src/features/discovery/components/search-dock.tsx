@@ -15,7 +15,7 @@ export function SearchDock({
 }: {
   readonly onChangeText: (value: string) => void;
   readonly onClear: () => void;
-  readonly onSubmit: () => void;
+  readonly onSubmit: (value?: string) => void;
   readonly value: string;
 }) {
   return (
@@ -25,7 +25,7 @@ export function SearchDock({
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={onChangeText}
-        onSubmitEditing={onSubmit}
+        onSubmitEditing={({ nativeEvent }) => onSubmit(nativeEvent.text)}
         placeholder="Search Twitch and Kick"
         placeholderTextColor={mobileColors.textSecondary}
         returnKeyType="search"
@@ -54,7 +54,7 @@ export function SearchDock({
         accessibilityLabel="Submit search"
         accessibilityRole="button"
         android_ripple={{ color: mobileColors.surfaceRaised }}
-        onPress={onSubmit}
+        onPress={() => onSubmit(value)}
         style={({ pressed }) => [
           styles.submit,
           pressed ? styles.pressed : null,

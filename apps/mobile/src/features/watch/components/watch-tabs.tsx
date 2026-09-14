@@ -19,6 +19,7 @@ export function WatchTabs({
   info,
   onOpenRelated,
   onSelect,
+  recorded = false,
   related,
   tab,
 }: {
@@ -26,17 +27,34 @@ export function WatchTabs({
   readonly info: WatchInfo | null;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onSelect: (tab: WatchTab) => void;
+  readonly recorded?: boolean;
   readonly related: WatchRelated | null;
   readonly tab: WatchTab;
 }) {
   return (
     <View style={styles.region}>
       <View accessibilityRole="tablist" style={styles.tabs}>
-        <TabButton active={tab === "info"} label="Info" onPress={() => onSelect("info")} />
-        <TabButton active={tab === "related"} label="Related" onPress={() => onSelect("related")} />
-        <TabButton active={tab === "chat"} label="Chat" onPress={() => onSelect("chat")} />
+        <TabButton
+          active={tab === "info"}
+          id="info"
+          label={recorded ? "Details" : "Info"}
+          onPress={() => onSelect("info")}
+        />
+        <TabButton
+          active={tab === "related"}
+          id="related"
+          label="Related"
+          onPress={() => onSelect("related")}
+        />
+        <TabButton
+          active={tab === (recorded ? "comments" : "chat")}
+          id={recorded ? "comments" : "chat"}
+          label={recorded ? "Comments" : "Chat"}
+          onPress={() => onSelect(recorded ? "comments" : "chat")}
+        />
       </View>
       {tab === "chat" ? <ChatPane chat={chat} /> : null}
+      {tab === "comments" ? <CommentsPane /> : null}
       {tab === "info" ? <InfoPane info={info} /> : null}
       {tab === "related" ? (
         <RelatedPane onOpenRelated={onOpenRelated} related={related} />
@@ -47,10 +65,12 @@ export function WatchTabs({
 
 function TabButton({
   active,
+  id,
   label,
   onPress,
 }: {
   readonly active: boolean;
+  readonly id: WatchTab;
   readonly label: string;
   readonly onPress: () => void;
 }) {
@@ -60,12 +80,23 @@ function TabButton({
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={[styles.tab, active ? styles.tabActive : null]}
-      testID={`watch-tab-${label.toLowerCase()}`}
+      testID={`watch-tab-${id}`}
     >
       <Text selectable style={styles.tabLabel}>
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+function CommentsPane() {
+  return (
+    <View style={styles.pane} testID="watch-comments">
+      <Text selectable style={styles.body}>
+        Comments are not connected in this build. This placeholder is not live
+        chat.
+      </Text>
+    </View>
   );
 }
 
@@ -96,6 +127,18 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
           {info.failure.kind === "cancelled"
             ? "Channel details were cancelled."
             : info.failure.detail}
+        </Text>
+      </View>
+    );
+  }
+  if (info.kind === "recorded") {
+    return (
+      <View style={styles.pane} testID="watch-info">
+        <Text selectable style={styles.title}>
+          {info.title}
+        </Text>
+        <Text selectable style={styles.body}>
+          {`${info.channel.displayName} · ${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
         </Text>
       </View>
     );

@@ -1,20 +1,44 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Clip, Video } from "@streamfusion/core/content";
 
 import { mobileColors, mobileRadii, mobileSpacing } from "@mobile/design/tokens";
 
 export function ChannelMediaRow({
   item,
+  onPress,
 }: {
   readonly item: Clip | Video;
+  readonly onPress?: () => void;
 }) {
-  const views = `${item.viewCount} views`;
-  const duration = formatDuration(item.duration);
+  const body = <MediaBody item={item} />;
+  if (!onPress) {
+    return (
+      <View
+        style={styles.row}
+        testID={`channel-media-${item.platform}-${item.id}`}
+      >
+        {body}
+      </View>
+    );
+  }
   return (
-    <View
+    <Pressable
+      accessibilityLabel={`Watch ${item.title}`}
+      accessibilityRole="button"
+      onPress={onPress}
       style={styles.row}
       testID={`channel-media-${item.platform}-${item.id}`}
     >
+      {body}
+    </Pressable>
+  );
+}
+
+function MediaBody({ item }: { readonly item: Clip | Video }) {
+  const views = `${item.viewCount} views`;
+  const duration = formatDuration(item.duration);
+  return (
+    <>
       {item.thumbnailUrl ? (
         <Image
           accessibilityIgnoresInvertColors
@@ -32,7 +56,7 @@ export function ChannelMediaRow({
           {`${duration} · ${views}`}
         </Text>
       </View>
-    </View>
+    </>
   );
 }
 

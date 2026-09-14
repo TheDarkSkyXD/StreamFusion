@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type {
   Category,
@@ -13,18 +13,17 @@ import {
   mobileRadii,
   mobileSpacing,
 } from "@mobile/design/tokens";
+import { SearchMediaCard } from "./search-media-card";
 
 export function SearchChannelCard({
   channel,
+  onOpen,
 }: {
   readonly channel: Channel;
+  readonly onOpen?: () => void;
 }) {
-  return (
-    <View
-      accessibilityLabel={`${channel.displayName} on ${channel.platform}${channel.isLive ? ", live" : ""}`}
-      style={styles.row}
-      testID={`search-channel-${channel.platform}-${channel.id}`}
-    >
+  const body = (
+    <>
       {channel.avatarUrl ? (
         <Image
           accessibilityIgnoresInvertColors
@@ -43,7 +42,27 @@ export function SearchChannelCard({
         </Text>
       </View>
       <PlatformBadge platform={channel.platform} />
-    </View>
+    </>
+  );
+  const label = `${channel.displayName} on ${channel.platform}${channel.isLive ? ", live" : ""}`;
+  const testID = `search-channel-${channel.platform}-${channel.id}`;
+  if (!onOpen) {
+    return (
+      <View accessibilityLabel={label} style={styles.row} testID={testID}>
+        {body}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onOpen}
+      style={styles.row}
+      testID={testID}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -77,81 +96,43 @@ export function SearchCategoryCard({
   );
 }
 
-export function SearchVideoCard({ video }: { readonly video: Video }) {
+export function SearchVideoCard({
+  onWatch,
+  video,
+}: {
+  readonly onWatch?: (video: Video) => void;
+  readonly video: Video;
+}) {
   return (
-    <MediaCard
+    <SearchMediaCard
       channel={video.channelDisplayName}
       duration={video.duration}
       platform={video.platform}
       testID={`search-video-${video.platform}-${video.id}`}
       thumbnailUrl={video.thumbnailUrl}
       title={video.title}
+      {...pressProp(onWatch ? () => onWatch(video) : undefined)}
     />
   );
 }
 
-export function SearchClipCard({ clip }: { readonly clip: Clip }) {
+export function SearchClipCard({
+  clip,
+  onWatch,
+}: {
+  readonly clip: Clip;
+  readonly onWatch?: (clip: Clip) => void;
+}) {
   return (
-    <MediaCard
+    <SearchMediaCard
       channel={clip.channelDisplayName}
       duration={clip.duration}
       platform={clip.platform}
       testID={`search-clip-${clip.platform}-${clip.id}`}
       thumbnailUrl={clip.thumbnailUrl}
       title={clip.title}
+      {...pressProp(onWatch ? () => onWatch(clip) : undefined)}
     />
-  );
-}
-
-function MediaCard({
-  channel,
-  duration,
-  platform,
-  testID,
-  thumbnailUrl,
-  title,
-}: {
-  readonly channel: string;
-  readonly duration: number;
-  readonly platform: Platform;
-  readonly testID: string;
-  readonly thumbnailUrl: string;
-  readonly title: string;
-}) {
-  return (
-    <View
-      accessibilityLabel={`${title} by ${channel} on ${platform}`}
-      style={styles.card}
-      testID={testID}
-    >
-      <View style={styles.wideWrap}>
-        {thumbnailUrl ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: thumbnailUrl }}
-            style={styles.media}
-          />
-        ) : (
-          <View style={styles.media} />
-        )}
-        <View style={styles.durationBadge}>
-          <Text selectable style={styles.durationLabel}>
-            {formatDuration(duration)}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.mediaMeta}>
-        <View style={styles.copy}>
-          <Text selectable style={styles.title}>
-            {title}
-          </Text>
-          <Text selectable style={styles.meta}>
-            {channel}
-          </Text>
-        </View>
-        <PlatformBadge platform={platform} />
-      </View>
-    </View>
   );
 }
 
@@ -170,14 +151,10 @@ function PlatformBadge({ platform }: { readonly platform: Platform }) {
   );
 }
 
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    return `${hours}:${String(minutes % 60).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+function pressProp(
+  onPress?: () => void,
+): { readonly onPress: () => void } | Record<string, never> {
+  return onPress === undefined ? {} : { onPress };
 }
 
 const styles = StyleSheet.create({
@@ -190,13 +167,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
-  },
-  card: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    overflow: "hidden",
   },
   category: {
     backgroundColor: mobileColors.surface,
@@ -236,36 +206,9 @@ const styles = StyleSheet.create({
     backgroundColor: mobileColors.surfaceMuted,
     width: "100%",
   },
-  wideWrap: {
-    aspectRatio: 16 / 9,
-    backgroundColor: mobileColors.surfaceMuted,
-    width: "100%",
-  },
   media: {
     height: "100%",
     width: "100%",
-  },
-  durationBadge: {
-    backgroundColor: "rgba(0,0,0,0.72)",
-    borderRadius: mobileRadii.small,
-    bottom: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-    position: "absolute",
-    right: mobileSpacing.small,
-  },
-  durationLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "600",
-    lineHeight: 14,
-  },
-  mediaMeta: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    paddingVertical: mobileSpacing.medium,
-    paddingRight: mobileSpacing.medium,
   },
   platformBadge: {
     borderRadius: mobileRadii.small,

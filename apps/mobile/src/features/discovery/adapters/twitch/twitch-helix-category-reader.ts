@@ -11,6 +11,7 @@ import {
   helixStreams,
   helixVideos,
 } from "./twitch-helix-category-map";
+import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
 
 const HELIX = "https://api.twitch.tv/helix";
 
@@ -21,11 +22,15 @@ type TwitchInput = {
 };
 
 export function createTwitchHelixCategoryReads(input: TwitchInput) {
+  const guest = createTwitchGqlGuestReader({ fetch: input.fetch });
   return {
     async getCategory(read: {
       readonly categoryId: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Category>> {
+      if ((await input.readAccessToken()) === null) {
+        return guest.getCategory(read);
+      }
       return helixCollection({
         input,
         map: helixCategories,
@@ -38,6 +43,9 @@ export function createTwitchHelixCategoryReads(input: TwitchInput) {
       readonly language?: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Stream>> {
+      if ((await input.readAccessToken()) === null) {
+        return guest.getCategoryStreams(read);
+      }
       const params = new URLSearchParams({
         first: "20",
         game_id: read.categoryId,
@@ -92,6 +100,17 @@ export function createTwitchHelixCategoryReads(input: TwitchInput) {
       readonly query: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Category>> {
+      if ((await input.readAccessToken()) === null) {
+        const categories = await guest.getCategories(read);
+        if (categories.status === "failed") return categories;
+        const needle = read.query.trim().toLowerCase();
+        return {
+          ...categories,
+          items: categories.items.filter((item) =>
+            item.name.toLowerCase().includes(needle),
+          ),
+        };
+      }
       return helixCollection({
         input,
         map: helixCategories,

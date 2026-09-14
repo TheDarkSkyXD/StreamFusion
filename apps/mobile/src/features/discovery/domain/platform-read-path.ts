@@ -19,7 +19,7 @@ export function selectPlatformReadPath(input: {
   if (input.userToken.kind === "ready") {
     return { kind: "direct", platform: input.platform };
   }
-  return { kind: "relay", platform: input.platform };
+  return { kind: "guest", platform: input.platform };
 }
 
 export function selectSearchReadPath(input: {
@@ -28,16 +28,7 @@ export function selectSearchReadPath(input: {
   readonly platform: Platform;
   readonly userToken: UserTokenRead;
 }): PlatformReadPath {
-  if (input.network === "offline") {
-    return unavailable(input.platform, "offline");
-  }
-  if (input.userToken.kind === "ready") {
-    return { kind: "direct", platform: input.platform };
-  }
-  if (input.installation.kind === "ready") {
-    return { kind: "relay", platform: input.platform };
-  }
-  return { kind: "guest", platform: input.platform };
+  return selectPlatformReadPath(input);
 }
 
 export function followedStreamsPath(input: {

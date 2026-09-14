@@ -1,10 +1,7 @@
-import { streamsMatchChannelIdentity } from "@streamfusion/core/platform";
-
 import type {
   FocusedWatchState,
   WatchPlaybackFailure,
   WatchRecovery,
-  WatchTarget,
 } from "../capabilities/watch";
 
 export type WatchPrimaryAction = "start" | "retry" | "none";
@@ -19,13 +16,25 @@ export type WatchView = {
 };
 
 export function composeWatchView(state: FocusedWatchState): WatchView {
+  const recorded = Boolean(state.target.media);
   if (state.kind === "ready") {
-    return view("Watch", "Start watching this live stream.", "start", null, false, []);
+    return view(
+      "Watch",
+      recorded
+        ? "Start watching this recording."
+        : "Start watching this live stream.",
+      "start",
+      null,
+      false,
+      [],
+    );
   }
   if (state.kind === "resolving") {
     return view(
       "Starting Watch",
-      "Resolving a live source for this stream.",
+      recorded
+        ? "Resolving a recorded source for this video."
+        : "Resolving a live source for this stream.",
       "none",
       null,
       false,
@@ -44,8 +53,10 @@ export function composeWatchView(state: FocusedWatchState): WatchView {
   }
   if (state.kind === "ended") {
     return view(
-      "Stream ended",
-      "This live stream is no longer playing.",
+      recorded ? "Recording ended" : "Stream ended",
+      recorded
+        ? "This recording is no longer playing."
+        : "This live stream is no longer playing.",
       "retry",
       null,
       false,
@@ -53,13 +64,6 @@ export function composeWatchView(state: FocusedWatchState): WatchView {
     );
   }
   return failureView(state.failure);
-}
-
-export function sameWatchTarget(
-  first: WatchTarget,
-  second: WatchTarget,
-): boolean {
-  return streamsMatchChannelIdentity(first, second);
 }
 
 function failureView(failure: WatchPlaybackFailure): WatchView {

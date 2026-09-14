@@ -119,9 +119,9 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
     assert.match(source, new RegExp(`Name\\("${moduleName}"\\)`, "u"));
     assert.match(
       source,
-      className === "Diagnostics"
+      className === "Diagnostics" || className === "Playback"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
-        : className === "MediaJobs" || className === "Playback"
+        : className === "MediaJobs"
           ? /Function\("getContractVersion"\) \{ 2 \}/u
           : /Function\("getContractVersion"\) \{ 1 \}/u,
     );

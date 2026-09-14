@@ -28,6 +28,22 @@ describe("allowlisted app links", () => {
       channelId: "channel-1",
       channelLogin: "proofstreamer",
     });
+    expect(
+      parseAppLink(
+        "streamfusion-development://watch/twitch/xqc?channelId=71092938&mediaKind=clip&mediaId=AmazingClip&title=Clip%20title&duration=32",
+      ),
+    ).toEqual({
+      kind: "watch-channel",
+      platform: "twitch",
+      channelId: "71092938",
+      channelLogin: "xqc",
+      media: {
+        durationSeconds: 32,
+        id: "AmazingClip",
+        kind: "clip",
+        title: "Clip title",
+      },
+    });
   });
 
   it("rejects web URLs, credentials, unknown routes, extra fields, and malformed IDs", () => {
@@ -37,6 +53,7 @@ describe("allowlisted app links", () => {
       "streamfusion-development://moderation/ban",
       "streamfusion-development://activity/event-1?token=secret",
       "streamfusion-development://watch/twitch/name?channelId=id&url=https://example.com",
+      "streamfusion-development://watch/twitch/xqc?channelId=71092938&mediaKind=clip",
       "streamfusion-development://watch/unknown/name?channelId=id",
       "not a url",
     ];

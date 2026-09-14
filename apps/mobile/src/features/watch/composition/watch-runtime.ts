@@ -3,6 +3,7 @@ import type {
   FocusedPlaybackProtectionPort,
   LivePlaybackSources,
   PlaybackCompatibilityPolicy,
+  RecordedPlaybackSources,
   WatchInspectionReader,
   WatchRuntime,
   WatchSessionIdSource,
@@ -14,6 +15,7 @@ export function createWatchRuntime(input: {
   readonly playback: FocusedPlaybackPort;
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
+  readonly recorded?: RecordedPlaybackSources;
   readonly sessionIds: WatchSessionIdSource;
   readonly sources: LivePlaybackSources;
 }): WatchRuntime {

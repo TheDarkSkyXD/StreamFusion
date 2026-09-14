@@ -1477,6 +1477,513 @@
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/150"
         ]
       }
+    ],
+    "player-controls-and-pip": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-153-w02-player-controls-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "player-controls-receipt",
+            "path": "verification/evidence/issue-153-player-controls.json",
+            "sha256": "sha256:6e1efd033ce4256560f378d7e702250ec9388dfe575c7508917a94de43157c87",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/153"
+        ]
+      },
+      {
+        "id": "api30-device",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-153-w02-player-controls-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "player-controls-receipt",
+            "path": "verification/evidence/issue-153-player-controls.json",
+            "sha256": "sha256:6e1efd033ce4256560f378d7e702250ec9388dfe575c7508917a94de43157c87",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "kick-playing",
+            "path": "verification/evidence/issue-153/kick-absi-playing.png",
+            "sha256": "sha256:7bec137047ee99ebf0234c88813417690f5192ccd272484877a6c270dec39506",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-paused",
+            "path": "verification/evidence/issue-153/kick-absi-paused.png",
+            "sha256": "sha256:215d6133eb6394ba21aeb74d1071df4fec55df0c0412fb642e3f6cd10e96c316",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-mute-quality",
+            "path": "verification/evidence/issue-153/kick-absi-mute-quality.png",
+            "sha256": "sha256:5838126566e1164d0927f285c033202ac0fd635a45920b664405e9d7cf6aa941",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-fullscreen",
+            "path": "verification/evidence/issue-153/kick-absi-fullscreen.png",
+            "sha256": "sha256:ddaf8fa16eb0fe2b7815aa80d1117ab13827d82e1adeeb2aa915cf6962d7c82a",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-mini",
+            "path": "verification/evidence/issue-153/kick-absi-mini.png",
+            "sha256": "sha256:f5c0bc862db846c8a5de5d3ac55f21a2d2fcd8dddd468f19ab84c3b197b74c05",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/153"
+        ]
+      },
+      {
+        "id": "background-pip",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-153-w02-player-controls-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "player-controls-receipt",
+            "path": "verification/evidence/issue-153-player-controls.json",
+            "sha256": "sha256:6e1efd033ce4256560f378d7e702250ec9388dfe575c7508917a94de43157c87",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "pip-entered",
+            "path": "verification/evidence/issue-153/kick-absi-pip2-entered.png",
+            "sha256": "sha256:610b208b7ca6a6ee2608c929d284b2d1481b80046f7813691aaf97c02a150cd0",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "pip-tap",
+            "path": "verification/evidence/issue-153/kick-absi-pip2-tap.png",
+            "sha256": "sha256:f92495e7617fb3a7892821e313a81d4ad7afa4e8384d35aa376863d91610549b",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "pip-expanded",
+            "path": "verification/evidence/issue-153/kick-absi-pip2-expanded.png",
+            "sha256": "sha256:0b4dc7f406bb05206a32b60c722a7dabb06231d8fad0651be96b99c1bef6c2e5",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/153"
+        ]
+      },
+      {
+        "id": "process-death",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-153-w02-player-controls-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "player-controls-receipt",
+            "path": "verification/evidence/issue-153-player-controls.json",
+            "sha256": "sha256:6e1efd033ce4256560f378d7e702250ec9388dfe575c7508917a94de43157c87",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "force-stop",
+            "path": "verification/evidence/issue-153/kick-absi-force-stop.png",
+            "sha256": "sha256:cb3c45bc6bcff398b4e6b2ee6c168c843c2c2c7a16527bb9c04e9f231952ec14",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/153"
+        ]
+      },
+      {
+        "id": "gesture-accessibility",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-153-w02-player-controls-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "player-controls-receipt",
+            "path": "verification/evidence/issue-153-player-controls.json",
+            "sha256": "sha256:6e1efd033ce4256560f378d7e702250ec9388dfe575c7508917a94de43157c87",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "mini-bottom-start",
+            "path": "verification/evidence/issue-153/kick-absi-mini-move-bottom-start.png",
+            "sha256": "sha256:0562eddcf4ce8dec45332916710be943880e8c5165cb193d665fddb2db3f207e",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "mini-top-start",
+            "path": "verification/evidence/issue-153/kick-absi-mini-move-top-start.png",
+            "sha256": "sha256:e044790c7d017f7edfb5c6819c816e35b9d47b85b687318d089a3438dcfb27cb",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "mini-top-end",
+            "path": "verification/evidence/issue-153/kick-absi-mini-move-top-end.png",
+            "sha256": "sha256:a99d2f4b8893d318163efbb8f17042f15dc0dc455988a52e11ffb1c08904bacc",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "mini-expanded",
+            "path": "verification/evidence/issue-153/kick-absi-expanded.png",
+            "sha256": "sha256:5304e5ce9441df865408e0ff49d23ec282ad94f2d64faf404e0b3e273c91b426",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/153"
+        ]
+      }
+    ],
+    "vod-and-clip-playback": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-154-w03-vod-clips-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "vod-clips-receipt",
+            "path": "verification/evidence/issue-154-vod-clips.json",
+            "sha256": "sha256:170c8c53d627026bcce825fb0e259502df975271dd81d108c13aad35cf143cce",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+        ]
+      },
+      {
+        "id": "api30-device",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-154-w03-vod-clips-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "vod-clips-receipt",
+            "path": "verification/evidence/issue-154-vod-clips.json",
+            "sha256": "sha256:170c8c53d627026bcce825fb0e259502df975271dd81d108c13aad35cf143cce",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "twitch-vod-playing",
+            "path": "verification/evidence/issue-154/xqc-vod-playing.png",
+            "sha256": "sha256:7aaebbc3862efb7197644c283e0b63680f97cda1e638867de5e5bb7139b4d3c1",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-vod-playing",
+            "path": "verification/evidence/issue-154/xqc-kick-vod-playing.png",
+            "sha256": "sha256:c63cf0c697d8f9add129600d075db3caaffc1fcf3e3b9cac49e5922669b32820",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "twitch-clip-playing",
+            "path": "verification/evidence/issue-154/xqc-twitch-clip-playing.png",
+            "sha256": "sha256:f1ec6df94494f65d11749274333c8e83941d6e6025306e3e5a8b4f2bb3557451",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+        ]
+      },
+      {
+        "id": "live-platforms",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-154-w03-vod-clips-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "vod-clips-receipt",
+            "path": "verification/evidence/issue-154-vod-clips.json",
+            "sha256": "sha256:170c8c53d627026bcce825fb0e259502df975271dd81d108c13aad35cf143cce",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "twitch-videos-tab",
+            "path": "verification/evidence/issue-154/xqc-channel-videos-tab.png",
+            "sha256": "sha256:3c3b8e343310fba44a00e0e52dbce05d571c6b637dd881b878b3ec795fa0fc54",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-videos-tab",
+            "path": "verification/evidence/issue-154/xqc-kick-videos-tab.png",
+            "sha256": "sha256:0d6c031a083ff8f71785f5e39cc5cef81df754a752f491671f041518e8093634",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "twitch-clips-tab",
+            "path": "verification/evidence/issue-154/xqc-twitch-clips-tab.png",
+            "sha256": "sha256:a392555f1217e5de8a39b690a99fdea701a2f870e733a13fb043e52157cdb038",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "twitch-vod-playing",
+            "path": "verification/evidence/issue-154/xqc-vod-playing.png",
+            "sha256": "sha256:7aaebbc3862efb7197644c283e0b63680f97cda1e638867de5e5bb7139b4d3c1",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "kick-vod-playing",
+            "path": "verification/evidence/issue-154/xqc-kick-vod-playing.png",
+            "sha256": "sha256:c63cf0c697d8f9add129600d075db3caaffc1fcf3e3b9cac49e5922669b32820",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+        ]
+      },
+      {
+        "id": "compatibility-canary",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-154-w03-vod-clips-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "vod-clips-receipt",
+            "path": "verification/evidence/issue-154-vod-clips.json",
+            "sha256": "sha256:170c8c53d627026bcce825fb0e259502df975271dd81d108c13aad35cf143cce",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "kick-clips-unsupported",
+            "path": "verification/evidence/issue-154/xqc-kick-clips-unsupported.png",
+            "sha256": "sha256:1ba26ec2090b25cba9e2db954d3b5e8b8c7810a78a492279c5917c0b1299d2cf",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+        ]
+      },
+      {
+        "id": "seeking",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-154-w03-vod-clips-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "vod-clips-receipt",
+            "path": "verification/evidence/issue-154-vod-clips.json",
+            "sha256": "sha256:170c8c53d627026bcce825fb0e259502df975271dd81d108c13aad35cf143cce",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "vod-seek-back",
+            "path": "verification/evidence/issue-154/xqc-vod-seek-back.png",
+            "sha256": "sha256:1f9180340bc317386c7db7f88a57241e7587d0ccdd5aee3f707569c6edf57c61",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "vod-seek-forward",
+            "path": "verification/evidence/issue-154/xqc-vod-seek-forward.png",
+            "sha256": "sha256:d505ce91e013b23b72ffafd7fb2d8d205bd9d0d5cbc071a9e0581291d2fe5512",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "clip-seek",
+            "path": "verification/evidence/issue-154/xqc-twitch-clip-seek.png",
+            "sha256": "sha256:e15272436aa7fdf4ac7bb054ab0a1547e4f43b60494f53b0cbf6c5d641711561",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+        ]
+      },
+      {
+        "id": "accessibility",
+        "sourceCommit": "7f3dea77f89f6109d9b22644fb34acb14ae3e111",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-154-w03-vod-clips-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "vod-clips-receipt",
+            "path": "verification/evidence/issue-154-vod-clips.json",
+            "sha256": "sha256:170c8c53d627026bcce825fb0e259502df975271dd81d108c13aad35cf143cce",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "twitch-vod-playing",
+            "path": "verification/evidence/issue-154/xqc-vod-playing.png",
+            "sha256": "sha256:7aaebbc3862efb7197644c283e0b63680f97cda1e638867de5e5bb7139b4d3c1",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "twitch-clip-playing",
+            "path": "verification/evidence/issue-154/xqc-twitch-clip-playing.png",
+            "sha256": "sha256:f1ec6df94494f65d11749274333c8e83941d6e6025306e3e5a8b4f2bb3557451",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T19:00:00.000Z",
+        "expiresAt": "2026-09-28T19:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
+        ]
+      }
     ]
   },
   "gateRuns": {}

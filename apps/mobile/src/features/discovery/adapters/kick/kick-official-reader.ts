@@ -12,6 +12,14 @@ import {
 import { requestInit } from "../../utils/optional";
 import { createKickOfficialCategoryReads } from "./kick-official-category-reader";
 import { createKickOfficialChannelReader } from "./kick-official-channel-reader";
+import {
+  kickPublicChannelUrl,
+  mapKickPublicChannel,
+} from "./kick-public-catalog";
+import {
+  readKickPublicCategories,
+  readKickPublicTopStreams,
+} from "./kick-public-reads";
 
 const KICK_LIVESTREAMS = "https://api.kick.com/public/v1/livestreams?limit=20";
 
@@ -26,6 +34,9 @@ export function createKickOfficialReader(input: {
     async getCategories(read: {
       readonly signal?: AbortSignal;
     } = {}): Promise<PlatformReadOutcome<Category>> {
+      if ((await input.readAccessToken()) === null) {
+        return readKickPublicCategories(input.fetch, read.signal);
+      }
       return kickCollection({
         input,
         map: kickCategories,
@@ -60,16 +71,17 @@ export function createKickOfficialReader(input: {
       readonly query: string;
       readonly signal?: AbortSignal;
     }): Promise<SearchReadOutcome> {
+      if (read.guest === true) {
+        return kickGuestSearch(input, read.query, read.signal);
+      }
       const [channels, categories] = await Promise.all([
         kickCollection({
-          guest: read.guest === true,
           input,
           map: kickChannels,
           path: `https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(read.query)}`,
           ...(read.signal === undefined ? {} : { signal: read.signal }),
         }),
         kickCollection({
-          guest: read.guest === true,
           input,
           map: kickCategories,
           path: `https://api.kick.com/public/v1/categories?q=${encodeURIComponent(read.query)}`,
@@ -87,7 +99,7 @@ export function createKickOfficialReader(input: {
           streams: streamsFromLiveChannels(channels.items),
           videos: [],
         },
-        path: { kind: read.guest === true ? "guest" : "direct", platform: "kick" },
+        path: { kind: "direct", platform: "kick" },
         platform: "kick",
         status: "complete",
       };
@@ -98,18 +110,7 @@ export function createKickOfficialReader(input: {
       if (read.signal?.aborted) return cancelled("kick");
       const accessToken = await input.readAccessToken();
       if (accessToken === null) {
-        return {
-          cache: { kind: "miss" },
-          error: { code: "signed-out-login-required", retry: "manual" },
-          items: [],
-          path: {
-            kind: "unavailable",
-            platform: "kick",
-            reason: "signed-out-login-required",
-          },
-          platform: "kick",
-          status: "failed",
-        };
+        return readKickPublicTopStreams(input.fetch, read.signal);
       }
       try {
         const response = await input.fetch(
@@ -260,7 +261,10 @@ async function kickCollection<T>(input: {
     return {
       cache: { kind: "miss" },
       items: input.map(await response.json()),
-      path: { kind: "direct", platform: "kick" },
+      path: {
+        kind: input.guest === true ? "guest" : "direct",
+        platform: "kick",
+      },
       platform: "kick",
       status: "complete",
     };
@@ -305,6 +309,66 @@ function searchFromKick<T>(
     status: outcome.status,
     ...(outcome.error === undefined ? {} : { error: outcome.error }),
   };
+}
+
+async function kickGuestSearch(
+  input: {
+    readonly fetch: typeof globalThis.fetch;
+    readonly readAccessToken: () => Promise<string | null>;
+  },
+  query: string,
+  signal?: AbortSignal,
+): Promise<SearchReadOutcome> {
+  const slug = query.trim();
+  try {
+    const [channelResponse, categories] = await Promise.all([
+      slug === ""
+        ? Promise.resolve(null)
+        : input.fetch(
+            kickPublicChannelUrl(slug),
+            requestInit({ Accept: "application/json" }, signal),
+          ),
+      readKickPublicCategories(input.fetch, signal),
+    ]);
+    if (categories.status === "failed") return searchFromKick(categories);
+    const channel =
+      channelResponse === null || !channelResponse.ok
+        ? null
+        : mapKickPublicChannel(await channelResponse.json());
+    const channels = channel === null ? [] : [channel];
+    const needle = slug.toLowerCase();
+    return {
+      cache: { kind: "miss" },
+      catalog: {
+        categories: categories.items.filter((item) =>
+          item.name.toLowerCase().includes(needle),
+        ),
+        channels,
+        clips: [],
+        streams: streamsFromLiveChannels(channels),
+        videos: [],
+      },
+      path: { kind: "guest", platform: "kick" },
+      platform: "kick",
+      status: "complete",
+    };
+  } catch {
+    return searchFromKick(
+      {
+        cache: { kind: "miss" },
+        error: {
+          code: signal?.aborted ? "cancelled" : "kick-failed",
+          retry: signal?.aborted ? "none" : "manual",
+        },
+        items: [],
+        path: signal?.aborted
+          ? { kind: "unavailable", platform: "kick", reason: "cancelled" }
+          : { kind: "guest", platform: "kick" },
+        platform: "kick",
+        status: "failed",
+      } satisfies PlatformReadOutcome<Category>,
+    );
+  }
 }
 
 function failed<T>(code: string): PlatformReadOutcome<T> {

@@ -3,6 +3,10 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import {
+  readKickPublicCategories,
+  readKickPublicCategoryStreams,
+} from "./kick-public-reads";
 
 type KickInput = {
   readonly fetch: typeof globalThis.fetch;
@@ -15,6 +19,17 @@ export function createKickOfficialCategoryReads(input: KickInput) {
       readonly categoryId: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Category>> {
+      if ((await input.readAccessToken()) === null) {
+        const categories = await readKickPublicCategories(
+          input.fetch,
+          read.signal,
+        );
+        if (categories.status === "failed") return categories;
+        return {
+          ...categories,
+          items: categories.items.filter((item) => item.id === read.categoryId),
+        };
+      }
       return kickCollection({
         input,
         map: kickCategories,
@@ -27,6 +42,13 @@ export function createKickOfficialCategoryReads(input: KickInput) {
       readonly language?: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Stream>> {
+      if ((await input.readAccessToken()) === null) {
+        return readKickPublicCategoryStreams({
+          categoryId: read.categoryId,
+          fetchImpl: input.fetch,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        });
+      }
       const params = new URLSearchParams({
         category_id: read.categoryId,
         limit: "20",
@@ -43,6 +65,20 @@ export function createKickOfficialCategoryReads(input: KickInput) {
       readonly query: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Category>> {
+      if ((await input.readAccessToken()) === null) {
+        const categories = await readKickPublicCategories(
+          input.fetch,
+          read.signal,
+        );
+        if (categories.status === "failed") return categories;
+        const needle = read.query.trim().toLowerCase();
+        return {
+          ...categories,
+          items: categories.items.filter((item) =>
+            item.name.toLowerCase().includes(needle),
+          ),
+        };
+      }
       return kickCollection({
         input,
         map: kickCategories,
