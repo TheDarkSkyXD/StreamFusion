@@ -55,6 +55,7 @@ import { createSearchHistoryRepository } from "@mobile/features/discovery/compos
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
+import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -328,6 +329,18 @@ export function MobileRuntime() {
       }),
     [useDevelopmentKickFixture, useDevelopmentTwitchFixture],
   );
+  const watch = useMemo(
+    () =>
+      createGuestWatchScreen({
+        discovery: homeDiscovery,
+        fetch: connectivitySession.fetch,
+        playback: androidCapabilityRuntime.contracts.playback,
+        policyStore: installationPolicyRuntime.policyStore,
+        sessionIds: { create: secureRandom.uuid },
+      }),
+    [homeDiscovery],
+  );
+  useEffect(() => () => void watch.runtime.session.dispose(), [watch]);
   useEffect(() => {
     if (!developmentActivityProof) return;
     const unsubscribe = developmentActivityProof.subscribe(setActivityProof);
@@ -415,6 +428,7 @@ export function MobileRuntime() {
       discoveryPreferences={discoveryPreferences}
       followingSession={followingSession}
       connectivitySession={connectivitySession}
+      watch={watch}
     />
     </QueryClientProvider>
   );

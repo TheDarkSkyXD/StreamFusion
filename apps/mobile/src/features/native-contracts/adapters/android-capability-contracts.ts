@@ -5,6 +5,9 @@ import {
 
 import type {
   AndroidCaptionsContractPort,
+  NativePlaybackEvent,
+  NativePlaybackFailureCode,
+  PlaybackEndState,
   AndroidCapabilityId,
   AndroidCapabilityReadiness,
   AndroidDecoderObservation,
@@ -55,7 +58,7 @@ function describe(capability: AndroidCapabilityId): string {
 
 function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
   if (capability === "diagnostics") return 3;
-  if (capability === "media-jobs") return 2;
+  if (capability === "media-jobs" || capability === "playback") return 2;
   return 1;
 }
 
@@ -226,6 +229,53 @@ function playbackState(value: unknown): PlaybackSessionState | undefined {
     typeof state.pictureInPictureEligible === "boolean"
     ? { sessionId, pictureInPictureEligible: state.pictureInPictureEligible }
     : undefined;
+}
+
+function playbackEndState(
+  sessionId: string,
+  value: unknown,
+): PlaybackEndState | undefined {
+  const result = object(value);
+  if (!result) return undefined;
+  if (result.kind === "missing") {
+    const missingId = nonEmptyString(result.sessionId);
+    return missingId === sessionId ? { kind: "missing", sessionId } : undefined;
+  }
+  if (result.kind === "ended") {
+    const state = playbackState(result.state);
+    return state?.sessionId === sessionId ? { kind: "ended", state } : undefined;
+  }
+  return undefined;
+}
+
+const PLAYBACK_FAILURE_CODES: readonly NativePlaybackFailureCode[] = [
+  "PLAYBACK_DECODER_UNSUPPORTED",
+  "PLAYBACK_NETWORK_FAILED",
+  "PLAYBACK_SOURCE_REJECTED",
+  "PLAYBACK_UNKNOWN",
+];
+
+function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
+  const event = object(value);
+  const sessionId = event ? nonEmptyString(event.sessionId) : undefined;
+  if (!event || !sessionId) return undefined;
+  if (event.kind === "buffering") return { kind: "buffering", sessionId };
+  if (event.kind === "playing") return { kind: "playing", sessionId };
+  if (event.kind === "ended") return { kind: "ended", sessionId };
+  if (
+    event.kind === "paused" &&
+    (event.reason === "background" || event.reason === "user")
+  ) {
+    return { kind: "paused", reason: event.reason, sessionId };
+  }
+  if (event.kind === "failed") {
+    const code = PLAYBACK_FAILURE_CODES.find((item) => item === event.code);
+    const detail = nonEmptyString(event.detail);
+    return code && detail
+      ? { code, detail, kind: "failed", sessionId }
+      : undefined;
+  }
+  return undefined;
 }
 
 function unwrapCompleted(value: unknown): unknown {
@@ -560,11 +610,22 @@ export function createAndroidPlaybackContractPort(
         "playback",
         reader,
         (binding) => binding.endFocusedSession(sessionId),
-        (value) => {
-          const state = playbackState(value);
-          return state?.sessionId === sessionId ? state : undefined;
-        },
+        (value) => playbackEndState(sessionId, value),
       ),
+    subscribe(listener) {
+      const resolution = resolveBinding("playback", reader);
+      if (resolution.kind === "unavailable" || !resolution.binding.addListener) {
+        return () => undefined;
+      }
+      const subscription = resolution.binding.addListener(
+        "onNativePlayback",
+        (event) => {
+          const parsed = nativePlaybackEvent(event);
+          if (parsed) listener(parsed);
+        },
+      );
+      return () => subscription.remove();
+    },
   };
 }
 

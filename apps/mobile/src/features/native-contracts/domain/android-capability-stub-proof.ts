@@ -4,7 +4,7 @@ import type {
 } from "../capabilities/android-capability-contracts";
 
 const safeStubsDetail =
-  "3/3 remaining stubs unsupported. Media Jobs canceled a nonexistent job without starting work. Diagnostics returned a measured snapshot.";
+  "2/2 remaining stubs unsupported. Playback ended a nonexistent session without starting work. Media Jobs canceled a nonexistent job without starting work. Diagnostics returned a measured snapshot.";
 
 export type AndroidCapabilityStubProofResult =
   | {
@@ -32,10 +32,26 @@ function isMissingJob(value: unknown, jobId: string): boolean {
   );
 }
 
+function isMissingSession(value: unknown, sessionId: string): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "kind" in value &&
+    "sessionId" in value &&
+    (value as { readonly kind: unknown }).kind === "missing" &&
+    (value as { readonly sessionId: unknown }).sessionId === sessionId
+  );
+}
+
 function failedCapability(
   capability: string,
   result: AndroidNativeOperationResult<unknown>,
 ): string | undefined {
+  if (capability === "playback") {
+    return result.kind === "completed" && isMissingSession(result.value, proofId)
+      ? undefined
+      : "playback did not end a nonexistent session without starting work.";
+  }
   if (capability === "media jobs") {
     return result.kind === "completed" && isMissingJob(result.value, proofId)
       ? undefined

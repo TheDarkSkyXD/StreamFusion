@@ -31,10 +31,16 @@ import { useChannelFollow } from "./use-channel-follow";
 export function ChannelDetailScreen({
   channel,
   following,
+  onWatch,
   session,
 }: {
   readonly channel: ChannelIdentity;
   readonly following: FollowingSession;
+  readonly onWatch?: (target: {
+    readonly channelId: string;
+    readonly channelName: string;
+    readonly platform: ChannelIdentity["platform"];
+  }) => void;
   readonly session: DiscoverySession;
 }) {
   const [mode, setMode] = useState<ChannelFixtureMode>("live");
@@ -59,6 +65,7 @@ export function ChannelDetailScreen({
       onOpenProviderPage={follow.openProviderPage}
       onRetry={live.retry}
       view={view}
+      {...(onWatch === undefined ? {} : { onWatch })}
       {...(__DEV__ ? { onSelectProofMode: setMode, proofMode: mode } : {})}
     />
   );
@@ -70,6 +77,7 @@ export function ChannelDetailView({
   onOpenProviderPage,
   onRetry,
   onSelectProofMode,
+  onWatch,
   proofMode,
   view,
 }: {
@@ -78,6 +86,11 @@ export function ChannelDetailView({
   readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
+  readonly onWatch?: (target: {
+    readonly channelId: string;
+    readonly channelName: string;
+    readonly platform: ChannelIdentity["platform"];
+  }) => void;
   readonly proofMode?: ChannelFixtureMode;
   readonly view: ChannelDetailModel;
 }) {
@@ -90,6 +103,7 @@ export function ChannelDetailView({
       onRetry={onRetry}
       onSelectTab={setTab}
       tab={tab}
+      {...(onWatch === undefined ? {} : { onWatch })}
       view={view}
       {...(onSelectProofMode === undefined
         ? {}
@@ -105,6 +119,7 @@ export function ChannelDetailBody({
   onRetry,
   onSelectProofMode,
   onSelectTab,
+  onWatch,
   proofMode,
   tab,
   view,
@@ -115,6 +130,11 @@ export function ChannelDetailBody({
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
   readonly onSelectTab: (tab: ChannelDetailTab) => void;
+  readonly onWatch?: (target: {
+    readonly channelId: string;
+    readonly channelName: string;
+    readonly platform: ChannelIdentity["platform"];
+  }) => void;
   readonly proofMode?: ChannelFixtureMode;
   readonly tab: ChannelDetailTab;
   readonly view: ChannelDetailModel;
@@ -146,7 +166,10 @@ export function ChannelDetailBody({
           follow={view.follow}
           onFollow={onFollow}
           onOpenProviderPage={onOpenProviderPage}
-          onWatch={() => undefined}
+          onWatch={() => {
+            if (view.watch.kind !== "available") return;
+            onWatch?.(view.watch.target);
+          }}
           watch={view.watch}
         />
       ) : null}

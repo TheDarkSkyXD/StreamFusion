@@ -8,6 +8,7 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { FollowView, WatchAvailability } from "../capabilities/platform-reads";
+import { watchAvailabilityCopy } from "../domain/channel-detail";
 import {
   followActionLabel,
   followCopy,
@@ -35,6 +36,8 @@ export function ChannelHeader({
       : `${channel.followerCount} followers`;
   const followBusy = follow.kind === "pending";
   const followLabel = followActionLabel(follow);
+  const watchEnabled = watch.kind === "available";
+  const watchCopy = watchAvailabilityCopy(watch);
   return (
     <View style={styles.header} testID="channel-header">
       {channel.avatarUrl ? (
@@ -102,21 +105,24 @@ export function ChannelHeader({
           </Text>
         </Pressable>
         <Pressable
-          accessibilityHint={watch.reason}
+          accessibilityHint={watchCopy}
           accessibilityLabel="Watch"
           accessibilityRole="button"
-          accessibilityState={{ disabled: true }}
-          disabled
+          accessibilityState={{ disabled: !watchEnabled }}
+          disabled={!watchEnabled}
           onPress={onWatch}
-          style={styles.watch}
+          style={[styles.watch, watchEnabled ? styles.watchEnabled : null]}
           testID="channel-watch"
         >
-          <Text selectable style={styles.watchLabel}>
+          <Text
+            selectable
+            style={[styles.watchLabel, watchEnabled ? styles.watchLabelEnabled : null]}
+          >
             Watch
           </Text>
         </Pressable>
         <Text selectable style={styles.followReason} testID="channel-watch-reason">
-          {watch.reason}
+          {watchCopy}
         </Text>
       </View>
     </View>
@@ -220,10 +226,18 @@ const styles = StyleSheet.create({
     opacity: 0.72,
     paddingHorizontal: mobileSpacing.medium,
   },
+  watchEnabled: {
+    backgroundColor: mobileColors.textPrimary,
+    borderWidth: 0,
+    opacity: 1,
+  },
   watchLabel: {
     color: mobileColors.textSecondary,
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
+  },
+  watchLabelEnabled: {
+    color: mobileColors.background,
   },
 });

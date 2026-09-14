@@ -121,3 +121,18 @@ export interface CapabilityPolicyVerifier {
 export interface InstallationIdentitySource {
   create(): string;
 }
+
+export type EffectiveCapabilityDecision =
+  | {
+      readonly kind: "enabled";
+      readonly sequence: number;
+      readonly verifiedAtEpochMs: number;
+    }
+  | {
+      readonly kind: "disabled";
+      readonly reason: "expired" | "no-valid-policy" | "not-allowed";
+    };
+
+export interface EffectiveCapabilityPolicyReader {
+  read(capabilityId: string): Promise<EffectiveCapabilityDecision>;
+}

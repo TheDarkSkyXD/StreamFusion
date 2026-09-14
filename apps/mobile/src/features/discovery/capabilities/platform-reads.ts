@@ -173,10 +173,19 @@ export type FollowView =
   | { readonly kind: "pending" }
   | { readonly kind: "failed"; readonly reason: string };
 
-export type WatchAvailability = {
-  readonly kind: "unavailable";
-  readonly reason: string;
-};
+export type WatchAvailability =
+  | {
+      readonly kind: "available";
+      readonly target: {
+        readonly channelId: string;
+        readonly channelName: string;
+        readonly platform: Platform;
+      };
+    }
+  | {
+      readonly kind: "unavailable";
+      readonly reason: "channel-offline" | "live-state-unverified";
+    };
 
 export type ChannelDetailTab = "home" | "videos" | "clips";
 

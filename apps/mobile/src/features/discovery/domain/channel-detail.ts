@@ -12,11 +12,6 @@ import type {
 } from "../capabilities/platform-reads";
 import { composeGuestFollowView } from "./channel-follow";
 
-export const WATCH_UNAVAILABLE: WatchAvailability = {
-  kind: "unavailable",
-  reason: "Watch is not available yet.",
-};
-
 export function composeChannelDetail(input: {
   readonly clips?: ChannelMediaRead<Clip>;
   readonly follow?: FollowView;
@@ -45,8 +40,39 @@ export function composeChannelDetail(input: {
       page,
     }),
     videos,
-    watch: WATCH_UNAVAILABLE,
+    watch: composeWatchAvailability(page),
   };
+}
+
+export function composeWatchAvailability(
+  page: ChannelPageOutcome,
+): WatchAvailability {
+  const live = page.live;
+  const stale =
+    page.status === "stale" ||
+    (page.cache.kind === "hit" && page.cache.stale);
+  if (live && live.isLive && !stale) {
+    return {
+      kind: "available",
+      target: {
+        channelId: live.channelId,
+        channelName: live.channelName,
+        platform: live.platform,
+      },
+    };
+  }
+  if (live && live.isLive && stale) {
+    return { kind: "unavailable", reason: "live-state-unverified" };
+  }
+  return { kind: "unavailable", reason: "channel-offline" };
+}
+
+export function watchAvailabilityCopy(watch: WatchAvailability): string {
+  if (watch.kind === "available") return "Opens live Watch for this channel.";
+  if (watch.reason === "live-state-unverified") {
+    return "Live state is not verified. Refresh the channel.";
+  }
+  return "This channel is not live.";
 }
 
 function channelIdentity(page: ChannelPageOutcome): ChannelIdentity {

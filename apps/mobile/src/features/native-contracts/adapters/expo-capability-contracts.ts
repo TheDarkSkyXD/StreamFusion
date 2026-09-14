@@ -19,6 +19,10 @@ export interface ExpoBindingReader<TBinding> {
 }
 
 export interface ExpoPlaybackBinding {
+  readonly addListener?: (
+    eventName: string,
+    listener: (event: unknown) => void,
+  ) => { readonly remove: () => void };
   readonly endFocusedSession: (sessionId: string) => Promise<unknown>;
   readonly enterPictureInPicture: (sessionId: string) => Promise<unknown>;
   readonly getContractVersion: () => number;

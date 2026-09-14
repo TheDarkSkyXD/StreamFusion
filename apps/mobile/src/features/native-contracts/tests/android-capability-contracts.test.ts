@@ -26,7 +26,7 @@ const unsupported = async () => ({
 const playbackBinding: ExpoPlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
-  getContractVersion: () => 1,
+  getContractVersion: () => 2,
   startFocusedSession: unsupported,
 };
 const fixtureTimestamp = "2026-09-12T00:00:00.000Z";
@@ -156,7 +156,7 @@ describe("Android capability module contracts", () => {
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 2, kind: "ready" },
-      { capability: "playback", contractVersion: 1, kind: "ready" },
+      { capability: "playback", contractVersion: 2, kind: "ready" },
     ]);
     await expect(
       contracts.playback.enterPictureInPicture("watch-1"),
@@ -348,6 +348,23 @@ describe("Android capability module contracts", () => {
       value: { sessionId: "watch-1" },
     });
     await expect(
+      createAndroidPlaybackContractPort(
+        reader({
+          ...playbackBinding,
+          endFocusedSession: async (sessionId) => ({
+            kind: "completed",
+            value: { kind: "missing", sessionId },
+          }),
+        }),
+      ).endFocusedSession("streamfusion-contract-proof-nonexistent"),
+    ).resolves.toEqual({
+      kind: "completed",
+      value: {
+        kind: "missing",
+        sessionId: "streamfusion-contract-proof-nonexistent",
+      },
+    });
+    await expect(
       mediaJobs.startRecoverableJob({
         jobId: "job-1",
         kind: "download",
@@ -522,9 +539,12 @@ describe("Android capability module contracts", () => {
       playback: createAndroidPlaybackContractPort(
         reader({
           ...playbackBinding,
-          endFocusedSession: async () => {
+          endFocusedSession: async (sessionId) => {
             calls.push("playback.end");
-            return unsupported();
+            return {
+              kind: "completed",
+              value: { kind: "missing", sessionId },
+            };
           },
           enterPictureInPicture: unsafe,
           startFocusedSession: unsafe,
