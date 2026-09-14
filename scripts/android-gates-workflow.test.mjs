@@ -19,8 +19,9 @@ async function workflowFiles() {
 }
 
 test("workflows invoke every Android gate without a release promotion", async () => {
-  const [build, candidate, publicRelease, release] = await Promise.all([
+  const [build, main, candidate, publicRelease, release] = await Promise.all([
     workflow("build.yml"),
+    workflow("android-main.yml"),
     workflow("android-candidate.yml"),
     workflow("android-public-release.yml"),
     workflow("release.yml"),
@@ -29,10 +30,18 @@ test("workflows invoke every Android gate without a release promotion", async ()
   assert.match(build.source, /--gate change/);
   assert.match(build.source, /ANDROID_GATE_FRAGMENT: "1"/);
   assert.doesNotMatch(build.source, /--gate main/);
+  assert.match(main.source, /--gate main/);
+  assert.equal(main.value.jobs["main-gate"], undefined);
+  assert.ok(main.value.jobs["evaluate-main"]);
   assert.match(candidate.source, /--gate candidate/);
   assert.match(publicRelease.source, /--gate public-release/);
   assert.doesNotMatch(release.source, /verify:android-gates|android-public-release/i);
-  for (const source of [build.source, candidate.source, publicRelease.source]) {
+  for (const source of [
+    build.source,
+    main.source,
+    candidate.source,
+    publicRelease.source,
+  ]) {
     assert.doesNotMatch(source, /firebase\s+test\s+lab|test-lab/i);
     assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN);
   }
