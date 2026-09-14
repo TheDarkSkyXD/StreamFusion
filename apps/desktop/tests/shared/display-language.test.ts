@@ -4,11 +4,13 @@ import {
   DISPLAY_LANGUAGE_REGISTRY,
   getDisplayLanguage,
   resolveDisplayLanguage,
+  resolveStreamLanguage,
 } from "@shared/display-language";
 
 // Guards: the display-language registry remains exactly the supported 50 unique canonical locales.
 // Guards: English remains first because it is the default display language.
 // Guards: regional tags and safe aliases preserve their intended locale and stream-language mapping.
+// Guards: Kick dump English/Spanish/Portuguese labels resolve to provider stream language codes.
 describe("display languages", () => {
   it("lists the default English language first", () => {
     expect(DISPLAY_LANGUAGE_REGISTRY[0].code).toBe("en");
@@ -44,5 +46,21 @@ describe("display languages", () => {
     expect(getDisplayLanguage("zh-CN").streamLanguage).toBe("zh");
     expect(getDisplayLanguage("zh-TW").streamLanguage).toBe("zh");
     expect(getDisplayLanguage("nb").streamLanguage).toBe("no");
+  });
+
+  it.each([
+    ["en", "en"],
+    ["English", "en"],
+    ["es", "es"],
+    ["Spanish", "es"],
+    ["Portuguese", "pt"],
+    ["Russian", "ru"],
+  ] as const)("maps Kick dump language %s to stream language %s", (input, expected) => {
+    expect(resolveStreamLanguage(input)).toBe(expected);
+  });
+
+  it("leaves unknown catalog language labels empty", () => {
+    expect(resolveStreamLanguage("")).toBe("");
+    expect(resolveStreamLanguage("Klingon")).toBe("");
   });
 });

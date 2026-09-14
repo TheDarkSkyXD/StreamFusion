@@ -385,3 +385,26 @@ export function getDisplayLanguage(value: DisplayLanguage): DisplayLanguageDefin
     DEFAULT_DISPLAY_LANGUAGE_DEFINITION
   );
 }
+
+const STREAM_LANGUAGE_BY_NORMALIZED_LABEL = new Map<string, StreamLanguage>();
+
+function rememberStreamLanguageLabel(label: string, streamLanguage: StreamLanguage): void {
+  const normalized = label.trim().toLowerCase();
+  if (!normalized || STREAM_LANGUAGE_BY_NORMALIZED_LABEL.has(normalized)) return;
+  STREAM_LANGUAGE_BY_NORMALIZED_LABEL.set(normalized, streamLanguage);
+}
+
+for (const definition of DISPLAY_LANGUAGE_REGISTRY) {
+  rememberStreamLanguageLabel(definition.streamLanguage, definition.streamLanguage);
+  rememberStreamLanguageLabel(definition.code, definition.streamLanguage);
+  rememberStreamLanguageLabel(definition.englishLabel, definition.streamLanguage);
+  rememberStreamLanguageLabel(definition.nativeLabel, definition.streamLanguage);
+  rememberStreamLanguageLabel(definition.englishLabel.split(/[\s(/]/)[0] ?? "", definition.streamLanguage);
+}
+
+export function resolveStreamLanguage(value: unknown): StreamLanguage | "" {
+  if (typeof value !== "string") return "";
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  return STREAM_LANGUAGE_BY_NORMALIZED_LABEL.get(normalized) ?? "";
+}

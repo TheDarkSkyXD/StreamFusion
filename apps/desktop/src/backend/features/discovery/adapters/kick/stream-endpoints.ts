@@ -1,5 +1,6 @@
 import { net } from "electron";
 import { logger } from "@backend/logging/logger";
+import { resolveStreamLanguage } from "@shared/display-language";
 import { createManagedInterval } from "@shared/utils/managed-interval";
 import { sleep } from "@shared/utils/sleep";
 import {
@@ -1285,8 +1286,7 @@ export async function getPublicTopStreams(
         isLive: true,
         startedAt: normalizeKickDate(item.started_at || item.created_at || item.start_time),
         language:
-          item.metadata?.language ||
-          item.language ||
+          resolveStreamLanguage(item.metadata?.language || item.language) ||
           (bestDataIsLanguageScoped ? (language ?? "") : ""),
         tags: item.custom_tags && item.custom_tags.length > 0 ? item.custom_tags : item.tags || [],
         isMature:
@@ -1343,7 +1343,7 @@ export async function getTopStreams(
   options: PaginationOptions & { categoryId?: string; language?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
   if (!client.isAuthenticated()) {
-    return options.cursor ? { data: [] } : getPublicTopStreams(options);
+    return getPublicTopStreams(options);
   }
 
   try {

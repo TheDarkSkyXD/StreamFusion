@@ -14,8 +14,10 @@ import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
 // Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
 // Guards: an active official top-stream cooldown does not fan out into the anonymous fallback and amplify a 429.
 // Guards: cross-platform category browsing can fetch Kick streams by category name before its numeric ID resolves.
-// Guards: top-stream pagination uses Kick's V2 opaque cursor contract; V1 never supported the fabricated offset cursor.
+// Guards: signed-in top-stream pagination uses Kick's V2 opaque cursor; signed-out uses the public dump next_cursor.
+// Guards: signed-out Kick Home page 2 uses the public dump cursor instead of returning empty
 // Guards: language-filtered guest discovery trusts scoped endpoints and rejects conflicting stream metadata.
+// Guards: Kick.com dumps label languages as English/Spanish; guest Home must keep those rows for `en`.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -864,6 +866,31 @@ describe("getPublicTopStreams", () => {
     expect(result.data).toHaveLength(1);
     expect(result.data[0]?.language).toBe("es");
   });
+
+  it("keeps Kick.com dump rows whose language is the English label", async () => {
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        current_page: 1,
+        data: [
+          {
+            id: 1,
+            slug: "uuid-stream",
+            language: "English",
+            session_title: "Live now",
+            viewer_count: 10,
+            channel: { id: 2, slug: "odablock", user: { username: "Odablock" } },
+          },
+        ],
+      }),
+    });
+
+    const result = await getPublicTopStreams({ language: "en" });
+
+    expect(mockState.state.netRequestCalls[0]?.url).toBe("https://kick.com/stream/livestreams/en");
+    expect(result.data[0]?.channelName).toBe("odablock");
+    expect(result.data[0]?.language).toBe("en");
+  });
 });
 
 describe("getTopStreams official viewer counts", () => {
@@ -899,6 +926,40 @@ describe("getTopStreams official viewer counts", () => {
       expect.objectContaining({ channelName: "tazo", viewerCount: 42 }),
     ]);
     expect(result.cursor).toBe("server-next");
+  });
+
+  it("pages signed-out Kick Home with the public dump cursor", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const { getTopStreams } =
+      await import("@backend/features/discovery/adapters/kick/stream-endpoints");
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        data: {
+          livestreams: [
+            {
+              streamer: { channel: { slug: "alpha-0" } },
+              metadata: { title: "Live 0" },
+            },
+          ],
+          next_cursor: "livestream_next",
+        },
+      }),
+    });
+    const client = requestorFrom(vi.fn(), false);
+
+    const result = await getTopStreams(client, { limit: 10, cursor: "livestream_prev" });
+
+    expect(mockState.state.netRequestCalls[0]?.url).toContain(
+      "https://api.kick.com/private/v1/livestreams?cursor=livestream_prev"
+    );
+    expect(result.data[0]?.channelName).toBe("alpha-0");
+    expect(result.data[0]?.title).toBe("Live 0");
+    expect(result.cursor).toBe("livestream_next");
+    expect(client.requestSpy).not.toHaveBeenCalled();
   });
 
   it("does not amplify an official API cooldown through the public top-stream fallback", async () => {
