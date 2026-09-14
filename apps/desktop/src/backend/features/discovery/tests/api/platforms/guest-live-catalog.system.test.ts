@@ -144,7 +144,8 @@ describe("guest live catalog", { timeout: 15_000, retry: 1 }, () => {
     expect(response.status).toBe(200);
     const body: unknown = await response.json();
     expect(Array.isArray(body)).toBe(true);
-    const envelope = isRecord(body[0]) ? body[0] : null;
+    const first = Array.isArray(body) ? body[0] : undefined;
+    const envelope = isRecord(first) ? first : null;
     expect(envelope).not.toBeNull();
     const data = isRecord(envelope?.data) ? envelope.data : null;
     const streams = isRecord(data?.streams) ? data.streams : null;

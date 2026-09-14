@@ -21,10 +21,6 @@ export function HomePage() {
     refetch,
   } = useInfiniteTopStreams();
 
-  const featuredStream = streams && streams.length > 0 ? streams[0] : undefined;
-  const featuredStreams = streams?.slice(0, 10);
-  const otherStreams = streams && streams.length > 1 ? streams.slice(1) : [];
-
   if (error) {
     return (
       <div className="p-12 flex flex-col items-center justify-center space-y-4 text-center">
@@ -40,22 +36,20 @@ export function HomePage() {
   return (
     <div className="p-6 space-y-8 max-w-[1800px] mx-auto">
       <section>
-        <FeaturedStage stream={featuredStream} streams={featuredStreams} isLoading={isLoading} />
+        <FeaturedStage stream={streams?.[0]} streams={streams?.slice(0, 10)} isLoading={isLoading} />
       </section>
 
-      {/* Live Channels Section */}
       <LiveNowSection
-        streams={otherStreams}
+        streams={streams?.slice(1) ?? []}
         isLoading={isLoading}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
         loadMoreError={loadMoreError}
         unavailablePlatforms={unavailablePlatforms}
-        onLoadMore={() => void fetchNextPage()}
+        onLoadMore={fetchNextPage}
         onRetryUnavailable={() => void refetch()}
       />
 
-      {/* Browse Categories Link */}
       <div className="flex justify-center pt-8">
         <Link to="/categories">
           <Button variant="outline" size="lg" className="rounded-full px-8">
