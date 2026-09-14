@@ -24,7 +24,7 @@ export function createConnectivityRuntime(input: {
   readonly settings: ProductSettingsStore;
 }): ConnectivitySession {
   const preferences = createProxyPreferenceStore({
-    now: input.now,
+    now: input.now ?? Date.now,
     settings: input.settings,
   });
   const credentials = createProxyCredentialStore({ secrets: input.secrets });
