@@ -8,7 +8,7 @@ export type CategoryTab = "live" | "clips" | "videos";
 export type PlatformScope = "all" | Platform;
 export type TagFilter = "all" | string;
 export type LiveSort = "viewers-desc" | "viewers-asc";
-export type ClipSort = "views";
+export type ClipSort = "views" | "recent";
 export type VideoSort = "views" | "recent";
 
 export type CategoryFollowState = {

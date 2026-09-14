@@ -106,4 +106,29 @@ describe("Category detail screen", () => {
       nodes.some((node) => node.props.testID === "category-unsupported"),
     ).toBe(true);
   });
+
+  it("offers Views and Recent clip sort chips", () => {
+    const root = CategoryDetailView({
+      onChangeIdentity: () => undefined,
+      onChangeQuery: () => undefined,
+      onOpenAccounts: () => undefined,
+      onRetry: () => undefined,
+      query: "",
+      view: composeCategoryDetail({
+        identity: {
+          ...defaultCategoryRequest(chatting, "all", "all"),
+          tab: "clips",
+        },
+        loading: false,
+        twitch: fixtureOutcome("twitch", "ready"),
+      }),
+    });
+    const nodes = descendants(root);
+    expect(nodes.some((node) => node.props.testID === "category-sort-views")).toBe(
+      true,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "category-sort-recent"),
+    ).toBe(true);
+  });
 });

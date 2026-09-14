@@ -101,7 +101,7 @@ function selectMedia(input: {
     }
     return {
       kind: "clips",
-      items: sortClips(clipsOf(input.twitch)),
+      items: sortClips(clipsOf(input.twitch), input.identity.clipSort),
     };
   }
   if (input.identity.tab === "videos") {
@@ -176,8 +176,15 @@ function sortLive(items: readonly Stream[], sort: "viewers-desc" | "viewers-asc"
   );
 }
 
-function sortClips(items: readonly Clip[]): Clip[] {
-  return sortCopy(items, (left, right) => right.viewCount - left.viewCount);
+function sortClips(
+  items: readonly Clip[],
+  sort: CategoryRequestIdentity["clipSort"],
+): Clip[] {
+  return sortCopy(items, (left, right) =>
+    sort === "recent"
+      ? right.createdAt.localeCompare(left.createdAt)
+      : right.viewCount - left.viewCount,
+  );
 }
 
 function sortVideos(

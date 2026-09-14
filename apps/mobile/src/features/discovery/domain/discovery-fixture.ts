@@ -57,6 +57,7 @@ export function fixtureClip(
   platform: Platform,
   id: string,
   views: number,
+  createdAt = "2026-09-11T00:00:00.000Z" as SerializedTimestamp,
 ): Clip {
   return {
     channelAvatar: "",
@@ -64,7 +65,7 @@ export function fixtureClip(
     channelId: `${platform}-${id}`,
     channelName: `${platform}-clip`,
     clipUrl: `https://example.com/clip/${id}`,
-    createdAt: "2026-09-11T00:00:00.000Z" as SerializedTimestamp,
+    createdAt,
     creatorName: "Creator",
     duration: 12,
     id,

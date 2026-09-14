@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 32 |
+| Implemented | 49 |
 | Partial | 14 |
 | Placeholder | 9 |
-| Missing | 130 |
+| Missing | 113 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -84,23 +84,23 @@ Missing means no route or control exists yet.
 | `panel:logs` | missing | — | — | missing |
 | `panel:report-bug` | missing | — | — | missing |
 | `panel:about` | missing | — | — | missing |
-| `tab:search:all` | missing | — | — | missing |
-| `tab:search:channels` | missing | — | — | missing |
-| `tab:search:streams` | missing | — | — | missing |
-| `tab:search:videos` | missing | — | — | missing |
-| `tab:search:clips` | missing | — | — | missing |
-| `tab:search:categories` | missing | — | — | missing |
-| `tab:following:live` | missing | — | — | missing |
-| `tab:following:videos` | missing | — | — | missing |
-| `tab:following:clips` | missing | — | — | missing |
-| `tab:following:categories` | missing | — | — | missing |
-| `tab:following:channels` | missing | — | — | missing |
-| `tab:category-detail:live` | missing | — | — | missing |
-| `tab:category-detail:clips` | missing | — | — | missing |
-| `tab:category-detail:videos` | missing | — | — | missing |
-| `tab:channel:home` | missing | — | — | missing |
-| `tab:channel:videos` | missing | — | — | missing |
-| `tab:channel:clips` | missing | — | — | missing |
+| `tab:search:all` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
+| `tab:search:channels` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
+| `tab:search:streams` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
+| `tab:search:videos` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
+| `tab:search:clips` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
+| `tab:search:categories` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
+| `tab:following:live` | implemented | #147, #151 | apps/mobile/src/features/follows/components/following-tab-body.tsx | tests |
+| `tab:following:videos` | implemented | #147, #151 | apps/mobile/src/features/follows/components/following-tab-body.tsx | tests |
+| `tab:following:clips` | implemented | #147, #151 | apps/mobile/src/features/follows/components/following-tab-body.tsx | tests |
+| `tab:following:categories` | implemented | #147, #151 | apps/mobile/src/features/follows/components/following-tab-body.tsx | tests |
+| `tab:following:channels` | implemented | #147, #151 | apps/mobile/src/features/follows/components/following-tab-body.tsx | tests |
+| `tab:category-detail:live` | implemented | #147, #150 | apps/mobile/src/features/discovery/components/category-detail-view.tsx | tests |
+| `tab:category-detail:clips` | implemented | #147, #150 | apps/mobile/src/features/discovery/components/category-detail-view.tsx | tests |
+| `tab:category-detail:videos` | implemented | #147, #150 | apps/mobile/src/features/discovery/components/category-detail-view.tsx | tests |
+| `tab:channel:home` | implemented | #147, #148 | apps/mobile/src/features/discovery/components/channel-tabs.tsx | tests |
+| `tab:channel:videos` | implemented | #147, #148 | apps/mobile/src/features/discovery/components/channel-tabs.tsx | tests |
+| `tab:channel:clips` | implemented | #147, #148 | apps/mobile/src/features/discovery/components/channel-tabs.tsx | tests |
 | `tab:watch:chat` | missing | — | — | missing |
 | `tab:watch:info` | missing | — | — | missing |
 | `tab:watch:related` | missing | — | — | missing |
