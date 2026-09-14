@@ -44,10 +44,10 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
   assert.equal(ledger.totals.discovered, 185);
-  assert.equal(ledger.totals.implemented, 28);
+  assert.equal(ledger.totals.implemented, 29);
   assert.equal(ledger.totals.partial, 14);
   assert.equal(ledger.totals.placeholder, 12);
-  assert.equal(ledger.totals.missing, 131);
+  assert.equal(ledger.totals.missing, 130);
   assert.equal(ledger.gaps.length, 5);
   assert.ok(ledger.gaps.some((gap) => gap.id === "GAP-195-01"));
   assert.ok(
@@ -64,14 +64,19 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   );
   assert.ok(
     ledger.entries.some(
-      (entry) =>
-        entry.id === "panel:proxy" && entry.status === "implemented",
+      (entry) => entry.id === "panel:proxy" && entry.status === "implemented",
     ),
   );
   assert.ok(
     ledger.entries.some(
       (entry) =>
         entry.id === "shell-route:more/settings" && entry.status === "partial",
+    ),
+  );
+  assert.ok(
+    ledger.entries.some(
+      (entry) =>
+        entry.id === "action:channel-follow" && entry.status === "implemented",
     ),
   );
 });

@@ -8,6 +8,7 @@ import {
   mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
+import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import type {
   ChannelDetailTab,
   ChannelDetailView as ChannelDetailModel,
@@ -25,12 +26,15 @@ import { ChannelProofControls } from "./channel-proof-controls";
 import { ChannelTabs } from "./channel-tabs";
 import { HomeStreamCard } from "./home-stream-card";
 import { useChannelDetail } from "./use-channel-detail";
+import { useChannelFollow } from "./use-channel-follow";
 
 export function ChannelDetailScreen({
   channel,
+  following,
   session,
 }: {
   readonly channel: ChannelIdentity;
+  readonly following: FollowingSession;
   readonly session: DiscoverySession;
 }) {
   const [mode, setMode] = useState<ChannelFixtureMode>("live");
@@ -39,11 +43,20 @@ export function ChannelDetailScreen({
     enabled: mode === "live",
     session,
   });
+  const follow = useChannelFollow({
+    channel,
+    enabled: mode === "live",
+    following,
+  });
   const view =
-    mode === "live" ? live.view : fixtureChannelDetail(channel, mode);
+    mode === "live"
+      ? { ...live.view, follow: follow.follow }
+      : fixtureChannelDetail(channel, mode);
   return (
     <ChannelDetailView
       channel={channel}
+      onFollow={mode === "live" ? follow.toggle : () => undefined}
+      onOpenProviderPage={follow.openProviderPage}
       onRetry={live.retry}
       view={view}
       {...(__DEV__ ? { onSelectProofMode: setMode, proofMode: mode } : {})}
@@ -53,12 +66,16 @@ export function ChannelDetailScreen({
 
 export function ChannelDetailView({
   channel,
+  onFollow,
+  onOpenProviderPage,
   onRetry,
   onSelectProofMode,
   proofMode,
   view,
 }: {
   readonly channel: ChannelIdentity;
+  readonly onFollow: () => void;
+  readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
   readonly proofMode?: ChannelFixtureMode;
@@ -68,6 +85,8 @@ export function ChannelDetailView({
   return (
     <ChannelDetailBody
       channel={channel}
+      onFollow={onFollow}
+      onOpenProviderPage={onOpenProviderPage}
       onRetry={onRetry}
       onSelectTab={setTab}
       tab={tab}
@@ -81,6 +100,8 @@ export function ChannelDetailView({
 
 export function ChannelDetailBody({
   channel,
+  onFollow,
+  onOpenProviderPage,
   onRetry,
   onSelectProofMode,
   onSelectTab,
@@ -89,6 +110,8 @@ export function ChannelDetailBody({
   view,
 }: {
   readonly channel: ChannelIdentity;
+  readonly onFollow: () => void;
+  readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
   readonly onSelectTab: (tab: ChannelDetailTab) => void;
@@ -121,6 +144,8 @@ export function ChannelDetailBody({
         <ChannelHeader
           channel={view.channel}
           follow={view.follow}
+          onFollow={onFollow}
+          onOpenProviderPage={onOpenProviderPage}
           onWatch={() => undefined}
           watch={view.watch}
         />

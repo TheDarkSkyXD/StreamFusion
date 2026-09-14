@@ -138,6 +138,7 @@ const implemented = new Set([
   "shell-route:more/channel",
   "shell-route:more/categories",
   "shell-route:more/category-detail",
+  "action:channel-follow",
 ]);
 
 const partial = new Set([
@@ -179,6 +180,7 @@ const owners = {
   "screen:category-detail": [130, 132, 133, 147, 150],
   "screen:following": [134, 147, 151],
   "screen:channel": [130, 132, 133, 147, 148, 151],
+  "action:channel-follow": [151],
   "screen:watch": [152, 153, 156, 157, 167],
   "screen:video": [133, 153, 154],
   "screen:multi": [143, 160, 167],
@@ -244,6 +246,9 @@ const paths = {
   ],
   "shell-route:more/channel": [
     "apps/mobile/src/features/discovery/components/channel-detail-screen.tsx",
+  ],
+  "action:channel-follow": [
+    "apps/mobile/src/features/discovery/components/channel-header.tsx",
   ],
   "shell-route:more/categories": [
     "apps/mobile/src/features/discovery/components/categories-screen.tsx",

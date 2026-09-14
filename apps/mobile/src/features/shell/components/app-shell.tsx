@@ -667,6 +667,7 @@ function ShellScreen({
       <View style={styles.activityWorkspace} testID="screen-more-channel">
         <ChannelDetailScreen
           channel={location.channel}
+          following={followingSession}
           session={homeDiscovery}
         />
       </View>

@@ -1,14 +1,16 @@
 import type { Clip, Stream, Video } from "@streamfusion/core/content";
-import type { Platform } from "@streamfusion/core/platform";
+import type { GuestFollow } from "@streamfusion/core/follows";
+import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
 import type {
   ChannelDetailPhase,
   ChannelDetailView,
   ChannelMediaRead,
   ChannelPageOutcome,
+  FollowView,
   WatchAvailability,
 } from "../capabilities/platform-reads";
-import { guestFollowView } from "./channel-follow";
+import { composeGuestFollowView } from "./channel-follow";
 
 export const WATCH_UNAVAILABLE: WatchAvailability = {
   kind: "unavailable",
@@ -17,7 +19,9 @@ export const WATCH_UNAVAILABLE: WatchAvailability = {
 
 export function composeChannelDetail(input: {
   readonly clips?: ChannelMediaRead<Clip>;
+  readonly follow?: FollowView;
   readonly loading: boolean;
+  readonly membership?: readonly GuestFollow[];
   readonly page?: ChannelPageOutcome;
   readonly videos?: ChannelMediaRead<Video>;
 }): ChannelDetailView {
@@ -27,7 +31,13 @@ export function composeChannelDetail(input: {
   return {
     channel: page.channel,
     clips,
-    follow: guestFollowView(),
+    follow:
+      input.follow ??
+      composeGuestFollowView({
+        channel: channelIdentity(page),
+        membership: input.membership ?? [],
+        pending: false,
+      }),
     live: page.live,
     page,
     phase: channelPhase({
@@ -36,6 +46,14 @@ export function composeChannelDetail(input: {
     }),
     videos,
     watch: WATCH_UNAVAILABLE,
+  };
+}
+
+function channelIdentity(page: ChannelPageOutcome): ChannelIdentity {
+  return {
+    id: page.channel?.id ?? "",
+    platform: page.platform,
+    username: page.channel?.username ?? "",
   };
 }
 

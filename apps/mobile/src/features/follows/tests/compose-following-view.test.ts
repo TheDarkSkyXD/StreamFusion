@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 
 import { composeFollowingView } from "../domain/compose-following-view";
@@ -24,6 +24,56 @@ const kickFollow = guestFollow({
 });
 
 describe("composeFollowingView", () => {
+  it("sorts live channels first without requiring toSorted or reordering membership", () => {
+    const membership = Object.freeze([
+      guestFollow({
+        channelId: "b",
+        channelLogin: "bravo",
+        displayName: "Bravo",
+      }),
+      guestFollow({
+        channelId: "a",
+        channelLogin: "alpha",
+        displayName: "Alpha",
+      }),
+      guestFollow({
+        channelId: "z",
+        channelLogin: "zulu",
+        displayName: "Zulu",
+      }),
+    ]);
+    const toSorted = vi
+      .spyOn(Array.prototype, "toSorted")
+      .mockImplementation(() => {
+        throw new TypeError("toSorted is unavailable in the mobile runtime");
+      });
+    try {
+      const view = composeFollowingView({
+        chip: "all",
+        loadingLive: false,
+        loadingRecorded: false,
+        membership,
+        notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        query: "",
+        tab: "channels",
+        twitch: liveOutcome("twitch", "complete", [
+          followedStream({ channelId: "z", platform: "twitch" }),
+        ]),
+      });
+      expect(
+        view.channels.kind === "ready" &&
+          view.channels.items.map((row) => row.follow.displayName),
+      ).toEqual(["Zulu", "Alpha", "Bravo"]);
+      expect(view.membership.map((follow) => follow.displayName)).toEqual([
+        "Bravo",
+        "Alpha",
+        "Zulu",
+      ]);
+    } finally {
+      toSorted.mockRestore();
+    }
+  });
+
   it("uses no-membership when the device has no Guest Follows", () => {
     const view = composeFollowingView({
       chip: "all",

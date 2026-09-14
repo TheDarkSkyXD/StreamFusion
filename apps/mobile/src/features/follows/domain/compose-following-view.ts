@@ -234,7 +234,7 @@ function channelRows(
 function sortChannels(
   rows: readonly FollowingChannelRow[],
 ): readonly FollowingChannelRow[] {
-  return rows.toSorted((left, right) => {
+  return [...rows].sort((left, right) => {
     if (left.isLive !== right.isLive) return left.isLive ? -1 : 1;
     return left.follow.displayName.localeCompare(right.follow.displayName);
   });
