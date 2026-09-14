@@ -47,7 +47,6 @@ import {
   DEVELOPMENT_TWITCH_CLIENT_ID,
 } from "@mobile/features/auth/adapters/twitch/development-twitch-auth-fixture";
 import {
-  alwaysOnlineNetwork,
   createDiscoveryRuntime,
   installationIdentityFromStore,
   userTokenFromTwitchSnapshot,
@@ -55,6 +54,7 @@ import {
 import { createSearchHistoryRepository } from "@mobile/features/discovery/composition/search-history-repository";
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
+import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -230,9 +230,13 @@ function relayBaseUrl(): string {
   return raw.endsWith("/") ? raw : `${raw}/`;
 }
 
-const followingNetwork = alwaysOnlineNetwork();
+const connectivitySession = createConnectivityRuntime({
+  secrets: secureSecretStore,
+  settings: persistenceRuntime.productState.settings,
+});
 const followingSession = createFollowingRuntime({
   cache: persistenceRuntime.disposableCache,
+  fetch: connectivitySession.fetch,
   guestFollows: persistenceRuntime.productState.guestFollows,
   installation: async () => {
     const identity = installationIdentityFromStore(
@@ -241,7 +245,7 @@ const followingSession = createFollowingRuntime({
     return identity.kind === "ready" ? identity : { kind: "none" };
   },
   liveNotifications: persistenceRuntime.productState.liveNotifications,
-  network: () => followingNetwork.read(),
+  network: () => connectivitySession.readNetwork(),
   relayBaseUrl: relayBaseUrl(),
 });
 
@@ -291,6 +295,7 @@ export function MobileRuntime() {
             );
           },
         },
+        fetch: connectivitySession.fetch,
         kickAccessToken: async () => {
           const snapshot = await (useDevelopmentKickFixture
             ? developmentKickRepository
@@ -299,7 +304,7 @@ export function MobileRuntime() {
           const token = userTokenFromTwitchSnapshot(snapshot);
           return token.kind === "ready" ? token.accessToken : null;
         },
-        network: alwaysOnlineNetwork(),
+        network: { read: () => connectivitySession.readNetwork() },
         relayBaseUrl: relayBaseUrl(),
         twitchClientId: useDevelopmentTwitchFixture
           ? DEVELOPMENT_TWITCH_CLIENT_ID
@@ -409,6 +414,7 @@ export function MobileRuntime() {
       searchHistory={searchHistory}
       discoveryPreferences={discoveryPreferences}
       followingSession={followingSession}
+      connectivitySession={connectivitySession}
     />
     </QueryClientProvider>
   );

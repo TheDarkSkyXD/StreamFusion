@@ -45,6 +45,31 @@ interface NativeMaintenanceModule {
   verifyDownloadedApk(request: unknown): Promise<unknown>;
 }
 
+export type NativeProxyRequestResult =
+  | {
+      readonly kind: "completed";
+      readonly status: number;
+      readonly headers: Record<string, string>;
+      readonly body: string;
+    }
+  | NativeUnsupportedResponse;
+
+interface NativeConnectivityModule {
+  cancelProxyRequest(requestId: string): Promise<unknown>;
+  getContractVersion(): number;
+  proxyRequest(request: {
+    readonly body: string | null;
+    readonly headers: Record<string, string>;
+    readonly host: string;
+    readonly method: string;
+    readonly password: string;
+    readonly port: number;
+    readonly requestId: string;
+    readonly url: string;
+    readonly username: string;
+  }): Promise<NativeProxyRequestResult>;
+}
+
 export function getPlaybackModule(): NativePlaybackModule {
   return requireNativeModule<NativePlaybackModule>("StreamFusionPlayback");
 }
@@ -63,4 +88,10 @@ export function getDiagnosticsModule(): NativeDiagnosticsModule {
 
 export function getMaintenanceModule(): NativeMaintenanceModule {
   return requireNativeModule<NativeMaintenanceModule>("StreamFusionMaintenance");
+}
+
+export function getConnectivityModule(): NativeConnectivityModule {
+  return requireNativeModule<NativeConnectivityModule>(
+    "StreamFusionConnectivity",
+  );
 }

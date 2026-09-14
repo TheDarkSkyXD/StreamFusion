@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 26,
-    "partial": 13,
-    "placeholder": 13,
-    "missing": 133
+    "implemented": 28,
+    "partial": 14,
+    "placeholder": 12,
+    "missing": 131
   },
   "entries": [
     {
@@ -403,10 +403,15 @@
       "id": "screen:settings-proxy",
       "kind": "screen",
       "name": "settings-proxy",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        162,
+        169
+      ],
+      "implementation": [
+        "apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -590,10 +595,14 @@
       "id": "panel:proxy",
       "kind": "panel",
       "name": "proxy",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        162
+      ],
+      "implementation": [
+        "apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2126,9 +2135,14 @@
       "id": "shell-route:more/settings",
       "kind": "shell-route",
       "name": "more/settings",
-      "status": "placeholder",
-      "owners": [],
-      "implementation": [],
+      "status": "partial",
+      "owners": [
+        162,
+        169
+      ],
+      "implementation": [
+        "apps/mobile/src/features/shell/components/app-shell.tsx"
+      ],
       "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
@@ -2183,7 +2197,7 @@
     {
       "id": "GAP-195-02",
       "status": "owned-elsewhere",
-      "finding": "Watch, History, Moderation, and Settings remain placeholders. Feature issues own those screens.",
+      "finding": "Watch, History, and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
       "owners": [
         147,
         148,
@@ -2198,7 +2212,7 @@
     {
       "id": "GAP-195-03",
       "status": "owned-elsewhere",
-      "finding": "The 17 Settings panels and six Diagnostics tabs have no Mobile routes or tab components.",
+      "finding": "Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics.",
       "owners": [
         143,
         167,

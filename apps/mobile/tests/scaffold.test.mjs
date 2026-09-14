@@ -67,6 +67,7 @@ test("the Android build enables SQLCipher and excludes all app data from backup"
   assert.equal(packageManifest.dependencies["expo-file-system"], "57.0.2");
   assert.equal(packageManifest.dependencies["expo-secure-store"], "57.0.2");
   assert.equal(packageManifest.dependencies["expo-sqlite"], "57.0.2");
+  assert.equal(packageManifest.dependencies["expo-network"], "57.0.1");
 });
 
 test("SQLCipher is proven in memory before a persistent database is opened", () => {

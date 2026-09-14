@@ -65,6 +65,9 @@ import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/h
 import { UnifiedSearchScreen } from "@mobile/features/discovery/components/unified-search-screen";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import { FollowingWorkspace } from "@mobile/features/follows/components/following-workspace";
+import type { ConnectivitySession } from "@mobile/features/connectivity/capabilities/connectivity-session";
+import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
+import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
 
 import { DestinationIcon } from "./destination-icon";
 import { resolveHardwareBack } from "../domain/hardware-back";
@@ -134,6 +137,7 @@ export function AppShell({
   searchHistory,
   discoveryPreferences,
   followingSession,
+  connectivitySession,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -174,6 +178,7 @@ export function AppShell({
   readonly searchHistory: SearchHistoryRepository;
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
+  readonly connectivitySession: ConnectivitySession;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -309,6 +314,7 @@ export function AppShell({
               searchHistory={searchHistory}
               discoveryPreferences={discoveryPreferences}
               followingSession={followingSession}
+              connectivitySession={connectivitySession}
             />
           </View>
         </View>
@@ -464,6 +470,7 @@ function ShellScreen({
   searchHistory,
   discoveryPreferences,
   followingSession,
+  connectivitySession,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -504,6 +511,7 @@ function ShellScreen({
   readonly searchHistory: SearchHistoryRepository;
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
+  readonly connectivitySession: ConnectivitySession;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -733,6 +741,23 @@ function ShellScreen({
     );
   }
 
+  if (location.route === "more/settings") {
+    return (
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        ref={scrollView}
+        style={styles.screenScroll}
+        testID="screen-more-settings"
+      >
+        <View style={styles.contentColumn}>
+          <ProxySettingsPanel session={connectivitySession} />
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView
       contentContainerStyle={styles.screenContent}
@@ -766,6 +791,7 @@ function ShellScreen({
         )}
         {route.id === "more/diagnostics" ? (
           <>
+            <ConnectivityDiagnosticsPanel session={connectivitySession} />
             <MediaJobsDiagnosticsPanel
               busy={mediaJobsController.model.busy}
               jobs={mediaJobsController.model.jobs}
