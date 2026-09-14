@@ -4,6 +4,29 @@ import type {
 } from "@streamfusion/core/content";
 import type { Platform, StreamChannelIdentity } from "@streamfusion/core/platform";
 
+export type PlayerPresentation = "watch" | "mini" | "pip" | "fullscreen";
+
+export type MiniPlayerSnapRegion =
+  | "top-start"
+  | "top-end"
+  | "bottom-start"
+  | "bottom-end";
+
+export type PictureInPicturePhase =
+  | "idle"
+  | "requesting"
+  | "active"
+  | "unavailable"
+  | "failed"
+  | "returned";
+
+export type PlayerPresentationState = {
+  readonly pip: PictureInPicturePhase;
+  readonly presentation: PlayerPresentation;
+  readonly previous: Exclude<PlayerPresentation, "pip"> | null;
+  readonly snapRegion: MiniPlayerSnapRegion;
+};
+
 export type WatchTarget = StreamChannelIdentity;
 
 export type WatchTab = "chat" | "info" | "related";
@@ -104,6 +127,7 @@ export type LivePlaybackSourceResolution =
   | {
       readonly integration: PlaybackIntegration;
       readonly kind: "resolved";
+      readonly requestHeaders: Readonly<Record<string, string>>;
       readonly sourceUri: HlsSourceUri;
     }
   | {
@@ -143,6 +167,10 @@ export type NativePlaybackEvent =
     }
   | { readonly kind: "ended"; readonly sessionId: string }
   | {
+      readonly kind: "picture-in-picture-exited";
+      readonly sessionId: string;
+    }
+  | {
       readonly code: NativePlaybackFailureCode;
       readonly detail: string;
       readonly kind: "failed";
@@ -173,9 +201,51 @@ export type FocusedPlaybackEndResult =
   | { readonly kind: "missing"; readonly sessionId: string }
   | { readonly failure: FocusedPlaybackFailure; readonly kind: "unavailable" };
 
+export type FocusedPlaybackControlResult =
+  | { readonly kind: "applied"; readonly session: PlaybackSessionState }
+  | { readonly kind: "missing"; readonly sessionId: string }
+  | { readonly failure: FocusedPlaybackFailure; readonly kind: "unavailable" };
+
+export type PlaybackQualityCatalog = {
+  readonly qualities: readonly string[];
+  readonly selected: string;
+  readonly sessionId: string;
+};
+
+export type FocusedPlaybackQualityResult =
+  | { readonly catalog: PlaybackQualityCatalog; readonly kind: "listed" }
+  | { readonly kind: "missing"; readonly sessionId: string }
+  | { readonly failure: FocusedPlaybackFailure; readonly kind: "unavailable" };
+
+export type FocusedPictureInPictureResult =
+  | { readonly kind: "entered"; readonly session: PlaybackSessionState }
+  | { readonly kind: "unavailable"; readonly failure: FocusedPlaybackFailure }
+  | { readonly kind: "unsupported"; readonly failure: FocusedPlaybackFailure };
+
 export interface FocusedPlaybackPort {
   end(sessionId: string): Promise<FocusedPlaybackEndResult>;
+  enterPictureInPicture(
+    sessionId: string,
+  ): Promise<FocusedPictureInPictureResult>;
+  listQualities(sessionId: string): Promise<FocusedPlaybackQualityResult>;
+  setMuted(
+    sessionId: string,
+    muted: boolean,
+  ): Promise<FocusedPlaybackControlResult>;
+  setPlaying(
+    sessionId: string,
+    playing: boolean,
+  ): Promise<FocusedPlaybackControlResult>;
+  setQuality(
+    sessionId: string,
+    quality: string,
+  ): Promise<FocusedPlaybackQualityResult>;
+  setVolume(
+    sessionId: string,
+    volume: number,
+  ): Promise<FocusedPlaybackControlResult>;
   start(input: {
+    readonly requestHeaders: Readonly<Record<string, string>>;
     readonly sessionId: string;
     readonly sourceUri: HlsSourceUri;
   }): Promise<FocusedPlaybackStartResult>;
@@ -270,9 +340,34 @@ export type WatchStartResult =
   | { readonly kind: "cancelled" }
   | { readonly failure: WatchPlaybackFailure; readonly kind: "failed" };
 
+export type WatchPeek =
+  | { readonly kind: "idle" }
+  | {
+      readonly kind: "active";
+      readonly muted: boolean;
+      readonly presentation: PlayerPresentationState;
+      readonly quality: string;
+      readonly qualities: readonly string[];
+      readonly state: Extract<FocusedWatchState, { kind: "active" }>;
+      readonly volume: number;
+    };
+
 export interface FocusedWatchSession {
+  conceal(): void;
+  dismiss(): Promise<void>;
   dispose(): Promise<void>;
+  enterFullscreen(): void;
+  exitFullscreen(): void;
   leave(target: WatchTarget): Promise<void>;
+  peek(): WatchPeek;
+  relocateMiniPlayer(region: MiniPlayerSnapRegion): void;
+  requestPictureInPicture(): Promise<FocusedPictureInPictureResult | { readonly kind: "idle" }>;
+  restoreFromPictureInPicture(): void;
+  reveal(): void;
+  setMuted(muted: boolean): Promise<void>;
+  setPlaying(playing: boolean): Promise<void>;
+  setQuality(quality: string): Promise<void>;
+  setVolume(volume: number): Promise<void>;
   snapshot(target: WatchTarget): FocusedWatchState;
   start(target: WatchTarget): Promise<WatchStartResult>;
   subscribe(listener: () => void): () => void;

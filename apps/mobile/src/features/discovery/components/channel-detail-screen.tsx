@@ -17,7 +17,6 @@ import type {
 } from "../capabilities/platform-reads";
 import { mediaItems } from "../domain/channel-detail";
 import {
-  fixtureChannelDetail,
   type ChannelFixtureMode,
 } from "../domain/channel-fixture";
 import { ChannelHeader } from "./channel-header";
@@ -43,30 +42,22 @@ export function ChannelDetailScreen({
   }) => void;
   readonly session: DiscoverySession;
 }) {
-  const [mode, setMode] = useState<ChannelFixtureMode>("live");
   const live = useChannelDetail({
     channel,
-    enabled: mode === "live",
     session,
   });
   const follow = useChannelFollow({
     channel,
-    enabled: mode === "live",
     following,
   });
-  const view =
-    mode === "live"
-      ? { ...live.view, follow: follow.follow }
-      : fixtureChannelDetail(channel, mode);
   return (
     <ChannelDetailView
       channel={channel}
-      onFollow={mode === "live" ? follow.toggle : () => undefined}
+      onFollow={follow.toggle}
       onOpenProviderPage={follow.openProviderPage}
       onRetry={live.retry}
-      view={view}
+      view={{ ...live.view, follow: follow.follow }}
       {...(onWatch === undefined ? {} : { onWatch })}
-      {...(__DEV__ ? { onSelectProofMode: setMode, proofMode: mode } : {})}
     />
   );
 }

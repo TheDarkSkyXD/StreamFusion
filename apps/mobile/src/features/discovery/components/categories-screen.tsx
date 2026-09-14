@@ -14,7 +14,6 @@ import type {
   DiscoverySession,
 } from "../capabilities/platform-reads";
 import { composeCategoryCatalog } from "../domain/category-catalog";
-import { fixtureOutcome } from "../domain/discovery-fixture";
 import type { CategoryIdentity } from "../domain/category-identity";
 import { identityFromCategory } from "../domain/category-identity";
 import {
@@ -40,24 +39,12 @@ export function CategoriesScreen({
   readonly preferences: DiscoveryPreferenceStore;
   readonly session: DiscoverySession;
 }) {
-  const [mode, setMode] = useState<DiscoveryFixtureMode>("live");
   const [query, setQuery] = useState("");
   const live = useCategoryCatalog({
-    enabled: mode === "live",
     preferences,
     query,
     session,
   });
-  const view =
-    mode === "live"
-      ? live.view
-      : composeCategoryCatalog({
-          kick: categoryFixture("kick", mode),
-          language: live.view.language,
-          loading: mode === "loading",
-          query,
-          twitch: categoryFixture("twitch", mode),
-        });
   return (
     <CategoriesView
       onChangeLanguage={live.setLanguage}
@@ -65,10 +52,7 @@ export function CategoriesScreen({
       onOpenAccounts={onOpenAccounts}
       onOpenCategory={onOpenCategory}
       onRetry={live.retry}
-      view={view}
-      {...(__DEV__
-        ? { onSelectProofMode: setMode, proofMode: mode }
-        : {})}
+      view={live.view}
     />
   );
 }
@@ -174,23 +158,6 @@ function LanguageRow({
       ))}
     </View>
   );
-}
-
-function categoryFixture(
-  platform: Platform,
-  mode: DiscoveryFixtureMode,
-) {
-  const streams = fixtureOutcome(platform, mode);
-  return {
-    ...streams,
-    items: streams.items.map((stream) => ({
-      boxArtUrl: "",
-      id: `${platform}-cat`,
-      name: platform === "twitch" ? "Just Chatting" : "Just Chatting",
-      platform,
-      viewerCount: stream.viewerCount,
-    })),
-  };
 }
 
 function phaseCopy(phase: ReturnType<typeof composeCategoryCatalog>["phase"]): string {

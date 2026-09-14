@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "issue": 153,
+  "ticketId": "W02",
+  "mobileSourceCommit": "27d21e92723ba61fa388bcbe1e4987942e5938cd",
+  "observedAt": "2026-09-14T16:00:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "W02 player controls, movable mini-player, and Android PiP on live Kick HLS. Process-death is explicit Start watching containment, not silent resume."
+  },
+  "candidate": {
+    "provenance": "API 30 development client loaded Metro JS from the W02 worktree and a native rebuild of streamfusion-native-contracts that compiles PiP foreground handling. Playback used real Kick HLS for slug absi, not a fixture playlist."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Mobile typecheck, unit tests, and eslint --max-warnings=0 passed on the W02 tree before this landing."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "observations": [
+        "Watch played live Kick HLS for absi on StreamFusion_Issue_142_API30.",
+        "Pause, Mute, Quality, Fullscreen, and Picture in Picture were present and acted on the same session."
+      ]
+    },
+    "background-pip": {
+      "result": "pass",
+      "observations": [
+        "System PiP entered with mode=pinned and live Kick video.",
+        "Tapping the still-pinned window showed only system Expand, Settings, and Close.",
+        "System Expand restored Watch with PiP returned copy. Restore runs on native picture-in-picture-exited, not AppState active."
+      ]
+    },
+    "process-death": {
+      "result": "pass",
+      "observations": [
+        "am kill did not terminate the process. am force-stop cleared it.",
+        "Reopen showed Start watching for absi. Playback did not silently restart. This is containment, not in-place resume."
+      ]
+    },
+    "gesture-accessibility": {
+      "result": "pass",
+      "observations": [
+        "Mini-player Expand measured about 180x132 px at 440dpi, which meets 48dp.",
+        "Mini-player relocated through bottom-end, bottom-start, top-start, and top-end snaps."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-153/kick-absi-playing.png",
+      "sha256": "7bec137047ee99ebf0234c88813417690f5192ccd272484877a6c270dec39506",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Live Kick HLS for absi with Pause, Mute, Quality, Fullscreen, and Picture in Picture."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-paused.png",
+      "sha256": "215d6133eb6394ba21aeb74d1071df4fec55df0c0412fb642e3f6cd10e96c316",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Pause on the same Kick session. Transport announced paused."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-mute-quality.png",
+      "sha256": "5838126566e1164d0927f285c033202ac0fd635a45920b664405e9d7cf6aa941",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Mute and quality controls on live Kick HLS."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-fullscreen.png",
+      "sha256": "ddaf8fa16eb0fe2b7815aa80d1117ab13827d82e1adeeb2aa915cf6962d7c82a",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Fullscreen presentation of the same Kick session."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-mini.png",
+      "sha256": "f5c0bc862db846c8a5de5d3ac55f21a2d2fcd8dddd468f19ab84c3b197b74c05",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "In-app mini-player after leaving Watch. Same Kick session, not a second player."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-mini-move-bottom-start.png",
+      "sha256": "0562eddcf4ce8dec45332916710be943880e8c5165cb193d665fddb2db3f207e",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Mini-player snapped to bottom-start."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-mini-move-top-start.png",
+      "sha256": "e044790c7d017f7edfb5c6819c816e35b9d47b85b687318d089a3438dcfb27cb",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Mini-player snapped to top-start."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-mini-move-top-end.png",
+      "sha256": "a99d2f4b8893d318163efbb8f17042f15dc0dc455988a52e11ffb1c08904bacc",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Mini-player snapped to top-end."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-expanded.png",
+      "sha256": "5304e5ce9441df865408e0ff49d23ec282ad94f2d64faf404e0b3e273c91b426",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Expand restored Watch for the same Kick session. Play is not Start watching. Expand target met 48dp."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-closed.png",
+      "sha256": "dedeab2aff7ad481d21c89f01c87bbd2fe8f3e707784877bdbfffa16fc0297a8",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Dismiss closed the mini-player. No hidden audible session."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-pip2-entered.png",
+      "sha256": "610b208b7ca6a6ee2608c929d284b2d1481b80046f7813691aaf97c02a150cd0",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "System PiP pinned with live Kick video."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-pip2-tap.png",
+      "sha256": "f92495e7617fb3a7892821e313a81d4ad7afa4e8384d35aa376863d91610549b",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "Tap on still-pinned PiP showed only system Expand/Settings/Close. Watch chrome did not leak into the system surface."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-pip2-expanded.png",
+      "sha256": "0b4dc7f406bb05206a32b60c722a7dabb06231d8fad0651be96b99c1bef6c2e5",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "System Expand restored Watch with PiP returned copy and Pause on the same session."
+    },
+    {
+      "path": "verification/evidence/issue-153/kick-absi-force-stop.png",
+      "sha256": "cb3c45bc6bcff398b4e6b2ee6c168c843c2c2c7a16527bb9c04e9f231952ec14",
+      "observedAt": "2026-09-14T16:00:00.000Z",
+      "scope": "After am force-stop, Watch showed Start watching for absi. No silent playback restart."
+    }
+  ],
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/153"
+  ]
+}

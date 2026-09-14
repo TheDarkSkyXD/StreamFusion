@@ -2,6 +2,7 @@ import type {
   LivePlaybackSourceResolution,
   LivePlaybackSourceResolver,
 } from "../../capabilities/watch";
+import { kickHlsRequestHeaders } from "../../domain/hls-request-headers";
 import { asHlsSourceUri } from "../../domain/hls-source";
 
 export function createKickLivePlaybackSource(input: {
@@ -16,7 +17,10 @@ export function createKickLivePlaybackSource(input: {
         const response = await input.fetch(
           `https://kick.com/api/v1/channels/${slug}`,
           {
-            headers: { Accept: "application/json" },
+            headers: {
+              Accept: "application/json",
+              ...kickHlsRequestHeaders(),
+            },
             method: "GET",
             signal,
           },
@@ -60,6 +64,7 @@ export function createKickLivePlaybackSource(input: {
         return {
           integration: "kick-v1-playback-url",
           kind: "resolved",
+          requestHeaders: kickHlsRequestHeaders(),
           sourceUri,
         };
       } catch (error) {

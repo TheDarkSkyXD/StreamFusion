@@ -27,6 +27,11 @@ const playbackBinding: ExpoPlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
   getContractVersion: () => 2,
+  listQualities: unsupported,
+  setMuted: unsupported,
+  setPlaying: unsupported,
+  setQuality: unsupported,
+  setVolume: unsupported,
   startFocusedSession: unsupported,
 };
 const fixtureTimestamp = "2026-09-12T00:00:00.000Z";
@@ -226,6 +231,7 @@ describe("Android capability module contracts", () => {
           },
         }),
       ).startFocusedSession({
+        requestHeaders: {},
         sessionId: "watch-1",
         sourceUri: "https://example.test/live.m3u8",
       }),
@@ -340,6 +346,7 @@ describe("Android capability module contracts", () => {
 
     await expect(
       playback.startFocusedSession({
+        requestHeaders: {},
         sessionId: "watch-1",
         sourceUri: "https://example.test/live.m3u8",
       }),

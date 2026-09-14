@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
@@ -14,8 +13,6 @@ import type {
   HomeLiveDiscoveryView as HomeLiveDiscoveryModel,
 } from "../capabilities/platform-reads";
 import { channelFromStream } from "../domain/channel-detail";
-import { fixtureOutcome } from "../domain/discovery-fixture";
-import { composeHomeLiveDiscovery } from "../domain/home-live-discovery";
 
 import { HomeDiscoveryProofControls } from "./home-discovery-proof-controls";
 import { HomeProviderBanner } from "./home-provider-banner";
@@ -33,27 +30,14 @@ export function HomeLiveDiscoveryScreen({
   readonly onOpenChannel: (channel: ChannelIdentity) => void;
   readonly session: DiscoverySession;
 }) {
-  const [mode, setMode] = useState<DiscoveryFixtureMode>("live");
-  const live = useHomeLiveDiscovery({
-    enabled: mode === "live",
-    session,
-  });
-  const view =
-    mode === "live"
-      ? live.view
-      : composeHomeLiveDiscovery({
-          kick: fixtureOutcome("kick", mode),
-          loading: mode === "loading",
-          twitch: fixtureOutcome("twitch", mode),
-        });
+  const live = useHomeLiveDiscovery({ session });
   return (
     <HomeLiveDiscoveryView
       onOpenAccounts={onOpenAccounts}
       onOpenCategories={onOpenCategories}
       onOpenChannel={onOpenChannel}
       onRetry={live.retry}
-      view={view}
-      {...(__DEV__ ? { onSelectProofMode: setMode, proofMode: mode } : {})}
+      view={live.view}
     />
   );
 }

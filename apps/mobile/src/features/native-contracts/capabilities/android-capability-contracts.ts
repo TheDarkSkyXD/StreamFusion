@@ -57,6 +57,7 @@ export interface AndroidCapabilityContractPort {
 }
 
 export interface PlaybackSessionRequest {
+  readonly requestHeaders: Readonly<Record<string, string>>;
   readonly sessionId: string;
   readonly sourceUri: string;
 }
@@ -92,11 +93,21 @@ export type NativePlaybackEvent =
     }
   | { readonly kind: "ended"; readonly sessionId: string }
   | {
+      readonly kind: "picture-in-picture-exited";
+      readonly sessionId: string;
+    }
+  | {
       readonly code: NativePlaybackFailureCode;
       readonly detail: string;
       readonly kind: "failed";
       readonly sessionId: string;
     };
+
+export type PlaybackQualityCatalog = {
+  readonly qualities: readonly string[];
+  readonly selected: string;
+  readonly sessionId: string;
+};
 
 export interface AndroidPlaybackContractPort extends AndroidCapabilityContractPort {
   endFocusedSession(
@@ -104,6 +115,25 @@ export interface AndroidPlaybackContractPort extends AndroidCapabilityContractPo
   ): Promise<AndroidNativeOperationResult<PlaybackEndState>>;
   enterPictureInPicture(
     sessionId: string,
+  ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
+  listQualities(
+    sessionId: string,
+  ): Promise<AndroidNativeOperationResult<PlaybackQualityCatalog>>;
+  setMuted(
+    sessionId: string,
+    muted: boolean,
+  ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
+  setPlaying(
+    sessionId: string,
+    playing: boolean,
+  ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
+  setQuality(
+    sessionId: string,
+    quality: string,
+  ): Promise<AndroidNativeOperationResult<PlaybackQualityCatalog>>;
+  setVolume(
+    sessionId: string,
+    volume: number,
   ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
   startFocusedSession(
     request: PlaybackSessionRequest,

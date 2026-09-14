@@ -43,6 +43,10 @@ describe("kick live playback source", () => {
       source.resolve({ signal: new AbortController().signal, target }),
     ).resolves.toMatchObject({
       kind: "resolved",
+      requestHeaders: {
+        Origin: "https://kick.com",
+        Referer: "https://kick.com/",
+      },
       sourceUri: "https://playback.kick.com/live.m3u8",
     });
   });

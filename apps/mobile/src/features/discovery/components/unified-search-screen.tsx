@@ -15,8 +15,6 @@ import type {
   UnifiedSearchView as UnifiedSearchModel,
 } from "../capabilities/platform-reads";
 import { historyScopeForTab } from "../domain/search-history";
-import { composeUnifiedSearch } from "../domain/unified-search";
-import { fixtureSearchIntent, fixtureSearchOutcome } from "../domain/search-fixture";
 
 import { SearchDock } from "./search-dock";
 import {
@@ -43,9 +41,7 @@ export function UnifiedSearchScreen({
   const [tab, setTab] = useState<SearchResultType>("all");
   const [platform, setPlatform] = useState<SearchPlatformFilter>("all");
   const [liveOnly, setLiveOnly] = useState(false);
-  const [mode, setMode] = useState<DiscoveryFixtureMode>("live");
   const live = useUnifiedSearch({
-    enabled: mode === "live",
     history,
     liveOnly,
     platform,
@@ -53,25 +49,6 @@ export function UnifiedSearchScreen({
     resultType: tab,
     session,
   });
-  const view =
-    mode === "live"
-      ? live.view
-      : composeUnifiedSearch({
-          history: live.view.history,
-          historyConfirmClear: live.view.historyConfirmClear,
-          intent:
-            query.trim().length > 0
-              ? {
-                  ...fixtureSearchIntent(query),
-                  liveOnly,
-                  resultType: tab,
-                  ...(platform === "all" ? {} : { platform }),
-                }
-              : null,
-          kick: fixtureSearchOutcome("kick", mode),
-          loading: mode === "loading",
-          twitch: fixtureSearchOutcome("twitch", mode),
-        });
 
   const submit = (value: string) => {
     const next = value.trim();
@@ -104,10 +81,7 @@ export function UnifiedSearchScreen({
       onToggleLiveOnly={() => setLiveOnly((current) => !current)}
       platform={platform}
       tab={tab}
-      view={view}
-      {...(__DEV__
-        ? { onSelectProofMode: setMode, proofMode: mode }
-        : {})}
+      view={live.view}
     />
   );
 }

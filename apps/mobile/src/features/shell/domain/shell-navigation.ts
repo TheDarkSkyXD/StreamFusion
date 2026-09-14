@@ -624,3 +624,7 @@ function fallback(reason: "corrupt" | "unsupported"): ShellRestorationResult {
 export function getShellNavigationPlacement(width: number): "bottom" | "rail" {
   return width < 600 ? "bottom" : "rail";
 }
+
+export function bottomNavigationSafeInset(insetBottom: number): number {
+  return Math.max(insetBottom, 48);
+}

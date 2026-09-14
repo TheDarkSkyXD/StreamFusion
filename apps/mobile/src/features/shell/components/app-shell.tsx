@@ -69,6 +69,9 @@ import type { ConnectivitySession } from "@mobile/features/connectivity/capabili
 import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
 import { WatchRoute } from "@mobile/features/watch/components/watch-route";
+import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
+import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watch-session";
+import { isPictureInPictureSurface } from "@mobile/features/watch/domain/player-presentation";
 import type { WatchScreenRuntime } from "@mobile/features/watch/components/watch-screen";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
@@ -79,6 +82,7 @@ import {
   type CompactNavigationLayout,
 } from "../domain/shell-layout";
 import {
+  bottomNavigationSafeInset,
   canNavigateBack,
   getActiveShellLocation,
   getActiveShellRoute,
@@ -201,6 +205,20 @@ export function AppShell({
   });
   const { dispatch, state: navigation } = lifecycle;
   const location = getActiveShellLocation(navigation);
+  const watchingWatch =
+    location.route === "watch" || location.route === "watch/session-preview";
+  const watchPeek = useWatchPeek(watch.runtime.session);
+  const pictureInPictureSurface =
+    watchPeek.kind === "active" &&
+    isPictureInPictureSurface(watchPeek.presentation);
+
+  useEffect(() => {
+    if (watchingWatch || pictureInPictureSurface) {
+      watch.runtime.session.reveal();
+      return;
+    }
+    watch.runtime.session.conceal();
+  }, [pictureInPictureSurface, watchingWatch, watch.runtime.session]);
   const selectedJobId =
     location.route === "activity/job-preview" ? location.jobId : undefined;
   const mediaJobsController = useMediaJobsController({
@@ -253,10 +271,14 @@ export function AppShell({
         style={[
           styles.safeFrame,
           {
-            paddingBottom: placement === "rail" ? insets.bottom : 0,
-            paddingLeft: insets.left,
-            paddingRight: insets.right,
-            paddingTop: insets.top,
+            paddingBottom: pictureInPictureSurface
+              ? 0
+              : placement === "rail"
+                ? insets.bottom
+                : 0,
+            paddingLeft: pictureInPictureSurface ? 0 : insets.left,
+            paddingRight: pictureInPictureSurface ? 0 : insets.right,
+            paddingTop: pictureInPictureSurface ? 0 : insets.top,
           },
         ]}
         testID="app-shell-ready"
@@ -264,9 +286,11 @@ export function AppShell({
         <View
           style={placement === "rail" ? styles.railLayout : styles.phoneLayout}
         >
-          {placement === "rail" ? navigationView : null}
+          {placement === "rail" && !pictureInPictureSurface ? navigationView : null}
           <View style={styles.workspace}>
-            <ShellHeader dispatch={dispatch} state={navigation} />
+            {pictureInPictureSurface ? null : (
+              <ShellHeader dispatch={dispatch} state={navigation} />
+            )}
             <RestorationNotice
               developmentDiagnostic={
                 __DEV__ ? persistenceStatus.developmentDiagnostic : null
@@ -322,10 +346,36 @@ export function AppShell({
               connectivitySession={connectivitySession}
               watch={watch}
             />
+            <WatchMiniPlayerHost
+              hidden={watchingWatch || pictureInPictureSurface}
+              onExpand={(target) => {
+                watch.runtime.session.reveal();
+                dispatch({
+                  type: "navigate",
+                  location: {
+                    route: "watch/session-preview",
+                    target: {
+                      channelId: target.channelId,
+                      channelLogin: target.channelName,
+                      kind: "channel",
+                      platform: target.platform,
+                    },
+                  },
+                });
+              }}
+              session={watch.runtime.session}
+            />
           </View>
         </View>
-        {placement === "bottom" ? (
-          <View style={{ paddingBottom: insets.bottom }}>{navigationView}</View>
+        {placement === "bottom" && !pictureInPictureSurface ? (
+          <View
+            style={{
+              flexShrink: 0,
+              paddingBottom: bottomNavigationSafeInset(insets.bottom),
+            }}
+          >
+            {navigationView}
+          </View>
         ) : null}
       </View>
       <StatusBar style="light" />

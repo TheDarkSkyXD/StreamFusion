@@ -138,8 +138,16 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
     } else if (className === "Playback") {
       assert.match(source, /FocusedPlaybackSessionOwner/u);
       assert.match(source, /enterPictureInPicture/u);
-      assert.match(source, /"NATIVE_OPERATION_UNSUPPORTED"/u);
+      assert.match(source, /rememberActivity/u);
+      assert.match(source, /currentActivity/u);
       assert.doesNotMatch(source, /AsyncFunction\("startFocusedSession"\) \{ _: Map/u);
+      const owner = readFileSync(
+        path.join(kotlinRoot, "FocusedPlaybackSessionOwner.kt"),
+        "utf8",
+      );
+      assert.match(owner, /"NATIVE_OPERATION_UNSUPPORTED"/u);
+      assert.match(owner, /enterPictureInPictureMode/u);
+      assert.match(owner, /FEATURE_PICTURE_IN_PICTURE/u);
     } else if (className === "Connectivity") {
       assert.match(source, /repeat\(2\)/u);
       assert.match(source, /Proxy\.Type\.HTTP/u);

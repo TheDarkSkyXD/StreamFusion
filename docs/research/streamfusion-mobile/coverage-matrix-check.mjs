@@ -159,6 +159,13 @@ const implemented = new Set([
   "shell-route:watch",
   "shell-route:watch/session-preview",
   "action:channel-follow",
+  "action:player-play-pause",
+  "action:player-mute",
+  "action:player-quality",
+  "action:player-fullscreen",
+  "action:player-pip",
+  "action:mini-player-pause",
+  "action:dismiss-player",
 ]);
 
 const partial = new Set([
@@ -198,6 +205,13 @@ const owners = {
   "screen:following": [134, 147, 151],
   "screen:channel": [130, 132, 133, 147, 148, 151],
   "action:channel-follow": [151],
+  "action:player-play-pause": [152, 153],
+  "action:player-mute": [153],
+  "action:player-quality": [152, 153],
+  "action:player-fullscreen": [152, 153],
+  "action:player-pip": [153],
+  "action:mini-player-pause": [152, 153],
+  "action:dismiss-player": [152, 153],
   "screen:watch": [152, 153, 156, 157, 167],
   "screen:video": [133, 153, 154],
   "screen:multi": [143, 160, 167],
@@ -361,6 +375,27 @@ const paths = {
   ],
   "action:activity-clear-completed": [
     "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts",
+  ],
+  "action:player-play-pause": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:player-mute": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:player-quality": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:player-fullscreen": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:player-pip": [
+    "apps/mobile/src/features/watch/components/player-controls.tsx",
+  ],
+  "action:mini-player-pause": [
+    "apps/mobile/src/features/watch/components/mini-player.tsx",
+  ],
+  "action:dismiss-player": [
+    "apps/mobile/src/features/watch/components/mini-player.tsx",
   ],
 };
 

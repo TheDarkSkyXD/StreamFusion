@@ -28,6 +28,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-picture-in-picture",
       [
         "expo-secure-store",
         {

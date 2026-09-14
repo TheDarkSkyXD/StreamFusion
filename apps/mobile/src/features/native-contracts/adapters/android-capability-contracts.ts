@@ -30,6 +30,7 @@ import type {
   MediaJobKind,
   MediaJobNativeResult,
   PackageInstallHandoff,
+  PlaybackQualityCatalog,
   PlaybackSessionState,
   VerifiedApk,
 } from "../capabilities/android-capability-contracts";
@@ -221,6 +222,18 @@ async function invoke<
   };
 }
 
+function playbackQualities(value: unknown): PlaybackQualityCatalog | undefined {
+  const state = object(value);
+  const sessionId = state ? nonEmptyString(state.sessionId) : undefined;
+  const selected = state ? nonEmptyString(state.selected) : undefined;
+  const qualities = state && Array.isArray(state.qualities)
+    ? state.qualities.filter((item): item is string => typeof item === "string" && item.length > 0)
+    : undefined;
+  return state && sessionId && selected && qualities && qualities.length > 0
+    ? { qualities, selected, sessionId }
+    : undefined;
+}
+
 function playbackState(value: unknown): PlaybackSessionState | undefined {
   const state = object(value);
   const sessionId = state ? nonEmptyString(state.sessionId) : undefined;
@@ -262,6 +275,9 @@ function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
   if (event.kind === "buffering") return { kind: "buffering", sessionId };
   if (event.kind === "playing") return { kind: "playing", sessionId };
   if (event.kind === "ended") return { kind: "ended", sessionId };
+  if (event.kind === "picture-in-picture-exited") {
+    return { kind: "picture-in-picture-exited", sessionId };
+  }
   if (
     event.kind === "paused" &&
     (event.reason === "background" || event.reason === "user")
@@ -600,6 +616,56 @@ export function createAndroidPlaybackContractPort(
         "playback",
         reader,
         (binding) => binding.enterPictureInPicture(sessionId),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === sessionId ? state : undefined;
+        },
+      ),
+    listQualities: (sessionId) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.listQualities(sessionId),
+        (value) => {
+          const catalog = playbackQualities(value);
+          return catalog?.sessionId === sessionId ? catalog : undefined;
+        },
+      ),
+    setMuted: (sessionId, muted) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.setMuted(sessionId, muted),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === sessionId ? state : undefined;
+        },
+      ),
+    setPlaying: (sessionId, playing) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.setPlaying(sessionId, playing),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === sessionId ? state : undefined;
+        },
+      ),
+    setQuality: (sessionId, quality) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.setQuality(sessionId, quality),
+        (value) => {
+          const catalog = playbackQualities(value);
+          return catalog?.sessionId === sessionId ? catalog : undefined;
+        },
+      ),
+    setVolume: (sessionId, volume) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) => binding.setVolume(sessionId, volume),
         (value) => {
           const state = playbackState(value);
           return state?.sessionId === sessionId ? state : undefined;

@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
+import { BackHandler } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
 
 import type { WatchTab, WatchTarget } from "../capabilities/watch";
-import { useFocusedWatchSession } from "./use-focused-watch-session";
+import {
+  useFocusedWatchSession,
+  useWatchPeek,
+} from "./use-focused-watch-session";
 import { WatchEmptyState, WatchScreen, type WatchScreenRuntime } from "./watch-screen";
 
 const chat = {
@@ -20,12 +24,15 @@ export function WatchRoute({
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget | null;
 }) {
-  if (!target) return <WatchEmptyState />;
+  const peek = useWatchPeek(screen.runtime.session);
+  const resolved =
+    target ?? (peek.kind === "active" ? peek.state.target : null);
+  if (!resolved) return <WatchEmptyState />;
   return (
     <WatchSessionRoute
       onOpenRelated={onOpenRelated}
       screen={screen}
-      target={target}
+      target={resolved}
     />
   );
 }
@@ -40,33 +47,66 @@ function WatchSessionRoute({
   readonly target: WatchTarget;
 }) {
   const [tab, setTab] = useState<WatchTab>("info");
-  const playback = useFocusedWatchSession(screen.runtime.session, target);
+  const session = screen.runtime.session;
+  const playback = useFocusedWatchSession(session, target);
+  const peek = useWatchPeek(session);
   const inspection = useQuery({
     queryFn: ({ signal }) => screen.runtime.inspection.read({ signal, target }),
     queryKey: ["watch-inspection", target.platform, target.channelId, target.channelName],
   });
-  useEffect(
-    () => () => {
-      void screen.runtime.session.leave(target);
-    },
-    [screen.runtime.session, target],
-  );
+  useEffect(() => {
+    if (peek.kind !== "active" || peek.presentation.presentation !== "fullscreen") {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      session.exitFullscreen();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [peek, session]);
+  const qualityOptions =
+    peek.kind === "active" ? peek.qualities : (["auto"] as const);
   return (
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
       chat={chat}
       inspection={inspection.data ?? null}
+      onMute={() => {
+        if (peek.kind === "active") void session.setMuted(!peek.muted);
+      }}
       onOpenProviderPage={() => {
         void screen.openProviderPage.open(target);
       }}
       onOpenRelated={onOpenRelated}
+      onPip={() => {
+        void session.requestPictureInPicture();
+      }}
+      onPlayPause={() => {
+        if (peek.kind === "active") {
+          void session.setPlaying(peek.state.phase === "paused");
+        }
+      }}
+      onQuality={() => {
+        if (peek.kind !== "active") return;
+        const index = qualityOptions.indexOf(peek.quality);
+        const next = qualityOptions[(index + 1) % qualityOptions.length] ?? "auto";
+        void session.setQuality(next);
+      }}
       onRetry={() => {
-        void screen.runtime.session.start(target);
+        void session.start(target);
       }}
       onSelectTab={setTab}
       onStart={() => {
-        void screen.runtime.session.start(target);
+        void session.start(target);
       }}
+      onToggleFullscreen={() => {
+        if (peek.kind === "active" && peek.presentation.presentation === "fullscreen") {
+          session.exitFullscreen();
+          return;
+        }
+        session.enterFullscreen();
+      }}
+      peek={peek}
       playback={playback}
       tab={tab}
       target={target}

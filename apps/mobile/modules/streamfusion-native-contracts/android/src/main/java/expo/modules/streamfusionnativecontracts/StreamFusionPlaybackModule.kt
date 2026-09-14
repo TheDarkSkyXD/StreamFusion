@@ -13,6 +13,7 @@ class StreamFusionPlaybackModule : Module() {
       FocusedPlaybackSessionOwner.attachEmitter { event ->
         sendEvent("onNativePlayback", event)
       }
+      FocusedPlaybackSessionOwner.rememberActivity(appContext.currentActivity)
     }
     OnDestroy {
       FocusedPlaybackSessionOwner.release()
@@ -20,8 +21,15 @@ class StreamFusionPlaybackModule : Module() {
     OnActivityEntersBackground {
       FocusedPlaybackSessionOwner.pauseForBackground()
     }
+    OnActivityEntersForeground {
+      val activity = appContext.currentActivity
+      FocusedPlaybackSessionOwner.rememberActivity(activity)
+      FocusedPlaybackSessionOwner.onForeground(activity)
+    }
     AsyncFunction("startFocusedSession") { request: Map<String, Any> ->
-      val context = requireNotNull(appContext.reactContext) {
+      val activity = appContext.currentActivity
+      FocusedPlaybackSessionOwner.rememberActivity(activity)
+      val context = requireNotNull(activity ?: appContext.reactContext) {
         "Focused playback requires a React application context."
       }
       FocusedPlaybackSessionOwner.start(context, request)
@@ -29,19 +37,30 @@ class StreamFusionPlaybackModule : Module() {
     AsyncFunction("endFocusedSession") { sessionId: String ->
       FocusedPlaybackSessionOwner.end(sessionId)
     }.runOnQueue(Queues.MAIN)
-    AsyncFunction("enterPictureInPicture") { _: String ->
-      unsupported("Picture in Picture")
-    }
+    AsyncFunction("setPlaying") { sessionId: String, playing: Boolean ->
+      FocusedPlaybackSessionOwner.setPlaying(sessionId, playing)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setMuted") { sessionId: String, muted: Boolean ->
+      FocusedPlaybackSessionOwner.setMuted(sessionId, muted)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setVolume") { sessionId: String, volume: Double ->
+      FocusedPlaybackSessionOwner.setVolume(sessionId, volume.toFloat())
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("listQualities") { sessionId: String ->
+      FocusedPlaybackSessionOwner.listQualities(sessionId)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setQuality") { sessionId: String, quality: String ->
+      FocusedPlaybackSessionOwner.setQuality(sessionId, quality)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("enterPictureInPicture") { sessionId: String ->
+      val activity = appContext.currentActivity
+      FocusedPlaybackSessionOwner.rememberActivity(activity)
+      FocusedPlaybackSessionOwner.enterPictureInPicture(activity, sessionId)
+    }.runOnQueue(Queues.MAIN)
     View(StreamFusionPlaybackView::class) {
       Prop("sessionId") { view: StreamFusionPlaybackView, sessionId: String? ->
         view.setSessionId(sessionId)
       }
     }
   }
-
-  private fun unsupported(operation: String) = mapOf(
-    "code" to "NATIVE_OPERATION_UNSUPPORTED",
-    "diagnostic" to "$operation is not implemented in this development build.",
-    "kind" to "unsupported",
-  )
 }

@@ -5,10 +5,12 @@ import type {
   FocusedPlaybackPort,
   FocusedPlaybackProtectionPort,
   LivePlaybackSources,
+  NativePlaybackEvent,
   PlaybackCompatibilityPolicy,
   WatchTarget,
 } from "../capabilities/watch";
 import { asHlsSourceUri } from "../domain/hls-source";
+import { twitchHlsRequestHeaders } from "../domain/hls-request-headers";
 
 const target: WatchTarget = {
   channelId: "twitch-1",
@@ -30,6 +32,7 @@ function sources(
   resolve: LivePlaybackSources["twitch"]["resolve"] = async () => ({
     integration: "twitch-gql-usher",
     kind: "resolved",
+    requestHeaders: twitchHlsRequestHeaders(),
     sourceUri,
   }),
 ): LivePlaybackSources {
@@ -67,6 +70,33 @@ function playbackPort(
       ended.push(sessionId);
       return { kind: "missing", sessionId };
     },
+    enterPictureInPicture: async (sessionId) => ({
+      kind: "unsupported" as const,
+      failure: {
+        code: "OPERATION_UNSUPPORTED" as const,
+        detail: "PiP is stubbed in this test.",
+      },
+    }),
+    listQualities: async (sessionId) => ({
+      kind: "listed" as const,
+      catalog: { qualities: ["auto"], selected: "auto", sessionId },
+    }),
+    setMuted: async (sessionId) => ({
+      kind: "applied" as const,
+      session: { pictureInPictureEligible: false, sessionId },
+    }),
+    setPlaying: async (sessionId) => ({
+      kind: "applied" as const,
+      session: { pictureInPictureEligible: false, sessionId },
+    }),
+    setQuality: async (sessionId, quality) => ({
+      kind: "listed" as const,
+      catalog: { qualities: ["auto"], selected: quality, sessionId },
+    }),
+    setVolume: async (sessionId) => ({
+      kind: "applied" as const,
+      session: { pictureInPictureEligible: false, sessionId },
+    }),
     subscribe: () => () => undefined,
     ...overrides,
   };
@@ -94,8 +124,24 @@ describe("focused watch session", () => {
   });
 
   it("starts a native session after policy and source resolve", async () => {
+    const started: {
+      readonly requestHeaders: Readonly<Record<string, string>>;
+      readonly sessionId: string;
+      readonly sourceUri: string;
+    }[] = [];
     const session = createFocusedWatchSession({
-      playback: playbackPort(),
+      playback: playbackPort({
+        async start(input) {
+          started.push(input);
+          return {
+            kind: "started",
+            session: {
+              pictureInPictureEligible: false,
+              sessionId: input.sessionId,
+            },
+          };
+        },
+      }),
       policy: { read: async () => ({ kind: "enabled", sequence: 2 }) },
       protection: protection(),
       sessionIds: { create: () => "watch:1" },
@@ -105,6 +151,13 @@ describe("focused watch session", () => {
       kind: "started",
       session: { sessionId: "watch:1" },
     });
+    expect(started).toEqual([
+      {
+        requestHeaders: twitchHlsRequestHeaders(),
+        sessionId: "watch:1",
+        sourceUri,
+      },
+    ]);
     expect(session.snapshot(target)).toMatchObject({
       kind: "active",
       session: { pictureInPictureEligible: false, sessionId: "watch:1" },
@@ -136,5 +189,137 @@ describe("focused watch session", () => {
     expect(session.snapshot(other).kind).toBe("active");
     expect(playback.ended).toContain("watch:a");
     expect(playback.ended).not.toContain("watch:b");
+  });
+
+  it("returns the same peek and ready snapshot objects until the session changes", async () => {
+    const session = createFocusedWatchSession({
+      playback: playbackPort(),
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    expect(session.peek()).toBe(session.peek());
+    expect(session.snapshot(target)).toBe(session.snapshot(target));
+    await session.start(target);
+    expect(session.peek()).toBe(session.peek());
+    expect(session.snapshot(target)).toBe(session.snapshot(target));
+    const beforeConceal = session.peek();
+    session.conceal();
+    expect(session.peek()).not.toBe(beforeConceal);
+    expect(session.peek()).toBe(session.peek());
+  });
+
+  it("conceals an active session into the mini-player without ending playback", async () => {
+    const playback = playbackPort();
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.conceal();
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { presentation: "mini" },
+    });
+    expect(playback.ended).toEqual([]);
+    await session.dismiss();
+    expect(playback.ended).toEqual(["watch:1"]);
+    expect(session.peek().kind).toBe("idle");
+  });
+
+  it("refreshes listed qualities once native playback is playing", async () => {
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const playback = playbackPort({
+      listQualities: async (sessionId) => ({
+        kind: "listed",
+        catalog: {
+          qualities: ["auto", "720p"],
+          selected: "auto",
+          sessionId,
+        },
+      }),
+      subscribe: (listener) => {
+        emit = listener;
+        return () => {
+          emit = undefined;
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    emit?.({ kind: "playing", sessionId: "watch:1" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      qualities: ["auto", "720p"],
+      quality: "auto",
+    });
+  });
+
+  it("marks Picture-in-Picture unavailable without ending the session", async () => {
+    const playback = playbackPort();
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    await expect(session.requestPictureInPicture()).resolves.toMatchObject({
+      kind: "unsupported",
+    });
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { pip: "unavailable", presentation: "watch" },
+    });
+    expect(playback.ended).toEqual([]);
+  });
+
+  // Guards: tapping a still-pinned PiP window must not restore Watch chrome inside the system surface
+  it("restores Watch only after native Picture-in-Picture actually exits", async () => {
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const playback = playbackPort({
+      enterPictureInPicture: async (sessionId) => ({
+        kind: "entered",
+        session: { pictureInPictureEligible: true, sessionId },
+      }),
+      subscribe: (listener) => {
+        emit = listener;
+        return () => {
+          emit = undefined;
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    await session.requestPictureInPicture();
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { pip: "active", presentation: "pip" },
+    });
+    emit?.({ kind: "picture-in-picture-exited", sessionId: "watch:1" });
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { pip: "returned", presentation: "watch" },
+    });
+    expect(playback.ended).toEqual([]);
   });
 });

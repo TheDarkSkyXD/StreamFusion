@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 49 |
+| Implemented | 56 |
 | Partial | 14 |
 | Placeholder | 9 |
-| Missing | 113 |
+| Missing | 106 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -137,16 +137,16 @@ Missing means no route or control exists yet.
 | `action:category-tab` | missing | — | — | missing |
 | `action:following-tab` | missing | — | — | missing |
 | `action:channel-tab` | missing | — | — | missing |
-| `action:player-play-pause` | missing | — | — | missing |
+| `action:player-play-pause` | implemented | #152, #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
 | `action:player-seek-back` | missing | — | — | missing |
 | `action:player-seek-forward` | missing | — | — | missing |
-| `action:player-mute` | missing | — | — | missing |
+| `action:player-mute` | implemented | #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
 | `action:player-speed` | missing | — | — | missing |
-| `action:player-quality` | missing | — | — | missing |
+| `action:player-quality` | implemented | #152, #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
 | `action:player-theater` | missing | — | — | missing |
 | `action:player-stats` | missing | — | — | missing |
-| `action:player-fullscreen` | missing | — | — | missing |
-| `action:player-pip` | missing | — | — | missing |
+| `action:player-fullscreen` | implemented | #152, #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
+| `action:player-pip` | implemented | #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
 | `action:player-captions` | missing | — | — | missing |
 | `action:toggle-chat` | missing | — | — | missing |
 | `action:chat-emotes` | missing | — | — | missing |
@@ -191,8 +191,8 @@ Missing means no route or control exists yet.
 | `action:toggle-density` | missing | — | — | missing |
 | `action:retry-installation-registration` | partial | — | — | missing |
 | `action:refresh-capability-policy` | partial | — | — | missing |
-| `action:mini-player-pause` | missing | — | — | missing |
-| `action:dismiss-player` | missing | — | — | missing |
+| `action:mini-player-pause` | implemented | #152, #153 | apps/mobile/src/features/watch/components/mini-player.tsx | tests |
+| `action:dismiss-player` | implemented | #152, #153 | apps/mobile/src/features/watch/components/mini-player.tsx | tests |
 | `action:demo-option` | missing | — | — | missing |
 | `action:close-sheet` | missing | — | — | missing |
 | `action:confirm-sheet` | missing | — | — | missing |

@@ -12,11 +12,14 @@ import type {
   FocusedWatchState,
   WatchChatAvailability,
   WatchInspection,
+  WatchPeek,
   WatchRuntime,
   WatchTab,
   WatchTarget,
 } from "../capabilities/watch";
 import { composeWatchView } from "../domain/watch-view";
+import { isPictureInPictureSurface } from "../domain/player-presentation";
+import { PlayerControls } from "./player-controls";
 import { WatchTabs } from "./watch-tabs";
 
 export type PlayerSurfaceProps = {
@@ -41,6 +44,12 @@ export function WatchScreen({
   onRetry,
   onSelectTab,
   onStart,
+  onMute,
+  onPip,
+  onPlayPause,
+  onQuality,
+  onToggleFullscreen,
+  peek,
   playback,
   tab,
   target,
@@ -53,14 +62,33 @@ export function WatchScreen({
   readonly onRetry: () => void;
   readonly onSelectTab: (tab: WatchTab) => void;
   readonly onStart: () => void;
+  readonly onMute?: () => void;
+  readonly onPip?: () => void;
+  readonly onPlayPause?: () => void;
+  readonly onQuality?: () => void;
+  readonly onToggleFullscreen?: () => void;
+  readonly peek?: WatchPeek;
   readonly playback: FocusedWatchState;
   readonly tab: WatchTab;
   readonly target: WatchTarget;
 }) {
   const view = composeWatchView(playback);
+  const fullscreen =
+    peek?.kind === "active" && peek.presentation.presentation === "fullscreen";
+  const pipSurface =
+    peek?.kind === "active" && isPictureInPictureSurface(peek.presentation);
   return (
-    <View style={styles.screen} testID="screen-watch">
-      <View style={styles.playerStage} testID="watch-player-stage">
+    <View
+      style={[styles.screen, pipSurface ? styles.pipScreen : null]}
+      testID="screen-watch"
+    >
+      <View
+        style={[
+          styles.playerStage,
+          fullscreen || pipSurface ? styles.fullscreenStage : null,
+        ]}
+        testID="watch-player-stage"
+      >
         {view.showPlayer && view.sessionId ? (
           <PlayerSurface sessionId={view.sessionId} testID="watch-player" />
         ) : (
@@ -73,31 +101,56 @@ export function WatchScreen({
             </Text>
           </View>
         )}
+        {peek?.kind === "active" &&
+        !pipSurface &&
+        onMute &&
+        onPip &&
+        onPlayPause &&
+        onQuality &&
+        onToggleFullscreen ? (
+          <PlayerControls
+            fullscreen={fullscreen}
+            muted={peek.muted}
+            onFullscreen={onToggleFullscreen}
+            onMute={onMute}
+            onPip={onPip}
+            onPlayPause={onPlayPause}
+            onQuality={onQuality}
+            paused={peek.state.phase === "paused"}
+            pipAvailable={peek.state.session.pictureInPictureEligible}
+            pipPhase={peek.presentation.pip}
+            quality={peek.quality}
+          />
+        ) : null}
       </View>
-      <Text selectable style={styles.meta} testID="watch-target">
-        {`${target.platform.toUpperCase()} · ${target.channelName}`}
-      </Text>
-      {view.primaryAction === "start" ? (
-        <Action label="Start watching" onPress={onStart} testID="watch-start" />
-      ) : null}
-      {view.primaryAction === "retry" ? (
-        <Action label="Retry" onPress={onRetry} testID="watch-retry" />
-      ) : null}
-      {showsProvider(playback) ? (
-        <Action
-          label="Open provider page"
-          onPress={onOpenProviderPage}
-          testID="watch-open-provider"
-        />
-      ) : null}
-      <WatchTabs
-        chat={chat}
-        info={inspection?.info ?? null}
-        onOpenRelated={onOpenRelated}
-        onSelect={onSelectTab}
-        related={inspection?.related ?? null}
-        tab={tab}
-      />
+      {pipSurface ? null : (
+        <>
+          <Text selectable style={styles.meta} testID="watch-target">
+            {`${target.platform.toUpperCase()} · ${target.channelName}`}
+          </Text>
+          {view.primaryAction === "start" ? (
+            <Action label="Start watching" onPress={onStart} testID="watch-start" />
+          ) : null}
+          {view.primaryAction === "retry" ? (
+            <Action label="Retry" onPress={onRetry} testID="watch-retry" />
+          ) : null}
+          {showsProvider(playback) ? (
+            <Action
+              label="Open provider page"
+              onPress={onOpenProviderPage}
+              testID="watch-open-provider"
+            />
+          ) : null}
+          <WatchTabs
+            chat={chat}
+            info={inspection?.info ?? null}
+            onOpenRelated={onOpenRelated}
+            onSelect={onSelectTab}
+            related={inspection?.related ?? null}
+            tab={tab}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -150,12 +203,22 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
   },
+  pipScreen: {
+    gap: 0,
+    padding: 0,
+  },
   playerStage: {
     aspectRatio: 16 / 9,
     backgroundColor: mobileColors.surfaceMuted,
     borderRadius: mobileRadii.medium,
     overflow: "hidden",
     width: "100%",
+  },
+  fullscreenStage: {
+    ...StyleSheet.absoluteFill,
+    aspectRatio: undefined,
+    borderRadius: 0,
+    zIndex: 30,
   },
   placeholder: {
     flex: 1,

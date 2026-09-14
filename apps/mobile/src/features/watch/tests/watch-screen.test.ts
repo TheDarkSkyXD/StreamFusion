@@ -6,7 +6,7 @@ import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   View: "View",
 }));
@@ -67,5 +67,126 @@ describe("watch screen", () => {
         String(node.props.children).includes("Chat is not connected"),
       ),
     ).toBe(true);
+  });
+
+  it("renders transport controls and named PiP unavailable copy", () => {
+    const playback = {
+      integration: "twitch-gql-usher" as const,
+      kind: "active" as const,
+      phase: "playing" as const,
+      policySequence: 1,
+      protection: { kind: "normal" as const },
+      session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      target,
+    };
+    const root = WatchScreen({
+      PlayerSurface: () => null,
+      chat: {
+        detail: "Chat is not connected in this build. Watching continues.",
+        kind: "not-connected",
+      },
+      inspection: null,
+      onMute: () => undefined,
+      onOpenProviderPage: () => undefined,
+      onOpenRelated: () => undefined,
+      onPip: () => undefined,
+      onPlayPause: () => undefined,
+      onQuality: () => undefined,
+      onRetry: () => undefined,
+      onSelectTab: () => undefined,
+      onStart: () => undefined,
+      onToggleFullscreen: () => undefined,
+      peek: {
+        kind: "active",
+        muted: false,
+        presentation: {
+          pip: "unavailable",
+          presentation: "watch",
+          previous: null,
+          snapRegion: "bottom-end",
+        },
+        quality: "auto",
+        qualities: ["auto"],
+        state: playback,
+        volume: 1,
+      },
+      playback,
+      tab: "info",
+      target,
+    });
+    const nodes = descendants(root);
+    expect(nodes.some((node) => node.props.testID === "player-play-pause")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "player-mute")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-quality")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "player-fullscreen")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(true);
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === "player-pip-status" &&
+          String(node.props.children).includes("unavailable"),
+      ),
+    ).toBe(true);
+  });
+
+  it("hides Watch chrome while Picture-in-Picture owns the surface", () => {
+    const playback = {
+      integration: "twitch-gql-usher" as const,
+      kind: "active" as const,
+      phase: "playing" as const,
+      policySequence: 1,
+      protection: { kind: "normal" as const },
+      session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      target,
+    };
+    const root = WatchScreen({
+      PlayerSurface: () => null,
+      chat: {
+        detail: "Chat is not connected in this build. Watching continues.",
+        kind: "not-connected",
+      },
+      inspection: null,
+      onMute: () => undefined,
+      onOpenProviderPage: () => undefined,
+      onOpenRelated: () => undefined,
+      onPip: () => undefined,
+      onPlayPause: () => undefined,
+      onQuality: () => undefined,
+      onRetry: () => undefined,
+      onSelectTab: () => undefined,
+      onStart: () => undefined,
+      onToggleFullscreen: () => undefined,
+      peek: {
+        kind: "active",
+        muted: false,
+        presentation: {
+          pip: "active",
+          presentation: "pip",
+          previous: "watch",
+          snapRegion: "bottom-end",
+        },
+        quality: "auto",
+        qualities: ["auto"],
+        state: playback,
+        volume: 1,
+      },
+      playback,
+      tab: "info",
+      target,
+    });
+    const nodes = descendants(root);
+    expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-play-pause")).toBe(
+      false,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-target")).toBe(
+      false,
+    );
   });
 });

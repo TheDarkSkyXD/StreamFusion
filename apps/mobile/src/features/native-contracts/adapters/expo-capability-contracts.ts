@@ -26,6 +26,11 @@ export interface ExpoPlaybackBinding {
   readonly endFocusedSession: (sessionId: string) => Promise<unknown>;
   readonly enterPictureInPicture: (sessionId: string) => Promise<unknown>;
   readonly getContractVersion: () => number;
+  readonly listQualities: (sessionId: string) => Promise<unknown>;
+  readonly setMuted: (sessionId: string, muted: boolean) => Promise<unknown>;
+  readonly setPlaying: (sessionId: string, playing: boolean) => Promise<unknown>;
+  readonly setQuality: (sessionId: string, quality: string) => Promise<unknown>;
+  readonly setVolume: (sessionId: string, volume: number) => Promise<unknown>;
   readonly startFocusedSession: (
     request: PlaybackSessionRequest,
   ) => Promise<unknown>;

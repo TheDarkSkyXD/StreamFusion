@@ -11,7 +11,7 @@ class StreamFusionPlaybackView(
   appContext: AppContext,
 ) : ExpoView(context, appContext) {
   private val playerView = PlayerView(context).apply {
-    useController = true
+    useController = false
     layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
   }
   private var sessionId: String? = null

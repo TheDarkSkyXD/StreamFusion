@@ -10,6 +10,11 @@ interface NativePlaybackModule {
   endFocusedSession(sessionId: unknown): Promise<unknown>;
   enterPictureInPicture(sessionId: unknown): Promise<unknown>;
   getContractVersion(): number;
+  listQualities(sessionId: unknown): Promise<unknown>;
+  setMuted(sessionId: unknown, muted: unknown): Promise<unknown>;
+  setPlaying(sessionId: unknown, playing: unknown): Promise<unknown>;
+  setQuality(sessionId: unknown, quality: unknown): Promise<unknown>;
+  setVolume(sessionId: unknown, volume: unknown): Promise<unknown>;
   startFocusedSession(request: unknown): Promise<unknown>;
 }
 

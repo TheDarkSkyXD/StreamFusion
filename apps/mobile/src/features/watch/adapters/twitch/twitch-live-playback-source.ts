@@ -3,6 +3,7 @@ import type {
   LivePlaybackSourceResolver,
   WatchTarget,
 } from "../../capabilities/watch";
+import { twitchHlsRequestHeaders } from "../../domain/hls-request-headers";
 import { asHlsSourceUri } from "../../domain/hls-source";
 
 const TWITCH_GQL_URL = "https://gql.twitch.tv/gql";
@@ -52,6 +53,7 @@ export function createTwitchLivePlaybackSource(input: {
         return {
           integration: "twitch-gql-usher",
           kind: "resolved",
+          requestHeaders: twitchHlsRequestHeaders(),
           sourceUri,
         };
       } catch (error) {

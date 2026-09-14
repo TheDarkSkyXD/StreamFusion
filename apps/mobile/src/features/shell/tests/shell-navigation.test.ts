@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mobileSizing } from "@mobile/design/tokens";
 import {
+  bottomNavigationSafeInset,
   canNavigateBack,
   createInitialShellNavigationState,
   getActiveShellLocation,
@@ -23,6 +24,12 @@ describe("adaptive app shell", () => {
       "activity",
       "more",
     ]);
+  });
+
+  it("keeps bottom navigation above a missing system inset", () => {
+    expect(bottomNavigationSafeInset(0)).toBe(mobileSizing.minimumTouchTarget);
+    expect(bottomNavigationSafeInset(24)).toBe(mobileSizing.minimumTouchTarget);
+    expect(bottomNavigationSafeInset(64)).toBe(64);
   });
 
   it("uses bottom navigation on compact windows and a rail at 600 dp", () => {
