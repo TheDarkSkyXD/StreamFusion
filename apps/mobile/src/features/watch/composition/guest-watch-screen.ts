@@ -1,0 +1,46 @@
+import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
+import type { VerifiedPolicyStore } from "@mobile/features/installation-policy/capabilities/installation-policy";
+import type { AndroidPlaybackContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
+
+import { createAndroidFocusedPlaybackPort } from "../adapters/android/android-focused-playback";
+import { AndroidMedia3PlayerSurface } from "../adapters/android/android-media3-player-surface";
+import { createDiscoveryWatchInspectionReader } from "../adapters/discovery-watch-inspection-reader";
+import { createMemoryPlaybackProtection } from "../adapters/focused-playback-protection";
+import { createKickLivePlaybackSource } from "../adapters/kick/kick-live-playback-source";
+import { createPlaybackCompatibilityPolicy } from "../adapters/playback-compatibility-policy";
+import { createTwitchLivePlaybackSource } from "../adapters/twitch/twitch-live-playback-source";
+import { createExpoWatchProviderFallback } from "../adapters/expo-watch-provider-fallback";
+import type { WatchScreenRuntime } from "../components/watch-screen";
+import type { WatchSessionIdSource } from "../capabilities/watch";
+import { createWatchRuntime } from "./watch-runtime";
+
+export function createGuestWatchScreen(input: {
+  readonly discovery: DiscoverySession;
+  readonly fetch: typeof globalThis.fetch;
+  readonly nowEpochMs?: () => number;
+  readonly playback: AndroidPlaybackContractPort;
+  readonly policyStore: VerifiedPolicyStore;
+  readonly sessionIds: WatchSessionIdSource;
+}): WatchScreenRuntime {
+  return {
+    openProviderPage: createExpoWatchProviderFallback(),
+    PlayerSurface: AndroidMedia3PlayerSurface,
+    runtime: createWatchRuntime({
+      inspection: createDiscoveryWatchInspectionReader(input.discovery),
+      playback: createAndroidFocusedPlaybackPort(input.playback),
+      policy: createPlaybackCompatibilityPolicy(
+        createEffectiveCapabilityPolicyReader({
+          nowEpochMs: input.nowEpochMs ?? Date.now,
+          store: input.policyStore,
+        }),
+      ),
+      protection: createMemoryPlaybackProtection(),
+      sessionIds: input.sessionIds,
+      sources: {
+        kick: createKickLivePlaybackSource({ fetch: input.fetch }),
+        twitch: createTwitchLivePlaybackSource({ fetch: input.fetch }),
+      },
+    }),
+  };
+}

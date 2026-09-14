@@ -68,6 +68,9 @@ import { FollowingWorkspace } from "@mobile/features/follows/components/followin
 import type { ConnectivitySession } from "@mobile/features/connectivity/capabilities/connectivity-session";
 import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
+import { WatchRoute } from "@mobile/features/watch/components/watch-route";
+import type { WatchScreenRuntime } from "@mobile/features/watch/components/watch-screen";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { DestinationIcon } from "./destination-icon";
 import { resolveHardwareBack } from "../domain/hardware-back";
@@ -138,6 +141,7 @@ export function AppShell({
   discoveryPreferences,
   followingSession,
   connectivitySession,
+  watch,
 }: {
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -179,6 +183,7 @@ export function AppShell({
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
+  readonly watch: WatchScreenRuntime;
 }) {
   const activityRepositoryEpoch =
     developmentActivityProof?.kind === "proof" ||
@@ -315,6 +320,7 @@ export function AppShell({
               discoveryPreferences={discoveryPreferences}
               followingSession={followingSession}
               connectivitySession={connectivitySession}
+              watch={watch}
             />
           </View>
         </View>
@@ -471,6 +477,7 @@ function ShellScreen({
   discoveryPreferences,
   followingSession,
   connectivitySession,
+  watch,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
@@ -512,6 +519,7 @@ function ShellScreen({
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
+  readonly watch: WatchScreenRuntime;
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
@@ -521,6 +529,48 @@ function ShellScreen({
   useEffect(() => {
     scrollView.current?.scrollTo({ animated: false, y: 0 });
   }, [scrollRequest]);
+
+  const openWatch = (target: WatchTarget) => {
+    dispatch({
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          channelId: target.channelId,
+          channelLogin: target.channelName,
+          kind: "channel",
+          platform: target.platform,
+        },
+      },
+    });
+  };
+
+  if (location.route === "watch" || location.route === "watch/session-preview") {
+    const target =
+      location.route === "watch/session-preview" &&
+      location.target.kind === "channel"
+        ? {
+            channelId: location.target.channelId,
+            channelName: location.target.channelLogin,
+            platform: location.target.platform,
+          }
+        : null;
+    return (
+      <View style={styles.activityWorkspace} testID="screen-watch-root">
+        <WatchRoute
+          onOpenRelated={(stream) =>
+            openWatch({
+              channelId: stream.channelId,
+              channelName: stream.channelName,
+              platform: stream.platform,
+            })
+          }
+          screen={watch}
+          target={target}
+        />
+      </View>
+    );
+  }
 
   if (location.route === "activity") {
     return (
@@ -668,6 +718,7 @@ function ShellScreen({
         <ChannelDetailScreen
           channel={location.channel}
           following={followingSession}
+          onWatch={openWatch}
           session={homeDiscovery}
         />
       </View>

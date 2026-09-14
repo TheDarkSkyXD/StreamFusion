@@ -131,6 +131,7 @@ const implemented = new Set([
   "screen:category-detail",
   "screen:following",
   "screen:channel",
+  "screen:watch",
   "shell-route:search",
   "shell-route:following",
   "shell-route:following/manage",
@@ -138,6 +139,8 @@ const implemented = new Set([
   "shell-route:more/channel",
   "shell-route:more/categories",
   "shell-route:more/category-detail",
+  "shell-route:watch",
+  "shell-route:watch/session-preview",
   "action:channel-follow",
 ]);
 
@@ -159,15 +162,12 @@ const partial = new Set([
 ]);
 
 const placeholder = new Set([
-  "screen:watch",
   "screen:multi",
   "screen:history",
   "screen:moderation-home",
   "screen:settings",
   "shell-route:search/result-preview",
   "shell-route:following/channel-preview",
-  "shell-route:watch",
-  "shell-route:watch/session-preview",
   "shell-route:more/multistream",
   "shell-route:more/history",
   "shell-route:more/moderation",
@@ -250,6 +250,15 @@ const paths = {
   "action:channel-follow": [
     "apps/mobile/src/features/discovery/components/channel-header.tsx",
   ],
+  "screen:watch": [
+    "apps/mobile/src/features/watch/components/watch-screen.tsx",
+  ],
+  "shell-route:watch": [
+    "apps/mobile/src/features/watch/components/watch-route.tsx",
+  ],
+  "shell-route:watch/session-preview": [
+    "apps/mobile/src/features/watch/components/watch-route.tsx",
+  ],
   "shell-route:more/categories": [
     "apps/mobile/src/features/discovery/components/categories-screen.tsx",
   ],
@@ -326,7 +335,7 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch, History, and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
+      "Watch is implemented for guest live HLS. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
     owners: [147, 148, 149, 150, 152, 155, 159, 167],
   },
   {

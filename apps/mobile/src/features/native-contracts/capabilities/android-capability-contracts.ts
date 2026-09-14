@@ -66,16 +66,49 @@ export interface PlaybackSessionState {
   readonly sessionId: string;
 }
 
+export type PlaybackEndState =
+  | {
+      readonly kind: "ended";
+      readonly state: PlaybackSessionState;
+    }
+  | {
+      readonly kind: "missing";
+      readonly sessionId: string;
+    };
+
+export type NativePlaybackFailureCode =
+  | "PLAYBACK_DECODER_UNSUPPORTED"
+  | "PLAYBACK_NETWORK_FAILED"
+  | "PLAYBACK_SOURCE_REJECTED"
+  | "PLAYBACK_UNKNOWN";
+
+export type NativePlaybackEvent =
+  | { readonly kind: "buffering"; readonly sessionId: string }
+  | { readonly kind: "playing"; readonly sessionId: string }
+  | {
+      readonly kind: "paused";
+      readonly reason: "background" | "user";
+      readonly sessionId: string;
+    }
+  | { readonly kind: "ended"; readonly sessionId: string }
+  | {
+      readonly code: NativePlaybackFailureCode;
+      readonly detail: string;
+      readonly kind: "failed";
+      readonly sessionId: string;
+    };
+
 export interface AndroidPlaybackContractPort extends AndroidCapabilityContractPort {
   endFocusedSession(
     sessionId: string,
-  ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
+  ): Promise<AndroidNativeOperationResult<PlaybackEndState>>;
   enterPictureInPicture(
     sessionId: string,
   ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
   startFocusedSession(
     request: PlaybackSessionRequest,
   ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
+  subscribe(listener: (event: NativePlaybackEvent) => void): () => void;
 }
 
 export type MediaJobKind = "download" | "recording";

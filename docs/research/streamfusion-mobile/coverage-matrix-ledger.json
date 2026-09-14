@@ -8,9 +8,9 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 29,
+    "implemented": 32,
     "partial": 14,
-    "placeholder": 12,
+    "placeholder": 9,
     "missing": 130
   },
   "entries": [
@@ -131,7 +131,7 @@
       "id": "screen:watch",
       "kind": "screen",
       "name": "watch",
-      "status": "placeholder",
+      "status": "implemented",
       "owners": [
         152,
         153,
@@ -139,8 +139,10 @@
         157,
         167
       ],
-      "implementation": [],
-      "verification": "missing",
+      "implementation": [
+        "apps/mobile/src/features/watch/components/watch-screen.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1997,10 +1999,12 @@
       "id": "shell-route:watch",
       "kind": "shell-route",
       "name": "watch",
-      "status": "placeholder",
+      "status": "implemented",
       "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "implementation": [
+        "apps/mobile/src/features/watch/components/watch-route.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2008,10 +2012,12 @@
       "id": "shell-route:watch/session-preview",
       "kind": "shell-route",
       "name": "watch/session-preview",
-      "status": "placeholder",
+      "status": "implemented",
       "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "implementation": [
+        "apps/mobile/src/features/watch/components/watch-route.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2201,7 +2207,7 @@
     {
       "id": "GAP-195-02",
       "status": "owned-elsewhere",
-      "finding": "Watch, History, and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
+      "finding": "Watch is implemented for guest live HLS. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
       "owners": [
         147,
         148,

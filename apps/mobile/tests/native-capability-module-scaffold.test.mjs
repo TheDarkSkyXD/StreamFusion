@@ -121,7 +121,7 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
       source,
       className === "Diagnostics"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
-        : className === "MediaJobs"
+        : className === "MediaJobs" || className === "Playback"
           ? /Function\("getContractVersion"\) \{ 2 \}/u
           : /Function\("getContractVersion"\) \{ 1 \}/u,
     );
@@ -135,6 +135,11 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
       assert.match(source, /StatFs/u);
     } else if (className === "MediaJobs") {
       assert.doesNotMatch(source, /NATIVE_OPERATION_UNSUPPORTED/u);
+    } else if (className === "Playback") {
+      assert.match(source, /FocusedPlaybackSessionOwner/u);
+      assert.match(source, /enterPictureInPicture/u);
+      assert.match(source, /"NATIVE_OPERATION_UNSUPPORTED"/u);
+      assert.doesNotMatch(source, /AsyncFunction\("startFocusedSession"\) \{ _: Map/u);
     } else if (className === "Connectivity") {
       assert.match(source, /repeat\(2\)/u);
       assert.match(source, /Proxy\.Type\.HTTP/u);

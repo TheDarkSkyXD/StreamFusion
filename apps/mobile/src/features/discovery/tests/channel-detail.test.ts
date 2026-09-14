@@ -49,7 +49,7 @@ function descendants(node: unknown): readonly Element[] {
 }
 
 describe("channel detail compose", () => {
-  it("defaults Guest Follow to absent and keeps Watch unavailable", () => {
+  it("defaults Guest Follow to absent and enables Watch for a live stream", () => {
     const view = composeChannelDetail({
       clips: {
         kind: "page",
@@ -75,7 +75,14 @@ describe("channel detail compose", () => {
       },
     });
     expect(view.follow).toEqual({ kind: "guest-absent" });
-    expect(view.watch.kind).toBe("unavailable");
+    expect(view.watch).toEqual({
+      kind: "available",
+      target: {
+        channelId: "twitch-twitch-ready",
+        channelName: "twitch-live",
+        platform: "twitch",
+      },
+    });
     expect(view.channel?.displayName).toBe(fixtureChannel("twitch", true).displayName);
     expect(view.phase).toBe("ready");
   });
@@ -141,6 +148,8 @@ describe("channel detail screen", () => {
     expect(nodes.some((node) => node.props.children === "Open on Twitch")).toBe(
       true,
     );
+    const watch = nodes.find((node) => node.props.testID === "channel-watch");
+    expect(watch?.props.disabled).toBe(false);
   });
 
   it("disables Follow while a Guest Follow write is pending", () => {

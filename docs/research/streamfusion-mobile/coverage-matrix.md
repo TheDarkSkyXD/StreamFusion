@@ -9,9 +9,9 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 29 |
+| Implemented | 32 |
 | Partial | 14 |
-| Placeholder | 12 |
+| Placeholder | 9 |
 | Missing | 130 |
 | Discovered | 185 |
 
@@ -39,7 +39,7 @@ Missing means no route or control exists yet.
 | `screen:category-detail` | implemented | #130, #132, #133, #147, #150 | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
 | `screen:following` | implemented | #134, #147, #151 | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
 | `screen:channel` | implemented | #130, #132, #133, #147, #148, #151 | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
-| `screen:watch` | placeholder | #152, #153, #156, #157, #167 | — | missing |
+| `screen:watch` | implemented | #152, #153, #156, #157, #167 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:video` | missing | #133, #153, #154 | — | missing |
 | `screen:multi` | placeholder | #143, #160, #167 | — | missing |
 | `screen:history` | placeholder | #155 | — | missing |
@@ -202,8 +202,8 @@ Missing means no route or control exists yet.
 | `shell-route:following` | implemented | — | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
 | `shell-route:following/channel-preview` | placeholder | — | — | missing |
 | `shell-route:following/manage` | implemented | — | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
-| `shell-route:watch` | placeholder | — | — | missing |
-| `shell-route:watch/session-preview` | placeholder | — | — | missing |
+| `shell-route:watch` | implemented | — | apps/mobile/src/features/watch/components/watch-route.tsx | tests |
+| `shell-route:watch/session-preview` | implemented | — | apps/mobile/src/features/watch/components/watch-route.tsx | tests |
 | `shell-route:activity` | implemented | — | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `shell-route:activity/alert-preview` | implemented | — | — | tests |
 | `shell-route:activity/job-preview` | implemented | — | apps/mobile/src/features/media-jobs/components/media-job-screen.tsx | tests |
@@ -224,7 +224,7 @@ Missing means no route or control exists yet.
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Watch, History, and Moderation remain placeholders. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #155, #159, #167 |
+| `GAP-195-02` | owned-elsewhere | Watch is implemented for guest live HLS. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #155, #159, #167 |
 | `GAP-195-03` | owned-elsewhere | Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics. | #143, #167, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only. | #151, #163, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
