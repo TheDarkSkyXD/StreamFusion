@@ -49,8 +49,7 @@
             "minSdkVersion": 30
           }
         }
-      ],
-      "expo-network"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
