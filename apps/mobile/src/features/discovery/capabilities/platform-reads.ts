@@ -168,7 +168,8 @@ export type ChannelMediaRead<T> =
     };
 
 export type FollowView =
-  | { readonly kind: "guest-unsupported" }
+  | { readonly kind: "guest-absent" }
+  | { readonly kind: "guest-present" }
   | { readonly kind: "pending" }
   | { readonly kind: "failed"; readonly reason: string };
 
