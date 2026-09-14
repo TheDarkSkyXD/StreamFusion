@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 26 |
+| Implemented | 27 |
 | Partial | 13 |
 | Placeholder | 13 |
-| Missing | 133 |
+| Missing | 132 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -152,7 +152,7 @@ Missing means no route or control exists yet.
 | `action:chat-emotes` | missing | — | — | missing |
 | `action:chat-context` | missing | — | — | missing |
 | `action:chat-send` | missing | — | — | missing |
-| `action:channel-follow` | missing | — | — | missing |
+| `action:channel-follow` | implemented | #151 | apps/mobile/src/features/discovery/components/channel-header.tsx | tests |
 | `action:multistream-add` | missing | — | — | missing |
 | `action:job-record` | missing | — | — | missing |
 | `action:job-download` | missing | — | — | missing |

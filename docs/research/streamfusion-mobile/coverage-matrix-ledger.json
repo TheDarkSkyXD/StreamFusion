@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 26,
+    "implemented": 27,
     "partial": 13,
     "placeholder": 13,
-    "missing": 133
+    "missing": 132
   },
   "entries": [
     {
@@ -1426,10 +1426,14 @@
       "id": "action:channel-follow",
       "kind": "action",
       "name": "channel-follow",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        151
+      ],
+      "implementation": [
+        "apps/mobile/src/features/discovery/components/channel-header.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },

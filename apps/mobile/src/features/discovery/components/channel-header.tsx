@@ -8,16 +8,24 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { FollowView, WatchAvailability } from "../capabilities/platform-reads";
-import { followCopy } from "../domain/channel-follow";
+import {
+  followActionLabel,
+  followCopy,
+  providerPageLabel,
+} from "../domain/channel-follow";
 
 export function ChannelHeader({
   channel,
   follow,
+  onFollow,
+  onOpenProviderPage,
   onWatch,
   watch,
 }: {
   readonly channel: Channel;
   readonly follow: FollowView;
+  readonly onFollow: () => void;
+  readonly onOpenProviderPage: () => void;
   readonly onWatch: () => void;
   readonly watch: WatchAvailability;
 }) {
@@ -25,6 +33,8 @@ export function ChannelHeader({
     channel.followerCount === undefined
       ? "Followers unavailable"
       : `${channel.followerCount} followers`;
+  const followBusy = follow.kind === "pending";
+  const followLabel = followActionLabel(follow);
   return (
     <View style={styles.header} testID="channel-header">
       {channel.avatarUrl ? (
@@ -57,20 +67,40 @@ export function ChannelHeader({
       <View style={styles.actions}>
         <Pressable
           accessibilityHint={followCopy(follow)}
-          accessibilityLabel="Follow"
+          accessibilityLabel={followLabel}
           accessibilityRole="button"
-          accessibilityState={{ disabled: true }}
-          disabled
-          style={styles.follow}
+          accessibilityState={{ busy: followBusy, disabled: followBusy }}
+          disabled={followBusy}
+          onPress={onFollow}
+          style={({ pressed }) => [
+            styles.follow,
+            followBusy ? styles.busy : null,
+            pressed ? styles.pressed : null,
+          ]}
           testID="channel-follow"
         >
           <Text selectable style={styles.followLabel}>
-            Follow
+            {followLabel}
           </Text>
         </Pressable>
         <Text selectable style={styles.followReason} testID="channel-follow-reason">
           {followCopy(follow)}
         </Text>
+        <Pressable
+          accessibilityHint={`Opens ${channel.displayName} on ${channel.platform}.`}
+          accessibilityLabel={providerPageLabel(channel.platform)}
+          accessibilityRole="button"
+          onPress={onOpenProviderPage}
+          style={({ pressed }) => [
+            styles.provider,
+            pressed ? styles.pressed : null,
+          ]}
+          testID="channel-open-provider"
+        >
+          <Text selectable style={styles.providerLabel}>
+            {providerPageLabel(channel.platform)}
+          </Text>
+        </Pressable>
         <Pressable
           accessibilityHint={watch.reason}
           accessibilityLabel="Watch"
@@ -137,19 +167,24 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: mobileSpacing.xSmall,
-    maxWidth: 140,
+    maxWidth: 148,
   },
   follow: {
     alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
+    backgroundColor: mobileColors.textPrimary,
     borderRadius: mobileRadii.medium,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
-    opacity: 0.72,
     paddingHorizontal: mobileSpacing.medium,
   },
+  busy: {
+    opacity: 0.72,
+  },
+  pressed: {
+    opacity: 0.86,
+  },
   followLabel: {
-    color: mobileColors.textPrimary,
+    color: mobileColors.background,
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
@@ -159,6 +194,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
     lineHeight: 16,
+  },
+  provider: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  providerLabel: {
+    color: mobileColors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   watch: {
     alignItems: "center",
