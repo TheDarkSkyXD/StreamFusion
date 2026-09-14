@@ -13,7 +13,10 @@ const tanstackModern = new Set([
   "@tanstack/react-query",
 ]);
 
-config.watchFolders = [workspaceRoot];
+config.watchFolders = [
+  path.resolve(workspaceRoot, "node_modules"),
+  path.resolve(workspaceRoot, "packages/core"),
+];
 config.resolver.nodeModulesPaths = [
   path.resolve(__dirname, "node_modules"),
   path.resolve(workspaceRoot, "node_modules"),
