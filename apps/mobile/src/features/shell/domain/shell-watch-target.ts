@@ -4,7 +4,9 @@ export type ShellWatchMedia = {
   readonly durationSeconds: number;
   readonly id: string;
   readonly kind: "clip" | "video";
+  readonly resumePositionSeconds?: number;
   readonly sourceUri?: string;
+  readonly thumbnailUrl?: string;
   readonly title: string;
 };
 
@@ -77,10 +79,15 @@ function attachWatchMedia<T extends object>(
 
 function isWatchMedia(media: Readonly<Record<string, unknown>>): boolean {
   const mediaKeys = ["durationSeconds", "id", "kind", "title"];
-  const mediaAllowed =
-    media.sourceUri === undefined ? mediaKeys : [...mediaKeys, "sourceUri"];
+  const optional = [
+    ...(media.sourceUri === undefined ? [] : (["sourceUri"] as const)),
+    ...(media.thumbnailUrl === undefined ? [] : (["thumbnailUrl"] as const)),
+    ...(media.resumePositionSeconds === undefined
+      ? []
+      : (["resumePositionSeconds"] as const)),
+  ];
   return (
-    hasOnlyKeys(media, mediaAllowed) &&
+    hasOnlyKeys(media, [...mediaKeys, ...optional]) &&
     (media.kind === "clip" || media.kind === "video") &&
     typeof media.id === "string" &&
     identifierPattern.test(media.id) &&
@@ -93,7 +100,15 @@ function isWatchMedia(media: Readonly<Record<string, unknown>>): boolean {
     (media.sourceUri === undefined ||
       (typeof media.sourceUri === "string" &&
         media.sourceUri.startsWith("https://") &&
-        media.sourceUri.length <= 2048))
+        media.sourceUri.length <= 2048)) &&
+    (media.thumbnailUrl === undefined ||
+      (typeof media.thumbnailUrl === "string" &&
+        media.thumbnailUrl.startsWith("https://") &&
+        media.thumbnailUrl.length <= 2048)) &&
+    (media.resumePositionSeconds === undefined ||
+      (typeof media.resumePositionSeconds === "number" &&
+        Number.isInteger(media.resumePositionSeconds) &&
+        media.resumePositionSeconds >= 0))
   );
 }
 

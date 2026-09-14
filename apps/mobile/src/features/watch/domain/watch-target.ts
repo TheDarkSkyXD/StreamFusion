@@ -40,6 +40,12 @@ export function watchMediaFromClip(input: {
   };
 }
 
+export function recordedWatchStartPositionMs(target: WatchTarget): number | null {
+  if (target.media === undefined) return null;
+  const resumeSeconds = target.media.resumePositionSeconds ?? 0;
+  return resumeSeconds > 0 ? resumeSeconds * 1000 : 0;
+}
+
 function mediaKey(media: WatchMedia | undefined): string {
   return media === undefined ? "live" : `${media.kind}:${media.id}`;
 }

@@ -1,6 +1,10 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
+  mobileTextFieldProps,
+  mobileTextFieldStyle,
+} from "@mobile/design/text-field";
+import {
   mobileColors,
   mobileRadii,
   mobileSizing,
@@ -21,6 +25,7 @@ export function SearchDock({
   return (
     <View style={styles.dock} testID="search-dock">
       <TextInput
+        {...mobileTextFieldProps}
         accessibilityLabel="Search streams"
         autoCapitalize="none"
         autoCorrect={false}
@@ -80,12 +85,10 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.small,
   },
   field: {
+    ...mobileTextFieldStyle,
     backgroundColor: mobileColors.surfaceMuted,
     borderRadius: mobileRadii.medium,
-    color: mobileColors.textPrimary,
     flex: 1,
-    fontSize: 16,
-    fontWeight: "500",
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
   },

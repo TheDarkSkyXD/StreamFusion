@@ -59,6 +59,14 @@ describe("shell layout", () => {
     ).toBe("grid-3");
   });
 
+  it("hides compact bottom navigation while the keyboard is open", () => {
+    expect(source).toContain("const keyboardInset = useKeyboardInset()");
+    expect(source).toContain("safeFrameBottomInset({");
+    expect(source).toContain(
+      "placement === \"bottom\" &&\n        !pictureInPictureSurface &&\n        keyboardInset === 0",
+    );
+  });
+
   it("keeps portrait workspace scroll bounds explicit", () => {
     expect(source).toContain("style={styles.screenScroll}");
     expect(source).toMatch(

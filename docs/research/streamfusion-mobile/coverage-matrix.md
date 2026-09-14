@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 62 |
+| Implemented | 66 |
 | Partial | 14 |
-| Placeholder | 9 |
-| Missing | 100 |
+| Placeholder | 7 |
+| Missing | 98 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -42,7 +42,7 @@ Missing means no route or control exists yet.
 | `screen:watch` | implemented | #152, #153, #156, #157, #167 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:video` | implemented | #133, #153, #154 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:multi` | placeholder | #143, #160, #167 | — | missing |
-| `screen:history` | placeholder | #155 | — | missing |
+| `screen:history` | implemented | #155 | apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `screen:activity` | implemented | #141, #151, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `screen:moderation-home` | placeholder | #159, #168 | — | missing |
 | `screen:moderation` | missing | #159, #168 | — | missing |
@@ -165,8 +165,8 @@ Missing means no route or control exists yet.
 | `action:restore-slot` | missing | — | — | missing |
 | `action:cool-device` | missing | — | — | missing |
 | `action:multi-chat-channel` | missing | — | — | missing |
-| `action:history-remove` | missing | — | — | missing |
-| `action:history-clear` | missing | — | — | missing |
+| `action:history-remove` | implemented | #155 | apps/mobile/src/features/media-library/components/history-row.tsx | tests |
+| `action:history-clear` | implemented | #155 | apps/mobile/src/features/media-library/components/history-view.tsx | tests |
 | `action:activity-dismiss-item` | implemented | — | — | tests |
 | `action:activity-mark-read` | implemented | — | — | tests |
 | `action:activity-clear-completed` | implemented | — | apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts | tests |
@@ -212,7 +212,7 @@ Missing means no route or control exists yet.
 | `shell-route:more/channel` | implemented | — | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `shell-route:more/categories` | implemented | — | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |
 | `shell-route:more/multistream` | placeholder | — | — | missing |
-| `shell-route:more/history` | placeholder | — | — | missing |
+| `shell-route:more/history` | implemented | #155 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
 | `shell-route:more/settings` | partial | #162, #169 | apps/mobile/src/features/shell/components/app-shell.tsx | missing |
 | `shell-route:more/diagnostics` | partial | — | — | missing |
@@ -224,13 +224,13 @@ Missing means no route or control exists yet.
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Watch covers guest live HLS and recorded Twitch/Kick video plus Twitch clips. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #155, #159, #167 |
+| `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #159, #167 |
 | `GAP-195-03` | owned-elsewhere | Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics. | #143, #167, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only. | #151, #163, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 
 ## This increment
 
-Guest Search, Home, Channel Detail, Categories, Following, Watch, recorded video/clip playback, and Media Job preview land in this candidate. History, Moderation, Settings, and remaining Diagnostics tabs stay with their owners.
+Guest Search, Home, Channel Detail, Categories, Following, Watch, recorded video/clip playback, typed History, and Media Job preview land in this candidate. Moderation, remaining Settings panels, and remaining Diagnostics tabs stay with their owners.
 
 Run `node docs/research/streamfusion-mobile/coverage-matrix-check.mjs` after a contract or shell-route change.

@@ -32,4 +32,4 @@ TalkBack was not driven. A dedicated deep-link screenshot was not retained; the 
 
 ## Blocking for public release
 
-Kick clip playback stays blocked on an official public clip contract. OAuth stays on #145 and #146. Typed Watch History stays on #155.
+Kick clip playback stays blocked on an official public clip contract. OAuth stays on #145 and #146.

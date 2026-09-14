@@ -76,17 +76,26 @@ export function evaluateWindowsPortOwnership(
   };
 }
 
+function windowsPowerShellPath() {
+  const root = process.env.SystemRoot || "C:\\Windows";
+  return `${root}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+}
+
 function powershellProcessExpression(pidExpression) {
   return `Get-CimInstance Win32_Process -Filter \"ProcessId = $(${pidExpression})\" -ErrorAction SilentlyContinue | Select-Object ProcessId,ParentProcessId,CreationDate,ExecutablePath,CommandLine`;
 }
 
+function runWindowsPowerShell(source) {
+  return spawnSync(
+    windowsPowerShellPath(),
+    ["-NoProfile", "-NonInteractive", "-Command", source],
+    { encoding: "utf8", windowsHide: true },
+  );
+}
+
 export function readWindowsProcess(pid) {
   const source = `${powershellProcessExpression(String(pid))} | ConvertTo-Json -Compress`;
-  const result = spawnSync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", source],
-    { encoding: "utf8" },
-  );
+  const result = runWindowsPowerShell(source);
   if (result.status !== 0 || !result.stdout.trim()) return null;
   return processIdentity(JSON.parse(result.stdout));
 }
@@ -105,11 +114,7 @@ export function readWindowsPortOwnership(request) {
     "}",
     "[pscustomobject]@{ owner = $owner; chain = $chain } | ConvertTo-Json -Compress -Depth 4",
   ].join("; ");
-  const result = spawnSync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", source],
-    { encoding: "utf8" },
-  );
+  const result = runWindowsPowerShell(source);
   if (result.status !== 0 || !result.stdout.trim()) {
     return {
       ownerPid: null,
@@ -127,11 +132,7 @@ export function readWindowsPortOwnership(request) {
 
 export function readWindowsPortListenerPid(port) {
   const source = `(Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)`;
-  const result = spawnSync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", source],
-    { encoding: "utf8" },
-  );
+  const result = runWindowsPowerShell(source);
   if (result.status !== 0) {
     throw new Error(`Could not inspect CDP port ${port}: ${result.stderr.trim()}`);
   }

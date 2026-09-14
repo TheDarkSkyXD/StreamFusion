@@ -363,24 +363,26 @@ export function shellNavigationReducer(
 ): ShellNavigationState {
   switch (action.type) {
     case "select": {
-      if (action.destination !== state.activeDestination)
-        return { ...state, activeDestination: action.destination };
-      const activeHistory = state.histories[action.destination];
-      if (activeHistory.trail.length > 0) {
+      const selectedHistory = state.histories[action.destination];
+      const alreadyAtRoot =
+        state.activeDestination === action.destination &&
+        selectedHistory.trail.length === 0;
+      if (alreadyAtRoot) {
         return {
           ...state,
-          histories: {
-            ...state.histories,
-            [action.destination]: { ...activeHistory, trail: [] },
+          rootScrollRequests: {
+            ...state.rootScrollRequests,
+            [action.destination]:
+              state.rootScrollRequests[action.destination] + 1,
           },
         };
       }
       return {
         ...state,
-        rootScrollRequests: {
-          ...state.rootScrollRequests,
-          [action.destination]:
-            state.rootScrollRequests[action.destination] + 1,
+        activeDestination: action.destination,
+        histories: {
+          ...state.histories,
+          [action.destination]: { ...selectedHistory, trail: [] },
         },
       };
     }

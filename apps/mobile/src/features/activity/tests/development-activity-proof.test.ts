@@ -147,6 +147,12 @@ function runtime(
         list: async () => [],
         put: async () => undefined,
       },
+      watchHistory: {
+        clear: async () => undefined,
+        list: async () => [],
+        remove: async () => undefined,
+        upsert: async () => undefined,
+      },
       searchHistory: {
         read: async () => null,
         write: async () => undefined,

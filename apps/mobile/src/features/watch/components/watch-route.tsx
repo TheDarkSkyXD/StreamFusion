@@ -3,12 +3,19 @@ import { BackHandler } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
 
-import type { WatchTab, WatchTarget } from "../capabilities/watch";
+import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
+import type {
+  FocusedWatchSession,
+  WatchPeek,
+  WatchTab,
+  WatchTarget,
+} from "../capabilities/watch";
 import {
   useFocusedWatchSession,
   useWatchPeek,
 } from "./use-focused-watch-session";
 import { WatchEmptyState, WatchScreen, type WatchScreenRuntime } from "./watch-screen";
+import { recordedWatchStartPositionMs } from "../domain/watch-target";
 
 const chat = {
   detail: "Chat is not connected in this build. Watching continues.",
@@ -61,6 +68,12 @@ function WatchSessionRoute({
       target.media?.id ?? "",
     ],
   });
+  useWatchHistoryCapture({
+    inspection: inspection.data ?? null,
+    peek,
+    repository: screen.history,
+    target,
+  });
   useEffect(() => {
     if (peek.kind !== "active" || peek.presentation.presentation !== "fullscreen") {
       return undefined;
@@ -71,18 +84,6 @@ function WatchSessionRoute({
     });
     return () => subscription.remove();
   }, [peek, session]);
-  const qualityOptions =
-    peek.kind === "active" ? peek.qualities : (["auto"] as const);
-  const seek = (deltaMs: number) => {
-    if (peek.kind !== "active" || !peek.progress.seekable) return;
-    const next = peek.progress.positionMs + deltaMs;
-    if (deltaMs < 0) {
-      void session.seekTo(Math.max(0, next));
-      return;
-    }
-    const duration = peek.progress.durationMs;
-    void session.seekTo(duration > 0 ? Math.min(duration, next) : next);
-  };
   return (
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
@@ -103,20 +104,15 @@ function WatchSessionRoute({
           void session.setPlaying(peek.state.phase === "paused");
         }
       }}
-      onQuality={() => {
-        if (peek.kind !== "active") return;
-        const index = qualityOptions.indexOf(peek.quality);
-        const next = qualityOptions[(index + 1) % qualityOptions.length] ?? "auto";
-        void session.setQuality(next);
-      }}
+      onQuality={() => cycleWatchQuality(session, peek)}
       onRetry={() => {
         void session.start(target);
       }}
-      onSeekBack={() => seek(-10_000)}
-      onSeekForward={() => seek(10_000)}
+      onSeekBack={() => seekWatchSession(session, peek, -10_000)}
+      onSeekForward={() => seekWatchSession(session, peek, 10_000)}
       onSelectTab={setTab}
       onStart={() => {
-        void session.start(target);
+        void startWatchThenResume(session, target);
       }}
       onToggleFullscreen={() => {
         if (peek.kind === "active" && peek.presentation.presentation === "fullscreen") {
@@ -131,4 +127,40 @@ function WatchSessionRoute({
       target={target}
     />
   );
+}
+
+function cycleWatchQuality(
+  session: FocusedWatchSession,
+  peek: WatchPeek,
+): void {
+  if (peek.kind !== "active") return;
+  const index = peek.qualities.indexOf(peek.quality);
+  const next = peek.qualities[(index + 1) % peek.qualities.length] ?? "auto";
+  void session.setQuality(next);
+}
+
+function seekWatchSession(
+  session: FocusedWatchSession,
+  peek: WatchPeek,
+  deltaMs: number,
+): void {
+  if (peek.kind !== "active" || !peek.progress.seekable) return;
+  const next = peek.progress.positionMs + deltaMs;
+  if (deltaMs < 0) {
+    void session.seekTo(Math.max(0, next));
+    return;
+  }
+  const duration = peek.progress.durationMs;
+  void session.seekTo(duration > 0 ? Math.min(duration, next) : next);
+}
+
+async function startWatchThenResume(
+  session: FocusedWatchSession,
+  target: WatchTarget,
+): Promise<void> {
+  const result = await session.start(target);
+  if (result.kind !== "started") return;
+  const seekMs = recordedWatchStartPositionMs(target);
+  if (seekMs === null) return;
+  await session.seekTo(seekMs);
 }

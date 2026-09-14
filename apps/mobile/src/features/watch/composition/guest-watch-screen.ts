@@ -1,3 +1,4 @@
+import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import type { VerifiedPolicyStore } from "@mobile/features/installation-policy/capabilities/installation-policy";
@@ -21,12 +22,14 @@ import { createWatchRuntime } from "./watch-runtime";
 export function createGuestWatchScreen(input: {
   readonly discovery: DiscoverySession;
   readonly fetch: typeof globalThis.fetch;
+  readonly history: WatchHistoryRepository;
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
   readonly policyStore: VerifiedPolicyStore;
   readonly sessionIds: WatchSessionIdSource;
 }): WatchScreenRuntime {
   return {
+    history: input.history,
     openProviderPage: createExpoWatchProviderFallback(),
     PlayerSurface: AndroidMedia3PlayerSurface,
     runtime: createWatchRuntime({

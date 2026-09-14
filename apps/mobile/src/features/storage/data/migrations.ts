@@ -62,6 +62,17 @@ export const productMigrations: readonly StoreMigration[] = [
     version: 3,
     statements: ["ALTER TABLE activity_items ADD COLUMN dismissed_at INTEGER"],
   },
+  {
+    version: 4,
+    statements: [
+      "ALTER TABLE history_items ADD COLUMN thumbnail_url TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE history_items ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE history_items ADD COLUMN channel_id TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE history_items ADD COLUMN channel_login TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE history_items ADD COLUMN channel_display_name TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE history_items ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0",
+    ],
+  },
 ];
 
 export const cacheMigrations: readonly StoreMigration[] = [

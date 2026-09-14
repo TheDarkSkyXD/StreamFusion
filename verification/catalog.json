@@ -1984,6 +1984,187 @@
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/154"
         ]
       }
+    ],
+    "watch-history": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "b3157add70a9385679fcbcf1d6f0ea2435bba2df",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-155-w04-watch-history-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "watch-history-receipt",
+            "path": "verification/evidence/issue-155-watch-history.json",
+            "sha256": "sha256:141e0bea9ab308154650768bf329c91ee9a7974afade624b311fb7c732d588b1",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T22:00:00.000Z",
+        "expiresAt": "2026-09-28T22:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/155"
+        ]
+      },
+      {
+        "id": "api30-journey",
+        "sourceCommit": "b3157add70a9385679fcbcf1d6f0ea2435bba2df",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-155-w04-watch-history-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "watch-history-receipt",
+            "path": "verification/evidence/issue-155-watch-history.json",
+            "sha256": "sha256:141e0bea9ab308154650768bf329c91ee9a7974afade624b311fb7c732d588b1",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "history-initial",
+            "path": "verification/evidence/issue-155/01-history-initial.png",
+            "sha256": "sha256:ecfa1d0b289e4b37d623222cadf54361221d8f617e7320dde7c533086966a6ed",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "history-populated",
+            "path": "verification/evidence/issue-155/07-history-populated.png",
+            "sha256": "sha256:69ab7797b059c4c1b906877a07cadc066067fada387fcf78480cab710bfc20ea",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "resume-no-autoplay",
+            "path": "verification/evidence/issue-155/09-resume-no-autoplay.png",
+            "sha256": "sha256:6491fc293ca77909c592d7b5288ca031647abd53ea2fb4506977a208fdff7c65",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "replay-no-autoplay",
+            "path": "verification/evidence/issue-155/10-replay-no-autoplay.png",
+            "sha256": "sha256:ebc7d5adcd5fe00873aaa3893454699efac5916bab74426e1c01ec89f4e022d8",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T22:00:00.000Z",
+        "expiresAt": "2026-09-28T22:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/155"
+        ]
+      },
+      {
+        "id": "process-death",
+        "sourceCommit": "b3157add70a9385679fcbcf1d6f0ea2435bba2df",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-155-w04-watch-history-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "process-death",
+            "path": "verification/evidence/issue-155/14-process-death.png",
+            "sha256": "sha256:169bb3ff7b1a6aa8aebd0a577dc5aac9f71c5ab441e28f40f09bd340c8a76529",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T22:00:00.000Z",
+        "expiresAt": "2026-09-28T22:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/155"
+        ]
+      },
+      {
+        "id": "offline-proof",
+        "sourceCommit": "b3157add70a9385679fcbcf1d6f0ea2435bba2df",
+        "apkDigest": "sha256:4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-155-w04-watch-history-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "offline-history",
+            "path": "verification/evidence/issue-155/15-offline-history.png",
+            "sha256": "sha256:fb8c9e5c6a4d600543a8bb2d999898b0b23428b098a2d7647af3e91b733dc0df",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T22:00:00.000Z",
+        "expiresAt": "2026-09-28T22:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/155"
+        ]
+      },
+      {
+        "id": "migration-proof",
+        "sourceCommit": "b3157add70a9385679fcbcf1d6f0ea2435bba2df",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-155-w04-watch-history-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "watch-history-receipt",
+            "path": "verification/evidence/issue-155-watch-history.json",
+            "sha256": "sha256:141e0bea9ab308154650768bf329c91ee9a7974afade624b311fb7c732d588b1",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-14T22:00:00.000Z",
+        "expiresAt": "2026-09-28T22:00:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/155"
+        ]
+      }
     ]
   },
   "gateRuns": {}

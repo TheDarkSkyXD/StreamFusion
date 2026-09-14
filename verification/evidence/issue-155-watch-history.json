@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "issue": 155,
+  "ticketId": "W04",
+  "mobileSourceCommit": "b3157add70a9385679fcbcf1d6f0ea2435bba2df",
+  "observedAt": "2026-09-14T22:00:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "W04 typed Watch History. Durable Stream, Video, and Clip rows with thumbnails, avatars, timestamps, progress, Resume after Start, Replay at 0, local search, and offline reads. Reopening never autoplays."
+  },
+  "candidate": {
+    "apkSha256": "4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205",
+    "provenance": "API 30 development client. Metro JS loaded from the W04 worktree. Product Store schema v4. Guest signed-out reads stay { kind: \"guest\" }. Capture path is Channel Detail then Watch."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Mobile unit tests, feature architecture, and persistence tests passed on this tree, including schema v4 History rows and the newer-than-supported schema rejection."
+      ]
+    },
+    "api30-journey": {
+      "result": "pass",
+      "observations": [
+        "More History started empty with local-only copy and a Search history dock.",
+        "Guest Search opened Twitch xQc Channel Detail. A completed Videos row played after Start watching.",
+        "History then showed a VIDEO TWITCH row with 16:9 thumb, avatar, timestamp, and recorded actions.",
+        "Resume and Replay both landed on Start watching. The session did not autoplay.",
+        "Remove and Clear asked first. Cancel kept the row."
+      ]
+    },
+    "process-death": {
+      "result": "pass",
+      "observations": [
+        "force-stop plus relaunch still listed the same History VIDEO row."
+      ]
+    },
+    "offline-proof": {
+      "result": "pass",
+      "observations": [
+        "With wifi and data disabled, History still listed the saved VIDEO row."
+      ]
+    },
+    "migration-proof": {
+      "result": "pass",
+      "observations": [
+        "Schema v4 adds thumbnail, avatar, channel, and duration columns on history_items.",
+        "Persistence tests reject PRAGMA user_version newer than the supported schema."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-155/01-history-initial.png",
+      "sha256": "ecfa1d0b289e4b37d623222cadf54361221d8f617e7320dde7c533086966a6ed",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Empty History under More with local-only copy."
+    },
+    {
+      "path": "verification/evidence/issue-155/02-search-xqc.png",
+      "sha256": "a940f3bb8e192782c8521c853b7ba47c8d8c553efe2427ac23116f24752262c1",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Guest Search Channels filter for xQc."
+    },
+    {
+      "path": "verification/evidence/issue-155/03-channel-detail.png",
+      "sha256": "16c502ea3f260382c39e8075555b963836dce9461e866623cbb0d71dddc772c8",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Twitch xQc Channel Detail from Search."
+    },
+    {
+      "path": "verification/evidence/issue-155/04-channel-videos.png",
+      "sha256": "0c6abe1439cefc3d2e398fa7ac5f756ed038734ad13434367dcd36f25bf17a09",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Channel Videos tab with a completed VOD row."
+    },
+    {
+      "path": "verification/evidence/issue-155/05-watch-preview.png",
+      "sha256": "6491fc293ca77909c592d7b5288ca031647abd53ea2fb4506977a208fdff7c65",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Watch preview requires Start watching. No autoplay."
+    },
+    {
+      "path": "verification/evidence/issue-155/06-watch-playing.png",
+      "sha256": "553357aa226051ce204f8ff3f45a4bc5c32f688dfed4a57de89591056cf9db3e",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Completed Twitch VOD playing with transport controls."
+    },
+    {
+      "path": "verification/evidence/issue-155/07-history-populated.png",
+      "sha256": "69ab7797b059c4c1b906877a07cadc066067fada387fcf78480cab710bfc20ea",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "History VIDEO row with 16:9 thumb, TWITCH badge, avatar, and timestamp."
+    },
+    {
+      "path": "verification/evidence/issue-155/08-history-search.png",
+      "sha256": "daf250efb9c18bb57927808775bc65385f63f500d177f202e74bba13b596264b",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Local History search for xqc keeps the row on this screen."
+    },
+    {
+      "path": "verification/evidence/issue-155/09-resume-no-autoplay.png",
+      "sha256": "6491fc293ca77909c592d7b5288ca031647abd53ea2fb4506977a208fdff7c65",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Resume opened Watch at Start watching without autoplay."
+    },
+    {
+      "path": "verification/evidence/issue-155/10-replay-no-autoplay.png",
+      "sha256": "ebc7d5adcd5fe00873aaa3893454699efac5916bab74426e1c01ec89f4e022d8",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Replay opened Watch at Start watching without autoplay."
+    },
+    {
+      "path": "verification/evidence/issue-155/11-remove-confirm.png",
+      "sha256": "dd6f52be692130b42f60b8bed15cc75c58be5b275b0030ec92137d577c55a01f",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Remove asks before deleting a History row."
+    },
+    {
+      "path": "verification/evidence/issue-155/12-clear-confirm.png",
+      "sha256": "53bd4491454549abfc0e2c6869fcc4d454b65322ff0f57d7ce79e579929904ec",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Clear asks before wiping Watch History."
+    },
+    {
+      "path": "verification/evidence/issue-155/13-history-kept.png",
+      "sha256": "169bb3ff7b1a6aa8aebd0a577dc5aac9f71c5ab441e28f40f09bd340c8a76529",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "Cancel on Clear kept the History row."
+    },
+    {
+      "path": "verification/evidence/issue-155/14-process-death.png",
+      "sha256": "169bb3ff7b1a6aa8aebd0a577dc5aac9f71c5ab441e28f40f09bd340c8a76529",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "History survived force-stop and relaunch."
+    },
+    {
+      "path": "verification/evidence/issue-155/15-offline-history.png",
+      "sha256": "fb8c9e5c6a4d600543a8bb2d999898b0b23428b098a2d7647af3e91b733dc0df",
+      "observedAt": "2026-09-14T22:00:00.000Z",
+      "scope": "History still listed the saved row while offline."
+    }
+  ],
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/155"
+  ]
+}

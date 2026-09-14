@@ -172,6 +172,10 @@ const implemented = new Set([
   "tab:watch:chat",
   "tab:watch:info",
   "tab:watch:related",
+  "screen:history",
+  "shell-route:more/history",
+  "action:history-clear",
+  "action:history-remove",
 ]);
 
 const partial = new Set([
@@ -193,13 +197,11 @@ const partial = new Set([
 
 const placeholder = new Set([
   "screen:multi",
-  "screen:history",
   "screen:moderation-home",
   "screen:settings",
   "shell-route:search/result-preview",
   "shell-route:following/channel-preview",
   "shell-route:more/multistream",
-  "shell-route:more/history",
   "shell-route:more/moderation",
 ]);
 
@@ -254,6 +256,9 @@ const owners = {
   "tab:following:clips": [147, 151],
   "tab:following:categories": [147, 151],
   "tab:following:channels": [147, 151],
+  "shell-route:more/history": [155],
+  "action:history-clear": [155],
+  "action:history-remove": [155],
 };
 
 const paths = {
@@ -426,6 +431,19 @@ const paths = {
   "action:dismiss-player": [
     "apps/mobile/src/features/watch/components/mini-player.tsx",
   ],
+  "screen:history": [
+    "apps/mobile/src/features/media-library/components/history-screen.tsx",
+  ],
+  "shell-route:more/history": [
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "apps/mobile/src/features/media-library/components/history-screen.tsx",
+  ],
+  "action:history-clear": [
+    "apps/mobile/src/features/media-library/components/history-view.tsx",
+  ],
+  "action:history-remove": [
+    "apps/mobile/src/features/media-library/components/history-row.tsx",
+  ],
 };
 
 const classified = new Set([...implemented, ...partial, ...placeholder]);
@@ -484,8 +502,8 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch covers guest live HLS and recorded Twitch/Kick video plus Twitch clips. History and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
-    owners: [147, 148, 149, 150, 152, 155, 159, 167],
+      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Settings still lacks the remaining panels after proxy.",
+    owners: [147, 148, 149, 150, 152, 159, 167],
   },
   {
     id: "GAP-195-03",
@@ -589,7 +607,7 @@ ${gapRows}
 
 ## This increment
 
-Guest Search, Home, Channel Detail, Categories, Following, Watch, recorded video/clip playback, and Media Job preview land in this candidate. History, Moderation, Settings, and remaining Diagnostics tabs stay with their owners.
+Guest Search, Home, Channel Detail, Categories, Following, Watch, recorded video/clip playback, typed History, and Media Job preview land in this candidate. Moderation, remaining Settings panels, and remaining Diagnostics tabs stay with their owners.
 
 Run \`node docs/research/streamfusion-mobile/coverage-matrix-check.mjs\` after a contract or shell-route change.
 `;

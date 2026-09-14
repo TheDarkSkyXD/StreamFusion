@@ -21,6 +21,7 @@ import {
   type StoreMigration,
 } from "../data/migrations";
 import { createProductMediaJobStore } from "@mobile/features/media-jobs/data/product-media-jobs-store";
+import { createProductWatchHistoryStore } from "@mobile/features/media-library/data/product-watch-history-store";
 import { GuestFollowStore } from "../data/guest-follow-store";
 import { LiveNotificationStore } from "../data/live-notification-store";
 import { ProductStore } from "../data/product-store";
@@ -599,6 +600,28 @@ export function createMobileStoreRuntime(
           );
         },
       },
+      watchHistory: {
+        async clear() {
+          await requireProductStore();
+          return createProductWatchHistoryStore(stores!.productDatabase).clear();
+        },
+        async list() {
+          await requireProductStore();
+          return createProductWatchHistoryStore(stores!.productDatabase).list();
+        },
+        async remove(id) {
+          await requireProductStore();
+          return createProductWatchHistoryStore(stores!.productDatabase).remove(
+            id,
+          );
+        },
+        async upsert(item) {
+          await requireProductStore();
+          return createProductWatchHistoryStore(stores!.productDatabase).upsert(
+            item,
+          );
+        },
+      },
       searchHistory: {
         async read() {
           return (
@@ -867,7 +890,7 @@ async function runPersistenceProof(options: {
       failedMigrationRestored &&
       backupEncrypted &&
       migratedState.kind === "ready" &&
-      migratedState.productSchemaVersion === 3 &&
+      migratedState.productSchemaVersion === 4 &&
       recoveredState.kind === "ready" &&
       recoveredState.recoveredProductStore;
 

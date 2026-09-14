@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  KeyboardAvoidingView,
-  ScrollView,
-  StyleSheet,
-  Text,
-} from "react-native";
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text } from "react-native";
 import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
@@ -143,11 +138,7 @@ export function UnifiedSearchView({
   readonly view: UnifiedSearchModel;
 }) {
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={styles.frame}
-      testID="unified-search"
-    >
+    <KeyboardAvoidingView style={styles.frame} testID="unified-search">
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"

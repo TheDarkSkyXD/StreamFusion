@@ -8,6 +8,7 @@ import {
   mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
+import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
 import type {
   FocusedWatchState,
   WatchChatAvailability,
@@ -28,6 +29,7 @@ export type PlayerSurfaceProps = {
 };
 
 export type WatchScreenRuntime = {
+  readonly history: WatchHistoryRepository;
   readonly openProviderPage: {
     open(target: WatchTarget): Promise<unknown>;
   };

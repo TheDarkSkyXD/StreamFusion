@@ -38,6 +38,7 @@ import {
 } from "@mobile/features/activity/components/activity-screen";
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
+import { HistoryScreen } from "@mobile/features/media-library/components/history-screen";
 import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
 import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
 import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
@@ -76,7 +77,9 @@ import type { WatchScreenRuntime } from "@mobile/features/watch/components/watch
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { DestinationIcon } from "./destination-icon";
+import { useKeyboardInset } from "./use-keyboard-inset";
 import { resolveHardwareBack } from "../domain/hardware-back";
+import { safeFrameBottomInset } from "../domain/keyboard-overlay-inset";
 import {
   applyCompactNavigationTextMeasurement,
   type CompactNavigationLayout,
@@ -231,6 +234,7 @@ export function AppShell({
   });
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardInset();
   const placement = getShellNavigationPlacement(width);
 
   const cancelDismissal = activity.cancelDismissal;
@@ -275,11 +279,11 @@ export function AppShell({
         style={[
           styles.safeFrame,
           {
-            paddingBottom: pictureInPictureSurface
-              ? 0
-              : placement === "rail"
-                ? insets.bottom
-                : 0,
+            paddingBottom: safeFrameBottomInset({
+              fallbackInset: placement === "rail" ? insets.bottom : 0,
+              keyboardInset,
+              pictureInPicture: pictureInPictureSurface,
+            }),
             paddingLeft: pictureInPictureSurface ? 0 : insets.left,
             paddingRight: pictureInPictureSurface ? 0 : insets.right,
             paddingTop: pictureInPictureSurface ? 0 : insets.top,
@@ -371,7 +375,9 @@ export function AppShell({
             />
           </View>
         </View>
-        {placement === "bottom" && !pictureInPictureSurface ? (
+        {placement === "bottom" &&
+        !pictureInPictureSurface &&
+        keyboardInset === 0 ? (
           <View
             style={{
               flexShrink: 0,
@@ -807,6 +813,18 @@ function ShellScreen({
           }
           preferences={discoveryPreferences}
           session={homeDiscovery}
+        />
+      </View>
+    );
+  }
+
+  if (location.route === "more/history") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-history">
+        <HistoryScreen
+          onWatch={openWatch}
+          readNetwork={() => connectivitySession.readNetwork()}
+          repository={watch.history}
         />
       </View>
     );
@@ -1302,7 +1320,7 @@ function PrimaryNavigation({
           : mobileColors.textSecondary;
         return (
           <Pressable
-            accessibilityHint={`Switches to ${destination.label} and preserves other navigation histories`}
+            accessibilityHint={`Opens the ${destination.label} main screen`}
             accessibilityLabel={
               destination.id === "activity" && activityUnreadCount > 0
                 ? `${destination.label}, ${activityUnreadCount} unread`

@@ -509,11 +509,11 @@ describe("encrypted store policy", () => {
     const database = new MigrationDatabase();
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(3);
+    ).resolves.toBe(4);
     const statements = database.statements.length;
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(3);
+    ).resolves.toBe(4);
     expect(database.statements).toHaveLength(statements);
   });
 
@@ -524,9 +524,12 @@ describe("encrypted store policy", () => {
     ).resolves.toBe(1);
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
-    ).resolves.toBe(3);
+    ).resolves.toBe(4);
     expect(database.statements).toContain(
       "ALTER TABLE activity_items ADD COLUMN dismissed_at INTEGER",
+    );
+    expect(database.statements).toContain(
+      "ALTER TABLE history_items ADD COLUMN thumbnail_url TEXT NOT NULL DEFAULT ''",
     );
   });
 
@@ -595,7 +598,7 @@ describe("encrypted store policy", () => {
 
   it("rejects a database newer than the supported schema", async () => {
     const database = new MigrationDatabase();
-    await database.execute("PRAGMA user_version = 4");
+    await database.execute("PRAGMA user_version = 5");
     await expect(
       applyMigrations({ database, migrations: productMigrations }),
     ).rejects.toThrow("newer than supported");
@@ -765,7 +768,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
-        productSchemaVersion: 3,
+        productSchemaVersion: 4,
         recoveredProductStore: false,
       },
       allPassed,
@@ -781,7 +784,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
-        productSchemaVersion: 3,
+        productSchemaVersion: 4,
         recoveredProductStore: false,
       },
       null,

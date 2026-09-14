@@ -3,6 +3,7 @@ import type {
   SerializedTimestamp,
 } from "@streamfusion/core/activity";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
+import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
 import type {
   GuestFollow,
   LiveNotificationPreferences,
@@ -170,6 +171,7 @@ export interface MobileProductState {
   readonly installationPolicy: InstallationPolicySnapshotStore;
   readonly installationIdentityPresence: InstallationPolicySnapshotStore;
   readonly mediaJobs: MediaJobRepository;
+  readonly watchHistory: WatchHistoryRepository;
   readonly searchHistory: SearchHistoryStore;
   readonly settings: ProductSettingsStore;
   readonly liveNotifications: LiveNotificationPreferenceStore;

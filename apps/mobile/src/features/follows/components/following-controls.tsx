@@ -1,6 +1,10 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
+  mobileTextFieldProps,
+  mobileTextFieldStyle,
+} from "@mobile/design/text-field";
+import {
   mobileColors,
   mobileRadii,
   mobileSizing,
@@ -36,6 +40,7 @@ export function FollowingControls({
   return (
     <View style={styles.stack}>
       <TextInput
+        {...mobileTextFieldProps}
         accessibilityLabel="Search Guest Follows"
         autoCapitalize="none"
         autoCorrect={false}
@@ -87,12 +92,11 @@ export function FollowingControls({
 const styles = StyleSheet.create({
   stack: { gap: mobileSpacing.small },
   search: {
+    ...mobileTextFieldStyle,
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.medium,
     borderWidth: 1,
-    color: mobileColors.textPrimary,
-    fontSize: 16,
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
   },

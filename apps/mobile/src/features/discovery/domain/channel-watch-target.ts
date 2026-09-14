@@ -11,6 +11,9 @@ export function watchTargetFromVideo(video: Video): WatchTarget {
       id: video.id,
       kind: "video",
       title: video.title,
+      ...(isHttpsAsset(video.thumbnailUrl)
+        ? { thumbnailUrl: video.thumbnailUrl }
+        : {}),
       ...(isPlaybackUri(video.url) ? { sourceUri: video.url } : {}),
     },
     platform: video.platform,
@@ -26,14 +29,21 @@ export function watchTargetFromClip(clip: Clip): WatchTarget {
       id: clip.id,
       kind: "clip",
       title: clip.title,
+      ...(isHttpsAsset(clip.thumbnailUrl)
+        ? { thumbnailUrl: clip.thumbnailUrl }
+        : {}),
     },
     platform: clip.platform,
   };
 }
 
+function isHttpsAsset(value: string): boolean {
+  return value.startsWith("https://") && value.length <= 2048;
+}
+
 function isPlaybackUri(value: string): boolean {
   return (
-    value.startsWith("https://") &&
+    isHttpsAsset(value) &&
     (value.includes(".m3u8") || value.includes(".mp4"))
   );
 }

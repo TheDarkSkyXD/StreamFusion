@@ -43,7 +43,7 @@ describe("adaptive app shell", () => {
     expect(mobileSizing.minimumTouchTarget).toBeGreaterThanOrEqual(48);
   });
 
-  it("preserves independent histories while destinations change", () => {
+  it("preserves other destination trails while a main button returns to that tab's root", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
@@ -58,9 +58,48 @@ describe("adaptive app shell", () => {
       destination: "search",
     });
 
-    expect(getActiveShellRoute(state).id).toBe("search/result-preview");
+    expect(getActiveShellRoute(state).id).toBe("search");
+    expect(state.histories.search.trail).toEqual([]);
     expect(state.histories.more.trail).toEqual([{ route: "more/settings" }]);
-    expect(canNavigateBack(state)).toBe(true);
+    expect(canNavigateBack(state)).toBe(false);
+  });
+
+  it("opens the More menu from a nested More page or another destination", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "more/history" },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "channel-1",
+          channelLogin: "proofstreamer",
+        },
+      },
+    });
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "more",
+    });
+    expect(getActiveShellRoute(state).id).toBe("more");
+    expect(state.histories.more.trail).toEqual([]);
+    expect(state.histories.watch.trail).toHaveLength(1);
+
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "more/history" },
+    });
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "more",
+    });
+    expect(getActiveShellRoute(state).id).toBe("more");
+    expect(state.histories.more.trail).toEqual([]);
   });
 
   it("pops only the active destination on Back", () => {

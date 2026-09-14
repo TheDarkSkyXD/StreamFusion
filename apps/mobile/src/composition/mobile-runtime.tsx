@@ -334,6 +334,7 @@ export function MobileRuntime() {
       createGuestWatchScreen({
         discovery: homeDiscovery,
         fetch: connectivitySession.fetch,
+        history: persistenceRuntime.productState.watchHistory,
         playback: androidCapabilityRuntime.contracts.playback,
         policyStore: installationPolicyRuntime.policyStore,
         sessionIds: { create: secureRandom.uuid },

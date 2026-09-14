@@ -1,6 +1,10 @@
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
+  mobileTextFieldProps,
+  mobileTextFieldStyle,
+} from "@mobile/design/text-field";
+import {
   mobileColors,
   mobileRadii,
   mobileSizing,
@@ -21,6 +25,7 @@ export function DiscoverySearchDock({
   return (
     <View style={styles.dock}>
       <TextInput
+        {...mobileTextFieldProps}
         accessibilityLabel={placeholder}
         autoCorrect={false}
         onChangeText={onChangeQuery}
@@ -47,9 +52,7 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
   },
   input: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
+    ...mobileTextFieldStyle,
     minHeight: mobileSizing.minimumTouchTarget,
   },
   hint: {

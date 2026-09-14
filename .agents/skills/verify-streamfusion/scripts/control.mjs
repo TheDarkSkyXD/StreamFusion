@@ -478,7 +478,7 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
   if (!managed) child.unref();
   let launcherProcess = null;
   if (process.platform === "win32") {
-    const deadline = Date.now() + 3_000;
+    const deadline = Date.now() + 10_000;
     while (!launcherProcess && Date.now() < deadline) {
       if (child.exitCode !== null || child.signalCode) break;
       launcherProcess = readWindowsProcess(child.pid);
@@ -488,6 +488,12 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
     }
   }
   if (process.platform === "win32" && !launcherProcess) {
+    const systemRoot = process.env.SystemRoot || "C:\\Windows";
+    spawnSync(
+      `${systemRoot}\\System32\\taskkill.exe`,
+      ["/PID", String(child.pid), "/T", "/F"],
+      { windowsHide: true },
+    );
     throw new Error(
       `Could not capture launcher process identity for ${child.pid}; refusing PID-only cleanup`,
     );

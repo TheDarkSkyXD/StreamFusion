@@ -25,7 +25,9 @@ type ElementProps = Readonly<{
   accessibilityLabel?: string;
   children?: unknown;
   onPress?: () => void;
+  style?: Readonly<{ color?: string; fontWeight?: string }>;
   testID?: string;
+  value?: string;
 }>;
 type Element = ReactElement<ElementProps>;
 
@@ -101,7 +103,16 @@ function render(
   return { nodes: descendants(root), repeated, retried };
 }
 
+// Guards: typed search draft stays in the field with a regular-weight white glyph so Android API 30 does not hide input text
 describe("Unified search screen", () => {
+  it("keeps the typed search draft visible in the field", () => {
+    const { nodes } = render();
+    const field = nodes.find((node) => node.props.testID === "search-field");
+    expect(field?.props.value).toBe("arcade");
+    expect(field?.props.style?.fontWeight).toBeUndefined();
+    expect(field?.props.style?.color).toBe("#ffffff");
+  });
+
   it("renders All-tab videos, clips, and the D06 proof token", () => {
     const root = UnifiedSearchView({
       draft: "arcade",

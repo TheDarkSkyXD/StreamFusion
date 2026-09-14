@@ -31,7 +31,9 @@ export type WatchMedia = {
   readonly durationSeconds: number;
   readonly id: string;
   readonly kind: "clip" | "video";
+  readonly resumePositionSeconds?: number;
   readonly sourceUri?: string;
+  readonly thumbnailUrl?: string;
   readonly title: string;
 };
 

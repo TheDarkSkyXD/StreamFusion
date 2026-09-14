@@ -31,6 +31,7 @@ export default defineConfig([
       "boundaries/dependencies": ["error", { default: "disallow", checkAllOrigins: true, checkUnknownLocals: true, checkInternals: true, policies: [
         { from: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", "mobile-native-module", ...featureLayers, "mobile-tests"] } } }, allow: { to: { module: { origin: "external" } } } },
         { from: { element: { types: { anyOf: ["mobile-entry"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-runtime-composition"] } } } } },
+        { from: { element: { types: { anyOf: ["mobile-design"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-design"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-runtime-composition", "mobile-feature-composition"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", ...featureLayers] } } } } },
         { from: { element: { types: { anyOf: ["mobile-routes"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-components"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils", "mobile-design"] } } } } },
