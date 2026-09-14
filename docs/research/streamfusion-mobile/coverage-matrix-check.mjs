@@ -132,6 +132,23 @@ const implemented = new Set([
   "screen:following",
   "screen:channel",
   "screen:watch",
+  "tab:search:all",
+  "tab:search:channels",
+  "tab:search:streams",
+  "tab:search:videos",
+  "tab:search:clips",
+  "tab:search:categories",
+  "tab:category-detail:live",
+  "tab:category-detail:clips",
+  "tab:category-detail:videos",
+  "tab:channel:home",
+  "tab:channel:videos",
+  "tab:channel:clips",
+  "tab:following:live",
+  "tab:following:videos",
+  "tab:following:clips",
+  "tab:following:categories",
+  "tab:following:channels",
   "shell-route:search",
   "shell-route:following",
   "shell-route:following/manage",
@@ -195,6 +212,23 @@ const owners = {
   "screen:settings-proxy": [162, 169],
   "panel:proxy": [162],
   "shell-route:more/settings": [162, 169],
+  "tab:search:all": [147, 149],
+  "tab:search:channels": [147, 149],
+  "tab:search:streams": [147, 149],
+  "tab:search:videos": [147, 149],
+  "tab:search:clips": [147, 149],
+  "tab:search:categories": [147, 149],
+  "tab:category-detail:live": [147, 150],
+  "tab:category-detail:clips": [147, 150],
+  "tab:category-detail:videos": [147, 150],
+  "tab:channel:home": [147, 148],
+  "tab:channel:videos": [147, 148],
+  "tab:channel:clips": [147, 148],
+  "tab:following:live": [147, 151],
+  "tab:following:videos": [147, 151],
+  "tab:following:clips": [147, 151],
+  "tab:following:categories": [147, 151],
+  "tab:following:channels": [147, 151],
 };
 
 const paths = {
@@ -231,6 +265,57 @@ const paths = {
   ],
   "screen:channel": [
     "apps/mobile/src/features/discovery/components/channel-detail-screen.tsx",
+  ],
+  "tab:search:all": [
+    "apps/mobile/src/features/discovery/components/search-results-view.tsx",
+  ],
+  "tab:search:channels": [
+    "apps/mobile/src/features/discovery/components/search-results-view.tsx",
+  ],
+  "tab:search:streams": [
+    "apps/mobile/src/features/discovery/components/search-results-view.tsx",
+  ],
+  "tab:search:videos": [
+    "apps/mobile/src/features/discovery/components/search-results-view.tsx",
+  ],
+  "tab:search:clips": [
+    "apps/mobile/src/features/discovery/components/search-results-view.tsx",
+  ],
+  "tab:search:categories": [
+    "apps/mobile/src/features/discovery/components/search-results-view.tsx",
+  ],
+  "tab:category-detail:live": [
+    "apps/mobile/src/features/discovery/components/category-detail-view.tsx",
+  ],
+  "tab:category-detail:clips": [
+    "apps/mobile/src/features/discovery/components/category-detail-view.tsx",
+  ],
+  "tab:category-detail:videos": [
+    "apps/mobile/src/features/discovery/components/category-detail-view.tsx",
+  ],
+  "tab:channel:home": [
+    "apps/mobile/src/features/discovery/components/channel-tabs.tsx",
+  ],
+  "tab:channel:videos": [
+    "apps/mobile/src/features/discovery/components/channel-tabs.tsx",
+  ],
+  "tab:channel:clips": [
+    "apps/mobile/src/features/discovery/components/channel-tabs.tsx",
+  ],
+  "tab:following:live": [
+    "apps/mobile/src/features/follows/components/following-tab-body.tsx",
+  ],
+  "tab:following:videos": [
+    "apps/mobile/src/features/follows/components/following-tab-body.tsx",
+  ],
+  "tab:following:clips": [
+    "apps/mobile/src/features/follows/components/following-tab-body.tsx",
+  ],
+  "tab:following:categories": [
+    "apps/mobile/src/features/follows/components/following-tab-body.tsx",
+  ],
+  "tab:following:channels": [
+    "apps/mobile/src/features/follows/components/following-tab-body.tsx",
   ],
   "shell-route:search": [
     "apps/mobile/src/features/discovery/components/unified-search-screen.tsx",

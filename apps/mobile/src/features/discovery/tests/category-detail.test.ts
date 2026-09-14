@@ -89,7 +89,7 @@ describe("composeCategoryDetail", () => {
     expect(view.media.items.map((item) => item.id)).toEqual(["new", "old"]);
   });
 
-  it("sorts clips by views only", () => {
+  it("sorts clips by views by default", () => {
     const view = composeCategoryDetail({
       identity: {
         ...defaultCategoryRequest(chatting, "all", "day"),
@@ -110,5 +110,39 @@ describe("composeCategoryDetail", () => {
     expect(view.media.kind).toBe("clips");
     if (view.media.kind !== "clips") throw new Error("expected clips");
     expect(view.media.items.map((item) => item.id)).toEqual(["high", "low"]);
+  });
+
+  it("sorts clips by created time when Recent is selected", () => {
+    const view = composeCategoryDetail({
+      identity: {
+        ...defaultCategoryRequest(chatting, "all", "day"),
+        clipSort: "recent",
+        tab: "clips",
+      },
+      loading: false,
+      twitch: {
+        cache: { kind: "miss" },
+        items: [
+          fixtureClip(
+            "twitch",
+            "old",
+            40,
+            "2026-01-01T00:00:00.000Z" as SerializedTimestamp,
+          ),
+          fixtureClip(
+            "twitch",
+            "new",
+            2,
+            "2026-09-01T00:00:00.000Z" as SerializedTimestamp,
+          ),
+        ],
+        path: { kind: "direct", platform: "twitch" },
+        platform: "twitch",
+        status: "complete",
+      },
+    });
+    expect(view.media.kind).toBe("clips");
+    if (view.media.kind !== "clips") throw new Error("expected clips");
+    expect(view.media.items.map((item) => item.id)).toEqual(["new", "old"]);
   });
 });

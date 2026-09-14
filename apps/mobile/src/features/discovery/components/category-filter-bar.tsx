@@ -15,6 +15,7 @@ import {
 import type {
   CategoryRequestIdentity,
   CategoryTab,
+  ClipSort,
   LiveSort,
   PlatformScope,
   VideoSort,
@@ -167,7 +168,12 @@ function sortOptions(tab: CategoryTab): readonly {
       { label: "Viewers (low)", value: "viewers-asc" },
     ];
   }
-  if (tab === "clips") return [{ label: "Views", value: "views" }];
+  if (tab === "clips") {
+    return [
+      { label: "Views", value: "views" },
+      { label: "Recent", value: "recent" },
+    ];
+  }
   return [
     { label: "Recent", value: "recent" },
     { label: "Views", value: "views" },
@@ -202,7 +208,7 @@ function applySort(
   if (identity.tab === "videos") {
     return { ...identity, videoSort: value as VideoSort };
   }
-  return identity;
+  return { ...identity, clipSort: value as ClipSort };
 }
 
 const styles = StyleSheet.create({
