@@ -115,6 +115,8 @@ const implemented = new Set([
   "tab:activity:all",
   "tab:activity:channels",
   "tab:activity:jobs",
+  "panel:proxy",
+  "screen:settings-proxy",
   "action:activity-tab",
   "action:activity-mark-read",
   "action:activity-dismiss-item",
@@ -153,6 +155,7 @@ const partial = new Set([
   "action:retry-installation-registration",
   "shell-route:more/accounts",
   "shell-route:more/diagnostics",
+  "shell-route:more/settings",
 ]);
 
 const placeholder = new Set([
@@ -168,7 +171,6 @@ const placeholder = new Set([
   "shell-route:more/multistream",
   "shell-route:more/history",
   "shell-route:more/moderation",
-  "shell-route:more/settings",
 ]);
 
 const owners = {
@@ -190,6 +192,9 @@ const owners = {
   "screen:accounts": [135, 145, 146, 151],
   "screen:system": [143, 170, 171],
   "screen:more": [139, 141],
+  "screen:settings-proxy": [162, 169],
+  "panel:proxy": [162],
+  "shell-route:more/settings": [162, 169],
 };
 
 const paths = {
@@ -250,6 +255,15 @@ const paths = {
   ],
   "shell-route:more/category-detail": [
     "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
+  ],
+  "panel:proxy": [
+    "apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx",
+  ],
+  "screen:settings-proxy": [
+    "apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx",
+  ],
+  "shell-route:more/settings": [
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
   ],
   "action:activity-clear-completed": [
     "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts",
@@ -312,14 +326,14 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch, History, Moderation, and Settings remain placeholders. Feature issues own those screens.",
+      "Watch, History, and Moderation remain placeholders. Settings still lacks the remaining panels after proxy.",
     owners: [147, 148, 149, 150, 152, 155, 159, 167],
   },
   {
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "The 17 Settings panels and six Diagnostics tabs have no Mobile routes or tab components.",
+      "Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics.",
     owners: [143, 167, 170, 171],
   },
   {

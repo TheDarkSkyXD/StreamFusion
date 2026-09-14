@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 27 |
-| Partial | 13 |
-| Placeholder | 13 |
-| Missing | 132 |
+| Implemented | 29 |
+| Partial | 14 |
+| Placeholder | 12 |
+| Missing | 130 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -59,7 +59,7 @@ Missing means no route or control exists yet.
 | `screen:settings-chat` | missing | — | — | missing |
 | `screen:settings-predictions` | missing | — | — | missing |
 | `screen:settings-adblock` | missing | — | — | missing |
-| `screen:settings-proxy` | missing | — | — | missing |
+| `screen:settings-proxy` | implemented | #162, #169 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `screen:settings-integrations` | missing | — | — | missing |
 | `screen:settings-api-tokens` | missing | — | — | missing |
 | `screen:settings-updates` | missing | — | — | missing |
@@ -76,7 +76,7 @@ Missing means no route or control exists yet.
 | `panel:chat` | missing | — | — | missing |
 | `panel:predictions` | missing | — | — | missing |
 | `panel:adblock` | missing | — | — | missing |
-| `panel:proxy` | missing | — | — | missing |
+| `panel:proxy` | implemented | #162 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `panel:integrations` | missing | — | — | missing |
 | `panel:api-tokens` | missing | — | — | missing |
 | `panel:updates` | missing | — | — | missing |
@@ -214,7 +214,7 @@ Missing means no route or control exists yet.
 | `shell-route:more/multistream` | placeholder | — | — | missing |
 | `shell-route:more/history` | placeholder | — | — | missing |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
-| `shell-route:more/settings` | placeholder | — | — | missing |
+| `shell-route:more/settings` | partial | #162, #169 | apps/mobile/src/features/shell/components/app-shell.tsx | missing |
 | `shell-route:more/diagnostics` | partial | — | — | missing |
 | `shell-route:more/accounts` | partial | — | — | missing |
 | `shell-route:more/category-detail` | implemented | — | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
@@ -224,8 +224,8 @@ Missing means no route or control exists yet.
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Watch, History, Moderation, and Settings remain placeholders. Feature issues own those screens. | #147, #148, #149, #150, #152, #155, #159, #167 |
-| `GAP-195-03` | owned-elsewhere | The 17 Settings panels and six Diagnostics tabs have no Mobile routes or tab components. | #143, #167, #170, #171 |
+| `GAP-195-02` | owned-elsewhere | Watch, History, and Moderation remain placeholders. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #155, #159, #167 |
+| `GAP-195-03` | owned-elsewhere | Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics. | #143, #167, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only. | #151, #163, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 

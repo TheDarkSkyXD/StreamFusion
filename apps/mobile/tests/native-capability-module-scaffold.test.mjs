@@ -48,6 +48,11 @@ const modules = [
     "StreamFusionMaintenance",
     ["verifyDownloadedApk", "handoffVerifiedApk"],
   ],
+  [
+    "Connectivity",
+    "StreamFusionConnectivity",
+    ["cancelProxyRequest", "proxyRequest"],
+  ],
 ];
 
 test("Media Job ids reject path traversal before journal and artifact IO", () => {
@@ -100,7 +105,7 @@ test("the Media Job engine fences generation, writes journals atomically, and st
   assert.match(service, /restoreOwnedJobs/u);
 });
 
-test("the Expo module keeps four contained stubs and one measured diagnostics contract", () => {
+test("the Expo module keeps contained stubs plus measured diagnostics and connectivity", () => {
   const config = JSON.parse(
     readFileSync(path.join(moduleRoot, "expo-module.config.json"), "utf8"),
   );
@@ -130,6 +135,10 @@ test("the Expo module keeps four contained stubs and one measured diagnostics co
       assert.match(source, /StatFs/u);
     } else if (className === "MediaJobs") {
       assert.doesNotMatch(source, /NATIVE_OPERATION_UNSUPPORTED/u);
+    } else if (className === "Connectivity") {
+      assert.match(source, /repeat\(2\)/u);
+      assert.match(source, /Proxy\.Type\.HTTP/u);
+      assert.match(source, /"NATIVE_OPERATION_UNSUPPORTED"/u);
     } else {
       assert.match(source, /"NATIVE_OPERATION_UNSUPPORTED"/u);
     }
