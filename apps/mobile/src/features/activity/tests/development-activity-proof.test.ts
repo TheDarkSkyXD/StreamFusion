@@ -146,6 +146,7 @@ function runtime(
         get: async () => null,
         list: async () => [],
         put: async () => undefined,
+        remove: async () => undefined,
       },
       watchHistory: {
         clear: async () => undefined,

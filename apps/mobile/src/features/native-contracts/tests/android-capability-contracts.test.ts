@@ -76,9 +76,21 @@ function recordJob(jobId: string) {
 
 const mediaJobsBinding: ExpoMediaJobsBinding = {
   cancelRecoverableJob: async (jobId) => missingJob(jobId),
+  deleteRecoverableJob: async (jobId) => ({
+    kind: "completed",
+    value: { kind: "deleted", jobId },
+  }),
+  exportRecoverableJob: async () => ({
+    kind: "completed",
+    value: { kind: "cancelled" },
+  }),
   finalizeRecoverableJob: async (jobId) => missingJob(jobId),
-  getContractVersion: () => 2,
+  getContractVersion: () => 3,
   getRecoverableJob: async (jobId) => missingJob(jobId),
+  openRecoverableJob: async (jobId) => ({
+    kind: "completed",
+    value: { kind: "opened", jobId },
+  }),
   pauseRecoverableJob: async (jobId) => missingJob(jobId),
   recoverJobs: async () => ({ kind: "completed", value: [] }),
   resumeRecoverableJob: async (jobId) => missingJob(jobId),
@@ -161,7 +173,7 @@ describe("Android capability module contracts", () => {
       { capability: "captions", contractVersion: 1, kind: "ready" },
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
-      { capability: "media-jobs", contractVersion: 2, kind: "ready" },
+      { capability: "media-jobs", contractVersion: 3, kind: "ready" },
       { capability: "playback", contractVersion: 3, kind: "ready" },
     ]);
     await expect(
@@ -377,10 +389,36 @@ describe("Android capability module contracts", () => {
         jobId: "job-1",
         kind: "download",
         sourceUri: "https://example.test/video.mp4",
+        requestHeaders: { Referer: "https://www.twitch.tv/" },
       }),
     ).resolves.toMatchObject({
       kind: "completed",
       value: { kind: "record", journal: { jobId: "job-1" } },
+    });
+    await expect(mediaJobs.exportRecoverableJob("job-1")).resolves.toEqual({
+      kind: "completed",
+      value: { kind: "cancelled" },
+    });
+    await expect(
+      createAndroidMediaJobsContractPort(
+        reader({
+          ...mediaJobsBinding,
+          exportRecoverableJob: async () => ({
+            kind: "completed",
+            value: {
+              kind: "exported",
+              jobId: "job-1",
+              sourceSha256: "a".repeat(64),
+              destinationSha256: "a".repeat(64),
+              matched: true,
+              destinationUri: "content://downloads/clip.bin",
+            },
+          }),
+        }),
+      ).exportRecoverableJob("job-1"),
+    ).resolves.toMatchObject({
+      kind: "completed",
+      value: { kind: "exported", matched: true },
     });
     await expect(
       createAndroidMediaJobsContractPort(

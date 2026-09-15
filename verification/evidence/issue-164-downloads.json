@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "issue": 164,
+  "ticketId": "M02",
+  "mobileSourceCommit": "81f4e6c1c63b818112816c3f75ecbcf3dc85673c",
+  "observedAt": "2026-09-15T04:18:41.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M02 contextual Video and Clip download. No standalone Downloads screen. Pause, resume with HTTP Range, retry, cancel, delete, app-private completion, and explicit Android SAF export with hash verification."
+  },
+  "candidate": {
+    "apkSha256": "8cf9501a8ac417156a9db54dfd01546ef996160005609c6410a006ce12735990",
+    "provenance": "API 30 development client with Media Job native contract 3, socket HTTP Range client, and awaitJournalAdvance on resume. Metro JS loaded from the W02 worktree. HTTP proof uses http://10.0.2.2:8765/clip.bin. Guest signed-out reads stay { kind: \"guest\" }. Kick clips stay unsupported."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Watch download eligibility hides live Watch, issues a stable Video/Clip job id without OAuth, and keeps Kick clips unsupported.",
+        "Media Job controller polls while service.kind is owned even if the snapshot phase is still paused after resume."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 emulator opened More Diagnostics Media Job Engine contract 3.",
+        "Start HTTP range proof opened job-preview with Running, Pause, then Paused at 13728 bytes."
+      ]
+    },
+    "range-resume": {
+      "result": "pass",
+      "observations": [
+        "First GET had no Range. Resume sent Range: bytes=13728- and completed at 262144 bytes.",
+        "Job preview showed Completed, 100% · 262144 bytes, Complete artifact, and no Android service owner."
+      ]
+    },
+    "network-loss": {
+      "result": "pass",
+      "observations": [
+        "Start network-loss fixture opened a Download job in Failed, retryable with Retry, Cancel, Recover, and a 4096-byte partial artifact."
+      ]
+    },
+    "storage-pressure": {
+      "result": "pass",
+      "observations": [
+        "Start storage-pressure fixture opened a Download job in Failed, retryable with Retry and a 4096-byte partial artifact.",
+        "The preview status line still showed Preparing while the phase label was Failed, retryable."
+      ]
+    },
+    "export-integrity": {
+      "result": "pass",
+      "observations": [
+        "Export opened ACTION_CREATE_DOCUMENT. SAVE wrote the app-private artifact and the preview status became Export verified.",
+        "Open, Export, and Delete remained on the completed job. No standalone Downloads screen."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-164/01-diagnostics.png",
+      "sha256": "cd18e9c4173f32366d4f42b95b995356261a1b19471c3e97e3194b202e324f1d",
+      "observedAt": "2026-09-15T04:16:00.000Z",
+      "scope": "Diagnostics Media Job Engine contract 3 with HTTP range, network-loss, and storage-pressure starters."
+    },
+    {
+      "path": "verification/evidence/issue-164/02-http-running.png",
+      "sha256": "41bb4166a3bcb5064d0b40fbf9d6eff5cd46695822b2994d5062c3109f5b8e12",
+      "observedAt": "2026-09-15T04:16:00.000Z",
+      "scope": "Running HTTP range download. Pause visible."
+    },
+    {
+      "path": "verification/evidence/issue-164/03-http-paused.png",
+      "sha256": "a8c59725be94ac2a30e4bf8eca7c2701e46799af1b9460f56ae140a879789120",
+      "observedAt": "2026-09-15T04:16:00.000Z",
+      "scope": "Paused HTTP download at 13728 bytes. Resume visible."
+    },
+    {
+      "path": "verification/evidence/issue-164/04-http-completed.png",
+      "sha256": "c5eeee941cc9fb5f44f5c7a09126a29f26eff89e7b2cae4d1084336906c11012",
+      "observedAt": "2026-09-15T04:16:00.000Z",
+      "scope": "Completed HTTP range resume at 262144 bytes."
+    },
+    {
+      "path": "verification/evidence/issue-164/05-export-verified.png",
+      "sha256": "0abcba35fd1729e8ddbb34ac24c455a6176d28a91691bb8bfd3628d2dd63bee7",
+      "observedAt": "2026-09-15T04:17:00.000Z",
+      "scope": "SAF export hash match. Status Export verified."
+    },
+    {
+      "path": "verification/evidence/issue-164/06-activity-jobs.png",
+      "sha256": "2db5dfcf08a257d8a6206d9ffc2017d0d8ed0b87a4795ebc8bd06d9229828ff6",
+      "observedAt": "2026-09-15T04:17:00.000Z",
+      "scope": "Activity Jobs listed the completed HTTP download."
+    },
+    {
+      "path": "verification/evidence/issue-164/07-network-loss.png",
+      "sha256": "b88d42acfb999288d4ead3d1db05c38ef2958d20fe5283b7b6525d663d349036",
+      "observedAt": "2026-09-15T04:18:00.000Z",
+      "scope": "Network-loss fixture Failed, retryable with Retry."
+    },
+    {
+      "path": "verification/evidence/issue-164/08-storage-pressure.png",
+      "sha256": "6f48d0d3629539794a4668e3ef6af71ee9383ab048410c5f20972ded06db432b",
+      "observedAt": "2026-09-15T04:18:00.000Z",
+      "scope": "Storage-pressure fixture Failed, retryable with Retry."
+    },
+    {
+      "path": "verification/evidence/issue-164/http-hits.json",
+      "sha256": "27d6a8d242db81d7c02583441804b881e80425a5b2130a8bdc7013d42e063bef",
+      "observedAt": "2026-09-15T04:16:50.000Z",
+      "scope": "Proof server recorded GET with no Range then Range bytes=13728-."
+    },
+    {
+      "path": "verification/evidence/issue-164/observations.json",
+      "sha256": "32b828c110ff59f61d98bb2c35b5ef0e391bf21307cb5f40376cda271977920b",
+      "observedAt": "2026-09-15T04:18:41.000Z",
+      "scope": "Drive notes: pausedBytes 13728, completedBytes 262144, exportVerified true."
+    }
+  ]
+}

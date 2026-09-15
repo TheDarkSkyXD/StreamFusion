@@ -53,6 +53,9 @@ describe("Media Job workflow", () => {
       async put(snapshot) {
         stored.set(snapshot.intent.jobId, snapshot);
       },
+      async remove(jobId) {
+        stored.delete(jobId);
+      },
     };
     const activity: ActivityRepository = {
       async dismissCompleted() {
@@ -92,7 +95,7 @@ describe("Media Job workflow", () => {
     const native = {
       readiness: () => ({
         capability: "media-jobs",
-        contractVersion: 2,
+        contractVersion: 3,
         kind: "ready",
       }),
       startRecoverableJob: async () => ({
@@ -198,6 +201,9 @@ describe("Media Job workflow", () => {
       async put(snapshot) {
         stored.set(snapshot.intent.jobId, snapshot);
       },
+      async remove(jobId) {
+        stored.delete(jobId);
+      },
     };
     const activity: ActivityRepository = {
       async dismissCompleted() {
@@ -234,7 +240,7 @@ describe("Media Job workflow", () => {
     const native = {
       readiness: () => ({
         capability: "media-jobs",
-        contractVersion: 2,
+        contractVersion: 3,
         kind: "ready",
       }),
       startRecoverableJob: async () => ({
@@ -443,6 +449,49 @@ describe("Media Job workflow", () => {
     expect(recovered[0]?.phase).toBe("queued");
     expect(recorded).toHaveLength(1);
   });
+
+  it("deletes a completed job and verifies an exported hash match", async () => {
+    const stored = new Map();
+    const completed = {
+      ...createQueuedMediaJobSnapshot({
+        schemaVersion: 1,
+        jobId: asMediaJobId("job-download-1"),
+        kind: "download",
+        sourceUri: MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
+        createdAt: now,
+      }),
+      phase: "completed" as const,
+      statusMessage: "Completed",
+    };
+    stored.set("job-download-1", completed);
+    const digest = "a".repeat(64);
+    const workflow = createMediaJobWorkflow({
+      activity: recordingActivity(),
+      native: nativePort({
+        exportRecoverableJob: async () => ({
+          kind: "completed",
+          value: {
+            kind: "exported",
+            jobId: "job-download-1",
+            sourceSha256: digest,
+            destinationSha256: digest,
+            matched: true,
+            destinationUri: "content://downloads/clip.bin",
+          },
+        }),
+      }),
+      product: memoryProduct(stored),
+    });
+    const exported = await workflow.exportJob("job-download-1");
+    expect(exported).toEqual({
+      kind: "exported",
+      matched: true,
+      destinationUri: "content://downloads/clip.bin",
+    });
+    const deleted = await workflow.delete("job-download-1", now);
+    expect(deleted.kind).toBe("ok");
+    expect(stored.has("job-download-1")).toBe(false);
+  });
 });
 
 function memoryProduct(
@@ -457,6 +506,9 @@ function memoryProduct(
     },
     async put(snapshot: ReturnType<typeof createQueuedMediaJobSnapshot>) {
       stored.set(snapshot.intent.jobId, snapshot);
+    },
+    async remove(jobId: string) {
+      stored.delete(jobId);
     },
   };
 }
@@ -492,7 +544,7 @@ function nativePort(
   return {
     readiness: () => ({
       capability: "media-jobs",
-      contractVersion: 2,
+      contractVersion: 3,
       kind: "ready",
     }),
     startRecoverableJob: async () => ({
@@ -523,6 +575,18 @@ function nativePort(
     getRecoverableJob: async () => ({
       kind: "completed",
       value: { kind: "missing", jobId: "x" },
+    }),
+    deleteRecoverableJob: async (jobId) => ({
+      kind: "completed",
+      value: { kind: "deleted", jobId },
+    }),
+    exportRecoverableJob: async () => ({
+      kind: "completed",
+      value: { kind: "cancelled" },
+    }),
+    openRecoverableJob: async (jobId) => ({
+      kind: "completed",
+      value: { kind: "opened", jobId },
     }),
     ...overrides,
   } as AndroidMediaJobsContractPort;

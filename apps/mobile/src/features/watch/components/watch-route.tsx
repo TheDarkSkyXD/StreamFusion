@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { BackHandler } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
+import { toSerializedTimestamp } from "@streamfusion/core/activity";
+import type {
+  MediaJobCommandName,
+  MediaJobIntent,
+  MediaJobSnapshot,
+} from "@streamfusion/core/media-jobs";
 
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
 import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
@@ -17,18 +23,35 @@ import {
 } from "./use-focused-watch-session";
 import { WatchEmptyState, WatchScreen, type WatchScreenRuntime } from "./watch-screen";
 import { recordedWatchStartPositionMs } from "../domain/watch-target";
+import { watchDownloadEligibility } from "../domain/watch-download";
 
 const chat = {
   detail: "Chat is not connected in this build. Watching continues.",
   kind: "not-connected" as const,
 };
 
+export type WatchDownloadSession = {
+  readonly busy: boolean;
+  readonly jobs: readonly MediaJobSnapshot[];
+  readonly onCommand: (command: MediaJobCommandName) => void;
+  readonly onDelete: () => void;
+  readonly onExport: () => void;
+  readonly onOpenArtifact: () => void;
+  readonly onStartIntent: (
+    intent: MediaJobIntent,
+    requestHeaders?: Readonly<Record<string, string>>,
+  ) => Promise<void>;
+  readonly status: string | null;
+};
+
 export function WatchRoute({
+  download,
   onAddToMultistream,
   onOpenRelated,
   screen,
   target,
 }: {
+  readonly download?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly screen: WatchScreenRuntime;
@@ -43,17 +66,20 @@ export function WatchRoute({
       onOpenRelated={onOpenRelated}
       screen={screen}
       target={resolved}
+      {...(download === undefined ? {} : { download })}
       {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
     />
   );
 }
 
 function WatchSessionRoute({
+  download,
   onAddToMultistream,
   onOpenRelated,
   screen,
   target,
 }: {
+  readonly download?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly screen: WatchScreenRuntime;
@@ -61,9 +87,16 @@ function WatchSessionRoute({
 }) {
   const [tab, setTab] = useState<WatchTab>("info");
   const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const session = screen.runtime.session;
   const playback = useFocusedWatchSession(session, target);
   const peek = useWatchPeek(session);
+  const eligibility = watchDownloadEligibility(target);
+  const downloadJob =
+    eligibility.kind === "eligible"
+      ? (download?.jobs.find((job) => job.intent.jobId === eligibility.jobId) ??
+        null)
+      : null;
   const inspection = useQuery({
     queryFn: ({ signal }) => screen.runtime.inspection.read({ signal, target }),
     queryKey: [
@@ -136,6 +169,23 @@ function WatchSessionRoute({
       playback={playback}
       tab={tab}
       target={target}
+      {...(download === undefined
+        ? {}
+        : {
+            download: {
+              busy: download.busy,
+              eligibility,
+              job: downloadJob,
+              onCommand: download.onCommand,
+              onDelete: download.onDelete,
+              onExport: download.onExport,
+              onOpenArtifact: download.onOpenArtifact,
+              onStart: () => {
+                void startWatchDownload(screen, target, download, setDownloadError);
+              },
+              status: downloadError ?? download.status,
+            },
+          })}
       {...(onAddToMultistream === undefined || target.media
         ? {}
         : { onAddToMultistream: () => onAddToMultistream(target) })}
@@ -177,4 +227,40 @@ async function startWatchThenResume(
   const seekMs = recordedWatchStartPositionMs(target);
   if (seekMs === null) return;
   await session.seekTo(seekMs);
+}
+
+async function startWatchDownload(
+  screen: WatchScreenRuntime,
+  target: WatchTarget,
+  download: WatchDownloadSession,
+  setDownloadError: (reason: string | null) => void,
+): Promise<void> {
+  const eligibility = watchDownloadEligibility(target);
+  if (eligibility.kind !== "eligible") {
+    if (eligibility.kind === "unsupported") setDownloadError(eligibility.reason);
+    return;
+  }
+  const resolved = await screen.runtime.resolveSource(
+    target,
+    new AbortController().signal,
+  );
+  if (resolved.kind !== "resolved") {
+    setDownloadError(
+      resolved.failure.kind === "cancelled"
+        ? "Download cancelled."
+        : resolved.failure.detail,
+    );
+    return;
+  }
+  setDownloadError(null);
+  await download.onStartIntent(
+    {
+      schemaVersion: 1,
+      jobId: eligibility.jobId,
+      kind: "download",
+      sourceUri: resolved.sourceUri,
+      createdAt: toSerializedTimestamp(new Date().toISOString()),
+    },
+    resolved.requestHeaders,
+  );
 }

@@ -49,7 +49,7 @@ function press(nodes: readonly Element[], testID: string): void {
   byTestId(nodes, testID)?.props.onPress?.();
 }
 
-// Guards: Diagnostics can start fixture download/recording/storage-pressure and recover
+// Guards: Diagnostics can start download, HTTP range, network-loss, recording, and recover
 describe("Media Jobs diagnostics panel", () => {
   it("starts fixture jobs, recovers, and opens an existing job", () => {
     const opened: string[] = [];
@@ -67,17 +67,28 @@ describe("Media Jobs diagnostics panel", () => {
         onOpenJob: (jobId) => opened.push(jobId),
         onRecover: () => actions.push("recover"),
         onStartDownload: () => actions.push("download"),
+        onStartHttpRange: () => actions.push("range"),
+        onStartNetworkLoss: () => actions.push("loss"),
         onStartRecording: () => actions.push("recording"),
         onStartStoragePressure: () => actions.push("pressure"),
       }),
     );
     expect(byTestId(nodes, "media-jobs-diagnostics")).toBeTruthy();
     press(nodes, "media-jobs-start-download");
+    press(nodes, "media-jobs-start-http-range");
+    press(nodes, "media-jobs-start-network-loss");
     press(nodes, "media-jobs-start-recording");
     press(nodes, "media-jobs-start-storage-pressure");
     press(nodes, "media-jobs-recover");
     press(nodes, "media-jobs-open-download-1");
-    expect(actions).toEqual(["download", "recording", "pressure", "recover"]);
+    expect(actions).toEqual([
+      "download",
+      "range",
+      "loss",
+      "recording",
+      "pressure",
+      "recover",
+    ]);
     expect(opened).toEqual(["download-1"]);
   });
 });

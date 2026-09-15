@@ -76,6 +76,7 @@ function runningSnapshot(): MediaJobSnapshot {
 
 // Guards: missing Media Job stays distinct from a live job preview
 // Guards: running jobs expose pause, cancel, finalize, recover, progress, and service ownership
+// Guards: completed jobs expose Open, Export, and Delete
 describe("Media Job screen", () => {
   it("renders a missing-job empty state", () => {
     const nodes = descendants(
@@ -115,5 +116,38 @@ describe("Media Job screen", () => {
     expect(byTestId(nodes, "media-job-command-finalize")).toBeTruthy();
     expect(byTestId(nodes, "media-job-command-recover")).toBeTruthy();
     expect(byTestId(nodes, "media-job-command-retry")).toBeUndefined();
+  });
+
+  it("offers Open, Export, and Delete on a completed artifact", () => {
+    const actions: string[] = [];
+    const snapshot: MediaJobSnapshot = {
+      ...runningSnapshot(),
+      phase: "completed",
+      progress: {
+        transferredBytes: 65536,
+        totalBytes: 65536,
+        durationMs: 120,
+      },
+      artifact: {
+        kind: "complete",
+        relativePath: "media-jobs/download-1/artifact.bin",
+        bytes: 65536,
+      },
+      service: { kind: "unowned" },
+      statusMessage: "Completed",
+    };
+    const nodes = descendants(
+      MediaJobScreen({
+        onCommand: () => undefined,
+        onDelete: () => actions.push("delete"),
+        onExport: () => actions.push("export"),
+        onOpen: () => actions.push("open"),
+        snapshot,
+      }),
+    );
+    byTestId(nodes, "media-job-open")?.props.onPress?.();
+    byTestId(nodes, "media-job-export")?.props.onPress?.();
+    byTestId(nodes, "media-job-delete")?.props.onPress?.();
+    expect(actions).toEqual(["open", "export", "delete"]);
   });
 });

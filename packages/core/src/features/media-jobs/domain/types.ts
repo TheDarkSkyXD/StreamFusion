@@ -6,6 +6,9 @@ export const MEDIA_JOB_FIXTURE_RECORDING_URI =
   "streamfusion-fixture://recording";
 export const MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI =
   "streamfusion-fixture://download?storage-pressure";
+export const MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI =
+  "streamfusion-fixture://download?network-loss";
+export const MEDIA_JOB_HTTP_RANGE_PROOF_URI = "http://10.0.2.2:8765/clip.bin";
 
 declare const mediaJobIdBrand: unique symbol;
 declare const mediaJobGenerationBrand: unique symbol;
@@ -33,7 +36,11 @@ export type MediaJobCommandName =
   "start" | "pause" | "resume" | "cancel" | "retry" | "recover" | "finalize";
 
 export type MediaJobFailureCode =
-  "storage-pressure" | "source-unavailable" | "interrupted" | "native-failure";
+  | "storage-pressure"
+  | "network-loss"
+  | "source-unavailable"
+  | "interrupted"
+  | "native-failure";
 
 export interface MediaJobIntent {
   readonly schemaVersion: typeof MEDIA_JOB_SCHEMA_VERSION;

@@ -144,6 +144,7 @@ export interface MediaJobRepository {
   get(jobId: string): Promise<MediaJobSnapshot | null>;
   list(): Promise<readonly MediaJobSnapshot[]>;
   put(snapshot: MediaJobSnapshot): Promise<void>;
+  remove(jobId: string): Promise<void>;
 }
 
 export interface ProductSettingsStore {

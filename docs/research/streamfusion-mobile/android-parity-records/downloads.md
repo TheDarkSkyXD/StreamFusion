@@ -2,12 +2,12 @@
 
 - Capability ID: `downloads`
 - Desktop baseline: `docs/research/streamfusion-mobile/desktop-parity-inventory.md` Media library downloads section
-- Observed `main` at branch start: `5ea4b9da49719f6e4320253b66d817368be46bd6`
+- Observed `main` at branch start: `81f4e6c1c63b818112816c3f75ecbcf3dc85673c`
 - Android owner: Mobile `media-jobs` plus `streamfusion-native-contracts` MediaJobEngine
 - Progress: `implemented`
 - Delivery: `adapted`
-- Adaptation: No standalone Downloads screen. M01 delivers the recoverable job engine, Diagnostics fixtures, `activity/job-preview`, and Activity Jobs projection. Contextual Watch download and Android export remain M02.
-- Freshness: `current` at `verification/evidence/issue-163-media-jobs.json` on APK `sha256:8261d6c65da465e9f9a3d548955383b1c08fae03a8aeccd98873e42f58db99e5`
+- Adaptation: No standalone Downloads screen. Watch Videos and Twitch Clips start a recoverable job from the Watch bar. Diagnostics HTTP range proof, pause/resume with `Range`, network-loss, storage-pressure, Activity Jobs, and SAF export with hash verification are M02. Kick clips stay unsupported. Live Watch hides download.
+- Freshness: `current` at `verification/evidence/issue-164-downloads.json` on APK `sha256:8cf9501a8ac417156a9db54dfd01546ef996160005609c6410a006ce12735990`
 
 ## Desktop outcome
 
@@ -15,21 +15,23 @@ Download, retry, remove, reveal, and open local video and clip files from `/down
 
 ## Android outcome
 
-Diagnostics starts a fixture download. Job preview shows phase, progress, Pause/Resume, service ownership, and partial artifacts. Activity Jobs lists the same job. Recover after process death and reboot restores stable ids. Storage pressure fails retryably. Guest signed-out reads stay `{ kind: "guest" }`. Real VOD/clip download and export stay on M02.
+Watch offers Download on Videos and Twitch Clips. Job preview shows phase, progress, Pause/Resume, Open, Export, Delete, and service ownership. Resume continues with HTTP Range. SAF export copies the app-private artifact and reports Export verified when hashes match. Activity Jobs lists the same jobs. Network-loss and storage-pressure fail retryably. Guest signed-out reads stay `{ kind: "guest" }`. Kick clips remain unavailable.
 
 ## Required evidence
 
 - `change-gate`
 - `api30-device`
-- `process-death`
-- `reboot`
+- `range-resume`
+- `network-loss`
 - `storage-pressure`
-- `activity-reconciliation`
+- `export-integrity`
+
+M01 still owns `process-death`, `reboot`, and `activity-reconciliation` on this capability.
 
 ## Evidence residuals
 
-TalkBack was not driven. Fixtures write dummy bytes. Watch download buttons are M02. The storage-pressure preview showed Failed, retryable with Retry; the status line still said Preparing.
+TalkBack was not driven. HTTP range proof uses a local 262144-byte payload, not a live VOD. Network-loss and storage-pressure fixtures write dummy bytes; the preview status line can still say Preparing while the phase is Failed, retryable. Kick clips stay unsupported. OAuth stays on #145 and #146.
 
 ## Blocking for public release
 
-OAuth stays on #145 and #146. Watch download UX stays on #164.
+OAuth stays on #145 and #146. Live recording stays on #165.

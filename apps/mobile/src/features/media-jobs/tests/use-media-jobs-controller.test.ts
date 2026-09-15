@@ -180,6 +180,48 @@ it("waits for in-flight recovery before starting a job", async () => {
   }
 });
 
+it("keeps polling a paused job while Android still owns it", async () => {
+  // Guards: resume can return paused+owned before the journal advances
+  vi.useFakeTimers({ now: new Date("2026-09-12T01:00:00.000Z") });
+  const pausedOwned = {
+    ...runningJob(),
+    phase: "paused" as const,
+    statusMessage: "Paused",
+    service: { kind: "owned" as const, notificationVisible: true as const },
+  };
+  const completed = {
+    ...pausedOwned,
+    phase: "completed" as const,
+    statusMessage: "Completed",
+    service: { kind: "unowned" as const },
+  };
+  const recoverAll = vi
+    .fn()
+    .mockResolvedValueOnce([pausedOwned])
+    .mockResolvedValueOnce([completed]);
+  const workflow = {
+    apply: vi.fn(),
+    list: vi.fn(async () => [pausedOwned]),
+    recoverAll,
+    start: vi.fn(),
+  } as unknown as MediaJobWorkflow;
+  const rendered = renderController(workflow);
+  try {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(recoverAll).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+      await Promise.resolve();
+    });
+    expect(recoverAll).toHaveBeenCalledTimes(2);
+    expect(rendered.current().model.jobs[0]?.phase).toBe("completed");
+  } finally {
+    rendered.unmount();
+  }
+});
+
 it("does not start a second poll recovery while the first is pending", async () => {
   vi.useFakeTimers({ now: new Date("2026-09-12T01:00:00.000Z") });
   let resolvePoll:

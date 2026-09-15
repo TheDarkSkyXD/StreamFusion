@@ -1,6 +1,7 @@
 import {
   applyCommand,
   asMediaJobId,
+  mediaJobActivityEventId,
   projectMediaJobActivity,
   reconcileMediaJob,
   type MediaJobCommand,
@@ -10,10 +11,7 @@ import {
   type MediaJobNativeJournal,
   type MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
-import {
-  toSerializedTimestamp,
-  type ActivityItem,
-} from "@streamfusion/core/activity";
+import { toSerializedTimestamp } from "@streamfusion/core/activity";
 
 import type { AndroidMediaJobsContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import type { ActivityRepository } from "@mobile/features/storage/capabilities/persistence";
@@ -32,8 +30,16 @@ export function createMediaJobWorkflow(options: {
     apply: (command, nowIso) => applyJobCommand(options, command, nowIso),
     list: () => options.product.list(),
     recoverAll: (nowIso) => recoverAllJobs(options, nowIso),
-    start: (intent) =>
-      applyJobCommand(options, { kind: "start", intent }, intent.createdAt),
+    start: (intent, requestHeaders) =>
+      applyJobCommand(
+        options,
+        { kind: "start", intent },
+        intent.createdAt,
+        requestHeaders,
+      ),
+    delete: (jobId, nowIso) => deleteJob(options, jobId, nowIso),
+    exportJob: (jobId) => exportJob(options, jobId),
+    openArtifact: (jobId) => openArtifact(options, jobId),
   };
 }
 
@@ -45,6 +51,7 @@ async function applyJobCommand(
   },
   command: MediaJobCommand,
   nowIso: string,
+  requestHeaders?: Readonly<Record<string, string>>,
 ): Promise<MediaJobCommandResult> {
   const now = toSerializedTimestamp(nowIso);
   const jobId = command.kind === "start" ? command.intent.jobId : command.jobId;
@@ -52,7 +59,7 @@ async function applyJobCommand(
   const local = applyCommand(product, command, now);
   if (local.kind === "rejected") return local;
   if (local.kind === "ignored" && command.kind !== "recover") return local;
-  const native = await invokeNative(options.native, command);
+  const native = await invokeNative(options.native, command, requestHeaders);
   if (native.kind !== "completed") {
     const reason = native.failure.diagnostic;
     if (local.kind === "ok") {
@@ -186,6 +193,7 @@ function intentFromJournal(journal: MediaJobNativeJournal): MediaJobIntent {
 async function invokeNative(
   native: AndroidMediaJobsContractPort,
   command: MediaJobCommand,
+  requestHeaders?: Readonly<Record<string, string>>,
 ) {
   switch (command.kind) {
     case "start":
@@ -193,6 +201,7 @@ async function invokeNative(
         jobId: command.intent.jobId,
         kind: command.intent.kind,
         sourceUri: command.intent.sourceUri,
+        ...(requestHeaders === undefined ? {} : { requestHeaders }),
       });
     case "pause":
       return native.pauseRecoverableJob(command.jobId);
@@ -207,4 +216,78 @@ async function invokeNative(
     case "recover":
       return native.getRecoverableJob(command.jobId);
   }
+}
+
+async function deleteJob(
+  options: {
+    readonly activity: ActivityRepository;
+    readonly native: AndroidMediaJobsContractPort;
+    readonly product: MediaJobRepository;
+  },
+  jobId: string,
+  nowIso: string,
+): Promise<MediaJobCommandResult> {
+  const snapshot = await options.product.get(jobId);
+  const native = await options.native.deleteRecoverableJob(jobId);
+  if (native.kind !== "completed") {
+    return { kind: "rejected", reason: native.failure.diagnostic };
+  }
+  if (native.value.kind !== "deleted" && native.value.kind !== "missing") {
+    return { kind: "rejected", reason: "Media Job does not exist." };
+  }
+  await options.product.remove(jobId);
+  await options.activity.dismissCompleted(
+    [mediaJobActivityEventId(asMediaJobId(jobId))],
+    toSerializedTimestamp(nowIso),
+  );
+  if (!snapshot) {
+    return { kind: "rejected", reason: "Media Job does not exist." };
+  }
+  return {
+    kind: "ok",
+    snapshot: {
+      ...snapshot,
+      phase: "canceled",
+      service: { kind: "unowned" },
+      statusMessage: "Deleted",
+    },
+  };
+}
+
+async function exportJob(
+  options: { readonly native: AndroidMediaJobsContractPort },
+  jobId: string,
+): Promise<
+  | { readonly kind: "exported"; readonly matched: boolean; readonly destinationUri: string }
+  | { readonly kind: "cancelled" }
+  | { readonly kind: "rejected"; readonly reason: string }
+> {
+  const native = await options.native.exportRecoverableJob(jobId);
+  if (native.kind !== "completed") {
+    return { kind: "rejected", reason: native.failure.diagnostic };
+  }
+  if (native.value.kind === "cancelled") return { kind: "cancelled" };
+  if (native.value.kind === "exported") {
+    return {
+      kind: "exported",
+      matched: native.value.matched,
+      destinationUri: native.value.destinationUri,
+    };
+  }
+  return { kind: "rejected", reason: "Export is not available for this job." };
+}
+
+async function openArtifact(
+  options: { readonly native: AndroidMediaJobsContractPort },
+  jobId: string,
+): Promise<
+  | { readonly kind: "opened" }
+  | { readonly kind: "rejected"; readonly reason: string }
+> {
+  const native = await options.native.openRecoverableJob(jobId);
+  if (native.kind !== "completed") {
+    return { kind: "rejected", reason: native.failure.diagnostic };
+  }
+  if (native.value.kind === "opened") return { kind: "opened" };
+  return { kind: "rejected", reason: "This artifact cannot be opened." };
 }

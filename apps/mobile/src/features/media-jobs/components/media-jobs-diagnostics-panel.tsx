@@ -1,7 +1,9 @@
 import {
   MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
+  MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI,
   MEDIA_JOB_FIXTURE_RECORDING_URI,
   MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI,
+  MEDIA_JOB_HTTP_RANGE_PROOF_URI,
   type MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -21,6 +23,8 @@ export function MediaJobsDiagnosticsPanel({
   onOpenJob,
   onRecover,
   onStartDownload,
+  onStartHttpRange,
+  onStartNetworkLoss,
   onStartRecording,
   onStartStoragePressure,
   status,
@@ -30,6 +34,8 @@ export function MediaJobsDiagnosticsPanel({
   readonly onOpenJob: (jobId: string) => void;
   readonly onRecover: () => void;
   readonly onStartDownload: () => void;
+  readonly onStartHttpRange: () => void;
+  readonly onStartNetworkLoss: () => void;
   readonly onStartRecording: () => void;
   readonly onStartStoragePressure: () => void;
   readonly status?: string | null;
@@ -40,14 +46,20 @@ export function MediaJobsDiagnosticsPanel({
         MEDIA JOB ENGINE
       </Text>
       <Text selectable style={styles.meta} testID="media-jobs-build-stamp">
-        M01 Media Job engine · contract 2
+        M02 Downloads · contract 3
       </Text>
       <Text selectable style={styles.body}>
-        Start a fixture download or recording. Activity Jobs and job details
-        show durable state, valid commands, and preserved artifacts.
+        Start a fixture download, HTTP range proof, network-loss, or recording.
+        Activity Jobs and job details show durable state, export, and delete.
       </Text>
       <Text selectable style={styles.meta}>
         {MEDIA_JOB_FIXTURE_DOWNLOAD_URI}
+      </Text>
+      <Text selectable style={styles.meta}>
+        {MEDIA_JOB_HTTP_RANGE_PROOF_URI}
+      </Text>
+      <Text selectable style={styles.meta}>
+        {MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI}
       </Text>
       <Text selectable style={styles.meta}>
         {MEDIA_JOB_FIXTURE_RECORDING_URI}
@@ -71,6 +83,32 @@ export function MediaJobsDiagnosticsPanel({
       >
         <Text selectable style={styles.buttonLabel}>
           Start fixture download
+        </Text>
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Start HTTP range proof"
+        accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
+        onPress={onStartHttpRange}
+        style={styles.button}
+        testID="media-jobs-start-http-range"
+      >
+        <Text selectable style={styles.buttonLabel}>
+          Start HTTP range proof
+        </Text>
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Start network-loss fixture"
+        accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
+        onPress={onStartNetworkLoss}
+        style={styles.button}
+        testID="media-jobs-start-network-loss"
+      >
+        <Text selectable style={styles.buttonLabel}>
+          Start network-loss fixture
         </Text>
       </Pressable>
       <Pressable

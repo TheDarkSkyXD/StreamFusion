@@ -1,0 +1,63 @@
+{
+  "shots": [
+    {
+      "name": "01-diagnostics",
+      "path": "verification/evidence/issue-164/01-diagnostics.png",
+      "sha256": "sha256:cd18e9c4173f32366d4f42b95b995356261a1b19471c3e97e3194b202e324f1d"
+    },
+    {
+      "name": "02-http-running",
+      "path": "verification/evidence/issue-164/02-http-running.png",
+      "sha256": "sha256:41bb4166a3bcb5064d0b40fbf9d6eff5cd46695822b2994d5062c3109f5b8e12"
+    },
+    {
+      "name": "03-http-paused",
+      "path": "verification/evidence/issue-164/03-http-paused.png",
+      "sha256": "sha256:a8c59725be94ac2a30e4bf8eca7c2701e46799af1b9460f56ae140a879789120"
+    },
+    {
+      "name": "04-http-completed",
+      "path": "verification/evidence/issue-164/04-http-completed.png",
+      "sha256": "sha256:c5eeee941cc9fb5f44f5c7a09126a29f26eff89e7b2cae4d1084336906c11012"
+    },
+    {
+      "name": "05-export-verified",
+      "path": "verification/evidence/issue-164/05-export-verified.png",
+      "sha256": "sha256:0abcba35fd1729e8ddbb34ac24c455a6176d28a91691bb8bfd3628d2dd63bee7"
+    },
+    {
+      "name": "06-activity-jobs",
+      "path": "verification/evidence/issue-164/06-activity-jobs.png",
+      "sha256": "sha256:2db5dfcf08a257d8a6206d9ffc2017d0d8ed0b87a4795ebc8bd06d9229828ff6"
+    },
+    {
+      "name": "07-network-loss",
+      "path": "verification/evidence/issue-164/07-network-loss.png",
+      "sha256": "sha256:b88d42acfb999288d4ead3d1db05c38ef2958d20fe5283b7b6525d663d349036"
+    },
+    {
+      "name": "08-storage-pressure",
+      "path": "verification/evidence/issue-164/08-storage-pressure.png",
+      "sha256": "sha256:6f48d0d3629539794a4668e3ef6af71ee9383ab048410c5f20972ded06db432b"
+    }
+  ],
+  "notes": {
+    "pausedBytes": 13728,
+    "completedBytes": 262144,
+    "rangeHits": [
+      {
+        "method": "GET",
+        "url": "/clip.bin",
+        "range": "none",
+        "at": "2026-09-15T04:16:41.903Z"
+      },
+      {
+        "method": "GET",
+        "url": "/clip.bin",
+        "range": "bytes=13728-",
+        "at": "2026-09-15T04:16:50.460Z"
+      }
+    ],
+    "exportVerified": true
+  }
+}

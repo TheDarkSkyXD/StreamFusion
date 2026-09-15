@@ -84,7 +84,8 @@ import { WatchRoute } from "@mobile/features/watch/components/watch-route";
 import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
 import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watch-session";
 import { isPictureInPictureSurface } from "@mobile/features/watch/domain/player-presentation";
-import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+import { watchDownloadJobId } from "@mobile/features/watch/domain/watch-download";
+import type { WatchPeek, WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { DestinationIcon } from "./destination-icon";
 import { useKeyboardInset } from "./use-keyboard-inset";
@@ -251,7 +252,9 @@ export function AppShell({
     void watch.runtime.session.dismiss();
   }, [location.route, watch.runtime.session]);
   const selectedJobId =
-    location.route === "activity/job-preview" ? location.jobId : undefined;
+    location.route === "activity/job-preview"
+      ? location.jobId
+      : watchDownloadJobIdFor(location, watchPeek) ?? undefined;
   const mediaJobsController = useMediaJobsController({
     selectedJobId,
     workflow: mediaJobs,
@@ -659,6 +662,31 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
+          download={{
+            busy: mediaJobsController.model.busy,
+            jobs: mediaJobsController.model.jobs,
+            status: mediaJobsController.model.status,
+            onCommand: (command) => {
+              void mediaJobsController.apply(command).then(() => {
+                void activity.refresh();
+              });
+            },
+            onDelete: () => {
+              void mediaJobsController.deleteJob().then(() => {
+                void activity.refresh();
+              });
+            },
+            onExport: () => {
+              void mediaJobsController.exportJob();
+            },
+            onOpenArtifact: () => {
+              void mediaJobsController.openArtifact();
+            },
+            onStartIntent: async (intent, requestHeaders) => {
+              await mediaJobsController.startWithIntent(intent, requestHeaders);
+              await activity.refresh();
+            },
+          }}
           onAddToMultistream={addLiveToMultistream}
           onOpenRelated={(stream) =>
             openWatch({
@@ -745,6 +773,17 @@ function ShellScreen({
               void mediaJobsController.apply(command).then(() => {
                 void activity.refresh();
               });
+            }}
+            onDelete={() => {
+              void mediaJobsController.deleteJob().then(() => {
+                void activity.refresh();
+              });
+            }}
+            onExport={() => {
+              void mediaJobsController.exportJob();
+            }}
+            onOpen={() => {
+              void mediaJobsController.openArtifact();
             }}
             snapshot={mediaJobsController.model.selected}
             status={mediaJobsController.model.status}
@@ -1007,6 +1046,20 @@ function ShellScreen({
                   dispatch,
                 );
               }}
+              onStartHttpRange={() => {
+                void openStartedJob(
+                  mediaJobsController.startHttpRange,
+                  activity,
+                  dispatch,
+                );
+              }}
+              onStartNetworkLoss={() => {
+                void openStartedJob(
+                  mediaJobsController.startNetworkLoss,
+                  activity,
+                  dispatch,
+                );
+              }}
               onStartRecording={() => {
                 void openStartedJob(
                   mediaJobsController.startRecording,
@@ -1226,6 +1279,22 @@ function RootPreviewAction({
       />
     </Pressable>
   );
+}
+
+function watchDownloadJobIdFor(
+  location: ShellLocation,
+  peek: WatchPeek,
+): string | null {
+  if (
+    location.route === "watch/session-preview" &&
+    location.target.kind === "channel"
+  ) {
+    return watchDownloadJobId(watchTargetFromLocation(location.target));
+  }
+  if (location.route === "watch" && peek.kind === "active") {
+    return watchDownloadJobId(peek.state.target);
+  }
+  return null;
 }
 
 async function openStartedJob(

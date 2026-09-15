@@ -167,8 +167,31 @@ export type MediaJobKind = "download" | "recording";
 export interface MediaJobStartRequest {
   readonly jobId: string;
   readonly kind: MediaJobKind;
+  readonly requestHeaders?: Readonly<Record<string, string>>;
   readonly sourceUri: string;
 }
+
+export type MediaJobExportNativeResult =
+  | {
+      readonly destinationSha256: string;
+      readonly destinationUri: string;
+      readonly jobId: string;
+      readonly kind: "exported";
+      readonly matched: boolean;
+      readonly sourceSha256: string;
+    }
+  | { readonly kind: "cancelled" }
+  | { readonly jobId: string; readonly kind: "unavailable" }
+  | { readonly jobId: string; readonly kind: "missing" };
+
+export type MediaJobDeleteNativeResult =
+  | { readonly jobId: string; readonly kind: "deleted" }
+  | { readonly jobId: string; readonly kind: "missing" };
+
+export type MediaJobOpenNativeResult =
+  | { readonly jobId: string; readonly kind: "opened" }
+  | { readonly jobId: string; readonly kind: "unavailable" }
+  | { readonly jobId: string; readonly kind: "missing" };
 
 export type MediaJobNativeResult =
   | {
@@ -203,6 +226,15 @@ export interface AndroidMediaJobsContractPort extends AndroidCapabilityContractP
   startRecoverableJob(
     request: MediaJobStartRequest,
   ): Promise<AndroidNativeOperationResult<MediaJobNativeResult>>;
+  deleteRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobDeleteNativeResult>>;
+  exportRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobExportNativeResult>>;
+  openRecoverableJob(
+    jobId: string,
+  ): Promise<AndroidNativeOperationResult<MediaJobOpenNativeResult>>;
 }
 
 export interface CaptionModelRequest {

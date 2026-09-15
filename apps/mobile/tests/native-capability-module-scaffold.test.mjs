@@ -119,11 +119,11 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
     assert.match(source, new RegExp(`Name\\("${moduleName}"\\)`, "u"));
     assert.match(
       source,
-      className === "Diagnostics" || className === "Playback"
+      className === "Diagnostics" ||
+        className === "Playback" ||
+        className === "MediaJobs"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
-        : className === "MediaJobs"
-          ? /Function\("getContractVersion"\) \{ 2 \}/u
-          : /Function\("getContractVersion"\) \{ 1 \}/u,
+        : /Function\("getContractVersion"\) \{ 1 \}/u,
     );
     if (className === "Diagnostics") {
       assert.match(source, /ActivityManager\.MemoryInfo/u);
@@ -135,6 +135,10 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
       assert.match(source, /StatFs/u);
     } else if (className === "MediaJobs") {
       assert.doesNotMatch(source, /NATIVE_OPERATION_UNSUPPORTED/u);
+      assert.match(source, /deleteRecoverableJob/u);
+      assert.match(source, /exportRecoverableJob/u);
+      assert.match(source, /openRecoverableJob/u);
+      assert.match(source, /ACTION_CREATE_DOCUMENT/u);
     } else if (className === "Playback") {
       assert.match(source, /FocusedPlaybackSessionOwner/u);
       assert.match(source, /enterPictureInPicture/u);

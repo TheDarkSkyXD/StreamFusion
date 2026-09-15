@@ -231,6 +231,35 @@ test("missing files after an in-flight death are failed-retryable and storage pr
   assert.equal(pressure.artifact.kind, "partial");
 });
 
+test("network-loss stays failed-retryable with a recovery message", () => {
+  const running = {
+    ...createQueuedMediaJobSnapshot(intent()),
+    phase: "running",
+    statusMessage: "Running",
+  };
+  const lost = reconcileMediaJob({
+    intent: running.intent,
+    product: running,
+    journal: journal(running, {
+      serviceOwned: false,
+      failureCode: "network-loss",
+      artifact: {
+        kind: "partial",
+        relativePath: "media-jobs/job-download-1/artifact.bin",
+        bytes: 4096,
+      },
+    }),
+    files: {
+      relativePath: "media-jobs/job-download-1/artifact.bin",
+      bytes: 4096,
+      completeMarker: false,
+    },
+  });
+  assert.equal(lost.phase, "failed-retryable");
+  assert.equal(lost.failureCode, "network-loss");
+  assert.equal(lost.statusMessage, "Stopped because the network was lost.");
+});
+
 test("a newer product generation fences a stale native journal", () => {
   const product = applyCommand(
     applyCommand(

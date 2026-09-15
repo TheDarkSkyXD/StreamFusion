@@ -42,9 +42,12 @@ export interface ExpoPlaybackBinding {
 
 export interface ExpoMediaJobsBinding {
   readonly cancelRecoverableJob: (jobId: string) => Promise<unknown>;
+  readonly deleteRecoverableJob: (jobId: string) => Promise<unknown>;
+  readonly exportRecoverableJob: (jobId: string) => Promise<unknown>;
   readonly finalizeRecoverableJob: (jobId: string) => Promise<unknown>;
   readonly getContractVersion: () => number;
   readonly getRecoverableJob: (jobId: string) => Promise<unknown>;
+  readonly openRecoverableJob: (jobId: string) => Promise<unknown>;
   readonly pauseRecoverableJob: (jobId: string) => Promise<unknown>;
   readonly recoverJobs: () => Promise<unknown>;
   readonly resumeRecoverableJob: (jobId: string) => Promise<unknown>;
@@ -52,6 +55,7 @@ export interface ExpoMediaJobsBinding {
   readonly startRecoverableJob: (request: {
     readonly jobId: string;
     readonly kind: "download" | "recording";
+    readonly requestHeaders?: Readonly<Record<string, string>>;
     readonly sourceUri: string;
   }) => Promise<unknown>;
 }

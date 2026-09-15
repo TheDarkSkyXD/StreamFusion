@@ -600,6 +600,12 @@ export function createMobileStoreRuntime(
             snapshot,
           );
         },
+        async remove(jobId) {
+          await requireProductStore();
+          return createProductMediaJobStore(stores!.productDatabase).remove(
+            jobId,
+          );
+        },
       },
       multistream: {
         async read() {

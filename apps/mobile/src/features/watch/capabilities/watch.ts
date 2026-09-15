@@ -443,5 +443,9 @@ export interface WatchSessionIdSource {
 
 export interface WatchRuntime {
   readonly inspection: WatchInspectionReader;
+  resolveSource(
+    target: WatchTarget,
+    signal: AbortSignal,
+  ): Promise<LivePlaybackSourceResolution>;
   readonly session: FocusedWatchSession;
 }

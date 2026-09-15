@@ -1,6 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
+import type {
+  MediaJobCommandName,
+  MediaJobSnapshot,
+} from "@streamfusion/core/media-jobs";
 import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import { WatchAdBlockStatus } from "@mobile/features/ad-blocking/components/watch-adblock-status";
 
@@ -22,7 +26,9 @@ import type {
 } from "../capabilities/watch";
 import { composeWatchView } from "../domain/watch-view";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
+import type { WatchDownloadEligibility } from "../domain/watch-download";
 import { PlayerControls } from "./player-controls";
+import { WatchDownloadBar } from "./watch-download-bar";
 import { WatchTabs } from "./watch-tabs";
 
 export type PlayerSurfaceProps = {
@@ -44,6 +50,7 @@ export function WatchScreen({
   PlayerSurface,
   adblockView,
   chat,
+  download,
   inspection,
   onAddToMultistream,
   onOpenProviderPage,
@@ -66,6 +73,17 @@ export function WatchScreen({
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly adblockView?: AdBlockView | null;
   readonly chat: WatchChatAvailability;
+  readonly download?: {
+    readonly busy: boolean;
+    readonly eligibility: WatchDownloadEligibility;
+    readonly job: MediaJobSnapshot | null;
+    readonly onCommand: (command: MediaJobCommandName) => void;
+    readonly onDelete: () => void;
+    readonly onExport: () => void;
+    readonly onOpenArtifact: () => void;
+    readonly onStart: () => void;
+    readonly status?: string | null;
+  };
   readonly inspection: WatchInspection | null;
   readonly onAddToMultistream?: () => void;
   readonly onOpenProviderPage: () => void;
@@ -155,6 +173,19 @@ export function WatchScreen({
           ) : null}
           {view.primaryAction === "retry" ? (
             <Action label="Retry" onPress={onRetry} testID="watch-retry" />
+          ) : null}
+          {download ? (
+            <WatchDownloadBar
+              busy={download.busy}
+              eligibility={download.eligibility}
+              job={download.job}
+              onCommand={download.onCommand}
+              onDelete={download.onDelete}
+              onExport={download.onExport}
+              onOpenArtifact={download.onOpenArtifact}
+              onStart={download.onStart}
+              status={download.status}
+            />
           ) : null}
           {showsProvider(playback) ? (
             <Action

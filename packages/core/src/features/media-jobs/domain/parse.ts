@@ -64,6 +64,7 @@ function isKind(value: unknown): value is MediaJobKind {
 function isFailureCode(value: unknown): value is MediaJobFailureCode {
   return (
     value === "storage-pressure" ||
+    value === "network-loss" ||
     value === "source-unavailable" ||
     value === "interrupted" ||
     value === "native-failure"

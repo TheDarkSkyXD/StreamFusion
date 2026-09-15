@@ -10,6 +10,7 @@ import type {
   WatchSessionIdSource,
 } from "../capabilities/watch";
 import { createFocusedWatchSession } from "../domain/focused-watch-session";
+import { resolveWatchSource } from "../domain/watch-source-resolution";
 
 export function createWatchRuntime(input: {
   readonly filtering?: PlaybackFiltering;
@@ -23,6 +24,8 @@ export function createWatchRuntime(input: {
 }): WatchRuntime {
   return {
     inspection: input.inspection,
+    resolveSource: (target, signal) =>
+      resolveWatchSource(input.sources, input.recorded, target, signal),
     session: createFocusedWatchSession(input),
   };
 }

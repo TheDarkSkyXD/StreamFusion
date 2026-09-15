@@ -1,0 +1,16 @@
+{
+  "hits": [
+    {
+      "method": "GET",
+      "url": "/clip.bin",
+      "range": "none",
+      "at": "2026-09-15T04:16:41.903Z"
+    },
+    {
+      "method": "GET",
+      "url": "/clip.bin",
+      "range": "bytes=13728-",
+      "at": "2026-09-15T04:16:50.460Z"
+    }
+  ]
+}

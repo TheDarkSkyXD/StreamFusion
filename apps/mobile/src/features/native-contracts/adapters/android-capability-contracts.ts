@@ -27,8 +27,11 @@ import type {
   AndroidThermalState,
   CaptionModelState,
   CaptionSessionState,
+  MediaJobDeleteNativeResult,
+  MediaJobExportNativeResult,
   MediaJobKind,
   MediaJobNativeResult,
+  MediaJobOpenNativeResult,
   PackageInstallHandoff,
   PlaybackQualityCatalog,
   PlaybackSessionState,
@@ -58,8 +61,13 @@ function describe(capability: AndroidCapabilityId): string {
 }
 
 function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
-  if (capability === "diagnostics" || capability === "playback") return 3;
-  if (capability === "media-jobs") return 2;
+  if (
+    capability === "diagnostics" ||
+    capability === "playback" ||
+    capability === "media-jobs"
+  ) {
+    return 3;
+  }
   return 1;
 }
 
@@ -744,6 +752,75 @@ function jobResultFor(
   return result;
 }
 
+function deleteResultFor(
+  jobId: string,
+  value: unknown,
+): MediaJobDeleteNativeResult | undefined {
+  const result = object(value);
+  if (!result) return undefined;
+  if (result.kind === "deleted" && result.jobId === jobId) {
+    return { kind: "deleted", jobId };
+  }
+  if (result.kind === "missing" && result.jobId === jobId) {
+    return { kind: "missing", jobId };
+  }
+  return undefined;
+}
+
+function exportResultFor(
+  jobId: string,
+  value: unknown,
+): MediaJobExportNativeResult | undefined {
+  const result = object(value);
+  if (!result) return undefined;
+  if (result.kind === "cancelled") return { kind: "cancelled" };
+  if (result.kind === "unavailable" && result.jobId === jobId) {
+    return { kind: "unavailable", jobId };
+  }
+  if (result.kind === "missing" && result.jobId === jobId) {
+    return { kind: "missing", jobId };
+  }
+  const sourceSha256 = sha256(result.sourceSha256);
+  const destinationSha256 = sha256(result.destinationSha256);
+  const destinationUri = nonEmptyString(result.destinationUri);
+  if (
+    result.kind === "exported" &&
+    result.jobId === jobId &&
+    sourceSha256 &&
+    destinationSha256 &&
+    destinationUri &&
+    typeof result.matched === "boolean"
+  ) {
+    return {
+      kind: "exported",
+      jobId,
+      sourceSha256,
+      destinationSha256,
+      matched: result.matched,
+      destinationUri,
+    };
+  }
+  return undefined;
+}
+
+function openResultFor(
+  jobId: string,
+  value: unknown,
+): MediaJobOpenNativeResult | undefined {
+  const result = object(value);
+  if (!result) return undefined;
+  if (result.kind === "opened" && result.jobId === jobId) {
+    return { kind: "opened", jobId };
+  }
+  if (result.kind === "unavailable" && result.jobId === jobId) {
+    return { kind: "unavailable", jobId };
+  }
+  if (result.kind === "missing" && result.jobId === jobId) {
+    return { kind: "missing", jobId };
+  }
+  return undefined;
+}
+
 export function createAndroidMediaJobsContractPort(
   reader: ExpoBindingReader<ExpoMediaJobsBinding>,
 ): AndroidMediaJobsContractPort {
@@ -804,6 +881,27 @@ export function createAndroidMediaJobsContractPort(
         reader,
         (binding) => binding.getRecoverableJob(jobId),
         (value) => jobResultFor(jobId, value),
+      ),
+    deleteRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.deleteRecoverableJob(jobId),
+        (value) => deleteResultFor(jobId, value),
+      ),
+    exportRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.exportRecoverableJob(jobId),
+        (value) => exportResultFor(jobId, value),
+      ),
+    openRecoverableJob: (jobId) =>
+      invoke(
+        "media-jobs",
+        reader,
+        (binding) => binding.openRecoverableJob(jobId),
+        (value) => openResultFor(jobId, value),
       ),
   };
 }

@@ -225,4 +225,82 @@ describe("watch screen", () => {
       nodes.some((node) => node.props.testID === "watch-adblock-status"),
     ).toBe(true);
   });
+
+  it("shows a Video download control and hides download on live", () => {
+    const video = {
+      ...target,
+      media: {
+        durationSeconds: 90,
+        id: "vod-1",
+        kind: "video" as const,
+        title: "VOD",
+      },
+    };
+    const liveNodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Chat is not connected in this build. Watching continues.",
+          kind: "not-connected",
+        },
+        download: {
+          busy: false,
+          eligibility: { kind: "hidden" },
+          job: null,
+          onCommand: () => undefined,
+          onDelete: () => undefined,
+          onExport: () => undefined,
+          onOpenArtifact: () => undefined,
+          onStart: () => undefined,
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "info",
+        target,
+      }),
+    );
+    expect(
+      liveNodes.some((node) => node.props.testID === "watch-download-start"),
+    ).toBe(false);
+    const videoNodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Chat is not connected in this build. Watching continues.",
+          kind: "not-connected",
+        },
+        download: {
+          busy: false,
+          eligibility: {
+            kind: "eligible",
+            jobId: "dl-twitch-video-vod-1" as never,
+            label: "Download video",
+          },
+          job: null,
+          onCommand: () => undefined,
+          onDelete: () => undefined,
+          onExport: () => undefined,
+          onOpenArtifact: () => undefined,
+          onStart: () => undefined,
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target: video },
+        tab: "info",
+        target: video,
+      }),
+    );
+    expect(
+      videoNodes.some((node) => node.props.testID === "watch-download-start"),
+    ).toBe(true);
+  });
 });

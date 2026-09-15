@@ -117,7 +117,12 @@ function recoverUnownedPhase(
   journal: MediaJobNativeJournal,
   files: MediaJobFileEvidence | null,
 ): MediaJobPhase {
-  if (journal.failureCode === "storage-pressure") return "failed-retryable";
+  if (
+    journal.failureCode === "storage-pressure" ||
+    journal.failureCode === "network-loss"
+  ) {
+    return "failed-retryable";
+  }
   if (isActivityTerminalMediaJobPhase(journal.phase)) return journal.phase;
   if (journal.phase === "paused" || journal.phase === "failed-retryable") {
     return journal.phase;
@@ -196,6 +201,9 @@ function statusFor(
     journal.failureCode === "storage-pressure"
   ) {
     return "Stopped because storage is full.";
+  }
+  if (phase === "failed-retryable" && journal.failureCode === "network-loss") {
+    return "Stopped because the network was lost.";
   }
   if (phase === "failed-retryable") return "Interrupted. Retry to continue.";
   return journal.statusMessage;

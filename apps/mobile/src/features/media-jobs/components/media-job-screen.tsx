@@ -29,11 +29,17 @@ const commandOrder: readonly Exclude<MediaJobCommandName, "start">[] = [
 export function MediaJobScreen({
   busy = false,
   onCommand,
+  onDelete,
+  onExport,
+  onOpen,
   snapshot,
   status,
 }: {
   readonly busy?: boolean;
   readonly onCommand: (command: MediaJobCommandName) => void;
+  readonly onDelete?: () => void;
+  readonly onExport?: () => void;
+  readonly onOpen?: () => void;
   readonly snapshot: MediaJobSnapshot | null;
   readonly status?: string | null;
 }) {
@@ -63,6 +69,12 @@ export function MediaJobScreen({
       : snapshot.artifact.kind === "complete"
         ? 100
         : null;
+  const showArtifactActions = snapshot.phase === "completed";
+  const showDelete =
+    snapshot.phase === "completed" ||
+    snapshot.phase === "canceled" ||
+    snapshot.phase === "failed-retryable" ||
+    snapshot.phase === "failed-terminal";
   return (
     <View style={styles.panel} testID="media-job-detail">
       <Text selectable style={styles.label}>
@@ -114,6 +126,51 @@ export function MediaJobScreen({
               </Text>
             </Pressable>
           ))}
+        {showArtifactActions && onOpen ? (
+          <Pressable
+            accessibilityLabel="Open"
+            accessibilityRole="button"
+            accessibilityState={{ busy, disabled: busy }}
+            disabled={busy}
+            onPress={onOpen}
+            style={styles.button}
+            testID="media-job-open"
+          >
+            <Text selectable style={styles.buttonLabel}>
+              Open
+            </Text>
+          </Pressable>
+        ) : null}
+        {showArtifactActions && onExport ? (
+          <Pressable
+            accessibilityLabel="Export"
+            accessibilityRole="button"
+            accessibilityState={{ busy, disabled: busy }}
+            disabled={busy}
+            onPress={onExport}
+            style={styles.button}
+            testID="media-job-export"
+          >
+            <Text selectable style={styles.buttonLabel}>
+              Export
+            </Text>
+          </Pressable>
+        ) : null}
+        {showDelete && onDelete ? (
+          <Pressable
+            accessibilityLabel="Delete"
+            accessibilityRole="button"
+            accessibilityState={{ busy, disabled: busy }}
+            disabled={busy}
+            onPress={onDelete}
+            style={styles.button}
+            testID="media-job-delete"
+          >
+            <Text selectable style={styles.buttonLabel}>
+              Delete
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

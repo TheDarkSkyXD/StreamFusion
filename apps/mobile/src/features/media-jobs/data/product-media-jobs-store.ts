@@ -53,6 +53,9 @@ export function createProductMediaJobStore(
         ],
       );
     },
+    async remove(jobId) {
+      await database.run("DELETE FROM media_jobs WHERE id = ?", [jobId]);
+    },
   };
 }
 
