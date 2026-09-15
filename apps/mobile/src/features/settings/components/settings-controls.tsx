@@ -62,7 +62,7 @@ export function SettingsSwitch({
       testID={testID}
     >
       <Text selectable style={styles.rowLabel}>
-        {switchCopy(label, checked)}
+        {checked ? `${label}: on` : `${label}: off`}
       </Text>
     </Pressable>
   );
@@ -88,57 +88,22 @@ export function SettingsChoiceRow<T extends string | number>({
       </Text>
       <View style={styles.choiceRow}>
         {options.map((option) => (
-          <SettingsChoiceButton
+          <Pressable
             key={String(option)}
-            label={label}
+            accessibilityLabel={`${label} ${String(option)}`}
+            accessibilityRole="button"
             onPress={() => onSelect(option)}
-            option={option}
-            selected={current === option}
+            style={styles.choice}
             testID={`${testID}-${String(option)}`}
-          />
+          >
+            <Text selectable style={styles.choiceLabel}>
+              {current === option ? `Selected ${String(option)}` : String(option)}
+            </Text>
+          </Pressable>
         ))}
       </View>
     </View>
   );
-}
-
-function SettingsChoiceButton({
-  label,
-  onPress,
-  option,
-  selected,
-  testID,
-}: {
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly option: string | number;
-  readonly selected: boolean;
-  readonly testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={`${label} ${String(option)}`}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={styles.choice}
-      testID={testID}
-    >
-      <Text selectable style={styles.choiceLabel}>
-        {choiceCopy(option, selected)}
-      </Text>
-    </Pressable>
-  );
-}
-
-function switchCopy(label: string, checked: boolean): string {
-  if (checked) return `${label}: on`;
-  return `${label}: off`;
-}
-
-function choiceCopy(option: string | number, selected: boolean): string {
-  const value = String(option);
-  if (selected) return `Selected ${value}`;
-  return value;
 }
 
 const styles = StyleSheet.create({
