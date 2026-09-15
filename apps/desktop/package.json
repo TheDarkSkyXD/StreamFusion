@@ -173,7 +173,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.65.0",
-    "vite": "^7.3.6",
+    "vite": "^8.2.2",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-svgr": "^5.2.0",
     "vitest": "^4.1.10"
