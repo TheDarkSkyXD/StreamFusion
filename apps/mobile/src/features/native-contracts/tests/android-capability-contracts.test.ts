@@ -98,8 +98,12 @@ const mediaJobsBinding: ExpoMediaJobsBinding = {
   startRecoverableJob: async (request) => recordJob(request.jobId),
 };
 const captionsBinding: ExpoCaptionsBinding = {
-  getContractVersion: () => 1,
+  clearDevelopmentCaptionConstraint: unsupported,
+  getCaptionProof: unsupported,
+  getContractVersion: () => 2,
+  getEnglishModelState: unsupported,
   installEnglishModel: unsupported,
+  queueDevelopmentCaptionConstraint: unsupported,
   removeEnglishModel: unsupported,
   startFocusedCaptionSession: unsupported,
   stopFocusedCaptionSession: unsupported,
@@ -170,7 +174,7 @@ describe("Android capability module contracts", () => {
     };
 
     expect(Object.values(contracts).map((port) => port.readiness())).toEqual([
-      { capability: "captions", contractVersion: 1, kind: "ready" },
+      { capability: "captions", contractVersion: 2, kind: "ready" },
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 3, kind: "ready" },
@@ -445,6 +449,66 @@ describe("Android capability module contracts", () => {
     await expect(
       captions.installEnglishModel({ modelId: "english-v1" }),
     ).resolves.toMatchObject({ kind: "completed", value: { installed: true } });
+    await expect(
+      createAndroidCaptionsContractPort(
+        reader({
+          ...captionsBinding,
+          startFocusedCaptionSession: async (request) => ({
+            kind: "completed",
+            value: {
+              sessionId: request.sessionId,
+              state: "rejected",
+              reason:
+                "One caption session is already running on the focused Stream.",
+              audioUploadAttempts: 0,
+              pcmBytesProcessed: 0,
+              cueText: "",
+              audioLeftDevice: false,
+              microphonePermissionRequested: false,
+            },
+          }),
+        }),
+      ).startFocusedCaptionSession({
+        modelId: "english-v1",
+        sessionId: "cap-fixture-second",
+      }),
+    ).resolves.toMatchObject({
+      kind: "completed",
+      value: {
+        sessionId: "cap-fixture-second",
+        state: "rejected",
+        reason: "One caption session is already running on the focused Stream.",
+      },
+    });
+    await expect(
+      createAndroidCaptionsContractPort(
+        reader({
+          ...captionsBinding,
+          getCaptionProof: async () => ({
+            kind: "completed",
+            value: {
+              modelId: "english-v1",
+              installed: true,
+              displaySize: "43.11 MiB",
+              expectedBytes: 45_202_074,
+              pack: "fixture",
+              sha256Verified: true,
+              sessionId: "idle",
+              state: "stopped",
+              audioUploadAttempts: 0,
+              microphonePermissionRequested: false,
+            },
+          }),
+        }),
+      ).getCaptionProof(),
+    ).resolves.toMatchObject({
+      kind: "completed",
+      value: {
+        displaySize: "43.11 MiB",
+        audioUploadAttempts: 0,
+        microphonePermissionRequested: false,
+      },
+    });
     await expect(diagnostics.readResourceSnapshot()).resolves.toMatchObject({
       kind: "completed",
       value: { thermal: { state: "none" } },
@@ -546,9 +610,12 @@ describe("Android capability module contracts", () => {
           installEnglishModel: unsafe,
           removeEnglishModel: unsafe,
           startFocusedCaptionSession: unsafe,
-          stopFocusedCaptionSession: async () => {
+          stopFocusedCaptionSession: async (sessionId) => {
             calls.push("captions.stop");
-            return unsupported();
+            return {
+              kind: "completed",
+              value: { sessionId, state: "stopped" },
+            };
           },
         }),
       ),

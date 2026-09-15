@@ -1,4 +1,12 @@
 import {
+  LOCAL_CAPTION_DISPLAY_SIZE,
+  LOCAL_CAPTION_DOWNLOAD_BYTES,
+  LOCAL_CAPTION_LICENSE,
+  LOCAL_CAPTION_LANGUAGE_LABEL,
+  LOCAL_CAPTION_NOT_INSTALLED_STATUS,
+  LOCAL_CAPTION_READY_STATUS,
+} from "@streamfusion/core/local-captions";
+import {
   parseMediaJobFileEvidence,
   parseMediaJobNativeJournal,
 } from "@streamfusion/core/media-jobs";
@@ -25,8 +33,12 @@ import type {
   AndroidRuntimeIdentity,
   AndroidStorageObservation,
   AndroidThermalState,
+  CaptionModelPhase,
   CaptionModelState,
+  CaptionProofState,
+  CaptionSessionPhase,
   CaptionSessionState,
+  NativeCaptionEvent,
   MediaJobDeleteNativeResult,
   MediaJobExportNativeResult,
   MediaJobKind,
@@ -68,6 +80,7 @@ function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
   ) {
     return 3;
   }
+  if (capability === "captions") return 2;
   return 1;
 }
 
@@ -357,23 +370,98 @@ function mediaJobNativeResult(
   };
 }
 
+function captionModelPhase(value: unknown): CaptionModelPhase | undefined {
+  return value === "not-installed" ||
+    value === "downloading" ||
+    value === "verifying" ||
+    value === "ready" ||
+    value === "integrity-error" ||
+    value === "constrained"
+    ? value
+    : undefined;
+}
+
+function captionPack(value: unknown): CaptionModelState["pack"] | undefined {
+  return value === "fixture" || value === "none" || value === "product"
+    ? value
+    : undefined;
+}
+
 function captionModelState(value: unknown): CaptionModelState | undefined {
   const state = object(value);
-  return state &&
-    state.modelId === "english-v1" &&
-    typeof state.installed === "boolean"
-    ? { modelId: state.modelId, installed: state.installed }
+  if (!state || state.modelId !== "english-v1" || typeof state.installed !== "boolean") {
+    return undefined;
+  }
+  const phase =
+    captionModelPhase(state.phase) ??
+    (state.installed ? "ready" : "not-installed");
+  const pack = captionPack(state.pack) ?? (state.installed ? "fixture" : "none");
+  const downloadedBytes = numberAtLeast(state.downloadedBytes, 0) ?? 0;
+  const expectedBytes = numberAtLeast(state.expectedBytes, 0) ?? LOCAL_CAPTION_DOWNLOAD_BYTES;
+  const audioUploadAttempts = numberAtLeast(state.audioUploadAttempts, 0) ?? 0;
+  const displaySize =
+    nonEmptyString(state.displaySize) ?? LOCAL_CAPTION_DISPLAY_SIZE;
+  const license = nonEmptyString(state.license) ?? LOCAL_CAPTION_LICENSE;
+  const languageLabel = nonEmptyString(state.languageLabel) ?? LOCAL_CAPTION_LANGUAGE_LABEL;
+  const statusMessage =
+    nonEmptyString(state.statusMessage) ??
+    (state.installed
+      ? LOCAL_CAPTION_READY_STATUS
+      : LOCAL_CAPTION_NOT_INSTALLED_STATUS);
+  return {
+    audioUploadAttempts,
+    displaySize,
+    downloadedBytes,
+    expectedBytes,
+    installed: state.installed,
+    languageLabel,
+    license,
+    modelId: "english-v1",
+    pack,
+    phase,
+    sha256Verified: state.sha256Verified === true,
+    statusMessage,
+    ...(typeof state.error === "string" ? { error: state.error } : {}),
+  };
+}
+
+function captionSessionPhase(value: unknown): CaptionSessionPhase | undefined {
+  return value === "active" || value === "stopped" || value === "rejected"
+    ? value
     : undefined;
 }
 
 function captionSessionState(value: unknown): CaptionSessionState | undefined {
   const state = object(value);
   const sessionId = state ? nonEmptyString(state.sessionId) : undefined;
-  return state &&
-    sessionId &&
-    (state.state === "active" || state.state === "stopped")
-    ? { sessionId, state: state.state }
-    : undefined;
+  const phase = state ? captionSessionPhase(state.state) : undefined;
+  if (!state || !sessionId || !phase) return undefined;
+  return {
+    audioLeftDevice: state.audioLeftDevice === true,
+    audioUploadAttempts: numberAtLeast(state.audioUploadAttempts, 0) ?? 0,
+    cueText: typeof state.cueText === "string" ? state.cueText : "",
+    microphonePermissionRequested: state.microphonePermissionRequested === true,
+    pcmBytesProcessed: numberAtLeast(state.pcmBytesProcessed, 0) ?? 0,
+    sessionId,
+    state: phase,
+    ...(typeof state.reason === "string" ? { reason: state.reason } : {}),
+  };
+}
+
+function captionProofState(value: unknown): CaptionProofState | undefined {
+  const model = captionModelState(value);
+  const session = captionSessionState(value);
+  return model && session ? { ...model, ...session } : undefined;
+}
+
+function nativeCaptionEvent(value: unknown): NativeCaptionEvent | undefined {
+  const state = object(value);
+  const session = captionSessionState(value);
+  if (!state || !session) return undefined;
+  if (state.kind === "cue" || state.kind === "state") {
+    return { kind: state.kind, ...session };
+  }
+  return undefined;
 }
 
 function resourceSnapshot(value: unknown): AndroidResourceSnapshot | undefined {
@@ -909,42 +997,58 @@ export function createAndroidMediaJobsContractPort(
 export function createAndroidCaptionsContractPort(
   reader: ExpoBindingReader<ExpoCaptionsBinding>,
 ): AndroidCaptionsContractPort {
+  const call = <TValue>(
+    operation: (binding: ExpoCaptionsBinding) => Promise<unknown>,
+    parse: (candidate: unknown) => TValue | undefined,
+  ): Promise<AndroidNativeOperationResult<TValue>> =>
+    invoke("captions", reader, operation, parse);
   return {
     readiness: () => readiness("captions", reader),
+    getEnglishModelState: () =>
+      call((binding) => binding.getEnglishModelState(), captionModelState),
     installEnglishModel: (request) =>
-      invoke(
-        "captions",
-        reader,
-        (binding) => binding.installEnglishModel(request),
-        captionModelState,
-      ),
+      call((binding) => binding.installEnglishModel(request), captionModelState),
     removeEnglishModel: (request) =>
-      invoke(
-        "captions",
-        reader,
-        (binding) => binding.removeEnglishModel(request),
-        captionModelState,
-      ),
+      call((binding) => binding.removeEnglishModel(request), captionModelState),
+    queueDevelopmentCaptionConstraint: () =>
+      call((binding) => binding.queueDevelopmentCaptionConstraint(), captionModelState),
+    clearDevelopmentCaptionConstraint: () =>
+      call((binding) => binding.clearDevelopmentCaptionConstraint(), captionModelState),
     startFocusedCaptionSession: (request) =>
-      invoke(
-        "captions",
-        reader,
+      call(
         (binding) => binding.startFocusedCaptionSession(request),
-        (value) => {
-          const state = captionSessionState(value);
-          return state?.sessionId === request.sessionId ? state : undefined;
-        },
+        captionSessionFor(request.sessionId),
       ),
     stopFocusedCaptionSession: (sessionId) =>
-      invoke(
-        "captions",
-        reader,
+      call(
         (binding) => binding.stopFocusedCaptionSession(sessionId),
-        (value) => {
-          const state = captionSessionState(value);
-          return state?.sessionId === sessionId ? state : undefined;
-        },
+        captionSessionFor(sessionId),
       ),
+    getCaptionProof: () =>
+      call((binding) => binding.getCaptionProof(), captionProofState),
+    subscribe(listener) {
+      const resolution = resolveBinding("captions", reader);
+      if (resolution.kind === "unavailable" || !resolution.binding.addListener) {
+        return () => undefined;
+      }
+      const subscription = resolution.binding.addListener(
+        "onNativeCaptions",
+        (event) => {
+          const parsed = nativeCaptionEvent(event);
+          if (parsed) listener(parsed);
+        },
+      );
+      return () => subscription.remove();
+    },
+  };
+}
+
+function captionSessionFor(
+  sessionId: string,
+): (value: unknown) => CaptionSessionState | undefined {
+  return (value) => {
+    const state = captionSessionState(value);
+    return state?.sessionId === sessionId ? state : undefined;
   };
 }
 

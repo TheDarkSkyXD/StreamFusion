@@ -33,10 +33,11 @@ export function NativeCapabilityStubProofControl({
         ANDROID CONTRACT CHECKS
       </Text>
       <Text selectable style={styles.body}>
-        Playback and Media Jobs are live contracts. Remaining captions and
+        Playback, Media Jobs, and Captions are live contracts. Remaining
         maintenance stubs still return unsupported. This check ends a
-        nonexistent playback session and cancels a nonexistent job without
-        starting work, then reads Diagnostics.
+        nonexistent playback session, cancels a nonexistent job, and stops a
+        nonexistent caption session without starting work, then reads
+        Diagnostics.
       </Text>
       {detail ? (
         <Text

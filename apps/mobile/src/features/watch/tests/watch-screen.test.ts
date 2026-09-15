@@ -323,4 +323,66 @@ describe("watch screen", () => {
       videoNodes.some((node) => node.props.testID === "watch-recording-start"),
     ).toBe(false);
   });
+
+  it("shows local caption overlay and live controls", () => {
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        captions: {
+          busy: false,
+          cueText: "English model 43.11 MiB. No microphone. No upload.",
+          eligibility: {
+            kind: "eligible",
+            label: "Captions",
+            sessionId: "cap-twitch-twitch-1",
+          },
+          model: {
+            audioUploadAttempts: 0,
+            displaySize: "43.11 MiB",
+            downloadedBytes: 45_202_074,
+            expectedBytes: 45_202_074,
+            installed: true,
+            languageLabel: "English",
+            license: "Apache-2.0",
+            modelId: "english-v1",
+            pack: "fixture",
+            phase: "ready",
+            sha256Verified: true,
+            statusMessage:
+              "English model ready offline. 43.11 MiB. Audio stays on this device.",
+          },
+          onInstall: () => undefined,
+          onRemove: () => undefined,
+          onStart: () => undefined,
+          onStop: () => undefined,
+          session: {
+            audioLeftDevice: false,
+            audioUploadAttempts: 0,
+            cueText: "English model 43.11 MiB. No microphone. No upload.",
+            microphonePermissionRequested: false,
+            pcmBytesProcessed: 640,
+            sessionId: "cap-twitch-twitch-1",
+            state: "active",
+          },
+        },
+        chat: {
+          detail: "Chat is not connected in this build. Watching continues.",
+          kind: "not-connected",
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "info",
+        target,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-caption-overlay")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(true);
+  });
 });

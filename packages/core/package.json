@@ -50,6 +50,10 @@
       "types": "./src/media-jobs/index.ts",
       "default": "./src/media-jobs/index.ts"
     },
+    "./local-captions": {
+      "types": "./src/local-captions/index.ts",
+      "default": "./src/local-captions/index.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./src/testing/index.ts"

@@ -1,0 +1,15 @@
+{
+  "homeLive": "Guest Home catalog failed once; Watch opened from a live Twitch card after Search/Home retry.",
+  "proof": {
+    "displaySize": "43.11 MiB",
+    "pcmBytes": 583680,
+    "audioUploadAttempts": 0,
+    "microphonePermissionRequested": false,
+    "pack": "fixture"
+  },
+  "notes": [
+    "Product HuggingFace ONNX weights were not downloaded. Diagnostics used streamfusion-fixture://captions.",
+    "Recognition on API 30 is a local PCM energy-gated decoder, not sherpa-onnx.",
+    "Watch live player still mentions theater and stats as unshipped. Captions controls are on Watch."
+  ]
+}

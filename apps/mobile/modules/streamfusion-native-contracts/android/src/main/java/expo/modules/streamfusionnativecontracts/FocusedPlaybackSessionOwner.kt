@@ -14,8 +14,12 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
@@ -81,6 +85,7 @@ object FocusedPlaybackSessionOwner {
       }
     val exo = ExoPlayer.Builder(context.applicationContext)
       .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+      .setRenderersFactory(captionRenderers(context.applicationContext))
       .build()
     exo.addListener(SessionListener(sessionId))
     exo.setMediaItem(
@@ -391,6 +396,22 @@ object FocusedPlaybackSessionOwner {
       MimeTypes.APPLICATION_M3U8
     } else {
       MimeTypes.APPLICATION_MP4
+    }
+  }
+
+  private fun captionRenderers(context: Context): DefaultRenderersFactory {
+    return object : DefaultRenderersFactory(context) {
+      override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioTrackPlaybackParams: Boolean,
+      ): AudioSink {
+        return DefaultAudioSink.Builder(context)
+          .setEnableFloatOutput(enableFloatOutput)
+          .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+          .setAudioProcessors(arrayOf(TeeAudioProcessor(CaptionPcmTap)))
+          .build()
+      }
     }
   }
 

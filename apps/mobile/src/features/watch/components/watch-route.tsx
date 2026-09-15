@@ -21,7 +21,7 @@ import {
   useFocusedWatchSession,
   useWatchPeek,
 } from "./use-focused-watch-session";
-import { WatchEmptyState, WatchScreen, type WatchMediaJobControls, type WatchScreenRuntime } from "./watch-screen";
+import { WatchEmptyState, WatchScreen, type WatchCaptionControls, type WatchMediaJobControls, type WatchScreenRuntime } from "./watch-screen";
 import { recordedWatchStartPositionMs } from "../domain/watch-target";
 import {
   watchDownloadEligibility,
@@ -31,6 +31,14 @@ import {
   watchRecordingEligibility,
   type WatchRecordingEligibility,
 } from "../domain/watch-recording";
+import {
+  watchCaptionEligibility,
+  type WatchCaptionEligibility,
+} from "../domain/watch-captions";
+import type {
+  CaptionModelState,
+  CaptionSessionState,
+} from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 
 const chat = {
   detail: "Chat is not connected in this build. Watching continues.",
@@ -51,7 +59,20 @@ export type WatchDownloadSession = {
   readonly status: string | null;
 };
 
+export type WatchCaptionSession = {
+  readonly busy: boolean;
+  readonly cueText: string;
+  readonly model: CaptionModelState | null;
+  readonly onInstall: () => void;
+  readonly onRemove: () => void;
+  readonly onStart: (sessionId: string) => void;
+  readonly onStop: (sessionId: string) => void;
+  readonly session: CaptionSessionState | null;
+  readonly status: string | null;
+};
+
 export function WatchRoute({
+  captions,
   download,
   recording,
   onAddToMultistream,
@@ -59,6 +80,7 @@ export function WatchRoute({
   screen,
   target,
 }: {
+  readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
@@ -75,6 +97,7 @@ export function WatchRoute({
       onOpenRelated={onOpenRelated}
       screen={screen}
       target={resolved}
+      {...(captions === undefined ? {} : { captions })}
       {...(download === undefined ? {} : { download })}
       {...(recording === undefined ? {} : { recording })}
       {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
@@ -83,6 +106,7 @@ export function WatchRoute({
 }
 
 function WatchSessionRoute({
+  captions,
   download,
   recording,
   onAddToMultistream,
@@ -90,6 +114,7 @@ function WatchSessionRoute({
   screen,
   target,
 }: {
+  readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
@@ -106,6 +131,7 @@ function WatchSessionRoute({
   const peek = useWatchPeek(session);
   const eligibility = watchDownloadEligibility(target);
   const recordingEligibility = watchRecordingEligibility(target);
+  const captionEligibility = watchCaptionEligibility(target);
   const downloadJob = jobForEligibility(download?.jobs, eligibility);
   const recordingJob = jobForEligibility(recording?.jobs, recordingEligibility);
   const inspection = useQuery({
@@ -222,6 +248,11 @@ function WatchSessionRoute({
               recordingError,
             ),
           })}
+      {...(captions === undefined
+        ? {}
+        : {
+            captions: captionControls(captions, captionEligibility),
+          })}
       {...(onAddToMultistream === undefined || target.media
         ? {}
         : { onAddToMultistream: () => onAddToMultistream(target) })}
@@ -271,6 +302,32 @@ function jobForEligibility(
 ): MediaJobSnapshot | null {
   if (eligibility.kind !== "eligible" || jobs === undefined) return null;
   return jobs.find((job) => job.intent.jobId === eligibility.jobId) ?? null;
+}
+
+function captionControls(
+  session: WatchCaptionSession,
+  eligibility: WatchCaptionEligibility,
+): WatchCaptionControls {
+  return {
+    busy: session.busy,
+    cueText: session.cueText,
+    eligibility,
+    model: session.model,
+    onInstall: session.onInstall,
+    onRemove: session.onRemove,
+    onStart: () => {
+      if (eligibility.kind === "eligible") session.onStart(eligibility.sessionId);
+    },
+    onStop: () => {
+      session.onStop(
+        eligibility.kind === "eligible"
+          ? eligibility.sessionId
+          : (session.session?.sessionId ?? "idle"),
+      );
+    },
+    session: session.session,
+    status: session.status,
+  };
 }
 
 function mediaJobControls<Eligibility>(

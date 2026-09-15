@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "issue": 166,
+  "ticketId": "M04",
+  "mobileSourceCommit": "6c4653783dca0920535033003bcbe2e829247614",
+  "observedAt": "2026-09-15T06:23:17.823Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M04 local captions. One focused caption session, 43.11 MiB English model lifecycle, local PCM only, no microphone, no upload."
+  },
+  "candidate": {
+    "apkSha256": "5f76b6c1daa85339f23583a88ebb8592a04e80b4712d761e1056958b6aaab572",
+    "provenance": "API 30 development client with Captions native contract 2, fixture English pack that still displays 43.11 MiB, one-session reject, integrity-fail, constrained captions, and Watch caption controls. Metro JS loaded from the W02 worktree. Guest signed-out reads stay { kind: \"guest\" }. Product HuggingFace ONNX weights were not downloaded."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Watch live Streams expose Captions with 43.11 MiB size, install/start/stop/remove, and privacy copy.",
+        "Videos and Clips hide captions because watchCaptionEligibility returns hidden when target.media is set."
+      ]
+    },
+    "lowest-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 emulator opened More Diagnostics M04 Captions contract 2.",
+        "Fixture install displayed English model ready offline. 43.11 MiB."
+      ]
+    },
+    "model-integrity": {
+      "result": "pass",
+      "observations": [
+        "Install integrity-fail fixture showed The English caption model failed integrity verification. and sha256 unverified.",
+        "Reinstalling the good fixture restored sha256 verified."
+      ]
+    },
+    "one-session-limit": {
+      "result": "pass",
+      "observations": [
+        "Start second caption session showed One caption session is already running on the focused Stream."
+      ]
+    },
+    "no-upload": {
+      "result": "pass",
+      "observations": [
+        "Fixture session processed local PCM with uploads 0 and mic not requested.",
+        "Watch privacy copy: Decoded program PCM stays on this device. No microphone. No upload."
+      ]
+    },
+    "degradation-proof": {
+      "result": "pass",
+      "observations": [
+        "Start constrained captions showed Captions paused because this device is under resource pressure."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-166/01-diagnostics.png",
+      "sha256": "adb33af766d98afa1a6adef7e45be8b86ef6732019122fc9b4f12e34552dc3be",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "01-diagnostics"
+    },
+    {
+      "path": "verification/evidence/issue-166/02-model-ready.png",
+      "sha256": "edb024a67d0873ed28410c00788e42c90b5e005b544bc4fbfb8387c2880bb365",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "02-model-ready"
+    },
+    {
+      "path": "verification/evidence/issue-166/03-fixture-session.png",
+      "sha256": "c550d75d9b2c53abbc1507df48c6dad65328ea5dac36be32b23c42954b8e2576",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "03-fixture-session"
+    },
+    {
+      "path": "verification/evidence/issue-166/04-one-session.png",
+      "sha256": "c2099a4bd578e72d413922d105dcb6e0cc1c35a07d28a8c995e7802d4c45b1a0",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "04-one-session"
+    },
+    {
+      "path": "verification/evidence/issue-166/05-integrity-fail.png",
+      "sha256": "956fcf75bb1327622405f287f61d0bcc0ecca4c01581ca5b3e17069a513e51c3",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "05-integrity-fail"
+    },
+    {
+      "path": "verification/evidence/issue-166/06-constrained.png",
+      "sha256": "5e9239840f316dc215b8c4453149c41dee9efcfd33475d865c37cdc280944bdd",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "06-constrained"
+    },
+    {
+      "path": "verification/evidence/issue-166/07-watch-captions.png",
+      "sha256": "eedd6b30d8363ae6011596e5df0654c183b4cec92b148955073c3d3e7301b9f5",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "07-watch-captions"
+    },
+    {
+      "path": "verification/evidence/issue-166/observations.json",
+      "sha256": "b33ab51d153d10a0381dc92d399e08cd471275b6c0527319ff3f2fa8d4890dc1",
+      "observedAt": "2026-09-15T06:23:17.823Z",
+      "scope": "Drive notes for fixture captions, integrity, constraint, and Watch."
+    }
+  ]
+}

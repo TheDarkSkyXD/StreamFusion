@@ -97,8 +97,8 @@ export function PlayerControls({
       ) : null}
       {seekable ? null : (
         <Text selectable style={styles.limitation}>
-          Live playback cannot seek or change speed. Captions, theater, and stats
-          stay unavailable until those capabilities ship.
+          Live playback cannot seek or change speed. Theater and stats stay
+          unavailable until those capabilities ship.
         </Text>
       )}
     </View>

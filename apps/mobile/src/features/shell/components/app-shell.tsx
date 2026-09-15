@@ -52,6 +52,9 @@ import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job
 import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
 import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
 import type { MediaJobWorkflow } from "@mobile/features/media-jobs/capabilities/media-jobs";
+import { LocalCaptionsDiagnosticsHost } from "@mobile/features/local-captions/components/local-captions-diagnostics-panel";
+import { useLocalCaptionsController } from "@mobile/features/local-captions/components/use-local-captions-controller";
+import type { LocalCaptionsPort } from "@mobile/features/local-captions/capabilities/local-captions";
 import { NativeCapabilityStubProofControl } from "@mobile/features/native-contracts/components/native-capability-stub-proof-control";
 import { CapabilityProfilePanel } from "@mobile/features/capability-profile/components/capability-profile-panel";
 import { DevelopmentResourceFailureProofControl } from "@mobile/features/capability-profile/components/development-resource-failure-proof-control";
@@ -82,6 +85,7 @@ import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/ad
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import {
   WatchRoute,
+  type WatchCaptionSession,
   type WatchDownloadSession,
 } from "@mobile/features/watch/components/watch-route";
 import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
@@ -169,6 +173,7 @@ export function AppShell({
   onDisableKickDevelopmentFixture,
   homeDiscovery,
   mediaJobs,
+  captions,
   searchHistory,
   discoveryPreferences,
   followingSession,
@@ -213,6 +218,7 @@ export function AppShell({
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: DiscoverySession;
   readonly mediaJobs: MediaJobWorkflow;
+  readonly captions: LocalCaptionsPort;
   readonly searchHistory: SearchHistoryRepository;
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
@@ -263,6 +269,7 @@ export function AppShell({
     selectedJobId,
     workflow: mediaJobs,
   });
+  const captionsController = useLocalCaptionsController({ port: captions });
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const keyboardInset = useKeyboardInset();
@@ -379,6 +386,7 @@ export function AppShell({
               }
               homeDiscovery={homeDiscovery}
               mediaJobsController={mediaJobsController}
+              captionsController={captionsController}
               searchHistory={searchHistory}
               discoveryPreferences={discoveryPreferences}
               followingSession={followingSession}
@@ -566,6 +574,7 @@ function ShellScreen({
   onDisableKickDevelopmentFixture,
   homeDiscovery,
   mediaJobsController,
+  captionsController,
   searchHistory,
   discoveryPreferences,
   followingSession,
@@ -610,6 +619,7 @@ function ShellScreen({
   readonly onDisableKickDevelopmentFixture?: (() => void) | undefined;
   readonly homeDiscovery: DiscoverySession;
   readonly mediaJobsController: ReturnType<typeof useMediaJobsController>;
+  readonly captionsController: ReturnType<typeof useLocalCaptionsController>;
   readonly searchHistory: SearchHistoryRepository;
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
@@ -670,6 +680,7 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
+          captions={watchCaptionSession(captionsController)}
           download={mediaJobSession}
           recording={mediaJobSession}
           onAddToMultistream={addLiveToMultistream}
@@ -1074,6 +1085,7 @@ function ShellScreen({
                 );
               }}
             />
+            <LocalCaptionsDiagnosticsHost controller={captionsController} />
             <CapabilityProfilePanel
               model={capabilityProfile}
               onRetry={onRetryCapabilityProfile}
@@ -1278,6 +1290,30 @@ function RootPreviewAction({
       />
     </Pressable>
   );
+}
+
+function watchCaptionSession(
+  controller: ReturnType<typeof useLocalCaptionsController>,
+): WatchCaptionSession {
+  return {
+    busy: controller.model.busy,
+    cueText: controller.model.cueText,
+    model: controller.model.model,
+    session: controller.model.session,
+    status: controller.model.status,
+    onInstall: () => {
+      void controller.installFixture();
+    },
+    onRemove: () => {
+      void controller.removeModel();
+    },
+    onStart: (sessionId) => {
+      void controller.startSession(sessionId);
+    },
+    onStop: (sessionId) => {
+      void controller.stopSession(sessionId);
+    },
+  };
 }
 
 function watchMediaJobSession(

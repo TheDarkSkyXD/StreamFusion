@@ -24,6 +24,7 @@ const publicSubpaths = [
   "reliability",
   "relay",
   "media-jobs",
+  "local-captions",
   "testing",
 ];
 

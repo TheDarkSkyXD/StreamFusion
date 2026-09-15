@@ -19,6 +19,7 @@ const publicSubpaths = [
   "reliability",
   "relay",
   "media-jobs",
+  "local-captions",
 ];
 const coreElements = [
   "core-foundation",

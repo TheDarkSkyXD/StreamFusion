@@ -61,8 +61,16 @@ export interface ExpoMediaJobsBinding {
 }
 
 export interface ExpoCaptionsBinding {
+  readonly addListener?: (
+    eventName: string,
+    listener: (event: unknown) => void,
+  ) => { readonly remove: () => void };
+  readonly clearDevelopmentCaptionConstraint: () => Promise<unknown>;
+  readonly getCaptionProof: () => Promise<unknown>;
   readonly getContractVersion: () => number;
+  readonly getEnglishModelState: () => Promise<unknown>;
   readonly installEnglishModel: (request: CaptionModelRequest) => Promise<unknown>;
+  readonly queueDevelopmentCaptionConstraint: () => Promise<unknown>;
   readonly removeEnglishModel: (request: CaptionModelRequest) => Promise<unknown>;
   readonly startFocusedCaptionSession: (
     request: CaptionSessionRequest,

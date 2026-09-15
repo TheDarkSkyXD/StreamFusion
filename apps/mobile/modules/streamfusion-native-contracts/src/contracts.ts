@@ -36,7 +36,11 @@ interface NativeMediaJobsModule {
 
 interface NativeCaptionsModule {
   getContractVersion(): number;
+  clearDevelopmentCaptionConstraint(): Promise<unknown>;
+  getCaptionProof(): Promise<unknown>;
+  getEnglishModelState(): Promise<unknown>;
   installEnglishModel(request: unknown): Promise<unknown>;
+  queueDevelopmentCaptionConstraint(): Promise<unknown>;
   removeEnglishModel(request: unknown): Promise<unknown>;
   startFocusedCaptionSession(request: unknown): Promise<unknown>;
   stopFocusedCaptionSession(sessionId: unknown): Promise<unknown>;

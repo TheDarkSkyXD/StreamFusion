@@ -36,6 +36,8 @@ const modules = [
       "startFocusedCaptionSession",
       "stopFocusedCaptionSession",
       "removeEnglishModel",
+      "getEnglishModelState",
+      "getCaptionProof",
     ],
   ],
   [
@@ -123,7 +125,9 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
         className === "Playback" ||
         className === "MediaJobs"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
-        : /Function\("getContractVersion"\) \{ 1 \}/u,
+        : className === "Captions"
+          ? /Function\("getContractVersion"\) \{ 2 \}/u
+          : /Function\("getContractVersion"\) \{ 1 \}/u,
     );
     if (className === "Diagnostics") {
       assert.match(source, /ActivityManager\.MemoryInfo/u);
@@ -139,6 +143,19 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
       assert.match(source, /exportRecoverableJob/u);
       assert.match(source, /openRecoverableJob/u);
       assert.match(source, /ACTION_CREATE_DOCUMENT/u);
+    } else if (className === "Captions") {
+      assert.doesNotMatch(source, /NATIVE_OPERATION_UNSUPPORTED/u);
+      assert.match(source, /getCaptionProof/u);
+      assert.match(source, /queueDevelopmentCaptionConstraint/u);
+      const store = readFileSync(path.join(kotlinRoot, "CaptionModelStore.kt"), "utf8");
+      const catalog = readFileSync(path.join(kotlinRoot, "CaptionCatalog.kt"), "utf8");
+      const owner = readFileSync(path.join(kotlinRoot, "CaptionSessionOwner.kt"), "utf8");
+      const tap = readFileSync(path.join(kotlinRoot, "CaptionPcmTap.kt"), "utf8");
+      assert.match(catalog, /43\.11 MiB/u);
+      assert.match(store, /sha256/u);
+      assert.match(owner, /ONE_SESSION/u);
+      assert.match(owner, /audioUploadAttempts/u);
+      assert.match(tap, /TeeAudioProcessor/u);
     } else if (className === "Playback") {
       assert.match(source, /FocusedPlaybackSessionOwner/u);
       assert.match(source, /enterPictureInPicture/u);

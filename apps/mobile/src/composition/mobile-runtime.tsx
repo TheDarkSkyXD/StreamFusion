@@ -18,6 +18,7 @@ import { useInstallationPolicyController } from "@mobile/features/installation-p
 import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
 import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
 import { createMediaJobsRuntime } from "@mobile/features/media-jobs/composition/media-jobs-runtime";
+import { createLocalCaptionsRuntime } from "@mobile/features/local-captions/composition/local-captions-runtime";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
 import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/expo-secure-random-source";
 import { createExpoSecureSecretStore } from "@mobile/features/storage/adapters/expo-secure-secret-store";
@@ -118,6 +119,9 @@ const mediaJobs = createMediaJobsRuntime({
   activity: persistenceRuntime.productState.activity,
   native: androidCapabilityRuntime.contracts.mediaJobs,
   product: persistenceRuntime.productState.mediaJobs,
+});
+const captions = createLocalCaptionsRuntime({
+  native: androidCapabilityRuntime.contracts.captions,
 });
 
 const installationPolicyRuntime = createInstallationPolicyRuntime({
@@ -448,6 +452,7 @@ export function MobileRuntime() {
       }
       homeDiscovery={homeDiscovery}
       mediaJobs={mediaJobs}
+      captions={captions}
       searchHistory={searchHistory}
       discoveryPreferences={discoveryPreferences}
       followingSession={followingSession}

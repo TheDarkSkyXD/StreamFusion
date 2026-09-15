@@ -239,27 +239,70 @@ export interface AndroidMediaJobsContractPort extends AndroidCapabilityContractP
 
 export interface CaptionModelRequest {
   readonly modelId: "english-v1";
+  readonly sourceUri?: string;
 }
 
+export type CaptionModelPhase =
+  | "not-installed"
+  | "downloading"
+  | "verifying"
+  | "ready"
+  | "integrity-error"
+  | "constrained";
+
 export interface CaptionModelState {
+  readonly audioUploadAttempts: number;
+  readonly displaySize: string;
+  readonly downloadedBytes: number;
+  readonly expectedBytes: number;
   readonly installed: boolean;
+  readonly languageLabel: string;
+  readonly license: string;
   readonly modelId: "english-v1";
+  readonly pack: "fixture" | "none" | "product";
+  readonly phase: CaptionModelPhase;
+  readonly sha256Verified: boolean;
+  readonly statusMessage: string;
+  readonly error?: string;
 }
 
 export interface CaptionSessionRequest {
   readonly modelId: "english-v1";
   readonly sessionId: string;
+  readonly sourceUri?: string;
 }
+
+export type CaptionSessionPhase = "active" | "stopped" | "rejected";
 
 export interface CaptionSessionState {
+  readonly audioLeftDevice: boolean;
+  readonly audioUploadAttempts: number;
+  readonly cueText: string;
+  readonly microphonePermissionRequested: boolean;
+  readonly pcmBytesProcessed: number;
   readonly sessionId: string;
-  readonly state: "active" | "stopped";
+  readonly state: CaptionSessionPhase;
+  readonly reason?: string;
 }
 
+export interface CaptionProofState extends CaptionModelState, CaptionSessionState {}
+
+export type NativeCaptionEvent =
+  | ({ readonly kind: "cue" } & CaptionSessionState)
+  | ({ readonly kind: "state" } & CaptionSessionState);
+
 export interface AndroidCaptionsContractPort extends AndroidCapabilityContractPort {
+  clearDevelopmentCaptionConstraint(): Promise<
+    AndroidNativeOperationResult<CaptionModelState>
+  >;
+  getCaptionProof(): Promise<AndroidNativeOperationResult<CaptionProofState>>;
+  getEnglishModelState(): Promise<AndroidNativeOperationResult<CaptionModelState>>;
   installEnglishModel(
     request: CaptionModelRequest,
   ): Promise<AndroidNativeOperationResult<CaptionModelState>>;
+  queueDevelopmentCaptionConstraint(): Promise<
+    AndroidNativeOperationResult<CaptionModelState>
+  >;
   removeEnglishModel(
     request: CaptionModelRequest,
   ): Promise<AndroidNativeOperationResult<CaptionModelState>>;
@@ -269,6 +312,7 @@ export interface AndroidCaptionsContractPort extends AndroidCapabilityContractPo
   stopFocusedCaptionSession(
     sessionId: string,
   ): Promise<AndroidNativeOperationResult<CaptionSessionState>>;
+  subscribe(listener: (event: NativeCaptionEvent) => void): () => void;
 }
 
 export type AndroidExecutionEnvironment = "emulator" | "physical" | "unknown";

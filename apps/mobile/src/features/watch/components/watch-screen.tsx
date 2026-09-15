@@ -29,6 +29,8 @@ import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
 import { PlayerControls } from "./player-controls";
+import { WatchCaptionBar, type WatchCaptionBarProps } from "./watch-caption-bar";
+import { WatchCaptionOverlay } from "./watch-caption-overlay";
 import { WatchDownloadBar } from "./watch-download-bar";
 import { WatchRecordingBar } from "./watch-recording-bar";
 import { WatchTabs } from "./watch-tabs";
@@ -48,6 +50,10 @@ export type WatchScreenRuntime = {
   readonly runtime: WatchRuntime;
 };
 
+export type WatchCaptionControls = WatchCaptionBarProps & {
+  readonly cueText: string;
+};
+
 export type WatchMediaJobControls<Eligibility> = {
   readonly busy: boolean;
   readonly eligibility: Eligibility;
@@ -63,6 +69,7 @@ export type WatchMediaJobControls<Eligibility> = {
 export function WatchScreen({
   PlayerSurface,
   adblockView,
+  captions,
   chat,
   download,
   recording,
@@ -87,6 +94,7 @@ export function WatchScreen({
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly adblockView?: AdBlockView | null;
+  readonly captions?: WatchCaptionControls;
   readonly chat: WatchChatAvailability;
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
@@ -165,6 +173,9 @@ export function WatchScreen({
             seekable={peek.progress.seekable}
           />
         ) : null}
+        {pipSurface ? null : (
+          <WatchCaptionOverlay text={captions?.cueText ?? ""} />
+        )}
       </View>
       {pipSurface ? null : (
         <>
@@ -182,6 +193,7 @@ export function WatchScreen({
           ) : null}
           {download ? <WatchDownloadBar {...download} /> : null}
           {recording ? <WatchRecordingBar {...recording} /> : null}
+          {captions ? <WatchCaptionBar {...captions} /> : null}
           {showsProvider(playback) ? (
             <Action
               label="Open provider page"
