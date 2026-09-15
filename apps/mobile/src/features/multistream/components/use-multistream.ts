@@ -32,6 +32,7 @@ export function useMultistream(input: {
   readonly playback: MultistreamPlayback;
   readonly profile: CapabilityProfile | null;
   readonly repository: MultistreamRepository;
+  readonly slotCap?: number;
   readonly stage: RuntimeDegradationStage;
   readonly windowWidth: number;
 }) {
@@ -82,7 +83,12 @@ export function useMultistream(input: {
 
   return {
     add: async (source: AddMultistreamSource) => {
-      const result = addMultistreamSlot(layout, slotFromAddSource(source), now());
+      const result = addMultistreamSlot(
+        layout,
+        slotFromAddSource(source),
+        now(),
+        input.slotCap,
+      );
       if (result.kind === "applied") await persist(result.layout);
       return result;
     },

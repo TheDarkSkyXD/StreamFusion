@@ -37,4 +37,8 @@ describe("Watch caption eligibility", () => {
     expect(watchCaptionEligibility(video)).toEqual({ kind: "hidden" });
     expect(watchCaptionSessionId(video)).toBeNull();
   });
+
+  it("hides live captions when Settings turns them off", () => {
+    expect(watchCaptionEligibility(live, false)).toEqual({ kind: "hidden" });
+  });
 });

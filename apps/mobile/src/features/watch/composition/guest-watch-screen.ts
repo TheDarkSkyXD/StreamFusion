@@ -1,4 +1,6 @@
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
+import { playbackSessionPolicy } from "@mobile/features/settings/domain/settings-view";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
@@ -27,10 +29,12 @@ export function createGuestWatchScreen(input: {
   readonly history: WatchHistoryRepository;
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
+  readonly playbackSettings?: SettingsSession;
   readonly policyStore: VerifiedPolicyStore;
   readonly sessionIds: WatchSessionIdSource;
 }): WatchScreenRuntime {
   const filtering = input.filtering;
+  const playbackSettings = input.playbackSettings;
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     history: input.history,
@@ -38,6 +42,13 @@ export function createGuestWatchScreen(input: {
     PlayerSurface: AndroidMedia3PlayerSurface,
     runtime: createWatchRuntime({
       ...(filtering === undefined ? {} : { filtering }),
+      ...(playbackSettings === undefined
+        ? {}
+        : {
+            playbackSettings: {
+              snapshot: () => playbackSessionPolicy(playbackSettings.snapshot()),
+            },
+          }),
       inspection: createDiscoveryWatchInspectionReader(input.discovery),
       playback: createAndroidFocusedPlaybackPort(input.playback),
       policy: createPlaybackCompatibilityPolicy(

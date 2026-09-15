@@ -1,4 +1,5 @@
 import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type { RuntimeDegradationStage } from "@mobile/features/capability-profile/domain/capability-profile";
 import type {
   FocusedPlaybackPort,
@@ -46,6 +47,7 @@ const NO_PROTECTION = {
 export function createMultistreamPlayback(input: {
   readonly filtering?: PlaybackFiltering;
   readonly playback: FocusedPlaybackPort;
+  readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
   readonly policy: PlaybackCompatibilityPolicy;
   readonly sources: LivePlaybackSources;
 }): MultistreamPlayback {
@@ -86,6 +88,9 @@ export function createMultistreamPlayback(input: {
       ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
       generation: () => generation,
       playback: input.playback,
+      ...(input.playbackSettings === undefined
+        ? {}
+        : { playbackSettings: input.playbackSettings }),
       policy: input.policy,
       protection: NO_PROTECTION,
       sessionIds: { create: () => multistreamSessionId(slotId) },
@@ -124,9 +129,12 @@ export function createMultistreamPlayback(input: {
         const lowerQuality =
           stage >= 2 && projected.layout.focusedSlotId !== id;
         await input.playback.setPlaying(sessionId, !pauseNonfocused);
+        const prefs = input.playbackSettings?.snapshot();
+        const focusedQuality = prefs?.quality ?? "auto";
+        const backgroundQuality = prefs?.backgroundQuality ?? "360p";
         await input.playback.setQuality(
           sessionId,
-          lowerQuality ? "360p" : "auto",
+          lowerQuality ? backgroundQuality : focusedQuality,
         );
       }),
     );

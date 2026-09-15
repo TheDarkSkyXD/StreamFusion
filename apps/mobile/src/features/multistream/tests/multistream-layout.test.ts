@@ -107,6 +107,15 @@ describe("multistream layout", () => {
     ).toBe("rejected");
   });
 
+  it("honors a Settings slot cap below the hard maximum", () => {
+    const first = addMultistreamSlot(emptyMultistreamLayout(), twitch, 1, 1);
+    expect(first.kind).toBe("applied");
+    if (first.kind !== "applied") return;
+    expect(
+      addMultistreamSlot(first.layout, kick, 2, 1).kind,
+    ).toBe("rejected");
+  });
+
   it("reorders, focuses, and moves audio ownership only for active slots", () => {
     const withTwitch = addMultistreamSlot(emptyMultistreamLayout(), twitch, 1);
     const withKick =

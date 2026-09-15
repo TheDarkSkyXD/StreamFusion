@@ -1,4 +1,5 @@
 import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
   FocusedPlaybackPort,
   FocusedPlaybackProtectionPort,
@@ -35,6 +36,7 @@ type FocusedWatchStartInput = {
   readonly filtering?: PlaybackFiltering;
   readonly generation: () => number;
   readonly playback: FocusedPlaybackPort;
+  readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
   readonly recorded?: RecordedPlaybackSources;
@@ -108,8 +110,20 @@ async function startAuthorizedSession(
     controller.abort();
     return { kind: "cancelled" };
   }
+  const settings = input.playbackSettings?.snapshot();
   const started = await input.playback.start({
     ...(filtering === undefined ? {} : { filtering }),
+    ...(settings === undefined
+      ? {}
+      : {
+          allowHevc: settings.allowHevc,
+          buffer: {
+            liveSyncDurationCount: settings.liveSyncDurationCount,
+            lowLatencyMode: settings.lowLatencyMode,
+            maxBufferLengthSec: settings.forwardBufferSec,
+            maxMaxBufferLengthSec: settings.maxBufferSec,
+          },
+        }),
     requestHeaders: resolved.requestHeaders,
     sessionId,
     sourceUri: resolved.sourceUri,
@@ -120,6 +134,9 @@ async function startAuthorizedSession(
   }
   if (started.kind === "unavailable") {
     return nativeUnavailable(integration, input.target.platform, started.failure.detail);
+  }
+  if (settings && settings.quality !== "auto") {
+    await input.playback.setQuality(sessionId, settings.quality);
   }
   return {
     integration,

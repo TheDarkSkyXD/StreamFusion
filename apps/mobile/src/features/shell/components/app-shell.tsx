@@ -83,6 +83,10 @@ import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/comp
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
 import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/adblock-settings-panel";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
+import { SettingsWorkspace } from "@mobile/features/settings/components/settings-workspace";
+import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
+import type { ProductPreferences } from "@streamfusion/core/settings";
 import {
   WatchRoute,
   type WatchCaptionSession,
@@ -179,6 +183,7 @@ export function AppShell({
   followingSession,
   connectivitySession,
   adblockSession,
+  settingsSession,
   watch,
   multistream,
 }: {
@@ -224,6 +229,7 @@ export function AppShell({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
+  readonly settingsSession: SettingsSession;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
 }) {
@@ -237,9 +243,12 @@ export function AppShell({
     epoch: activityRepositoryEpoch,
     repository: activityRepository,
   });
+  const settings = useSettingsSession(settingsSession);
   const lifecycle = useShellLifecycleController({
     appLinks,
     restoration: shellRestoration,
+    restoreSession: settings.view.preferences.restoreSession,
+    settingsReady: settings.ready,
   });
   const { dispatch, state: navigation } = lifecycle;
   const location = getActiveShellLocation(navigation);
@@ -392,6 +401,9 @@ export function AppShell({
               followingSession={followingSession}
               connectivitySession={connectivitySession}
               adblockSession={adblockSession}
+              playerPrefs={settings.view.preferences}
+              settingsSession={settingsSession}
+              slotCap={settings.view.preferences.multiviewCap}
               watch={watch}
               multistream={multistream}
             />
@@ -580,6 +592,9 @@ function ShellScreen({
   followingSession,
   connectivitySession,
   adblockSession,
+  playerPrefs,
+  settingsSession,
+  slotCap,
   watch,
   multistream,
 }: {
@@ -625,6 +640,9 @@ function ShellScreen({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
+  readonly playerPrefs: ProductPreferences;
+  readonly settingsSession: SettingsSession;
+  readonly slotCap: number;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
 }) {
@@ -655,6 +673,7 @@ function ShellScreen({
         current,
         slotFromAddSource({ kind: "live", target }),
         Date.now(),
+        slotCap,
       );
       if (result.kind === "applied") {
         await multistream.repository.write(result.layout);
@@ -691,6 +710,7 @@ function ShellScreen({
               platform: stream.platform,
             })
           }
+          playerPrefs={playerPrefs}
           screen={watch}
           target={target}
         />
@@ -929,6 +949,7 @@ function ShellScreen({
           PlayerSurface={multistream.PlayerSurface}
           profile={capabilityProfile.profile}
           repository={multistream.repository}
+          slotCap={slotCap}
           stage={capabilityProfile.projection?.stage ?? 0}
         />
       </View>
@@ -970,19 +991,16 @@ function ShellScreen({
 
   if (location.route === "more/settings") {
     return (
-      <ScrollView
-        contentContainerStyle={styles.screenContent}
-        contentInsetAdjustmentBehavior="automatic"
-        keyboardShouldPersistTaps="handled"
-        ref={scrollView}
-        style={styles.screenScroll}
-        testID="screen-more-settings"
-      >
-        <View style={styles.contentColumn} testID="screen-settings-adblock">
-          <ProxySettingsPanel session={connectivitySession} />
-          <AdBlockSettingsPanel session={adblockSession} />
-        </View>
-      </ScrollView>
+      <View style={styles.activityWorkspace} testID="screen-more-settings-root">
+        <SettingsWorkspace session={settingsSession}>
+          <View testID="screen-settings-proxy">
+            <ProxySettingsPanel session={connectivitySession} />
+          </View>
+          <View testID="screen-settings-adblock">
+            <AdBlockSettingsPanel session={adblockSession} />
+          </View>
+        </SettingsWorkspace>
+      </View>
     );
   }
 

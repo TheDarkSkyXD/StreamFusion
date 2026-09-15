@@ -82,6 +82,8 @@ export function useShellLifecycleController(options: {
   readonly appLinks: AppLinkSource;
   readonly restoration: ShellRestorationRepository;
   readonly now?: () => number;
+  readonly restoreSession?: boolean;
+  readonly settingsReady?: boolean;
 }): {
   readonly dispatch: (action: ShellNavigationAction) => void;
   readonly state: ShellNavigationState;
@@ -95,6 +97,9 @@ export function useShellLifecycleController(options: {
   const pendingActions = useRef<ShellNavigationAction[]>([]);
   const pendingIntents = useRef<AppLinkIntent[]>([]);
   const writeChain = useRef(Promise.resolve());
+  const restoreSessionRef = useRef(options.restoreSession);
+  restoreSessionRef.current = options.restoreSession;
+  const settingsReady = options.settingsReady ?? true;
 
   const dispatch = useCallback((action: ShellNavigationAction) => {
     if (!hydrated.current) {
@@ -105,6 +110,7 @@ export function useShellLifecycleController(options: {
   }, []);
 
   useEffect(() => {
+    if (!settingsReady) return;
     let active = true;
     mounted.current = true;
     const unsubscribe = options.appLinks.subscribe((intent) => {
@@ -119,17 +125,19 @@ export function useShellLifecycleController(options: {
       let next = createInitialShellNavigationState();
       let nextStatus: ShellLifecycleStatus = "fresh";
       try {
-        const saved = await options.restoration.read();
-        if (saved) {
-          const restored = restoreShellNavigationState(saved);
-          next = restored.state;
-          nextStatus =
-            restored.kind === "restored"
-              ? "restored"
-              : restored.reason === "corrupt"
-                ? "fallback-corrupt"
-                : "fallback-unsupported";
-          if (restored.kind === "fallback") await options.restoration.clear();
+        if (restoreSessionRef.current !== false) {
+          const saved = await options.restoration.read();
+          if (saved) {
+            const restored = restoreShellNavigationState(saved);
+            next = restored.state;
+            nextStatus =
+              restored.kind === "restored"
+                ? "restored"
+                : restored.reason === "corrupt"
+                  ? "fallback-corrupt"
+                  : "fallback-unsupported";
+            if (restored.kind === "fallback") await options.restoration.clear();
+          }
         }
       } catch {
         nextStatus = "persistence-unavailable";
@@ -155,7 +163,7 @@ export function useShellLifecycleController(options: {
       mounted.current = false;
       unsubscribe();
     };
-  }, [dispatch, options.appLinks, options.restoration]);
+  }, [dispatch, options.appLinks, options.restoration, settingsReady]);
 
   useEffect(() => {
     if (!hydrated.current) return;

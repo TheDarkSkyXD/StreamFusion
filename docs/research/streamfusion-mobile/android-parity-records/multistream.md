@@ -6,8 +6,8 @@
 - Android owner: Mobile `multistream` plus `streamfusion-native-contracts` multi-session ExoPlayer
 - Progress: `implemented`
 - Delivery: `direct`
-- Adaptation: Equivalent Multistream room under More. Android measures active live decoders from hardware and RAM, keeps extra StreamSlots retained, and owns one audio session. Desktop Electron grid slots are not ported. Guest chat and captions stay visible gaps.
-- Freshness: `current` at `verification/evidence/issue-160-multistream.json` on APK `sha256:93fb3c8ba298da84ca804930a37d21d8342353121098f75200db5cf650d576bd`
+- Adaptation: Equivalent Multistream room under More. Android measures active live decoders from hardware and RAM, keeps extra StreamSlots retained, and owns one audio session. Settings `multiviewCap` lowers the configured slot maximum below the hard six. Unfocused slots use Settings background quality instead of a hardcoded 360p. Desktop Electron grid slots are not ported. Guest chat and captions stay visible gaps.
+- Freshness: `current` at `verification/evidence/issue-160-multistream.json`; Settings cap and background quality via `verification/evidence/issue-167-settings.json`
 
 ## Desktop outcome
 

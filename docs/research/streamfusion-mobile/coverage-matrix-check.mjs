@@ -185,6 +185,18 @@ const implemented = new Set([
   "action:audio-owner",
   "action:restore-slot",
   "action:cool-device",
+  "screen:settings",
+  "panel:appearance",
+  "panel:playback",
+  "panel:player-controls",
+  "panel:buffer",
+  "panel:multiview",
+  "screen:settings-appearance",
+  "screen:settings-playback",
+  "screen:settings-player-controls",
+  "screen:settings-buffer",
+  "screen:settings-multiview",
+  "shell-route:more/settings",
 ]);
 
 const partial = new Set([
@@ -201,12 +213,10 @@ const partial = new Set([
   "action:retry-installation-registration",
   "shell-route:more/accounts",
   "shell-route:more/diagnostics",
-  "shell-route:more/settings",
 ]);
 
 const placeholder = new Set([
   "screen:moderation-home",
-  "screen:settings",
   "shell-route:search/result-preview",
   "shell-route:following/channel-preview",
   "shell-route:more/moderation",
@@ -249,7 +259,17 @@ const owners = {
   "panel:proxy": [162],
   "screen:settings-adblock": [161, 169],
   "panel:adblock": [161],
-  "shell-route:more/settings": [162, 169],
+  "panel:appearance": [167],
+  "panel:playback": [167],
+  "panel:player-controls": [167],
+  "panel:buffer": [167],
+  "panel:multiview": [167],
+  "screen:settings-appearance": [167],
+  "screen:settings-playback": [167],
+  "screen:settings-player-controls": [167],
+  "screen:settings-buffer": [167],
+  "screen:settings-multiview": [167],
+  "shell-route:more/settings": [162, 167, 169],
   "tab:search:all": [147, 149],
   "tab:search:channels": [147, 149],
   "tab:search:streams": [147, 149],
@@ -424,6 +444,40 @@ const paths = {
   ],
   "shell-route:more/settings": [
     "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+  ],
+  "screen:settings": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+  ],
+  "panel:appearance": [
+    "apps/mobile/src/features/settings/components/settings-panels.tsx",
+  ],
+  "panel:playback": [
+    "apps/mobile/src/features/settings/components/settings-panels.tsx",
+  ],
+  "panel:player-controls": [
+    "apps/mobile/src/features/settings/components/settings-panels.tsx",
+  ],
+  "panel:buffer": [
+    "apps/mobile/src/features/settings/components/settings-panels.tsx",
+  ],
+  "panel:multiview": [
+    "apps/mobile/src/features/settings/components/settings-panels.tsx",
+  ],
+  "screen:settings-appearance": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+  ],
+  "screen:settings-playback": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+  ],
+  "screen:settings-player-controls": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+  ],
+  "screen:settings-buffer": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+  ],
+  "screen:settings-multiview": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
   ],
   "action:activity-clear-completed": [
     "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts",
@@ -548,14 +602,14 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Settings still lacks the remaining panels after proxy.",
+      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat and later Settings panels remain on M06+.",
     owners: [147, 148, 149, 150, 152, 159, 167],
   },
   {
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics.",
+      "Ten Settings panels and six Diagnostics tabs still lack dedicated Mobile routes after appearance/player Settings. Proxy and adblock stay on Settings. Chat Settings is M06.",
     owners: [143, 167, 170, 171],
   },
   {

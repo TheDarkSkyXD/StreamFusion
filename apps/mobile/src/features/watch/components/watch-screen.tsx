@@ -71,6 +71,7 @@ export function WatchScreen({
   adblockView,
   captions,
   chat,
+  chrome,
   download,
   recording,
   inspection,
@@ -89,6 +90,8 @@ export function WatchScreen({
   onToggleFullscreen,
   peek,
   playback,
+  rewindSeconds,
+  fastForwardSeconds,
   tab,
   target,
 }: {
@@ -96,6 +99,11 @@ export function WatchScreen({
   readonly adblockView?: AdBlockView | null;
   readonly captions?: WatchCaptionControls;
   readonly chat: WatchChatAvailability;
+  readonly chrome?: {
+    readonly showFullscreen: boolean;
+    readonly showQuality: boolean;
+    readonly showVolume: boolean;
+  };
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
@@ -114,6 +122,8 @@ export function WatchScreen({
   readonly onToggleFullscreen?: () => void;
   readonly peek?: WatchPeek;
   readonly playback: FocusedWatchState;
+  readonly rewindSeconds?: number;
+  readonly fastForwardSeconds?: number;
   readonly tab: WatchTab;
   readonly target: WatchTarget;
 }) {
@@ -163,6 +173,9 @@ export function WatchScreen({
             onPip={onPip}
             onPlayPause={onPlayPause}
             onQuality={onQuality}
+            {...(chrome === undefined ? {} : { chrome })}
+            {...(fastForwardSeconds === undefined ? {} : { fastForwardSeconds })}
+            {...(rewindSeconds === undefined ? {} : { rewindSeconds })}
             {...(onSeekBack === undefined ? {} : { onSeekBack })}
             {...(onSeekForward === undefined ? {} : { onSeekForward })}
             paused={peek.state.phase === "paused"}

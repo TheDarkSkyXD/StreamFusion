@@ -57,6 +57,7 @@ import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
+import { createSettingsSession } from "@mobile/features/settings/composition/settings-runtime";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
 import { createGuestMultistreamScreen } from "@mobile/features/multistream/composition/guest-multistream-screen";
@@ -249,6 +250,9 @@ const adblockSession = createAdBlockSession({
   }),
   settings: persistenceRuntime.productState.settings,
 });
+const settingsSession = createSettingsSession({
+  settings: persistenceRuntime.productState.settings,
+});
 const followingSession = createFollowingRuntime({
   cache: persistenceRuntime.disposableCache,
   fetch: connectivitySession.fetch,
@@ -351,6 +355,7 @@ export function MobileRuntime() {
         filtering: adblockSession,
         history: persistenceRuntime.productState.watchHistory,
         playback: androidCapabilityRuntime.contracts.playback,
+        playbackSettings: settingsSession,
         policyStore: installationPolicyRuntime.policyStore,
         sessionIds: { create: secureRandom.uuid },
       }),
@@ -362,6 +367,7 @@ export function MobileRuntime() {
         fetch: connectivitySession.fetch,
         filtering: adblockSession,
         playback: androidCapabilityRuntime.contracts.playback,
+        playbackSettings: settingsSession,
         policyStore: installationPolicyRuntime.policyStore,
         repository: persistenceRuntime.productState.multistream,
       }),
@@ -458,6 +464,7 @@ export function MobileRuntime() {
       followingSession={followingSession}
       connectivitySession={connectivitySession}
       adblockSession={adblockSession}
+      settingsSession={settingsSession}
       watch={watch}
       multistream={multistream}
     />

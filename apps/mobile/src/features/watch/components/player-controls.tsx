@@ -13,6 +13,7 @@ import {
 } from "../domain/player-presentation";
 
 export function PlayerControls({
+  chrome,
   fullscreen,
   muted,
   onFullscreen,
@@ -27,8 +28,16 @@ export function PlayerControls({
   pipPhase,
   progress,
   quality,
+  rewindSeconds = 10,
+  fastForwardSeconds = 10,
   seekable,
 }: {
+  readonly chrome?: {
+    readonly showFullscreen: boolean;
+    readonly showQuality: boolean;
+    readonly showVolume: boolean;
+  };
+  readonly fastForwardSeconds?: number;
   readonly fullscreen: boolean;
   readonly muted: boolean;
   readonly onFullscreen: () => void;
@@ -43,10 +52,14 @@ export function PlayerControls({
   readonly pipPhase: PictureInPicturePhase;
   readonly progress?: { readonly durationMs: number; readonly positionMs: number };
   readonly quality: string;
+  readonly rewindSeconds?: number;
   readonly seekable: boolean;
 }) {
   const pipStatus = pictureInPictureStatusCopy(pipPhase);
   const pipBusy = pipPhase === "requesting" || pipPhase === "active";
+  const showQuality = chrome?.showQuality !== false;
+  const showVolume = chrome?.showVolume !== false;
+  const showFullscreen = chrome?.showFullscreen !== false;
   return (
     <View pointerEvents="box-none" style={styles.overlay}>
       <View style={styles.row}>
@@ -56,23 +69,34 @@ export function PlayerControls({
           testID="player-play-pause"
         />
         {seekable && onSeekBack && onSeekForward ? (
-          <SeekControls onSeekBack={onSeekBack} onSeekForward={onSeekForward} />
+          <SeekControls
+            fastForwardSeconds={fastForwardSeconds}
+            onSeekBack={onSeekBack}
+            onSeekForward={onSeekForward}
+            rewindSeconds={rewindSeconds}
+          />
         ) : null}
-        <Control
-          label={muted ? "Unmute" : "Mute"}
-          onPress={onMute}
-          testID="player-mute"
-        />
-        <Control
-          label={`Quality ${quality}`}
-          onPress={onQuality}
-          testID="player-quality"
-        />
-        <Control
-          label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-          onPress={onFullscreen}
-          testID="player-fullscreen"
-        />
+        {showVolume ? (
+          <Control
+            label={muted ? "Unmute" : "Mute"}
+            onPress={onMute}
+            testID="player-mute"
+          />
+        ) : null}
+        {showQuality ? (
+          <Control
+            label={`Quality ${quality}`}
+            onPress={onQuality}
+            testID="player-quality"
+          />
+        ) : null}
+        {showFullscreen ? (
+          <Control
+            label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+            onPress={onFullscreen}
+            testID="player-fullscreen"
+          />
+        ) : null}
         <Control
           disabled={!pipAvailable || pipBusy}
           label={pipControlLabel(pipAvailable, pipPhase)}
@@ -106,21 +130,25 @@ export function PlayerControls({
 }
 
 function SeekControls({
+  fastForwardSeconds,
   onSeekBack,
   onSeekForward,
+  rewindSeconds,
 }: {
+  readonly fastForwardSeconds: number;
   readonly onSeekBack: () => void;
   readonly onSeekForward: () => void;
+  readonly rewindSeconds: number;
 }) {
   return (
     <>
       <Control
-        label="Back 10 seconds"
+        label={`Back ${rewindSeconds} seconds`}
         onPress={onSeekBack}
         testID="player-seek-back"
       />
       <Control
-        label="Forward 10 seconds"
+        label={`Forward ${fastForwardSeconds} seconds`}
         onPress={onSeekForward}
         testID="player-seek-forward"
       />

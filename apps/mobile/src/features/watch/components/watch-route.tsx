@@ -11,6 +11,7 @@ import type {
 
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
 import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { ProductPreferences } from "@streamfusion/core/settings";
 import type {
   FocusedWatchSession,
   WatchPeek,
@@ -77,6 +78,7 @@ export function WatchRoute({
   recording,
   onAddToMultistream,
   onOpenRelated,
+  playerPrefs,
   screen,
   target,
 }: {
@@ -85,6 +87,7 @@ export function WatchRoute({
   readonly recording?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
+  readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget | null;
 }) {
@@ -101,6 +104,7 @@ export function WatchRoute({
       {...(download === undefined ? {} : { download })}
       {...(recording === undefined ? {} : { recording })}
       {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
+      {...(playerPrefs === undefined ? {} : { playerPrefs })}
     />
   );
 }
@@ -111,6 +115,7 @@ function WatchSessionRoute({
   recording,
   onAddToMultistream,
   onOpenRelated,
+  playerPrefs,
   screen,
   target,
 }: {
@@ -119,6 +124,7 @@ function WatchSessionRoute({
   readonly recording?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
+  readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget;
 }) {
@@ -131,7 +137,12 @@ function WatchSessionRoute({
   const peek = useWatchPeek(session);
   const eligibility = watchDownloadEligibility(target);
   const recordingEligibility = watchRecordingEligibility(target);
-  const captionEligibility = watchCaptionEligibility(target);
+  const captionEligibility = watchCaptionEligibility(
+    target,
+    playerPrefs?.captionsEnabled ?? true,
+  );
+  const rewindMs = (playerPrefs?.rewindSeconds ?? 10) * 1_000;
+  const forwardMs = (playerPrefs?.fastForwardSeconds ?? 10) * 1_000;
   const downloadJob = jobForEligibility(download?.jobs, eligibility);
   const recordingJob = jobForEligibility(recording?.jobs, recordingEligibility);
   const inspection = useQuery({
@@ -189,8 +200,8 @@ function WatchSessionRoute({
       onRetry={() => {
         void session.start(target);
       }}
-      onSeekBack={() => seekWatchSession(session, peek, -10_000)}
-      onSeekForward={() => seekWatchSession(session, peek, 10_000)}
+      onSeekBack={() => seekWatchSession(session, peek, -rewindMs)}
+      onSeekForward={() => seekWatchSession(session, peek, forwardMs)}
       onSelectTab={setTab}
       onStart={() => {
         void startWatchThenResume(session, target);
@@ -206,6 +217,17 @@ function WatchSessionRoute({
       playback={playback}
       tab={tab}
       target={target}
+      {...(playerPrefs === undefined
+        ? {}
+        : {
+            chrome: {
+              showFullscreen: playerPrefs.showFullscreen,
+              showQuality: playerPrefs.showQuality,
+              showVolume: playerPrefs.showVolume,
+            },
+            fastForwardSeconds: playerPrefs.fastForwardSeconds,
+            rewindSeconds: playerPrefs.rewindSeconds,
+          })}
       {...(download === undefined
         ? {}
         : {

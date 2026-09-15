@@ -298,6 +298,13 @@ export interface FocusedPlaybackPort {
     volume: number,
   ): Promise<FocusedPlaybackControlResult>;
   start(input: {
+    readonly allowHevc?: boolean;
+    readonly buffer?: {
+      readonly liveSyncDurationCount: number;
+      readonly lowLatencyMode: boolean;
+      readonly maxBufferLengthSec: number;
+      readonly maxMaxBufferLengthSec: number;
+    };
     readonly filtering?: PlaybackFilterRequest;
     readonly requestHeaders: Readonly<Record<string, string>>;
     readonly sessionId: string;

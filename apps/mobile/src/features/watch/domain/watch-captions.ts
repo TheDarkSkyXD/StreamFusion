@@ -11,8 +11,9 @@ export type WatchCaptionEligibility =
 
 export function watchCaptionEligibility(
   target: WatchTarget,
+  captionsEnabled = true,
 ): WatchCaptionEligibility {
-  if (target.media) return { kind: "hidden" };
+  if (!captionsEnabled || target.media) return { kind: "hidden" };
   const sessionId = captionSessionId(target.platform, target.channelId);
   if (!sessionId) {
     return {

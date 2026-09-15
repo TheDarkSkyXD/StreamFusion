@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 75 |
-| Partial | 14 |
-| Placeholder | 5 |
-| Missing | 91 |
+| Implemented | 87 |
+| Partial | 13 |
+| Placeholder | 4 |
+| Missing | 81 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -46,15 +46,15 @@ Missing means no route or control exists yet.
 | `screen:activity` | implemented | #141, #151, #163, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `screen:moderation-home` | placeholder | #159, #168 | — | missing |
 | `screen:moderation` | missing | #159, #168 | — | missing |
-| `screen:settings` | placeholder | #167, #168, #170 | — | missing |
+| `screen:settings` | implemented | #167, #168, #170 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `screen:accounts` | partial | #135, #145, #146, #151 | apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx | missing |
 | `screen:system` | partial | #143, #170, #171 | apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx | missing |
 | `screen:more` | implemented | #139, #141 | apps/mobile/src/features/shell/components/app-shell.tsx | tests |
-| `screen:settings-appearance` | missing | — | — | missing |
-| `screen:settings-playback` | missing | — | — | missing |
-| `screen:settings-player-controls` | missing | — | — | missing |
-| `screen:settings-buffer` | missing | — | — | missing |
-| `screen:settings-multiview` | missing | — | — | missing |
+| `screen:settings-appearance` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
+| `screen:settings-playback` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
+| `screen:settings-player-controls` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
+| `screen:settings-buffer` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
+| `screen:settings-multiview` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `screen:settings-notifications` | missing | — | — | missing |
 | `screen:settings-chat` | missing | — | — | missing |
 | `screen:settings-predictions` | missing | — | — | missing |
@@ -67,11 +67,11 @@ Missing means no route or control exists yet.
 | `screen:settings-logs` | missing | — | — | missing |
 | `screen:settings-report-bug` | missing | — | — | missing |
 | `screen:settings-about` | missing | — | — | missing |
-| `panel:appearance` | missing | — | — | missing |
-| `panel:playback` | missing | — | — | missing |
-| `panel:player-controls` | missing | — | — | missing |
-| `panel:buffer` | missing | — | — | missing |
-| `panel:multiview` | missing | — | — | missing |
+| `panel:appearance` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
+| `panel:playback` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
+| `panel:player-controls` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
+| `panel:buffer` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
+| `panel:multiview` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
 | `panel:notifications` | missing | — | — | missing |
 | `panel:chat` | missing | — | — | missing |
 | `panel:predictions` | missing | — | — | missing |
@@ -214,7 +214,7 @@ Missing means no route or control exists yet.
 | `shell-route:more/multistream` | implemented | #160 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/multistream/components/multistream-screen.tsx | tests |
 | `shell-route:more/history` | implemented | #155 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
-| `shell-route:more/settings` | partial | #162, #169 | apps/mobile/src/features/shell/components/app-shell.tsx | missing |
+| `shell-route:more/settings` | implemented | #162, #167, #169 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `shell-route:more/diagnostics` | partial | — | — | missing |
 | `shell-route:more/accounts` | partial | — | — | missing |
 | `shell-route:more/category-detail` | implemented | — | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
@@ -224,8 +224,8 @@ Missing means no route or control exists yet.
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #159, #167 |
-| `GAP-195-03` | owned-elsewhere | Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics. | #143, #167, #170, #171 |
+| `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat and later Settings panels remain on M06+. | #147, #148, #149, #150, #152, #159, #167 |
+| `GAP-195-03` | owned-elsewhere | Ten Settings panels and six Diagnostics tabs still lack dedicated Mobile routes after appearance/player Settings. Proxy and adblock stay on Settings. Chat Settings is M06. | #143, #167, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest and account notification delivery and FCM remain absent. Media Jobs now project local Activity rows. Activity is still a local inbox. | #151, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 

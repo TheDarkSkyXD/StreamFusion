@@ -1,4 +1,5 @@
 import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
   FocusedPlaybackPort,
   FocusedPlaybackProtectionPort,
@@ -56,6 +57,7 @@ export function createFocusedWatchSession(input: {
     effective(platform: WatchTarget["platform"]): Promise<PlaybackFilterRequest>;
   };
   readonly playback: FocusedPlaybackPort;
+  readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
   readonly recorded?: RecordedPlaybackSources;
@@ -290,6 +292,9 @@ export function createFocusedWatchSession(input: {
         sources: input.sources,
         target,
         ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
+        ...(input.playbackSettings === undefined
+          ? {}
+          : { playbackSettings: input.playbackSettings }),
         ...(input.recorded === undefined ? {} : { recorded: input.recorded }),
       });
       if (outcome.kind === "cancelled") return { kind: "cancelled" };

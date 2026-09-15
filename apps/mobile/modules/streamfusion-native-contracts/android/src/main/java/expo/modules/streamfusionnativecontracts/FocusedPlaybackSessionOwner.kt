@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -86,13 +85,14 @@ object FocusedPlaybackSessionOwner {
     val exo = ExoPlayer.Builder(context.applicationContext)
       .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
       .setRenderersFactory(captionRenderers(context.applicationContext))
+      .setLoadControl(PlaybackPreferenceConfig.loadControl(request))
+      .setTrackSelector(
+        PlaybackPreferenceConfig.trackSelector(context.applicationContext, request),
+      )
       .build()
     exo.addListener(SessionListener(sessionId))
     exo.setMediaItem(
-      MediaItem.Builder()
-        .setUri(sourceUri)
-        .setMimeType(mimeType(sourceUri))
-        .build(),
+      PlaybackPreferenceConfig.mediaItem(sourceUri, mimeType(sourceUri), request),
     )
     val previous = synchronized(lock) {
       applicationContext = context.applicationContext

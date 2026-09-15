@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "issue": 167,
+  "ticketId": "M05",
+  "observedAt": "2026-09-15T09:35:22.517Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M05 searchable Appearance and player Settings. Durable theme, captions, buffer, and multiview cap apply to live Watch and Multistream."
+  },
+  "candidate": {
+    "apkSha256": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+    "provenance": "API 30 development client. Metro JS from the W02 worktree. Guest signed-out. Appearance.setColorScheme plus StatusBar.setBarStyle. Buffer and HEVC map into ExoPlayer LoadControl."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "More Settings exposes Appearance, Playback, Player controls, Buffer, Multiview, Proxy, and Adblock.",
+        "Theme light persisted after process death. Captions toggle is a switch with assigned testID."
+      ]
+    },
+    "api30-journey": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 opened More Settings, searched, changed theme, and restored the workspace after force-stop."
+      ]
+    },
+    "local-search": {
+      "result": "pass",
+      "observations": [
+        "Search buffer hid the Appearance panel and kept Buffer visible."
+      ]
+    },
+    "process-death": {
+      "result": "pass",
+      "observations": [
+        "Force-stop then relaunch still showed Selected light."
+      ]
+    },
+    "font-scale": {
+      "result": "pass",
+      "observations": [
+        "system font_scale 1.3 still showed Settings controls, then restored to 1.0."
+      ]
+    },
+    "accessibility": {
+      "result": "pass",
+      "observations": [
+        "Theme light exposes an accessibility name. TalkBack was not enabled; labeled native controls were dumped."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-167/01-settings.png",
+      "sha256": "sha256:22d9539a9276e84a25f3f709b61a40bd7ddeb7a5008a94cb6e3b983300adf2dc",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "01-settings"
+    },
+    {
+      "path": "verification/evidence/issue-167/02-search.png",
+      "sha256": "sha256:1554679959d1cde9b2438b88cf002916f76958d170ffda38e85c292b41d3e7cc",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "02-search"
+    },
+    {
+      "path": "verification/evidence/issue-167/03-theme-light.png",
+      "sha256": "sha256:dd08cbcbdc0b68cff6e1b30eb16d03c9f86a2458ea689408a9d0a44b1a209675",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "03-theme-light"
+    },
+    {
+      "path": "verification/evidence/issue-167/04-captions-off.png",
+      "sha256": "sha256:42c3568af893ae4cf1b916896124cc91c9188b78f4ba4cce82be2861061f4867",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "04-captions-off"
+    },
+    {
+      "path": "verification/evidence/issue-167/05-font-scale.png",
+      "sha256": "sha256:42c3568af893ae4cf1b916896124cc91c9188b78f4ba4cce82be2861061f4867",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "05-font-scale"
+    },
+    {
+      "path": "verification/evidence/issue-167/06-accessibility.png",
+      "sha256": "sha256:3be2268ba6705469f12c4d8f44dcd5423fc468e5839b6bd025ca854942fe16a2",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "06-accessibility"
+    },
+    {
+      "path": "verification/evidence/issue-167/07-process-death.png",
+      "sha256": "sha256:ae63c8a78c5db42c321f5a016ba3f78616b463114da57be83a78561854bba1ef",
+      "observedAt": "2026-09-15T09:35:22.517Z",
+      "scope": "07-process-death"
+    }
+  ]
+}

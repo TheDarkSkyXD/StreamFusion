@@ -7,7 +7,7 @@
 - Progress: `implemented`
 - Delivery: `direct`
 - Adaptation: Equivalent. One focused session owns transport, quality, mute, fullscreen, in-app mini-player, and Android PiP. Desktop slots and Electron PiP are not ported.
-- Freshness: `current` for APK `4f0d8310ca5bd128a2f6535706c4f5f5b61c333e7610e53e7b2aebabc88c0205` via `verification/evidence/issue-153-player-controls.json`
+- Freshness: `current` for player chrome via `verification/evidence/issue-153-player-controls.json`; Settings visibility and seek intervals via `verification/evidence/issue-167-settings.json`
 
 ## Desktop outcome
 
@@ -15,7 +15,7 @@ Control playback quality, volume, fullscreen, mini player, and picture-in-pictur
 
 ## Android outcome
 
-Watch plays one focused live or recorded session. Pause, Mute, Quality, Fullscreen, and Picture in Picture act on that session. Leaving Watch keeps the same session in a draggable in-app mini-player. System PiP pins the same surface. Expand restores Watch. Dismiss ends the session. Process death returns to Start watching instead of silent resume.
+Watch plays one focused live or recorded session. Pause, Mute, Quality, Fullscreen, and Picture in Picture act on that session. Settings can hide Quality, Volume, and Fullscreen and change rewind/fast-forward intervals. Leaving Watch keeps the same session in a draggable in-app mini-player. System PiP pins the same surface. Expand restores Watch. Dismiss ends the session. Process death returns to Start watching instead of silent resume.
 
 ## Required evidence
 

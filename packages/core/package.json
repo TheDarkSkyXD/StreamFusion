@@ -54,6 +54,10 @@
       "types": "./src/local-captions/index.ts",
       "default": "./src/local-captions/index.ts"
     },
+    "./settings": {
+      "types": "./src/settings/index.ts",
+      "default": "./src/settings/index.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./src/testing/index.ts"

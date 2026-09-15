@@ -18,6 +18,7 @@ export function MultistreamScreen({
   PlayerSurface,
   profile,
   repository,
+  slotCap,
   stage,
 }: {
   readonly onAddFromSearch: () => void;
@@ -26,6 +27,7 @@ export function MultistreamScreen({
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly profile: CapabilityProfile | null;
   readonly repository: MultistreamRepository;
+  readonly slotCap?: number;
   readonly stage: RuntimeDegradationStage;
 }) {
   const { width } = useWindowDimensions();
@@ -33,6 +35,7 @@ export function MultistreamScreen({
     playback,
     profile,
     repository,
+    ...(slotCap === undefined ? {} : { slotCap }),
     stage,
     windowWidth: width,
   });

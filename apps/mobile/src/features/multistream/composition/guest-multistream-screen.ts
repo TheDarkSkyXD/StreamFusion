@@ -1,4 +1,6 @@
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
+import { playbackSessionPolicy } from "@mobile/features/settings/domain/settings-view";
 import type { AndroidPlaybackContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import type { VerifiedPolicyStore } from "@mobile/features/installation-policy/capabilities/installation-policy";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
@@ -24,14 +26,23 @@ export function createGuestMultistreamScreen(input: {
   readonly filtering?: AdBlockSession;
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
+  readonly playbackSettings?: SettingsSession;
   readonly policyStore: VerifiedPolicyStore;
   readonly repository: MultistreamRepository;
 }): GuestMultistreamRuntime {
   const filtering = input.filtering;
+  const playbackSettings = input.playbackSettings;
   return {
     PlayerSurface: AndroidMedia3PlayerSurface,
     playback: createMultistreamPlayback({
       ...(filtering === undefined ? {} : { filtering }),
+      ...(playbackSettings === undefined
+        ? {}
+        : {
+            playbackSettings: {
+              snapshot: () => playbackSessionPolicy(playbackSettings.snapshot()),
+            },
+          }),
       playback: createAndroidFocusedPlaybackPort(input.playback),
       policy: createPlaybackCompatibilityPolicy(
         createEffectiveCapabilityPolicyReader({

@@ -54,6 +54,7 @@ export function addMultistreamSlot(
   layout: MultistreamLayout,
   slot: MultistreamSlot,
   updatedAt: number,
+  slotCap: number = MAX_MULTISTREAM_SLOTS,
 ): MultistreamMutationResult {
   if (includesSlot(layout.slots, slot.id)) {
     return {
@@ -61,9 +62,13 @@ export function addMultistreamSlot(
       kind: "rejected",
     };
   }
-  if (layout.slots.length >= MAX_MULTISTREAM_SLOTS) {
+  const cap = Math.min(
+    MAX_MULTISTREAM_SLOTS,
+    Math.max(1, Math.round(slotCap)),
+  );
+  if (layout.slots.length >= cap) {
     return {
-      detail: `Multistream keeps at most ${MAX_MULTISTREAM_SLOTS} configured slots.`,
+      detail: `Multistream keeps at most ${cap} configured slots.`,
       kind: "rejected",
     };
   }

@@ -13,11 +13,18 @@ const adb =
     process.platform === "win32" ? "adb.exe" : "adb",
   );
 const serial = process.env.ANDROID_SERIAL ?? "emulator-5554";
-export const outDir = path.resolve("verification/evidence/issue-166");
+export let outDir = path.resolve(
+  process.env.EVIDENCE_OUT_DIR ?? "verification/evidence/issue-166",
+);
 const packageName = "com.thedarkskyxd.streamfusion.dev";
 const launchUri =
   "exp+streamfusion-development://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081";
 mkdirSync(outDir, { recursive: true });
+
+export function useEvidenceDir(dir) {
+  outDir = path.resolve(dir);
+  mkdirSync(outDir, { recursive: true });
+}
 
 const BOTTOM_TABS = {
   Search: [112, 2032],

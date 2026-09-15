@@ -56,7 +56,16 @@ export interface AndroidCapabilityContractPort {
   readiness(): AndroidCapabilityReadiness;
 }
 
+export type PlaybackBufferRequest = {
+  readonly liveSyncDurationCount: number;
+  readonly lowLatencyMode: boolean;
+  readonly maxBufferLengthSec: number;
+  readonly maxMaxBufferLengthSec: number;
+};
+
 export interface PlaybackSessionRequest {
+  readonly allowHevc?: boolean;
+  readonly buffer?: PlaybackBufferRequest;
   readonly filtering?: {
     readonly enabled: boolean;
     readonly mode: "passthrough" | "canary" | "strip";
