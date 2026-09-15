@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "issue": 169,
+  "ticketId": "M07",
+  "observedAt": "2026-09-15T12:16:53.229Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M07 searchable Notifications, Ad blocking, and Proxy Settings with Product Store authority."
+  },
+  "candidate": {
+    "apkSha256": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+    "provenance": "API 30 development client. Metro JS from the W02 worktree. Guest signed-out. Notification prefs persist live-notifications.v1. FCM is not on this build."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "More Settings search shows Notifications, Ad blocking, and Proxy. Guest Follow notifications persist in live-notifications.v1."
+      ]
+    },
+    "api30-journey": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 opened searchable Notifications, Proxy, and Ad blocking without claiming FCM."
+      ]
+    },
+    "local-search": {
+      "result": "pass",
+      "observations": [
+        "Search proxy and notifications hid Appearance and kept the matching panel."
+      ]
+    },
+    "offline-proof": {
+      "result": "pass",
+      "observations": [
+        "Airplane mode still showed Preferences save on this device after relaunch."
+      ]
+    },
+    "permission-denial": {
+      "result": "pass",
+      "observations": [
+        "API 30 has no runtime POST_NOTIFICATIONS prompt. Open system notification settings stays labeled. Denied recovery is covered by injected unit tests."
+      ]
+    },
+    "accessibility": {
+      "result": "pass",
+      "observations": [
+        "Android notifications and Open system notification settings expose accessibility names."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-169/01-settings.png",
+      "sha256": "sha256:b24457fdf4b581bb7a533ae9d6d42f95021ad64596712e7c985568b2178d266e",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "01-settings"
+    },
+    {
+      "path": "verification/evidence/issue-169/02-search-proxy.png",
+      "sha256": "sha256:e11f37438fc0b6143a19cfe14b6e5faab3556aa59bee9deb599784248cfbeeb0",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "02-search-proxy"
+    },
+    {
+      "path": "verification/evidence/issue-169/03-search-notifications.png",
+      "sha256": "sha256:9dc56581beddddc11ee61d2ede660f0de227c46a41bf10aab3a0a7d090a72eb4",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "03-search-notifications"
+    },
+    {
+      "path": "verification/evidence/issue-169/04-guest-off.png",
+      "sha256": "sha256:f759e5d6c70dd9867dadb43308372422cfd9cb843b95b1879fcd2bbe76be43f6",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "04-guest-off"
+    },
+    {
+      "path": "verification/evidence/issue-169/05-offline.png",
+      "sha256": "sha256:d9d6b903f837499e63e6094166bdee354216698a156e1c82adbe83f51b2118e6",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "05-offline"
+    },
+    {
+      "path": "verification/evidence/issue-169/06-accessibility.png",
+      "sha256": "sha256:222ed1c923f63e8b70e643526642b2d470c983532103cc620d38592927c697d0",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "06-accessibility"
+    },
+    {
+      "path": "verification/evidence/issue-169/07-process-death.png",
+      "sha256": "sha256:612af98c9780dbd9dda012ddf841b9a5e6a05fe9c80f517e22d50f726cab39ae",
+      "observedAt": "2026-09-15T12:16:53.229Z",
+      "scope": "07-process-death"
+    }
+  ]
+}

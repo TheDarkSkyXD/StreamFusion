@@ -3,7 +3,10 @@ export type SettingsPanelId =
   | "playback"
   | "player-controls"
   | "buffer"
-  | "multiview";
+  | "multiview"
+  | "notifications"
+  | "adblock"
+  | "proxy";
 
 export type SettingsControlCatalogEntry = {
   readonly id: string;
@@ -82,6 +85,40 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] = 
     "quality",
     "multistream",
   ]),
+  entry("android-notifications", "notifications", "Android notifications", [
+    "android",
+    "notifications",
+    "permission",
+    "alerts",
+  ]),
+  entry("live-activity", "notifications", "Live Notification history", [
+    "activity",
+    "live",
+    "history",
+    "inbox",
+  ]),
+  entry("toast", "notifications", "In-app banners", ["toast", "banner", "foreground"]),
+  entry("sound", "notifications", "Sound", ["sound", "channel", "alert"]),
+  entry("notify-twitch", "notifications", "Twitch", ["twitch", "notify", "live"]),
+  entry("notify-kick", "notifications", "Kick", ["kick", "notify", "live"]),
+  entry("notify-guest", "notifications", "Guest Follow notifications", [
+    "guest",
+    "follow",
+    "alerts",
+  ]),
+  entry("favorites-only", "notifications", "Favorites only", [
+    "favorites",
+    "channels",
+    "filter",
+  ]),
+  entry("restart-grace", "notifications", "Restart grace", ["restart", "grace", "cooldown"]),
+  entry("adblock", "adblock", "Enable ad blocking", ["adblock", "filter", "ads"]),
+  entry("adblock-method", "adblock", "Method", ["method", "strip", "canary"]),
+  entry("proxy-enabled", "proxy", "Enable proxy", ["proxy", "network", "enabled"]),
+  entry("proxy-host", "proxy", "Host", ["proxy", "host", "hostname"]),
+  entry("proxy-port", "proxy", "Port", ["proxy", "port"]),
+  entry("proxy-username", "proxy", "Username", ["proxy", "username", "credential"]),
+  entry("proxy-password", "proxy", "Password", ["proxy", "password", "secret"]),
 ];
 
 export function searchSettingsControls(

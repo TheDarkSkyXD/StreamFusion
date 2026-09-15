@@ -69,6 +69,16 @@ test("local search matches HEVC and player chrome without losing panel order", (
   assert.deepEqual(panels, ["player-controls"]);
 });
 
+test("local search isolates notifications, adblock, and proxy panels", () => {
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("proxy")), ["proxy"]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("adblock")), [
+    "adblock",
+  ]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("guest")), [
+    "notifications",
+  ]);
+});
+
 test("native color scheme stays dark", () => {
   assert.equal(nativeColorScheme("system"), "dark");
   assert.equal(nativeColorScheme("light"), "dark");

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { densityGapMultiplier } from "@streamfusion/core/settings";
+import {
+  densityGapMultiplier,
+  type SettingsPanelId,
+} from "@streamfusion/core/settings";
 
 import {
   mobileColors,
@@ -18,7 +21,7 @@ import {
   PlayerControlsSettingsPanel,
 } from "./settings-panels";
 
-const PANELS = {
+const PRODUCT_PANELS = {
   appearance: AppearanceSettingsPanel,
   buffer: BufferSettingsPanel,
   multiview: MultiviewSettingsPanel,
@@ -26,11 +29,13 @@ const PANELS = {
   "player-controls": PlayerControlsSettingsPanel,
 } as const;
 
+type ProductPanelId = keyof typeof PRODUCT_PANELS;
+
 export function SettingsWorkspace({
-  children,
+  extras = {},
   session,
 }: {
-  readonly children?: ReactNode;
+  readonly extras?: Partial<Record<SettingsPanelId, ReactNode>>;
   readonly session: SettingsSession;
 }) {
   const { view } = useSettingsSession(session);
@@ -49,8 +54,7 @@ export function SettingsWorkspace({
         </Text>
         <SettingsSearchField session={session} value={view.query} />
         <RejectedNotices messages={view.rejected} />
-        <VisibleSettingsPanels session={session} view={view} />
-        {children}
+        <VisibleSettingsPanels extras={extras} session={session} view={view} />
       </View>
     </ScrollView>
   );
@@ -71,7 +75,7 @@ function SettingsSearchField({
       onChangeText={(query) => {
         void session.search(query);
       }}
-      placeholder="Search appearance, playback, player, buffer"
+      placeholder="Search appearance, playback, notifications, proxy"
       placeholderTextColor={mobileColors.textSecondary}
       style={styles.search}
       testID="settings-search"
@@ -93,29 +97,44 @@ function RejectedNotices({ messages }: { readonly messages: readonly string[] })
 }
 
 function VisibleSettingsPanels({
+  extras,
   session,
   view,
 }: {
+  readonly extras: Partial<Record<SettingsPanelId, ReactNode>>;
   readonly session: SettingsSession;
   readonly view: SettingsView;
 }) {
   return (
     <>
       {view.panels.map((panel) => {
-        const Panel = PANELS[panel];
+        if (isProductPanel(panel)) {
+          const Panel = PRODUCT_PANELS[panel];
+          return (
+            <View key={panel} testID={`screen-settings-${panel}`}>
+              <Panel
+                onChange={(patch) => {
+                  void session.apply(patch);
+                }}
+                view={view}
+              />
+            </View>
+          );
+        }
+        const extra = extras[panel];
+        if (!extra) return null;
         return (
           <View key={panel} testID={`screen-settings-${panel}`}>
-            <Panel
-              onChange={(patch) => {
-                void session.apply(patch);
-              }}
-              view={view}
-            />
+            {extra}
           </View>
         );
       })}
     </>
   );
+}
+
+function isProductPanel(panel: SettingsPanelId): panel is ProductPanelId {
+  return panel in PRODUCT_PANELS;
 }
 
 const styles = StyleSheet.create({

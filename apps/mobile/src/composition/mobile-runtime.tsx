@@ -57,6 +57,8 @@ import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
+import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
+import { createNotificationSettingsSession } from "@mobile/features/settings/composition/notification-settings-runtime";
 import { createSettingsSession } from "@mobile/features/settings/composition/settings-runtime";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
@@ -252,6 +254,11 @@ const adblockSession = createAdBlockSession({
 });
 const settingsSession = createSettingsSession({
   settings: persistenceRuntime.productState.settings,
+});
+const notificationSession = createNotificationSettingsSession({
+  network: () => connectivitySession.readNetwork(),
+  permission: createAndroidNotificationPermissionPort(),
+  store: persistenceRuntime.productState.liveNotifications,
 });
 const followingSession = createFollowingRuntime({
   cache: persistenceRuntime.disposableCache,
@@ -464,6 +471,7 @@ export function MobileRuntime() {
       followingSession={followingSession}
       connectivitySession={connectivitySession}
       adblockSession={adblockSession}
+      notificationSession={notificationSession}
       settingsSession={settingsSession}
       watch={watch}
       multistream={multistream}

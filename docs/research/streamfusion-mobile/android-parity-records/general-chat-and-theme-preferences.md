@@ -6,7 +6,7 @@
 - Android owner: Mobile `settings` plus Watch, Multistream, and ExoPlayer LoadControl
 - Progress: `implemented` for Appearance, Playback, Player controls, Buffer, and Multiview
 - Delivery: `adapted`
-- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Chat, notifications, predictions, integrations, tokens, updates, diagnostics, logs, bug report, and about remain later tickets.
+- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Notifications, Ad blocking, and Proxy search from the same Settings workspace. Chat, predictions, integrations, tokens, updates, diagnostics, logs, bug report, and about remain later tickets.
 - Freshness: `current` at `verification/evidence/issue-167-settings.json`
 
 ## Desktop outcome
@@ -15,7 +15,7 @@ Searchable Settings panels persist appearance, playback, player chrome, buffer, 
 
 ## Android outcome
 
-More Settings searches and persists those five panels plus existing Proxy and Adblock. Theme, captions, quality, seek, buffer, HEVC, and slot cap survive process death and feed Watch and Multistream.
+More Settings searches and persists those five panels plus Notifications, Proxy, and Ad blocking. Theme, captions, quality, seek, buffer, HEVC, and slot cap survive process death and feed Watch and Multistream.
 
 ## Required evidence
 

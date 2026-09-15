@@ -815,6 +815,160 @@
         "links": [
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/141"
         ]
+      },
+      {
+        "id": "api30-journey",
+        "sourceCommit": "5cc4ea6216cc3257a600ead1ccc32d31b5d7f944",
+        "apkDigest": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-169-m07-settings-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "settings-receipt",
+            "path": "verification/evidence/issue-169-settings.json",
+            "sha256": "sha256:2a05e4c754d4da74ea0307cc4166d83ec8e9cfe5ca685b3bbb63e50925743e9b",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "01-settings",
+            "path": "verification/evidence/issue-169/01-settings.png",
+            "sha256": "sha256:b24457fdf4b581bb7a533ae9d6d42f95021ad64596712e7c985568b2178d266e",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "05-offline",
+            "path": "verification/evidence/issue-169/05-offline.png",
+            "sha256": "sha256:d9d6b903f837499e63e6094166bdee354216698a156e1c82adbe83f51b2118e6",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-15T12:16:53.229Z",
+        "expiresAt": "2026-09-29T12:16:53.229Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/169"
+        ]
+      },
+      {
+        "id": "local-search",
+        "sourceCommit": "5cc4ea6216cc3257a600ead1ccc32d31b5d7f944",
+        "apkDigest": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-169-m07-settings-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "settings-receipt",
+            "path": "verification/evidence/issue-169-settings.json",
+            "sha256": "sha256:2a05e4c754d4da74ea0307cc4166d83ec8e9cfe5ca685b3bbb63e50925743e9b",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "02-search-proxy",
+            "path": "verification/evidence/issue-169/02-search-proxy.png",
+            "sha256": "sha256:e11f37438fc0b6143a19cfe14b6e5faab3556aa59bee9deb599784248cfbeeb0",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "03-search-notifications",
+            "path": "verification/evidence/issue-169/03-search-notifications.png",
+            "sha256": "sha256:9dc56581beddddc11ee61d2ede660f0de227c46a41bf10aab3a0a7d090a72eb4",
+            "mediaType": "image/png"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-15T12:16:53.229Z",
+        "expiresAt": "2026-09-29T12:16:53.229Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/169"
+        ]
+      },
+      {
+        "id": "permission-denial",
+        "sourceCommit": "5cc4ea6216cc3257a600ead1ccc32d31b5d7f944",
+        "apkDigest": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-169-m07-settings-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "settings-receipt",
+            "path": "verification/evidence/issue-169-settings.json",
+            "sha256": "sha256:2a05e4c754d4da74ea0307cc4166d83ec8e9cfe5ca685b3bbb63e50925743e9b",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-15T12:16:53.229Z",
+        "expiresAt": "2026-09-29T12:16:53.229Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/169"
+        ]
+      },
+      {
+        "id": "accessibility",
+        "sourceCommit": "5cc4ea6216cc3257a600ead1ccc32d31b5d7f944",
+        "apkDigest": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-169-m07-settings-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "06-accessibility",
+            "path": "verification/evidence/issue-169/06-accessibility.png",
+            "sha256": "sha256:222ed1c923f63e8b70e643526642b2d470c983532103cc620d38592927c697d0",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "accessibility-dump",
+            "path": "verification/evidence/issue-169/accessibility-dump.xml",
+            "sha256": "sha256:9aa6b6619a89c8a4fe3a27ddb142c09b46b1ed3b2fcc6423bf200d87f3759527",
+            "mediaType": "application/xml"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-15T12:16:53.229Z",
+        "expiresAt": "2026-09-29T12:16:53.229Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/169"
+        ]
       }
     ],
     "diagnostics-logs-and-bug-reports": [

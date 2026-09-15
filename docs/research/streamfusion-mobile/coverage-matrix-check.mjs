@@ -196,6 +196,8 @@ const implemented = new Set([
   "screen:settings-player-controls",
   "screen:settings-buffer",
   "screen:settings-multiview",
+  "screen:settings-notifications",
+  "panel:notifications",
   "shell-route:more/settings",
 ]);
 
@@ -251,7 +253,7 @@ const owners = {
   "shell-route:activity/job-preview": [163],
   "screen:moderation-home": [159, 168],
   "screen:moderation": [159, 168],
-  "screen:settings": [167, 168, 170],
+  "screen:settings": [167, 168, 169, 170],
   "screen:accounts": [135, 145, 146, 151],
   "screen:system": [143, 170, 171],
   "screen:more": [139, 141],
@@ -264,6 +266,8 @@ const owners = {
   "panel:player-controls": [167],
   "panel:buffer": [167],
   "panel:multiview": [167],
+  "panel:notifications": [169],
+  "screen:settings-notifications": [169],
   "screen:settings-appearance": [167],
   "screen:settings-playback": [167],
   "screen:settings-player-controls": [167],
@@ -479,6 +483,13 @@ const paths = {
   "screen:settings-multiview": [
     "apps/mobile/src/features/settings/components/settings-workspace.tsx",
   ],
+  "panel:notifications": [
+    "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
+  ],
+  "screen:settings-notifications": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
+  ],
   "action:activity-clear-completed": [
     "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts",
   ],
@@ -609,15 +620,15 @@ const gaps = [
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Ten Settings panels and six Diagnostics tabs still lack dedicated Mobile routes after appearance/player Settings. Proxy and adblock stay on Settings. Chat Settings is M06.",
-    owners: [143, 167, 170, 171],
+      "Chat Settings remains M06. Diagnostics still lack dedicated Mobile routes. Notifications, Ad blocking, and Proxy are searchable Settings panels with Product Store authority; remote FCM stays N01.",
+    owners: [143, 168, 169, 170, 171],
   },
   {
     id: "GAP-195-04",
     status: "owned-elsewhere",
     finding:
-      "Guest and account notification delivery and FCM remain absent. Media Jobs now project local Activity rows. Activity is still a local inbox.",
-    owners: [151, 172, 173, 174],
+      "Guest notification preferences, Android permission status, and denial recovery live on Settings. Remote FCM registration and background delivery remain N01–N03. Activity is still a local inbox.",
+    owners: [151, 169, 172, 173, 174],
   },
   {
     id: "GAP-195-05",

@@ -28,7 +28,7 @@ More Settings hosts a live Ad Blocking panel. Guests can leave filtering on, swi
 
 ## Evidence residuals
 
-TalkBack was not driven. Desktop VAFT pattern refresh is not on Mobile. M07 still owns the later Settings Ad blocking polish. Watch Kick title still names the Twitch canary method while the detail states Kick is unfiltered.
+TalkBack was not driven. Desktop VAFT pattern refresh is not on Mobile. Watch Kick title still names the Twitch canary method while the detail states Kick is unfiltered.
 
 ## Blocking for public release
 

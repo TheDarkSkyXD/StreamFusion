@@ -83,7 +83,9 @@ import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/comp
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
 import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/adblock-settings-panel";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { NotificationSettingsSession } from "@mobile/features/settings/capabilities/notification-settings";
 import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
+import { NotificationsSettingsPanel } from "@mobile/features/settings/components/notifications-settings-panel";
 import { SettingsWorkspace } from "@mobile/features/settings/components/settings-workspace";
 import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
 import type { ProductPreferences } from "@streamfusion/core/settings";
@@ -183,6 +185,7 @@ export function AppShell({
   followingSession,
   connectivitySession,
   adblockSession,
+  notificationSession,
   settingsSession,
   watch,
   multistream,
@@ -229,6 +232,7 @@ export function AppShell({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
+  readonly notificationSession: NotificationSettingsSession;
   readonly settingsSession: SettingsSession;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
@@ -401,6 +405,7 @@ export function AppShell({
               followingSession={followingSession}
               connectivitySession={connectivitySession}
               adblockSession={adblockSession}
+              notificationSession={notificationSession}
               playerPrefs={settings.view.preferences}
               settingsSession={settingsSession}
               slotCap={settings.view.preferences.multiviewCap}
@@ -592,6 +597,7 @@ function ShellScreen({
   followingSession,
   connectivitySession,
   adblockSession,
+  notificationSession,
   playerPrefs,
   settingsSession,
   slotCap,
@@ -640,6 +646,7 @@ function ShellScreen({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
+  readonly notificationSession: NotificationSettingsSession;
   readonly playerPrefs: ProductPreferences;
   readonly settingsSession: SettingsSession;
   readonly slotCap: number;
@@ -992,14 +999,16 @@ function ShellScreen({
   if (location.route === "more/settings") {
     return (
       <View style={styles.activityWorkspace} testID="screen-more-settings-root">
-        <SettingsWorkspace session={settingsSession}>
-          <View testID="screen-settings-proxy">
-            <ProxySettingsPanel session={connectivitySession} />
-          </View>
-          <View testID="screen-settings-adblock">
-            <AdBlockSettingsPanel session={adblockSession} />
-          </View>
-        </SettingsWorkspace>
+        <SettingsWorkspace
+          extras={{
+            adblock: <AdBlockSettingsPanel session={adblockSession} />,
+            notifications: (
+              <NotificationsSettingsPanel session={notificationSession} />
+            ),
+            proxy: <ProxySettingsPanel session={connectivitySession} />,
+          }}
+          session={settingsSession}
+        />
       </View>
     );
   }
