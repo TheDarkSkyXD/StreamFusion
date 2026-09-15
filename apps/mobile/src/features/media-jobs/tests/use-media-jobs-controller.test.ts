@@ -222,6 +222,37 @@ it("keeps polling a paused job while Android still owns it", async () => {
   }
 });
 
+it("does not keep Preparing after a successful start", async () => {
+  // Guards: start must not freeze Preparing over later engine status (M03 warning/cutoff)
+  const recoverAll = vi.fn(async () => [runningJob()]);
+  const start = vi.fn(async () => ({
+    kind: "ok" as const,
+    snapshot: {
+      ...runningJob(),
+      phase: "preparing" as const,
+      statusMessage: "Preparing",
+    },
+  }));
+  const workflow = {
+    apply: vi.fn(),
+    list: vi.fn(async () => [runningJob()]),
+    recoverAll,
+    start,
+  } as unknown as MediaJobWorkflow;
+  const rendered = renderController(workflow);
+  try {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await rendered.current().startDownload();
+    });
+    expect(rendered.current().model.status).not.toBe("Preparing");
+  } finally {
+    rendered.unmount();
+  }
+});
+
 it("does not start a second poll recovery while the first is pending", async () => {
   vi.useFakeTimers({ now: new Date("2026-09-12T01:00:00.000Z") });
   let resolvePoll:

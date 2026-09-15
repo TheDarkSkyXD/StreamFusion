@@ -80,11 +80,15 @@ import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/comp
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
 import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/adblock-settings-panel";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
-import { WatchRoute } from "@mobile/features/watch/components/watch-route";
+import {
+  WatchRoute,
+  type WatchDownloadSession,
+} from "@mobile/features/watch/components/watch-route";
 import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
 import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watch-session";
 import { isPictureInPictureSurface } from "@mobile/features/watch/domain/player-presentation";
 import { watchDownloadJobId } from "@mobile/features/watch/domain/watch-download";
+import { watchRecordingJobId } from "@mobile/features/watch/domain/watch-recording";
 import type { WatchPeek, WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { DestinationIcon } from "./destination-icon";
@@ -254,7 +258,7 @@ export function AppShell({
   const selectedJobId =
     location.route === "activity/job-preview"
       ? location.jobId
-      : watchDownloadJobIdFor(location, watchPeek) ?? undefined;
+      : watchMediaJobIdFor(location, watchPeek) ?? undefined;
   const mediaJobsController = useMediaJobsController({
     selectedJobId,
     workflow: mediaJobs,
@@ -659,34 +663,15 @@ function ShellScreen({
       location.target.kind === "channel"
         ? watchTargetFromLocation(location.target)
         : null;
+    const mediaJobSession = watchMediaJobSession(
+      mediaJobsController,
+      activity.refresh,
+    );
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
-          download={{
-            busy: mediaJobsController.model.busy,
-            jobs: mediaJobsController.model.jobs,
-            status: mediaJobsController.model.status,
-            onCommand: (command) => {
-              void mediaJobsController.apply(command).then(() => {
-                void activity.refresh();
-              });
-            },
-            onDelete: () => {
-              void mediaJobsController.deleteJob().then(() => {
-                void activity.refresh();
-              });
-            },
-            onExport: () => {
-              void mediaJobsController.exportJob();
-            },
-            onOpenArtifact: () => {
-              void mediaJobsController.openArtifact();
-            },
-            onStartIntent: async (intent, requestHeaders) => {
-              await mediaJobsController.startWithIntent(intent, requestHeaders);
-              await activity.refresh();
-            },
-          }}
+          download={mediaJobSession}
+          recording={mediaJobSession}
           onAddToMultistream={addLiveToMultistream}
           onOpenRelated={(stream) =>
             openWatch({
@@ -1067,6 +1052,20 @@ function ShellScreen({
                   dispatch,
                 );
               }}
+              onStartCompressedRecording={() => {
+                void openStartedJob(
+                  mediaJobsController.startCompressedRecording,
+                  activity,
+                  dispatch,
+                );
+              }}
+              onStartRecordingStoragePressure={() => {
+                void openStartedJob(
+                  mediaJobsController.startRecordingStoragePressure,
+                  activity,
+                  dispatch,
+                );
+              }}
               onStartStoragePressure={() => {
                 void openStartedJob(
                   mediaJobsController.startStoragePressure,
@@ -1281,18 +1280,58 @@ function RootPreviewAction({
   );
 }
 
-function watchDownloadJobIdFor(
+function watchMediaJobSession(
+  controller: ReturnType<typeof useMediaJobsController>,
+  refreshActivity: () => Promise<void>,
+): WatchDownloadSession {
+  return {
+    busy: controller.model.busy,
+    jobs: controller.model.jobs,
+    status: controller.model.status,
+    onCommand: (command) => {
+      void controller.apply(command).then(() => {
+        void refreshActivity();
+      });
+    },
+    onDelete: () => {
+      void controller.deleteJob().then(() => {
+        void refreshActivity();
+      });
+    },
+    onExport: () => {
+      void controller.exportJob();
+    },
+    onOpenArtifact: () => {
+      void controller.openArtifact();
+    },
+    onStartIntent: async (intent, requestHeaders) => {
+      await controller.startWithIntent(intent, requestHeaders);
+      await refreshActivity();
+    },
+  };
+}
+
+function watchMediaJobIdFor(
   location: ShellLocation,
   peek: WatchPeek,
 ): string | null {
+  const target = watchTargetFor(location, peek);
+  if (!target) return null;
+  return watchRecordingJobId(target) ?? watchDownloadJobId(target);
+}
+
+function watchTargetFor(
+  location: ShellLocation,
+  peek: WatchPeek,
+): WatchTarget | null {
   if (
     location.route === "watch/session-preview" &&
     location.target.kind === "channel"
   ) {
-    return watchDownloadJobId(watchTargetFromLocation(location.target));
+    return watchTargetFromLocation(location.target);
   }
   if (location.route === "watch" && peek.kind === "active") {
-    return watchDownloadJobId(peek.state.target);
+    return peek.state.target;
   }
   return null;
 }

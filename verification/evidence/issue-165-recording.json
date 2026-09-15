@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "issue": 165,
+  "ticketId": "M03",
+  "mobileSourceCommit": "4d6681de3031cd6dae8edb1aa9ea6e73fa6cf28e",
+  "observedAt": "2026-09-15T05:12:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M03 live Stream recording. Watch Record on live only. Four-hour warning and cutoff, Stop to a playable partial, storage-pressure, process death, and reboot recovery. No standalone recording screen."
+  },
+  "candidate": {
+    "apkSha256": "ad65396d3a0f63b21c8143b5a2c7cf9a487c49d8d065be9d55be2e4d5fad67ee",
+    "provenance": "API 30 development client with Media Job native contract 3, compressed four-hour cutoff (12s), recording storage-pressure, and Stop-to-complete partials. Metro JS loaded from the W02 worktree. Guest signed-out reads stay { kind: \"guest\" }. Watch recording stays hidden on Videos and Clips."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Live Watch issues rec-{platform}-{channelId} without OAuth and hides recording when target.media is set.",
+        "Job preview prefers snapshot.statusMessage over a stale Preparing overlay so cutoff and Stop status stay visible."
+      ]
+    },
+    "lowest-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 emulator opened More Diagnostics Media Job Engine M03 Recording contract 3.",
+        "Start compressed four-hour cutoff completed a Recording job with Open, Export, and Delete."
+      ]
+    },
+    "four-hour-soak": {
+      "result": "pass",
+      "observations": [
+        "Compressed cutoff URI streamfusion-fixture://recording?cutoff=compressed completed at 122880 bytes.",
+        "Status was Stopped at the four-hour limit. Partial recording saved. Product cutoff remains four hours.",
+        "The 8s warning window was not photographed separately; uiautomator matched the cutoff string that also contains four-hour limit."
+      ]
+    },
+    "partial-artifact": {
+      "result": "pass",
+      "observations": [
+        "Start fixture recording showed Running, Android service owns this job, Pause, and Stop at 8192 bytes.",
+        "Stop finalized Completed with Stopped. Partial recording saved. and a complete 12288-byte artifact."
+      ]
+    },
+    "storage-pressure": {
+      "result": "pass",
+      "observations": [
+        "Start recording storage-pressure opened a Recording job in Failed, retryable with Stopped because storage is full. and a 4096-byte partial artifact."
+      ]
+    },
+    "process-death": {
+      "result": "pass",
+      "observations": [
+        "Force-stop during compressed recording, relaunch, and Recover listed recording-1789449012695 as recording · Completed."
+      ]
+    },
+    "reboot": {
+      "result": "pass",
+      "observations": [
+        "After emulator reboot, Recover listed the same recording-1789449012695 job as recording · Completed."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-165/01-diagnostics.png",
+      "sha256": "4731d7ccc90d7bdd279169786baefd473b9885d488e9bee80d93b63dfd524108",
+      "observedAt": "2026-09-15T05:07:00.000Z",
+      "scope": "Diagnostics Media Job Engine M03 Recording contract 3 with compressed cutoff and recording storage-pressure URIs."
+    },
+    {
+      "path": "verification/evidence/issue-165/03-cutoff-complete.png",
+      "sha256": "e4199e5fb357ca3eb59395872578455b5f26b3d623b8f1540c42bcdf8b70129f",
+      "observedAt": "2026-09-15T05:08:00.000Z",
+      "scope": "Compressed four-hour cutoff Completed. Stopped at the four-hour limit. Partial recording saved. 122880 bytes."
+    },
+    {
+      "path": "verification/evidence/issue-165/05-recording-running.png",
+      "sha256": "a3cce8d783505b7c06233507eba2e113c75d394cdea708fa974af7e7a4359e6a",
+      "observedAt": "2026-09-15T05:09:00.000Z",
+      "scope": "Fixture recording Running with Pause, Stop, and Android service ownership at 8192 bytes."
+    },
+    {
+      "path": "verification/evidence/issue-165/06-partial-artifact.png",
+      "sha256": "036004644c3d02cc347c0f8ca44b4a308631a4353338e15a05c81611eeda904b",
+      "observedAt": "2026-09-15T05:09:00.000Z",
+      "scope": "Stop finalized a playable partial. Stopped. Partial recording saved. 12288 bytes."
+    },
+    {
+      "path": "verification/evidence/issue-165/07-storage-pressure.png",
+      "sha256": "93c7e3eeb29c697080e23ccad46a9cf4c3442a1eb692b8453a26e1878b700059",
+      "observedAt": "2026-09-15T05:09:00.000Z",
+      "scope": "Recording storage-pressure Failed, retryable. Stopped because storage is full."
+    },
+    {
+      "path": "verification/evidence/issue-165/08-process-death.png",
+      "sha256": "14bb1d6926e73572cd27029a803406d48647ffb50acd62217a48fbc66684c110",
+      "observedAt": "2026-09-15T05:10:00.000Z",
+      "scope": "Recover after force-stop listed recording · Completed."
+    },
+    {
+      "path": "verification/evidence/issue-165/09-reboot.png",
+      "sha256": "55268a5a7c03db28f1e7003425815b37bf4e44f8a562498d0ae6a7f21aadbe95",
+      "observedAt": "2026-09-15T05:12:00.000Z",
+      "scope": "Recover after emulator reboot listed recording · Completed."
+    },
+    {
+      "path": "verification/evidence/issue-165/observations.json",
+      "sha256": "dc3b498f7df07e73876ee0a45528dda75cb28a4f4f75aba80fa6764a3935b65d",
+      "observedAt": "2026-09-15T05:12:00.000Z",
+      "scope": "Drive notes for compressed cutoff, Stop partial, storage-pressure, process death, and reboot."
+    }
+  ]
+}

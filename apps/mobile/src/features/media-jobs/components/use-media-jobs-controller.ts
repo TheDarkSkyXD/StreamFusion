@@ -2,10 +2,15 @@ import {
   MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
   MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI,
   MEDIA_JOB_FIXTURE_RECORDING_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_STORAGE_PRESSURE_URI,
   MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI,
   MEDIA_JOB_HTTP_RANGE_PROOF_URI,
   asMediaJobId,
+  isInFlightMediaJobPhase,
+  type MediaJobCommand,
   type MediaJobCommandName,
+  type MediaJobCommandResult,
   type MediaJobIntent,
   type MediaJobKind,
   type MediaJobSnapshot,
@@ -15,15 +20,21 @@ import { useEffect, useRef, useState } from "react";
 
 import type { MediaJobWorkflow } from "../capabilities/media-jobs";
 import {
+  MEDIA_JOB_COMMAND_BUSY,
+  MEDIA_JOB_DELETED,
+  MEDIA_JOB_EXPORT_CANCELLED,
+  MEDIA_JOB_EXPORT_MISMATCH,
+  MEDIA_JOB_EXPORT_VERIFIED,
+  MEDIA_JOB_OPENED,
+  MEDIA_JOB_RECOVERY_FAILED,
+} from "../utils/media-job-labels";
+import {
   createExclusiveGate,
   recoverInBackground,
   withUserLock,
-  MEDIA_JOB_RECOVERY_FAILED,
 } from "./media-jobs-controller-lock";
 
-export { MEDIA_JOB_RECOVERY_FAILED };
-export const MEDIA_JOB_COMMAND_BUSY =
-  "A Media Job command is already in progress.";
+export { MEDIA_JOB_COMMAND_BUSY, MEDIA_JOB_RECOVERY_FAILED };
 
 export interface MediaJobsViewModel {
   readonly busy: boolean;
@@ -32,10 +43,7 @@ export interface MediaJobsViewModel {
   readonly status: string | null;
 }
 
-export function useMediaJobsController(options: {
-  readonly selectedJobId?: string | undefined;
-  readonly workflow: MediaJobWorkflow;
-}): {
+export interface MediaJobsController {
   readonly apply: (command: MediaJobCommandName) => Promise<void>;
   readonly deleteJob: () => Promise<void>;
   readonly exportJob: () => Promise<void>;
@@ -47,12 +55,19 @@ export function useMediaJobsController(options: {
   readonly startHttpRange: () => Promise<string>;
   readonly startNetworkLoss: () => Promise<string>;
   readonly startRecording: () => Promise<string>;
+  readonly startCompressedRecording: () => Promise<string>;
+  readonly startRecordingStoragePressure: () => Promise<string>;
   readonly startStoragePressure: () => Promise<string>;
   readonly startWithIntent: (
     intent: MediaJobIntent,
     requestHeaders?: Readonly<Record<string, string>>,
   ) => Promise<string>;
-} {
+}
+
+export function useMediaJobsController(options: {
+  readonly selectedJobId?: string | undefined;
+  readonly workflow: MediaJobWorkflow;
+}): MediaJobsController {
   const [busy, setBusy] = useState(false);
   const [jobs, setJobs] = useState<readonly MediaJobSnapshot[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -85,10 +100,7 @@ export function useMediaJobsController(options: {
   useEffect(() => {
     const inFlight = jobs.some(
       (job) =>
-        job.service.kind === "owned" ||
-        ["queued", "preparing", "running", "pausing", "finalizing"].includes(
-          job.phase,
-        ),
+        job.service.kind === "owned" || isInFlightMediaJobPhase(job.phase),
     );
     if (!inFlight) return undefined;
     const timer = setInterval(() => {
@@ -104,137 +116,139 @@ export function useMediaJobsController(options: {
     return () => clearInterval(timer);
   }, [jobs, options.workflow]);
 
-  const start = async (kind: MediaJobKind, sourceUri: string) => {
-    const createdAt = toSerializedTimestamp(new Date().toISOString());
-    const jobId = asMediaJobId(`${kind}-${Date.now()}`);
-    return startWithIntent({
-      schemaVersion: 1,
-      jobId,
-      kind,
-      sourceUri,
-      createdAt,
-    });
+  const lockUser = async <T>(work: () => Promise<T>): Promise<T | null> => {
+    const result = await withUserLock(
+      persistGate.current,
+      userLock,
+      setBusy,
+      work,
+    );
+    if (result.kind === "busy") {
+      setStatus(MEDIA_JOB_COMMAND_BUSY);
+      return null;
+    }
+    return result.value;
   };
 
   const startWithIntent = async (
     intent: MediaJobIntent,
     requestHeaders?: Readonly<Record<string, string>>,
   ) => {
-    const started = await withUserLock(
-      persistGate.current,
-      userLock,
-      setBusy,
-      async () => {
-        const result = await options.workflow.start(intent, requestHeaders);
-        setStatus(
-          result.kind === "rejected"
-            ? result.reason
-            : result.snapshot.statusMessage,
-        );
-        await refresh();
-        return intent.jobId;
-      },
-    );
-    if (started.kind === "busy") {
-      setStatus(MEDIA_JOB_COMMAND_BUSY);
-      return "";
-    }
-    return started.value;
+    const started = await lockUser(async () => {
+      const result = await options.workflow.start(intent, requestHeaders);
+      if (result.kind === "rejected") setStatus(result.reason);
+      await refresh();
+      return intent.jobId;
+    });
+    return started ?? "";
   };
 
-  const runSelected = async (work: (jobId: string) => Promise<string | null>) => {
+  const start = async (kind: MediaJobKind, sourceUri: string) => {
+    return startWithIntent({
+      schemaVersion: 1,
+      jobId: asMediaJobId(`${kind}-${Date.now()}`),
+      kind,
+      sourceUri,
+      createdAt: nowTimestamp(),
+    });
+  };
+
+  const runSelected = async (
+    work: (jobId: string) => Promise<string | null>,
+  ) => {
     const selectedJobId = options.selectedJobId;
     if (!selectedJobId) return;
-    const applied = await withUserLock(
-      persistGate.current,
-      userLock,
-      setBusy,
-      async () => {
-        const message = await work(selectedJobId);
-        if (message) setStatus(message);
-        await refresh();
-      },
-    );
-    if (applied.kind === "busy") setStatus(MEDIA_JOB_COMMAND_BUSY);
+    await lockUser(async () => {
+      const message = await work(selectedJobId);
+      if (message) setStatus(message);
+      await refresh();
+    });
   };
 
   return {
     model: { busy, jobs, selected, status },
     apply: async (command) => {
       await runSelected(async (selectedJobId) => {
-        const jobId = asMediaJobId(selectedJobId);
-        const now = toSerializedTimestamp(new Date().toISOString());
+        const now = nowTimestamp();
         const result = await options.workflow.apply(
-          command === "start"
-            ? {
-                kind: "start",
-                intent: {
-                  schemaVersion: 1,
-                  jobId,
-                  kind: "download",
-                  sourceUri: MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
-                  createdAt: now,
-                },
-              }
-            : { kind: command, jobId },
+          applyPayload(command, asMediaJobId(selectedJobId), now),
           now,
         );
-        return result.kind === "rejected"
-          ? result.reason
-          : result.snapshot.statusMessage;
+        return statusFromResult(result);
       });
     },
     deleteJob: async () => {
       await runSelected(async (jobId) => {
-        const result = await options.workflow.delete(
-          jobId,
-          toSerializedTimestamp(new Date().toISOString()),
-        );
-        return result.kind === "rejected" ? result.reason : "Deleted";
+        const result = await options.workflow.delete(jobId, nowTimestamp());
+        return result.kind === "rejected" ? result.reason : MEDIA_JOB_DELETED;
       });
     },
     exportJob: async () => {
-      await runSelected(async (jobId) => {
-        const result = await options.workflow.exportJob(jobId);
-        if (result.kind === "cancelled") return "Export cancelled.";
-        if (result.kind === "rejected") return result.reason;
-        return result.matched
-          ? "Export verified."
-          : "Export saved but hashes did not match.";
-      });
+      await runSelected(async (jobId) =>
+        exportMessage(await options.workflow.exportJob(jobId)),
+      );
     },
     openArtifact: async () => {
       await runSelected(async (jobId) => {
         const result = await options.workflow.openArtifact(jobId);
-        return result.kind === "rejected" ? result.reason : "Opened";
+        return result.kind === "rejected" ? result.reason : MEDIA_JOB_OPENED;
       });
     },
     recover: async () => {
-      const recovered = await withUserLock(
-        persistGate.current,
-        userLock,
-        setBusy,
-        async () => {
-          try {
-            setJobs(
-              await options.workflow.recoverAll(
-                toSerializedTimestamp(new Date().toISOString()),
-              ),
-            );
-          } catch {
-            setStatus(MEDIA_JOB_RECOVERY_FAILED);
-          }
-        },
-      );
-      if (recovered.kind === "busy") setStatus(MEDIA_JOB_COMMAND_BUSY);
+      await lockUser(async () => {
+        try {
+          setJobs(await options.workflow.recoverAll(nowTimestamp()));
+        } catch {
+          setStatus(MEDIA_JOB_RECOVERY_FAILED);
+        }
+      });
     },
     refresh,
     startDownload: () => start("download", MEDIA_JOB_FIXTURE_DOWNLOAD_URI),
     startHttpRange: () => start("download", MEDIA_JOB_HTTP_RANGE_PROOF_URI),
     startNetworkLoss: () => start("download", MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI),
     startRecording: () => start("recording", MEDIA_JOB_FIXTURE_RECORDING_URI),
+    startCompressedRecording: () =>
+      start("recording", MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI),
+    startRecordingStoragePressure: () =>
+      start("recording", MEDIA_JOB_FIXTURE_RECORDING_STORAGE_PRESSURE_URI),
     startStoragePressure: () =>
       start("download", MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI),
     startWithIntent,
   };
+}
+
+function nowTimestamp(): ReturnType<typeof toSerializedTimestamp> {
+  return toSerializedTimestamp(new Date().toISOString());
+}
+
+function statusFromResult(result: MediaJobCommandResult): string {
+  return result.kind === "rejected" ? result.reason : result.snapshot.statusMessage;
+}
+
+function applyPayload(
+  command: MediaJobCommandName,
+  jobId: ReturnType<typeof asMediaJobId>,
+  createdAt: ReturnType<typeof toSerializedTimestamp>,
+): MediaJobCommand {
+  if (command !== "start") return { kind: command, jobId };
+  return {
+    kind: "start",
+    intent: {
+      schemaVersion: 1,
+      jobId,
+      kind: "download",
+      sourceUri: MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
+      createdAt,
+    },
+  };
+}
+
+function exportMessage(
+  result: Awaited<ReturnType<MediaJobWorkflow["exportJob"]>>,
+): string {
+  if (result.kind === "cancelled") return MEDIA_JOB_EXPORT_CANCELLED;
+  if (result.kind === "rejected") return result.reason;
+  if (result.matched) return MEDIA_JOB_EXPORT_VERIFIED;
+  return MEDIA_JOB_EXPORT_MISMATCH;
 }

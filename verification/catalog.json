@@ -2988,6 +2988,12 @@
             "path": "verification/evidence/issue-163-media-jobs.json",
             "sha256": "sha256:27487eca4c4c24025c9e69f13ad14f01fce75c9c83d1f3bcac0d3d8aa8d40883",
             "mediaType": "application/json"
+          },
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
           }
         ],
         "result": "pass",
@@ -3111,6 +3117,18 @@
             "path": "verification/evidence/issue-163/06-storage-pressure.png",
             "sha256": "sha256:4ac7bf56c9d8459053965a9c3462b0f503740141145c86002cdf0fae9d7ca828",
             "mediaType": "image/png"
+          },
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "07-recording-storage-pressure",
+            "path": "verification/evidence/issue-165/07-storage-pressure.png",
+            "sha256": "sha256:93c7e3eeb29c697080e23ccad46a9cf4c3442a1eb692b8453a26e1878b700059",
+            "mediaType": "image/png"
           }
         ],
         "result": "pass",
@@ -3141,6 +3159,18 @@
             "id": "07-process-death",
             "path": "verification/evidence/issue-163/07-process-death.png",
             "sha256": "sha256:de537f5bc951386d27993d5ba81a0526de9202e96dd1f4fcaed9694a5df276b5",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "08-recording-process-death",
+            "path": "verification/evidence/issue-165/08-process-death.png",
+            "sha256": "sha256:14bb1d6926e73572cd27029a803406d48647ffb50acd62217a48fbc66684c110",
             "mediaType": "image/png"
           }
         ],
@@ -3173,6 +3203,18 @@
             "path": "verification/evidence/issue-163/08-reboot.png",
             "sha256": "sha256:a7bc0661478153cb71019c413ee8c1cf543c82561d54af9baee6c97bdba5e689",
             "mediaType": "image/png"
+          },
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "09-recording-reboot",
+            "path": "verification/evidence/issue-165/09-reboot.png",
+            "sha256": "sha256:55268a5a7c03db28f1e7003425815b37bf4e44f8a562498d0ae6a7f21aadbe95",
+            "mediaType": "image/png"
           }
         ],
         "result": "pass",
@@ -3180,6 +3222,123 @@
         "expiresAt": "2026-09-29T01:44:06.000Z",
         "links": [
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/163"
+        ]
+      },
+      {
+        "id": "lowest-device",
+        "sourceCommit": "4d6681de3031cd6dae8edb1aa9ea6e73fa6cf28e",
+        "apkDigest": "sha256:ad65396d3a0f63b21c8143b5a2c7cf9a487c49d8d065be9d55be2e4d5fad67ee",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-165-m03-recording-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T05:12:00.000Z",
+        "expiresAt": "2026-09-29T05:12:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/165"
+        ],
+        "artifacts": [
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "01-diagnostics",
+            "path": "verification/evidence/issue-165/01-diagnostics.png",
+            "sha256": "sha256:4731d7ccc90d7bdd279169786baefd473b9885d488e9bee80d93b63dfd524108",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "four-hour-soak",
+        "sourceCommit": "4d6681de3031cd6dae8edb1aa9ea6e73fa6cf28e",
+        "apkDigest": "sha256:ad65396d3a0f63b21c8143b5a2c7cf9a487c49d8d065be9d55be2e4d5fad67ee",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-165-m03-recording-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T05:12:00.000Z",
+        "expiresAt": "2026-09-29T05:12:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/165"
+        ],
+        "artifacts": [
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "03-cutoff-complete",
+            "path": "verification/evidence/issue-165/03-cutoff-complete.png",
+            "sha256": "sha256:e4199e5fb357ca3eb59395872578455b5f26b3d623b8f1540c42bcdf8b70129f",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "partial-artifact",
+        "sourceCommit": "4d6681de3031cd6dae8edb1aa9ea6e73fa6cf28e",
+        "apkDigest": "sha256:ad65396d3a0f63b21c8143b5a2c7cf9a487c49d8d065be9d55be2e4d5fad67ee",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-165-m03-recording-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T05:12:00.000Z",
+        "expiresAt": "2026-09-29T05:12:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/165"
+        ],
+        "artifacts": [
+          {
+            "id": "recording-receipt",
+            "path": "verification/evidence/issue-165-recording.json",
+            "sha256": "sha256:e89883bd6d6af527a3af87939bc973cce51c21dd5421e3211a8adc1308016732",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "05-recording-running",
+            "path": "verification/evidence/issue-165/05-recording-running.png",
+            "sha256": "sha256:a3cce8d783505b7c06233507eba2e113c75d394cdea708fa974af7e7a4359e6a",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "06-partial-artifact",
+            "path": "verification/evidence/issue-165/06-partial-artifact.png",
+            "sha256": "sha256:036004644c3d02cc347c0f8ca44b4a308631a4353338e15a05c81611eeda904b",
+            "mediaType": "image/png"
+          }
         ]
       }
     ]

@@ -1,0 +1,49 @@
+{
+  "shots": [
+    {
+      "name": "01-diagnostics",
+      "path": "verification/evidence/issue-165/01-diagnostics.png",
+      "sha256": "sha256:4731d7ccc90d7bdd279169786baefd473b9885d488e9bee80d93b63dfd524108"
+    },
+    {
+      "name": "02-warning",
+      "path": "verification/evidence/issue-165/02-warning.png",
+      "sha256": "sha256:e4199e5fb357ca3eb59395872578455b5f26b3d623b8f1540c42bcdf8b70129f"
+    },
+    {
+      "name": "03-cutoff-complete",
+      "path": "verification/evidence/issue-165/03-cutoff-complete.png",
+      "sha256": "sha256:e4199e5fb357ca3eb59395872578455b5f26b3d623b8f1540c42bcdf8b70129f"
+    },
+    {
+      "name": "04-open-partial",
+      "path": "verification/evidence/issue-165/04-open-partial.png",
+      "sha256": "sha256:e4199e5fb357ca3eb59395872578455b5f26b3d623b8f1540c42bcdf8b70129f"
+    },
+    {
+      "name": "05-recording-running",
+      "path": "verification/evidence/issue-165/05-recording-running.png",
+      "sha256": "sha256:a3cce8d783505b7c06233507eba2e113c75d394cdea708fa974af7e7a4359e6a"
+    },
+    {
+      "name": "06-partial-artifact",
+      "path": "verification/evidence/issue-165/06-partial-artifact.png",
+      "sha256": "sha256:036004644c3d02cc347c0f8ca44b4a308631a4353338e15a05c81611eeda904b"
+    },
+    {
+      "name": "07-storage-pressure",
+      "path": "verification/evidence/issue-165/07-storage-pressure.png",
+      "sha256": "sha256:93c7e3eeb29c697080e23ccad46a9cf4c3442a1eb692b8453a26e1878b700059"
+    },
+    {
+      "name": "08-process-death",
+      "path": "verification/evidence/issue-165/08-process-death.png",
+      "sha256": "sha256:14bb1d6926e73572cd27029a803406d48647ffb50acd62217a48fbc66684c110"
+    },
+    {
+      "name": "09-reboot",
+      "path": "verification/evidence/issue-165/09-reboot.png",
+      "sha256": "sha256:55268a5a7c03db28f1e7003425815b37bf4e44f8a562498d0ae6a7f21aadbe95"
+    }
+  ]
+}

@@ -3,9 +3,7 @@ package expo.modules.streamfusionnativecontracts
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.StatFs
 import java.io.File
-import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -44,16 +42,17 @@ internal class MediaJobEngine(private val context: Context) {
     val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     pauseFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(true)
     val workerRunning = workers[jobId]?.isDone == false
+    val artifact = artifactFrom(jobId)
     writeJournal(
       jobId,
       journal.optString("kind"),
       journal.optInt("generation"),
       if (workerRunning) "pausing" else "paused",
       journal.optJSONObject("checkpoint")?.optLong("byteOffset") ?: 0,
-      journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
-      artifactFrom(jobId).first,
-      artifactFrom(jobId).second,
-      artifactFrom(jobId).third,
+      journalDurationMs(journal),
+      artifact.first,
+      artifact.second,
+      artifact.third,
       workerRunning,
       null,
       if (workerRunning) "Pausing" else "Paused",
@@ -69,8 +68,7 @@ internal class MediaJobEngine(private val context: Context) {
   fun resume(jobId: String): Map<String, Any?> {
     val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     awaitWorkerExit(jobId)
-    pauseFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(false)
-    cancelFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(false)
+    clearControlFlags(jobId)
     startService(jobId)
     launchWorker(
       jobId,
@@ -94,7 +92,7 @@ internal class MediaJobEngine(private val context: Context) {
       journal.optInt("generation"),
       "canceled",
       artifact.second,
-      journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
+      journalDurationMs(journal),
       artifact.first,
       artifact.second,
       artifact.third,
@@ -112,15 +110,16 @@ internal class MediaJobEngine(private val context: Context) {
     val nextGeneration = journal.optInt("generation").coerceAtLeast(1) + 1
     pauseFlags[jobId] = AtomicBoolean(false)
     cancelFlags[jobId] = AtomicBoolean(false)
+    val artifact = artifactFrom(jobId)
     writeJournal(
       jobId,
       journal.optString("kind"),
       nextGeneration,
       "queued",
-      artifactFrom(jobId).second,
+      artifact.second,
       0,
-      artifactFrom(jobId).first,
-      artifactFrom(jobId).second,
+      artifact.first,
+      artifact.second,
       false,
       false,
       null,
@@ -138,19 +137,25 @@ internal class MediaJobEngine(private val context: Context) {
     workers.remove(jobId)?.cancel(true)
     completeArtifact(jobId)
     val artifact = artifactFrom(jobId)
+    val duration = journalDurationMs(journal)
+    val stopped = if (journal.optString("kind") == "recording" && artifact.second > 0) {
+      MediaJobRecordingLimits.STOPPED_STATUS
+    } else {
+      "Completed"
+    }
     writeJournal(
       jobId,
       journal.optString("kind"),
       journal.optInt("generation"),
       "completed",
       artifact.second,
-      journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
+      duration,
       if (artifact.second > 0) "complete" else "none",
       artifact.second,
       true,
       false,
       null,
-      "Completed",
+      stopped,
       journal.optString("sourceUri"),
     )
     owned.remove(jobId)
@@ -274,10 +279,14 @@ internal class MediaJobEngine(private val context: Context) {
     while (System.nanoTime() < deadline) {
       val phase = readJournal(jobId)?.optString("phase")
       if (phase != null && phase != fromPhase) return
-      val worker = workers[jobId]
-      if (worker != null && worker.isDone) return
+      if (workers[jobId]?.isDone == true) return
       TimeUnit.MILLISECONDS.sleep(50)
     }
+  }
+
+  private fun clearControlFlags(jobId: String) {
+    pauseFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(false)
+    cancelFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(false)
   }
 
   private fun awaitWorkerExit(jobId: String) {
@@ -301,78 +310,63 @@ internal class MediaJobEngine(private val context: Context) {
     val file = artifactFile(jobId) ?: return
     file.parentFile?.mkdirs()
     val writtenStart = if (file.exists()) file.length() else 0L
-    if (!writeIfWorkerOwns(jobId, kind, generation, "running", writtenStart, writtenStart / 32, artifactKind(writtenStart, false), writtenStart, false, true, null, "Running", sourceUri)) {
+    val durationStart = readJournal(jobId)?.let(::journalDurationMs) ?: 0
+    val startedAt = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(durationStart)
+    if (!writeIfWorkerOwns(jobId, kind, generation, "running", writtenStart, durationStart, artifactKind(writtenStart, false), writtenStart, false, true, null, "Running", sourceUri)) {
       return
     }
+    val limits = MediaJobRecordingLimits.of(kind, sourceUri)
     val outcome = when {
       sourceUri.startsWith("http://") || sourceUri.startsWith("https://") ->
         MediaJobSourceDownloader(readHeaders(jobId), { pauseFlags[jobId]?.get() == true }, { cancelFlags[jobId]?.get() == true })
-          .download(sourceUri, file, writtenStart) { written, total ->
-            val status = if (total != null) "Running · $written of $total bytes" else "Running"
-            writeIfWorkerOwns(jobId, kind, generation, "running", written, written / 32, "partial", written, false, true, null, status, sourceUri)
+          .transfer(limits, sourceUri, file, writtenStart, durationStart) { written, total ->
+            val elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+            val status = when {
+              limits != null -> limits.status(elapsed)
+              total != null -> "Running · $written of $total bytes"
+              else -> "Running"
+            }
+            writeIfWorkerOwns(jobId, kind, generation, "running", written, elapsed, "partial", written, false, true, null, status, sourceUri)
           }
-      else -> writeFixtureChunks(jobId, kind, sourceUri, generation, file)
+      else -> MediaJobFixtureWriter(
+        context.filesDir,
+        { pauseFlags[jobId]?.get() == true },
+        { cancelFlags[jobId]?.get() == true },
+      ).write(jobId, kind, sourceUri, file, durationStart) { written, durationMs, status ->
+        writeIfWorkerOwns(jobId, kind, generation, "running", written, durationMs, "partial", written, false, true, null, status, sourceUri)
+      }
     }
     when (outcome) {
       is MediaJobDownloadOutcome.Paused -> {
         val bytes = outcome.bytes
-        writeIfWorkerOwns(jobId, kind, generation, "paused", bytes, bytes / 32, artifactKind(bytes, false), bytes, false, false, null, "Paused", sourceUri)
+        writeIfWorkerOwns(jobId, kind, generation, "paused", bytes, outcome.durationMs, artifactKind(bytes, false), bytes, false, false, null, "Paused", sourceUri)
         owned.remove(jobId)
         stopServiceIfIdle()
       }
       is MediaJobDownloadOutcome.Failed -> {
-        val bytes = outcome.bytes
-        writeIfWorkerOwns(jobId, kind, generation, "failed-retryable", bytes, bytes / 32, artifactKind(bytes, false), bytes, false, false, outcome.code, outcome.message, sourceUri)
+        if (kind == "recording" && outcome.code == "interrupted" && outcome.bytes > 0) {
+          completeIfWorkerOwns(
+            jobId,
+            kind,
+            sourceUri,
+            generation,
+            outcome.bytes,
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
+            MediaJobRecordingLimits.STOPPED_STATUS,
+          )
+        } else {
+          val bytes = outcome.bytes
+          writeIfWorkerOwns(jobId, kind, generation, "failed-retryable", bytes, bytes / 32, artifactKind(bytes, false), bytes, false, false, outcome.code, outcome.message, sourceUri)
+        }
         owned.remove(jobId)
         stopServiceIfIdle()
       }
       is MediaJobDownloadOutcome.Completed -> {
-        if (!completeIfWorkerOwns(jobId, kind, sourceUri, generation, outcome.bytes)) return
+        if (!completeIfWorkerOwns(jobId, kind, sourceUri, generation, outcome.bytes, outcome.durationMs, outcome.status)) return
         owned.remove(jobId)
         stopServiceIfIdle()
       }
     }
-  }
-
-  private fun writeFixtureChunks(
-    jobId: String,
-    kind: String,
-    sourceUri: String,
-    generation: Int,
-    file: File,
-  ): MediaJobDownloadOutcome {
-    val target = if (kind == "recording") 32_768L else 65_536L
-    val pressure = sourceUri.contains("storage-pressure")
-    val networkLoss = sourceUri.contains("network-loss")
-    var written = if (file.exists()) file.length() else 0L
-    RandomAccessFile(file, "rw").use { access ->
-      access.seek(written)
-      val chunk = ByteArray(4_096) { 0x53 }
-      while (written < target) {
-        if (cancelFlags[jobId]?.get() == true) {
-          return MediaJobDownloadOutcome.Failed("interrupted", "Canceled", written)
-        }
-        if (pauseFlags[jobId]?.get() == true) return MediaJobDownloadOutcome.Paused(written)
-        if (pressure && written >= 4_096) {
-          return MediaJobDownloadOutcome.Failed("storage-pressure", "Stopped because storage is full.", written)
-        }
-        if (networkLoss && written >= 4_096) {
-          return MediaJobDownloadOutcome.Failed("network-loss", "Stopped because the network was lost.", written)
-        }
-        val available = StatFs(context.filesDir.absolutePath).availableBytes
-        if (available < 8_192) {
-          return MediaJobDownloadOutcome.Failed("storage-pressure", "Stopped because storage is full.", written)
-        }
-        access.write(chunk)
-        written += chunk.size
-        android.util.Log.i("SF-MediaJob", "chunk job=$jobId written=$written")
-        if (!writeIfWorkerOwns(jobId, kind, generation, "running", written, written / 32, "partial", written, false, true, null, "Running", sourceUri)) {
-          return MediaJobDownloadOutcome.Failed("interrupted", "Stopped", written)
-        }
-        waitForChunkOrStop(jobId)
-      }
-    }
-    return MediaJobDownloadOutcome.Completed(written)
   }
 
   private fun snapshot(jobId: String): Map<String, Any?> {
@@ -389,7 +383,7 @@ internal class MediaJobEngine(private val context: Context) {
       journal.optInt("generation"),
       journal.optString("phase"),
       journal.optJSONObject("checkpoint")?.optLong("byteOffset") ?: artifact.second,
-      journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
+      journalDurationMs(journal),
       journal.optJSONObject("checkpoint")?.optString("updatedAt") ?: MediaJobCodec.utcNow(),
       if (artifact.third) "complete" else if (artifact.second > 0) "partial" else "none",
       if (artifact.second > 0 || artifact.third) "media-jobs/$jobId/artifact.bin" else null,
@@ -486,6 +480,8 @@ internal class MediaJobEngine(private val context: Context) {
     sourceUri: String,
     generation: Int,
     target: Long,
+    durationMs: Long,
+    status: String,
   ): Boolean {
     synchronized(journalGuard) {
       if (!workerOwnsJournal(jobId, generation)) return false
@@ -496,13 +492,13 @@ internal class MediaJobEngine(private val context: Context) {
         generation,
         "completed",
         target,
-        target / 32,
+        durationMs,
         "complete",
         target,
         true,
         false,
         null,
-        "Completed",
+        status,
         sourceUri,
       )
       return true
@@ -510,7 +506,9 @@ internal class MediaJobEngine(private val context: Context) {
   }
 
   private fun startService(jobId: String) {
-    val intent = Intent(context, MediaJobForegroundService::class.java).putExtra("jobId", jobId)
+    val intent = Intent(context, MediaJobForegroundService::class.java)
+      .putExtra("jobId", jobId)
+      .putExtra("kind", readJournal(jobId)?.optString("kind") ?: "")
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       context.startForegroundService(intent)
     } else {
@@ -564,16 +562,17 @@ internal class MediaJobEngine(private val context: Context) {
     return phase != "canceled" && phase != "completed" && phase != "failed-terminal"
   }
   private fun writePausedWithoutWorker(jobId: String, journal: JSONObject) {
+    val artifact = artifactFrom(jobId)
     writeJournal(
       jobId,
       journal.optString("kind"),
       journal.optInt("generation"),
       "paused",
       journal.optJSONObject("checkpoint")?.optLong("byteOffset") ?: 0,
-      journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0,
-      artifactFrom(jobId).first,
-      artifactFrom(jobId).second,
-      artifactFrom(jobId).third,
+      journalDurationMs(journal),
+      artifact.first,
+      artifact.second,
+      artifact.third,
       false,
       null,
       "Paused",
@@ -598,18 +597,10 @@ internal class MediaJobEngine(private val context: Context) {
   private fun artifactKind(bytes: Long, complete: Boolean): String =
     if (complete) "complete" else if (bytes > 0) "partial" else "none"
 
-  private fun waitForChunkOrStop(jobId: String) {
-    var remaining = CHUNK_SLEEP_MS
-    while (remaining > 0) {
-      if (cancelFlags[jobId]?.get() == true || pauseFlags[jobId]?.get() == true) return
-      val slice = remaining.coerceAtMost(100L)
-      TimeUnit.MILLISECONDS.sleep(slice)
-      remaining -= slice
-    }
-  }
+  private fun journalDurationMs(journal: JSONObject): Long =
+    journal.optJSONObject("checkpoint")?.optLong("durationMs") ?: 0
 
   companion object {
-    private const val CHUNK_SLEEP_MS = 2_500L
     private val ACTIVE_PHASES = setOf("queued", "preparing", "running", "pausing", "finalizing")
     @Volatile private var instance: MediaJobEngine? = null
     fun get(context: Context): MediaJobEngine {

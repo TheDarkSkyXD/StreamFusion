@@ -31,17 +31,25 @@ class MediaJobForegroundService : Service() {
         stopSelf(startId)
         return START_NOT_STICKY
       }
-      promoteForeground(restored.first())
+      promoteForeground(restored.first(), null)
       return START_STICKY
     }
-    promoteForeground(intent.getStringExtra("jobId") ?: "media-job")
+    promoteForeground(
+      intent.getStringExtra("jobId") ?: "media-job",
+      intent.getStringExtra("kind"),
+    )
     return START_STICKY
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
 
-  private fun promoteForeground(jobId: String) {
-    val notification = notification("Media Job $jobId is running.")
+  private fun promoteForeground(jobId: String, kind: String?) {
+    val text = if (kind == "recording") {
+      "Recording is running."
+    } else {
+      "Media Job $jobId is running."
+    }
+    val notification = notification(text)
     if (Build.VERSION.SDK_INT >= 34) {
       startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     } else {

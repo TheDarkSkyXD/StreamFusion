@@ -2,9 +2,7 @@ import { toSerializedTimestamp } from "@streamfusion/core/activity";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 
 import type { MediaJobWorkflow } from "../capabilities/media-jobs";
-
-export const MEDIA_JOB_RECOVERY_FAILED =
-  "Recovery failed. Recover again to retry.";
+import { MEDIA_JOB_RECOVERY_FAILED } from "../utils/media-job-labels";
 
 export type ExclusiveGate = {
   readonly run: <T>(work: () => Promise<T>) => Promise<T>;

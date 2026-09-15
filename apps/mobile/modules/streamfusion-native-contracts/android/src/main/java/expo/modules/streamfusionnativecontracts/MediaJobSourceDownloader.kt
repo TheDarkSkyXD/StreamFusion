@@ -8,8 +8,15 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 internal sealed class MediaJobDownloadOutcome {
-  data class Completed(val bytes: Long) : MediaJobDownloadOutcome()
-  data class Paused(val bytes: Long) : MediaJobDownloadOutcome()
+  data class Completed(
+    val bytes: Long,
+    val status: String = "Completed",
+    val durationMs: Long = bytes / 32,
+  ) : MediaJobDownloadOutcome()
+  data class Paused(
+    val bytes: Long,
+    val durationMs: Long = bytes / 32,
+  ) : MediaJobDownloadOutcome()
   data class Failed(
     val code: String,
     val message: String,
@@ -28,11 +35,25 @@ internal class MediaJobSourceDownloader(
     startOffset: Long,
     onProgress: (written: Long, total: Long?) -> Boolean,
   ): MediaJobDownloadOutcome {
+    return transfer(null, sourceUri, file, startOffset, 0, onProgress)
+  }
+
+  fun transfer(
+    limits: MediaJobRecordingLimits?,
+    sourceUri: String,
+    file: File,
+    startOffset: Long,
+    durationStartMs: Long,
+    onProgress: (written: Long, total: Long?) -> Boolean,
+  ): MediaJobDownloadOutcome {
     return runCatching {
-      if (looksLikePlaylist(sourceUri)) {
-        downloadHls(sourceUri, file, startOffset, onProgress)
-      } else {
-        downloadHttp(sourceUri, file, startOffset, onProgress)
+      when {
+        looksLikePlaylist(sourceUri) && limits != null ->
+          recordHls(limits, sourceUri, file, startOffset, durationStartMs, onProgress)
+        looksLikePlaylist(sourceUri) ->
+          downloadHls(sourceUri, file, startOffset, onProgress)
+        else ->
+          downloadHttp(sourceUri, file, startOffset, onProgress)
       }
     }.getOrElse { error ->
       android.util.Log.e("MediaJobHttp", "download failed for $sourceUri", error)
@@ -160,6 +181,61 @@ internal class MediaJobSourceDownloader(
     return MediaJobDownloadOutcome.Completed(written)
   }
 
+  private fun recordHls(
+    limits: MediaJobRecordingLimits,
+    sourceUri: String,
+    file: File,
+    startOffset: Long,
+    durationStartMs: Long,
+    onProgress: (written: Long, total: Long?) -> Boolean,
+  ): MediaJobDownloadOutcome {
+    val startedAt = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(durationStartMs)
+    val seen = linkedSetOf<String>()
+    file.parentFile?.mkdirs()
+    var written = if (file.exists()) file.length() else startOffset
+    RandomAccessFile(file, "rw").use { access ->
+      access.seek(written)
+      while (true) {
+        recordingGate(limits, written, elapsedMs(startedAt))?.let { return it }
+        val mediaPlaylist = resolveMediaPlaylist(sourceUri)
+        val segments = parseSegmentUris(mediaPlaylist.first, mediaPlaylist.second)
+        for (segment in segments) {
+          if (!seen.add(segment)) continue
+          recordingGate(limits, written, elapsedMs(startedAt))?.let { return it }
+          val connection = open(segment, 0)
+          if (connection.responseCode !in 200..299) {
+            connection.disconnect()
+            return MediaJobDownloadOutcome.Failed(
+              "network-loss",
+              "Stopped because the network was lost.",
+              written,
+            )
+          }
+          try {
+            connection.inputStream.use { input ->
+              val buffer = ByteArray(4_096)
+              while (true) {
+                stopIfCanceledOrPaused(written, elapsedMs(startedAt))?.let { return it }
+                val read = input.read(buffer)
+                if (read <= 0) break
+                access.write(buffer, 0, read)
+                written += read
+                val now = elapsedMs(startedAt)
+                if (!onProgress(written, null)) {
+                  return MediaJobDownloadOutcome.Failed("interrupted", "Stopped", written)
+                }
+                completeIfCutoff(limits, written, now)?.let { return it }
+              }
+            }
+          } finally {
+            connection.disconnect()
+          }
+        }
+        TimeUnit.MILLISECONDS.sleep(500)
+      }
+    }
+  }
+
   private fun open(sourceUri: String, rangeStart: Long): HttpURLConnection {
     val connection = URL(sourceUri).openConnection() as HttpURLConnection
     connection.connectTimeout = 15_000
@@ -232,6 +308,42 @@ internal class MediaJobSourceDownloader(
   private fun looksLikePlaylist(sourceUri: String): Boolean {
     val lower = sourceUri.lowercase()
     return lower.contains(".m3u8") || lower.contains("m3u8?")
+  }
+
+  private fun elapsedMs(startedAt: Long): Long =
+    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+
+  private fun recordingGate(
+    limits: MediaJobRecordingLimits,
+    written: Long,
+    elapsed: Long,
+  ): MediaJobDownloadOutcome? {
+    completeIfCutoff(limits, written, elapsed)?.let { return it }
+    return stopIfCanceledOrPaused(written, elapsed)
+  }
+
+  private fun completeIfCutoff(
+    limits: MediaJobRecordingLimits,
+    written: Long,
+    elapsed: Long,
+  ): MediaJobDownloadOutcome? {
+    if (elapsed < limits.cutoffMs) return null
+    return MediaJobDownloadOutcome.Completed(written, limits.status(elapsed), elapsed)
+  }
+
+  private fun stopIfCanceledOrPaused(
+    written: Long,
+    elapsed: Long,
+  ): MediaJobDownloadOutcome? {
+    if (canceled()) {
+      return MediaJobDownloadOutcome.Completed(
+        written,
+        MediaJobRecordingLimits.STOPPED_STATUS,
+        elapsed,
+      )
+    }
+    if (paused()) return MediaJobDownloadOutcome.Paused(written, elapsed)
+    return null
   }
 
   private fun totalFromHeaders(

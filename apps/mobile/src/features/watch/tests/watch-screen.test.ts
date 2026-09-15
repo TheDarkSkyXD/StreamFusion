@@ -253,6 +253,20 @@ describe("watch screen", () => {
           onOpenArtifact: () => undefined,
           onStart: () => undefined,
         },
+        recording: {
+          busy: false,
+          eligibility: {
+            kind: "eligible",
+            jobId: "rec-twitch-twitch-1" as never,
+            label: "Record",
+          },
+          job: null,
+          onCommand: () => undefined,
+          onDelete: () => undefined,
+          onExport: () => undefined,
+          onOpenArtifact: () => undefined,
+          onStart: () => undefined,
+        },
         inspection: null,
         onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
@@ -267,6 +281,9 @@ describe("watch screen", () => {
     expect(
       liveNodes.some((node) => node.props.testID === "watch-download-start"),
     ).toBe(false);
+    expect(
+      liveNodes.some((node) => node.props.testID === "watch-recording-start"),
+    ).toBe(true);
     const videoNodes = descendants(
       WatchScreen({
         PlayerSurface: () => null,
@@ -302,5 +319,8 @@ describe("watch screen", () => {
     expect(
       videoNodes.some((node) => node.props.testID === "watch-download-start"),
     ).toBe(true);
+    expect(
+      videoNodes.some((node) => node.props.testID === "watch-recording-start"),
+    ).toBe(false);
   });
 });

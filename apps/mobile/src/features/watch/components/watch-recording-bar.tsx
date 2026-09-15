@@ -18,16 +18,16 @@ import {
   mediaJobPhaseLabel,
 } from "@mobile/features/media-jobs/utils/media-job-labels";
 
-import type { WatchDownloadEligibility } from "../domain/watch-download";
+import type { WatchRecordingEligibility } from "../domain/watch-recording";
 
 const jobCommands: readonly Exclude<MediaJobCommandName, "start">[] = [
   "pause",
   "resume",
+  "finalize",
   "retry",
-  "cancel",
 ];
 
-export function WatchDownloadBar({
+export function WatchRecordingBar({
   busy = false,
   eligibility,
   job,
@@ -39,7 +39,7 @@ export function WatchDownloadBar({
   status,
 }: {
   readonly busy?: boolean;
-  readonly eligibility: WatchDownloadEligibility;
+  readonly eligibility: WatchRecordingEligibility;
   readonly job: MediaJobSnapshot | null;
   readonly onCommand: (command: MediaJobCommandName) => void;
   readonly onDelete: () => void;
@@ -51,17 +51,17 @@ export function WatchDownloadBar({
   if (eligibility.kind === "hidden") return null;
   if (eligibility.kind === "unsupported") {
     return (
-      <View style={styles.panel} testID="watch-download">
-        <Text selectable style={styles.body} testID="watch-download-unsupported">
+      <View style={styles.panel} testID="watch-recording">
+        <Text selectable style={styles.body} testID="watch-recording-unsupported">
           {eligibility.reason}
         </Text>
       </View>
     );
   }
   return (
-    <View style={styles.panel} testID="watch-download">
+    <View style={styles.panel} testID="watch-recording">
       {job ? (
-        <ActiveDownload
+        <ActiveRecording
           busy={busy}
           job={job}
           onCommand={onCommand}
@@ -75,14 +75,14 @@ export function WatchDownloadBar({
           busy={busy}
           label={eligibility.label}
           onPress={onStart}
-          testID="watch-download-start"
+          testID="watch-recording-start"
         />
       )}
     </View>
   );
 }
 
-function ActiveDownload({
+function ActiveRecording({
   busy,
   job,
   onCommand,
@@ -104,13 +104,13 @@ function ActiveDownload({
   );
   return (
     <>
-      <Text selectable style={styles.body} testID="watch-download-phase">
+      <Text selectable style={styles.body} testID="watch-recording-phase">
         {mediaJobPhaseLabel(job.phase)}
       </Text>
-      <Text selectable style={styles.body} testID="watch-download-status">
+      <Text selectable style={styles.body} testID="watch-recording-status">
         {mediaJobDisplayedStatus(status, job.statusMessage)}
       </Text>
-      <Text selectable style={styles.body} testID="watch-download-progress">
+      <Text selectable style={styles.body} testID="watch-recording-progress">
         {progressLabel(job)}
       </Text>
       <View style={styles.actions}>
@@ -118,9 +118,9 @@ function ActiveDownload({
           <Action
             busy={busy}
             key={command}
-            label={mediaJobCommandLabel(command)}
+            label={mediaJobCommandLabel(command, "recording")}
             onPress={() => onCommand(command)}
-            testID={`watch-download-command-${command}`}
+            testID={`watch-recording-command-${command}`}
           />
         ))}
         {job.phase === "completed" ? (
@@ -129,13 +129,13 @@ function ActiveDownload({
               busy={busy}
               label="Open"
               onPress={onOpenArtifact}
-              testID="watch-download-open"
+              testID="watch-recording-open"
             />
             <Action
               busy={busy}
               label="Export"
               onPress={onExport}
-              testID="watch-download-export"
+              testID="watch-recording-export"
             />
           </>
         ) : null}
@@ -144,7 +144,7 @@ function ActiveDownload({
             busy={busy}
             label="Delete"
             onPress={onDelete}
-            testID="watch-download-delete"
+            testID="watch-recording-delete"
           />
         ) : null}
       </View>
@@ -181,18 +181,19 @@ function Action({
 }
 
 function progressLabel(job: MediaJobSnapshot): string {
-  const { totalBytes, transferredBytes } = job.progress;
-  if (totalBytes && totalBytes > 0) {
-    const percent = Math.min(
-      100,
-      Math.round((transferredBytes / totalBytes) * 100),
-    );
-    return `${percent}% · ${transferredBytes} bytes`;
+  const durationMs = job.checkpoint?.durationMs ?? 0;
+  const bytes = job.progress.transferredBytes;
+  if (durationMs > 0) {
+    return `${formatDuration(durationMs)} · ${bytes} bytes`;
   }
-  if (job.artifact.kind === "complete") {
-    return `100% · ${transferredBytes} bytes`;
-  }
-  return `${transferredBytes} bytes`;
+  return `${bytes} bytes`;
+}
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 function canDeleteJob(phase: MediaJobPhase): boolean {

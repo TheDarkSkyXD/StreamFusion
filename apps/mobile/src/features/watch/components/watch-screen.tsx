@@ -27,8 +27,10 @@ import type {
 import { composeWatchView } from "../domain/watch-view";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
+import type { WatchRecordingEligibility } from "../domain/watch-recording";
 import { PlayerControls } from "./player-controls";
 import { WatchDownloadBar } from "./watch-download-bar";
+import { WatchRecordingBar } from "./watch-recording-bar";
 import { WatchTabs } from "./watch-tabs";
 
 export type PlayerSurfaceProps = {
@@ -46,11 +48,24 @@ export type WatchScreenRuntime = {
   readonly runtime: WatchRuntime;
 };
 
+export type WatchMediaJobControls<Eligibility> = {
+  readonly busy: boolean;
+  readonly eligibility: Eligibility;
+  readonly job: MediaJobSnapshot | null;
+  readonly onCommand: (command: MediaJobCommandName) => void;
+  readonly onDelete: () => void;
+  readonly onExport: () => void;
+  readonly onOpenArtifact: () => void;
+  readonly onStart: () => void;
+  readonly status?: string | null;
+};
+
 export function WatchScreen({
   PlayerSurface,
   adblockView,
   chat,
   download,
+  recording,
   inspection,
   onAddToMultistream,
   onOpenProviderPage,
@@ -73,17 +88,8 @@ export function WatchScreen({
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly adblockView?: AdBlockView | null;
   readonly chat: WatchChatAvailability;
-  readonly download?: {
-    readonly busy: boolean;
-    readonly eligibility: WatchDownloadEligibility;
-    readonly job: MediaJobSnapshot | null;
-    readonly onCommand: (command: MediaJobCommandName) => void;
-    readonly onDelete: () => void;
-    readonly onExport: () => void;
-    readonly onOpenArtifact: () => void;
-    readonly onStart: () => void;
-    readonly status?: string | null;
-  };
+  readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
+  readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
   readonly onAddToMultistream?: () => void;
   readonly onOpenProviderPage: () => void;
@@ -174,19 +180,8 @@ export function WatchScreen({
           {view.primaryAction === "retry" ? (
             <Action label="Retry" onPress={onRetry} testID="watch-retry" />
           ) : null}
-          {download ? (
-            <WatchDownloadBar
-              busy={download.busy}
-              eligibility={download.eligibility}
-              job={download.job}
-              onCommand={download.onCommand}
-              onDelete={download.onDelete}
-              onExport={download.onExport}
-              onOpenArtifact={download.onOpenArtifact}
-              onStart={download.onStart}
-              status={download.status}
-            />
-          ) : null}
+          {download ? <WatchDownloadBar {...download} /> : null}
+          {recording ? <WatchRecordingBar {...recording} /> : null}
           {showsProvider(playback) ? (
             <Action
               label="Open provider page"

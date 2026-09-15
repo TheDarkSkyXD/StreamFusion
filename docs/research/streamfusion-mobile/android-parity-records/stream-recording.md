@@ -2,12 +2,12 @@
 
 - Capability ID: `stream-recording`
 - Desktop baseline: `docs/research/streamfusion-mobile/desktop-parity-inventory.md` Playback stream-recording section
-- Observed `main` at branch start: `5ea4b9da49719f6e4320253b66d817368be46bd6`
+- Observed `main` at branch start: `4d6681de3031cd6dae8edb1aa9ea6e73fa6cf28e`
 - Android owner: Mobile `media-jobs` plus `streamfusion-native-contracts` MediaJobEngine
 - Progress: `implemented`
 - Delivery: `adapted`
-- Adaptation: No Desktop live-player recording chrome on Watch yet. M01 delivers the shared recoverable job engine, the recording fixture URI, `activity/job-preview`, and Activity Jobs. Segmented live Stream recording, Stop, four-hour cutoff, and playable partial recovery remain M03.
-- Freshness: `current` at `verification/evidence/issue-163-media-jobs.json` on APK `sha256:8261d6c65da465e9f9a3d548955383b1c08fae03a8aeccd98873e42f58db99e5`
+- Adaptation: No Desktop live-player recording chrome. Live Watch offers Record with a stable job id. Diagnostics compressed cutoff proves the four-hour warning/cutoff contract in 12s. Stop finalizes a playable partial. Storage-pressure, process death, and reboot recover through the same Media Job engine.
+- Freshness: `current` at `verification/evidence/issue-165-recording.json` on APK `sha256:ad65396d3a0f63b21c8143b5a2c7cf9a487c49d8d065be9d55be2e4d5fad67ee`
 
 ## Desktop outcome
 
@@ -15,21 +15,24 @@ Record a live stream, recover interrupted recording work, and open completed fil
 
 ## Android outcome
 
-Diagnostics exposes `streamfusion-fixture://recording` on the same Media Job engine as downloads. Commands, checkpoints, foreground-service ownership, Recover, process death, reboot, storage pressure, and Activity projection are the M01 engine proof. Live Watch recording stays on M03.
+Live Watch offers Record. Diagnostics exposes `streamfusion-fixture://recording`, `?cutoff=compressed`, and `?storage-pressure` on the Media Job engine. Compressed cutoff completes with "Stopped at the four-hour limit. Partial recording saved." Stop completes with "Stopped. Partial recording saved." Recover restores jobs after process death and reboot. Activity Jobs lists recordings. Guest signed-out reads stay `{ kind: "guest" }`.
 
 ## Required evidence
 
 - `change-gate`
-- `api30-device`
+- `lowest-device`
+- `four-hour-soak`
 - `process-death`
 - `reboot`
 - `storage-pressure`
-- `activity-reconciliation`
+- `partial-artifact`
+
+M01 still owns `api30-device` and `activity-reconciliation` on this capability.
 
 ## Evidence residuals
 
-TalkBack was not driven. The driven fixture in job-preview was a download; recording uses the same engine and is listed on Diagnostics. Live segmented recording is M03.
+TalkBack was not driven. Four-hour soak used the compressed 12s cutoff, not a wall-clock four-hour run. The 8s warning window was not photographed separately because the cutoff status also contains "four-hour limit". Open on the fixture `.bin` did not launch a viewer. Fixture bytes are dummy recording output, not a live HLS segment file.
 
 ## Blocking for public release
 
-OAuth stays on #145 and #146. Live Watch recording stays on #165.
+OAuth stays on #145 and #146.

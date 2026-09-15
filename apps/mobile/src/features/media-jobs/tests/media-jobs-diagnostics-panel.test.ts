@@ -49,7 +49,7 @@ function press(nodes: readonly Element[], testID: string): void {
   byTestId(nodes, testID)?.props.onPress?.();
 }
 
-// Guards: Diagnostics can start download, HTTP range, network-loss, recording, and recover
+// Guards: Diagnostics can start download, HTTP range, network-loss, recording, compressed cutoff, and recover
 describe("Media Jobs diagnostics panel", () => {
   it("starts fixture jobs, recovers, and opens an existing job", () => {
     const opened: string[] = [];
@@ -70,6 +70,8 @@ describe("Media Jobs diagnostics panel", () => {
         onStartHttpRange: () => actions.push("range"),
         onStartNetworkLoss: () => actions.push("loss"),
         onStartRecording: () => actions.push("recording"),
+        onStartCompressedRecording: () => actions.push("compressed"),
+        onStartRecordingStoragePressure: () => actions.push("recording-pressure"),
         onStartStoragePressure: () => actions.push("pressure"),
       }),
     );
@@ -78,6 +80,8 @@ describe("Media Jobs diagnostics panel", () => {
     press(nodes, "media-jobs-start-http-range");
     press(nodes, "media-jobs-start-network-loss");
     press(nodes, "media-jobs-start-recording");
+    press(nodes, "media-jobs-start-compressed-recording");
+    press(nodes, "media-jobs-start-recording-storage-pressure");
     press(nodes, "media-jobs-start-storage-pressure");
     press(nodes, "media-jobs-recover");
     press(nodes, "media-jobs-open-download-1");
@@ -86,6 +90,8 @@ describe("Media Jobs diagnostics panel", () => {
       "range",
       "loss",
       "recording",
+      "compressed",
+      "recording-pressure",
       "pressure",
       "recover",
     ]);

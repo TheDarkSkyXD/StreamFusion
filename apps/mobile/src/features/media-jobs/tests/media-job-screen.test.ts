@@ -77,6 +77,7 @@ function runningSnapshot(): MediaJobSnapshot {
 // Guards: missing Media Job stays distinct from a live job preview
 // Guards: running jobs expose pause, cancel, finalize, recover, progress, and service ownership
 // Guards: completed jobs expose Open, Export, and Delete
+// Guards: stale Preparing overlay must not hide live recording warning/cutoff status
 describe("Media Job screen", () => {
   it("renders a missing-job empty state", () => {
     const nodes = descendants(
@@ -149,5 +150,26 @@ describe("Media Job screen", () => {
     byTestId(nodes, "media-job-export")?.props.onPress?.();
     byTestId(nodes, "media-job-delete")?.props.onPress?.();
     expect(actions).toEqual(["open", "export", "delete"]);
+  });
+
+  it("shows the live snapshot status instead of a stale Preparing overlay", () => {
+    const nodes = descendants(
+      MediaJobScreen({
+        onCommand: () => undefined,
+        snapshot: {
+          ...runningSnapshot(),
+          intent: {
+            ...runningSnapshot().intent,
+            kind: "recording",
+            sourceUri: "streamfusion-fixture://recording?cutoff=compressed",
+          },
+          statusMessage: "Recording will stop at the four-hour limit.",
+        },
+        status: "Preparing",
+      }),
+    );
+    expect(String(byTestId(nodes, "media-job-status")?.props.children)).toBe(
+      "Recording will stop at the four-hour limit.",
+    );
   });
 });

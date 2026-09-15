@@ -2,6 +2,8 @@ import {
   MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
   MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI,
   MEDIA_JOB_FIXTURE_RECORDING_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_STORAGE_PRESSURE_URI,
   MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI,
   MEDIA_JOB_HTTP_RANGE_PROOF_URI,
   type MediaJobSnapshot,
@@ -17,6 +19,16 @@ import {
 
 import { mediaJobPhaseLabel } from "../utils/media-job-labels";
 
+const fixtureUris = [
+  MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
+  MEDIA_JOB_HTTP_RANGE_PROOF_URI,
+  MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_STORAGE_PRESSURE_URI,
+  MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI,
+] as const;
+
 export function MediaJobsDiagnosticsPanel({
   busy = false,
   jobs,
@@ -26,6 +38,8 @@ export function MediaJobsDiagnosticsPanel({
   onStartHttpRange,
   onStartNetworkLoss,
   onStartRecording,
+  onStartCompressedRecording,
+  onStartRecordingStoragePressure,
   onStartStoragePressure,
   status,
 }: {
@@ -37,6 +51,8 @@ export function MediaJobsDiagnosticsPanel({
   readonly onStartHttpRange: () => void;
   readonly onStartNetworkLoss: () => void;
   readonly onStartRecording: () => void;
+  readonly onStartCompressedRecording: () => void;
+  readonly onStartRecordingStoragePressure: () => void;
   readonly onStartStoragePressure: () => void;
   readonly status?: string | null;
 }) {
@@ -46,110 +62,73 @@ export function MediaJobsDiagnosticsPanel({
         MEDIA JOB ENGINE
       </Text>
       <Text selectable style={styles.meta} testID="media-jobs-build-stamp">
-        M02 Downloads · contract 3
+        M03 Recording · contract 3
       </Text>
       <Text selectable style={styles.body}>
-        Start a fixture download, HTTP range proof, network-loss, or recording.
-        Activity Jobs and job details show durable state, export, and delete.
+        Start a fixture download, compressed four-hour recording cutoff, or
+        recording storage-pressure. Activity Jobs show Stop, Open, and
+        playable partial recovery.
       </Text>
-      <Text selectable style={styles.meta}>
-        {MEDIA_JOB_FIXTURE_DOWNLOAD_URI}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {MEDIA_JOB_HTTP_RANGE_PROOF_URI}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {MEDIA_JOB_FIXTURE_RECORDING_URI}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {MEDIA_JOB_FIXTURE_STORAGE_PRESSURE_URI}
-      </Text>
+      {fixtureUris.map((uri) => (
+        <Text key={uri} selectable style={styles.meta}>
+          {uri}
+        </Text>
+      ))}
       {status ? (
         <Text selectable style={styles.body} testID="media-jobs-status">
           {status}
         </Text>
       ) : null}
-      <Pressable
-        accessibilityLabel="Start fixture download"
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
+      <Action
+        busy={busy}
+        label="Start fixture download"
         onPress={onStartDownload}
-        style={styles.button}
         testID="media-jobs-start-download"
-      >
-        <Text selectable style={styles.buttonLabel}>
-          Start fixture download
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityLabel="Start HTTP range proof"
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
+      />
+      <Action
+        busy={busy}
+        label="Start HTTP range proof"
         onPress={onStartHttpRange}
-        style={styles.button}
         testID="media-jobs-start-http-range"
-      >
-        <Text selectable style={styles.buttonLabel}>
-          Start HTTP range proof
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityLabel="Start network-loss fixture"
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
+      />
+      <Action
+        busy={busy}
+        label="Start network-loss fixture"
         onPress={onStartNetworkLoss}
-        style={styles.button}
         testID="media-jobs-start-network-loss"
-      >
-        <Text selectable style={styles.buttonLabel}>
-          Start network-loss fixture
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityLabel="Start fixture recording"
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
+      />
+      <Action
+        busy={busy}
+        label="Start fixture recording"
         onPress={onStartRecording}
-        style={styles.button}
         testID="media-jobs-start-recording"
-      >
-        <Text selectable style={styles.buttonLabel}>
-          Start fixture recording
-        </Text>
-      </Pressable>
-      <Pressable
+      />
+      <Action
+        busy={busy}
+        label="Start compressed four-hour cutoff"
+        onPress={onStartCompressedRecording}
+        testID="media-jobs-start-compressed-recording"
+      />
+      <Action
+        accessibilityLabel="Start recording storage pressure"
+        busy={busy}
+        label="Start recording storage-pressure"
+        onPress={onStartRecordingStoragePressure}
+        testID="media-jobs-start-recording-storage-pressure"
+      />
+      <Action
         accessibilityLabel="Start storage pressure fixture"
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
+        busy={busy}
+        label="Start storage-pressure fixture"
         onPress={onStartStoragePressure}
-        style={styles.button}
         testID="media-jobs-start-storage-pressure"
-      >
-        <Text selectable style={styles.buttonLabel}>
-          Start storage-pressure fixture
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityLabel="Recover Media Jobs"
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
+      />
+      <Action
+        busy={busy}
+        label="Recover Media Jobs"
         onPress={onRecover}
-        style={styles.button}
         testID="media-jobs-recover"
-      >
-        <Text selectable style={styles.buttonLabel}>
-          Recover Media Jobs
-        </Text>
-      </Pressable>
+      />
       {jobs.map((job) => (
         <Pressable
           accessibilityLabel={`Open ${job.intent.kind} ${job.intent.jobId}`}
@@ -168,6 +147,36 @@ export function MediaJobsDiagnosticsPanel({
         </Pressable>
       ))}
     </View>
+  );
+}
+
+function Action({
+  accessibilityLabel,
+  busy,
+  label,
+  onPress,
+  testID,
+}: {
+  readonly accessibilityLabel?: string;
+  readonly busy: boolean;
+  readonly label: string;
+  readonly onPress: () => void;
+  readonly testID: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityRole="button"
+      accessibilityState={{ busy, disabled: busy }}
+      disabled={busy}
+      onPress={onPress}
+      style={styles.button}
+      testID={testID}
+    >
+      <Text selectable style={styles.buttonLabel}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

@@ -26,7 +26,7 @@ export function watchDownloadEligibility(
       reason: "Kick clips are not available in this build.",
     };
   }
-  if (media.kind !== "clip" && media.kind !== "video") return { kind: "hidden" };
+  if (!isClipOrVideo(media.kind)) return { kind: "hidden" };
   const jobId = downloadJobId(target.platform, media.kind, media.id);
   if (!jobId) {
     return {
@@ -37,13 +37,21 @@ export function watchDownloadEligibility(
   return {
     jobId,
     kind: "eligible",
-    label: media.kind === "clip" ? "Download clip" : "Download video",
+    label: downloadLabel(media.kind),
   };
 }
 
 export function watchDownloadJobId(target: WatchTarget): MediaJobId | null {
   const eligibility = watchDownloadEligibility(target);
   return eligibility.kind === "eligible" ? eligibility.jobId : null;
+}
+
+function isClipOrVideo(kind: string): kind is "clip" | "video" {
+  return kind === "clip" || kind === "video";
+}
+
+function downloadLabel(kind: "clip" | "video"): string {
+  return kind === "clip" ? "Download clip" : "Download video";
 }
 
 function downloadJobId(

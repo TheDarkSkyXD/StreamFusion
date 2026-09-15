@@ -6,8 +6,13 @@ import {
   toSerializedTimestamp,
 } from "@streamfusion/core/activity";
 import {
+  MEDIA_JOB_COMPRESSED_RECORDING_CUTOFF_MS,
+  MEDIA_JOB_COMPRESSED_RECORDING_WARNING_MS,
   MEDIA_JOB_FIXTURE_DOWNLOAD_URI,
+  MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI,
   MEDIA_JOB_FIXTURE_RECORDING_URI,
+  MEDIA_JOB_RECORDING_CUTOFF_MS,
+  MEDIA_JOB_RECORDING_WARNING_STATUS,
   applyCommand,
   asMediaJobId,
   commandIsValid,
@@ -18,6 +23,9 @@ import {
   parseMediaJobSnapshot,
   projectMediaJobActivity,
   reconcileMediaJob,
+  recordingCutoffMs,
+  recordingStatusForElapsed,
+  recordingWarningMs,
   validCommands,
 } from "@streamfusion/core/media-jobs";
 
@@ -482,5 +490,22 @@ test("boundary parse rejects extra fields and unknown commands", () => {
   assert.equal(
     parseMediaJobCommand({ kind: "explode", jobId: "job-download-1" }),
     null,
+  );
+});
+
+test("compressed recording cutoff is 12s and product cutoff stays four hours", () => {
+  assert.equal(MEDIA_JOB_RECORDING_CUTOFF_MS, 4 * 60 * 60 * 1000);
+  assert.equal(recordingCutoffMs(MEDIA_JOB_FIXTURE_RECORDING_URI), MEDIA_JOB_RECORDING_CUTOFF_MS);
+  assert.equal(
+    recordingCutoffMs(MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI),
+    MEDIA_JOB_COMPRESSED_RECORDING_CUTOFF_MS,
+  );
+  assert.equal(
+    recordingWarningMs(MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI),
+    MEDIA_JOB_COMPRESSED_RECORDING_WARNING_MS,
+  );
+  assert.equal(
+    recordingStatusForElapsed(MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI, 8_000),
+    MEDIA_JOB_RECORDING_WARNING_STATUS,
   );
 });
