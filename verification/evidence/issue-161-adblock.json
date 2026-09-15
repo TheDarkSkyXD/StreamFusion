@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "issue": 161,
+  "ticketId": "W10",
+  "mobileSourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+  "observedAt": "2026-09-15T00:37:00.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "W10 playback filtering as an isolated compatibility capability. Desktop VAFT stays Desktop-owned. Mobile uses a player-only Twitch playlist adapter with signed policy, canary, kill switch, diagnostics, disclosure, and original-playlist failure containment. Kick has no approved filter."
+  },
+  "candidate": {
+    "apkSha256": "0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e",
+    "provenance": "API 30 development client rebuilt with FilteringDataSource and PlaybackPlaylistFilter. Contract stays v3 with optional filtering on start. Metro JS loaded from the W02 worktree. Product settings key adblock.v1. Guest signed-out reads stay { kind: \"guest\" }. No-valid-policy enables filtering like playback compatibility. Kick stays passthrough."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Mobile typecheck, lint, unit tests, and feature architecture passed on this tree, including playlist strip/canary/empty-keep-original and the Settings panel controls."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 emulator installed the rebuilt debug APK and loaded More Settings plus Watch.",
+        "The Ad Blocking panel and Watch disclosure rendered on the API 30 development client."
+      ]
+    },
+    "compatibility-canary": {
+      "result": "pass",
+      "observations": [
+        "Settings title switched to Canary is watching Twitch ads with Method: canary.",
+        "Twitch Watch for KaiCenat showed the same canary title and Canary reports Twitch ad markers without rewriting playlists."
+      ]
+    },
+    "kill-switch": {
+      "result": "pass",
+      "observations": [
+        "Filtering off showed Playback filtering off and Kill switch is off. Twitch and Kick play unfiltered playlists.",
+        "Filtering on restored Canary is watching Twitch ads without leaving the Settings panel."
+      ]
+    },
+    "failure-containment": {
+      "result": "pass",
+      "observations": [
+        "Domain tests keep the original playlist when strip would empty it. Native rewriteOrKeep keeps the original m3u8 on filter exceptions.",
+        "Kick Watch for xQc stayed unfiltered with Kick has no approved filter. This Watch session is unfiltered."
+      ]
+    },
+    "diagnostics": {
+      "result": "pass",
+      "observations": [
+        "Watch surfaces watch-adblock-status with the effective title and platform disclosure.",
+        "Kick disclosure is independent of the Twitch canary title. Filter failure copy remains on the Settings panel."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-161/01-settings-strip.png",
+      "sha256": "f42e9f7fa325a5dc49f2ca1a1bd9d5260c10d2cbcfa6603b517a629f41ad7af2",
+      "observedAt": "2026-09-15T00:25:00.000Z",
+      "scope": "Settings Ad Blocking title Twitch ads are filtered on API 30."
+    },
+    {
+      "path": "verification/evidence/issue-161/02-settings-canary.png",
+      "sha256": "189e2a8350c790c0f48c00d4eb18b1c0537f12665f48e9270c4d03fba24497e2",
+      "observedAt": "2026-09-15T00:26:00.000Z",
+      "scope": "Canary is watching Twitch ads with Method: canary selected."
+    },
+    {
+      "path": "verification/evidence/issue-161/03-settings-off.png",
+      "sha256": "51e8ea413e10bc1f3da4d57abbef642a1df9e5c6f806fcf1175ebfc6dfdb507c",
+      "observedAt": "2026-09-15T00:26:00.000Z",
+      "scope": "Kill switch off. Playback filtering off."
+    },
+    {
+      "path": "verification/evidence/issue-161/04-settings-on.png",
+      "sha256": "189e2a8350c790c0f48c00d4eb18b1c0537f12665f48e9270c4d03fba24497e2",
+      "observedAt": "2026-09-15T00:26:00.000Z",
+      "scope": "Kill switch restored canary filtering on the same Settings panel."
+    },
+    {
+      "path": "verification/evidence/issue-161/05-watch-twitch.png",
+      "sha256": "1454811af0eac0819c2eca6fb8d43268d9564d86a45dec4f21d19d45814811ba",
+      "observedAt": "2026-09-15T00:31:00.000Z",
+      "scope": "Twitch Watch KaiCenat canary disclosure on the Watch screen."
+    },
+    {
+      "path": "verification/evidence/issue-161/06-watch-kick.png",
+      "sha256": "b89f5a056eec241f0cbb3e80271b05ce724b45fc9ccbc749ceaabf5d82cc30ce",
+      "observedAt": "2026-09-15T00:37:00.000Z",
+      "scope": "Kick Watch xQc unfiltered disclosure. Kick has no approved filter."
+    }
+  ]
+}

@@ -191,4 +191,38 @@ describe("watch screen", () => {
       false,
     );
   });
+
+  it("discloses playback filtering on Watch", () => {
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        adblockView: {
+          canary: false,
+          detail: "Twitch live playlists strip known ad markers in the player.",
+          enabled: true,
+          kickSupported: false,
+          method: "strip",
+          policyAllowed: true,
+          title: "Twitch ads are filtered",
+          twitchSupported: true,
+        },
+        chat: {
+          detail: "Chat is not connected in this build. Watching continues.",
+          kind: "not-connected",
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "info",
+        target,
+      }),
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-adblock-status"),
+    ).toBe(true);
+  });
 });

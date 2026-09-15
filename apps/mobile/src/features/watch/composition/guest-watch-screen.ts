@@ -1,3 +1,4 @@
+import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
@@ -22,17 +23,21 @@ import { createWatchRuntime } from "./watch-runtime";
 export function createGuestWatchScreen(input: {
   readonly discovery: DiscoverySession;
   readonly fetch: typeof globalThis.fetch;
+  readonly filtering?: AdBlockSession;
   readonly history: WatchHistoryRepository;
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
   readonly policyStore: VerifiedPolicyStore;
   readonly sessionIds: WatchSessionIdSource;
 }): WatchScreenRuntime {
+  const filtering = input.filtering;
   return {
+    ...(filtering === undefined ? {} : { adblock: filtering }),
     history: input.history,
     openProviderPage: createExpoWatchProviderFallback(),
     PlayerSurface: AndroidMedia3PlayerSurface,
     runtime: createWatchRuntime({
+      ...(filtering === undefined ? {} : { filtering }),
       inspection: createDiscoveryWatchInspectionReader(input.discovery),
       playback: createAndroidFocusedPlaybackPort(input.playback),
       policy: createPlaybackCompatibilityPolicy(

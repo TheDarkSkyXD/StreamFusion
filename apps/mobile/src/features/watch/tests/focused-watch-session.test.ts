@@ -168,6 +168,42 @@ describe("focused watch session", () => {
     });
   });
 
+  it("starts Twitch playback with the filter request", async () => {
+    const requests: { filtering?: { mode: string; platform: string } }[] = [];
+    const playback = playbackPort({
+      start: async (request) => {
+        requests.push(request);
+        return {
+          kind: "started",
+          session: {
+            pictureInPictureEligible: false,
+            sessionId: request.sessionId,
+          },
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      filtering: {
+        effective: async () => ({
+          enabled: true,
+          mode: "strip",
+          platform: "twitch",
+        }),
+      },
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    expect(requests[0]?.filtering).toEqual({
+      enabled: true,
+      mode: "strip",
+      platform: "twitch",
+    });
+  });
+
   it("does not let a stale end stop a newer session", async () => {
     const playback = playbackPort();
     const session = createFocusedWatchSession({

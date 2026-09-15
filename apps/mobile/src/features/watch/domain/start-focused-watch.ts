@@ -1,6 +1,9 @@
+import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type {
   FocusedPlaybackPort,
   FocusedPlaybackProtectionPort,
+  LivePlaybackSourceFailure,
+  LivePlaybackSourceResolution,
   LivePlaybackSources,
   PlaybackCompatibilityPolicy,
   PlaybackIntegration,
@@ -27,8 +30,9 @@ export type FocusedWatchStartOutcome =
       readonly session: PlaybackSessionState;
     };
 
-export async function runFocusedWatchStart(input: {
+type FocusedWatchStartInput = {
   readonly attempt: number;
+  readonly filtering?: PlaybackFiltering;
   readonly generation: () => number;
   readonly playback: FocusedPlaybackPort;
   readonly policy: PlaybackCompatibilityPolicy;
@@ -37,7 +41,14 @@ export async function runFocusedWatchStart(input: {
   readonly sessionIds: WatchSessionIdSource;
   readonly sources: LivePlaybackSources;
   readonly target: WatchTarget;
-}): Promise<FocusedWatchStartOutcome> {
+};
+
+type SourceFailure = Exclude<LivePlaybackSourceFailure, { kind: "cancelled" }>;
+type ResolvedSource = Extract<LivePlaybackSourceResolution, { kind: "resolved" }>;
+
+export async function runFocusedWatchStart(
+  input: FocusedWatchStartInput,
+): Promise<FocusedWatchStartOutcome> {
   const integration = integrationFor(input.target);
   const controller = new AbortController();
   const stale = () => input.attempt !== input.generation();
@@ -47,17 +58,7 @@ export async function runFocusedWatchStart(input: {
     return { kind: "cancelled" };
   }
   if (policy.kind === "disabled") {
-    return {
-      failure: {
-        integration,
-        kind: "compatibility-disabled",
-        lastSuccessfulStage: "none",
-        platform: input.target.platform,
-        reason: policy.reason,
-        recovery: ["refresh-policy", "open-provider"],
-      },
-      kind: "failed",
-    };
+    return compatibilityDisabled(integration, input.target.platform, policy.reason);
   }
   const resolved = await resolveWatchSource(
     input.sources,
@@ -68,49 +69,16 @@ export async function runFocusedWatchStart(input: {
   if (stale()) return { kind: "cancelled" };
   if (resolved.kind === "unavailable") {
     if (resolved.failure.kind === "cancelled") return { kind: "cancelled" };
-    return {
-      failure: {
-        code: resolved.failure.kind,
-        detail: resolved.failure.detail,
-        integration,
-        kind: "source-unavailable",
-        lastSuccessfulStage: "policy-authorized",
-        platform: input.target.platform,
-        recovery: ["retry", "open-provider"],
-      },
-      kind: "failed",
-    };
+    return sourceUnavailable(integration, input.target.platform, resolved.failure);
   }
-  const sessionId = input.sessionIds.create();
-  const started = await input.playback.start({
-    requestHeaders: resolved.requestHeaders,
-    sessionId,
-    sourceUri: resolved.sourceUri,
-  });
-  if (stale()) {
-    void input.playback.end(sessionId);
-    return { kind: "cancelled" };
-  }
-  if (started.kind === "unavailable") {
-    return {
-      failure: {
-        detail: started.failure.detail,
-        integration,
-        kind: "native-unavailable",
-        lastSuccessfulStage: "source-resolved",
-        platform: input.target.platform,
-        recovery: ["retry", "open-provider"],
-      },
-      kind: "failed",
-    };
-  }
-  return {
+  return startAuthorizedSession(
+    input,
     integration,
-    kind: "started",
-    lease: input.protection.acquire(started.session.sessionId),
-    policySequence: policy.sequence,
-    session: started.session,
-  };
+    resolved,
+    controller,
+    stale,
+    policy.sequence,
+  );
 }
 
 export function startResultFrom(
@@ -121,4 +89,98 @@ export function startResultFrom(
     return { failure: outcome.failure, kind: "failed" };
   }
   return { kind: "started", session: outcome.session };
+}
+
+async function startAuthorizedSession(
+  input: FocusedWatchStartInput,
+  integration: PlaybackIntegration,
+  resolved: ResolvedSource,
+  controller: AbortController,
+  stale: () => boolean,
+  policySequence: number,
+): Promise<FocusedWatchStartOutcome> {
+  const sessionId = input.sessionIds.create();
+  const filtering =
+    input.filtering === undefined
+      ? undefined
+      : await input.filtering.effective(input.target.platform);
+  if (stale()) {
+    controller.abort();
+    return { kind: "cancelled" };
+  }
+  const started = await input.playback.start({
+    ...(filtering === undefined ? {} : { filtering }),
+    requestHeaders: resolved.requestHeaders,
+    sessionId,
+    sourceUri: resolved.sourceUri,
+  });
+  if (stale()) {
+    void input.playback.end(sessionId);
+    return { kind: "cancelled" };
+  }
+  if (started.kind === "unavailable") {
+    return nativeUnavailable(integration, input.target.platform, started.failure.detail);
+  }
+  return {
+    integration,
+    kind: "started",
+    lease: input.protection.acquire(started.session.sessionId),
+    policySequence,
+    session: started.session,
+  };
+}
+
+function compatibilityDisabled(
+  integration: PlaybackIntegration,
+  platform: WatchTarget["platform"],
+  reason: "expired" | "no-valid-policy" | "not-allowed",
+): FocusedWatchStartOutcome {
+  return {
+    failure: {
+      integration,
+      kind: "compatibility-disabled",
+      lastSuccessfulStage: "none",
+      platform,
+      reason,
+      recovery: ["refresh-policy", "open-provider"],
+    },
+    kind: "failed",
+  };
+}
+
+function sourceUnavailable(
+  integration: PlaybackIntegration,
+  platform: WatchTarget["platform"],
+  failure: SourceFailure,
+): FocusedWatchStartOutcome {
+  return {
+    failure: {
+      code: failure.kind,
+      detail: failure.detail,
+      integration,
+      kind: "source-unavailable",
+      lastSuccessfulStage: "policy-authorized",
+      platform,
+      recovery: ["retry", "open-provider"],
+    },
+    kind: "failed",
+  };
+}
+
+function nativeUnavailable(
+  integration: PlaybackIntegration,
+  platform: WatchTarget["platform"],
+  detail: string,
+): FocusedWatchStartOutcome {
+  return {
+    failure: {
+      detail,
+      integration,
+      kind: "native-unavailable",
+      lastSuccessfulStage: "source-resolved",
+      platform,
+      recovery: ["retry", "open-provider"],
+    },
+    kind: "failed",
+  };
 }

@@ -55,6 +55,8 @@ import { createSearchHistoryRepository } from "@mobile/features/discovery/compos
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
+import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
+import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
 import { createGuestMultistreamScreen } from "@mobile/features/multistream/composition/guest-multistream-screen";
 
@@ -236,6 +238,13 @@ const connectivitySession = createConnectivityRuntime({
   secrets: secureSecretStore,
   settings: persistenceRuntime.productState.settings,
 });
+const adblockSession = createAdBlockSession({
+  policy: createEffectiveCapabilityPolicyReader({
+    nowEpochMs: Date.now,
+    store: installationPolicyRuntime.policyStore,
+  }),
+  settings: persistenceRuntime.productState.settings,
+});
 const followingSession = createFollowingRuntime({
   cache: persistenceRuntime.disposableCache,
   fetch: connectivitySession.fetch,
@@ -335,6 +344,7 @@ export function MobileRuntime() {
       createGuestWatchScreen({
         discovery: homeDiscovery,
         fetch: connectivitySession.fetch,
+        filtering: adblockSession,
         history: persistenceRuntime.productState.watchHistory,
         playback: androidCapabilityRuntime.contracts.playback,
         policyStore: installationPolicyRuntime.policyStore,
@@ -346,6 +356,7 @@ export function MobileRuntime() {
     () =>
       createGuestMultistreamScreen({
         fetch: connectivitySession.fetch,
+        filtering: adblockSession,
         playback: androidCapabilityRuntime.contracts.playback,
         policyStore: installationPolicyRuntime.policyStore,
         repository: persistenceRuntime.productState.multistream,
@@ -441,6 +452,7 @@ export function MobileRuntime() {
       discoveryPreferences={discoveryPreferences}
       followingSession={followingSession}
       connectivitySession={connectivitySession}
+      adblockSession={adblockSession}
       watch={watch}
       multistream={multistream}
     />

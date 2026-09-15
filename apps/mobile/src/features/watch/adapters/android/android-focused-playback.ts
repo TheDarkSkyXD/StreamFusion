@@ -20,6 +20,7 @@ export function createAndroidFocusedPlaybackPort(
   return {
     async start(input) {
       const result = await contract.startFocusedSession({
+        ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
         requestHeaders: input.requestHeaders,
         sessionId: input.sessionId,
         sourceUri: input.sourceUri,

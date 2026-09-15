@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 73 |
+| Implemented | 75 |
 | Partial | 14 |
 | Placeholder | 5 |
-| Missing | 93 |
+| Missing | 91 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -58,7 +58,7 @@ Missing means no route or control exists yet.
 | `screen:settings-notifications` | missing | — | — | missing |
 | `screen:settings-chat` | missing | — | — | missing |
 | `screen:settings-predictions` | missing | — | — | missing |
-| `screen:settings-adblock` | missing | — | — | missing |
+| `screen:settings-adblock` | implemented | #161, #169 | apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `screen:settings-proxy` | implemented | #162, #169 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `screen:settings-integrations` | missing | — | — | missing |
 | `screen:settings-api-tokens` | missing | — | — | missing |
@@ -75,7 +75,7 @@ Missing means no route or control exists yet.
 | `panel:notifications` | missing | — | — | missing |
 | `panel:chat` | missing | — | — | missing |
 | `panel:predictions` | missing | — | — | missing |
-| `panel:adblock` | missing | — | — | missing |
+| `panel:adblock` | implemented | #161 | apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx | tests |
 | `panel:proxy` | implemented | #162 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `panel:integrations` | missing | — | — | missing |
 | `panel:api-tokens` | missing | — | — | missing |

@@ -78,6 +78,8 @@ import { FollowingWorkspace } from "@mobile/features/follows/components/followin
 import type { ConnectivitySession } from "@mobile/features/connectivity/capabilities/connectivity-session";
 import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
+import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/adblock-settings-panel";
+import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import { WatchRoute } from "@mobile/features/watch/components/watch-route";
 import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
 import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watch-session";
@@ -166,6 +168,7 @@ export function AppShell({
   discoveryPreferences,
   followingSession,
   connectivitySession,
+  adblockSession,
   watch,
   multistream,
 }: {
@@ -209,6 +212,7 @@ export function AppShell({
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
+  readonly adblockSession: AdBlockSession;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
 }) {
@@ -372,6 +376,7 @@ export function AppShell({
               discoveryPreferences={discoveryPreferences}
               followingSession={followingSession}
               connectivitySession={connectivitySession}
+              adblockSession={adblockSession}
               watch={watch}
               multistream={multistream}
             />
@@ -558,6 +563,7 @@ function ShellScreen({
   discoveryPreferences,
   followingSession,
   connectivitySession,
+  adblockSession,
   watch,
   multistream,
 }: {
@@ -601,6 +607,7 @@ function ShellScreen({
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
+  readonly adblockSession: AdBlockSession;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
 }) {
@@ -936,8 +943,9 @@ function ShellScreen({
         style={styles.screenScroll}
         testID="screen-more-settings"
       >
-        <View style={styles.contentColumn}>
+        <View style={styles.contentColumn} testID="screen-settings-adblock">
           <ProxySettingsPanel session={connectivitySession} />
+          <AdBlockSettingsPanel session={adblockSession} />
         </View>
       </ScrollView>
     );

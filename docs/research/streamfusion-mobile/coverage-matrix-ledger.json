@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 73,
+    "implemented": 75,
     "partial": 14,
     "placeholder": 5,
-    "missing": 93
+    "missing": 91
   },
   "entries": [
     {
@@ -400,10 +400,16 @@
       "id": "screen:settings-adblock",
       "kind": "screen",
       "name": "settings-adblock",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        161,
+        169
+      ],
+      "implementation": [
+        "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
+        "apps/mobile/src/features/shell/components/app-shell.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -592,10 +598,14 @@
       "id": "panel:adblock",
       "kind": "panel",
       "name": "adblock",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        161
+      ],
+      "implementation": [
+        "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },

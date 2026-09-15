@@ -57,6 +57,11 @@ export interface AndroidCapabilityContractPort {
 }
 
 export interface PlaybackSessionRequest {
+  readonly filtering?: {
+    readonly enabled: boolean;
+    readonly mode: "passthrough" | "canary" | "strip";
+    readonly platform: string;
+  };
   readonly requestHeaders: Readonly<Record<string, string>>;
   readonly sessionId: string;
   readonly sourceUri: string;
@@ -101,6 +106,11 @@ export type NativePlaybackEvent =
     }
   | {
       readonly kind: "picture-in-picture-exited";
+      readonly sessionId: string;
+    }
+  | {
+      readonly diagnostic: string;
+      readonly kind: "filtering";
       readonly sessionId: string;
     }
   | {

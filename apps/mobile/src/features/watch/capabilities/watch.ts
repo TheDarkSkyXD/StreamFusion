@@ -3,6 +3,7 @@ import type {
   Stream,
 } from "@streamfusion/core/content";
 import type { Platform, StreamChannelIdentity } from "@streamfusion/core/platform";
+import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 
 export type PlayerPresentation = "watch" | "mini" | "pip" | "fullscreen";
 
@@ -214,6 +215,11 @@ export type NativePlaybackEvent =
       readonly sessionId: string;
     }
   | {
+      readonly diagnostic: string;
+      readonly kind: "filtering";
+      readonly sessionId: string;
+    }
+  | {
       readonly code: NativePlaybackFailureCode;
       readonly detail: string;
       readonly kind: "failed";
@@ -292,6 +298,7 @@ export interface FocusedPlaybackPort {
     volume: number,
   ): Promise<FocusedPlaybackControlResult>;
   start(input: {
+    readonly filtering?: PlaybackFilterRequest;
     readonly requestHeaders: Readonly<Record<string, string>>;
     readonly sessionId: string;
     readonly sourceUri: HlsSourceUri;

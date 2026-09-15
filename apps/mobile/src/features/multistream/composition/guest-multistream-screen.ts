@@ -1,3 +1,4 @@
+import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { AndroidPlaybackContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import type { VerifiedPolicyStore } from "@mobile/features/installation-policy/capabilities/installation-policy";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
@@ -20,14 +21,17 @@ export type GuestMultistreamRuntime = {
 
 export function createGuestMultistreamScreen(input: {
   readonly fetch: typeof globalThis.fetch;
+  readonly filtering?: AdBlockSession;
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
   readonly policyStore: VerifiedPolicyStore;
   readonly repository: MultistreamRepository;
 }): GuestMultistreamRuntime {
+  const filtering = input.filtering;
   return {
     PlayerSurface: AndroidMedia3PlayerSurface,
     playback: createMultistreamPlayback({
+      ...(filtering === undefined ? {} : { filtering }),
       playback: createAndroidFocusedPlaybackPort(input.playback),
       policy: createPlaybackCompatibilityPolicy(
         createEffectiveCapabilityPolicyReader({

@@ -1,3 +1,4 @@
+import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type {
   FocusedPlaybackPort,
   FocusedPlaybackProtectionPort,
@@ -11,6 +12,7 @@ import type {
 import { createFocusedWatchSession } from "../domain/focused-watch-session";
 
 export function createWatchRuntime(input: {
+  readonly filtering?: PlaybackFiltering;
   readonly inspection: WatchInspectionReader;
   readonly playback: FocusedPlaybackPort;
   readonly policy: PlaybackCompatibilityPolicy;

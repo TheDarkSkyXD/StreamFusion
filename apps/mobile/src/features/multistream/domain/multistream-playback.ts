@@ -1,3 +1,4 @@
+import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { RuntimeDegradationStage } from "@mobile/features/capability-profile/domain/capability-profile";
 import type {
   FocusedPlaybackPort,
@@ -43,6 +44,7 @@ const NO_PROTECTION = {
 };
 
 export function createMultistreamPlayback(input: {
+  readonly filtering?: PlaybackFiltering;
   readonly playback: FocusedPlaybackPort;
   readonly policy: PlaybackCompatibilityPolicy;
   readonly sources: LivePlaybackSources;
@@ -81,6 +83,7 @@ export function createMultistreamPlayback(input: {
     phases = { ...phases, [slotId]: "buffering" };
     const outcome = await runFocusedWatchStart({
       attempt,
+      ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
       generation: () => generation,
       playback: input.playback,
       policy: input.policy,

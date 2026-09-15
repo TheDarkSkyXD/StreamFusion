@@ -32,25 +32,32 @@ export function nextNativePlayback(input: {
   if (current.kind !== "active" || current.session.sessionId !== event.sessionId) {
     return { kind: "ignore" };
   }
+  if (event.kind === "filtering") {
+    return { kind: "ignore" };
+  }
   if (event.kind === "picture-in-picture-exited") {
-    return next(current, returnFromPictureInPicture(input.presentation), input.progress);
+    return next({
+      current,
+      presentation: returnFromPictureInPicture(input.presentation),
+      progress: input.progress,
+    });
   }
   if (event.kind === "ended") {
-    return next(
-      {
+    return next({
+      current: {
         integration: current.integration,
         kind: "ended",
         sessionId: event.sessionId,
         target: current.target,
       },
-      input.presentation,
-      input.progress,
-      true,
-    );
+      presentation: input.presentation,
+      progress: input.progress,
+      releaseLease: true,
+    });
   }
   if (event.kind === "failed") {
-    return next(
-      {
+    return next({
+      current: {
         failure: {
           code: event.code,
           detail: event.detail,
@@ -63,40 +70,43 @@ export function nextNativePlayback(input: {
         kind: "failed",
         target: current.target,
       },
-      input.presentation,
-      input.progress,
-      true,
-    );
-  }
-  if (event.kind === "progress") {
-    return next(current, input.presentation, {
-      durationMs: event.durationMs,
-      positionMs: event.positionMs,
-      seekable: event.seekable,
+      presentation: input.presentation,
+      progress: input.progress,
+      releaseLease: true,
     });
   }
-  return next(
-    { ...current, phase: phaseFrom(event) },
-    input.presentation,
-    input.progress,
-    false,
-    event.kind === "playing",
-  );
+  if (event.kind === "progress") {
+    return next({
+      current,
+      presentation: input.presentation,
+      progress: {
+        durationMs: event.durationMs,
+        positionMs: event.positionMs,
+        seekable: event.seekable,
+      },
+    });
+  }
+  return next({
+    current: { ...current, phase: phaseFrom(event) },
+    presentation: input.presentation,
+    progress: input.progress,
+    refreshQualities: event.kind === "playing",
+  });
 }
 
-function next(
-  current: CurrentSession,
-  presentation: PlayerPresentationState,
-  progress: PlaybackProgress,
-  releaseLease = false,
-  refreshQualities = false,
-): NativePlaybackNext {
+function next(input: {
+  readonly current: CurrentSession;
+  readonly presentation: PlayerPresentationState;
+  readonly progress: PlaybackProgress;
+  readonly refreshQualities?: boolean;
+  readonly releaseLease?: boolean;
+}): NativePlaybackNext {
   return {
-    current,
+    current: input.current,
     kind: "next",
-    presentation,
-    progress,
-    refreshQualities,
-    releaseLease,
+    presentation: input.presentation,
+    progress: input.progress,
+    refreshQualities: input.refreshQualities === true,
+    releaseLease: input.releaseLease === true,
   };
 }

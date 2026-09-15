@@ -64,8 +64,23 @@ object FocusedPlaybackSessionOwner {
       .setAllowCrossProtocolRedirects(true)
       .setDefaultRequestProperties(requestHeaders)
     requestHeaders["User-Agent"]?.let(httpFactory::setUserAgent)
+    val filterMode = playlistFilterMode(request)
+    val dataSourceFactory =
+      if (filterMode == "passthrough") {
+        httpFactory
+      } else {
+        FilteringDataSource.Factory(httpFactory, filterMode) { diagnostic ->
+          publish(
+            mapOf(
+              "kind" to "filtering",
+              "sessionId" to sessionId,
+              "diagnostic" to diagnostic,
+            ),
+          )
+        }
+      }
     val exo = ExoPlayer.Builder(context.applicationContext)
-      .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+      .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
       .build()
     exo.addListener(SessionListener(sessionId))
     exo.setMediaItem(
@@ -354,6 +369,15 @@ object FocusedPlaybackSessionOwner {
       }
     }
     return headers
+  }
+
+  private fun playlistFilterMode(request: Map<String, Any>): String {
+    val filtering = request["filtering"] as? Map<*, *> ?: return "passthrough"
+    val enabled = filtering["enabled"] == true
+    val platform = filtering["platform"] as? String
+    val mode = filtering["mode"] as? String ?: "passthrough"
+    if (!enabled || platform != "twitch") return "passthrough"
+    return if (mode == "canary" || mode == "strip") mode else "passthrough"
   }
 
   private fun isHttpsMedia(sourceUri: String): Boolean {

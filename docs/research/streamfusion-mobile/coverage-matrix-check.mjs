@@ -117,6 +117,8 @@ const implemented = new Set([
   "tab:activity:jobs",
   "panel:proxy",
   "screen:settings-proxy",
+  "panel:adblock",
+  "screen:settings-adblock",
   "action:activity-tab",
   "action:activity-mark-read",
   "action:activity-dismiss-item",
@@ -243,6 +245,8 @@ const owners = {
   "screen:more": [139, 141],
   "screen:settings-proxy": [162, 169],
   "panel:proxy": [162],
+  "screen:settings-adblock": [161, 169],
+  "panel:adblock": [161],
   "shell-route:more/settings": [162, 169],
   "tab:search:all": [147, 149],
   "tab:search:channels": [147, 149],
@@ -408,6 +412,13 @@ const paths = {
   ],
   "screen:settings-proxy": [
     "apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx",
+  ],
+  "panel:adblock": [
+    "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
+  ],
+  "screen:settings-adblock": [
+    "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
   ],
   "shell-route:more/settings": [
     "apps/mobile/src/features/shell/components/app-shell.tsx",

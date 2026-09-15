@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
 
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
+import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type {
   FocusedWatchSession,
   WatchPeek,
@@ -59,6 +60,7 @@ function WatchSessionRoute({
   readonly target: WatchTarget;
 }) {
   const [tab, setTab] = useState<WatchTab>("info");
+  const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
   const session = screen.runtime.session;
   const playback = useFocusedWatchSession(session, target);
   const peek = useWatchPeek(session);
@@ -73,6 +75,9 @@ function WatchSessionRoute({
       target.media?.id ?? "",
     ],
   });
+  useEffect(() => {
+    void screen.adblock?.load().then(setAdblockView);
+  }, [screen.adblock]);
   useWatchHistoryCapture({
     inspection: inspection.data ?? null,
     peek,
@@ -92,6 +97,7 @@ function WatchSessionRoute({
   return (
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
+      adblockView={adblockView}
       chat={chat}
       inspection={inspection.data ?? null}
       onMute={() => {

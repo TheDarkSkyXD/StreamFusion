@@ -282,6 +282,12 @@ function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
   if (event.kind === "picture-in-picture-exited") {
     return { kind: "picture-in-picture-exited", sessionId };
   }
+  if (event.kind === "filtering") {
+    const diagnostic = nonEmptyString(event.diagnostic);
+    return diagnostic
+      ? { diagnostic, kind: "filtering", sessionId }
+      : undefined;
+  }
   if (
     event.kind === "paused" &&
     (event.reason === "background" || event.reason === "user")

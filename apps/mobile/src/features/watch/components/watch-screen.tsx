@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
+import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import { WatchAdBlockStatus } from "@mobile/features/ad-blocking/components/watch-adblock-status";
 
 import {
   mobileColors,
@@ -29,6 +31,7 @@ export type PlayerSurfaceProps = {
 };
 
 export type WatchScreenRuntime = {
+  readonly adblock?: AdBlockSession;
   readonly history: WatchHistoryRepository;
   readonly openProviderPage: {
     open(target: WatchTarget): Promise<unknown>;
@@ -39,6 +42,7 @@ export type WatchScreenRuntime = {
 
 export function WatchScreen({
   PlayerSurface,
+  adblockView,
   chat,
   inspection,
   onAddToMultistream,
@@ -60,6 +64,7 @@ export function WatchScreen({
   target,
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
+  readonly adblockView?: AdBlockView | null;
   readonly chat: WatchChatAvailability;
   readonly inspection: WatchInspection | null;
   readonly onAddToMultistream?: () => void;
@@ -142,6 +147,9 @@ export function WatchScreen({
           <Text selectable style={styles.meta} testID="watch-target">
             {`${target.platform.toUpperCase()} · ${target.channelName}`}
           </Text>
+          {adblockView === undefined ? null : (
+            <WatchAdBlockStatus platform={target.platform} view={adblockView} />
+          )}
           {view.primaryAction === "start" ? (
             <Action label="Start watching" onPress={onStart} testID="watch-start" />
           ) : null}

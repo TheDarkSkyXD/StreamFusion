@@ -3,6 +3,254 @@
   "policyVersion": 1,
   "verifierVersion": "1.0.0",
   "capabilities": {
+    "ad-blocking": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-161-w10-adblock-v1",
+        "result": "pass",
+        "observedAt": "2026-09-15T00:37:00.000Z",
+        "expiresAt": "2026-09-29T00:37:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/161"
+        ],
+        "apkDigest": null,
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "hosted-workspace-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "adblock-receipt",
+            "path": "verification/evidence/issue-161-adblock.json",
+            "sha256": "sha256:73504912d0adba4cabfe6d4334cd538d00b94ec67378d4fa01e4c10f304f23e5",
+            "mediaType": "application/json"
+          }
+        ]
+      },
+      {
+        "id": "api30-device",
+        "sourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-161-w10-adblock-v1",
+        "result": "pass",
+        "observedAt": "2026-09-15T00:37:00.000Z",
+        "expiresAt": "2026-09-29T00:37:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/161"
+        ],
+        "apkDigest": "sha256:0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adblock-receipt",
+            "path": "verification/evidence/issue-161-adblock.json",
+            "sha256": "sha256:73504912d0adba4cabfe6d4334cd538d00b94ec67378d4fa01e4c10f304f23e5",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "settings-strip",
+            "path": "verification/evidence/issue-161/01-settings-strip.png",
+            "sha256": "sha256:f42e9f7fa325a5dc49f2ca1a1bd9d5260c10d2cbcfa6603b517a629f41ad7af2",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "watch-twitch",
+            "path": "verification/evidence/issue-161/05-watch-twitch.png",
+            "sha256": "sha256:1454811af0eac0819c2eca6fb8d43268d9564d86a45dec4f21d19d45814811ba",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "watch-kick",
+            "path": "verification/evidence/issue-161/06-watch-kick.png",
+            "sha256": "sha256:b89f5a056eec241f0cbb3e80271b05ce724b45fc9ccbc749ceaabf5d82cc30ce",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "compatibility-canary",
+        "sourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-161-w10-adblock-v1",
+        "result": "pass",
+        "observedAt": "2026-09-15T00:37:00.000Z",
+        "expiresAt": "2026-09-29T00:37:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/161"
+        ],
+        "apkDigest": "sha256:0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adblock-receipt",
+            "path": "verification/evidence/issue-161-adblock.json",
+            "sha256": "sha256:73504912d0adba4cabfe6d4334cd538d00b94ec67378d4fa01e4c10f304f23e5",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "settings-canary",
+            "path": "verification/evidence/issue-161/02-settings-canary.png",
+            "sha256": "sha256:189e2a8350c790c0f48c00d4eb18b1c0537f12665f48e9270c4d03fba24497e2",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "watch-twitch",
+            "path": "verification/evidence/issue-161/05-watch-twitch.png",
+            "sha256": "sha256:1454811af0eac0819c2eca6fb8d43268d9564d86a45dec4f21d19d45814811ba",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "kill-switch",
+        "sourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-161-w10-adblock-v1",
+        "result": "pass",
+        "observedAt": "2026-09-15T00:37:00.000Z",
+        "expiresAt": "2026-09-29T00:37:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/161"
+        ],
+        "apkDigest": "sha256:0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adblock-receipt",
+            "path": "verification/evidence/issue-161-adblock.json",
+            "sha256": "sha256:73504912d0adba4cabfe6d4334cd538d00b94ec67378d4fa01e4c10f304f23e5",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "settings-off",
+            "path": "verification/evidence/issue-161/03-settings-off.png",
+            "sha256": "sha256:51e8ea413e10bc1f3da4d57abbef642a1df9e5c6f806fcf1175ebfc6dfdb507c",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "settings-on",
+            "path": "verification/evidence/issue-161/04-settings-on.png",
+            "sha256": "sha256:189e2a8350c790c0f48c00d4eb18b1c0537f12665f48e9270c4d03fba24497e2",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "failure-containment",
+        "sourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-161-w10-adblock-v1",
+        "result": "pass",
+        "observedAt": "2026-09-15T00:37:00.000Z",
+        "expiresAt": "2026-09-29T00:37:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/161"
+        ],
+        "apkDigest": "sha256:0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adblock-receipt",
+            "path": "verification/evidence/issue-161-adblock.json",
+            "sha256": "sha256:73504912d0adba4cabfe6d4334cd538d00b94ec67378d4fa01e4c10f304f23e5",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "watch-kick",
+            "path": "verification/evidence/issue-161/06-watch-kick.png",
+            "sha256": "sha256:b89f5a056eec241f0cbb3e80271b05ce724b45fc9ccbc749ceaabf5d82cc30ce",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "diagnostics",
+        "sourceCommit": "b95980df6a08cfd1ccf8793b89a1f0e865e8dca4",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-161-w10-adblock-v1",
+        "result": "pass",
+        "observedAt": "2026-09-15T00:37:00.000Z",
+        "expiresAt": "2026-09-29T00:37:00.000Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/161"
+        ],
+        "apkDigest": "sha256:0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adblock-receipt",
+            "path": "verification/evidence/issue-161-adblock.json",
+            "sha256": "sha256:73504912d0adba4cabfe6d4334cd538d00b94ec67378d4fa01e4c10f304f23e5",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "watch-twitch",
+            "path": "verification/evidence/issue-161/05-watch-twitch.png",
+            "sha256": "sha256:1454811af0eac0819c2eca6fb8d43268d9564d86a45dec4f21d19d45814811ba",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "watch-kick",
+            "path": "verification/evidence/issue-161/06-watch-kick.png",
+            "sha256": "sha256:b89f5a056eec241f0cbb3e80271b05ce724b45fc9ccbc749ceaabf5d82cc30ce",
+            "mediaType": "image/png"
+          }
+        ]
+      }
+    ],
     "app-shell-and-navigation": [
       {
         "id": "change-gate",
