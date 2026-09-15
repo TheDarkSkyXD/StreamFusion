@@ -1,4 +1,5 @@
 import type { AppMetadataReader } from "@mobile/features/diagnostics/capabilities/app-metadata";
+import { redactDiagnosticExport } from "@mobile/features/diagnostics/domain/diagnostics-workspace";
 
 import type {
   SupportLogPort,
@@ -17,6 +18,21 @@ import {
   defaultSupportSettingsView,
   mergeSupportSettings,
 } from "../domain/support-settings";
+
+function redactedLocalReport(input: {
+  readonly installedVersion: string;
+  readonly logs: ReturnType<SupportLogPort["list"]>;
+  readonly preferences: SupportSettingsView["preferences"];
+}): string {
+  return redactDiagnosticExport(
+    buildLocalReport({
+      installedVersion: input.installedVersion,
+      logs: input.logs,
+      preferences: input.preferences,
+      profileCopy: "Capability Profile omitted secrets and FCM tokens.",
+    }),
+  );
+}
 
 export function createSupportSettingsSession(input: {
   readonly logs: SupportLogPort;
@@ -75,11 +91,10 @@ export function createSupportSettingsSession(input: {
       return hydrate();
     },
     async buildReport() {
-      const report = buildLocalReport({
+      const report = redactedLocalReport({
         installedVersion: cached.installedVersion,
         logs: input.logs.list(),
         preferences: cached.preferences,
-        profileCopy: "Capability Profile omitted secrets and FCM tokens.",
       });
       await input.store.write(
         mergeSupportSettings(cached.preferences, { lastReport: report }),

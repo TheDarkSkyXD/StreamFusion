@@ -2,32 +2,33 @@
 
 - Capability ID: `diagnostics-logs-and-bug-reports`
 - Desktop baseline: `docs/research/streamfusion-mobile/desktop-parity-inventory.md` Diagnostics section
-- Observed `main` at branch start: `5ebd06b`
-- Android owner: Mobile Settings Diagnostics, Logs, Report a bug, and About panels
-- Progress: `implemented` for searchable Settings plus scoped maintenance confirmation; `deferred` for the six-tab Diagnostics workspace (M09)
+- Observed `main` at branch start: `29202d1`
+- Android owner: Mobile Diagnostics workspace under More plus Settings Diagnostics, Logs, Report a bug, and About
+- Progress: `implemented` for six distinct Diagnostics tabs, Capability Profile, redacted reports, and safe recovery
 - Delivery: `adapted`
-- Adaptation: Diagnostic windows, log level/source, and redacted local reports persist in `support-settings.v1`. Share uses `Share.share({ message })`; dismissed or missing targets keep the local report. Open Diagnostics navigates to the existing `more/diagnostics` route. About licenses and privacy stay readable offline. Clear history, remove media, disconnect, and reset require in-panel Cancel or Confirm. Guest disconnect does not start OAuth. Reset preserves guest follows. Appearance stays dark-only.
-- Freshness: `current` at `verification/evidence/issue-170-settings.json` on APK `sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92`
+- Adaptation: Mobile keeps six tabs (Overview, Resources, I/O, Traces, Logs and reports, Developer tools). Desktop Processes is omitted because mobile does not signal arbitrary processes. Failures fold into collection copy and traces. Reports stay redacted local copies. Appearance stays dark-only.
+- Freshness: `current` at `verification/evidence/issue-171-diagnostics.json`
 
 ## Desktop outcome
 
-Inspect diagnostics, filter logs, and build a bug report from Settings.
+Inspect diagnostics across eight workspace tabs, filter logs, and build a bug report from Settings.
 
 ## Android outcome
 
-More Settings hosts searchable Diagnostics, Logs, Report a bug, and About panels. Reports stay redacted and local until the user shares them. Destructive maintenance is scoped and confirmed. The six-tab Diagnostics workspace remains M09.
+More Diagnostics hosts six app-owned tabs. Overview shows Capability Profile and installation policy. Resources repeats live resource observations. I/O shows connectivity and encrypted storage. Traces shows media jobs and captions. Logs and reports reuse the redacted Settings panels. Developer tools keep development proofs. Invalid tab ids retain the current tab. Run check retries Capability Profile collection.
 
 ## Required evidence
 
-- `local-search`
-- `destructive-confirmation`
-- `data-boundary`
+- `change-gate`
+- `api30-device`
+- `redaction-proof`
+- `recovery-actions`
 - `accessibility`
 
 ## Evidence residuals
 
-TalkBack was not enabled. Diagnostics six-tab workspace remains M09. Share was not driven past the native sheet.
+TalkBack was not enabled. Physical-device evidence stays on #196. Share was not driven past the native sheet.
 
 ## Blocking for public release
 
-OAuth stays on #145 and #146. Diagnostics six-tab workspace stays on #171.
+OAuth stays on #145 and #146.

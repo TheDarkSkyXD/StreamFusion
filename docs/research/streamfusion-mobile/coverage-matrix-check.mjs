@@ -209,11 +209,20 @@ const implemented = new Set([
   "screen:settings-about",
   "panel:about",
   "shell-route:more/settings",
+  "shell-route:more/diagnostics",
+  "screen:system",
+  "action:diagnostics-tab",
+  "action:run-check",
+  "tab:settings-diagnostics:overview",
+  "tab:settings-diagnostics:resources",
+  "tab:settings-diagnostics:io",
+  "tab:settings-diagnostics:traces",
+  "tab:settings-diagnostics:logs-reports",
+  "tab:settings-diagnostics:developer-tools",
 ]);
 
 const partial = new Set([
   "screen:accounts",
-  "screen:system",
   "action:connect-account",
   "action:cancel-account-connect",
   "action:copy-account-code",
@@ -224,7 +233,6 @@ const partial = new Set([
   "action:refresh-capability-policy",
   "action:retry-installation-registration",
   "shell-route:more/accounts",
-  "shell-route:more/diagnostics",
 ]);
 
 const placeholder = new Set([
@@ -266,6 +274,15 @@ const owners = {
   "screen:settings": [167, 168, 169, 170],
   "screen:accounts": [135, 145, 146, 151],
   "screen:system": [143, 170, 171],
+  "shell-route:more/diagnostics": [143, 171],
+  "action:diagnostics-tab": [171],
+  "action:run-check": [143, 171],
+  "tab:settings-diagnostics:overview": [171],
+  "tab:settings-diagnostics:resources": [171],
+  "tab:settings-diagnostics:io": [171],
+  "tab:settings-diagnostics:traces": [171],
+  "tab:settings-diagnostics:logs-reports": [171],
+  "tab:settings-diagnostics:developer-tools": [171],
   "screen:more": [139, 141],
   "screen:settings-proxy": [162, 169],
   "panel:proxy": [162],
@@ -332,6 +349,38 @@ const paths = {
   ],
   "screen:system": [
     "apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx",
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
+  ],
+  "shell-route:more/diagnostics": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
+  ],
+  "action:diagnostics-tab": [
+    "apps/mobile/src/features/diagnostics/domain/diagnostics-workspace.ts",
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+  ],
+  "action:run-check": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+    "apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx",
+  ],
+  "tab:settings-diagnostics:overview": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+  ],
+  "tab:settings-diagnostics:resources": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+  ],
+  "tab:settings-diagnostics:io": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+  ],
+  "tab:settings-diagnostics:traces": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+  ],
+  "tab:settings-diagnostics:logs-reports": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+  ],
+  "tab:settings-diagnostics:developer-tools": [
+    "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
   ],
   "shell-route:activity": [
     "apps/mobile/src/features/activity/components/activity-screen.tsx",
@@ -675,7 +724,7 @@ const gaps = [
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Chat Settings remains M06. Diagnostics six-tab workspace remains M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
+      "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
     owners: [143, 168, 169, 170, 171],
   },
   {

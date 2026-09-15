@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 99 |
-| Partial | 13 |
+| Implemented | 109 |
+| Partial | 11 |
 | Placeholder | 4 |
-| Missing | 69 |
+| Missing | 61 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -48,7 +48,7 @@ Missing means no route or control exists yet.
 | `screen:moderation` | missing | #159, #168 | — | missing |
 | `screen:settings` | implemented | #167, #168, #169, #170 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `screen:accounts` | partial | #135, #145, #146, #151 | apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx | missing |
-| `screen:system` | partial | #143, #170, #171 | apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx | missing |
+| `screen:system` | implemented | #143, #170, #171 | apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx, apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `screen:more` | implemented | #139, #141 | apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `screen:settings-appearance` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `screen:settings-playback` | implemented | #167 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
@@ -120,12 +120,12 @@ Missing means no route or control exists yet.
 | `tab:moderation:vips` | missing | — | — | missing |
 | `tab:moderation:activity` | missing | — | — | missing |
 | `tab:moderation:active-mods` | missing | — | — | missing |
-| `tab:settings-diagnostics:overview` | missing | — | — | missing |
-| `tab:settings-diagnostics:resources` | missing | — | — | missing |
-| `tab:settings-diagnostics:io` | missing | — | — | missing |
-| `tab:settings-diagnostics:traces` | missing | — | — | missing |
-| `tab:settings-diagnostics:logs-reports` | missing | — | — | missing |
-| `tab:settings-diagnostics:developer-tools` | missing | — | — | missing |
+| `tab:settings-diagnostics:overview` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
+| `tab:settings-diagnostics:resources` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
+| `tab:settings-diagnostics:io` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
+| `tab:settings-diagnostics:traces` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
+| `tab:settings-diagnostics:logs-reports` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
+| `tab:settings-diagnostics:developer-tools` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
 | `action:search` | missing | — | — | missing |
 | `action:open-category` | missing | — | — | missing |
 | `action:repeat-search` | missing | — | — | missing |
@@ -178,7 +178,7 @@ Missing means no route or control exists yet.
 | `action:cycle-setting` | missing | — | — | missing |
 | `action:caption-model` | missing | — | — | missing |
 | `action:check-updates` | missing | — | — | missing |
-| `action:diagnostics-tab` | missing | — | — | missing |
+| `action:diagnostics-tab` | implemented | #171 | apps/mobile/src/features/diagnostics/domain/diagnostics-workspace.ts, apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
 | `action:connect-account` | partial | — | — | missing |
 | `action:manage-account` | partial | — | — | missing |
 | `action:copy-account-code` | partial | — | — | missing |
@@ -187,7 +187,7 @@ Missing means no route or control exists yet.
 | `action:retry-account-connect` | partial | — | — | missing |
 | `action:disconnect-account` | partial | — | — | missing |
 | `action:notification-permission` | missing | — | — | missing |
-| `action:run-check` | missing | — | — | missing |
+| `action:run-check` | implemented | #143, #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx, apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx | tests |
 | `action:toggle-density` | missing | — | — | missing |
 | `action:retry-installation-registration` | partial | — | — | missing |
 | `action:refresh-capability-policy` | partial | — | — | missing |
@@ -215,7 +215,7 @@ Missing means no route or control exists yet.
 | `shell-route:more/history` | implemented | #155 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
 | `shell-route:more/settings` | implemented | #162, #167, #169 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
-| `shell-route:more/diagnostics` | partial | — | — | missing |
+| `shell-route:more/diagnostics` | implemented | #143, #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `shell-route:more/accounts` | partial | — | — | missing |
 | `shell-route:more/category-detail` | implemented | — | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
 
@@ -225,7 +225,7 @@ Missing means no route or control exists yet.
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
 | `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat and later Settings panels remain on M06+. | #147, #148, #149, #150, #152, #159, #167 |
-| `GAP-195-03` | owned-elsewhere | Chat Settings remains M06. Diagnostics six-tab workspace remains M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01. | #143, #168, #169, #170, #171 |
+| `GAP-195-03` | owned-elsewhere | Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01. | #143, #168, #169, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest notification preferences, Android permission status, and denial recovery live on Settings. Remote FCM registration and background delivery remain N01–N03. Activity is still a local inbox. | #151, #169, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 

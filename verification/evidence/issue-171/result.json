@@ -1,0 +1,118 @@
+{
+  "ok": true,
+  "receipt": {
+    "schemaVersion": 1,
+    "issue": 171,
+    "ticketId": "M09",
+    "observedAt": "2026-09-15T15:43:59.111Z",
+    "result": "pass",
+    "desktopBaseline": {
+      "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+      "check": "M09 six-tab Diagnostics workspace with Capability Profile, redacted reports, and recovery."
+    },
+    "candidate": {
+      "apkSha256": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+      "provenance": "API 30 development client. Metro JS from the W02 worktree. Guest signed-out. Six Diagnostics tabs. Appearance stays dark-only. Physical-device evidence stays on #196."
+    },
+    "requirements": {
+      "change-gate": {
+        "result": "pass",
+        "observations": [
+          "More Diagnostics shows six tabs. Invalid leftover process tabs are not present. Run check and Recover remain on-device."
+        ]
+      },
+      "api30-device": {
+        "result": "pass",
+        "observations": [
+          "StreamFusion Issue 142 API30 opened Overview, Resources, I/O, Traces, Logs and reports, and Developer tools."
+        ]
+      },
+      "redaction-proof": {
+        "result": "pass",
+        "observations": [
+          "Build report wrote a redacted local preview without credentials or push tokens."
+        ]
+      },
+      "recovery-actions": {
+        "result": "pass",
+        "observations": [
+          "Run check retried Capability Profile collection. Recover ran on the Traces media-jobs panel."
+        ]
+      },
+      "accessibility": {
+        "result": "pass",
+        "observations": [
+          "Overview tab exposes an accessibility name."
+        ]
+      }
+    },
+    "evidenceArtifacts": [
+      {
+        "path": "verification/evidence/issue-171/01-overview.png",
+        "sha256": "sha256:e79128346c987f39ff4495a64cecad747f711905fdef92b756647142a2133074",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "01-overview"
+      },
+      {
+        "path": "verification/evidence/issue-171/02-overview.png",
+        "sha256": "sha256:e79128346c987f39ff4495a64cecad747f711905fdef92b756647142a2133074",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "02-overview"
+      },
+      {
+        "path": "verification/evidence/issue-171/03-resources.png",
+        "sha256": "sha256:f91c2ff25a6fbd3ba0d42bc9c5eb785b1dfab23a99441e60d28e408f40112be2",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "03-resources"
+      },
+      {
+        "path": "verification/evidence/issue-171/04-io.png",
+        "sha256": "sha256:6a553fafc84c9b0284091beeac3eca647f193e7bf1ecd408799b3f385314db32",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "04-io"
+      },
+      {
+        "path": "verification/evidence/issue-171/05-traces.png",
+        "sha256": "sha256:640dfb555a75527bcf74a8427c7068d1bc0f87d0bb3dc2741d811e045e798991",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "05-traces"
+      },
+      {
+        "path": "verification/evidence/issue-171/06-logs-reports.png",
+        "sha256": "sha256:abf689296b258a0e7c7300fe76e884e083365a0cd4f7f3023eb0f92305c56e38",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "06-logs-reports"
+      },
+      {
+        "path": "verification/evidence/issue-171/07-developer-tools.png",
+        "sha256": "sha256:d9eff1408b07c27ca13d44da9f65777aa5a68d9928207d07d3551c6906e07db6",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "07-developer-tools"
+      },
+      {
+        "path": "verification/evidence/issue-171/08-redacted-report.png",
+        "sha256": "sha256:864fb191f8c9309be63bbdd18b156e7c14c2b29eaa4003df5cb5abaa3542d880",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "08-redacted-report"
+      },
+      {
+        "path": "verification/evidence/issue-171/09-recovery.png",
+        "sha256": "sha256:511b1140c348286a2d2edbe68a273e28b29248698354ba37539d2900e81d7d29",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "09-recovery"
+      },
+      {
+        "path": "verification/evidence/issue-171/10-accessibility.png",
+        "sha256": "sha256:e95be063d22bd458956d0d860a67621e8ca96d3051bf6e409bece51d44d2997f",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "10-accessibility"
+      },
+      {
+        "path": "verification/evidence/issue-171/11-process-death.png",
+        "sha256": "sha256:1d6dd250a019d0ddba2c43428fe7c7f8f459e65cba71e73d203a4a528aee57f0",
+        "observedAt": "2026-09-15T15:43:59.111Z",
+        "scope": "11-process-death"
+      }
+    ]
+  }
+}

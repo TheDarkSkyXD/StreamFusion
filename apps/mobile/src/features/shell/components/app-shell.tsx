@@ -1,6 +1,13 @@
 import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import {
   BackHandler,
   KeyboardAvoidingView,
@@ -36,8 +43,15 @@ import {
   ActivityDetailScreen,
   ActivityScreen,
 } from "@mobile/features/activity/components/activity-screen";
+import { DiagnosticsWorkspace } from "@mobile/features/diagnostics/components/diagnostics-workspace";
+import type { MobileDiagnosticsTab } from "@mobile/features/diagnostics/capabilities/diagnostics-workspace";
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
+import {
+  diagnosticsCollectionCopy,
+  diagnosticsObservationCopy,
+  parseDiagnosticsTab,
+} from "@mobile/features/diagnostics/domain/diagnostics-workspace";
 import { HistoryScreen } from "@mobile/features/media-library/components/history-screen";
 import { MultistreamScreen } from "@mobile/features/multistream/components/multistream-screen";
 import type { MultistreamRepository } from "@mobile/features/multistream/capabilities/multistream";
@@ -670,6 +684,8 @@ function ShellScreen({
   const location = getActiveShellLocation(state);
   const scrollView = useRef<ScrollView>(null);
   const scrollRequest = state.rootScrollRequests[state.activeDestination];
+  const [diagnosticsTab, setDiagnosticsTab] =
+    useState<MobileDiagnosticsTab>("overview");
 
   useEffect(() => {
     scrollView.current?.scrollTo({ animated: false, y: 0 });
@@ -1009,6 +1025,55 @@ function ShellScreen({
     );
   }
 
+  if (location.route === "more/diagnostics") {
+    const support = supportSession.peek();
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-diagnostics">
+        <DiagnosticsWorkspace
+          collectionCopy={diagnosticsCollectionCopy(
+            capabilityProfile.phase,
+            capabilityProfile.detail,
+          )}
+          observationCopy={diagnosticsObservationCopy({
+            diagnosticIoWindow: support.preferences.diagnosticIoWindow,
+            diagnosticWindow: support.preferences.diagnosticWindow,
+            observationAgeMs: capabilityProfile.observationAgeMs,
+          })}
+          onRunCheck={onRetryCapabilityProfile}
+          onSelectTab={(tab) =>
+            setDiagnosticsTab((current) => parseDiagnosticsTab(tab, current))
+          }
+          selectedTab={diagnosticsTab}
+          slots={diagnosticsWorkspaceSlots({
+            activity,
+            capabilityProfile,
+            captionsController,
+            connectivitySession,
+            developmentActivityProof,
+            developmentStatus,
+            dispatch,
+            installationPolicy,
+            mediaJobsController,
+            onExitDevelopmentActivityProof,
+            onPrepareRestorationProof,
+            onQueueActivityReadFailure,
+            onRefreshCapabilityPolicy,
+            onReplayDevelopmentActivityProof,
+            onRetryCapabilityProfile,
+            onRetryDevelopmentActivityProofCleanup,
+            onRetryInstallationRegistration,
+            onRunCapabilityProfileDevelopmentProof,
+            onRunNativeCapabilityProof,
+            onRunPersistenceProof,
+            onStartDevelopmentActivityProof,
+            persistenceStatus,
+            supportSession,
+          })}
+        />
+      </View>
+    );
+  }
+
   if (location.route === "more/settings") {
     return (
       <View style={styles.activityWorkspace} testID="screen-more-settings-root">
@@ -1072,122 +1137,190 @@ function ShellScreen({
         ) : (
           <NestedRouteState location={location} />
         )}
-        {route.id === "more/diagnostics" ? (
-          <>
-            <ConnectivityDiagnosticsPanel session={connectivitySession} />
-            <MediaJobsDiagnosticsPanel
-              busy={mediaJobsController.model.busy}
-              jobs={mediaJobsController.model.jobs}
-              status={mediaJobsController.model.status}
-              onOpenJob={(jobId) =>
-                dispatch({
-                  type: "navigate",
-                  location: { route: "activity/job-preview", jobId },
-                })
-              }
-              onRecover={() => {
-                void mediaJobsController.recover().then(() => {
-                  void activity.refresh();
-                });
-              }}
-              onStartDownload={() => {
-                void openStartedJob(
-                  mediaJobsController.startDownload,
-                  activity,
-                  dispatch,
-                );
-              }}
-              onStartHttpRange={() => {
-                void openStartedJob(
-                  mediaJobsController.startHttpRange,
-                  activity,
-                  dispatch,
-                );
-              }}
-              onStartNetworkLoss={() => {
-                void openStartedJob(
-                  mediaJobsController.startNetworkLoss,
-                  activity,
-                  dispatch,
-                );
-              }}
-              onStartRecording={() => {
-                void openStartedJob(
-                  mediaJobsController.startRecording,
-                  activity,
-                  dispatch,
-                );
-              }}
-              onStartCompressedRecording={() => {
-                void openStartedJob(
-                  mediaJobsController.startCompressedRecording,
-                  activity,
-                  dispatch,
-                );
-              }}
-              onStartRecordingStoragePressure={() => {
-                void openStartedJob(
-                  mediaJobsController.startRecordingStoragePressure,
-                  activity,
-                  dispatch,
-                );
-              }}
-              onStartStoragePressure={() => {
-                void openStartedJob(
-                  mediaJobsController.startStoragePressure,
-                  activity,
-                  dispatch,
-                );
-              }}
-            />
-            <LocalCaptionsDiagnosticsHost controller={captionsController} />
-            <CapabilityProfilePanel
-              model={capabilityProfile}
-              onRetry={onRetryCapabilityProfile}
-            />
-            <InstallationPolicyPanel
-              model={installationPolicy}
-              onRefreshCapabilityPolicy={onRefreshCapabilityPolicy}
-              onRetryInstallationRegistration={onRetryInstallationRegistration}
-            />
-            {__DEV__ && developmentActivityProof ? (
-              <DevelopmentActivityProofControl
-                model={developmentActivityProof}
-                onExit={onExitDevelopmentActivityProof}
-                onQueueReadFailure={onQueueActivityReadFailure}
-                onRefresh={activity.refresh}
-                onReplay={onReplayDevelopmentActivityProof}
-                onRetryCleanup={onRetryDevelopmentActivityProofCleanup}
-                onStart={onStartDevelopmentActivityProof}
-              />
-            ) : null}
-            {__DEV__ ? (
-              <DevelopmentResourceFailureProofControl
-                onQueue={onRunCapabilityProfileDevelopmentProof}
-                onRetry={onRetryCapabilityProfile}
-              />
-            ) : null}
-            <PersistenceStatus
-              model={persistenceStatus}
-              onRunProof={async () => {
-                await onRunPersistenceProof();
-                await activity.recordStorageCheck();
-              }}
-            />
-            {__DEV__ ? (
-              <RestorationProofControls onPrepare={onPrepareRestorationProof} />
-            ) : null}
-            {__DEV__ ? (
-              <NativeCapabilityStubProofControl
-                onRun={onRunNativeCapabilityProof}
-              />
-            ) : null}
-            <DevelopmentStatus model={developmentStatus} />
-          </>
-        ) : null}
       </View>
     </ScrollView>
   );
+}
+
+type DiagnosticsSlotsInput = {
+  readonly activity: ReturnType<typeof useActivityController>;
+  readonly capabilityProfile: CapabilityProfileViewModel;
+  readonly captionsController: ReturnType<typeof useLocalCaptionsController>;
+  readonly connectivitySession: ConnectivitySession;
+  readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
+  readonly developmentStatus: DevelopmentClientViewModel;
+  readonly dispatch: (action: ShellNavigationAction) => void;
+  readonly installationPolicy: InstallationPolicyViewModel;
+  readonly mediaJobsController: ReturnType<typeof useMediaJobsController>;
+  readonly onExitDevelopmentActivityProof: () => Promise<void>;
+  readonly onPrepareRestorationProof: (
+    kind: "corrupt" | "unsupported",
+  ) => Promise<void>;
+  readonly onQueueActivityReadFailure: () => void;
+  readonly onRefreshCapabilityPolicy: () => void;
+  readonly onReplayDevelopmentActivityProof: () => Promise<void>;
+  readonly onRetryCapabilityProfile: () => void;
+  readonly onRetryDevelopmentActivityProofCleanup: () => Promise<void>;
+  readonly onRetryInstallationRegistration: () => void;
+  readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
+  readonly onRunNativeCapabilityProof: () => Promise<{
+    readonly detail: string;
+  }>;
+  readonly onRunPersistenceProof: () => Promise<void>;
+  readonly onStartDevelopmentActivityProof: () => Promise<void>;
+  readonly persistenceStatus: PersistenceViewModel;
+  readonly supportSession: SupportSettingsSession;
+};
+
+function queueStartedJob(
+  start: () => Promise<string>,
+  activity: ReturnType<typeof useActivityController>,
+  dispatch: (action: ShellNavigationAction) => void,
+): () => void {
+  return () => {
+    void openStartedJob(start, activity, dispatch);
+  };
+}
+
+function mediaJobStartHandlers(
+  jobs: ReturnType<typeof useMediaJobsController>,
+  activity: ReturnType<typeof useActivityController>,
+  dispatch: (action: ShellNavigationAction) => void,
+) {
+  return {
+    onStartDownload: queueStartedJob(jobs.startDownload, activity, dispatch),
+    onStartHttpRange: queueStartedJob(jobs.startHttpRange, activity, dispatch),
+    onStartNetworkLoss: queueStartedJob(
+      jobs.startNetworkLoss,
+      activity,
+      dispatch,
+    ),
+    onStartRecording: queueStartedJob(jobs.startRecording, activity, dispatch),
+    onStartCompressedRecording: queueStartedJob(
+      jobs.startCompressedRecording,
+      activity,
+      dispatch,
+    ),
+    onStartRecordingStoragePressure: queueStartedJob(
+      jobs.startRecordingStoragePressure,
+      activity,
+      dispatch,
+    ),
+    onStartStoragePressure: queueStartedJob(
+      jobs.startStoragePressure,
+      activity,
+      dispatch,
+    ),
+  };
+}
+
+function diagnosticsTracesSlot(input: DiagnosticsSlotsInput): ReactNode {
+  const jobs = input.mediaJobsController;
+  return (
+    <>
+      <MediaJobsDiagnosticsPanel
+        busy={jobs.model.busy}
+        jobs={jobs.model.jobs}
+        status={jobs.model.status}
+        onOpenJob={(jobId) =>
+          input.dispatch({
+            type: "navigate",
+            location: { route: "activity/job-preview", jobId },
+          })
+        }
+        onRecover={() => {
+          void jobs.recover().then(() => {
+            void input.activity.refresh();
+          });
+        }}
+        {...mediaJobStartHandlers(jobs, input.activity, input.dispatch)}
+      />
+      <LocalCaptionsDiagnosticsHost controller={input.captionsController} />
+    </>
+  );
+}
+
+function diagnosticsDeveloperToolsSlot(
+  input: DiagnosticsSlotsInput,
+): ReactNode {
+  return (
+    <>
+      {__DEV__ ? (
+        <>
+          {input.developmentActivityProof ? (
+            <DevelopmentActivityProofControl
+              model={input.developmentActivityProof}
+              onExit={input.onExitDevelopmentActivityProof}
+              onQueueReadFailure={input.onQueueActivityReadFailure}
+              onRefresh={input.activity.refresh}
+              onReplay={input.onReplayDevelopmentActivityProof}
+              onRetryCleanup={input.onRetryDevelopmentActivityProofCleanup}
+              onStart={input.onStartDevelopmentActivityProof}
+            />
+          ) : null}
+          <DevelopmentResourceFailureProofControl
+            onQueue={input.onRunCapabilityProfileDevelopmentProof}
+            onRetry={input.onRetryCapabilityProfile}
+          />
+          <RestorationProofControls
+            onPrepare={input.onPrepareRestorationProof}
+          />
+          <NativeCapabilityStubProofControl
+            onRun={input.onRunNativeCapabilityProof}
+          />
+        </>
+      ) : null}
+      <DevelopmentStatus model={input.developmentStatus} />
+    </>
+  );
+}
+
+function diagnosticsWorkspaceSlots(
+  input: DiagnosticsSlotsInput,
+): Record<MobileDiagnosticsTab, ReactNode> {
+  return {
+    overview: (
+      <>
+        <CapabilityProfilePanel
+          model={input.capabilityProfile}
+          onRetry={input.onRetryCapabilityProfile}
+        />
+        <InstallationPolicyPanel
+          model={input.installationPolicy}
+          onRefreshCapabilityPolicy={input.onRefreshCapabilityPolicy}
+          onRetryInstallationRegistration={
+            input.onRetryInstallationRegistration
+          }
+        />
+      </>
+    ),
+    resources: (
+      <CapabilityProfilePanel
+        model={input.capabilityProfile}
+        onRetry={input.onRetryCapabilityProfile}
+      />
+    ),
+    io: (
+      <>
+        <ConnectivityDiagnosticsPanel session={input.connectivitySession} />
+        <PersistenceStatus
+          model={input.persistenceStatus}
+          onRunProof={async () => {
+            await input.onRunPersistenceProof();
+            await input.activity.recordStorageCheck();
+          }}
+        />
+      </>
+    ),
+    traces: diagnosticsTracesSlot(input),
+    "logs-reports": (
+      <>
+        <LogsSettingsPanel session={input.supportSession} />
+        <ReportBugSettingsPanel session={input.supportSession} />
+      </>
+    ),
+    "developer-tools": diagnosticsDeveloperToolsSlot(input),
+  };
 }
 
 function PersistenceStatus({

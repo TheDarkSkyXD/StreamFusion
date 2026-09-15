@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 99,
-    "partial": 13,
+    "implemented": 109,
+    "partial": 11,
     "placeholder": 4,
-    "missing": 69
+    "missing": 61
   },
   "entries": [
     {
@@ -283,16 +283,18 @@
       "id": "screen:system",
       "kind": "screen",
       "name": "system",
-      "status": "partial",
+      "status": "implemented",
       "owners": [
         143,
         170,
         171
       ],
       "implementation": [
-        "apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx"
+        "apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx",
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+        "apps/mobile/src/features/shell/components/app-shell.tsx"
       ],
-      "verification": "missing",
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1310,10 +1312,14 @@
       "id": "tab:settings-diagnostics:overview",
       "kind": "tab",
       "name": "settings-diagnostics:overview",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1321,10 +1327,14 @@
       "id": "tab:settings-diagnostics:resources",
       "kind": "tab",
       "name": "settings-diagnostics:resources",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1332,10 +1342,14 @@
       "id": "tab:settings-diagnostics:io",
       "kind": "tab",
       "name": "settings-diagnostics:io",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1343,10 +1357,14 @@
       "id": "tab:settings-diagnostics:traces",
       "kind": "tab",
       "name": "settings-diagnostics:traces",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1354,10 +1372,14 @@
       "id": "tab:settings-diagnostics:logs-reports",
       "kind": "tab",
       "name": "settings-diagnostics:logs-reports",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1365,10 +1387,14 @@
       "id": "tab:settings-diagnostics:developer-tools",
       "kind": "tab",
       "name": "settings-diagnostics:developer-tools",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2013,10 +2039,15 @@
       "id": "action:diagnostics-tab",
       "kind": "action",
       "name": "diagnostics-tab",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/domain/diagnostics-workspace.ts",
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2112,10 +2143,16 @@
       "id": "action:run-check",
       "kind": "action",
       "name": "run-check",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        143,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+        "apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2469,10 +2506,16 @@
       "id": "shell-route:more/diagnostics",
       "kind": "shell-route",
       "name": "more/diagnostics",
-      "status": "partial",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        143,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+        "apps/mobile/src/features/shell/components/app-shell.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2529,7 +2572,7 @@
     {
       "id": "GAP-195-03",
       "status": "owned-elsewhere",
-      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace remains M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
+      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
       "owners": [
         143,
         168,
