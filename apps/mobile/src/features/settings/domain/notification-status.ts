@@ -66,7 +66,7 @@ export function notificationPermissionCopy(
   if (permission === "unavailable") {
     return "Notification permission is unavailable on this device. Activity history still records eligible live events.";
   }
-  return "Android allows notification posting. Native FCM registration runs on this device; topic delivery waits until later.";
+  return "Android allows notification posting. Native FCM registration runs on this device. Live alerts use one topic or one direct token, never both.";
 }
 
 export function notificationDeliveryCopy(input: {
@@ -84,7 +84,7 @@ export function notificationDeliveryCopy(input: {
   if (!preferences.liveAlerts) {
     return "Activity does not create live-alert rows. Android posting stays independent.";
   }
-  return "Guest Follow live alerts stay eligible on this device. Native FCM registration is on this build.";
+  return "Guest Follow live alerts stay eligible. Overflow past 2000 topics uses direct tokens. Activity still records if a send fails.";
 }
 
 function nativeRegistrationFallback(input: {

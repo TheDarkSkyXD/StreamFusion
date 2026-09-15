@@ -36,6 +36,25 @@ function memoryRegistry(): NativePushRegistry & {
         rotatedAt
       });
       return true;
+    },
+    async listEnabled() {
+      return [...records.values()].filter(
+        (record) => record.remoteDeliveryEnabled
+      );
+    },
+    async retireByTokenHash(tokenHash, rotatedAt) {
+      for (const [id, record] of records) {
+        if (record.tokenHash !== tokenHash || !record.remoteDeliveryEnabled) {
+          continue;
+        }
+        records.set(id, {
+          ...record,
+          remoteDeliveryEnabled: false,
+          rotatedAt
+        });
+        return true;
+      }
+      return false;
     }
   };
 }
@@ -127,11 +146,20 @@ describe("native push registration route", () => {
     );
     expect(first?.status).toBe(200);
     const firstBody = (await first?.json()) as {
-      readonly outcome: { readonly body: unknown };
+      readonly outcome: {
+        readonly body: {
+          readonly overflowPairs: number;
+          readonly topicSubscriptions: number;
+        };
+      };
     };
     expect(nativePushRegistrationGrantSchema.is(firstBody.outcome.body)).toBe(
       true
     );
+    expect(firstBody.outcome.body).toMatchObject({
+      topicSubscriptions: 1,
+      overflowPairs: 0
+    });
     const rotatedToken = `${nativeToken}Rotated`;
     const second = await route(
       new Request("https://relay.test/v1/notifications/register", {

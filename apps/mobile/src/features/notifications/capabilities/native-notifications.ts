@@ -17,6 +17,9 @@ export type NativeRegistrationState =
 export type NativeRegistrationSnapshot = {
   readonly state: NativeRegistrationState;
   readonly fingerprint: string | null;
+  readonly topicSubscriptions: number;
+  readonly overflowPairs: number;
+  readonly lastFailure: string | null;
   readonly copy: string;
 };
 

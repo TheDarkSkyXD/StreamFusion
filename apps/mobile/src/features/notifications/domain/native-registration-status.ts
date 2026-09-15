@@ -4,7 +4,16 @@ export function nativeRegistrationCopy(
   snapshot: Omit<NativeRegistrationSnapshot, "copy">,
 ): string {
   if (snapshot.state === "registered" && snapshot.fingerprint) {
-    return `Native FCM token fingerprint ${snapshot.fingerprint}. Topic fanout waits until later notification delivery.`;
+    const reconciled =
+      snapshot.overflowPairs > 0
+        ? `Relay reconciled ${snapshot.topicSubscriptions} Live topics. ${snapshot.overflowPairs} overflow pairs keep direct-token delivery. Activity still records if a send fails.`
+        : `Relay reconciled ${snapshot.topicSubscriptions} Live topics. Direct tokens stay private for media and account alerts.`;
+    return snapshot.lastFailure
+      ? `${reconciled} ${snapshot.lastFailure}`
+      : reconciled;
+  }
+  if (snapshot.lastFailure) {
+    return snapshot.lastFailure;
   }
   if (snapshot.state === "unavailable") {
     return "Native FCM registration is unavailable on this device. Activity and local channels still work.";
@@ -20,11 +29,20 @@ export function nativeRegistrationCopy(
 
 export function nativeRegistrationSnapshot(input: {
   readonly fingerprint: string | null;
+  readonly lastFailure?: string | null;
+  readonly overflowPairs?: number;
   readonly state: NativeRegistrationSnapshot["state"];
+  readonly topicSubscriptions?: number;
 }): NativeRegistrationSnapshot {
-  return {
-    copy: nativeRegistrationCopy(input),
+  const snapshot = {
     fingerprint: input.fingerprint,
+    lastFailure: input.lastFailure ?? null,
+    overflowPairs: input.overflowPairs ?? 0,
     state: input.state,
+    topicSubscriptions: input.topicSubscriptions ?? 0,
+  };
+  return {
+    ...snapshot,
+    copy: nativeRegistrationCopy(snapshot),
   };
 }

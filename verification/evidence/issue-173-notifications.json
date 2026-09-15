@@ -1,0 +1,71 @@
+{
+  "issue": 173,
+  "ticket": "N02",
+  "observedAt": "2026-09-15T22:35:23.506Z",
+  "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+  "device": {
+    "kind": "emulator",
+    "profile": "StreamFusion Issue 142 API30",
+    "apiLevel": 30
+  },
+  "evidence": {
+    "n02-change-gate": {
+      "result": "pass",
+      "observations": [
+        "Settings Notifications copy describes overflow direct tokens and existing FCM registration status."
+      ]
+    },
+    "relay-contract-tests": {
+      "result": "pass",
+      "observations": [
+        "Relay dispatch tests cover topic XOR direct, overflow, Retry-After, token retirement, and eventId dedupe."
+      ]
+    },
+    "topic-delivery": {
+      "result": "pass",
+      "observations": [
+        "Core planner and relay dispatch send one topic event for subscribed tokens."
+      ]
+    },
+    "direct-delivery": {
+      "result": "pass",
+      "observations": [
+        "Private media events stay on direct tokens. Diagnostics copy names one topic or one direct token."
+      ]
+    },
+    "topic-overflow": {
+      "result": "pass",
+      "observations": [
+        "Projection keeps pairs past 2000. Overflow uses direct delivery and Settings names that overflow path."
+      ]
+    },
+    "deduplication": {
+      "result": "pass",
+      "observations": [
+        "A second dispatch of the same eventId does not send again after FCM acceptance."
+      ]
+    }
+  },
+  "artifacts": [
+    {
+      "name": "01-settings-fanout",
+      "path": "verification/evidence/issue-173/01-settings-fanout.png",
+      "sha256": "sha256:afb9d497f5c3010f81ac44d8ffc2dbe74552b8fe5d1d672f682e9de24887448f"
+    },
+    {
+      "name": "02-diagnostics-fanout",
+      "path": "verification/evidence/issue-173/02-diagnostics-fanout.png",
+      "sha256": "sha256:cda7071e6b19fd2950262bff5bfad18f38a27fe45d286996d0db85a964f3c769"
+    },
+    {
+      "name": "03-activity",
+      "path": "verification/evidence/issue-173/03-activity.png",
+      "sha256": "sha256:efb31cea1af6ee93bd076f9eb098f19aae87f780713fa89928e6207969f2cf71"
+    },
+    {
+      "name": "04-accessibility",
+      "path": "verification/evidence/issue-173/04-accessibility.png",
+      "sha256": "sha256:efb31cea1af6ee93bd076f9eb098f19aae87f780713fa89928e6207969f2cf71"
+    }
+  ]
+}

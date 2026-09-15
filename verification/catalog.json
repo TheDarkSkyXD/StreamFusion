@@ -1215,6 +1215,216 @@
             "mediaType": "image/png"
           }
         ]
+      },
+      {
+        "id": "n02-change-gate",
+        "sourceCommit": "1fd5db9ec73892af4b9a5357f6e5a55162a4d21e",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-173-n02-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T22:35:23.506Z",
+        "expiresAt": "2026-09-29T22:35:23.506Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/173"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-173-notifications.json",
+            "sha256": "sha256:59d55d0f1b4880ee71249abf903ad571a78cc5260e8887c8cfab9889329cef7f",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "01-settings-fanout",
+            "path": "verification/evidence/issue-173/01-settings-fanout.png",
+            "sha256": "sha256:afb9d497f5c3010f81ac44d8ffc2dbe74552b8fe5d1d672f682e9de24887448f",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "relay-contract-tests",
+        "sourceCommit": "1fd5db9ec73892af4b9a5357f6e5a55162a4d21e",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-173-n02-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T22:35:23.506Z",
+        "expiresAt": "2026-09-29T22:35:23.506Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/173"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-173-notifications.json",
+            "sha256": "sha256:59d55d0f1b4880ee71249abf903ad571a78cc5260e8887c8cfab9889329cef7f",
+            "mediaType": "application/json"
+          }
+        ]
+      },
+      {
+        "id": "topic-delivery",
+        "sourceCommit": "1fd5db9ec73892af4b9a5357f6e5a55162a4d21e",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-173-n02-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T22:35:23.506Z",
+        "expiresAt": "2026-09-29T22:35:23.506Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/173"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-173-notifications.json",
+            "sha256": "sha256:59d55d0f1b4880ee71249abf903ad571a78cc5260e8887c8cfab9889329cef7f",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "02-diagnostics-fanout",
+            "path": "verification/evidence/issue-173/02-diagnostics-fanout.png",
+            "sha256": "sha256:cda7071e6b19fd2950262bff5bfad18f38a27fe45d286996d0db85a964f3c769",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "direct-delivery",
+        "sourceCommit": "1fd5db9ec73892af4b9a5357f6e5a55162a4d21e",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-173-n02-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T22:35:23.506Z",
+        "expiresAt": "2026-09-29T22:35:23.506Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/173"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-173-notifications.json",
+            "sha256": "sha256:59d55d0f1b4880ee71249abf903ad571a78cc5260e8887c8cfab9889329cef7f",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "02-diagnostics-fanout",
+            "path": "verification/evidence/issue-173/02-diagnostics-fanout.png",
+            "sha256": "sha256:cda7071e6b19fd2950262bff5bfad18f38a27fe45d286996d0db85a964f3c769",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "topic-overflow",
+        "sourceCommit": "1fd5db9ec73892af4b9a5357f6e5a55162a4d21e",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-173-n02-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T22:35:23.506Z",
+        "expiresAt": "2026-09-29T22:35:23.506Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/173"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-173-notifications.json",
+            "sha256": "sha256:59d55d0f1b4880ee71249abf903ad571a78cc5260e8887c8cfab9889329cef7f",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "01-settings-fanout",
+            "path": "verification/evidence/issue-173/01-settings-fanout.png",
+            "sha256": "sha256:afb9d497f5c3010f81ac44d8ffc2dbe74552b8fe5d1d672f682e9de24887448f",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "deduplication",
+        "sourceCommit": "1fd5db9ec73892af4b9a5357f6e5a55162a4d21e",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-173-n02-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T22:35:23.506Z",
+        "expiresAt": "2026-09-29T22:35:23.506Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/173"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-173-notifications.json",
+            "sha256": "sha256:59d55d0f1b4880ee71249abf903ad571a78cc5260e8887c8cfab9889329cef7f",
+            "mediaType": "application/json"
+          }
+        ]
       }
     ],
     "diagnostics-logs-and-bug-reports": [

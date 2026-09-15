@@ -7,6 +7,7 @@ import {
 import {
   buildLiveNotificationProjection,
   fingerprintNativePushToken,
+  nativePushRegistrationGrantSchema,
   nativePushRegistrationRequestSchema,
   safeNotificationPayloadSchema,
 } from "../src/relay/live-notifications.ts";
@@ -118,4 +119,24 @@ test("live-notification projection keeps eligible Guest Follows and drops disabl
   const fingerprint = await fingerprintNativePushToken(nativeToken);
   assert.match(fingerprint, /^[a-f0-9]{16}$/);
   assert.notEqual(fingerprint, nativeToken);
+  assert.equal(
+    nativePushRegistrationGrantSchema.is({
+      registered: true,
+      tokenFingerprint: fingerprint,
+      projectionVersion: 3,
+      topicSubscriptions: 1,
+      overflowPairs: 0,
+      reconciledAt: "2026-09-15T12:00:00.000Z",
+    }),
+    true,
+  );
+  assert.equal(
+    nativePushRegistrationGrantSchema.is({
+      registered: true,
+      tokenFingerprint: fingerprint,
+      projectionVersion: 3,
+      reconciledAt: "2026-09-15T12:00:00.000Z",
+    }),
+    false,
+  );
 });

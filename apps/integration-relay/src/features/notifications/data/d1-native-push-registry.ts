@@ -57,6 +57,19 @@ export function createD1NativePushRegistry(
       return row === null ? null : fromRow(row);
     },
 
+    async listEnabled() {
+      await ensureInitialized();
+      const result = await database
+        .prepare(
+          `SELECT installation_id, native_token, token_hash, token_type, projection_json,
+                  remote_delivery_enabled, registered_at, rotated_at
+             FROM native_push_tokens
+            WHERE remote_delivery_enabled = 1`
+        )
+        .all<NativePushRow>();
+      return (result.results ?? []).map(fromRow);
+    },
+
     async upsert(record) {
       await ensureInitialized();
       await database
@@ -98,6 +111,19 @@ export function createD1NativePushRegistry(
         .bind(rotatedAt, installationId)
         .run();
       return result.meta.changes === 1;
+    },
+
+    async retireByTokenHash(tokenHash, rotatedAt) {
+      await ensureInitialized();
+      const result = await database
+        .prepare(
+          `UPDATE native_push_tokens
+              SET remote_delivery_enabled = 0, rotated_at = ?
+            WHERE token_hash = ? AND remote_delivery_enabled = 1`
+        )
+        .bind(rotatedAt, tokenHash)
+        .run();
+      return (result.meta.changes ?? 0) > 0;
     }
   };
 }

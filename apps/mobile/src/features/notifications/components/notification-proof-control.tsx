@@ -10,8 +10,10 @@ import {
 
 export function NotificationProofControl({
   onPresent,
+  registrationCopy,
 }: {
   readonly onPresent: () => Promise<void>;
+  readonly registrationCopy?: string;
 }) {
   const [busy, setBusy] = useState(false);
   return (
@@ -20,9 +22,19 @@ export function NotificationProofControl({
         Notification proof
       </Text>
       <Text selectable style={styles.body}>
-        Present a local live-alert on the Live channel. Ended streams open the
-        channel page. Activity still records if FCM is unavailable.
+        Present a local live-alert on the Live channel. One event uses a topic
+        or a direct token, never both. Overflow past 2000 topics stays direct.
+        Activity still records if FCM is unavailable.
       </Text>
+      {registrationCopy ? (
+        <Text
+          selectable
+          style={styles.body}
+          testID="notification-reconciliation-status"
+        >
+          {registrationCopy}
+        </Text>
+      ) : null}
       <Pressable
         accessibilityLabel="Present notification proof"
         accessibilityRole="button"

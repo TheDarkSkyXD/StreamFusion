@@ -101,6 +101,8 @@ function dependencies(input?: {
           registered: true,
           tokenFingerprint: await fingerprintNativePushToken(request.nativeToken),
           projectionVersion: request.projection.version,
+          topicSubscriptions: request.remoteDeliveryEnabled ? request.projection.pairs.length : 0,
+          overflowPairs: 0,
           reconciledAt: "2026-09-15T12:00:00.000Z",
         };
       },
@@ -136,6 +138,9 @@ describe("native notification runtime", () => {
     const first = await runtime.sync();
     expect(first.state).toBe("registered");
     expect(first.fingerprint).toBe(await fingerprintNativePushToken(nativeToken));
+    expect(first.topicSubscriptions).toBe(1);
+    expect(first.overflowPairs).toBe(0);
+    expect(first.copy).toMatch(/Live topics/);
     expect(registered).toEqual([nativeToken]);
     const rotated = `${nativeToken}Rotated`;
     const { registered: again, runtime: next } = dependencies({ token: rotated });

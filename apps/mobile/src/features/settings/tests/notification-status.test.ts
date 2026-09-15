@@ -21,7 +21,7 @@ describe("notification settings status", () => {
     });
     expect(view.denied).toBe(false);
     expect(view.permissionCopy).toMatch(/without a runtime prompt/);
-    expect(view.deliveryCopy).toMatch(/Native FCM registration is on this build/);
+    expect(view.deliveryCopy).toMatch(/Overflow past 2000 topics uses direct tokens/);
   });
 
   it("keeps Activity copy when Android posting is denied", () => {
@@ -43,6 +43,12 @@ describe("notification settings status", () => {
         preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       }),
     ).toMatch(/Preferences save on this device/);
+  });
+
+  it("describes one-mode topic and direct delivery after permission is granted", () => {
+    expect(notificationPermissionCopy("granted", 33)).toMatch(
+      /one topic or one direct token/,
+    );
   });
 
   it("merges a patch onto current preferences instead of defaults", () => {

@@ -960,7 +960,7 @@
       "owners": ["relay", "mobile", "core"],
       "capabilities": ["notifications"],
       "evidence": [
-        "change-gate",
+        "n02-change-gate",
         "relay-contract-tests",
         "topic-delivery",
         "direct-delivery",

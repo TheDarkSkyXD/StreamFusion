@@ -4,10 +4,10 @@
 - Desktop baseline: `docs/research/streamfusion-mobile/desktop-parity-inventory.md` Notifications section
 - Observed `main` at branch start: `5cc4ea6`
 - Android owner: Mobile Settings plus `LiveNotificationStore` (`live-notifications.v1`)
-- Progress: `implemented` for searchable Settings preferences, permission status, denial recovery, native FCM registration, local channels, in-app banners, and ended-stream routing
+- Progress: `implemented` for searchable Settings preferences, permission status, denial recovery, native FCM registration, local channels, in-app banners, ended-stream routing, topic and direct-token fanout, overflow, retries, and invalid-token retirement
 - Delivery: `adapted`
-- Adaptation: Guest Follow live-alert preferences persist in the Product Store. Android 13+ requests `POST_NOTIFICATIONS` when Android notifications are turned on. API 30 reports platform-granted posting and still exposes Open system settings plus a retry path for later OS denials. Offline saves stay local. Native FCM tokens register with the Integration Relay using installation Bearer auth. Missing Play Services or google-services fails closed without disabling Activity. Topic fanout waits for N02. Appearance stays dark-only.
-- Freshness: `current` at native FCM registration on N01; Settings journey evidence remains `verification/evidence/issue-169-settings.json`; native presentation evidence is `verification/evidence/issue-172-notifications.json`
+- Adaptation: Guest Follow live-alert preferences persist in the Product Store. Android 13+ requests `POST_NOTIFICATIONS` when Android notifications are turned on. API 30 reports platform-granted posting and still exposes Open system settings plus a retry path for later OS denials. Offline saves stay local. Native FCM tokens register with the Integration Relay using installation Bearer auth. Missing Play Services or google-services fails closed without disabling Activity. Live alerts use one topic or one direct token per recipient. Overflow past 2000 topics stays on direct tokens. Appearance stays dark-only.
+- Freshness: `current` at topic/direct fanout on N02; Settings journey evidence remains `verification/evidence/issue-169-settings.json`; native presentation evidence is `verification/evidence/issue-172-notifications.json`; fanout evidence is `verification/evidence/issue-173-notifications.json`
 
 ## Desktop outcome
 
@@ -31,11 +31,17 @@ More Settings hosts a searchable Notifications panel with Android posting, Activ
 - `n01-permission-denial`
 - `foreground-background`
 - `notification-entry`
+- `n02-change-gate`
+- `relay-contract-tests`
+- `topic-delivery`
+- `direct-delivery`
+- `topic-overflow`
+- `deduplication`
 
 ## Evidence residuals
 
-TalkBack was not enabled. API 30 has no runtime notification prompt, so denial recovery is unit-tested with an injected denied snapshot plus an always-visible system-settings control. Native FCM token rotation is unit-tested. Emulators without google-services fail closed to unavailable while Activity and local proof still work. Topic fanout stays N02.
+TalkBack was not enabled. API 30 has no runtime notification prompt, so denial recovery is unit-tested with an injected denied snapshot plus an always-visible system-settings control. Native FCM token rotation is unit-tested. Emulators without google-services fail closed to unavailable while Activity and local proof still work. Topic and direct fanout are proven by relay contract tests plus Settings and Diagnostics copy.
 
 ## Blocking for public release
 
-OAuth stays on #145 and #146. Topic fanout and public-release delivery stay on #173 and #174.
+OAuth stays on #145 and #146. Public-release 100k dispatch stays on #174.

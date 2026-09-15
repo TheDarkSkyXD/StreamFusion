@@ -13,6 +13,8 @@ export type NativePushRecord = {
 
 export interface NativePushRegistry {
   get(installationId: string): Promise<NativePushRecord | null>;
+  listEnabled(): Promise<readonly NativePushRecord[]>;
   upsert(record: NativePushRecord): Promise<void>;
   disable(installationId: string, rotatedAt: string): Promise<boolean>;
+  retireByTokenHash(tokenHash: string, rotatedAt: string): Promise<boolean>;
 }

@@ -15,7 +15,7 @@ import {
 
 export const LIVE_NOTIFICATION_PAYLOAD_SCHEMA_VERSION = 1 as const;
 export const NATIVE_PUSH_REGISTRATION_SCHEMA_VERSION = 1 as const;
-export const MAX_LIVE_NOTIFICATION_PAIRS = 2_000;
+export const MAX_LIVE_NOTIFICATION_PAIRS = 20_000;
 export const NATIVE_PUSH_TOKEN_FINGERPRINT_LENGTH = 16;
 export const NATIVE_PUSH_TOKEN_TYPE = "fcm" as const;
 
@@ -50,6 +50,8 @@ export type NativePushRegistrationGrant = {
   readonly registered: true;
   readonly tokenFingerprint: string;
   readonly projectionVersion: number;
+  readonly topicSubscriptions: number;
+  readonly overflowPairs: number;
   readonly reconciledAt: string;
 };
 
@@ -185,11 +187,15 @@ function isNativePushRegistrationGrant(
       "registered",
       "tokenFingerprint",
       "projectionVersion",
+      "topicSubscriptions",
+      "overflowPairs",
       "reconciledAt",
     ]) &&
     value.registered === true &&
     isFingerprint(value.tokenFingerprint) &&
     isPositiveSafeInteger(value.projectionVersion) &&
+    isNonNegativeSafeInteger(value.topicSubscriptions) &&
+    isNonNegativeSafeInteger(value.overflowPairs) &&
     isSerializedTimestamp(value.reconciledAt)
   );
 }
@@ -328,4 +334,8 @@ function isDisplayText(value: unknown): value is string {
 
 function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }

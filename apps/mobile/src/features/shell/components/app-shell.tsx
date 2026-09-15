@@ -1147,6 +1147,7 @@ function ShellScreen({
             onRunNativeCapabilityProof,
             onRunPersistenceProof,
             onPresentNotificationProof,
+            notificationRegistrationCopy: notificationSession.peek().registrationCopy,
             onStartDevelopmentActivityProof,
             persistenceStatus,
             supportSession,
@@ -1250,6 +1251,7 @@ type DiagnosticsSlotsInput = {
   }>;
   readonly onRunPersistenceProof: () => Promise<void>;
   readonly onPresentNotificationProof: () => Promise<void>;
+  readonly notificationRegistrationCopy: string;
   readonly onStartDevelopmentActivityProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly supportSession: SupportSettingsSession;
@@ -1351,7 +1353,10 @@ function diagnosticsDeveloperToolsSlot(
           <NativeCapabilityStubProofControl
             onRun={input.onRunNativeCapabilityProof}
           />
-          <NotificationProofControl onPresent={input.onPresentNotificationProof} />
+          <NotificationProofControl
+            onPresent={input.onPresentNotificationProof}
+            registrationCopy={input.notificationRegistrationCopy}
+          />
         </>
       ) : null}
       <DevelopmentStatus model={input.developmentStatus} />

@@ -1,5 +1,6 @@
 import {
   fingerprintNativePushToken,
+  planInstallationFanout,
   type NativePushRegistrationGrant,
   type NativePushRegistrationRequest
 } from "@streamfusion/core/relay";
@@ -33,10 +34,17 @@ export function createNativePushService(input: {
         registeredAt: existing?.registeredAt ?? reconciledAt,
         rotatedAt: reconciledAt
       });
+      const fanout = planInstallationFanout(command.request.projection.pairs);
       return {
         registered: true,
         tokenFingerprint,
         projectionVersion: command.request.projection.version,
+        topicSubscriptions: command.request.remoteDeliveryEnabled
+          ? fanout.topicNames.length
+          : 0,
+        overflowPairs: command.request.remoteDeliveryEnabled
+          ? fanout.overflowPairs.length
+          : 0,
         reconciledAt
       };
     },

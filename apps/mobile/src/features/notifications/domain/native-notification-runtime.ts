@@ -49,7 +49,10 @@ export function createNativeNotificationRuntime(
 
   function setSnapshot(next: {
     readonly fingerprint: string | null;
+    readonly lastFailure?: string | null;
+    readonly overflowPairs?: number;
     readonly state: NativeRegistrationSnapshot["state"];
+    readonly topicSubscriptions?: number;
   }): NativeRegistrationSnapshot {
     snapshot = nativeRegistrationSnapshot(next);
     notify();
@@ -114,7 +117,9 @@ export function createNativeNotificationRuntime(
     projectionVersion = grant.projectionVersion + 1;
     return setSnapshot({
       fingerprint: grant.tokenFingerprint,
+      overflowPairs: grant.overflowPairs,
       state: "registered",
+      topicSubscriptions: grant.topicSubscriptions,
     });
   }
 
