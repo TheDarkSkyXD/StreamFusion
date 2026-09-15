@@ -65,6 +65,7 @@ export function composeEffectiveCopy(
       "Playback prefers H.264 over HEVC.",
     ),
     language: "English is the only locale on this build.",
+    theme: "Dark mode is the only appearance on this build.",
     multiviewCap: `Configured cap is ${preferences.multiviewCap}. Measured active video can be lower.`,
     playerChrome:
       "Speed, theater, and video stats stay unavailable until those capabilities ship. Hidden controls stay off Watch chrome.",

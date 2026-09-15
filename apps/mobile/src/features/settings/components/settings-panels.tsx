@@ -1,7 +1,6 @@
 import {
   DENSITY_OPTIONS,
   SEEK_INTERVAL_OPTIONS,
-  THEME_OPTIONS,
   VIDEO_QUALITY_OPTIONS,
   type PreferencePatch,
 } from "@streamfusion/core/settings";
@@ -41,13 +40,7 @@ function AppearanceLookRows({ onChange, view }: SettingsPanelProps) {
   const prefs = view.preferences;
   return (
     <>
-      <SettingsChoiceRow
-        current={prefs.theme}
-        label="Theme"
-        onSelect={(theme) => onChange({ theme })}
-        options={THEME_OPTIONS}
-        testID="theme"
-      />
+      <SettingsCopy testID="theme" value={view.effective.theme} />
       <SettingsChoiceRow
         current={prefs.density}
         label="Density"

@@ -26,11 +26,26 @@ test("defaults match desktop dark theme, auto quality, and 10s seek", () => {
 test("unsupported language does not overwrite the saved locale", () => {
   const result = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
     language: "fr",
-    theme: "light",
   });
   assert.equal(result.preferences.language, "en");
-  assert.equal(result.preferences.theme, "light");
   assert.equal(result.rejected[0], "Only English is available on this build.");
+});
+
+test("light and system theme patches stay dark", () => {
+  const result = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
+    theme: "light",
+  });
+  assert.equal(result.preferences.theme, "dark");
+  assert.equal(result.rejected[0], "Dark mode is the only appearance on this build.");
+  const system = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
+    theme: "system",
+  });
+  assert.equal(system.preferences.theme, "dark");
+  assert.equal(system.rejected[0], "Dark mode is the only appearance on this build.");
+  const storedLight = parseProductPreferences(
+    JSON.stringify({ ...DEFAULT_PRODUCT_PREFERENCES, theme: "light" }),
+  );
+  assert.equal(storedLight.theme, "dark");
 });
 
 test("token player stays native ExoPlayer when another engine is requested", () => {
@@ -54,7 +69,8 @@ test("local search matches HEVC and player chrome without losing panel order", (
   assert.deepEqual(panels, ["player-controls"]);
 });
 
-test("system theme maps to Appearance auto", () => {
-  assert.equal(nativeColorScheme("system"), "auto");
+test("native color scheme stays dark", () => {
+  assert.equal(nativeColorScheme("system"), "dark");
+  assert.equal(nativeColorScheme("light"), "dark");
   assert.equal(nativeColorScheme("dark"), "dark");
 });

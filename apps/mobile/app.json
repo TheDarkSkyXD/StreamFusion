@@ -3,6 +3,7 @@
     "name": "StreamFusion Development",
     "slug": "streamfusion-development",
     "version": "0.1.0",
+    "userInterfaceStyle": "dark",
     "platforms": ["android"],
     "scheme": "streamfusion-development",
     "newArchEnabled": true,

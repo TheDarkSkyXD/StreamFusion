@@ -24,16 +24,16 @@ function session() {
   return createSettingsSession({ settings: memorySettings() });
 }
 
-// Guards: Settings persist theme, reject unsupported locales, and map buffer/HEVC into Watch policy
+// Guards: Settings stay dark-only, reject unsupported locales, and map buffer/HEVC into Watch policy
 describe("settings workflow", () => {
-  it("loads defaults then persists a theme change", async () => {
+  it("loads defaults and rejects a light theme patch", async () => {
     const settings = session();
     const loaded = await settings.load();
     expect(loaded.preferences.theme).toBe("dark");
     const applied = await settings.apply({ theme: "light" });
-    expect(applied.preferences.theme).toBe("light");
-    expect(applied.rejected).toEqual([]);
-    expect(settings.snapshot().theme).toBe("light");
+    expect(applied.preferences.theme).toBe("dark");
+    expect(applied.rejected[0]).toMatch(/Dark mode/);
+    expect(settings.snapshot().theme).toBe("dark");
   });
 
   it("keeps English when another locale is requested", async () => {

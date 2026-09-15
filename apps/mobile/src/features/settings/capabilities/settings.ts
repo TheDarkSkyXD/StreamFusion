@@ -19,6 +19,7 @@ export type SettingsEffectiveCopy = {
   readonly playerChrome: string;
   readonly restoreSession: string;
   readonly resumePlayback: string;
+  readonly theme: string;
   readonly tokenPlayer: string;
 };
 

@@ -1,6 +1,6 @@
 export const PRODUCT_SETTINGS_VERSION = 1 as const;
 
-export const THEME_OPTIONS = ["dark", "light", "system"] as const;
+export const THEME_OPTIONS = ["dark"] as const;
 export const DENSITY_OPTIONS = ["compact", "comfortable", "spacious"] as const;
 export const LANGUAGE_OPTIONS = ["en"] as const;
 export const VIDEO_QUALITY_OPTIONS = [
@@ -88,9 +88,10 @@ export const DEFAULT_PRODUCT_PREFERENCES: ProductPreferences = {
 };
 
 export type PreferencePatch = Partial<
-  Omit<ProductPreferences, "version" | "tokenPlayer">
+  Omit<ProductPreferences, "version" | "theme" | "tokenPlayer">
 > & {
   readonly language?: string;
+  readonly theme?: string;
   readonly tokenPlayer?: string;
 };
 
@@ -161,7 +162,7 @@ function mergePreferencePatch(
     multiviewCap: rangeOr(patch.multiviewCap, current.multiviewCap, 1, MAX_MULTIVIEW_CAP),
     quality: qualityOr(patch.quality, current.quality),
     rewindSeconds: seekOr(patch.rewindSeconds, current.rewindSeconds),
-    theme: pickOr(THEME_OPTIONS, patch.theme, current.theme),
+    theme: themeOr(patch.theme, current.theme, rejected),
     tokenPlayer: tokenPlayerOr(patch.tokenPlayer, current.tokenPlayer, rejected),
     version: PRODUCT_SETTINGS_VERSION,
   };
@@ -186,17 +187,25 @@ function mergeBooleanPreferences(
   };
 }
 
-export function nativeColorScheme(
-  theme: ThemePreference,
-): "auto" | "dark" | "light" {
-  if (theme === "system") return "auto";
-  return theme;
+export function nativeColorScheme(_theme?: string): "dark" {
+  return "dark";
 }
 
 export function densityGapMultiplier(density: DensityPreference): number {
   if (density === "compact") return 0.85;
   if (density === "spacious") return 1.15;
   return 1;
+}
+
+function themeOr(
+  value: unknown,
+  fallback: ThemePreference,
+  rejected: string[],
+): ThemePreference {
+  if (value === undefined) return fallback;
+  if (value === "dark") return "dark";
+  rejected.push("Dark mode is the only appearance on this build.");
+  return fallback;
 }
 
 function languageOr(

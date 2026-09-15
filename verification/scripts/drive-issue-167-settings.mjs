@@ -91,9 +91,17 @@ function clearSearch() {
   sleep(400);
 }
 
-function waitForLightTheme(label) {
+function waitForDarkTheme(label) {
   waitFor(
-    (node) => node.text.includes("Selected light") || node.text.includes("Theme: light"),
+    (node) =>
+      node.text.includes("Dark mode is the only appearance") || node.res === "theme",
+    label,
+  );
+}
+
+function waitForCompactDensity(label) {
+  waitFor(
+    (node) => node.text.includes("Selected compact") || node.text.includes("Density: compact"),
     label,
   );
 }
@@ -136,9 +144,10 @@ function proveBufferSearch(shots) {
 }
 
 function proveThemeAndCaptions(shots) {
-  tapControl("theme-light", "Theme light");
-  waitForLightTheme("light theme");
-  shots.push(screenshot("03-theme-light"));
+  waitForDarkTheme("dark-only theme copy");
+  tapControl("density-compact", "Density compact");
+  waitForCompactDensity("compact density");
+  shots.push(screenshot("03-density-compact"));
   tapControl("captions", "Captions");
   sleep(600);
   shots.push(screenshot("04-captions-off"));
@@ -154,20 +163,21 @@ function proveFontScale(shots) {
 
 function proveAccessibility(shots) {
   const a11yXml = dumpUi();
-  const themeLight = findControl(a11yXml, "theme-light", "Theme light");
-  if (!themeLight || themeLight.desc.length === 0) {
-    throw new Error("theme control missing accessibility name");
+  const captions = findControl(a11yXml, "captions", "Local captions");
+  if (!captions || captions.desc.length === 0) {
+    throw new Error("captions control missing accessibility name");
   }
   writeFileSync(path.join(evidenceDir, "accessibility-dump.xml"), a11yXml);
   shots.push(screenshot("06-accessibility"));
-  return themeLight;
+  return captions;
 }
 
 function proveProcessDeath(shots) {
   forceStop();
   launch();
   openSettings();
-  waitForLightTheme("theme survived process death");
+  waitForDarkTheme("theme stayed dark after process death");
+  waitForCompactDensity("density survived process death");
   shots.push(screenshot("07-process-death"));
 }
 
@@ -180,17 +190,17 @@ function runSettingsJourney() {
   proveBufferSearch(shots);
   proveThemeAndCaptions(shots);
   proveFontScale(shots);
-  const themeLight = proveAccessibility(shots);
+  const captions = proveAccessibility(shots);
   proveProcessDeath(shots);
-  return { shots, themeLight };
+  return { shots, captions };
 }
 
-function captureObservations(themeLight) {
+function captureObservations(captions) {
   return {
     searchHidAppearance: true,
-    themePersisted: true,
+    themeStayedDark: true,
     captionsToggled: hasText(dumpUi(), "Captions: off") || hasText(dumpUi(), "off"),
-    accessibilityName: themeLight.desc,
+    accessibilityName: captions.desc,
   };
 }
 
@@ -198,22 +208,22 @@ function settingsRequirements() {
   return {
     "change-gate": passed([
       "More Settings exposes Appearance, Playback, Player controls, Buffer, Multiview, Proxy, and Adblock.",
-      "Theme light persisted after process death. Captions toggle is a switch with assigned testID.",
+      "Appearance stays dark-only. Density compact persisted after process death. Captions toggle is a switch with assigned testID.",
     ]),
     "api30-journey": passed([
-      "StreamFusion Issue 142 API30 opened More Settings, searched, changed theme, and restored the workspace after force-stop.",
+      "StreamFusion Issue 142 API30 opened More Settings, searched, kept dark appearance, and restored density after force-stop.",
     ]),
     "local-search": passed(["Search buffer hid the Appearance panel and kept Buffer visible."]),
-    "process-death": passed(["Force-stop then relaunch still showed Selected light."]),
+    "process-death": passed(["Force-stop then relaunch still showed dark-only theme copy and Selected compact."]),
     "font-scale": passed(["system font_scale 1.3 still showed Settings controls, then restored to 1.0."]),
     accessibility: passed([
-      "Theme light exposes an accessibility name. TalkBack was not enabled; labeled native controls were dumped.",
+      "Captions exposes an accessibility name. TalkBack was not enabled; labeled native controls were dumped.",
     ]),
   };
 }
 
-function writeReceipt(shots, themeLight) {
-  writeJson(path.join(evidenceDir, "observations.json"), captureObservations(themeLight));
+function writeReceipt(shots, captions) {
+  writeJson(path.join(evidenceDir, "observations.json"), captureObservations(captions));
   const observedAt = new Date().toISOString();
   const receipt = {
     schemaVersion: 1,
@@ -228,7 +238,7 @@ function writeReceipt(shots, themeLight) {
     candidate: {
       apkSha256: apkDigest(),
       provenance:
-        "API 30 development client. Metro JS from the W02 worktree. Guest signed-out. Appearance.setColorScheme plus StatusBar.setBarStyle. Buffer and HEVC map into ExoPlayer LoadControl.",
+        "API 30 development client. Metro JS from the W02 worktree. Guest signed-out. Dark-only Appearance.setColorScheme('dark') plus StatusBar.setBarStyle('light-content'). Buffer and HEVC map into ExoPlayer LoadControl.",
     },
     requirements: settingsRequirements(),
     evidenceArtifacts: shots.map((shot) => ({
@@ -242,8 +252,8 @@ function writeReceipt(shots, themeLight) {
   return receipt;
 }
 
-const { shots, themeLight } = runSettingsJourney();
-const receipt = writeReceipt(shots, themeLight);
+const { shots, captions } = runSettingsJourney();
+const receipt = writeReceipt(shots, captions);
 console.log(
   JSON.stringify(
     { shots: shots.map((shot) => shot.name), apk: receipt.candidate.apkSha256, ok: true },

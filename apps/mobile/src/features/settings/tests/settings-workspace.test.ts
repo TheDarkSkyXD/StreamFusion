@@ -44,22 +44,23 @@ function hasTestId(nodes: readonly Element[], testID: string): boolean {
   return nodes.some((node) => node.props.testID === testID);
 }
 
-// Guards: Appearance panel exposes theme/density/restore controls with assigned testIDs
+// Guards: Appearance panel stays dark-only and still exposes density and restore controls
 describe("settings panels", () => {
-  it("renders appearance controls and changes theme from the assigned button", () => {
-    let theme = DEFAULT_PRODUCT_PREFERENCES.theme;
+  it("renders dark-only theme copy and changes density from the assigned button", () => {
+    let density = DEFAULT_PRODUCT_PREFERENCES.density;
     const nodes = descendants(
       AppearanceSettingsPanel({
         onChange: (patch) => {
-          if (patch.theme) theme = patch.theme;
+          if (patch.density) density = patch.density;
         },
         view: composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES }),
       }),
     );
     expect(hasTestId(nodes, "panel-appearance")).toBe(true);
     expect(hasTestId(nodes, "theme")).toBe(true);
+    expect(hasTestId(nodes, "theme-light")).toBe(false);
     expect(hasTestId(nodes, "restore-session")).toBe(true);
-    nodes.find((node) => node.props.testID === "theme-light")?.props.onPress?.();
-    expect(theme).toBe("light");
+    nodes.find((node) => node.props.testID === "density-compact")?.props.onPress?.();
+    expect(density).toBe("compact");
   });
 });

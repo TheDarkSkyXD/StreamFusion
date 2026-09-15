@@ -6,7 +6,7 @@
 - Android owner: Mobile `settings` plus Watch, Multistream, and ExoPlayer LoadControl
 - Progress: `implemented` for Appearance, Playback, Player controls, Buffer, and Multiview
 - Delivery: `adapted`
-- Adaptation: Theme uses `Appearance.setColorScheme('light' | 'dark' | 'auto')` and `StatusBar.setBarStyle`. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Chat, notifications, predictions, integrations, tokens, updates, diagnostics, logs, bug report, and about remain later tickets.
+- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Chat, notifications, predictions, integrations, tokens, updates, diagnostics, logs, bug report, and about remain later tickets.
 - Freshness: `current` at `verification/evidence/issue-167-settings.json`
 
 ## Desktop outcome

@@ -20,6 +20,7 @@ export function createSettingsSession(input: {
   let cached = DEFAULT_PRODUCT_PREFERENCES;
   let query = "";
   let rejected: readonly string[] = [];
+  applyAppearanceScheme();
 
   function view(): SettingsView {
     return composeSettingsView({
@@ -36,7 +37,7 @@ export function createSettingsSession(input: {
 
   async function hydrate(): Promise<void> {
     cached = await store.read();
-    applyAppearanceScheme(cached.theme);
+    applyAppearanceScheme();
   }
 
   return {
@@ -67,7 +68,7 @@ export function createSettingsSession(input: {
       const applied = applyPreferencePatch(cached, patch);
       cached = applied.preferences;
       rejected = applied.rejected;
-      applyAppearanceScheme(cached.theme);
+      applyAppearanceScheme();
       await store.write(cached);
       notify();
       return applied;

@@ -22,7 +22,7 @@ function entry(
 }
 
 export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] = [
-  entry("theme", "appearance", "Theme", ["theme", "dark", "light", "system", "appearance"]),
+  entry("theme", "appearance", "Theme", ["theme", "dark", "appearance"]),
   entry("density", "appearance", "Density", [
     "density",
     "compact",
