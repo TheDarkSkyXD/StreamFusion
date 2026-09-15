@@ -969,6 +969,252 @@
         "links": [
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/169"
         ]
+      },
+      {
+        "id": "n01-change-gate",
+        "sourceCommit": "b24f10702b272fa1f2af79f22aaa591de06e41f2",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-172-n01-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T20:18:42.524Z",
+        "expiresAt": "2026-09-29T20:18:42.524Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/172"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-172-notifications.json",
+            "sha256": "sha256:bcbe4997d0b1da06a44b217b474d9fa3c8480551bbce29a7dbeffcf6a26fa2ff",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "01-settings-fcm",
+            "path": "verification/evidence/issue-172/01-settings-fcm.png",
+            "sha256": "sha256:8d4acc2eb2fdae3b44d852d808002c0f507e79b120fe1aeb4fa58b7d9a82a38d",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "06-accessibility",
+            "path": "verification/evidence/issue-172/06-accessibility.png",
+            "sha256": "sha256:b2a608e6f58734e2aa164accd1a40a09eddff708783e881fd356a1075a82538f",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "api30-device",
+        "sourceCommit": "b24f10702b272fa1f2af79f22aaa591de06e41f2",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-172-n01-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T20:18:42.524Z",
+        "expiresAt": "2026-09-29T20:18:42.524Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/172"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-172-notifications.json",
+            "sha256": "sha256:bcbe4997d0b1da06a44b217b474d9fa3c8480551bbce29a7dbeffcf6a26fa2ff",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "05-background-shade",
+            "path": "verification/evidence/issue-172/05-background-shade.png",
+            "sha256": "sha256:e22b1eb1ba6d7f369904b60d94c2fa9f6172ba48954cc98d0d3df5de5b9d9cf7",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "dumpsys-notification",
+            "path": "verification/evidence/issue-172/dumpsys-notification.txt",
+            "sha256": "sha256:49c680bad8c2349c2ddbda72aa594b5f7d8a91c7607bbd281485ee841c206196",
+            "mediaType": "text/plain"
+          }
+        ]
+      },
+      {
+        "id": "native-token-rotation",
+        "sourceCommit": "b24f10702b272fa1f2af79f22aaa591de06e41f2",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-172-n01-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T20:18:42.524Z",
+        "expiresAt": "2026-09-29T20:18:42.524Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/172"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-172-notifications.json",
+            "sha256": "sha256:bcbe4997d0b1da06a44b217b474d9fa3c8480551bbce29a7dbeffcf6a26fa2ff",
+            "mediaType": "application/json"
+          }
+        ]
+      },
+      {
+        "id": "n01-permission-denial",
+        "sourceCommit": "b24f10702b272fa1f2af79f22aaa591de06e41f2",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-172-n01-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T20:18:42.524Z",
+        "expiresAt": "2026-09-29T20:18:42.524Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/172"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-172-notifications.json",
+            "sha256": "sha256:bcbe4997d0b1da06a44b217b474d9fa3c8480551bbce29a7dbeffcf6a26fa2ff",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "01-settings-fcm",
+            "path": "verification/evidence/issue-172/01-settings-fcm.png",
+            "sha256": "sha256:8d4acc2eb2fdae3b44d852d808002c0f507e79b120fe1aeb4fa58b7d9a82a38d",
+            "mediaType": "image/png"
+          }
+        ]
+      },
+      {
+        "id": "foreground-background",
+        "sourceCommit": "b24f10702b272fa1f2af79f22aaa591de06e41f2",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-172-n01-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T20:18:42.524Z",
+        "expiresAt": "2026-09-29T20:18:42.524Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/172"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-172-notifications.json",
+            "sha256": "sha256:bcbe4997d0b1da06a44b217b474d9fa3c8480551bbce29a7dbeffcf6a26fa2ff",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "02-foreground-banner",
+            "path": "verification/evidence/issue-172/02-foreground-banner.png",
+            "sha256": "sha256:4c4f4287132b600b008013eb3d5032214cb9d8ee9e7c493a9512e6e8cce14afc",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "05-background-shade",
+            "path": "verification/evidence/issue-172/05-background-shade.png",
+            "sha256": "sha256:e22b1eb1ba6d7f369904b60d94c2fa9f6172ba48954cc98d0d3df5de5b9d9cf7",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "dumpsys-notification",
+            "path": "verification/evidence/issue-172/dumpsys-notification.txt",
+            "sha256": "sha256:49c680bad8c2349c2ddbda72aa594b5f7d8a91c7607bbd281485ee841c206196",
+            "mediaType": "text/plain"
+          }
+        ]
+      },
+      {
+        "id": "notification-entry",
+        "sourceCommit": "b24f10702b272fa1f2af79f22aaa591de06e41f2",
+        "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-172-n01-notifications-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-adb-uiautomator-development-client-and-metro"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 142 API30",
+          "apiLevel": 30
+        },
+        "result": "pass",
+        "observedAt": "2026-09-15T20:18:42.524Z",
+        "expiresAt": "2026-09-29T20:18:42.524Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/172"
+        ],
+        "artifacts": [
+          {
+            "id": "notifications-receipt",
+            "path": "verification/evidence/issue-172-notifications.json",
+            "sha256": "sha256:bcbe4997d0b1da06a44b217b474d9fa3c8480551bbce29a7dbeffcf6a26fa2ff",
+            "mediaType": "application/json"
+          },
+          {
+            "id": "03-ended-channel",
+            "path": "verification/evidence/issue-172/03-ended-channel.png",
+            "sha256": "sha256:a5e374179526c147a050a473f3aa1cbbdb2bfea03acbade1ca7f1f108d7430e7",
+            "mediaType": "image/png"
+          },
+          {
+            "id": "04-activity",
+            "path": "verification/evidence/issue-172/04-activity.png",
+            "sha256": "sha256:28c50dde21869d5afcd2fa18a146827c684ee9da6ca6ca5d942ce445e18f521b",
+            "mediaType": "image/png"
+          }
+        ]
       }
     ],
     "diagnostics-logs-and-bug-reports": [

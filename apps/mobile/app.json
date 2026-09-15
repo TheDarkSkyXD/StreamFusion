@@ -51,6 +51,13 @@
             "minSdkVersion": 30
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0f0f0f",
+          "defaultChannel": "live"
+        }
       ]
     ],
     "experiments": {

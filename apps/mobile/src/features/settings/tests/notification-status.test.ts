@@ -21,7 +21,7 @@ describe("notification settings status", () => {
     });
     expect(view.denied).toBe(false);
     expect(view.permissionCopy).toMatch(/without a runtime prompt/);
-    expect(view.deliveryCopy).toMatch(/Remote push registration is not on this build/);
+    expect(view.deliveryCopy).toMatch(/Native FCM registration is on this build/);
   });
 
   it("keeps Activity copy when Android posting is denied", () => {

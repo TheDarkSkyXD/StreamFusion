@@ -23,10 +23,23 @@ function requireEncryptionKey(value: string): void {
     throw new Error("The database encryption key is invalid.");
 }
 
+function createExclusiveQueue() {
+  let tail: Promise<unknown> = Promise.resolve();
+  return function enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const next = tail.then(work, work);
+    tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  };
+}
+
 function wrapDatabase(
   database: SQLiteDatabase,
   cipherVersion: string,
 ): StoreDatabase {
+  const enqueueTransaction = createExclusiveQueue();
   const wrapped: StoreDatabase = {
     cipherVersion,
     path: database.databasePath,
@@ -44,7 +57,9 @@ function wrapDatabase(
       };
     },
     transaction(operation) {
-      return database.withTransactionAsync(() => operation(wrapped));
+      return enqueueTransaction(() =>
+        database.withTransactionAsync(() => operation(wrapped)),
+      );
     },
   };
   nativeDatabases.set(wrapped, database);
@@ -110,6 +125,12 @@ function deleteFileIfPresent(file: File): void {
   if (file.exists) file.delete();
 }
 
+function deleteSidecars(databaseName: string): void {
+  for (const sidecar of databaseArtifacts(databaseName).slice(1)) {
+    deleteFileIfPresent(sidecar);
+  }
+}
+
 function containsSequence(bytes: Uint8Array, sequence: Uint8Array): boolean {
   if (sequence.length === 0 || sequence.length > bytes.length) return false;
   for (let offset = 0; offset <= bytes.length - sequence.length; offset += 1) {
@@ -151,8 +172,7 @@ export function createSqliteEncryptedDatabaseDriver(
         );
       } finally {
         await openedBackup.database.closeAsync();
-        for (const sidecar of databaseArtifacts(backupName).slice(1))
-          deleteFileIfPresent(sidecar);
+        deleteSidecars(backupName);
       }
     },
     async containsBytes(databaseName, value) {
@@ -166,8 +186,7 @@ export function createSqliteEncryptedDatabaseDriver(
       const file = databaseFile(databaseName);
       if (!file.exists)
         throw new Error(`Cannot corrupt missing database ${databaseName}.`);
-      for (const sidecar of databaseArtifacts(databaseName).slice(1))
-        deleteFileIfPresent(sidecar);
+      deleteSidecars(databaseName);
       file.write(new TextEncoder().encode("corrupt-streamfusion-database"));
     },
     async delete(databaseName) {
@@ -221,8 +240,7 @@ export function createSqliteEncryptedDatabaseDriver(
       } finally {
         await restored.database.closeAsync();
       }
-      for (const sidecar of databaseArtifacts(databaseName).slice(1))
-        deleteFileIfPresent(sidecar);
+      deleteSidecars(databaseName);
     },
   };
 }

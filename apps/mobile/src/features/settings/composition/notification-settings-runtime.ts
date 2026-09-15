@@ -17,6 +17,7 @@ import {
 export function createNotificationSettingsSession(input: {
   readonly network: () => Promise<NotificationNetwork>;
   readonly permission: NotificationPermissionPort;
+  readonly registrationCopy?: () => Promise<string>;
   readonly store: LiveNotificationPreferenceStore;
 }): NotificationSettingsSession {
   const listeners = new Set<() => void>();
@@ -29,16 +30,18 @@ export function createNotificationSettingsSession(input: {
   async function hydrate(
     snapshot?: NotificationPermissionSnapshot,
   ): Promise<NotificationSettingsView> {
-    const [preferences, permission, network] = await Promise.all([
+    const [preferences, permission, network, registrationCopy] = await Promise.all([
       input.store.read(),
       Promise.resolve(snapshot ?? input.permission.read()),
       input.network(),
+      input.registrationCopy?.() ?? Promise.resolve(undefined),
     ]);
     cached = composeNotificationSettingsView({
       apiLevel: permission.apiLevel,
       network,
       permission: permission.permission,
       preferences,
+      ...(registrationCopy === undefined ? {} : { registrationCopy }),
     });
     notify();
     return cached;

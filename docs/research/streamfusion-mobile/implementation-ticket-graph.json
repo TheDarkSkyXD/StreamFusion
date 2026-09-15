@@ -942,10 +942,10 @@
       "owners": ["mobile", "core", "relay"],
       "capabilities": ["notifications"],
       "evidence": [
-        "change-gate",
+        "n01-change-gate",
         "api30-device",
         "native-token-rotation",
-        "permission-denial",
+        "n01-permission-denial",
         "foreground-background",
         "notification-entry"
       ],

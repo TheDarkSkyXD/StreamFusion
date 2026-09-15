@@ -1,0 +1,10 @@
+{
+  "appearanceStaysDark": true,
+  "fcmUnavailableKeepsActivity": true,
+  "endedStreamOpensChannel": true,
+  "watchAndDismissPresent": true,
+  "backgroundLocalNotification": {
+    "hasLiveChannel": true,
+    "hasPosted": true
+  }
+}

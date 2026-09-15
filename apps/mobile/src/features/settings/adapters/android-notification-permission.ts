@@ -1,4 +1,5 @@
-import { Linking, PermissionsAndroid, Platform, type Permission } from "react-native";
+import * as Notifications from "expo-notifications";
+import { Linking, Platform } from "react-native";
 
 import type {
   NotificationPermissionPort,
@@ -11,58 +12,25 @@ const RUNTIME_PERMISSION_API = 33;
 export function createAndroidNotificationPermissionPort(): NotificationPermissionPort {
   return {
     openSystemSettings: () => Linking.openSettings(),
-    read: readNotificationPermission,
-    request: requestNotificationPermission,
+    read: () => snapshotPermission(() => Notifications.getPermissionsAsync()),
+    request: () =>
+      snapshotPermission(() => Notifications.requestPermissionsAsync()),
   };
 }
 
-async function readNotificationPermission(): Promise<NotificationPermissionSnapshot> {
-  return permissionSnapshot(async (name) => {
-    const allowed = await PermissionsAndroid.check(name);
-    return allowed ? "granted" : "denied";
-  });
-}
-
-async function requestNotificationPermission(): Promise<NotificationPermissionSnapshot> {
-  return permissionSnapshot(async (name) =>
-    permissionFromResult(
-      await PermissionsAndroid.request(name, {
-        title: "Live alerts",
-        message: "StreamFusion posts live alerts when a followed channel goes live.",
-        buttonPositive: "Allow",
-        buttonNegative: "Deny",
-      }),
-    ),
-  );
-}
-
-async function permissionSnapshot(
-  whenPromptable: (name: Permission) => Promise<NotificationPermissionStatus>,
+async function snapshotPermission(
+  query: () => Promise<{ readonly status: string }>,
 ): Promise<NotificationPermissionSnapshot> {
-  const apiLevel = androidApiLevel();
+  const apiLevel = Number(Platform.Version);
   if (apiLevel < RUNTIME_PERMISSION_API) {
     return { apiLevel, permission: "granted" };
   }
-  const name = postNotificationsPermission();
-  if (!name) return { apiLevel, permission: "unavailable" };
-  return { apiLevel, permission: await whenPromptable(name) };
+  const existing = await query();
+  return { apiLevel, permission: permissionFromStatus(existing.status) };
 }
 
-function androidApiLevel(): number {
-  return Number(Platform.Version);
-}
-
-function postNotificationsPermission(): Permission | null {
-  return PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS ?? null;
-}
-
-function permissionFromResult(result: string): NotificationPermissionStatus {
-  if (result === PermissionsAndroid.RESULTS.GRANTED) return "granted";
-  if (
-    result === PermissionsAndroid.RESULTS.DENIED ||
-    result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
-  ) {
-    return "denied";
-  }
+function permissionFromStatus(status: string): NotificationPermissionStatus {
+  if (status === "granted") return "granted";
+  if (status === "denied") return "denied";
   return "unavailable";
 }

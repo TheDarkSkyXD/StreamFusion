@@ -8,6 +8,7 @@ import {
 } from "../features/installation-policy/composition/installation-policy-relay";
 import type { RelayEnvironment } from "../features/installation-policy/capabilities/installation-registry";
 import { createFollowedContentRelayRoute } from "../features/followed-content/composition/followed-content-relay";
+import { createNotificationsRelayRoute } from "../features/notifications/composition/notifications-relay";
 import { createSignedOutDiscoveryRelayRoute } from "../features/signed-out-discovery/composition/signed-out-discovery-relay";
 
 interface Env {
@@ -30,6 +31,7 @@ type RelayRoutes = {
   readonly database: D1Database;
   readonly discovery: ReturnType<typeof createSignedOutDiscoveryRelayRoute>;
   readonly followedContent: ReturnType<typeof createFollowedContentRelayRoute>;
+  readonly notifications: ReturnType<typeof createNotificationsRelayRoute>;
   readonly environment: RelayEnvironment;
   readonly kickClientId: string | undefined;
   readonly kickClientSecret: string | undefined;
@@ -89,6 +91,11 @@ export function createRelayWorker(
           requestId
         );
         if (followedResponse !== null) return followedResponse;
+        const notificationsResponse = await routes.notifications(
+          request,
+          requestId
+        );
+        if (notificationsResponse !== null) return notificationsResponse;
       } catch {
         return createRelayUnavailableResponse(requestId);
       }
@@ -156,6 +163,12 @@ function routesFor(input: {
       twitchClientId: input.env.TWITCH_CLIENT_ID,
       twitchClientSecret: input.env.TWITCH_CLIENT_SECRET
     }),
+    notifications: createNotificationsRelayRoute({
+      credentialSecret: input.env.RELAY_CREDENTIAL_HMAC_SECRET,
+      database: input.env.INSTALLATION_REGISTRY,
+      environment: input.env.RELAY_ENVIRONMENT,
+      now: input.now
+    }),
     environment: input.env.RELAY_ENVIRONMENT,
     kickClientId: input.env.KICK_CLIENT_ID,
     kickClientSecret: input.env.KICK_CLIENT_SECRET,
@@ -188,7 +201,9 @@ function isRelayRequest(request: Request): boolean {
   return (
     (request.method === "POST" &&
       (path === "/v1/installations/register" ||
-        path === "/v1/installations/rotate")) ||
+        path === "/v1/installations/rotate" ||
+        path === "/v1/notifications/register" ||
+        path === "/v1/notifications/disable")) ||
     (request.method === "GET" &&
       (path === "/v1/capability-manifest" ||
         path === "/v1/discovery/top-streams" ||

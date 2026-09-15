@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 109,
+    "implemented": 110,
     "partial": 11,
     "placeholder": 4,
-    "missing": 61
+    "missing": 60
   },
   "entries": [
     {
@@ -395,7 +395,8 @@
       "name": "settings-notifications",
       "status": "implemented",
       "owners": [
-        169
+        169,
+        172
       ],
       "implementation": [
         "apps/mobile/src/features/settings/components/settings-workspace.tsx",
@@ -647,7 +648,8 @@
       "name": "notifications",
       "status": "implemented",
       "owners": [
-        169
+        169,
+        172
       ],
       "implementation": [
         "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx"
@@ -2132,10 +2134,17 @@
       "id": "action:notification-permission",
       "kind": "action",
       "name": "notification-permission",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        169,
+        172
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/adapters/android-notification-permission.ts",
+        "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
+        "apps/mobile/src/features/notifications/domain/native-notification-runtime.ts"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2572,7 +2581,7 @@
     {
       "id": "GAP-195-03",
       "status": "owned-elsewhere",
-      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
+      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration ships on N01; topic fanout stays N02.",
       "owners": [
         143,
         168,
@@ -2584,7 +2593,7 @@
     {
       "id": "GAP-195-04",
       "status": "owned-elsewhere",
-      "finding": "Guest notification preferences, Android permission status, and denial recovery live on Settings. Remote FCM registration and background delivery remain N01–N03. Activity is still a local inbox.",
+      "finding": "Guest notification preferences, Android permission, native FCM registration, in-app banners, and ended-stream routing live on this build. Topic fanout and public-release delivery remain N02–N03. Activity stays a local inbox plus relay receipts.",
       "owners": [
         151,
         169,

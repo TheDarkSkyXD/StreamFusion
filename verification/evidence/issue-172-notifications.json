@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "issue": 172,
+  "ticketId": "N01",
+  "observedAt": "2026-09-15T20:18:42.524Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "N01 native FCM registration, local channels, in-app banners, and ended-stream routing."
+  },
+  "candidate": {
+    "apkSha256": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+    "provenance": "API 30 development client with expo-notifications 57.0.17. Metro JS from the W02 worktree. Guest signed-out. Appearance stays dark-only. google-services is absent so native token registration fails closed. Physical-device evidence stays on #196."
+  },
+  "requirements": {
+    "n01-change-gate": {
+      "result": "pass",
+      "observations": [
+        "Settings shows native FCM registration copy. Diagnostics can present a local live-alert. Appearance stays dark-only."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 registered Live/Media/Account-or-Device channels and presented a local proof notification."
+      ]
+    },
+    "native-token-rotation": {
+      "result": "pass",
+      "observations": [
+        "Unit tests register the listener token string without calling getDevicePushTokenAsync again. Play Services absence stays unavailable."
+      ]
+    },
+    "n01-permission-denial": {
+      "result": "pass",
+      "observations": [
+        "API 30 has no runtime prompt. Retry and Open system settings remain. Denied snapshots keep Activity in unit tests."
+      ]
+    },
+    "foreground-background": {
+      "result": "pass",
+      "observations": [
+        "Foreground proof shows the in-app banner. Background dumpsys still contains the local live-alert."
+      ]
+    },
+    "notification-entry": {
+      "result": "pass",
+      "observations": [
+        "Watch from an ended live-alert opens the channel page instead of the live player. Activity records the live-alert."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-172/01-settings-fcm.png",
+      "sha256": "sha256:8d4acc2eb2fdae3b44d852d808002c0f507e79b120fe1aeb4fa58b7d9a82a38d",
+      "observedAt": "2026-09-15T20:18:42.524Z",
+      "scope": "01-settings-fcm"
+    },
+    {
+      "path": "verification/evidence/issue-172/02-foreground-banner.png",
+      "sha256": "sha256:4c4f4287132b600b008013eb3d5032214cb9d8ee9e7c493a9512e6e8cce14afc",
+      "observedAt": "2026-09-15T20:18:42.524Z",
+      "scope": "02-foreground-banner"
+    },
+    {
+      "path": "verification/evidence/issue-172/03-ended-channel.png",
+      "sha256": "sha256:a5e374179526c147a050a473f3aa1cbbdb2bfea03acbade1ca7f1f108d7430e7",
+      "observedAt": "2026-09-15T20:18:42.524Z",
+      "scope": "03-ended-channel"
+    },
+    {
+      "path": "verification/evidence/issue-172/04-activity.png",
+      "sha256": "sha256:28c50dde21869d5afcd2fa18a146827c684ee9da6ca6ca5d942ce445e18f521b",
+      "observedAt": "2026-09-15T20:18:42.524Z",
+      "scope": "04-activity"
+    },
+    {
+      "path": "verification/evidence/issue-172/05-background-shade.png",
+      "sha256": "sha256:e22b1eb1ba6d7f369904b60d94c2fa9f6172ba48954cc98d0d3df5de5b9d9cf7",
+      "observedAt": "2026-09-15T20:18:42.524Z",
+      "scope": "05-background-shade"
+    },
+    {
+      "path": "verification/evidence/issue-172/06-accessibility.png",
+      "sha256": "sha256:b2a608e6f58734e2aa164accd1a40a09eddff708783e881fd356a1075a82538f",
+      "observedAt": "2026-09-15T20:18:42.524Z",
+      "scope": "06-accessibility"
+    }
+  ]
+}

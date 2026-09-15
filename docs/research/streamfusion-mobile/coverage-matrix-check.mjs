@@ -219,6 +219,7 @@ const implemented = new Set([
   "tab:settings-diagnostics:traces",
   "tab:settings-diagnostics:logs-reports",
   "tab:settings-diagnostics:developer-tools",
+  "action:notification-permission",
 ]);
 
 const partial = new Set([
@@ -293,8 +294,9 @@ const owners = {
   "panel:player-controls": [167],
   "panel:buffer": [167],
   "panel:multiview": [167],
-  "panel:notifications": [169],
-  "screen:settings-notifications": [169],
+  "panel:notifications": [169, 172],
+  "screen:settings-notifications": [169, 172],
+  "action:notification-permission": [169, 172],
   "panel:updates": [170, 176],
   "screen:settings-updates": [170, 176],
   "panel:diagnostics": [170, 171],
@@ -555,6 +557,11 @@ const paths = {
   "panel:notifications": [
     "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
   ],
+  "action:notification-permission": [
+    "apps/mobile/src/features/settings/adapters/android-notification-permission.ts",
+    "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
+    "apps/mobile/src/features/notifications/domain/native-notification-runtime.ts",
+  ],
   "screen:settings-notifications": [
     "apps/mobile/src/features/settings/components/settings-workspace.tsx",
     "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
@@ -724,14 +731,14 @@ const gaps = [
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
+      "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration ships on N01; topic fanout stays N02.",
     owners: [143, 168, 169, 170, 171],
   },
   {
     id: "GAP-195-04",
     status: "owned-elsewhere",
     finding:
-      "Guest notification preferences, Android permission status, and denial recovery live on Settings. Remote FCM registration and background delivery remain N01–N03. Activity is still a local inbox.",
+      "Guest notification preferences, Android permission, native FCM registration, in-app banners, and ended-stream routing live on this build. Topic fanout and public-release delivery remain N02–N03. Activity stays a local inbox plus relay receipts.",
     owners: [151, 169, 172, 173, 174],
   },
   {

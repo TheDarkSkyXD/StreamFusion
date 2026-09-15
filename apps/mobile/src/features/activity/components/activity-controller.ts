@@ -1,5 +1,6 @@
 import {
   toSerializedTimestamp,
+  type ActivityItem,
   type SystemActivityItem,
 } from "@streamfusion/core/activity";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
@@ -44,6 +45,7 @@ export function useActivityController(options: {
   readonly markAllRead: () => Promise<void>;
   readonly markRead: (eventId: string) => Promise<void>;
   readonly model: ActivityViewModel;
+  readonly record: (item: ActivityItem) => Promise<void>;
   readonly recordStorageCheck: () => Promise<void>;
   readonly refresh: () => Promise<void>;
   readonly selectFilter: (filter: ActivityFilter) => void;
@@ -77,6 +79,7 @@ export function useActivityController(options: {
     markAllRead: lifecycle.markAllRead,
     markRead: lifecycle.markRead,
     model,
+    record: lifecycle.record,
     recordStorageCheck: () =>
       lifecycle.record(createStorageCheckActivityItem(now())),
     refresh: lifecycle.refresh,

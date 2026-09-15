@@ -37,6 +37,13 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import { useActivityController } from "@mobile/features/activity/components/activity-controller";
+import { InAppNotificationBannerView } from "@mobile/features/notifications/components/in-app-notification-banner";
+import { NotificationProofControl } from "@mobile/features/notifications/components/notification-proof-control";
+import type {
+  NativeNotificationRuntime,
+  NotificationOpenLocation,
+} from "@mobile/features/notifications/capabilities/native-notifications";
+import { proofLivePayload } from "@mobile/features/notifications/domain/notification-entry";
 import { DevelopmentActivityProofControl } from "@mobile/features/activity/components/development-activity-proof-control";
 import type { DevelopmentActivityProofViewModel } from "@mobile/features/activity/capabilities/development-activity-proof";
 import {
@@ -168,6 +175,40 @@ type MultistreamRuntime = {
   readonly repository: MultistreamRepository;
 };
 
+function shellLocationFromNotification(
+  location: NotificationOpenLocation,
+): ShellLocation {
+  if (location.kind === "watch") {
+    return {
+      route: "watch/session-preview",
+      target: {
+        kind: "channel",
+        platform: location.platform,
+        channelId: location.channelId,
+        channelLogin: location.channelLogin,
+      },
+    };
+  }
+  if (location.kind === "channel") {
+    return {
+      route: "more/channel",
+      channel: {
+        platform: location.platform,
+        id: location.id,
+        username: location.username,
+      },
+    };
+  }
+  if (location.kind === "activity") {
+    return { route: "activity/alert-preview", eventId: location.eventId };
+  }
+  if (location.kind === "job") {
+    return { route: "activity/job-preview", jobId: location.jobId };
+  }
+  if (location.kind === "accounts") return { route: "more/accounts" };
+  return { route: "more/diagnostics" };
+}
+
 export function AppShell({
   activityRepository,
   developmentActivityProof,
@@ -208,6 +249,7 @@ export function AppShell({
   connectivitySession,
   adblockSession,
   notificationSession,
+  nativeNotifications,
   settingsSession,
   supportSession,
   watch,
@@ -256,6 +298,7 @@ export function AppShell({
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
   readonly notificationSession: NotificationSettingsSession;
+  readonly nativeNotifications: NativeNotificationRuntime;
   readonly settingsSession: SettingsSession;
   readonly supportSession: SupportSettingsSession;
   readonly watch: WatchScreenRuntime;
@@ -279,6 +322,9 @@ export function AppShell({
     settingsReady: settings.ready,
   });
   const { dispatch, state: navigation } = lifecycle;
+  const [notificationBanner, setNotificationBanner] = useState(
+    nativeNotifications.peekBanner(),
+  );
   const location = getActiveShellLocation(navigation);
   const watchingWatch =
     location.route === "watch" || location.route === "watch/session-preview";
@@ -287,6 +333,19 @@ export function AppShell({
     watchPeek.kind === "active" &&
     isPictureInPictureSurface(watchPeek.presentation);
 
+  useEffect(() => {
+    nativeNotifications.bindOpen((openLocation) => {
+      dispatch({
+        type: "navigate",
+        location: shellLocationFromNotification(openLocation),
+      });
+    });
+    return nativeNotifications.subscribe(() => {
+      setNotificationBanner(nativeNotifications.peekBanner());
+      void activity.refresh();
+      void notificationSession.load();
+    });
+  }, [activity, dispatch, nativeNotifications, notificationSession]);
   useEffect(() => {
     if (watchingWatch || pictureInPictureSurface) {
       watch.runtime.session.reveal();
@@ -380,6 +439,21 @@ export function AppShell({
               }
               status={lifecycle.status}
             />
+            {notificationBanner ? (
+              <InAppNotificationBannerView
+                banner={notificationBanner}
+                onDismiss={() => nativeNotifications.dismissBanner()}
+                onOpen={() => {
+                  dispatch({
+                    type: "navigate",
+                    location: shellLocationFromNotification(
+                      notificationBanner.location,
+                    ),
+                  });
+                  nativeNotifications.dismissBanner();
+                }}
+              />
+            ) : null}
             <ShellScreen
               activity={activity}
               capabilityProfile={capabilityProfile}
@@ -430,6 +504,11 @@ export function AppShell({
               connectivitySession={connectivitySession}
               adblockSession={adblockSession}
               notificationSession={notificationSession}
+              onPresentNotificationProof={() =>
+                nativeNotifications.presentProof(
+                  proofLivePayload(new Date().toISOString()),
+                )
+              }
               playerPrefs={settings.view.preferences}
               settingsSession={settingsSession}
               supportSession={supportSession}
@@ -623,6 +702,7 @@ function ShellScreen({
   connectivitySession,
   adblockSession,
   notificationSession,
+  onPresentNotificationProof,
   playerPrefs,
   settingsSession,
   supportSession,
@@ -673,6 +753,7 @@ function ShellScreen({
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
   readonly notificationSession: NotificationSettingsSession;
+  readonly onPresentNotificationProof: () => Promise<void>;
   readonly playerPrefs: ProductPreferences;
   readonly settingsSession: SettingsSession;
   readonly supportSession: SupportSettingsSession;
@@ -1065,6 +1146,7 @@ function ShellScreen({
             onRunCapabilityProfileDevelopmentProof,
             onRunNativeCapabilityProof,
             onRunPersistenceProof,
+            onPresentNotificationProof,
             onStartDevelopmentActivityProof,
             persistenceStatus,
             supportSession,
@@ -1167,6 +1249,7 @@ type DiagnosticsSlotsInput = {
     readonly detail: string;
   }>;
   readonly onRunPersistenceProof: () => Promise<void>;
+  readonly onPresentNotificationProof: () => Promise<void>;
   readonly onStartDevelopmentActivityProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly supportSession: SupportSettingsSession;
@@ -1268,6 +1351,7 @@ function diagnosticsDeveloperToolsSlot(
           <NativeCapabilityStubProofControl
             onRun={input.onRunNativeCapabilityProof}
           />
+          <NotificationProofControl onPresent={input.onPresentNotificationProof} />
         </>
       ) : null}
       <DevelopmentStatus model={input.developmentStatus} />

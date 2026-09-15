@@ -26,6 +26,7 @@ export type NotificationSettingsView = {
   readonly permission: NotificationPermissionStatus;
   readonly permissionCopy: string;
   readonly preferences: LiveNotificationPreferences;
+  readonly registrationCopy: string;
 };
 
 export type NotificationPreferencePatch = Partial<{
