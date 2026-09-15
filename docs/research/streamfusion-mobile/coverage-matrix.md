@@ -43,7 +43,7 @@ Missing means no route or control exists yet.
 | `screen:video` | implemented | #133, #153, #154 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:multi` | implemented | #143, #160, #167 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
 | `screen:history` | implemented | #155 | apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
-| `screen:activity` | implemented | #141, #151, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
+| `screen:activity` | implemented | #141, #151, #163, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `screen:moderation-home` | placeholder | #159, #168 | — | missing |
 | `screen:moderation` | missing | #159, #168 | — | missing |
 | `screen:settings` | placeholder | #167, #168, #170 | — | missing |
@@ -109,7 +109,7 @@ Missing means no route or control exists yet.
 | `tab:video:related` | missing | — | — | missing |
 | `tab:activity:all` | implemented | — | — | tests |
 | `tab:activity:channels` | implemented | — | — | tests |
-| `tab:activity:jobs` | implemented | — | — | tests |
+| `tab:activity:jobs` | implemented | #141, #163 | — | tests |
 | `tab:moderation:chat` | missing | — | — | missing |
 | `tab:moderation:retention` | missing | — | — | missing |
 | `tab:moderation:mod-log` | missing | — | — | missing |
@@ -206,7 +206,7 @@ Missing means no route or control exists yet.
 | `shell-route:watch/session-preview` | implemented | — | apps/mobile/src/features/watch/components/watch-route.tsx | tests |
 | `shell-route:activity` | implemented | — | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `shell-route:activity/alert-preview` | implemented | — | — | tests |
-| `shell-route:activity/job-preview` | implemented | — | apps/mobile/src/features/media-jobs/components/media-job-screen.tsx | tests |
+| `shell-route:activity/job-preview` | implemented | #163 | apps/mobile/src/features/media-jobs/components/media-job-screen.tsx | tests |
 | `shell-route:more` | implemented | — | — | tests |
 | `shell-route:more/home` | implemented | — | apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx | tests |
 | `shell-route:more/channel` | implemented | — | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
@@ -226,7 +226,7 @@ Missing means no route or control exists yet.
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
 | `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Settings still lacks the remaining panels after proxy. | #147, #148, #149, #150, #152, #159, #167 |
 | `GAP-195-03` | owned-elsewhere | Sixteen Settings panels and six Diagnostics tabs still lack dedicated Mobile routes. Proxy is on Settings and Diagnostics. | #143, #167, #170, #171 |
-| `GAP-195-04` | owned-elsewhere | Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only. | #151, #163, #172, #173, #174 |
+| `GAP-195-04` | owned-elsewhere | Guest and account notification delivery and FCM remain absent. Media Jobs now project local Activity rows. Activity is still a local inbox. | #151, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 
 ## This increment

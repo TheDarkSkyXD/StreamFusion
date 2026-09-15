@@ -236,7 +236,9 @@ const owners = {
   "tab:watch:related": [152, 154],
   "screen:multi": [143, 160, 167],
   "screen:history": [155],
-  "screen:activity": [141, 151, 172, 173, 174],
+  "screen:activity": [141, 151, 163, 172, 173, 174],
+  "tab:activity:jobs": [141, 163],
+  "shell-route:activity/job-preview": [163],
   "screen:moderation-home": [159, 168],
   "screen:moderation": [159, 168],
   "screen:settings": [167, 168, 170],
@@ -560,8 +562,8 @@ const gaps = [
     id: "GAP-195-04",
     status: "owned-elsewhere",
     finding:
-      "Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only.",
-    owners: [151, 163, 172, 173, 174],
+      "Guest and account notification delivery and FCM remain absent. Media Jobs now project local Activity rows. Activity is still a local inbox.",
+    owners: [151, 172, 173, 174],
   },
   {
     id: "GAP-195-05",

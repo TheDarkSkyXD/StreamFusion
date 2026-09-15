@@ -243,10 +243,11 @@ internal class MediaJobEngine(private val context: Context) {
         }
         access.write(chunk)
         written += chunk.size
+        android.util.Log.i("SF-MediaJob", "chunk job=$jobId written=$written")
         if (!writeIfWorkerOwns(jobId, kind, generation, "running", written, written / 32, "partial", written, false, true, null, "Running", sourceUri)) {
           return
         }
-        TimeUnit.MILLISECONDS.sleep(120)
+        waitForChunkOrStop(jobId)
       }
     }
     if (!completeIfWorkerOwns(jobId, kind, sourceUri, generation, target)) return
@@ -467,7 +468,18 @@ internal class MediaJobEngine(private val context: Context) {
   private fun artifactKind(bytes: Long, complete: Boolean): String =
     if (complete) "complete" else if (bytes > 0) "partial" else "none"
 
+  private fun waitForChunkOrStop(jobId: String) {
+    var remaining = CHUNK_SLEEP_MS
+    while (remaining > 0) {
+      if (cancelFlags[jobId]?.get() == true || pauseFlags[jobId]?.get() == true) return
+      val slice = remaining.coerceAtMost(100L)
+      TimeUnit.MILLISECONDS.sleep(slice)
+      remaining -= slice
+    }
+  }
+
   companion object {
+    private const val CHUNK_SLEEP_MS = 2_500L
     private val ACTIVE_PHASES = setOf("queued", "preparing", "running", "pausing", "finalizing")
     @Volatile private var instance: MediaJobEngine? = null
     fun get(context: Context): MediaJobEngine {

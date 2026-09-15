@@ -136,6 +136,50 @@ it("keeps the last job list when background recovery fails", async () => {
   }
 });
 
+it("waits for in-flight recovery before starting a job", async () => {
+  // Guards: start must not overlap recoverAll SQLite transactions (nested BEGIN)
+  let resolveRecover:
+    | ((jobs: ReturnType<typeof runningJob>[]) => void)
+    | undefined;
+  const recoverAll = vi.fn(
+    () =>
+      new Promise<ReturnType<typeof runningJob>[]>((resolve) => {
+        resolveRecover = resolve;
+      }),
+  );
+  const start = vi.fn(async () => ({
+    kind: "ok" as const,
+    snapshot: runningJob(),
+  }));
+  const workflow = {
+    apply: vi.fn(),
+    list: vi.fn(async () => [runningJob()]),
+    recoverAll,
+    start,
+  } as unknown as MediaJobWorkflow;
+  const rendered = renderController(workflow);
+  try {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(recoverAll).toHaveBeenCalledTimes(1);
+    let started = "";
+    const pending = rendered.current().startDownload();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(start).not.toHaveBeenCalled();
+    await act(async () => {
+      resolveRecover?.([runningJob()]);
+      started = await pending;
+    });
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(started).toMatch(/^download-/);
+  } finally {
+    rendered.unmount();
+  }
+});
+
 it("does not start a second poll recovery while the first is pending", async () => {
   vi.useFakeTimers({ now: new Date("2026-09-12T01:00:00.000Z") });
   let resolvePoll:

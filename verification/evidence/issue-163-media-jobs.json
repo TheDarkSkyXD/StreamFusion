@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "issue": 163,
+  "ticketId": "M01",
+  "mobileSourceCommit": "5ea4b9da49719f6e4320253b66d817368be46bd6",
+  "observedAt": "2026-09-15T01:44:06.000Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M01 recoverable Media Job engine. Desktop downloads and stream-recording stay Desktop-owned. Mobile owns one native job engine with durable intent, idempotent commands, checkpoints, foreground-service ownership, recovery, and Activity projection. Watch download and live recording buttons remain M02 and M03."
+  },
+  "candidate": {
+    "apkSha256": "8261d6c65da465e9f9a3d548955383b1c08fae03a8aeccd98873e42f58db99e5",
+    "provenance": "API 30 development client with Media Job native contract 2 and 2.5s fixture chunks. Metro JS loaded from the W02 worktree. Diagnostics fixtures use streamfusion-fixture://download, streamfusion-fixture://recording, and streamfusion-fixture://download?storage-pressure. Guest signed-out reads stay { kind: \"guest\" }. Persist and recover share one exclusive SQLite gate."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Media Job controller tests serialize start behind in-flight recoverAll so expo-sqlite BEGIN cannot nest.",
+        "Diagnostics and job-preview tests cover fixture start, recover, pause, progress, and service ownership."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 emulator opened More Diagnostics Media Job Engine contract 2.",
+        "Start fixture download opened activity/job-preview with Running, Pause, 8192 bytes, and Android service owns this job."
+      ]
+    },
+    "process-death": {
+      "result": "pass",
+      "observations": [
+        "After am force-stop and relaunch, Recover listed the same Paused and Failed, retryable jobs by stable job ids."
+      ]
+    },
+    "reboot": {
+      "result": "pass",
+      "observations": [
+        "After adb reboot, reverse tcp:8081, relaunch, and Recover, Paused download-1789436472466 and Failed, retryable download-1789436443133 remained."
+      ]
+    },
+    "storage-pressure": {
+      "result": "pass",
+      "observations": [
+        "Start storage-pressure fixture opened a Download job in Failed, retryable with Retry, Cancel, Recover, and a 4096-byte partial artifact.",
+        "The preview status line still showed Preparing while the phase label was Failed, retryable."
+      ]
+    },
+    "activity-reconciliation": {
+      "result": "pass",
+      "observations": [
+        "Activity Jobs listed Download rows with Pausing and Paused phases after leaving job-preview.",
+        "Recover Media Jobs kept distinct job ids. The diagnostics list did not duplicate a row for the same id."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-163/01-diagnostics.png",
+      "sha256": "6888f83d6a1b8a931867cc5441df12880f08d6f34f06f76205c313c14f885987",
+      "observedAt": "2026-09-15T01:38:00.000Z",
+      "scope": "Diagnostics Media Job Engine contract 2 with download, recording, and storage-pressure fixtures."
+    },
+    {
+      "path": "verification/evidence/issue-163/02-download-running.png",
+      "sha256": "71778cf808673145381d9a26fde02e48adc28e81525e1cddec78efe071b751f4",
+      "observedAt": "2026-09-15T01:39:00.000Z",
+      "scope": "Running fixture download. Pause visible. Android service owns this job. 8192 bytes."
+    },
+    {
+      "path": "verification/evidence/issue-163/03-download-paused.png",
+      "sha256": "eeb88b95d4f3351224b75255cd9f092a0256bf8f59785a4132c3b84f2ce8d2ab",
+      "observedAt": "2026-09-15T01:39:00.000Z",
+      "scope": "Paused fixture download. Resume visible. No Android service currently owns this job."
+    },
+    {
+      "path": "verification/evidence/issue-163/04-activity-jobs.png",
+      "sha256": "304a599b0dc936f7cbe520ed711d61d587fe976c1d729635b58909951ae9df4a",
+      "observedAt": "2026-09-15T01:39:00.000Z",
+      "scope": "Activity Jobs filter showing Download rows after Pause."
+    },
+    {
+      "path": "verification/evidence/issue-163/05-activity-reconcile.png",
+      "sha256": "d08a4b4c75d24cab42ce7e159a21219cf5fc4c47fba4003c207b3c7abd8efdf3",
+      "observedAt": "2026-09-15T01:40:00.000Z",
+      "scope": "Recover list with unique download job ids. No duplicate id after Recover."
+    },
+    {
+      "path": "verification/evidence/issue-163/06-storage-pressure.png",
+      "sha256": "4ac7bf56c9d8459053965a9c3462b0f503740141145c86002cdf0fae9d7ca828",
+      "observedAt": "2026-09-15T01:40:00.000Z",
+      "scope": "Storage-pressure fixture Failed, retryable with Retry."
+    },
+    {
+      "path": "verification/evidence/issue-163/07-process-death.png",
+      "sha256": "de537f5bc951386d27993d5ba81a0526de9202e96dd1f4fcaed9694a5df276b5",
+      "observedAt": "2026-09-15T01:42:00.000Z",
+      "scope": "After process death, Recover restored Paused and Failed, retryable jobs."
+    },
+    {
+      "path": "verification/evidence/issue-163/08-reboot.png",
+      "sha256": "a7bc0661478153cb71019c413ee8c1cf543c82561d54af9baee6c97bdba5e689",
+      "observedAt": "2026-09-15T01:44:00.000Z",
+      "scope": "After emulator reboot, Recover restored the same job ids."
+    }
+  ]
+}

@@ -81,6 +81,14 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   assert.ok(
     ledger.entries.some(
       (entry) =>
+        entry.id === "shell-route:activity/job-preview" &&
+        entry.status === "implemented" &&
+        entry.owners.includes(163),
+    ),
+  );
+  assert.ok(
+    ledger.entries.some(
+      (entry) =>
         entry.id === "shell-route:more/settings" && entry.status === "partial",
     ),
   );

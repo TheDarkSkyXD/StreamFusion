@@ -203,6 +203,7 @@
       "owners": [
         141,
         151,
+        163,
         172,
         173,
         174
@@ -1081,7 +1082,10 @@
       "kind": "tab",
       "name": "activity:jobs",
       "status": "implemented",
-      "owners": [],
+      "owners": [
+        141,
+        163
+      ],
       "implementation": [],
       "verification": "tests",
       "evidence": [],
@@ -2235,7 +2239,9 @@
       "kind": "shell-route",
       "name": "activity/job-preview",
       "status": "implemented",
-      "owners": [],
+      "owners": [
+        163
+      ],
       "implementation": [
         "apps/mobile/src/features/media-jobs/components/media-job-screen.tsx"
       ],
@@ -2427,10 +2433,9 @@
     {
       "id": "GAP-195-04",
       "status": "owned-elsewhere",
-      "finding": "Guest and account notification delivery, FCM, and job producers are absent. Activity is a local inbox only.",
+      "finding": "Guest and account notification delivery and FCM remain absent. Media Jobs now project local Activity rows. Activity is still a local inbox.",
       "owners": [
         151,
-        163,
         172,
         173,
         174

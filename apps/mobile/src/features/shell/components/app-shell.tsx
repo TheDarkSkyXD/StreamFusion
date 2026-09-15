@@ -1003,7 +1003,6 @@ function ShellScreen({
               onStartDownload={() => {
                 void openStartedJob(
                   mediaJobsController.startDownload,
-                  mediaJobsController,
                   activity,
                   dispatch,
                 );
@@ -1011,7 +1010,6 @@ function ShellScreen({
               onStartRecording={() => {
                 void openStartedJob(
                   mediaJobsController.startRecording,
-                  mediaJobsController,
                   activity,
                   dispatch,
                 );
@@ -1019,7 +1017,6 @@ function ShellScreen({
               onStartStoragePressure={() => {
                 void openStartedJob(
                   mediaJobsController.startStoragePressure,
-                  mediaJobsController,
                   activity,
                   dispatch,
                 );
@@ -1233,18 +1230,16 @@ function RootPreviewAction({
 
 async function openStartedJob(
   start: () => Promise<string>,
-  mediaJobsController: ReturnType<typeof useMediaJobsController>,
   activity: ReturnType<typeof useActivityController>,
   dispatch: (action: ShellNavigationAction) => void,
 ): Promise<void> {
   const jobId = await start();
   if (!jobId) return;
-  await mediaJobsController.recover();
-  await activity.refresh();
   dispatch({
     type: "navigate",
     location: { route: "activity/job-preview", jobId },
   });
+  void activity.refresh();
 }
 
 function NestedRouteState({ location }: { readonly location: ShellLocation }) {
