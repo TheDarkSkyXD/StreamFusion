@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260728.1",
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-alias": "1.1.2",
