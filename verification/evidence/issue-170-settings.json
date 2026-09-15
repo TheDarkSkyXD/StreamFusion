@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "issue": 170,
+  "ticketId": "M08",
+  "observedAt": "2026-09-15T14:09:25.285Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "M08 searchable Updates, Diagnostics, Logs, Report a bug, and About with scoped confirmation."
+  },
+  "candidate": {
+    "apkSha256": "sha256:b13cd849694b15e45d369601d69092c7737695040191af66a977237c81c55c92",
+    "provenance": "API 30 development client. Metro JS from the W02 worktree. Guest signed-out. GitHub Check now inspects stable releases. APK download stays R02. Appearance stays dark-only."
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "More Settings search shows Updates and About. Check now writes a GitHub result. Clear history requires Cancel or Confirm."
+      ]
+    },
+    "api30-journey": {
+      "result": "pass",
+      "observations": [
+        "StreamFusion Issue 142 API30 opened searchable Updates and About without claiming PackageInstaller."
+      ]
+    },
+    "local-search": {
+      "result": "pass",
+      "observations": [
+        "Search github and privacy hid Appearance and kept the matching panel."
+      ]
+    },
+    "destructive-confirmation": {
+      "result": "pass",
+      "observations": [
+        "Clear history showed confirmation, Cancel kept data, Confirm reported the History result."
+      ]
+    },
+    "data-boundary": {
+      "result": "pass",
+      "observations": [
+        "Guest disconnect copy does not start OAuth. GitHub check does not download an APK."
+      ]
+    },
+    "accessibility": {
+      "result": "pass",
+      "observations": [
+        "Check now exposes an accessibility name."
+      ]
+    }
+  },
+  "evidenceArtifacts": [
+    {
+      "path": "verification/evidence/issue-170/01-settings.png",
+      "sha256": "sha256:87efb11975f56e533d240b758354de32ebafebf07883d7731138a478ea53ac58",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "01-settings"
+    },
+    {
+      "path": "verification/evidence/issue-170/02-search-updates.png",
+      "sha256": "sha256:abd91ea001ef41be746cb90aeefe4e697799dcfab12666f429ad4afe8677c340",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "02-search-updates"
+    },
+    {
+      "path": "verification/evidence/issue-170/03-search-about.png",
+      "sha256": "sha256:2fffc07bf0f1b3b5904456a1950b847866eb9f2ad4a6889cedd219f2f3603d28",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "03-search-about"
+    },
+    {
+      "path": "verification/evidence/issue-170/04-check-now.png",
+      "sha256": "sha256:f48ea6e83a639a80a122de08e41ab37f00a36342d933e775814789aac5ccb428",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "04-check-now"
+    },
+    {
+      "path": "verification/evidence/issue-170/05-confirm-history.png",
+      "sha256": "sha256:9bedb304e5b8d9f50c92cc0e018b30ca622ecf5bf3b62de133286749da694d78",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "05-confirm-history"
+    },
+    {
+      "path": "verification/evidence/issue-170/06-history-cleared.png",
+      "sha256": "sha256:0389de4694baa4926eaf2c5257868b2144eb6bbf06475bb8bc757d5242e3bf75",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "06-history-cleared"
+    },
+    {
+      "path": "verification/evidence/issue-170/07-accessibility.png",
+      "sha256": "sha256:cb7e72e0cb5717427aa6d9b9db4c98cafe4a488d78641b35d3766a2c370af460",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "07-accessibility"
+    },
+    {
+      "path": "verification/evidence/issue-170/08-process-death.png",
+      "sha256": "sha256:0f161be7edad1c591dc1ef904697b6e3c2734827c9dd994b9042cbbcf1e82dae",
+      "observedAt": "2026-09-15T14:09:25.285Z",
+      "scope": "08-process-death"
+    }
+  ]
+}

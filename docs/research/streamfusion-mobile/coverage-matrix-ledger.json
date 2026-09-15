@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 89,
+    "implemented": 99,
     "partial": 13,
     "placeholder": 4,
-    "missing": 79
+    "missing": 69
   },
   "entries": [
     {
@@ -484,10 +484,16 @@
       "id": "screen:settings-updates",
       "kind": "screen",
       "name": "settings-updates",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        176
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -495,10 +501,16 @@
       "id": "screen:settings-diagnostics",
       "kind": "screen",
       "name": "settings-diagnostics",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -506,10 +518,16 @@
       "id": "screen:settings-logs",
       "kind": "screen",
       "name": "settings-logs",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -517,10 +535,16 @@
       "id": "screen:settings-report-bug",
       "kind": "screen",
       "name": "settings-report-bug",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -528,10 +552,15 @@
       "id": "screen:settings-about",
       "kind": "screen",
       "name": "settings-about",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -703,10 +732,15 @@
       "id": "panel:updates",
       "kind": "panel",
       "name": "updates",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        176
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -714,10 +748,15 @@
       "id": "panel:diagnostics",
       "kind": "panel",
       "name": "diagnostics",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -725,10 +764,15 @@
       "id": "panel:logs",
       "kind": "panel",
       "name": "logs",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -736,10 +780,15 @@
       "id": "panel:report-bug",
       "kind": "panel",
       "name": "report-bug",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170,
+        171
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -747,10 +796,14 @@
       "id": "panel:about",
       "kind": "panel",
       "name": "about",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        170
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/support-settings-panels.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2476,7 +2529,7 @@
     {
       "id": "GAP-195-03",
       "status": "owned-elsewhere",
-      "finding": "Chat Settings remains M06. Diagnostics still lack dedicated Mobile routes. Notifications, Ad blocking, and Proxy are searchable Settings panels with Product Store authority; remote FCM stays N01.",
+      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace remains M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
       "owners": [
         143,
         168,

@@ -31,6 +31,20 @@ const PRODUCT_PANELS = {
 
 type ProductPanelId = keyof typeof PRODUCT_PANELS;
 
+function SettingsPanelFrame({
+  children,
+  panel,
+}: {
+  readonly children: ReactNode;
+  readonly panel: SettingsPanelId;
+}) {
+  return <View testID={`screen-settings-${panel}`}>{children}</View>;
+}
+
+function isProductPanel(panel: SettingsPanelId): panel is ProductPanelId {
+  return panel in PRODUCT_PANELS;
+}
+
 export function SettingsWorkspace({
   extras = {},
   session,
@@ -75,7 +89,7 @@ function SettingsSearchField({
       onChangeText={(query) => {
         void session.search(query);
       }}
-      placeholder="Search appearance, playback, notifications, proxy"
+      placeholder="Search appearance, playback, notifications, updates"
       placeholderTextColor={mobileColors.textSecondary}
       style={styles.search}
       testID="settings-search"
@@ -111,30 +125,26 @@ function VisibleSettingsPanels({
         if (isProductPanel(panel)) {
           const Panel = PRODUCT_PANELS[panel];
           return (
-            <View key={panel} testID={`screen-settings-${panel}`}>
+            <SettingsPanelFrame key={panel} panel={panel}>
               <Panel
                 onChange={(patch) => {
                   void session.apply(patch);
                 }}
                 view={view}
               />
-            </View>
+            </SettingsPanelFrame>
           );
         }
         const extra = extras[panel];
         if (!extra) return null;
         return (
-          <View key={panel} testID={`screen-settings-${panel}`}>
+          <SettingsPanelFrame key={panel} panel={panel}>
             {extra}
-          </View>
+          </SettingsPanelFrame>
         );
       })}
     </>
   );
-}
-
-function isProductPanel(panel: SettingsPanelId): panel is ProductPanelId {
-  return panel in PRODUCT_PANELS;
 }
 
 const styles = StyleSheet.create({

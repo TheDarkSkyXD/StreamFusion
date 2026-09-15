@@ -58,8 +58,14 @@ import { createFollowingRuntime } from "@mobile/features/follows/composition/fol
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
+import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
+import { createSupportLogPort } from "@mobile/features/settings/adapters/support-log-buffer";
+import { createSupportMaintenancePort } from "@mobile/features/settings/adapters/support-maintenance";
+import { createSupportSharePort } from "@mobile/features/settings/adapters/support-share";
 import { createNotificationSettingsSession } from "@mobile/features/settings/composition/notification-settings-runtime";
 import { createSettingsSession } from "@mobile/features/settings/composition/settings-runtime";
+import { createSupportSettingsSession } from "@mobile/features/settings/composition/support-settings-runtime";
+import { createSupportPreferenceStore } from "@mobile/features/settings/data/support-settings-store";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
 import { createGuestMultistreamScreen } from "@mobile/features/multistream/composition/guest-multistream-screen";
@@ -259,6 +265,24 @@ const notificationSession = createNotificationSettingsSession({
   network: () => connectivitySession.readNetwork(),
   permission: createAndroidNotificationPermissionPort(),
   store: persistenceRuntime.productState.liveNotifications,
+});
+const supportStore = createSupportPreferenceStore(
+  persistenceRuntime.productState.settings,
+);
+const supportSession = createSupportSettingsSession({
+  logs: createSupportLogPort(),
+  maintenance: createSupportMaintenancePort({
+    cacheClear: () => persistenceRuntime.disposableCache.clear(),
+    connectedAccount: async () => false,
+    history: persistenceRuntime.productState.watchHistory,
+    jobs: persistenceRuntime.productState.mediaJobs,
+    settings: persistenceRuntime.productState.settings,
+    support: supportStore,
+  }),
+  metadata: createExpoAppMetadataReader(),
+  releases: createGithubStableReleaseCheckPort(),
+  share: createSupportSharePort(),
+  store: supportStore,
 });
 const followingSession = createFollowingRuntime({
   cache: persistenceRuntime.disposableCache,
@@ -473,6 +497,7 @@ export function MobileRuntime() {
       adblockSession={adblockSession}
       notificationSession={notificationSession}
       settingsSession={settingsSession}
+      supportSession={supportSession}
       watch={watch}
       multistream={multistream}
     />

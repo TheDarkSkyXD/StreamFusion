@@ -6,7 +6,12 @@ export type SettingsPanelId =
   | "multiview"
   | "notifications"
   | "adblock"
-  | "proxy";
+  | "proxy"
+  | "updates"
+  | "diagnostics"
+  | "logs"
+  | "report-bug"
+  | "about";
 
 export type SettingsControlCatalogEntry = {
   readonly id: string;
@@ -119,6 +124,75 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] = 
   entry("proxy-port", "proxy", "Port", ["proxy", "port"]),
   entry("proxy-username", "proxy", "Username", ["proxy", "username", "credential"]),
   entry("proxy-password", "proxy", "Password", ["proxy", "password", "secret"]),
+  entry("update-status", "updates", "Current version", [
+    "updates",
+    "version",
+    "release",
+    "github",
+  ]),
+  entry("check-for-updates", "updates", "Check now", [
+    "check",
+    "updates",
+    "github",
+    "apk",
+  ]),
+  entry("automatic-foreground-update-checks", "updates", "Check automatically while foregrounded", [
+    "automatic",
+    "foreground",
+    "updates",
+  ]),
+  entry("diagnostic-window", "diagnostics", "Observation window", [
+    "diagnostics",
+    "window",
+    "resources",
+  ]),
+  entry("diagnostic-io-window", "diagnostics", "I/O observation window", [
+    "diagnostics",
+    "io",
+    "window",
+  ]),
+  entry("diagnostic-detail", "diagnostics", "Detailed collection", [
+    "diagnostics",
+    "detail",
+    "collection",
+  ]),
+  entry("log-level", "logs", "Minimum level", ["logs", "level", "minimum"]),
+  entry("log-source", "logs", "Source", ["logs", "source", "filter"]),
+  entry("open-runtime-logs", "logs", "Open", ["logs", "open", "runtime"]),
+  entry("report-description", "report-bug", "What happened?", [
+    "bug",
+    "report",
+    "description",
+  ]),
+  entry("attach-logs", "report-bug", "Attach redacted logs", [
+    "bug",
+    "logs",
+    "redacted",
+  ]),
+  entry("attach-profile", "report-bug", "Attach Capability Profile", [
+    "bug",
+    "profile",
+    "capability",
+  ]),
+  entry("build-report", "report-bug", "Build report", ["bug", "build", "report"]),
+  entry("share-diagnostic-report", "report-bug", "Share", [
+    "share",
+    "report",
+    "bug",
+  ]),
+  entry("open-source-licenses", "about", "Open-source licenses", [
+    "licenses",
+    "open",
+    "source",
+  ]),
+  entry("privacy", "about", "Privacy", ["privacy", "notice"]),
+  entry("clear-history", "about", "Clear history", ["history", "clear"]),
+  entry("remove-media", "about", "Remove media", ["media", "remove", "jobs"]),
+  entry("disconnect-accounts", "about", "Disconnect accounts", [
+    "disconnect",
+    "accounts",
+  ]),
+  entry("reset-app", "about", "Reset the app", ["reset", "app", "wipe"]),
 ];
 
 export function searchSettingsControls(

@@ -9,10 +9,10 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 89 |
+| Implemented | 99 |
 | Partial | 13 |
 | Placeholder | 4 |
-| Missing | 79 |
+| Missing | 69 |
 | Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
@@ -62,11 +62,11 @@ Missing means no route or control exists yet.
 | `screen:settings-proxy` | implemented | #162, #169 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `screen:settings-integrations` | missing | — | — | missing |
 | `screen:settings-api-tokens` | missing | — | — | missing |
-| `screen:settings-updates` | missing | — | — | missing |
-| `screen:settings-diagnostics` | missing | — | — | missing |
-| `screen:settings-logs` | missing | — | — | missing |
-| `screen:settings-report-bug` | missing | — | — | missing |
-| `screen:settings-about` | missing | — | — | missing |
+| `screen:settings-updates` | implemented | #170, #176 | apps/mobile/src/features/settings/components/settings-workspace.tsx, apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `screen:settings-diagnostics` | implemented | #170, #171 | apps/mobile/src/features/settings/components/settings-workspace.tsx, apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `screen:settings-logs` | implemented | #170, #171 | apps/mobile/src/features/settings/components/settings-workspace.tsx, apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `screen:settings-report-bug` | implemented | #170, #171 | apps/mobile/src/features/settings/components/settings-workspace.tsx, apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `screen:settings-about` | implemented | #170 | apps/mobile/src/features/settings/components/settings-workspace.tsx, apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
 | `panel:appearance` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
 | `panel:playback` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
 | `panel:player-controls` | implemented | #167 | apps/mobile/src/features/settings/components/settings-panels.tsx | tests |
@@ -79,11 +79,11 @@ Missing means no route or control exists yet.
 | `panel:proxy` | implemented | #162 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `panel:integrations` | missing | — | — | missing |
 | `panel:api-tokens` | missing | — | — | missing |
-| `panel:updates` | missing | — | — | missing |
-| `panel:diagnostics` | missing | — | — | missing |
-| `panel:logs` | missing | — | — | missing |
-| `panel:report-bug` | missing | — | — | missing |
-| `panel:about` | missing | — | — | missing |
+| `panel:updates` | implemented | #170, #176 | apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `panel:diagnostics` | implemented | #170, #171 | apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `panel:logs` | implemented | #170, #171 | apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `panel:report-bug` | implemented | #170, #171 | apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
+| `panel:about` | implemented | #170 | apps/mobile/src/features/settings/components/support-settings-panels.tsx | tests |
 | `tab:search:all` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
 | `tab:search:channels` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
 | `tab:search:streams` | implemented | #147, #149 | apps/mobile/src/features/discovery/components/search-results-view.tsx | tests |
@@ -225,7 +225,7 @@ Missing means no route or control exists yet.
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
 | `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat and later Settings panels remain on M06+. | #147, #148, #149, #150, #152, #159, #167 |
-| `GAP-195-03` | owned-elsewhere | Chat Settings remains M06. Diagnostics still lack dedicated Mobile routes. Notifications, Ad blocking, and Proxy are searchable Settings panels with Product Store authority; remote FCM stays N01. | #143, #168, #169, #170, #171 |
+| `GAP-195-03` | owned-elsewhere | Chat Settings remains M06. Diagnostics six-tab workspace remains M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01. | #143, #168, #169, #170, #171 |
 | `GAP-195-04` | owned-elsewhere | Guest notification preferences, Android permission status, and denial recovery live on Settings. Remote FCM registration and background delivery remain N01–N03. Activity is still a local inbox. | #151, #169, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |
 

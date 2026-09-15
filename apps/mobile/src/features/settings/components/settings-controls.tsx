@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
   mobileColors,
@@ -41,6 +41,37 @@ export function SettingsCopy({
   );
 }
 
+function SettingsRow({
+  accessibilityLabel,
+  accessibilityRole,
+  accessibilityState,
+  children,
+  onPress,
+  testID,
+}: {
+  readonly accessibilityLabel: string;
+  readonly accessibilityRole: "button" | "switch";
+  readonly accessibilityState?: { readonly checked: boolean };
+  readonly children: string;
+  readonly onPress: () => void;
+  readonly testID: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
+      onPress={onPress}
+      style={styles.row}
+      testID={testID}
+    >
+      <Text selectable style={styles.rowLabel}>
+        {children}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function SettingsSwitch({
   checked,
   label,
@@ -53,18 +84,15 @@ export function SettingsSwitch({
   readonly testID: string;
 }) {
   return (
-    <Pressable
+    <SettingsRow
       accessibilityLabel={label}
       accessibilityRole="switch"
       accessibilityState={{ checked }}
       onPress={onToggle}
-      style={styles.row}
       testID={testID}
     >
-      <Text selectable style={styles.rowLabel}>
-        {checked ? `${label}: on` : `${label}: off`}
-      </Text>
-    </Pressable>
+      {`${label}: ${checked ? "on" : "off"}`}
+    </SettingsRow>
   );
 }
 
@@ -87,21 +115,74 @@ export function SettingsChoiceRow<T extends string | number>({
         {label}: {String(current)}
       </Text>
       <View style={styles.choiceRow}>
-        {options.map((option) => (
-          <Pressable
-            key={String(option)}
-            accessibilityLabel={`${label} ${String(option)}`}
-            accessibilityRole="button"
-            onPress={() => onSelect(option)}
-            style={styles.choice}
-            testID={`${testID}-${String(option)}`}
-          >
-            <Text selectable style={styles.choiceLabel}>
-              {current === option ? `Selected ${String(option)}` : String(option)}
-            </Text>
-          </Pressable>
-        ))}
+        {options.map((option) => {
+          const value = String(option);
+          return (
+            <Pressable
+              key={value}
+              accessibilityLabel={`${label} ${value}`}
+              accessibilityRole="button"
+              onPress={() => onSelect(option)}
+              style={styles.choice}
+              testID={`${testID}-${value}`}
+            >
+              <Text selectable style={styles.choiceLabel}>
+                {current === option ? `Selected ${value}` : value}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
+    </View>
+  );
+}
+
+export function SettingsAction({
+  label,
+  onPress,
+  testID,
+}: {
+  readonly label: string;
+  readonly onPress: () => void;
+  readonly testID: string;
+}) {
+  return (
+    <SettingsRow
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      testID={testID}
+    >
+      {label}
+    </SettingsRow>
+  );
+}
+
+export function SettingsField({
+  label,
+  onChangeText,
+  testID,
+  value,
+}: {
+  readonly label: string;
+  readonly onChangeText: (value: string) => void;
+  readonly testID: string;
+  readonly value: string;
+}) {
+  return (
+    <View style={styles.choiceBlock} testID={testID}>
+      <Text selectable style={styles.rowLabel}>
+        {label}
+      </Text>
+      <TextInput
+        accessibilityLabel={label}
+        multiline
+        onChangeText={onChangeText}
+        placeholder={label}
+        placeholderTextColor={mobileColors.textSecondary}
+        style={styles.field}
+        value={value}
+      />
     </View>
   );
 }
@@ -163,5 +244,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
+  },
+  field: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.medium,
+    borderWidth: 1,
+    color: mobileColors.textPrimary,
+    fontSize: 16,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
   },
 });

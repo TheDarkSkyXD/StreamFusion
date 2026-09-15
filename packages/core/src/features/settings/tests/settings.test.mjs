@@ -79,6 +79,21 @@ test("local search isolates notifications, adblock, and proxy panels", () => {
   ]);
 });
 
+test("local search isolates updates, diagnostics, logs, report, and about", () => {
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("github")), [
+    "updates",
+  ]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("bug")), [
+    "report-bug",
+  ]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("privacy")), [
+    "about",
+  ]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("runtime")), [
+    "logs",
+  ]);
+});
+
 test("native color scheme stays dark", () => {
   assert.equal(nativeColorScheme("system"), "dark");
   assert.equal(nativeColorScheme("light"), "dark");

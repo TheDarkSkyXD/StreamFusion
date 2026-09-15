@@ -85,8 +85,16 @@ import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/ad
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { NotificationSettingsSession } from "@mobile/features/settings/capabilities/notification-settings";
 import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
+import type { SupportSettingsSession } from "@mobile/features/settings/capabilities/support-settings";
 import { NotificationsSettingsPanel } from "@mobile/features/settings/components/notifications-settings-panel";
 import { SettingsWorkspace } from "@mobile/features/settings/components/settings-workspace";
+import {
+  AboutSettingsPanel,
+  DiagnosticsSettingsPanel,
+  LogsSettingsPanel,
+  ReportBugSettingsPanel,
+  UpdatesSettingsPanel,
+} from "@mobile/features/settings/components/support-settings-panels";
 import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
 import type { ProductPreferences } from "@streamfusion/core/settings";
 import {
@@ -187,6 +195,7 @@ export function AppShell({
   adblockSession,
   notificationSession,
   settingsSession,
+  supportSession,
   watch,
   multistream,
 }: {
@@ -234,6 +243,7 @@ export function AppShell({
   readonly adblockSession: AdBlockSession;
   readonly notificationSession: NotificationSettingsSession;
   readonly settingsSession: SettingsSession;
+  readonly supportSession: SupportSettingsSession;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
 }) {
@@ -408,6 +418,7 @@ export function AppShell({
               notificationSession={notificationSession}
               playerPrefs={settings.view.preferences}
               settingsSession={settingsSession}
+              supportSession={supportSession}
               slotCap={settings.view.preferences.multiviewCap}
               watch={watch}
               multistream={multistream}
@@ -600,6 +611,7 @@ function ShellScreen({
   notificationSession,
   playerPrefs,
   settingsSession,
+  supportSession,
   slotCap,
   watch,
   multistream,
@@ -649,6 +661,7 @@ function ShellScreen({
   readonly notificationSession: NotificationSettingsSession;
   readonly playerPrefs: ProductPreferences;
   readonly settingsSession: SettingsSession;
+  readonly supportSession: SupportSettingsSession;
   readonly slotCap: number;
   readonly watch: WatchScreenRuntime;
   readonly multistream: MultistreamRuntime;
@@ -1001,11 +1014,26 @@ function ShellScreen({
       <View style={styles.activityWorkspace} testID="screen-more-settings-root">
         <SettingsWorkspace
           extras={{
+            about: <AboutSettingsPanel session={supportSession} />,
             adblock: <AdBlockSettingsPanel session={adblockSession} />,
+            diagnostics: (
+              <DiagnosticsSettingsPanel
+                onOpenDiagnostics={() => {
+                  dispatch({
+                    type: "navigate",
+                    location: { route: "more/diagnostics" },
+                  });
+                }}
+                session={supportSession}
+              />
+            ),
+            logs: <LogsSettingsPanel session={supportSession} />,
             notifications: (
               <NotificationsSettingsPanel session={notificationSession} />
             ),
             proxy: <ProxySettingsPanel session={connectivitySession} />,
+            "report-bug": <ReportBugSettingsPanel session={supportSession} />,
+            updates: <UpdatesSettingsPanel session={supportSession} />,
           }}
           session={settingsSession}
         />

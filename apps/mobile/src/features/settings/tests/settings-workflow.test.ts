@@ -45,7 +45,7 @@ describe("settings workflow", () => {
     expect(applied.rejected[0]).toMatch(/English/);
   });
 
-  it("keeps Notifications, Ad blocking, and Proxy in local search", async () => {
+  it("keeps Notifications, Ad blocking, Proxy, and Updates in local search", async () => {
     const settings = session();
     await settings.load();
     const proxy = await settings.search("proxy");
@@ -54,6 +54,10 @@ describe("settings workflow", () => {
     expect(alerts.panels).toEqual(["notifications"]);
     const ads = await settings.search("adblock");
     expect(ads.panels).toEqual(["adblock"]);
+    const updates = await settings.search("github");
+    expect(updates.panels).toEqual(["updates"]);
+    const bug = await settings.search("bug");
+    expect(bug.panels).toEqual(["report-bug"]);
   });
 
   it("maps playback policy for Watch and Multistream", () => {

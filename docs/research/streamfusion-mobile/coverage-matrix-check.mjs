@@ -198,6 +198,16 @@ const implemented = new Set([
   "screen:settings-multiview",
   "screen:settings-notifications",
   "panel:notifications",
+  "screen:settings-updates",
+  "panel:updates",
+  "screen:settings-diagnostics",
+  "panel:diagnostics",
+  "screen:settings-logs",
+  "panel:logs",
+  "screen:settings-report-bug",
+  "panel:report-bug",
+  "screen:settings-about",
+  "panel:about",
   "shell-route:more/settings",
 ]);
 
@@ -268,6 +278,16 @@ const owners = {
   "panel:multiview": [167],
   "panel:notifications": [169],
   "screen:settings-notifications": [169],
+  "panel:updates": [170, 176],
+  "screen:settings-updates": [170, 176],
+  "panel:diagnostics": [170, 171],
+  "screen:settings-diagnostics": [170, 171],
+  "panel:logs": [170, 171],
+  "screen:settings-logs": [170, 171],
+  "panel:report-bug": [170, 171],
+  "screen:settings-report-bug": [170, 171],
+  "panel:about": [170],
+  "screen:settings-about": [170],
   "screen:settings-appearance": [167],
   "screen:settings-playback": [167],
   "screen:settings-player-controls": [167],
@@ -490,6 +510,41 @@ const paths = {
     "apps/mobile/src/features/settings/components/settings-workspace.tsx",
     "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
   ],
+  "panel:updates": [
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "screen:settings-updates": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "panel:diagnostics": [
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "screen:settings-diagnostics": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "panel:logs": [
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "screen:settings-logs": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "panel:report-bug": [
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "screen:settings-report-bug": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "panel:about": [
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
+  "screen:settings-about": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/support-settings-panels.tsx",
+  ],
   "action:activity-clear-completed": [
     "apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts",
   ],
@@ -620,7 +675,7 @@ const gaps = [
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Chat Settings remains M06. Diagnostics still lack dedicated Mobile routes. Notifications, Ad blocking, and Proxy are searchable Settings panels with Product Store authority; remote FCM stays N01.",
+      "Chat Settings remains M06. Diagnostics six-tab workspace remains M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Remote FCM stays N01.",
     owners: [143, 168, 169, 170, 171],
   },
   {
