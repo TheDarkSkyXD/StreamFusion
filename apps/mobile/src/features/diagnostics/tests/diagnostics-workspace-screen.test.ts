@@ -29,17 +29,23 @@ function childProps(node: unknown): Record<string, unknown> {
   return node.props as Record<string, unknown>;
 }
 
-function flatten(node: unknown): unknown[] {
+function flatten(node: unknown, includeHost = false): unknown[] {
   if (!isValidElement(node)) return [];
   if (typeof node.type === "function") {
-    return flatten((node.type as (props: object) => unknown)(node.props));
+    return flatten(
+      (node.type as (props: object) => unknown)(node.props),
+      true,
+    );
   }
   const children = Array.isArray(childProps(node).children)
     ? childProps(node).children
     : [childProps(node).children];
-  return children.flatMap((child: unknown) =>
-    isValidElement(child) ? [child, ...flatten(child)] : [],
-  );
+  const nested = children.flatMap((child: unknown) => {
+    if (!isValidElement(child)) return [];
+    if (typeof child.type === "function") return flatten(child, true);
+    return [child, ...flatten(child)];
+  });
+  return includeHost ? [node, ...nested] : nested;
 }
 
 function tabNodes(tree: unknown): unknown[] {

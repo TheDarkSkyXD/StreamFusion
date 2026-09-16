@@ -8,7 +8,7 @@ import {
   MEDIA_JOB_HTTP_RANGE_PROOF_URI,
   type MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
