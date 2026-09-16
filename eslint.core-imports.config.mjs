@@ -19,6 +19,8 @@ const publicSubpaths = new Set([
   "reliability",
   "relay",
   "media-jobs",
+  "local-captions",
+  "settings",
   "testing",
 ]);
 const coreSourcePattern = /(^|\/)(packages\/)?core\/src(\/|$)/;
