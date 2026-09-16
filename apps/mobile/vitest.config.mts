@@ -21,6 +21,9 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   test: {
-    include: ["src/features/**/tests/**/*.test.ts"],
+    include: [
+      "src/design/**/*.test.ts",
+      "src/features/**/tests/**/*.test.ts",
+    ],
   },
 });

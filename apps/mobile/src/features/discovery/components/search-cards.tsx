@@ -6,12 +6,12 @@ import type {
   Clip,
   Video,
 } from "@streamfusion/core/content";
-import type { Platform } from "@streamfusion/core/platform";
-
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import { SearchMediaCard } from "./search-media-card";
 
@@ -41,7 +41,7 @@ export function SearchChannelCard({
           {channel.isLive ? "Live" : "Offline"}
         </Text>
       </View>
-      <PlatformBadge platform={channel.platform} />
+      <MobilePlatformBadge platform={channel.platform} />
     </>
   );
   const label = `${channel.displayName} on ${channel.platform}${channel.isLive ? ", live" : ""}`;
@@ -88,10 +88,12 @@ export function SearchCategoryCard({
           <View style={styles.media} />
         )}
       </View>
-      <Text selectable style={styles.title}>
+      <Text selectable style={styles.categoryTitle}>
         {category.name}
       </Text>
-      <PlatformBadge platform={category.platform} />
+      <View style={styles.categoryBadge}>
+        <MobilePlatformBadge platform={category.platform} />
+      </View>
     </View>
   );
 }
@@ -136,21 +138,6 @@ export function SearchClipCard({
   );
 }
 
-function PlatformBadge({ platform }: { readonly platform: Platform }) {
-  return (
-    <View
-      style={[
-        styles.platformBadge,
-        platform === "twitch" ? styles.twitchBadge : styles.kickBadge,
-      ]}
-    >
-      <Text selectable style={styles.platformLabel}>
-        {platform === "twitch" ? "TWITCH" : "KICK"}
-      </Text>
-    </View>
-  );
-}
-
 function pressProp(
   onPress?: () => void,
 ): { readonly onPress: () => void } | Record<string, never> {
@@ -161,18 +148,14 @@ const styles = StyleSheet.create({
   row: {
     alignItems: "center",
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     flexDirection: "row",
     gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
   },
   category: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     gap: mobileSpacing.small,
     overflow: "hidden",
     paddingBottom: mobileSpacing.medium,
@@ -188,10 +171,10 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.xSmall,
   },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.title,
+  },
+  categoryTitle: {
+    ...mobileType.title,
     paddingHorizontal: mobileSpacing.medium,
   },
   meta: {
@@ -199,7 +182,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
-    paddingHorizontal: mobileSpacing.medium,
   },
   boxArtWrap: {
     aspectRatio: 3 / 4,
@@ -210,22 +192,7 @@ const styles = StyleSheet.create({
     height: "100%",
     width: "100%",
   },
-  platformBadge: {
-    borderRadius: mobileRadii.small,
-    justifyContent: "center",
-    minHeight: 24,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  twitchBadge: {
-    backgroundColor: "#9146ff",
-  },
-  kickBadge: {
-    backgroundColor: "#53fc18",
-  },
-  platformLabel: {
-    color: mobileColors.background,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
+  categoryBadge: {
+    paddingHorizontal: mobileSpacing.medium,
   },
 });

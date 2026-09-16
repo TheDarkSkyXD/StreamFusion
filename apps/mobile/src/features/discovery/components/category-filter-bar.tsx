@@ -1,12 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { ClipTimeRange } from "@streamfusion/core/discovery";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import {
   BROADCAST_LANGUAGES,
   languageLabel,
@@ -95,22 +91,14 @@ function ChipRow<T extends string>({
       </Text>
       <View style={styles.row}>
         {options.map((option) => (
-          <Pressable
+          <MobileFilterChip
             accessibilityLabel={`${label} ${option.label}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: option.value === selected }}
             key={option.value}
+            label={option.label}
             onPress={() => onSelect(option.value)}
-            style={[
-              styles.chip,
-              option.value === selected ? styles.chipSelected : null,
-            ]}
+            selected={option.value === selected}
             testID={`${testID}-${option.value}`}
-          >
-            <Text selectable style={styles.chipLabel}>
-              {option.label}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
     </View>
@@ -227,20 +215,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: mobileSpacing.small,
-  },
-  chip: {
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  chipSelected: {
-    backgroundColor: mobileColors.navigationSelected,
-  },
-  chipLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

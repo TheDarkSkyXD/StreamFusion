@@ -149,6 +149,10 @@ describe("Unified search screen", () => {
     expect(
       nodes.some((node) => node.props.testID === "search-clip-kick-kick-clip"),
     ).toBe(true);
+    const kickBadge = nodes.find((node) => node.props.children === "KICK");
+    expect(kickBadge?.props.style).toMatchObject({
+      color: "#0f0f0f",
+    });
     expect(
       nodes.some((node) => node.props.children === SEARCH_PROOF_SOURCE),
     ).toBe(true);

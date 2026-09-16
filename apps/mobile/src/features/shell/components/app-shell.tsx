@@ -35,6 +35,7 @@ import {
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import { useActivityController } from "@mobile/features/activity/components/activity-controller";
 import { InAppNotificationBannerView } from "@mobile/features/notifications/components/in-app-notification-banner";
@@ -1947,16 +1948,10 @@ const styles = StyleSheet.create({
     paddingTop: mobileSpacing.small,
   },
   screenTitle: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
+    ...mobileType.display,
   },
   screenSummary: {
-    color: mobileColors.textCategory,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 24,
+    ...mobileType.body,
   },
   card: {
     alignItems: "center",

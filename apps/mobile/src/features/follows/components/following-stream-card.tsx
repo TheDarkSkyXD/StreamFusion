@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
@@ -61,22 +62,7 @@ export function FollowingStreamCard({
             {stream.channelDisplayName}
           </Text>
         </View>
-        <View
-          style={[
-            styles.platformBadge,
-            stream.platform === "twitch" ? styles.twitchBadge : styles.kickBadge,
-          ]}
-        >
-          <Text
-            selectable
-            style={[
-              styles.platformLabel,
-              stream.platform === "kick" ? styles.kickLabel : null,
-            ]}
-          >
-            {stream.platform === "twitch" ? "TWITCH" : "KICK"}
-          </Text>
-        </View>
+        <MobilePlatformBadge platform={stream.platform} />
       </View>
     </Pressable>
   );
@@ -85,9 +71,7 @@ export function FollowingStreamCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     overflow: "hidden",
   },
   thumbWrap: {
@@ -111,8 +95,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 14,
   },
-  viewerBadge: {
-    backgroundColor: "rgba(0,0,0,0.72)",
+    viewerBadge: {
+    backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.small,
     bottom: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.small,
@@ -144,20 +128,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
-  },
-  platformBadge: {
-    borderRadius: mobileRadii.small,
-    justifyContent: "center",
-    minHeight: 24,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  twitchBadge: { backgroundColor: "#9146ff" },
-  kickBadge: { backgroundColor: "#53fc18" },
-  kickLabel: { color: mobileColors.background },
-  platformLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
   },
 });

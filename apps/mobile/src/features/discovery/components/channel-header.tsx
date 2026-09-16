@@ -1,11 +1,13 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Channel } from "@streamfusion/core/content";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { FollowView, WatchAvailability } from "../capabilities/platform-reads";
 import { watchAvailabilityCopy } from "../domain/channel-detail";
@@ -55,22 +57,13 @@ export function ChannelHeader({
         <View style={styles.avatar} />
       )}
       <View style={styles.copy}>
-        <Text accessibilityRole="header" selectable style={styles.name}>
+        <Text accessibilityRole="header" selectable style={mobileType.display}>
           {channel.displayName}
         </Text>
         <Text selectable style={styles.meta}>
           {followers}
         </Text>
-        <View
-          style={[
-            styles.platformBadge,
-            channel.platform === "twitch" ? styles.twitch : styles.kick,
-          ]}
-        >
-          <Text selectable style={styles.platformLabel}>
-            {channel.platform === "twitch" ? "TWITCH" : "KICK"}
-          </Text>
-        </View>
+        <MobilePlatformBadge platform={channel.platform} />
       </View>
       <View style={styles.actions}>
         <Pressable
@@ -173,32 +166,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: mobileSpacing.xSmall,
   },
-  name: {
-    color: mobileColors.textPrimary,
-    fontSize: 22,
-    fontWeight: "700",
-    lineHeight: 28,
-  },
   meta: {
     color: mobileColors.textSecondary,
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
-  },
-  platformBadge: {
-    alignSelf: "flex-start",
-    borderRadius: mobileRadii.small,
-    minHeight: 24,
-    justifyContent: "center",
-    paddingHorizontal: mobileSpacing.small,
-  },
-  twitch: { backgroundColor: "#9146ff" },
-  kick: { backgroundColor: "#53fc18" },
-  platformLabel: {
-    color: mobileColors.background,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
   },
   actions: {
     gap: mobileSpacing.xSmall,

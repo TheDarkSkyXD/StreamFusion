@@ -1,9 +1,11 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
 import { DiscoverySearchDock } from "@mobile/features/discovery/components/discovery-search-dock";
@@ -48,34 +50,23 @@ export function HistoryView({
       style={styles.screen}
       testID="screen-history"
     >
-      <View style={styles.header}>
-        <View style={styles.heading}>
-          <Text accessibilityRole="header" selectable style={styles.title}>
-            History
-          </Text>
-          <Text selectable style={styles.summary}>
-            Streams, videos, and clips stay on this device. Reopening never
-            autoplays.
-          </Text>
-        </View>
-        {showClear ? (
-          <Pressable
-            accessibilityHint="Asks before removing only Watch History"
-            accessibilityLabel="Clear history"
-            accessibilityRole="button"
-            onPress={onClear}
-            style={({ pressed }) => [
-              styles.clear,
-              pressed ? styles.pressed : null,
-            ]}
-            testID="history-clear"
-          >
-            <Text selectable style={styles.clearLabel}>
+      <MobileScreenHeader
+        action={
+          showClear ? (
+            <MobileButton
+              accessibilityHint="Asks before removing only Watch History"
+              accessibilityLabel="Clear history"
+              onPress={onClear}
+              testID="history-clear"
+              variant="ghost"
+            >
               Clear
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+            </MobileButton>
+          ) : undefined
+        }
+        summary="Streams, videos, and clips stay on this device. Reopening never autoplays."
+        title="History"
+      />
       <DiscoverySearchDock
         onChangeQuery={onChangeQuery}
         placeholder="Search history"
@@ -123,34 +114,22 @@ function HistoryConfirmation({
         {message}
       </Text>
       <View style={styles.confirmActions}>
-        <Pressable
+        <MobileButton
           accessibilityLabel="Confirm history change"
-          accessibilityRole="button"
           onPress={onConfirm}
-          style={({ pressed }) => [
-            styles.confirmButton,
-            pressed ? styles.pressed : null,
-          ]}
           testID="history-confirm"
+          variant="primary"
         >
-          <Text selectable style={styles.confirmLabel}>
-            Confirm
-          </Text>
-        </Pressable>
-        <Pressable
+          Confirm
+        </MobileButton>
+        <MobileButton
           accessibilityLabel="Cancel history change"
-          accessibilityRole="button"
           onPress={onCancel}
-          style={({ pressed }) => [
-            styles.cancel,
-            pressed ? styles.pressed : null,
-          ]}
           testID="history-cancel"
+          variant="ghost"
         >
-          <Text selectable style={styles.cancelLabel}>
-            Cancel
-          </Text>
-        </Pressable>
+          Cancel
+        </MobileButton>
       </View>
     </View>
   );
@@ -166,32 +145,28 @@ function HistoryStatusNotice({
   if (status === "ready") return null;
   if (status === "unavailable") {
     return (
-      <>
-        <Text selectable style={styles.summary} testID="history-unavailable">
+      <MobileStatusPanel testID="history-unavailable" tone="error">
+        <Text selectable style={styles.summary}>
           History could not load. Retry stays on this screen.
         </Text>
-        <Pressable
+        <MobileButton
           accessibilityLabel="Retry history"
-          accessibilityRole="button"
           onPress={onRetry}
-          style={({ pressed }) => [
-            styles.cancel,
-            pressed ? styles.pressed : null,
-          ]}
           testID="history-retry"
+          variant="primary"
         >
-          <Text selectable style={styles.cancelLabel}>
-            Retry
-          </Text>
-        </Pressable>
-      </>
+          Retry
+        </MobileButton>
+      </MobileStatusPanel>
     );
   }
   if (status === "empty") {
     return (
-      <Text selectable style={styles.summary} testID="history-empty">
-        Watched streams, videos, and clips appear here.
-      </Text>
+      <MobileStatusPanel testID="history-empty" tone="empty">
+        <Text selectable style={styles.summary}>
+          Watched streams, videos, and clips appear here.
+        </Text>
+      </MobileStatusPanel>
     );
   }
   return (
@@ -211,38 +186,11 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: 96,
   },
-  header: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-  },
-  heading: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-  },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
-  },
   summary: {
     color: mobileColors.textSecondary,
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 21,
-  },
-  clear: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    minWidth: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  clearLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
   },
   confirm: {
     backgroundColor: mobileColors.surface,
@@ -255,33 +203,5 @@ const styles = StyleSheet.create({
   confirmActions: {
     flexDirection: "row",
     gap: mobileSpacing.small,
-  },
-  confirmButton: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  confirmLabel: {
-    color: mobileColors.background,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  cancel: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    minWidth: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  cancelLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  pressed: {
-    opacity: 0.76,
   },
 });

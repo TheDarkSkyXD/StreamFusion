@@ -1,10 +1,12 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 
 export function SearchMediaCard({
@@ -51,16 +53,7 @@ export function SearchMediaCard({
             {channel}
           </Text>
         </View>
-        <View
-          style={[
-            styles.platformBadge,
-            platform === "twitch" ? styles.twitchBadge : styles.kickBadge,
-          ]}
-        >
-          <Text selectable style={styles.platformLabel}>
-            {platform === "twitch" ? "TWITCH" : "KICK"}
-          </Text>
-        </View>
+        <MobilePlatformBadge platform={platform} />
       </View>
     </>
   );
@@ -101,9 +94,7 @@ function formatDuration(seconds: number): string {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     overflow: "hidden",
   },
   copy: {
@@ -111,10 +102,7 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.xSmall,
   },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.title,
     paddingHorizontal: mobileSpacing.medium,
   },
   meta: {
@@ -134,7 +122,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   durationBadge: {
-    backgroundColor: "rgba(0,0,0,0.72)",
+    backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.small,
     bottom: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.small,
@@ -143,10 +131,8 @@ const styles = StyleSheet.create({
     right: mobileSpacing.small,
   },
   durationLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
+    ...mobileType.caption,
     fontWeight: "600",
-    lineHeight: 14,
   },
   mediaMeta: {
     alignItems: "center",
@@ -154,23 +140,5 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.small,
     paddingVertical: mobileSpacing.medium,
     paddingRight: mobileSpacing.medium,
-  },
-  platformBadge: {
-    borderRadius: mobileRadii.small,
-    justifyContent: "center",
-    minHeight: 24,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  twitchBadge: {
-    backgroundColor: "#9146ff",
-  },
-  kickBadge: {
-    backgroundColor: "#53fc18",
-  },
-  platformLabel: {
-    color: mobileColors.background,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
   },
 });

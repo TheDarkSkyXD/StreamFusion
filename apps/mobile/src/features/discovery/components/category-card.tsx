@@ -54,9 +54,7 @@ export function CategoryCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     overflow: "hidden",
     width: "47%",
   },

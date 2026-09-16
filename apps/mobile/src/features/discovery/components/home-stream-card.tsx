@@ -1,9 +1,11 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { Stream } from "@streamfusion/core/content";
 
@@ -67,18 +69,7 @@ export function HomeStreamCard({
             </Text>
           ) : null}
         </View>
-        <View
-          style={[
-            styles.platformBadge,
-            stream.platform === "twitch"
-              ? styles.twitchBadge
-              : styles.kickBadge,
-          ]}
-        >
-          <Text selectable style={styles.platformLabel}>
-            {stream.platform === "twitch" ? "TWITCH" : "KICK"}
-          </Text>
-        </View>
+        <MobilePlatformBadge platform={stream.platform} />
       </View>
     </View>
   );
@@ -98,9 +89,7 @@ export function HomeStreamCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     overflow: "hidden",
   },
   thumbWrap: {
@@ -127,8 +116,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 14,
   },
-  viewerBadge: {
-    backgroundColor: "rgba(0,0,0,0.72)",
+    viewerBadge: {
+    backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.small,
     bottom: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.small,
@@ -159,10 +148,7 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.xSmall,
   },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.title,
   },
   channel: {
     color: mobileColors.textSecondary,
@@ -175,23 +161,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     lineHeight: 18,
-  },
-  platformBadge: {
-    borderRadius: mobileRadii.small,
-    minHeight: 24,
-    justifyContent: "center",
-    paddingHorizontal: mobileSpacing.small,
-  },
-  twitchBadge: {
-    backgroundColor: "#9146ff",
-  },
-  kickBadge: {
-    backgroundColor: "#53fc18",
-  },
-  platformLabel: {
-    color: mobileColors.background,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
   },
 });

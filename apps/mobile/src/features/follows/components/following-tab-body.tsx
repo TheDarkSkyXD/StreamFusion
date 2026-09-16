@@ -1,11 +1,11 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobileButton } from "@mobile/design/button";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
 
@@ -73,17 +73,15 @@ function retryRow(
   return (
     <View style={styles.row}>
       {platforms.map((platform) => (
-        <Pressable
-          accessibilityRole="button"
+        <MobileButton
+          accessibilityLabel={`Retry ${platform}`}
           key={platform}
           onPress={() => onRetry(platform)}
-          style={styles.retry}
           testID={`following-retry-${platform}`}
+          variant={platform}
         >
-          <Text selectable style={styles.retryLabel}>
-            {`Retry ${platform}`}
-          </Text>
-        </Pressable>
+          {`Retry ${platform}`}
+        </MobileButton>
       ))}
     </View>
   );
@@ -163,19 +161,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  retry: {
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  retryLabel: {
-    color: mobileColors.background,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
   card: {
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,

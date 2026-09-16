@@ -18,6 +18,7 @@ type ElementProps = Readonly<{
   accessibilityLabel?: string;
   children?: unknown;
   onPress?: () => void;
+  style?: Readonly<{ fontSize?: number; fontWeight?: string }>;
   testID?: string;
 }>;
 type Element = ReactElement<ElementProps>;
@@ -79,6 +80,8 @@ describe("Home live discovery screen", () => {
       )
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
+    const homeTitle = nodes.find((node) => node.props.children === "Home");
+    expect(homeTitle?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
     expect(nodes.some((node) => node.props.testID === "open-categories")).toBe(
       true,
     );

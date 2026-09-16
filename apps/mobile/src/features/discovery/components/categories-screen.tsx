@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
 import type {
   DiscoveryFixtureMode,
@@ -83,10 +80,8 @@ export function CategoriesView({
       style={styles.scroll}
       testID="categories-screen"
     >
-      <Text accessibilityRole="header" selectable style={styles.title}>
-        Categories
-      </Text>
-      <Text selectable style={styles.summary} testID="categories-phase">
+      <MobileScreenHeader title="Categories" />
+      <Text selectable style={mobileType.body} testID="categories-phase">
         {phaseCopy(view.phase)}
       </Text>
       <LanguageRow
@@ -139,22 +134,14 @@ function LanguageRow({
   return (
     <View style={styles.languageRow}>
       {options.map((option) => (
-        <Pressable
+        <MobileFilterChip
           accessibilityLabel={`Language ${languageLabel(option)}`}
-          accessibilityRole="button"
-          accessibilityState={{ selected: option === language }}
           key={option}
+          label={languageLabel(option)}
           onPress={() => onChangeLanguage(option)}
-          style={[
-            styles.chip,
-            option === language ? styles.chipSelected : null,
-          ]}
+          selected={option === language}
           testID={`categories-language-${option}`}
-        >
-          <Text selectable style={styles.chipLabel}>
-            {languageLabel(option)}
-          </Text>
-        </Pressable>
+        />
       ))}
     </View>
   );
@@ -185,37 +172,10 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
-  },
-  summary: {
-    color: mobileColors.textCategory,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 24,
-  },
   languageRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: mobileSpacing.small,
-  },
-  chip: {
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  chipSelected: {
-    backgroundColor: mobileColors.navigationSelected,
-  },
-  chipLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
   },
   grid: {
     flexDirection: "row",

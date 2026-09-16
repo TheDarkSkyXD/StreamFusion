@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { findGuestFollow, type GuestFollow } from "@streamfusion/core/follows";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import {
+  mobileTextFieldProps,
+  mobileTextFieldStyle,
+} from "@mobile/design/text-field";
 import {
   mobileColors,
   mobileRadii,
@@ -32,32 +38,30 @@ export function FollowingAddForm({
       </Text>
       <View style={styles.row}>
         {(["twitch", "kick"] as const).map((value) => (
-          <Pressable
-            accessibilityRole="button"
+          <MobileFilterChip
+            accessibilityLabel={`Add Guest Follow on ${value}`}
             key={value}
+            label={value}
             onPress={() => setPlatform(value)}
-            style={[styles.chip, platform === value ? styles.selected : null]}
+            selected={platform === value}
             testID={`following-add-platform-${value}`}
-          >
-            <Text selectable style={styles.chipLabel}>
-              {value}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
       <TextInput
+        {...mobileTextFieldProps}
         accessibilityLabel="Channel login"
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={setLogin}
         placeholder="channel login"
-        placeholderTextColor={mobileColors.textSecondary}
+        placeholderTextColor={mobileColors.textMuted}
         style={styles.input}
         testID="following-add-login"
         value={login}
       />
-      <Pressable
-        accessibilityRole="button"
+      <MobileButton
+        accessibilityLabel="Follow as guest"
         disabled={busy}
         onPress={() => {
           void addFollow({
@@ -70,13 +74,11 @@ export function FollowingAddForm({
             setMessage,
           });
         }}
-        style={styles.submit}
         testID="following-add-submit"
+        variant="primary"
       >
-        <Text selectable style={styles.submitLabel}>
-          Follow as guest
-        </Text>
-      </Pressable>
+        Follow as guest
+      </MobileButton>
       {message ? (
         <Text selectable style={styles.message} testID="following-add-message">
           {message}
@@ -131,42 +133,14 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   row: { flexDirection: "row", gap: mobileSpacing.small },
-  chip: {
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  selected: { backgroundColor: mobileColors.navigationSelected },
-  chipLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
-  },
   input: {
+    ...mobileTextFieldStyle,
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.medium,
     borderWidth: 1,
-    color: mobileColors.textPrimary,
-    fontSize: 16,
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
-  },
-  submit: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  submitLabel: {
-    color: mobileColors.background,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
   },
   message: {
     color: mobileColors.textSecondary,
