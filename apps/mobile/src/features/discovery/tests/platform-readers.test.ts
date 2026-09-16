@@ -23,12 +23,27 @@ describe("platform catalog readers", () => {
             ],
           });
         }
+        if (url.includes("/users")) {
+          return json({
+            data: [
+              {
+                broadcaster_type: "partner",
+                display_name: "Alice",
+                id: "u1",
+                login: "alice",
+              },
+            ],
+          });
+        }
         if (url.includes("/streams/followed")) {
           return json({
             data: [
               {
+                game_id: "509658",
+                game_name: "Just Chatting",
                 id: "f1",
                 language: "en",
+                tags: ["English"],
                 thumbnail_url: "https://example.com/{width}x{height}.jpg",
                 title: "Followed",
                 type: "live",
@@ -43,8 +58,11 @@ describe("platform catalog readers", () => {
         return json({
           data: [
             {
+              game_id: "509658",
+              game_name: "Just Chatting",
               id: "s1",
               language: "en",
+              tags: ["English", "IRL"],
               thumbnail_url: "https://example.com/{width}x{height}.jpg",
               title: "Top",
               type: "live",
@@ -60,6 +78,14 @@ describe("platform catalog readers", () => {
       readUserId: async () => "u1",
     });
     await expect(reader.getTopStreams()).resolves.toMatchObject({
+      items: [
+        {
+          categoryName: "Just Chatting",
+          channelIsVerified: true,
+          tags: ["English", "IRL"],
+          title: "Top",
+        },
+      ],
       path: { kind: "direct" },
       status: "complete",
     });
@@ -67,8 +93,66 @@ describe("platform catalog readers", () => {
       items: [{ id: "g1", name: "Just Chatting" }],
     });
     await expect(reader.getFollowedStreams()).resolves.toMatchObject({
-      items: [{ id: "f1", title: "Followed" }],
+      items: [{ channelIsVerified: true, tags: ["English"], title: "Followed" }],
     });
+  });
+
+  it("joins Helix Search Channels with Get Users for verified and tags", async () => {
+    const urls: string[] = [];
+    const reader = createTwitchHelixReader({
+      clientId: "client",
+      fetch: async (input) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes("/search/channels")) {
+          return json({
+            data: [
+              {
+                broadcaster_login: "alice",
+                display_name: "Alice",
+                game_id: "509658",
+                game_name: "Just Chatting",
+                id: "u1",
+                is_live: true,
+                tags: ["English"],
+                thumbnail_url: "https://example.com/a.png",
+                title: "Live search",
+              },
+            ],
+          });
+        }
+        if (url.includes("/search/categories")) {
+          return json({ data: [] });
+        }
+        if (url.includes("/users")) {
+          return json({
+            data: [
+              {
+                broadcaster_type: "partner",
+                id: "u1",
+                login: "alice",
+              },
+            ],
+          });
+        }
+        return json({ data: [] });
+      },
+      readAccessToken: async () => "user",
+    });
+    await expect(reader.search({ query: "alice" })).resolves.toMatchObject({
+      catalog: {
+        channels: [{ id: "u1", isPartner: true, isVerified: true }],
+        streams: [
+          {
+            channelIsVerified: true,
+            tags: ["English"],
+            title: "Live search",
+          },
+        ],
+      },
+      status: "complete",
+    });
+    expect(urls.filter((url) => url.includes("/users"))).toHaveLength(1);
   });
 
   it("maps signed-out Twitch GQL search and Kick public catalogs", async () => {
@@ -109,8 +193,13 @@ describe("platform catalog readers", () => {
               channel: {
                 id: 22,
                 slug: "absi",
-                user: { username: "Absi", profilepic: "https://example.com/a.webp" },
+                user: {
+                  username: "Absi",
+                  profilepic: "https://example.com/a.webp",
+                  verified: true,
+                },
               },
+              custom_tags: [{ tag: "English" }],
             },
           ],
         });
@@ -118,7 +207,14 @@ describe("platform catalog readers", () => {
       readAccessToken: async () => null,
     });
     await expect(reader.getTopStreams()).resolves.toMatchObject({
-      items: [{ channelName: "absi", title: "Live on Kick" }],
+      items: [
+        {
+          channelIsVerified: true,
+          channelName: "absi",
+          tags: ["English"],
+          title: "Live on Kick",
+        },
+      ],
       path: { kind: "guest", platform: "kick" },
       status: "complete",
     });

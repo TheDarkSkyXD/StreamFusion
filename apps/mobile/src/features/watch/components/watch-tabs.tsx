@@ -26,6 +26,7 @@ export function WatchTabs({
   chat,
   info,
   onAddToMultistream,
+  onChatRetry,
   onOpenRelated,
   onSelect,
   recorded = false,
@@ -35,6 +36,7 @@ export function WatchTabs({
   readonly chat: WatchChatAvailability;
   readonly info: WatchInfo | null;
   readonly onAddToMultistream?: () => void;
+  readonly onChatRetry?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onSelect: (tab: WatchTab) => void;
   readonly recorded?: boolean;
@@ -70,8 +72,15 @@ export function WatchTabs({
           testID={`watch-tab-${chatTab}`}
         />
       </View>
-      {tab === "chat" ? <ChatPane chat={chat} /> : null}
-      {tab === "comments" ? <CommentsPane /> : null}
+      {tab === "chat" ? (
+        <ChatPane chat={chat} {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })} />
+      ) : null}
+      {tab === "comments" ? (
+        <CommentsPane
+          chat={chat}
+          {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })}
+        />
+      ) : null}
       {tab === "info" ? (
         <InfoPane
           info={info}
@@ -85,30 +94,108 @@ export function WatchTabs({
   );
 }
 
-function CommentsPane() {
+function CommentsPane({
+  chat,
+  onRetry,
+}: {
+  readonly chat: WatchChatAvailability;
+  readonly onRetry?: () => void;
+}) {
   return (
-    <MobileStatusPanel testID="watch-comments" tone="info">
-      <Text selectable style={mobileType.title}>
-        Comments
-      </Text>
-      <Text selectable style={mobileType.body}>
-        Comments are not connected in this build. This placeholder is not live
-        chat.
-      </Text>
-    </MobileStatusPanel>
+    <ChatPane
+      chat={chat}
+      testID="watch-comments"
+      title="Comments"
+      {...(onRetry === undefined ? {} : { onRetry })}
+    />
   );
 }
 
-function ChatPane({ chat }: { readonly chat: WatchChatAvailability }) {
+function ChatPane({
+  chat,
+  onRetry,
+  testID = "watch-chat",
+  title = "Chat",
+}: {
+  readonly chat: WatchChatAvailability;
+  readonly onRetry?: () => void;
+  readonly testID?: string;
+  readonly title?: string;
+}) {
+  if (chat.kind === "connecting") {
+    return (
+      <MobileStatusPanel testID={testID} tone="loading">
+        <Text selectable style={mobileType.title}>
+          {title}
+        </Text>
+        <Text selectable style={mobileType.body}>
+          {chat.detail}
+        </Text>
+      </MobileStatusPanel>
+    );
+  }
+  if (chat.kind === "failed") {
+    return (
+      <MobileStatusPanel testID={testID} tone="error">
+        <Text selectable style={mobileType.title}>
+          {title}
+        </Text>
+        <Text selectable style={mobileType.body}>
+          {chat.detail}
+        </Text>
+        {onRetry ? (
+          <MobileButton
+            accessibilityLabel="Retry chat"
+            onPress={onRetry}
+            testID={`${testID}-retry`}
+            variant="secondary"
+          >
+            Retry
+          </MobileButton>
+        ) : null}
+      </MobileStatusPanel>
+    );
+  }
+  if (chat.kind === "unavailable") {
+    return (
+      <MobileStatusPanel testID={testID} tone="info">
+        <Text selectable style={mobileType.title}>
+          {title}
+        </Text>
+        <Text selectable style={mobileType.body}>
+          {chat.detail}
+        </Text>
+      </MobileStatusPanel>
+    );
+  }
+  if (chat.kind === "empty") {
+    return (
+      <MobileStatusPanel testID={testID} tone="empty">
+        <Text selectable style={mobileType.title}>
+          {title}
+        </Text>
+        <Text selectable style={mobileType.body}>
+          {chat.detail}
+        </Text>
+      </MobileStatusPanel>
+    );
+  }
   return (
-    <MobileStatusPanel testID="watch-chat" tone="info">
+    <View style={styles.pane} testID={testID}>
       <Text selectable style={mobileType.title}>
-        Chat
+        {title}
       </Text>
-      <Text selectable style={mobileType.body}>
-        {chat.detail}
-      </Text>
-    </MobileStatusPanel>
+      {chat.messages.map((message) => (
+        <Text
+          key={message.id}
+          selectable
+          style={mobileType.body}
+          testID={`watch-chat-message-${message.id}`}
+        >
+          {`${message.displayName}: ${message.text}`}
+        </Text>
+      ))}
+    </View>
   );
 }
 

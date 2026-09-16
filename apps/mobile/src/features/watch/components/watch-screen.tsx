@@ -19,6 +19,7 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
+import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
 import type {
   FocusedWatchState,
   WatchChatAvailability,
@@ -46,6 +47,7 @@ export type PlayerSurfaceProps = {
 
 export type WatchScreenRuntime = {
   readonly adblock?: AdBlockSession;
+  readonly chat: WatchChatSession;
   readonly history: WatchHistoryRepository;
   readonly openProviderPage: {
     open(target: WatchTarget): Promise<unknown>;
@@ -80,6 +82,7 @@ export function WatchScreen({
   recording,
   inspection,
   onAddToMultistream,
+  onChatRetry,
   onOpenProviderPage,
   onOpenRelated,
   onRetry,
@@ -112,6 +115,7 @@ export function WatchScreen({
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
   readonly onAddToMultistream?: () => void;
+  readonly onChatRetry?: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onRetry: () => void;
@@ -249,6 +253,7 @@ export function WatchScreen({
             {...(onAddToMultistream === undefined
               ? {}
               : { onAddToMultistream })}
+            {...(onChatRetry === undefined ? {} : { onChatRetry })}
           />
         </>
       )}

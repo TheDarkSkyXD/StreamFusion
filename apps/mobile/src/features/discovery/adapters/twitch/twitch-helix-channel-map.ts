@@ -17,6 +17,10 @@ import {
   numberField,
   stringField,
 } from "../../utils/helix-media";
+import {
+  helixTags,
+  twitchChannelVerified,
+} from "../../utils/catalog-fields";
 
 export function toHelixChannel(
   user: Record<string, unknown>,
@@ -34,7 +38,7 @@ export function toHelixChannel(
     id: identifierField(user, "id"),
     isLive,
     isPartner: stringField(user, "broadcaster_type") === "partner",
-    isVerified: stringField(user, "broadcaster_type") !== "",
+    isVerified: twitchChannelVerified(stringField(user, "broadcaster_type")),
     platform: "twitch",
     username: stringField(user, "login") || stringField(user, "display_name"),
     ...(bannerUrl === "" ? {} : { bannerUrl }),
@@ -65,7 +69,7 @@ export function toHelixLive(
     language: stringField(record, "language"),
     platform: "twitch",
     startedAt: startedAt ?? null,
-    tags: [],
+    tags: helixTags(record),
     thumbnailUrl: stringField(record, "thumbnail_url")
       .replaceAll("{width}", "640")
       .replaceAll("{height}", "360"),
@@ -73,6 +77,9 @@ export function toHelixLive(
     viewerCount: numberField(record, "viewer_count"),
     ...(categoryId === "" ? {} : { categoryId }),
     ...(categoryName === "" ? {} : { categoryName }),
+    ...(channel.isVerified || channel.isPartner
+      ? { channelIsVerified: true }
+      : {}),
   };
 }
 

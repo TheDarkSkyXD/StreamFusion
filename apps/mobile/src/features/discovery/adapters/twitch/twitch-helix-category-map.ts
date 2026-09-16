@@ -1,5 +1,7 @@
-import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
+import type { Category, Clip, Video } from "@streamfusion/core/content";
 import type { ClipTimeRange } from "@streamfusion/core/discovery";
+
+export { helixStreams } from "./helix-catalog-map";
 
 export function helixCategories(value: unknown): readonly Category[] {
   return records(value).flatMap((record) => {
@@ -14,33 +16,6 @@ export function helixCategories(value: unknown): readonly Category[] {
             id,
             name: stringField(record, "name"),
             platform: "twitch" as const,
-          },
-        ];
-  });
-}
-
-export function helixStreams(value: unknown): readonly Stream[] {
-  return records(value).flatMap((record) => {
-    const id = stringField(record, "id");
-    return id === ""
-      ? []
-      : [
-          {
-            channelAvatar: "",
-            channelDisplayName: stringField(record, "user_name"),
-            channelId: stringField(record, "user_id"),
-            channelName: stringField(record, "user_login"),
-            id,
-            isLive: stringField(record, "type") === "live",
-            language: stringField(record, "language"),
-            platform: "twitch" as const,
-            startedAt: null,
-            tags: [],
-            thumbnailUrl: stringField(record, "thumbnail_url")
-              .replaceAll("{width}", "640")
-              .replaceAll("{height}", "360"),
-            title: stringField(record, "title"),
-            viewerCount: numberField(record, "viewer_count"),
           },
         ];
   });

@@ -1059,6 +1059,7 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-more-multistream-root">
         <MultistreamScreen
+          chat={watch.chat}
           onAddFromSearch={() =>
             dispatch({ type: "navigate", location: { route: "search" } })
           }

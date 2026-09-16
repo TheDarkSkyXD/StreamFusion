@@ -184,8 +184,8 @@ describe("multistream admission", () => {
     expect(view.cells).toHaveLength(6);
     expect(view.title).toContain("3 configured");
     expect(view.notice).toContain("Stage 4");
-    expect(view.chatDetail).toContain("Chat is not connected");
-    expect(view.captionDetail).toContain("Local captions are not connected");
+    expect(view.chatDetail).toContain("Select a live slot");
+    expect(view.captionDetail).toContain("Captions stay on the focused Watch player");
     expect(tabletMultistreamColumns(411)).toBe(1);
     expect(tabletMultistreamColumns(600)).toBe(2);
     expect(tabletMultistreamColumns(900)).toBe(3);

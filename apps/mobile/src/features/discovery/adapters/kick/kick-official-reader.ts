@@ -10,6 +10,7 @@ import {
   streamsFromLiveChannels,
 } from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
+import { kickTags, kickVerified } from "../../utils/catalog-fields";
 import { createKickOfficialCategoryReads } from "./kick-official-category-reader";
 import { createKickOfficialChannelReader } from "./kick-official-channel-reader";
 import {
@@ -155,7 +156,7 @@ function kickChannels(value: unknown): readonly Channel[] {
         id,
         isLive: record.is_live === true,
         isPartner: record.is_partner === true,
-        isVerified: record.verified === true,
+        isVerified: kickVerified(record) || kickVerified(user),
         platform: "kick" as const,
         username: stringField(record, "slug") || stringField(user, "username"),
       },
@@ -195,13 +196,16 @@ function kickStreams(value: unknown): readonly Stream[] {
         language: stringField(record, "language"),
         platform: "kick" as const,
         startedAt: null,
-        tags: [],
+        tags: kickTags(record),
         thumbnailUrl: stringField(record, "thumbnail_url"),
         title: stringField(record, "session_title") || stringField(record, "title"),
         viewerCount:
           typeof record.viewer_count === "number" && record.viewer_count >= 0
             ? record.viewer_count
             : 0,
+        ...(kickVerified(record) || kickVerified(channel) || kickVerified(user)
+          ? { channelIsVerified: true }
+          : {}),
       },
     ];
   });

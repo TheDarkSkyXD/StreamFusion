@@ -21,13 +21,19 @@ import {
   setMultistreamMode,
   slotFromAddSource,
 } from "../domain/multistream-layout";
-import type { MultistreamPlayback } from "../domain/multistream-playback";
-import type { MultistreamConfirm } from "../domain/multistream-view";
-import { composeMultistreamView } from "../domain/multistream-view";
+import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
+import { useWatchChat } from "@mobile/features/chat/components/use-watch-chat";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+import {
+  composeMultistreamView,
+  MULTISTREAM_CHAT_DETAIL,
+  type MultistreamConfirm,
+} from "../domain/multistream-view";
 
 const QUERY_KEY = ["multistream-layout"];
 
 export function useMultistream(input: {
+  readonly chat?: WatchChatSession;
   readonly nowEpochMs?: () => number;
   readonly playback: MultistreamPlayback;
   readonly profile: CapabilityProfile | null;
@@ -61,15 +67,27 @@ export function useMultistream(input: {
     });
   }, [admission, input.playback, input.stage, layout]);
   const snapshot = input.playback.snapshot();
+  const focused =
+    layout.slots.find((slot) => slot.id === layout.focusedSlotId) ??
+    layout.slots[0];
+  const chatTarget: WatchTarget = focused
+    ? {
+        channelId: focused.channelId,
+        channelName: focused.channelLogin,
+        platform: focused.platform,
+      }
+    : { channelId: "", channelName: "", platform: "twitch" };
+  const chat = useWatchChat(focused ? (input.chat ?? null) : null, chatTarget);
   const view = useMemo(
     () =>
       composeMultistreamView({
+        chatDetail: focused ? chat.detail : MULTISTREAM_CHAT_DETAIL,
         confirm,
         editing,
         qualified: snapshot.qualified,
         windowWidth: input.windowWidth,
       }),
-    [confirm, editing, input.windowWidth, snapshot.qualified],
+    [chat.detail, confirm, editing, focused, input.windowWidth, snapshot.qualified],
   );
 
   async function persist(next: MultistreamLayout): Promise<void> {

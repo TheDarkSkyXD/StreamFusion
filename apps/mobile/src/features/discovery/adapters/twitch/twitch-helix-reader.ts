@@ -5,17 +5,17 @@ import type {
   PlatformReadOutcome,
   SearchReadOutcome,
 } from "../../capabilities/platform-reads";
-import { emptySearchCatalog, streamsFromLiveChannels } from "../../domain/search-catalog";
+import { emptySearchCatalog } from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
 import { createTwitchHelixCategoryReads } from "./twitch-helix-category-reader";
 import { createTwitchHelixChannelReader } from "./twitch-helix-channel-reader";
 import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
 
+import { helixCategories, helixStreams } from "./helix-catalog-map";
 import {
-  helixCategories,
-  helixChannels,
-  helixStreams,
-} from "./helix-catalog-map";
+  completeHelixSearchCatalog,
+  completeHelixStreams,
+} from "./twitch-helix-users";
 
 const HELIX = "https://api.twitch.tv/helix";
 
@@ -50,12 +50,20 @@ export function createTwitchHelixReader(input: {
       if (userId === null) {
         return missingToken("twitch", "signed-out-login-required");
       }
-      return helixCollection({
-        input,
-        map: helixStreams,
-        path: `/streams/followed?user_id=${encodeURIComponent(userId)}&first=20`,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+      return completeHelixStreams(
+        await helixCollection({
+          input,
+          map: helixStreams,
+          path: `/streams/followed?user_id=${encodeURIComponent(userId)}&first=20`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        }),
+        {
+          clientId: input.clientId,
+          fetch: input.fetch,
+          readAccessToken: input.readAccessToken,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        },
+      );
     },
     async search(read: {
       readonly guest?: boolean;
@@ -66,9 +74,8 @@ export function createTwitchHelixReader(input: {
         return guest.search(read);
       }
       const [channels, categories] = await Promise.all([
-        helixCollection({
+        helixPayload({
           input,
-          map: helixChannels,
           path: `/search/channels?query=${encodeURIComponent(read.query)}&first=20`,
           ...(read.signal === undefined ? {} : { signal: read.signal }),
         }),
@@ -80,18 +87,32 @@ export function createTwitchHelixReader(input: {
         }),
       ]);
       if (channels.status === "failed") {
-        return searchFromOutcome(channels);
+        return searchFromOutcome({
+          cache: channels.cache,
+          error: channels.error,
+          items: [],
+          path: channels.path,
+          platform: channels.platform,
+          status: channels.status,
+        });
       }
       if (categories.status === "failed") {
         return searchFromOutcome(categories);
       }
+      const catalog = await completeHelixSearchCatalog({
+        clientId: input.clientId,
+        fetch: input.fetch,
+        payload: channels.payload,
+        readAccessToken: input.readAccessToken,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
       return {
         cache: { kind: "miss" },
         catalog: {
           categories: categories.items,
-          channels: channels.items,
+          channels: catalog.channels,
           clips: [],
-          streams: streamsFromLiveChannels(channels.items),
+          streams: catalog.streams,
           videos: [],
         },
         path: { kind: "direct", platform: "twitch" },
@@ -124,18 +145,62 @@ export function createTwitchHelixReader(input: {
         if (!response.ok) {
           return failed(response.status === 401 ? "auth-lost" : "twitch-failed");
         }
-        return {
-          cache: { kind: "miss" },
-          items: helixStreams(await response.json()),
-          path: { kind: "direct", platform: "twitch" },
-          platform: "twitch",
-          status: "complete",
-        };
+        return completeHelixStreams(
+          {
+            cache: { kind: "miss" },
+            items: helixStreams(await response.json()),
+            path: { kind: "direct", platform: "twitch" },
+            platform: "twitch",
+            status: "complete",
+          },
+          {
+            clientId: input.clientId,
+            fetch: input.fetch,
+            readAccessToken: input.readAccessToken,
+            ...(read.signal === undefined ? {} : { signal: read.signal }),
+          },
+        );
       } catch (error) {
         if (read.signal?.aborted || isAbort(error)) return cancelled("twitch");
         return failed("twitch-failed");
       }
     },
+  };
+}
+
+async function helixPayload(input: {
+  readonly input: {
+    readonly clientId: string | null;
+    readonly fetch: typeof globalThis.fetch;
+    readonly readAccessToken: () => Promise<string | null>;
+  };
+  readonly path: string;
+  readonly signal?: AbortSignal;
+}): Promise<
+  | (PlatformReadOutcome<never> & {
+      readonly payload?: undefined;
+    })
+  | {
+      readonly cache: { readonly kind: "miss" };
+      readonly path: { readonly kind: "direct"; readonly platform: "twitch" };
+      readonly payload: unknown;
+      readonly platform: "twitch";
+      readonly status: "complete";
+    }
+> {
+  const outcome = await helixCollection({
+    input: input.input,
+    map: (value) => [value],
+    path: input.path,
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+  });
+  if (outcome.status === "failed") return outcome;
+  return {
+    cache: outcome.cache,
+    path: { kind: "direct", platform: "twitch" },
+    payload: outcome.items[0],
+    platform: "twitch",
+    status: "complete",
   };
 }
 

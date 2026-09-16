@@ -107,6 +107,29 @@ describe("Following screen", () => {
     expect(phase?.props.children).toMatch(/Follow channels as a guest/);
   });
 
+  it("retries a failed live Following catalog", () => {
+    const retried: string[] = [];
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      tab: "live",
+      twitch: liveOutcome("twitch", "failed"),
+    });
+    const nodes = descendants(
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: (platform) => retried.push(platform),
+        view,
+      }),
+    );
+    nodes.find((node) => node.props.testID === "following-retry-twitch")?.props.onPress?.();
+    expect(retried).toEqual(["twitch"]);
+  });
+
   it("renders Kick recorded unsupported copy", () => {
     const view = composeFollowingView({
       chip: "kick",
