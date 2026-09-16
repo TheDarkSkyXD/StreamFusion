@@ -46,7 +46,9 @@ export function CategoryCard({
         {category.name}
       </Text>
       <View style={styles.tags}>
-        <MobileCatalogTags tags={category.tags} />
+        <MobileCatalogTags
+          {...(category.tags === undefined ? {} : { tags: category.tags })}
+        />
       </View>
       <Text selectable style={styles.viewers}>
         {category.viewerCount === undefined

@@ -72,10 +72,10 @@ export function MediaJobScreen({
       <JobActions
         busy={busy}
         onCommand={onCommand}
-        onDelete={onDelete}
-        onExport={onExport}
-        onOpen={onOpen}
         snapshot={snapshot}
+        {...(onDelete === undefined ? {} : { onDelete })}
+        {...(onExport === undefined ? {} : { onExport })}
+        {...(onOpen === undefined ? {} : { onOpen })}
       />
       </MobileStatusPanel>
     </View>

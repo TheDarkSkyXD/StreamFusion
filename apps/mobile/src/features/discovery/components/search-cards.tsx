@@ -101,7 +101,9 @@ export function SearchCategoryCard({
       </Text>
       <View style={styles.categoryMeta}>
         <MobilePlatformBadge platform={category.platform} />
-        <MobileCatalogTags tags={category.tags} />
+        <MobileCatalogTags
+          {...(category.tags === undefined ? {} : { tags: category.tags })}
+        />
       </View>
     </View>
   );

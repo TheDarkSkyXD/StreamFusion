@@ -87,14 +87,7 @@ export function createTwitchHelixReader(input: {
         }),
       ]);
       if (channels.status === "failed") {
-        return searchFromOutcome({
-          cache: channels.cache,
-          error: channels.error,
-          items: [],
-          path: channels.path,
-          platform: channels.platform,
-          status: channels.status,
-        });
+        return searchFromOutcome(channels);
       }
       if (categories.status === "failed") {
         return searchFromOutcome(categories);
@@ -194,9 +187,18 @@ async function helixPayload(input: {
     path: input.path,
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   });
-  if (outcome.status === "failed") return outcome;
+  if (outcome.status === "failed") {
+    return {
+      cache: outcome.cache,
+      items: [],
+      path: outcome.path,
+      platform: "twitch",
+      status: "failed",
+      ...(outcome.error === undefined ? {} : { error: outcome.error }),
+    };
+  }
   return {
-    cache: outcome.cache,
+    cache: { kind: "miss" },
     path: { kind: "direct", platform: "twitch" },
     payload: outcome.items[0],
     platform: "twitch",

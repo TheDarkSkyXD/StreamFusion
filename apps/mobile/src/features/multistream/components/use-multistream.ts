@@ -21,6 +21,7 @@ import {
   setMultistreamMode,
   slotFromAddSource,
 } from "../domain/multistream-layout";
+import type { MultistreamPlayback } from "../domain/multistream-playback";
 import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
 import { useWatchChat } from "@mobile/features/chat/components/use-watch-chat";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";

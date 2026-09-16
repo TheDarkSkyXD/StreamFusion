@@ -38,7 +38,10 @@ export function MobileCatalogTags({
   readonly tags?: readonly string[];
   readonly testID?: string;
 }) {
-  const labels = catalogTagLabels({ language, tags });
+  const labels = catalogTagLabels({
+    ...(language === undefined ? {} : { language }),
+    ...(tags === undefined ? {} : { tags }),
+  });
   if (labels.length === 0) return null;
   return (
     <View

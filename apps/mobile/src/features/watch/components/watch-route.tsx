@@ -19,6 +19,10 @@ import type {
   WatchTarget,
 } from "../capabilities/watch";
 import { useWatchChat } from "@mobile/features/chat/components/use-watch-chat";
+import {
+  useFocusedWatchSession,
+  useWatchPeek,
+} from "./use-focused-watch-session";
 import { WatchEmptyState, WatchScreen, type WatchCaptionControls, type WatchMediaJobControls, type WatchScreenRuntime } from "./watch-screen";
 import { recordedWatchStartPositionMs } from "../domain/watch-target";
 import {

@@ -65,7 +65,7 @@ export function WatchDownloadBar({
           onDelete={onDelete}
           onExport={onExport}
           onOpenArtifact={onOpenArtifact}
-          status={status}
+          {...(status === undefined ? {} : { status })}
         />
       ) : (
         <Action

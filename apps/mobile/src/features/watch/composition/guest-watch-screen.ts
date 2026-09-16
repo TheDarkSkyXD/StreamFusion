@@ -19,6 +19,7 @@ import { createTwitchLivePlaybackSource } from "../adapters/twitch/twitch-live-p
 import { createTwitchVodPlaybackSource } from "../adapters/twitch/twitch-vod-playback-source";
 import { createExpoWatchProviderFallback } from "../adapters/expo-watch-provider-fallback";
 import { createWatchChatSession } from "@mobile/features/chat/adapters/create-watch-chat-session";
+import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
 import { createWatchRuntime } from "./watch-runtime";
 

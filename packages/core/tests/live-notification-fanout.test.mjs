@@ -11,14 +11,20 @@ import {
 import { MAX_LIVE_NOTIFICATION_PAIRS } from "../src/relay/live-notifications.ts";
 
 test("installation fanout keeps overflow pairs instead of dropping them", () => {
-  const pairs = Array.from({ length: MAX_FCM_TOPIC_SUBSCRIPTIONS + 3 }, (_, index) => ({
-    platform: "twitch",
-    channelId: `chan-${index + 1}`,
-  }));
+  const pairs = Array.from(
+    { length: MAX_FCM_TOPIC_SUBSCRIPTIONS + 3 },
+    (_, index) => ({
+      platform: "twitch",
+      channelId: `chan-${index + 1}`,
+    }),
+  );
   const plan = planInstallationFanout(pairs);
   assert.equal(plan.topicNames.length, MAX_FCM_TOPIC_SUBSCRIPTIONS);
   assert.equal(plan.overflowPairs.length, 3);
-  assert.equal(plan.overflowPairs[0]?.channelId, `chan-${MAX_FCM_TOPIC_SUBSCRIPTIONS + 1}`);
+  assert.equal(
+    plan.overflowPairs[0]?.channelId,
+    `chan-${MAX_FCM_TOPIC_SUBSCRIPTIONS + 1}`,
+  );
   assert.ok(MAX_LIVE_NOTIFICATION_PAIRS > MAX_FCM_TOPIC_SUBSCRIPTIONS);
 });
 
@@ -70,7 +76,12 @@ test("private media and account events stay on direct tokens", () => {
     recipients: [
       {
         tokenFingerprint: "cccccccccccccccc",
-        topicNames: [liveNotificationTopicName({ platform: "twitch", channelId: "chan-1" })],
+        topicNames: [
+          liveNotificationTopicName({
+            platform: "twitch",
+            channelId: "chan-1",
+          }),
+        ],
         overflowKeys: [],
       },
     ],
