@@ -1,13 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { Platform } from "@streamfusion/core/platform";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { mobileSpacing } from "@mobile/design/tokens";
 
 const TABS = [
   "all",
@@ -45,64 +41,37 @@ export function SearchFilters({
         style={styles.row}
       >
         {TABS.map((next) => (
-          <Pressable
+          <MobileFilterChip
             accessibilityLabel={tabLabel(next)}
             accessibilityRole="tab"
-            accessibilityState={{ selected: tab === next }}
-            android_ripple={{ color: mobileColors.surfaceRaised }}
             key={next}
+            label={tabLabel(next)}
             onPress={() => onSelectTab(next)}
-            style={({ pressed }) => [
-              styles.chip,
-              tab === next ? styles.chipSelected : null,
-              pressed ? styles.pressed : null,
-            ]}
+            selected={tab === next}
             testID={`search-tab-${next}`}
-          >
-            <Text selectable style={styles.chipLabel}>
-              {tabLabel(next)}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
       <View accessibilityLabel="Search filters" style={styles.row}>
         {PLATFORMS.map((next) => (
-          <Pressable
+          <MobileFilterChip
             accessibilityLabel={
               next === "all" ? "All platforms" : platformLabel(next)
             }
-            accessibilityRole="button"
-            accessibilityState={{ selected: platform === next }}
             key={next}
+            label={next === "all" ? "All platforms" : platformLabel(next)}
             onPress={() => onSelectPlatform(next)}
-            style={({ pressed }) => [
-              styles.chip,
-              platform === next ? styles.chipSelected : null,
-              pressed ? styles.pressed : null,
-            ]}
+            selected={platform === next}
             testID={`search-platform-${next}`}
-          >
-            <Text selectable style={styles.chipLabel}>
-              {next === "all" ? "All platforms" : platformLabel(next)}
-            </Text>
-          </Pressable>
+          />
         ))}
-        <Pressable
+        <MobileFilterChip
           accessibilityLabel="Live only"
-          accessibilityRole="button"
-          accessibilityState={{ selected: liveOnly }}
+          label="Live only"
           onPress={onToggleLiveOnly}
-          style={({ pressed }) => [
-            styles.chip,
-            liveOnly ? styles.chipSelected : null,
-            pressed ? styles.pressed : null,
-          ]}
+          selected={liveOnly}
           testID="toggle-live-only"
-        >
-          <Text selectable style={styles.chipLabel}>
-            Live only
-          </Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -137,27 +106,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: mobileSpacing.small,
-  },
-  chip: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  chipSelected: {
-    backgroundColor: mobileColors.navigationSelected,
-  },
-  chipLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18,
-  },
-  pressed: {
-    opacity: 0.76,
   },
 });

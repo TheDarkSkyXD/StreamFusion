@@ -11,7 +11,10 @@ import {
   type MediaJobNativeJournal,
   type MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
-import { toSerializedTimestamp } from "@streamfusion/core/activity";
+import {
+  toSerializedTimestamp,
+  type ActivityItem,
+} from "@streamfusion/core/activity";
 
 import type { AndroidMediaJobsContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import type { ActivityRepository } from "@mobile/features/storage/capabilities/persistence";

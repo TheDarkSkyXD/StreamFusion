@@ -1,11 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 
 import type { FollowingChannelRow } from "../capabilities/following-session";
@@ -25,9 +27,12 @@ export function FollowingChannelCard({
       style={styles.card}
       testID={`following-channel-${row.follow.platform}-${row.follow.channelId}`}
     >
-      <Text selectable style={styles.title}>
-        {row.follow.displayName}
-      </Text>
+      <View style={styles.heading}>
+        <Text selectable style={styles.title}>
+          {row.follow.displayName}
+        </Text>
+        <MobilePlatformBadge platform={row.follow.platform} />
+      </View>
       <Text selectable style={styles.meta}>
         {row.isLive ? "Live" : "Offline"} · {row.follow.platform}
       </Text>
@@ -37,22 +42,19 @@ export function FollowingChannelCard({
       <Text selectable style={styles.meta}>
         {row.eligible ? "Live alerts eligible" : "Live alerts not eligible"}
       </Text>
-      <Pressable
+      <MobileButton
         accessibilityLabel={`Open ${row.follow.displayName} on ${row.follow.platform}`}
-        accessibilityRole="button"
         onPress={() =>
           onOpenProvider({
             channelLogin: row.follow.channelLogin,
             platform: row.follow.platform,
           })
         }
-        style={styles.action}
         testID={`following-channel-provider-${row.follow.platform}-${row.follow.channelId}`}
+        variant={row.follow.platform}
       >
-        <Text selectable style={styles.actionLabel}>
-          {`Open on ${row.follow.platform}`}
-        </Text>
-      </Pressable>
+        {`Open on ${row.follow.platform}`}
+      </MobileButton>
     </View>
   );
 }
@@ -63,32 +65,23 @@ const styles = StyleSheet.create({
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
     borderWidth: 1,
+    gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
   },
+  heading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    justifyContent: "space-between",
+  },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.title,
+    flex: 1,
   },
   meta: {
     color: mobileColors.textSecondary,
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
-  },
-  action: {
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    marginTop: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  actionLabel: {
-    color: mobileColors.background,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
   },
 });

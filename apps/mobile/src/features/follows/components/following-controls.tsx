@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 
+import { MobileFilterChip } from "@mobile/design/chip";
 import {
   mobileTextFieldProps,
   mobileTextFieldStyle,
@@ -46,43 +47,33 @@ export function FollowingControls({
         autoCorrect={false}
         onChangeText={onQuery}
         placeholder="Search Guest Follows"
-        placeholderTextColor={mobileColors.textSecondary}
+        placeholderTextColor={mobileColors.textMuted}
         style={styles.search}
         testID="following-search"
         value={query}
       />
       <View style={styles.row}>
         {CHIPS.map((value) => (
-          <Pressable
+          <MobileFilterChip
             accessibilityLabel={`${value} filter`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: chip === value }}
             key={value}
+            label={value}
             onPress={() => onChip(value)}
-            style={[styles.chip, chip === value ? styles.selected : null]}
+            selected={chip === value}
             testID={`following-chip-${value}`}
-          >
-            <Text selectable style={styles.chipLabel}>
-              {value}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
       <View style={styles.row}>
         {TABS.map((value) => (
-          <Pressable
+          <MobileFilterChip
             accessibilityLabel={`${value} tab`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: tab === value }}
             key={value}
+            label={value}
             onPress={() => onTab(value)}
-            style={[styles.chip, tab === value ? styles.selected : null]}
+            selected={tab === value}
             testID={`following-tab-${value}`}
-          >
-            <Text selectable style={styles.chipLabel}>
-              {value}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
     </View>
@@ -101,18 +92,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
   },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  chip: {
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  selected: { backgroundColor: mobileColors.navigationSelected },
-  chipLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
-  },
 });

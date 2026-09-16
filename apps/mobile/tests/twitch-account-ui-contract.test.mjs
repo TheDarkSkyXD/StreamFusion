@@ -60,7 +60,7 @@ test("the development fixture is explicit and normal missing configuration stays
   assert.match(runtime, /useState\(false\)/);
   assert.match(runtime, /__DEV__ && twitchClientId === null/);
   assert.match(runtime, /__DEV__ && kickClientId === null/);
-  assert.match(panel, /Development fixture — not a live Twitch account/);
+  assert.match(panel, /Development fixture, not a live Twitch account/);
   assert.match(panel, /development-twitch-auth-fixture/);
   assert.match(panel, /exit-development-twitch-auth-fixture/);
   assert.match(panel, /KickAccountCard/);
@@ -74,7 +74,7 @@ test("the development fixture is explicit and normal missing configuration stays
     "exit-development-kick-auth-fixture",
   ])
     assert.match(kickCard, new RegExp(`"${control}"`));
-  assert.match(kickCard, /Development fixture — not a live Kick account/);
+  assert.match(kickCard, /Development fixture, not a live Kick account/);
 });
 
 test("Accounts uses the shared contained and restorable screen scroll contract", () => {

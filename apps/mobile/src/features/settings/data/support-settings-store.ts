@@ -1,14 +1,11 @@
 import type { ProductSettingsStore } from "@mobile/features/storage/capabilities/persistence";
 
-import type {
-  SupportSettings,
-  SupportSettingsStore,
-} from "../capabilities/support-settings";
+import type { SupportSettingsStore } from "../capabilities/support-settings";
 import { SUPPORT_SETTINGS_KEY } from "../capabilities/support-settings";
 import {
   DEFAULT_SUPPORT_SETTINGS,
   parseSupportSettings,
-} from "../domain/support-settings";
+} from "../capabilities/parse-support-settings";
 
 export function createSupportPreferenceStore(
   settings: ProductSettingsStore,

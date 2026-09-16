@@ -49,6 +49,9 @@ function streamFromLiveChannel(channel: Channel): Stream {
     thumbnailUrl: "",
     title: channel.lastStreamTitle ?? channel.displayName,
     viewerCount: 0,
+    ...(channel.isVerified || channel.isPartner
+      ? { channelIsVerified: true }
+      : {}),
     ...(channel.categoryId === undefined ? {} : { categoryId: channel.categoryId }),
     ...(channel.categoryName === undefined
       ? {}

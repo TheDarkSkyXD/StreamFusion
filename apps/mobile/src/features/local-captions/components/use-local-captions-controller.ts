@@ -4,7 +4,7 @@ import {
   LOCAL_CAPTION_FIXTURE_INTEGRITY_FAIL_URI,
   LOCAL_CAPTION_FIXTURE_PCM_URI,
 } from "@streamfusion/core/local-captions";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import type {
   CaptionModelRequest,
@@ -12,6 +12,7 @@ import type {
   CaptionProofState,
   CaptionSessionRequest,
   CaptionSessionState,
+  NativeCaptionEvent,
 } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 
 import type { LocalCaptionsPort } from "../capabilities/local-captions";
@@ -44,6 +45,78 @@ const englishModel = { modelId: "english-v1" } as const satisfies CaptionModelRe
 const fixtureSessionId = "cap-fixture-diagnostics";
 const secondSessionId = "cap-fixture-second";
 
+type CaptionSnapshot = {
+  readonly cueText: string;
+  readonly model: CaptionModelState | null;
+  readonly proof: CaptionProofState | null;
+  readonly session: CaptionSessionState | null;
+};
+
+function emptySnapshot(): CaptionSnapshot {
+  return { cueText: "", model: null, proof: null, session: null };
+}
+
+function sessionFromEvent(event: NativeCaptionEvent): CaptionSessionState {
+  return {
+    audioLeftDevice: event.audioLeftDevice,
+    audioUploadAttempts: event.audioUploadAttempts,
+    cueText: event.cueText,
+    microphonePermissionRequested: event.microphonePermissionRequested,
+    pcmBytesProcessed: event.pcmBytesProcessed,
+    sessionId: event.sessionId,
+    state: event.state,
+    ...(event.reason === undefined ? {} : { reason: event.reason }),
+  };
+}
+
+function createCaptionSnapshotStore(port: LocalCaptionsPort) {
+  let snapshot = emptySnapshot();
+  const listeners = new Set<() => void>();
+  const emit = () => {
+    for (const listener of listeners) listener();
+  };
+  const setSnapshot = (next: CaptionSnapshot) => {
+    snapshot = next;
+    emit();
+  };
+  const refresh = async () => {
+    const [nextModel, nextProof] = await Promise.all([
+      port.getEnglishModelState(),
+      port.getCaptionProof(),
+    ]);
+    const current = snapshot;
+    setSnapshot({
+      cueText:
+        nextProof.kind === "completed" ? nextProof.value.cueText : current.cueText,
+      model: nextModel.kind === "completed" ? nextModel.value : current.model,
+      proof: nextProof.kind === "completed" ? nextProof.value : current.proof,
+      session: nextProof.kind === "completed" ? nextProof.value : current.session,
+    });
+  };
+  void refresh();
+  const unsubscribe = port.subscribe((event) => {
+    const session = sessionFromEvent(event);
+    setSnapshot({ ...snapshot, cueText: session.cueText, session });
+  });
+  return {
+    applyModel: (model: CaptionModelState) => {
+      setSnapshot({ ...snapshot, model });
+    },
+    applySession: (session: CaptionSessionState) => {
+      setSnapshot({ ...snapshot, cueText: session.cueText, session });
+    },
+    dispose: () => unsubscribe(),
+    getSnapshot: () => snapshot,
+    refresh,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
 function englishSession(
   sessionId: string,
   sourceUri?: string,
@@ -59,39 +132,20 @@ export function useLocalCaptionsController(options: {
   readonly port: LocalCaptionsPort;
 }): LocalCaptionsController {
   const [busy, setBusy] = useState(false);
-  const [cueText, setCueText] = useState("");
-  const [model, setModel] = useState<CaptionModelState | null>(null);
-  const [proof, setProof] = useState<CaptionProofState | null>(null);
-  const [session, setSession] = useState<CaptionSessionState | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-
-  const refresh = async () => {
-    const [nextModel, nextProof] = await Promise.all([
-      options.port.getEnglishModelState(),
-      options.port.getCaptionProof(),
-    ]);
-    if (nextModel.kind === "completed") setModel(nextModel.value);
-    if (nextProof.kind === "completed") {
-      setProof(nextProof.value);
-      setCueText(nextProof.value.cueText);
-      setSession(nextProof.value);
-    }
-  };
-
-  useEffect(() => {
-    void refresh();
-    return options.port.subscribe((event) => {
-      setSession(event);
-      setCueText(event.cueText);
-    });
-  }, [options.port]);
+  const store = useMemo(
+    () => createCaptionSnapshotStore(options.port),
+    [options.port],
+  );
+  useEffect(() => () => store.dispose(), [store]);
+  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
   const run = async (work: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
     try {
       await work();
-      await refresh();
+      await store.refresh();
     } finally {
       setBusy(false);
     }
@@ -101,7 +155,7 @@ export function useLocalCaptionsController(options: {
     result: Awaited<ReturnType<LocalCaptionsPort["installEnglishModel"]>>,
   ) => {
     if (result.kind === "completed") {
-      setModel(result.value);
+      store.applyModel(result.value);
       setStatus(result.value.statusMessage);
       return;
     }
@@ -112,8 +166,7 @@ export function useLocalCaptionsController(options: {
     result: Awaited<ReturnType<LocalCaptionsPort["startFocusedCaptionSession"]>>,
   ) => {
     if (result.kind === "completed") {
-      setSession(result.value);
-      setCueText(result.value.cueText);
+      store.applySession(result.value);
       setStatus(result.value.reason ?? result.value.state);
       return;
     }
@@ -140,8 +193,15 @@ export function useLocalCaptionsController(options: {
     });
 
   return {
-    model: { busy, cueText, model, proof, session, status },
-    refresh,
+    model: {
+      busy,
+      cueText: snapshot.cueText,
+      model: snapshot.model,
+      proof: snapshot.proof,
+      session: snapshot.session,
+      status,
+    },
+    refresh: store.refresh,
     installFixture: () => install(LOCAL_CAPTION_FIXTURE_INSTALL_URI),
     installIntegrityFail: () => install(LOCAL_CAPTION_FIXTURE_INTEGRITY_FAIL_URI),
     removeModel: () =>
@@ -165,7 +225,7 @@ export function useLocalCaptionsController(options: {
       run(async () => {
         await applySession(
           await options.port.stopFocusedCaptionSession(
-            sessionId ?? session?.sessionId ?? fixtureSessionId,
+            sessionId ?? snapshot.session?.sessionId ?? fixtureSessionId,
           ),
         );
       }),

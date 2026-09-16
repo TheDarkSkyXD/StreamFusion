@@ -16,7 +16,10 @@ const proofControl = await readFile(
 
 test("Diagnostics queues an Activity read failure only through the selected proof control", () => {
   assert.match(shell, /<DevelopmentActivityProofControl/);
-  assert.match(shell, /onQueueReadFailure=\{onQueueActivityReadFailure\}/);
+  assert.match(
+    shell,
+    /onQueueReadFailure=\{(?:input\.)?onQueueActivityReadFailure\}/,
+  );
   assert.doesNotMatch(shell, /DevelopmentActivityReadFailureProofControl/);
   assert.doesNotMatch(shell, /run-development-activity-read-failure-proof/);
   assert.match(

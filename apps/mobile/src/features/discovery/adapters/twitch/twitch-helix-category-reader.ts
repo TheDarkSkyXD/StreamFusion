@@ -12,6 +12,7 @@ import {
   helixVideos,
 } from "./twitch-helix-category-map";
 import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
+import { completeHelixStreams } from "./twitch-helix-users";
 
 const HELIX = "https://api.twitch.tv/helix";
 
@@ -51,12 +52,20 @@ export function createTwitchHelixCategoryReads(input: TwitchInput) {
         game_id: read.categoryId,
       });
       if (read.language) params.set("language", read.language);
-      return helixCollection({
-        input,
-        map: helixStreams,
-        path: `/streams?${params}`,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+      return completeHelixStreams(
+        await helixCollection({
+          input,
+          map: helixStreams,
+          path: `/streams?${params}`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        }),
+        {
+          clientId: input.clientId,
+          fetch: input.fetch,
+          readAccessToken: input.readAccessToken,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        },
+      );
     },
     async getCategoryClips(read: {
       readonly categoryId: string;

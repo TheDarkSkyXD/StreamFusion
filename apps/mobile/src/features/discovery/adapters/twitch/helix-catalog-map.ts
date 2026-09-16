@@ -1,9 +1,19 @@
 import type { Category, Channel, Stream } from "@streamfusion/core/content";
 
+import { canonicalTimestamp } from "../../utils/helix-media";
+import {
+  helixTags,
+  twitchChannelVerified,
+  twitchStreamVerified,
+} from "../../utils/catalog-fields";
+
 export function helixStreams(value: unknown): readonly Stream[] {
   return helixRows(value).flatMap((record) => {
     const id = stringField(record, "id");
     if (id === "") return [];
+    const startedAt = canonicalTimestamp(stringField(record, "started_at"));
+    const categoryId = stringField(record, "game_id");
+    const categoryName = stringField(record, "game_name");
     return [
       {
         channelAvatar: "",
@@ -14,8 +24,8 @@ export function helixStreams(value: unknown): readonly Stream[] {
         isLive: stringField(record, "type") === "live",
         language: stringField(record, "language"),
         platform: "twitch" as const,
-        startedAt: null,
-        tags: [],
+        startedAt: startedAt ?? null,
+        tags: helixTags(record),
         thumbnailUrl: stringField(record, "thumbnail_url")
           .replaceAll("{width}", "640")
           .replaceAll("{height}", "360"),
@@ -24,6 +34,89 @@ export function helixStreams(value: unknown): readonly Stream[] {
           typeof record.viewer_count === "number" && record.viewer_count >= 0
             ? record.viewer_count
             : 0,
+        ...(categoryId === "" ? {} : { categoryId }),
+        ...(categoryName === "" ? {} : { categoryName }),
+      },
+    ];
+  });
+}
+
+export type HelixUserFlags = {
+  readonly isPartner: boolean;
+  readonly isVerified: boolean;
+};
+
+export function helixUserVerification(
+  value: unknown,
+): ReadonlyMap<string, HelixUserFlags> {
+  const users = new Map<string, HelixUserFlags>();
+  for (const record of helixRows(value)) {
+    const id = stringField(record, "id");
+    if (id === "") continue;
+    const type = stringField(record, "broadcaster_type");
+    users.set(id, {
+      isPartner: twitchStreamVerified(type),
+      isVerified: twitchChannelVerified(type),
+    });
+  }
+  return users;
+}
+
+export function attachHelixStreamVerification(
+  streams: readonly Stream[],
+  users: ReadonlyMap<string, HelixUserFlags>,
+): readonly Stream[] {
+  return streams.map((stream) => {
+    if (users.get(stream.channelId)?.isVerified !== true) return stream;
+    return { ...stream, channelIsVerified: true };
+  });
+}
+
+export function attachHelixChannelVerification(
+  channels: readonly Channel[],
+  users: ReadonlyMap<string, HelixUserFlags>,
+): readonly Channel[] {
+  return channels.map((channel) => {
+    const flags = users.get(channel.id);
+    if (flags === undefined) return channel;
+    return {
+      ...channel,
+      isPartner: flags.isPartner,
+      isVerified: flags.isVerified,
+    };
+  });
+}
+
+export function helixLiveStreamsFromSearch(value: unknown): readonly Stream[] {
+  return helixRows(value).flatMap((record) => {
+    if (record.is_live !== true) return [];
+    const id = stringField(record, "id");
+    const channelName =
+      stringField(record, "broadcaster_login") ||
+      stringField(record, "user_login");
+    if (id === "" || channelName === "") return [];
+    return [
+      {
+        channelAvatar: stringField(record, "thumbnail_url"),
+        channelDisplayName:
+          stringField(record, "display_name") || channelName,
+        channelId: id,
+        channelName,
+        id: `live:twitch:${id}`,
+        isLive: true,
+        language: stringField(record, "broadcaster_language"),
+        platform: "twitch" as const,
+        startedAt: null,
+        tags: helixTags(record),
+        thumbnailUrl: stringField(record, "thumbnail_url"),
+        title: stringField(record, "title"),
+        viewerCount: 0,
+        ...(stringField(record, "game_id") === ""
+          ? {}
+          : { categoryId: stringField(record, "game_id") }),
+        ...(stringField(record, "game_name") === ""
+          ? {}
+          : { categoryName: stringField(record, "game_name") }),
       },
     ];
   });
@@ -61,7 +154,7 @@ export function helixChannels(value: unknown): readonly Channel[] {
         id,
         isLive: record.is_live === true,
         isPartner: stringField(record, "broadcaster_type") === "partner",
-        isVerified: false,
+        isVerified: twitchChannelVerified(stringField(record, "broadcaster_type")),
         platform: "twitch" as const,
         username: stringField(record, "broadcaster_login"),
         ...(categoryId === "" ? {} : { categoryId }),

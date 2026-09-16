@@ -5,6 +5,7 @@ import type {
   CapabilityProfile,
   RuntimeDegradationStage,
 } from "@mobile/features/capability-profile/domain/capability-profile";
+import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
 import type { PlayerSurfaceProps } from "@mobile/features/watch/components/watch-screen";
 import type { MultistreamRepository } from "../capabilities/multistream";
 import type { MultistreamPlayback } from "../domain/multistream-playback";
@@ -12,6 +13,7 @@ import { MultistreamView } from "./multistream-view";
 import { useMultistream } from "./use-multistream";
 
 export function MultistreamScreen({
+  chat,
   onAddFromSearch,
   onCoolDevice,
   playback,
@@ -21,6 +23,7 @@ export function MultistreamScreen({
   slotCap,
   stage,
 }: {
+  readonly chat?: WatchChatSession;
   readonly onAddFromSearch: () => void;
   readonly onCoolDevice: () => void;
   readonly playback: MultistreamPlayback;
@@ -32,6 +35,7 @@ export function MultistreamScreen({
 }) {
   const { width } = useWindowDimensions();
   const session = useMultistream({
+    ...(chat === undefined ? {} : { chat }),
     playback,
     profile,
     repository,

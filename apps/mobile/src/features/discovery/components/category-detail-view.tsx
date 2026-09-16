@@ -1,11 +1,12 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobileFilterChip } from "@mobile/design/chip";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { DiscoveryFixtureMode } from "../capabilities/platform-reads";
 import type { CategoryDetailView as CategoryDetailModel } from "../domain/category-detail";
@@ -102,7 +103,7 @@ function Header({ view }: { readonly view: CategoryDetailModel }) {
         )}
       </View>
       <View style={styles.headerCopy}>
-        <Text accessibilityRole="header" selectable style={styles.title}>
+        <Text accessibilityRole="header" selectable style={mobileType.display}>
           {view.header.name}
         </Text>
         <Text selectable style={styles.viewers}>
@@ -125,11 +126,11 @@ function TabRow({
   return (
     <View style={styles.tabs}>
       {(["live", "clips", "videos"] as const).map((tab) => (
-        <Pressable
+        <MobileFilterChip
           accessibilityLabel={`${tab} tab`}
           accessibilityRole="tab"
-          accessibilityState={{ selected: identity.tab === tab }}
           key={tab}
+          label={tab.toUpperCase()}
           onPress={() =>
             onChangeIdentity({
               ...defaultCategoryRequest(
@@ -143,13 +144,9 @@ function TabRow({
               videoSort: tab === "videos" ? "recent" : identity.videoSort,
             })
           }
-          style={[styles.tab, identity.tab === tab ? styles.tabSelected : null]}
+          selected={identity.tab === tab}
           testID={`category-tab-${tab}`}
-        >
-          <Text selectable style={styles.tabLabel}>
-            {tab.toUpperCase()}
-          </Text>
-        </Pressable>
+        />
       ))}
     </View>
   );
@@ -258,28 +255,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   headerCopy: { flex: 1, gap: mobileSpacing.small, justifyContent: "center" },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
-  },
   viewers: { color: mobileColors.textSecondary, fontSize: 14, lineHeight: 20 },
   summary: {
-    color: mobileColors.textCategory,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 24,
+    ...mobileType.body,
   },
   tabs: { flexDirection: "row", gap: mobileSpacing.small },
-  tab: {
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  tabSelected: { backgroundColor: mobileColors.navigationSelected },
-  tabLabel: { color: mobileColors.textPrimary, fontSize: 14, fontWeight: "700" },
   unsupported: { color: mobileColors.textSecondary, fontSize: 15, lineHeight: 22 },
 });

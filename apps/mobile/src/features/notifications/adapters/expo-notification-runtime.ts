@@ -117,7 +117,6 @@ export function createExpoLocalNotificationPresenter(): LocalNotificationPresent
           data: payload,
           sound: true,
           color: "#0f0f0f",
-          channelId,
         },
         trigger: { channelId },
       });

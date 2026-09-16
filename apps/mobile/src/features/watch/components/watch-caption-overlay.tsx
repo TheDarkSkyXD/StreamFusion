@@ -1,6 +1,11 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { mobileColors, mobileRadii, mobileSpacing } from "@mobile/design/tokens";
+import {
+  mobileColors,
+  mobileRadii,
+  mobileSpacing,
+  mobileType,
+} from "@mobile/design/tokens";
 
 export function WatchCaptionOverlay({
   text,
@@ -19,11 +24,9 @@ export function WatchCaptionOverlay({
 
 const styles = StyleSheet.create({
   cue: {
-    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    ...mobileType.title,
+    backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.medium,
-    color: mobileColors.textPrimary,
-    fontWeight: "700",
-    lineHeight: 22,
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
     textAlign: "center",

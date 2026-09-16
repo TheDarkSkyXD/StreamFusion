@@ -1,11 +1,15 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
+  mobileShadows,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { PlayerSurfaceProps } from "@mobile/features/watch/components/watch-screen";
 import type { MultistreamSlot } from "../capabilities/multistream";
@@ -59,23 +63,47 @@ export function MultistreamView({
   const restoreId = configured.at(-1)?.id;
   return (
     <View style={styles.screen} testID="screen-multi">
-      <Text accessibilityRole="header" selectable style={styles.title}>
-        {view.title}
-      </Text>
+      <MobileScreenHeader title={view.title} />
       {view.notice ? (
-        <Text selectable style={styles.notice} testID="multistream-notice">
-          {view.notice}
-        </Text>
+        <MobileStatusPanel testID="multistream-notice" tone="info">
+          <Text selectable style={mobileType.body}>
+            {view.notice}
+          </Text>
+        </MobileStatusPanel>
       ) : null}
       <View style={styles.toolbar}>
-        <Action label="Edit" onPress={onEdit} testID="multistream-edit" />
-        <Action label="Add slot" onPress={onAdd} testID="multistream-add" />
-        <Action
-          label={view.mode === "grid" ? "Focus mode" : "Grid mode"}
+        <MobileButton
+          accessibilityLabel="Edit"
+          onPress={onEdit}
+          testID="multistream-edit"
+          variant="secondary"
+        >
+          Edit
+        </MobileButton>
+        <MobileButton
+          accessibilityLabel="Add slot"
+          onPress={onAdd}
+          testID="multistream-add"
+          variant="secondary"
+        >
+          Add slot
+        </MobileButton>
+        <MobileButton
+          accessibilityLabel={view.mode === "grid" ? "Focus mode" : "Grid mode"}
           onPress={onMode}
           testID="set-multistream-mode"
-        />
-        <Action label="PiP" onPress={onPip} testID="multistream-pip" />
+          variant="secondary"
+        >
+          {view.mode === "grid" ? "Focus mode" : "Grid mode"}
+        </MobileButton>
+        <MobileButton
+          accessibilityLabel="PiP"
+          onPress={onPip}
+          testID="multistream-pip"
+          variant="secondary"
+        >
+          PiP
+        </MobileButton>
       </View>
       <View style={styles.grid}>
         {view.cells.map((cell) => (
@@ -90,20 +118,34 @@ export function MultistreamView({
           />
         ))}
       </View>
-      <Text selectable style={styles.body} testID="multistream-chat">
-        {view.chatDetail}
-      </Text>
-      <Text selectable style={styles.body} testID="multistream-captions">
-        {view.captionDetail}
-      </Text>
+      <MobileStatusPanel testID="multistream-chat" tone="info">
+        <Text selectable style={mobileType.body}>
+          {view.chatDetail}
+        </Text>
+      </MobileStatusPanel>
+      <MobileStatusPanel testID="multistream-captions" tone="info">
+        <Text selectable style={mobileType.body}>
+          {view.captionDetail}
+        </Text>
+      </MobileStatusPanel>
       <View style={styles.toolbar}>
-        <Action label="Cool device" onPress={onCoolDevice} testID="cool-device" />
+        <MobileButton
+          accessibilityLabel="Cool device"
+          onPress={onCoolDevice}
+          testID="cool-device"
+          variant="secondary"
+        >
+          Cool device
+        </MobileButton>
         {restoreId ? (
-          <Action
-            label="Restore slot"
+          <MobileButton
+            accessibilityLabel="Restore slot"
             onPress={() => onRestore(restoreId)}
             testID="restore-slot"
-          />
+            variant="secondary"
+          >
+            Restore slot
+          </MobileButton>
         ) : null}
       </View>
       {view.editing ? (
@@ -130,30 +172,6 @@ export function MultistreamView({
   );
 }
 
-function Action({
-  label,
-  onPress,
-  testID,
-}: {
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}
-      testID={testID}
-    >
-      <Text selectable style={styles.actionLabel}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function EditSheet({
   onAdd,
   onClear,
@@ -169,29 +187,56 @@ function EditSheet({
 }) {
   return (
     <View style={styles.sheet} testID="multistream-edit-sheet">
-      <Text selectable style={styles.title}>
+      <Text selectable style={mobileType.title}>
         Configured slots
       </Text>
       {slots.map((slot, index) => (
         <View key={slot.id} style={styles.editRow}>
-          <Text selectable style={styles.body}>
+          <Text selectable style={mobileType.body}>
             {`${index + 1}. ${slot.displayName}`}
           </Text>
-          <Action
-            label="Up"
+          <MobileButton
+            accessibilityLabel="Up"
             onPress={() => onReorder(slot.id, "up")}
             testID={`reorder-multistream-slot-up-${slot.id}`}
-          />
-          <Action
-            label="Down"
+            variant="ghost"
+          >
+            Up
+          </MobileButton>
+          <MobileButton
+            accessibilityLabel="Down"
             onPress={() => onReorder(slot.id, "down")}
             testID={`reorder-multistream-slot-down-${slot.id}`}
-          />
+            variant="ghost"
+          >
+            Down
+          </MobileButton>
         </View>
       ))}
-      <Action label="Add from Search" onPress={onAdd} testID="add-multistream-slot" />
-      <Action label="Clear room" onPress={onClear} testID="clear-multistream" />
-      <Action label="Done" onPress={onClose} testID="close-multistream-edit" />
+      <MobileButton
+        accessibilityLabel="Add from Search"
+        onPress={onAdd}
+        testID="add-multistream-slot"
+        variant="secondary"
+      >
+        Add from Search
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Clear room"
+        onPress={onClear}
+        testID="clear-multistream"
+        variant="destructive"
+      >
+        Clear room
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Done"
+        onPress={onClose}
+        testID="close-multistream-edit"
+        variant="primary"
+      >
+        Done
+      </MobileButton>
     </View>
   );
 }
@@ -207,12 +252,26 @@ function ConfirmSheet({
 }) {
   return (
     <View style={styles.sheet} testID="multistream-confirm">
-      <Text selectable style={styles.title}>
+      <Text selectable style={mobileType.title}>
         {title}
       </Text>
       <View style={styles.toolbar}>
-        <Action label="Cancel" onPress={onCancel} testID="cancel-multistream" />
-        <Action label="Confirm" onPress={onConfirm} testID="confirm-multistream" />
+        <MobileButton
+          accessibilityLabel="Cancel"
+          onPress={onCancel}
+          testID="cancel-multistream"
+          variant="secondary"
+        >
+          Cancel
+        </MobileButton>
+        <MobileButton
+          accessibilityLabel="Confirm"
+          onPress={onConfirm}
+          testID="confirm-multistream"
+          variant="destructive"
+        >
+          Confirm
+        </MobileButton>
       </View>
     </View>
   );
@@ -225,24 +284,6 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: 96,
   },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 22,
-    fontWeight: "700",
-    lineHeight: 28,
-  },
-  notice: {
-    color: mobileColors.textCategory,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  body: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
   toolbar: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -253,28 +294,14 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: mobileSpacing.small,
   },
-  action: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  pressed: { opacity: 0.86 },
-  actionLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
   sheet: {
-    backgroundColor: mobileColors.surface,
+    backgroundColor: mobileColors.surfaceRaised,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
     borderWidth: 1,
+    boxShadow: mobileShadows.dialog,
     gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
+    padding: mobileSpacing.large,
   },
   editRow: {
     alignItems: "center",

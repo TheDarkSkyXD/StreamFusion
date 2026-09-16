@@ -33,7 +33,9 @@ export type InstallationFanoutPlan = {
 };
 
 export function liveNotificationTopicName(pair: LiveNotificationPair): string {
-  const channel = pair.channelId.replace(/[^A-Za-z0-9._-]/gu, "_").slice(0, 180);
+  const channel = pair.channelId
+    .replace(/[^A-Za-z0-9._-]/gu, "_")
+    .slice(0, 180);
   return `${LIVE_NOTIFICATION_TOPIC_PREFIX}.${pair.platform}.${channel}`;
 }
 

@@ -30,7 +30,7 @@ export function DiscoverySearchDock({
         autoCorrect={false}
         onChangeText={onChangeQuery}
         placeholder={placeholder}
-        placeholderTextColor={mobileColors.textSecondary}
+        placeholderTextColor={mobileColors.textMuted}
         style={styles.input}
         testID={testID}
         value={query}

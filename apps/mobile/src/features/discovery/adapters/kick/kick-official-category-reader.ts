@@ -3,6 +3,7 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import { kickTags, kickVerified } from "../../utils/catalog-fields";
 import {
   readKickPublicCategories,
   readKickPublicCategoryStreams,
@@ -165,7 +166,7 @@ function kickStreams(value: unknown): readonly Stream[] {
             language: stringField(record, "language"),
             platform: "kick" as const,
             startedAt: null,
-            tags: [],
+            tags: kickTags(record),
             thumbnailUrl: stringField(record, "thumbnail_url"),
             title:
               stringField(record, "session_title") ||
@@ -174,6 +175,9 @@ function kickStreams(value: unknown): readonly Stream[] {
               typeof record.viewer_count === "number" && record.viewer_count >= 0
                 ? record.viewer_count
                 : 0,
+            ...(kickVerified(record) || kickVerified(channel) || kickVerified(user)
+              ? { channelIsVerified: true }
+              : {}),
           },
         ];
   });

@@ -15,7 +15,9 @@ export const VIDEO_QUALITY_OPTIONS = [
   "160p",
 ] as const;
 export const TOKEN_PLAYER_OPTIONS = ["native-exoplayer"] as const;
-export const SEEK_INTERVAL_OPTIONS = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90] as const;
+export const SEEK_INTERVAL_OPTIONS = [
+  5, 10, 20, 30, 40, 50, 60, 70, 80, 90,
+] as const;
 export const CAROUSEL_INTERVAL_MIN_SEC = 15;
 export const CAROUSEL_INTERVAL_MAX_SEC = 120;
 export const CAROUSEL_INTERVAL_STEP_SEC = 5;
@@ -100,12 +102,15 @@ export type PreferenceApplyResult = {
   readonly rejected: readonly string[];
 };
 
-export function parseProductPreferences(raw: string | null): ProductPreferences {
+export function parseProductPreferences(
+  raw: string | null,
+): ProductPreferences {
   if (raw === null || raw.length === 0) return DEFAULT_PRODUCT_PREFERENCES;
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed)) return DEFAULT_PRODUCT_PREFERENCES;
-    return applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, parsed).preferences;
+    return applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, parsed)
+      .preferences;
   } catch {
     return DEFAULT_PRODUCT_PREFERENCES;
   }
@@ -140,7 +145,10 @@ function mergePreferencePatch(
   return {
     ...current,
     ...mergeBooleanPreferences(current, patch),
-    backgroundQuality: qualityOr(patch.backgroundQuality, current.backgroundQuality),
+    backgroundQuality: qualityOr(
+      patch.backgroundQuality,
+      current.backgroundQuality,
+    ),
     carouselSeconds: steppedRangeOr(
       patch.carouselSeconds,
       current.carouselSeconds,
@@ -149,8 +157,16 @@ function mergePreferencePatch(
       CAROUSEL_INTERVAL_STEP_SEC,
     ),
     density: pickOr(DENSITY_OPTIONS, patch.density, current.density),
-    fastForwardSeconds: seekOr(patch.fastForwardSeconds, current.fastForwardSeconds),
-    forwardBufferSec: rangeOr(patch.forwardBufferSec, current.forwardBufferSec, 2, 60),
+    fastForwardSeconds: seekOr(
+      patch.fastForwardSeconds,
+      current.fastForwardSeconds,
+    ),
+    forwardBufferSec: rangeOr(
+      patch.forwardBufferSec,
+      current.forwardBufferSec,
+      2,
+      60,
+    ),
     language: languageOr(patch.language, current.language, rejected),
     liveSyncDurationCount: rangeOr(
       patch.liveSyncDurationCount,
@@ -159,11 +175,20 @@ function mergePreferencePatch(
       12,
     ),
     maxBufferSec: rangeOr(patch.maxBufferSec, current.maxBufferSec, 4, 120),
-    multiviewCap: rangeOr(patch.multiviewCap, current.multiviewCap, 1, MAX_MULTIVIEW_CAP),
+    multiviewCap: rangeOr(
+      patch.multiviewCap,
+      current.multiviewCap,
+      1,
+      MAX_MULTIVIEW_CAP,
+    ),
     quality: qualityOr(patch.quality, current.quality),
     rewindSeconds: seekOr(patch.rewindSeconds, current.rewindSeconds),
     theme: themeOr(patch.theme, current.theme, rejected),
-    tokenPlayer: tokenPlayerOr(patch.tokenPlayer, current.tokenPlayer, rejected),
+    tokenPlayer: tokenPlayerOr(
+      patch.tokenPlayer,
+      current.tokenPlayer,
+      rejected,
+    ),
     version: PRODUCT_SETTINGS_VERSION,
   };
 }
@@ -187,7 +212,8 @@ function mergeBooleanPreferences(
   };
 }
 
-export function nativeColorScheme(_theme?: string): "dark" {
+export function nativeColorScheme(theme?: string): "dark" {
+  void theme;
   return "dark";
 }
 
@@ -214,7 +240,10 @@ function languageOr(
   rejected: string[],
 ): LanguagePreference {
   if (value === undefined) return fallback;
-  if (typeof value === "string" && LANGUAGE_OPTIONS.includes(value as LanguagePreference)) {
+  if (
+    typeof value === "string" &&
+    LANGUAGE_OPTIONS.includes(value as LanguagePreference)
+  ) {
     return value as LanguagePreference;
   }
   rejected.push("Only English is available on this build.");
@@ -239,7 +268,10 @@ function qualityOr(
   return pickOr(VIDEO_QUALITY_OPTIONS, value, fallback);
 }
 
-function seekOr(value: unknown, fallback: SeekIntervalSeconds): SeekIntervalSeconds {
+function seekOr(
+  value: unknown,
+  fallback: SeekIntervalSeconds,
+): SeekIntervalSeconds {
   return pickOr(SEEK_INTERVAL_OPTIONS, value, fallback);
 }
 

@@ -82,7 +82,9 @@ export function isCaptionFixtureUri(sourceUri: string | undefined): boolean {
   return captionUri(sourceUri).startsWith(LOCAL_CAPTION_FIXTURE_INSTALL_URI);
 }
 
-export function isCaptionConstrainedUri(sourceUri: string | undefined): boolean {
+export function isCaptionConstrainedUri(
+  sourceUri: string | undefined,
+): boolean {
   return captionUri(sourceUri).includes("constrained");
 }
 

@@ -5,6 +5,8 @@ import type {
 import type { Platform, StreamChannelIdentity } from "@streamfusion/core/platform";
 import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 
+export type { WatchChatAvailability } from "@mobile/features/chat/capabilities/watch-chat";
+
 export type PlayerPresentation = "watch" | "mini" | "pip" | "fullscreen";
 
 export type MiniPlayerSnapRegion =
@@ -49,11 +51,6 @@ export type PlaybackProgress = {
 };
 
 export type WatchTab = "chat" | "comments" | "info" | "related";
-
-export type WatchChatAvailability = {
-  readonly detail: string;
-  readonly kind: "not-connected";
-};
 
 export type WatchContextFailure =
   | { readonly kind: "cancelled" }

@@ -1,10 +1,12 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { WatchHistoryItem } from "../capabilities/watch-history";
 import { watchHistoryProgressRatio } from "../domain/watch-history";
@@ -39,16 +41,7 @@ export function HistoryRow({
             {item.kind.toUpperCase()}
           </Text>
         </View>
-        <View
-          style={[
-            styles.platformBadge,
-            item.platform === "twitch" ? styles.twitchBadge : styles.kickBadge,
-          ]}
-        >
-          <Text selectable style={styles.platformLabel}>
-            {item.platform.toUpperCase()}
-          </Text>
-        </View>
+        <MobilePlatformBadge platform={item.platform} style={styles.platformBadge} />
         {progress === null ? null : (
           <View
             style={styles.progressTrack}
@@ -173,9 +166,7 @@ function formatWatchedAt(updatedAt: number): string {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     overflow: "hidden",
   },
   thumbWrap: {
@@ -188,7 +179,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   kindBadge: {
-    backgroundColor: "rgba(0,0,0,0.72)",
+    backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.small,
     left: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.small,
@@ -203,25 +194,9 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   platformBadge: {
-    borderRadius: mobileRadii.small,
-    justifyContent: "center",
-    minHeight: 24,
-    paddingHorizontal: mobileSpacing.small,
     position: "absolute",
     right: mobileSpacing.small,
     top: mobileSpacing.small,
-  },
-  twitchBadge: {
-    backgroundColor: "#9146ff",
-  },
-  kickBadge: {
-    backgroundColor: "#53fc18",
-  },
-  platformLabel: {
-    color: mobileColors.background,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
   },
   progressTrack: {
     backgroundColor: "rgba(255,255,255,0.24)",
@@ -252,10 +227,7 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.xSmall,
   },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.title,
   },
   channel: {
     color: mobileColors.textSecondary,

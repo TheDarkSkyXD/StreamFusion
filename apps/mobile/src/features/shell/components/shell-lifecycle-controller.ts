@@ -98,8 +98,11 @@ export function useShellLifecycleController(options: {
   const pendingIntents = useRef<AppLinkIntent[]>([]);
   const writeChain = useRef(Promise.resolve());
   const restoreSessionRef = useRef(options.restoreSession);
-  restoreSessionRef.current = options.restoreSession;
   const settingsReady = options.settingsReady ?? true;
+
+  useEffect(() => {
+    restoreSessionRef.current = options.restoreSession;
+  }, [options.restoreSession]);
 
   const dispatch = useCallback((action: ShellNavigationAction) => {
     if (!hydrated.current) {
