@@ -1,4 +1,5 @@
 import {
+  countPlannedRecipients,
   liveNotificationPairKey,
   planInstallationFanout,
   planLogicalEventDelivery,
@@ -24,6 +25,13 @@ import type {
 const MAX_SEND_ATTEMPTS = 5;
 const MAX_BACKOFF_MS = 30_000;
 
+export type DispatchReport = {
+  readonly coveredCount: number;
+  readonly lostCount: number;
+  readonly recipientCount: number;
+  readonly records: readonly DeliveryRecord[];
+};
+
 export function createNotificationDispatchService(input: {
   readonly ledger: DeliveryLedger;
   readonly now: () => number;
@@ -37,26 +45,57 @@ export function createNotificationDispatchService(input: {
       readonly pair: LiveNotificationPair | null;
       readonly payload: SafeNotificationPayload;
     }): Promise<readonly DeliveryRecord[]> {
-      const records = await input.registry.listEnabled();
-      if (records.length === 0) {
-        return [localRecord(command.payload.eventId, input.now())];
-      }
-      const planned = planLogicalEventDelivery({
-        eventId: command.payload.eventId,
-        channel: command.payload.channel,
-        pair: command.pair,
-        recipients: records.map(recipientFromRecord)
-      });
-      const recorded: DeliveryRecord[] = [];
-      for (const send of planned) {
-        recorded.push(
-          ...(await executePlannedSend(input, send, command.payload, records))
-        );
-      }
-      return recorded.length > 0
-        ? recorded
-        : [localRecord(command.payload.eventId, input.now())];
+      return (await dispatchReport(input, command)).records;
+    },
+    async dispatchReport(command: {
+      readonly pair: LiveNotificationPair | null;
+      readonly payload: SafeNotificationPayload;
+    }): Promise<DispatchReport> {
+      return dispatchReport(input, command);
     }
+  };
+}
+
+async function dispatchReport(
+  input: Parameters<typeof createNotificationDispatchService>[0],
+  command: {
+    readonly pair: LiveNotificationPair | null;
+    readonly payload: SafeNotificationPayload;
+  }
+): Promise<DispatchReport> {
+  const records = await input.registry.listEnabled();
+  if (records.length === 0) {
+    const local = [localRecord(command.payload.eventId, input.now())];
+    return {
+      coveredCount: 0,
+      lostCount: 0,
+      recipientCount: 0,
+      records: local
+    };
+  }
+  const planned = planLogicalEventDelivery({
+    eventId: command.payload.eventId,
+    channel: command.payload.channel,
+    pair: command.pair,
+    recipients: records.map(recipientFromRecord)
+  });
+  const recorded: DeliveryRecord[] = [];
+  for (const send of planned) {
+    recorded.push(
+      ...(await executePlannedSend(input, send, command.payload, records))
+    );
+  }
+  const rows =
+    recorded.length > 0
+      ? recorded
+      : [localRecord(command.payload.eventId, input.now())];
+  const recipientCount = countPlannedRecipients(planned);
+  const coveredCount = countCoveredRecipients(planned, rows);
+  return {
+    coveredCount,
+    lostCount: Math.max(0, recipientCount - coveredCount),
+    recipientCount,
+    records: rows
   };
 }
 
@@ -148,8 +187,9 @@ async function sendWithRetry(
   let last: FcmSendResult = { kind: "retryable", retryAfterMs: 1_000 };
   while (attempt < MAX_SEND_ATTEMPTS) {
     last = await send();
-    if (last.kind !== "retryable") return last;
-    await input.sleep(retryDelayMs(attempt, last.retryAfterMs, input.random));
+    if (last.kind === "accepted" || last.kind === "unregistered") return last;
+    const retryAfterMs = last.kind === "retryable" ? last.retryAfterMs : 0;
+    await input.sleep(retryDelayMs(attempt, retryAfterMs, input.random));
     attempt += 1;
   }
   return last;
@@ -161,6 +201,44 @@ async function persist(
 ): Promise<DeliveryRecord> {
   await input.ledger.put(record);
   return record;
+}
+
+function countCoveredRecipients(
+  planned: readonly PlannedNotificationSend[],
+  records: readonly DeliveryRecord[]
+): number {
+  const covered = new Set<string>();
+  for (const send of planned) {
+    if (!sendCoversRecipients(send, records)) continue;
+    for (const fingerprint of send.fingerprints) {
+      covered.add(fingerprint);
+    }
+  }
+  return covered.size;
+}
+
+function sendCoversRecipients(
+  send: PlannedNotificationSend,
+  records: readonly DeliveryRecord[]
+): boolean {
+  if (send.mode === "topic") {
+    return records.some(
+      (row) =>
+        row.mode === "topic" &&
+        row.target === send.topic &&
+        row.outcome === "accepted"
+    );
+  }
+  return send.fingerprints.every((fingerprint) =>
+    records.some(
+      (row) =>
+        row.mode === "direct" &&
+        row.target === fingerprint &&
+        (row.outcome === "accepted" ||
+          row.outcome === "terminal-token" ||
+          row.outcome === "local-reconciled")
+    )
+  );
 }
 
 function recipientFromRecord(record: NativePushRecord) {

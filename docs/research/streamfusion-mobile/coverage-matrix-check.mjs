@@ -731,14 +731,14 @@ const gaps = [
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration ships on N01; topic fanout stays N02.",
-    owners: [143, 168, 169, 170, 171],
+      "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03.",
+    owners: [143, 168, 169, 170, 171, 172, 173, 174],
   },
   {
     id: "GAP-195-04",
     status: "owned-elsewhere",
     finding:
-      "Guest notification preferences, Android permission, native FCM registration, in-app banners, and ended-stream routing live on this build. Topic fanout and public-release delivery remain N02–N03. Activity stays a local inbox plus relay receipts.",
+      "Guest notification preferences, Android permission, native FCM registration, in-app banners, ended-stream routing, topic/direct fanout, and 100k dispatch proof live on this build. Activity stays a local inbox plus relay receipts.",
     owners: [151, 169, 172, 173, 174],
   },
   {

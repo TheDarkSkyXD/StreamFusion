@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 
+import type { ActivityItem, SerializedTimestamp } from "@streamfusion/core/activity";
 import type {
   ActivityRepository,
   SecureSecretStore,
@@ -429,6 +430,32 @@ describe("encrypted store policy", () => {
         expect.objectContaining({ eventId: "device:new:v1", readAt: null }),
       ]),
     );
+  });
+
+  it("keeps a read live-alert after a reinstall records the same eventId", async () => {
+    const database = new ActivityMemoryDatabase();
+    const store = new ProductStore(database);
+    const readAt = "2026-09-15T12:00:00.000Z" as SerializedTimestamp;
+    const liveAlert = activityItem({
+      eventId: "proof:live-alert:ended:v1",
+      title: "ProofStreamer ended",
+    });
+    await store.recordActivity(liveAlert);
+    await store.markActivityRead(liveAlert.eventId, readAt);
+    const afterReinstall = new ProductStore(database);
+    await expect(
+      afterReinstall.recordActivity({
+        ...liveAlert,
+        title: "ProofStreamer ended again",
+        readAt: null,
+      }),
+    ).resolves.toMatchObject({
+      kind: "reconciled",
+      item: { eventId: liveAlert.eventId, readAt, title: "ProofStreamer ended again" },
+    });
+    await expect(afterReinstall.listActivity()).resolves.toEqual([
+      expect.objectContaining({ eventId: liveAlert.eventId, readAt }),
+    ]);
   });
 
   it("keeps local dismissal across duplicate delivery and hides only completed Activity", async () => {

@@ -129,6 +129,7 @@ export function NotificationsSettingsView({
     <SettingsSection testID="panel-notifications" title="NOTIFICATIONS">
       <SettingsCopy testID="notifications-permission" value={view.permissionCopy} />
       <SettingsCopy testID="notifications-delivery" value={view.deliveryCopy} />
+      <SettingsCopy testID="notifications-lifecycle" value={view.lifecycleCopy} />
       <SettingsCopy testID="fcm-registration-status" value={view.registrationCopy} />
       {NOTIFICATION_TOGGLES.map((toggle) => (
         <SettingsSwitch

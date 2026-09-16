@@ -166,7 +166,7 @@ function createService(input: {
   return { ledger, registry, service, sleeps };
 }
 
-// Guards: one live event uses topic XOR direct per token; overflow stays direct; retries and unregistered tokens retire
+// Guards: one live event uses topic XOR direct; overflow stays direct; 100k topic dispatch has no loss; retries, credential rotation, and simultaneous events stay isolated
 describe("notification dispatch service", () => {
   it("sends one topic event plus direct overflow and never both to the same token", async () => {
     const pair = { platform: "kick" as const, channelId: "overflow-channel" };
@@ -237,5 +237,148 @@ describe("notification dispatch service", () => {
       false
     );
     expect(JSON.stringify(recorded)).not.toContain(retiredToken);
+  });
+
+  it("accepts 100000 topic recipients in one send within 30 seconds", async () => {
+    const pair = { platform: "kick" as const, channelId: "scale-channel" };
+    const topic = liveNotificationTopicName(pair);
+    const records = Array.from({ length: 100_000 }, (_, index) => ({
+      installationId: `install-${index}`,
+      nativeToken: `token-${index}`,
+      tokenHash: `hash-${index}`,
+      tokenType: "fcm" as const,
+      projection: {
+        schemaVersion: 1 as const,
+        version: 1,
+        pairs: [pair]
+      },
+      remoteDeliveryEnabled: true,
+      registeredAt: "2026-09-15T12:00:00.000Z",
+      rotatedAt: "2026-09-15T12:00:00.000Z"
+    }));
+    const topics: string[] = [];
+    const { service } = createService({
+      records,
+      sender: {
+        async sendTopic(name) {
+          topics.push(name);
+          return { kind: "accepted" };
+        },
+        async sendDirect() {
+          return { kind: "accepted" };
+        }
+      }
+    });
+    const start = performance.now();
+    const report = await service.dispatchReport({
+      pair,
+      payload: livePayload("live:kick:scale-channel:1")
+    });
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(30_000);
+    expect(topics).toEqual([topic]);
+    expect(report.recipientCount).toBe(100_000);
+    expect(report.coveredCount).toBe(100_000);
+    expect(report.lostCount).toBe(0);
+    expect(report.records).toEqual([
+      expect.objectContaining({
+        mode: "topic",
+        outcome: "accepted",
+        target: topic
+      })
+    ]);
+    expect(JSON.stringify(report.records)).not.toContain("token-");
+  });
+
+  it("keeps two simultaneous live events on separate accepted topic sends", async () => {
+    const pair = { platform: "twitch" as const, channelId: "simultaneous" };
+    const topic = liveNotificationTopicName(pair);
+    const topics: string[] = [];
+    const { ledger, service } = createService({
+      records: [await recordFor("install-sim", topicToken, [pair])],
+      sender: {
+        async sendTopic(name) {
+          topics.push(name);
+          return { kind: "accepted" };
+        },
+        async sendDirect() {
+          return { kind: "accepted" };
+        }
+      }
+    });
+    const [first, second] = await Promise.all([
+      service.dispatch({
+        pair,
+        payload: livePayload("live:twitch:simultaneous:1")
+      }),
+      service.dispatch({
+        pair,
+        payload: livePayload("live:twitch:simultaneous:2")
+      })
+    ]);
+    expect(topics).toEqual([topic, topic]);
+    expect(first[0]?.eventId).toBe("live:twitch:simultaneous:1");
+    expect(second[0]?.eventId).toBe("live:twitch:simultaneous:2");
+    expect(ledger.rows.map((row) => row.eventId).sort()).toEqual([
+      "live:twitch:simultaneous:1",
+      "live:twitch:simultaneous:2"
+    ]);
+  });
+
+  it("retries a rate-limited topic send after Retry-After then accepts it", async () => {
+    const pair = { platform: "kick" as const, channelId: "overflow-channel" };
+    const results: FcmSendResult[] = [
+      { kind: "retryable", retryAfterMs: 25 },
+      { kind: "accepted" }
+    ];
+    const sleeps: number[] = [];
+    const { service } = createService({
+      records: [await recordFor("install-topic", topicToken, [pair])],
+      sleeps,
+      sender: {
+        async sendTopic() {
+          return results.shift() ?? { kind: "accepted" };
+        },
+        async sendDirect() {
+          return { kind: "accepted" };
+        }
+      }
+    });
+    const recorded = await service.dispatch({
+      pair,
+      payload: livePayload("live:kick:overflow-channel:rate")
+    });
+    expect(sleeps).toEqual([25]);
+    expect(recorded[0]?.outcome).toBe("accepted");
+  });
+
+  it("retries after FCM credential rotation without retiring the token", async () => {
+    const pair = { platform: "kick" as const, channelId: "overflow-channel" };
+    const results: FcmSendResult[] = [
+      { kind: "credential-mismatch" },
+      { kind: "accepted" }
+    ];
+    const { registry, service } = createService({
+      records: [await recordFor("install-topic", topicToken, [pair])],
+      sender: {
+        async sendTopic() {
+          return results.shift() ?? { kind: "accepted" };
+        },
+        async sendDirect() {
+          return { kind: "accepted" };
+        }
+      }
+    });
+    const recorded = await service.dispatch({
+      pair,
+      payload: livePayload("live:kick:overflow-channel:rotate")
+    });
+    expect(recorded[0]?.outcome).toBe("accepted");
+    expect(registry.records.get("install-topic")?.remoteDeliveryEnabled).toBe(
+      true
+    );
+    expect(JSON.stringify(recorded)).not.toMatch(
+      /credential|secret|private_key/i
+    );
   });
 });

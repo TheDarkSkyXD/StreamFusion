@@ -1,5 +1,10 @@
 import type { NativeRegistrationSnapshot } from "../capabilities/native-notifications";
 
+export const NOTIFICATION_RATE_LIMIT_FAILURE =
+  "FCM rate-limited the send. StreamFusion retries after Retry-After. This is not a device receipt.";
+export const NOTIFICATION_CREDENTIAL_ROTATION_FAILURE =
+  "Relay FCM credentials rotated. The queue retries without dropping Activity.";
+
 export function nativeRegistrationCopy(
   snapshot: Omit<NativeRegistrationSnapshot, "copy">,
 ): string {

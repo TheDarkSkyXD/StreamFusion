@@ -43,6 +43,7 @@ export type {
 export {
   LIVE_NOTIFICATION_TOPIC_PREFIX,
   MAX_FCM_TOPIC_SUBSCRIPTIONS,
+  countPlannedRecipients,
   liveNotificationPairKey,
   liveNotificationTopicName,
   planInstallationFanout,

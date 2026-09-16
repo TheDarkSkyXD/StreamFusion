@@ -14,43 +14,11 @@ import type {
 const RUNTIME_PERMISSION_API = 33;
 const DENIED_PERMISSION_COPY =
   "Android blocked notification posting. Activity history stays on. Retry the permission or open system settings.";
+const NOTIFICATION_LIFECYCLE_COPY =
+  "Relay accepts 100,000 Live recipients on one topic event within 30 seconds. That is StreamFusion dispatch, not device receipt. Two simultaneous events stay separate. Rate limits retry after Retry-After. Relay FCM credentials can rotate without dropping Activity. Reinstall retires the old token. Force-stop does not delete Activity. An ended stream opens the channel page.";
 
-export function composeNotificationSettingsView(input: {
-  readonly apiLevel: number;
-  readonly network: NotificationNetwork;
-  readonly permission: NotificationPermissionStatus;
-  readonly preferences: LiveNotificationPreferences;
-  readonly registrationCopy?: string;
-}): NotificationSettingsView {
-  const { apiLevel, network, permission, preferences } = input;
-  return {
-    apiLevel,
-    deliveryCopy: notificationDeliveryCopy({ network, permission, preferences }),
-    denied: permission === "denied",
-    network,
-    permission,
-    permissionCopy: notificationPermissionCopy(permission, apiLevel),
-    preferences,
-    registrationCopy:
-      input.registrationCopy ??
-      nativeRegistrationFallback({ permission, preferences }),
-  };
-}
-
-export function defaultNotificationSettingsView(): NotificationSettingsView {
-  return composeNotificationSettingsView({
-    apiLevel: 30,
-    network: "online",
-    permission: "granted",
-    preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
-  });
-}
-
-export function mergeNotificationPreferences(
-  current: LiveNotificationPreferences,
-  patch: NotificationPreferencePatch,
-): LiveNotificationPreferences {
-  return getLiveNotificationPreferences({ ...current, ...patch });
+export function notificationLifecycleCopy(): string {
+  return NOTIFICATION_LIFECYCLE_COPY;
 }
 
 export function notificationPermissionCopy(
@@ -60,13 +28,14 @@ export function notificationPermissionCopy(
   if (apiLevel < RUNTIME_PERMISSION_API) {
     return "This Android version posts notifications without a runtime prompt. Retry stays available if a later OS denies posting.";
   }
-  if (permission === "denied") {
-    return DENIED_PERMISSION_COPY;
+  switch (permission) {
+    case "denied":
+      return DENIED_PERMISSION_COPY;
+    case "unavailable":
+      return "Notification permission is unavailable on this device. Activity history still records eligible live events.";
+    case "granted":
+      return "Android allows notification posting. Native FCM registration runs on this device. Live alerts use one topic or one direct token, never both.";
   }
-  if (permission === "unavailable") {
-    return "Notification permission is unavailable on this device. Activity history still records eligible live events.";
-  }
-  return "Android allows notification posting. Native FCM registration runs on this device. Live alerts use one topic or one direct token, never both.";
 }
 
 export function notificationDeliveryCopy(input: {
@@ -98,4 +67,42 @@ function nativeRegistrationFallback(input: {
     return "Native FCM registration starts when Android notifications are on.";
   }
   return "Native FCM registration is in progress.";
+}
+
+export function composeNotificationSettingsView(input: {
+  readonly apiLevel: number;
+  readonly network: NotificationNetwork;
+  readonly permission: NotificationPermissionStatus;
+  readonly preferences: LiveNotificationPreferences;
+  readonly registrationCopy?: string;
+}): NotificationSettingsView {
+  const { apiLevel, network, permission, preferences, registrationCopy } = input;
+  return {
+    apiLevel,
+    deliveryCopy: notificationDeliveryCopy({ network, permission, preferences }),
+    denied: permission === "denied",
+    lifecycleCopy: NOTIFICATION_LIFECYCLE_COPY,
+    network,
+    permission,
+    permissionCopy: notificationPermissionCopy(permission, apiLevel),
+    preferences,
+    registrationCopy:
+      registrationCopy ?? nativeRegistrationFallback({ permission, preferences }),
+  };
+}
+
+export function defaultNotificationSettingsView(): NotificationSettingsView {
+  return composeNotificationSettingsView({
+    apiLevel: 30,
+    network: "online",
+    permission: "granted",
+    preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+  });
+}
+
+export function mergeNotificationPreferences(
+  current: LiveNotificationPreferences,
+  patch: NotificationPreferencePatch,
+): LiveNotificationPreferences {
+  return getLiveNotificationPreferences({ ...current, ...patch });
 }

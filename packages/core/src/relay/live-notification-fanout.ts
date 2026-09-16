@@ -73,6 +73,18 @@ export function planLogicalEventDelivery(input: {
   return liveSends(input.eventId, topic, classified);
 }
 
+export function countPlannedRecipients(
+  sends: readonly PlannedNotificationSend[],
+): number {
+  const seen = new Set<string>();
+  for (const send of sends) {
+    for (const fingerprint of send.fingerprints) {
+      seen.add(fingerprint);
+    }
+  }
+  return seen.size;
+}
+
 function directPlan(
   eventId: string,
   fingerprints: readonly string[],

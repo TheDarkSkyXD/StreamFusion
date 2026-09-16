@@ -2,6 +2,7 @@ import type { SafeNotificationPayload } from "@streamfusion/core/relay";
 
 export type FcmSendResult =
   | { readonly kind: "accepted" }
+  | { readonly kind: "credential-mismatch" }
   | { readonly kind: "retryable"; readonly retryAfterMs: number }
   | { readonly kind: "unregistered" };
 

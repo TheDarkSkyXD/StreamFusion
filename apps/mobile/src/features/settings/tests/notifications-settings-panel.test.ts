@@ -87,6 +87,7 @@ describe("notifications settings panel", () => {
     expect(hasTestId(nodes, "favorites-only")).toBe(true);
     expect(hasTestId(nodes, "restart-grace")).toBe(true);
     expect(hasTestId(nodes, "notifications-system-settings")).toBe(true);
+    expect(hasTestId(nodes, "notifications-lifecycle")).toBe(true);
     expect(hasTestId(nodes, "fcm-registration-status")).toBe(true);
     expect(hasTestId(nodes, "notifications-retry")).toBe(false);
     nodes

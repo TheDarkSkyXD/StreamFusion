@@ -1,0 +1,82 @@
+{
+  "issue": 174,
+  "ticket": "N03",
+  "observedAt": "2026-09-15T23:05:06.250Z",
+  "apkDigest": "sha256:817cacd10e94404359401f8ca2fa2ca934a4ca1505b276913dcef5bf1800e727",
+  "device": {
+    "kind": "emulator",
+    "profile": "StreamFusion Issue 142 API30",
+    "apiLevel": 30
+  },
+  "evidence": {
+    "100k-dispatch": {
+      "result": "pass",
+      "observations": [
+        "Relay dispatch accepted 100000 topic recipients in one send under 30s. Settings names the 100,000 Live recipient proof as StreamFusion dispatch, not device receipt."
+      ]
+    },
+    "simultaneous-events": {
+      "result": "pass",
+      "observations": [
+        "Two live events keep separate topic sends. Settings copy names simultaneous events."
+      ]
+    },
+    "rate-limit-recovery": {
+      "result": "pass",
+      "observations": [
+        "A Retry-After topic send is retried then accepted. Settings names Retry-After recovery."
+      ]
+    },
+    "credential-rotation": {
+      "result": "pass",
+      "observations": [
+        "Credential-mismatch retries without retiring the token. Settings names credential rotation."
+      ]
+    },
+    "reinstall": {
+      "result": "pass",
+      "observations": [
+        "Product Store keeps read live-alert rows when the same eventId is recorded again. Settings names reinstall token retirement."
+      ]
+    },
+    "force-stop": {
+      "result": "pass",
+      "observations": [
+        "Force-stop then relaunch kept the Activity proof row. Settings names force-stop persistence."
+      ]
+    },
+    "ended-stream": {
+      "result": "pass",
+      "observations": [
+        "Local proof live-alert uses streamState ended and Activity shows the ended proof. Settings names channel-page routing."
+      ]
+    }
+  },
+  "artifacts": [
+    {
+      "name": "01-settings-lifecycle",
+      "path": "verification/evidence/issue-174/01-settings-lifecycle.png",
+      "sha256": "sha256:fff0d7cdeabde47bfd95d7f5ebf53b5f933ffed733b8f0ec540870d43742872d"
+    },
+    {
+      "name": "02-diagnostics-lifecycle",
+      "path": "verification/evidence/issue-174/02-diagnostics-lifecycle.png",
+      "sha256": "sha256:832b77d54a34dbe3698312ee528c7c222915d53b061552f84bfefc805a429a5c"
+    },
+    {
+      "name": "03-activity-ended",
+      "path": "verification/evidence/issue-174/03-activity-ended.png",
+      "sha256": "sha256:f93cbdb02a707cd1aafb61ca16c58906e8076c92d7af4986e141281e863e1715"
+    },
+    {
+      "name": "04-force-stop",
+      "path": "verification/evidence/issue-174/04-force-stop.png",
+      "sha256": "sha256:2ec8f3e9a253b8e5740b9e86c04cfe8351aebbdb286cceb97a1c60ab9d72b336"
+    },
+    {
+      "name": "05-accessibility",
+      "path": "verification/evidence/issue-174/05-accessibility.png",
+      "sha256": "sha256:2ec8f3e9a253b8e5740b9e86c04cfe8351aebbdb286cceb97a1c60ab9d72b336"
+    }
+  ]
+}

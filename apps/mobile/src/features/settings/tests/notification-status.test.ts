@@ -6,6 +6,7 @@ import {
   composeNotificationSettingsView,
   mergeNotificationPreferences,
   notificationDeliveryCopy,
+  notificationLifecycleCopy,
   notificationPermissionCopy,
 } from "../domain/notification-status";
 
@@ -49,6 +50,25 @@ describe("notification settings status", () => {
     expect(notificationPermissionCopy("granted", 33)).toMatch(
       /one topic or one direct token/,
     );
+  });
+
+  it("names 100k dispatch, retries, rotation, reinstall, force-stop, and ended streams", () => {
+    const copy = notificationLifecycleCopy();
+    expect(copy).toMatch(/100,000 Live recipients/);
+    expect(copy).toMatch(/Two simultaneous events/);
+    expect(copy).toMatch(/Retry-After/);
+    expect(copy).toMatch(/credentials can rotate/);
+    expect(copy).toMatch(/Reinstall retires the old token/);
+    expect(copy).toMatch(/Force-stop does not delete Activity/);
+    expect(copy).toMatch(/ended stream opens the channel page/);
+    expect(
+      composeNotificationSettingsView({
+        apiLevel: 30,
+        network: "online",
+        permission: "granted",
+        preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      }).lifecycleCopy,
+    ).toBe(copy);
   });
 
   it("merges a patch onto current preferences instead of defaults", () => {
