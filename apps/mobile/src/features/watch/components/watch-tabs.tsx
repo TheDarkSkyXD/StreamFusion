@@ -1,12 +1,20 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
+import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import type {
   WatchChatAvailability,
   WatchInfo,
@@ -33,26 +41,33 @@ export function WatchTabs({
   readonly related: WatchRelated | null;
   readonly tab: WatchTab;
 }) {
+  const chatTab = recorded ? "comments" : "chat";
   return (
     <View style={styles.region}>
       <View accessibilityRole="tablist" style={styles.tabs}>
-        <TabButton
-          active={tab === "info"}
-          id="info"
+        <MobileFilterChip
+          accessibilityLabel={recorded ? "Details" : "Info"}
+          accessibilityRole="tab"
           label={recorded ? "Details" : "Info"}
           onPress={() => onSelect("info")}
+          selected={tab === "info"}
+          testID="watch-tab-info"
         />
-        <TabButton
-          active={tab === "related"}
-          id="related"
+        <MobileFilterChip
+          accessibilityLabel="Related"
+          accessibilityRole="tab"
           label="Related"
           onPress={() => onSelect("related")}
+          selected={tab === "related"}
+          testID="watch-tab-related"
         />
-        <TabButton
-          active={tab === (recorded ? "comments" : "chat")}
-          id={recorded ? "comments" : "chat"}
+        <MobileFilterChip
+          accessibilityLabel={recorded ? "Comments" : "Chat"}
+          accessibilityRole="tab"
           label={recorded ? "Comments" : "Chat"}
-          onPress={() => onSelect(recorded ? "comments" : "chat")}
+          onPress={() => onSelect(chatTab)}
+          selected={tab === chatTab}
+          testID={`watch-tab-${chatTab}`}
         />
       </View>
       {tab === "chat" ? <ChatPane chat={chat} /> : null}
@@ -70,50 +85,30 @@ export function WatchTabs({
   );
 }
 
-function TabButton({
-  active,
-  id,
-  label,
-  onPress,
-}: {
-  readonly active: boolean;
-  readonly id: WatchTab;
-  readonly label: string;
-  readonly onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={[styles.tab, active ? styles.tabActive : null]}
-      testID={`watch-tab-${id}`}
-    >
-      <Text selectable style={styles.tabLabel}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function CommentsPane() {
   return (
-    <View style={styles.pane} testID="watch-comments">
-      <Text selectable style={styles.body}>
+    <MobileStatusPanel testID="watch-comments" tone="info">
+      <Text selectable style={mobileType.title}>
+        Comments
+      </Text>
+      <Text selectable style={mobileType.body}>
         Comments are not connected in this build. This placeholder is not live
         chat.
       </Text>
-    </View>
+    </MobileStatusPanel>
   );
 }
 
 function ChatPane({ chat }: { readonly chat: WatchChatAvailability }) {
   return (
-    <View style={styles.pane} testID="watch-chat">
-      <Text selectable style={styles.body}>
+    <MobileStatusPanel testID="watch-chat" tone="info">
+      <Text selectable style={mobileType.title}>
+        Chat
+      </Text>
+      <Text selectable style={mobileType.body}>
         {chat.detail}
       </Text>
-    </View>
+    </MobileStatusPanel>
   );
 }
 
@@ -126,34 +121,34 @@ function InfoPane({
 }) {
   if (!info) {
     return (
-      <View style={styles.pane} testID="watch-info">
-        <Text selectable style={styles.body}>
+      <MobileStatusPanel testID="watch-info" tone="loading">
+        <Text selectable style={mobileType.body}>
           Loading channel details.
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   if (info.kind === "unavailable") {
     return (
-      <View style={styles.pane} testID="watch-info">
-        <Text selectable style={styles.body}>
+      <MobileStatusPanel testID="watch-info" tone="error">
+        <Text selectable style={mobileType.body}>
           {info.failure.kind === "cancelled"
             ? "Channel details were cancelled."
             : info.failure.detail}
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   if (info.kind === "recorded") {
     return (
       <View style={styles.pane} testID="watch-info">
-        <Text selectable style={styles.title}>
+        <Text selectable style={mobileType.title}>
           {info.title}
         </Text>
-        <Text selectable style={styles.body}>
+        <Text selectable style={mobileType.body}>
           {`${info.channel.displayName} · ${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
         </Text>
-        <Text selectable style={styles.body}>
+        <Text selectable style={mobileType.body}>
           Multistream keeps live channels only.
         </Text>
       </View>
@@ -162,10 +157,15 @@ function InfoPane({
   if (info.kind === "ended") {
     return (
       <View style={styles.pane} testID="watch-info">
-        <Text selectable style={styles.title}>
-          {info.channel.displayName}
-        </Text>
-        <Text selectable style={styles.body}>
+        <View style={styles.identity}>
+          <Text selectable style={mobileType.title}>
+            {info.channel.displayName}
+          </Text>
+          {info.channel.isVerified ? (
+            <MobileVerifiedBadge platform={info.channel.platform} />
+          ) : null}
+        </View>
+        <Text selectable style={mobileType.body}>
           This channel is not live.
         </Text>
       </View>
@@ -173,25 +173,37 @@ function InfoPane({
   }
   return (
     <View style={styles.pane} testID="watch-info">
-      <Text selectable style={styles.title}>
+      <Text selectable style={mobileType.title}>
         {info.stream.title}
       </Text>
-      <Text selectable style={styles.body}>
-        {`${info.channel.displayName} · ${info.stream.viewerCount} viewers`}
-      </Text>
+      <View style={styles.identity}>
+        <Text selectable style={mobileType.body}>
+          {`${info.channel.displayName} · ${info.stream.viewerCount} viewers`}
+        </Text>
+        {info.channel.isVerified ? (
+          <MobileVerifiedBadge platform={info.channel.platform} />
+        ) : null}
+      </View>
+      {info.stream.categoryName ? (
+        <Text selectable style={styles.category}>
+          {info.stream.categoryName}
+        </Text>
+      ) : null}
+      <MobileCatalogTags
+        language={info.stream.language}
+        tags={info.stream.tags}
+        testID="watch-info-tags"
+      />
       {onAddToMultistream ? (
-        <Pressable
+        <MobileButton
           accessibilityHint="Adds this live channel to the Multistream room"
           accessibilityLabel="Add to Multistream"
-          accessibilityRole="button"
           onPress={onAddToMultistream}
-          style={styles.relatedRow}
           testID="watch-add-multistream"
+          variant="secondary"
         >
-          <Text selectable style={styles.title}>
-            Add to Multistream
-          </Text>
-        </Pressable>
+          Add to Multistream
+        </MobileButton>
       ) : null}
     </View>
   );
@@ -206,31 +218,31 @@ function RelatedPane({
 }) {
   if (!related) {
     return (
-      <View style={styles.pane} testID="watch-related">
-        <Text selectable style={styles.body}>
+      <MobileStatusPanel testID="watch-related" tone="loading">
+        <Text selectable style={mobileType.body}>
           Loading related streams.
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   if (related.kind === "empty") {
     return (
-      <View style={styles.pane} testID="watch-related">
-        <Text selectable style={styles.body}>
+      <MobileStatusPanel testID="watch-related" tone="empty">
+        <Text selectable style={mobileType.body}>
           No related live streams.
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   if (related.kind === "unavailable") {
     return (
-      <View style={styles.pane} testID="watch-related">
-        <Text selectable style={styles.body}>
+      <MobileStatusPanel testID="watch-related" tone="error">
+        <Text selectable style={mobileType.body}>
           {related.failure.kind === "cancelled"
             ? "Related streams were cancelled."
             : related.failure.detail}
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   return (
@@ -240,15 +252,27 @@ function RelatedPane({
           accessibilityRole="button"
           key={`${stream.platform}-${stream.channelId}`}
           onPress={() => onOpenRelated(stream)}
-          style={styles.relatedRow}
+          style={({ pressed }) => [
+            styles.relatedRow,
+            pressed ? styles.relatedPressed : null,
+          ]}
           testID={`watch-related-${stream.channelId}`}
         >
-          <Text selectable style={styles.title}>
-            {stream.channelDisplayName}
-          </Text>
-          <Text selectable style={styles.body}>
+          <View style={styles.relatedHeading}>
+            <View style={styles.identity}>
+              <Text selectable style={mobileType.title}>
+                {stream.channelDisplayName}
+              </Text>
+              {stream.channelIsVerified ? (
+                <MobileVerifiedBadge platform={stream.platform} />
+              ) : null}
+            </View>
+            <MobilePlatformBadge platform={stream.platform} />
+          </View>
+          <Text selectable style={mobileType.body}>
             {stream.title}
           </Text>
+          <MobileCatalogTags language={stream.language} tags={stream.tags} />
         </Pressable>
       ))}
     </View>
@@ -261,44 +285,37 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.xSmall,
-  },
-  tab: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  tabActive: {
-    backgroundColor: mobileColors.textPrimary,
-  },
-  tabLabel: {
-    color: mobileColors.background,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 18,
   },
   pane: {
+    gap: mobileSpacing.small,
+  },
+  identity: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.xSmall,
   },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  body: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
+  relatedHeading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    justifyContent: "space-between",
   },
   relatedRow: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
+    ...mobilePressRing.rest,
+    backgroundColor: mobileColors.surface,
+    borderRadius: mobileRadii.large,
+    gap: mobileSpacing.xSmall,
     minHeight: mobileSizing.minimumTouchTarget,
     padding: mobileSpacing.medium,
+  },
+  relatedPressed: {
+    ...mobilePressRing.pressed,
+  },
+  category: {
+    ...mobileType.label,
+    color: mobileColors.textCategory,
   },
 });

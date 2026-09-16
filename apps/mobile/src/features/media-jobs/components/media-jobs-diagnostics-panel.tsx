@@ -10,11 +10,15 @@ import {
 } from "@streamfusion/core/media-jobs";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 
 import { mediaJobPhaseLabel } from "../utils/media-job-labels";
@@ -57,158 +61,130 @@ export function MediaJobsDiagnosticsPanel({
   readonly status?: string | null;
 }) {
   return (
-    <View style={styles.panel} testID="media-jobs-diagnostics">
-      <Text selectable style={styles.label}>
-        MEDIA JOB ENGINE
+    <MobileStatusPanel testID="media-jobs-diagnostics" tone="info">
+      <Text selectable style={mobileType.title}>
+        Media Jobs
       </Text>
-      <Text selectable style={styles.meta} testID="media-jobs-build-stamp">
+      <Text selectable style={mobileType.caption} testID="media-jobs-build-stamp">
         M03 Recording · contract 3
       </Text>
-      <Text selectable style={styles.body}>
+      <Text selectable style={mobileType.body}>
         Start a fixture download, compressed four-hour recording cutoff, or
         recording storage-pressure. Activity Jobs show Stop, Open, and
         playable partial recovery.
       </Text>
       {fixtureUris.map((uri) => (
-        <Text key={uri} selectable style={styles.meta}>
+        <Text key={uri} selectable style={mobileType.label}>
           {uri}
         </Text>
       ))}
       {status ? (
-        <Text selectable style={styles.body} testID="media-jobs-status">
+        <Text selectable style={mobileType.body} testID="media-jobs-status">
           {status}
         </Text>
       ) : null}
-      <Action
+      <MobileButton
+        accessibilityLabel="Start fixture download"
         busy={busy}
-        label="Start fixture download"
         onPress={onStartDownload}
         testID="media-jobs-start-download"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start fixture download
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Start HTTP range proof"
         busy={busy}
-        label="Start HTTP range proof"
         onPress={onStartHttpRange}
         testID="media-jobs-start-http-range"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start HTTP range proof
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Start network-loss fixture"
         busy={busy}
-        label="Start network-loss fixture"
         onPress={onStartNetworkLoss}
         testID="media-jobs-start-network-loss"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start network-loss fixture
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Start fixture recording"
         busy={busy}
-        label="Start fixture recording"
         onPress={onStartRecording}
         testID="media-jobs-start-recording"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start fixture recording
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Start compressed four-hour cutoff"
         busy={busy}
-        label="Start compressed four-hour cutoff"
         onPress={onStartCompressedRecording}
         testID="media-jobs-start-compressed-recording"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start compressed four-hour cutoff
+      </MobileButton>
+      <MobileButton
         accessibilityLabel="Start recording storage pressure"
         busy={busy}
-        label="Start recording storage-pressure"
         onPress={onStartRecordingStoragePressure}
         testID="media-jobs-start-recording-storage-pressure"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start recording storage-pressure
+      </MobileButton>
+      <MobileButton
         accessibilityLabel="Start storage pressure fixture"
         busy={busy}
-        label="Start storage-pressure fixture"
         onPress={onStartStoragePressure}
         testID="media-jobs-start-storage-pressure"
-      />
-      <Action
+        variant="secondary"
+      >
+        Start storage-pressure fixture
+      </MobileButton>
+      <MobileButton
+        accessibilityLabel="Recover Media Jobs"
         busy={busy}
-        label="Recover Media Jobs"
         onPress={onRecover}
         testID="media-jobs-recover"
-      />
+        variant="primary"
+      >
+        Recover Media Jobs
+      </MobileButton>
       {jobs.map((job) => (
         <Pressable
           accessibilityLabel={`Open ${job.intent.kind} ${job.intent.jobId}`}
           accessibilityRole="button"
           key={job.intent.jobId}
           onPress={() => onOpenJob(job.intent.jobId)}
-          style={styles.job}
+          style={({ pressed }) => [styles.job, pressed ? styles.jobPressed : null]}
           testID={`media-jobs-open-${job.intent.jobId}`}
         >
-          <Text selectable style={styles.buttonLabel}>
+          <Text selectable style={mobileType.title}>
             {job.intent.kind} · {mediaJobPhaseLabel(job.phase)}
           </Text>
-          <Text selectable style={styles.meta}>
+          <Text selectable style={mobileType.label}>
             {job.intent.jobId}
           </Text>
         </Pressable>
       ))}
-    </View>
-  );
-}
-
-function Action({
-  accessibilityLabel,
-  busy,
-  label,
-  onPress,
-  testID,
-}: {
-  readonly accessibilityLabel?: string;
-  readonly busy: boolean;
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled: busy }}
-      disabled={busy}
-      onPress={onPress}
-      style={styles.button}
-      testID={testID}
-    >
-      <Text selectable style={styles.buttonLabel}>
-        {label}
-      </Text>
-    </Pressable>
+    </MobileStatusPanel>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { color: mobileColors.textSecondary, lineHeight: 20 },
-  button: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
-  buttonLabel: { color: mobileColors.textPrimary, fontWeight: "700" },
   job: {
+    ...mobilePressRing.rest,
     backgroundColor: mobileColors.surfaceMuted,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.medium,
-    borderWidth: 1,
     minHeight: mobileSizing.minimumTouchTarget,
     padding: mobileSpacing.small,
   },
-  label: { color: mobileColors.textSecondary, fontSize: 12, fontWeight: "700" },
-  meta: { color: mobileColors.textCategory, fontSize: 12 },
-  panel: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
+  jobPressed: {
+    ...mobilePressRing.pressed,
   },
 });

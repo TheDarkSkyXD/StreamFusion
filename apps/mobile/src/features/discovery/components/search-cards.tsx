@@ -7,12 +7,15 @@ import type {
   Video,
 } from "@streamfusion/core/content";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import { SearchMediaCard } from "./search-media-card";
 
 export function SearchChannelCard({
@@ -34,9 +37,14 @@ export function SearchChannelCard({
         <View style={styles.avatar} />
       )}
       <View style={styles.copy}>
-        <Text selectable style={styles.title}>
-          {channel.displayName}
-        </Text>
+        <View style={styles.channelRow}>
+          <Text selectable style={styles.title}>
+            {channel.displayName}
+          </Text>
+          {channel.isVerified ? (
+            <MobileVerifiedBadge platform={channel.platform} />
+          ) : null}
+        </View>
         <Text selectable style={styles.meta}>
           {channel.isLive ? "Live" : "Offline"}
         </Text>
@@ -58,7 +66,7 @@ export function SearchChannelCard({
       accessibilityLabel={label}
       accessibilityRole="button"
       onPress={onOpen}
-      style={styles.row}
+      style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       testID={testID}
     >
       {body}
@@ -91,8 +99,9 @@ export function SearchCategoryCard({
       <Text selectable style={styles.categoryTitle}>
         {category.name}
       </Text>
-      <View style={styles.categoryBadge}>
+      <View style={styles.categoryMeta}>
         <MobilePlatformBadge platform={category.platform} />
+        <MobileCatalogTags tags={category.tags} />
       </View>
     </View>
   );
@@ -146,12 +155,16 @@ function pressProp(
 
 const styles = StyleSheet.create({
   row: {
+    ...mobilePressRing.rest,
     alignItems: "center",
     backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
     flexDirection: "row",
     gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
+  },
+  pressed: {
+    ...mobilePressRing.pressed,
   },
   category: {
     backgroundColor: mobileColors.surface,
@@ -168,6 +181,12 @@ const styles = StyleSheet.create({
   },
   copy: {
     flex: 1,
+    gap: mobileSpacing.xSmall,
+  },
+  channelRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.xSmall,
   },
   title: {
@@ -192,7 +211,8 @@ const styles = StyleSheet.create({
     height: "100%",
     width: "100%",
   },
-  categoryBadge: {
+  categoryMeta: {
+    gap: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.medium,
   },
 });

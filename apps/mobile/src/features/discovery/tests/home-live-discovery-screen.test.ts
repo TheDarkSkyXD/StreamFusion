@@ -80,6 +80,13 @@ describe("Home live discovery screen", () => {
       )
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
+    expect(nodes.some((node) => node.props.children === "proof")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "home-stream-tags-twitch-ready")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "verified-badge-twitch")).toBe(
+      true,
+    );
     const homeTitle = nodes.find((node) => node.props.children === "Home");
     expect(homeTitle?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
     expect(nodes.some((node) => node.props.testID === "open-categories")).toBe(

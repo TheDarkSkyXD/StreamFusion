@@ -23,6 +23,7 @@ export type MobileButtonVariant = (typeof mobileButtonVariants)[number];
 export function MobileButton({
   accessibilityHint,
   accessibilityLabel,
+  busy = false,
   disabled = false,
   onPress,
   testID,
@@ -31,6 +32,7 @@ export function MobileButton({
 }: {
   readonly accessibilityHint?: string;
   readonly accessibilityLabel: string;
+  readonly busy?: boolean;
   readonly disabled?: boolean;
   readonly onPress: () => void;
   readonly testID: string;
@@ -38,20 +40,21 @@ export function MobileButton({
   readonly children: string;
 }) {
   const look = variantLook(variant);
+  const inactive = disabled || busy;
   return (
     <Pressable
       {...(accessibilityHint === undefined ? {} : { accessibilityHint })}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ busy, disabled: inactive }}
       android_ripple={{ color: mobileColors.surfaceRaised }}
-      disabled={disabled}
+      disabled={inactive}
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
         look.container,
-        pressed && !disabled ? styles.pressed : null,
-        disabled ? styles.disabled : null,
+        pressed && !inactive ? pressedLook(variant) : null,
+        inactive ? styles.disabled : null,
       ]}
       testID={testID}
     >
@@ -109,6 +112,18 @@ function variantLook(variant: MobileButtonVariant): {
   }
 }
 
+function pressedLook(variant: MobileButtonVariant): ViewStyle {
+  switch (variant) {
+    case "secondary":
+      return { backgroundColor: mobileColors.surfaceRaised };
+    case "ghost":
+    case "outline":
+      return { backgroundColor: mobileColors.surface };
+    default:
+      return { opacity: 0.9 };
+  }
+}
+
 const styles = StyleSheet.create({
   base: {
     alignItems: "center",
@@ -123,9 +138,6 @@ const styles = StyleSheet.create({
     fontSize: mobileType.title.fontSize,
     fontWeight: "700",
     lineHeight: 20,
-  },
-  pressed: {
-    opacity: 0.9,
   },
   disabled: {
     opacity: 0.5,

@@ -4,14 +4,12 @@ import type {
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 import { validCommands } from "@streamfusion/core/media-jobs";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileButton } from "@mobile/design/button";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
+import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 
 import {
   mediaJobCommandLabel,
@@ -47,31 +45,28 @@ export function MediaJobScreen({
 }) {
   if (!snapshot) return <MissingJob />;
   return (
-    <View style={styles.panel} testID="media-job-detail">
-      <Text selectable style={styles.label}>
-        MEDIA JOB
-      </Text>
-      <Text
-        accessibilityRole="header"
-        selectable
-        style={styles.title}
-        testID="media-job-title"
-      >
+    <View style={styles.screen}>
+      <MobileScreenHeader
+        summary={mediaJobPhaseLabel(snapshot.phase)}
+        title={snapshot.intent.kind === "download" ? "Download" : "Recording"}
+      />
+      <MobileStatusPanel testID="media-job-detail" tone="info">
+      <Text selectable style={mobileType.body} testID="media-job-title">
         {snapshot.intent.kind === "download" ? "Download" : "Recording"}
       </Text>
-      <Text selectable style={styles.body} testID="media-job-phase">
+      <Text selectable style={mobileType.body} testID="media-job-phase">
         {mediaJobPhaseLabel(snapshot.phase)}
       </Text>
-      <Text selectable style={styles.body} testID="media-job-status">
+      <Text selectable style={mobileType.body} testID="media-job-status">
         {mediaJobDisplayedStatus(status, snapshot.statusMessage)}
       </Text>
-      <Text selectable style={styles.body} testID="media-job-progress">
+      <Text selectable style={mobileType.body} testID="media-job-progress">
         {progressLabel(snapshot)}
       </Text>
-      <Text selectable style={styles.body} testID="media-job-artifact">
+      <Text selectable style={mobileType.body} testID="media-job-artifact">
         {artifactLabel(snapshot)}
       </Text>
-      <Text selectable style={styles.body} testID="media-job-service">
+      <Text selectable style={mobileType.body} testID="media-job-service">
         {serviceLabel(snapshot)}
       </Text>
       <JobActions
@@ -82,20 +77,21 @@ export function MediaJobScreen({
         onOpen={onOpen}
         snapshot={snapshot}
       />
+      </MobileStatusPanel>
     </View>
   );
 }
 
 function MissingJob() {
   return (
-    <View style={styles.panel} testID="media-job-missing">
-      <Text selectable style={styles.label}>
-        MEDIA JOB
-      </Text>
-      <Text selectable style={styles.body}>
-        This Media Job is not on the device yet. Recover jobs from Diagnostics
-        or start a fixture job.
-      </Text>
+    <View style={styles.screen}>
+      <MobileScreenHeader title="Media Job" />
+      <MobileStatusPanel testID="media-job-missing" tone="empty">
+        <Text selectable style={mobileType.body}>
+          This Media Job is not on the device yet. Recover jobs from Diagnostics
+          or start a fixture job.
+        </Text>
+      </MobileStatusPanel>
     </View>
   );
 }
@@ -121,62 +117,51 @@ function JobActions({
   return (
     <View style={styles.actions}>
       {commands.map((command) => (
-        <Action
+        <MobileButton
+          accessibilityLabel={mediaJobCommandLabel(command, snapshot.intent.kind)}
           busy={busy}
           key={command}
-          label={mediaJobCommandLabel(command, snapshot.intent.kind)}
           onPress={() => onCommand(command)}
           testID={`media-job-command-${command}`}
-        />
+          variant={command === "cancel" ? "destructive" : "secondary"}
+        >
+          {mediaJobCommandLabel(command, snapshot.intent.kind)}
+        </MobileButton>
       ))}
       {snapshot.phase === "completed" && onOpen ? (
-        <Action busy={busy} label="Open" onPress={onOpen} testID="media-job-open" />
+        <MobileButton
+          accessibilityLabel="Open"
+          busy={busy}
+          onPress={onOpen}
+          testID="media-job-open"
+          variant="primary"
+        >
+          Open
+        </MobileButton>
       ) : null}
       {snapshot.phase === "completed" && onExport ? (
-        <Action
+        <MobileButton
+          accessibilityLabel="Export"
           busy={busy}
-          label="Export"
           onPress={onExport}
           testID="media-job-export"
-        />
+          variant="secondary"
+        >
+          Export
+        </MobileButton>
       ) : null}
       {canDeleteJob(snapshot.phase) && onDelete ? (
-        <Action
+        <MobileButton
+          accessibilityLabel="Delete"
           busy={busy}
-          label="Delete"
           onPress={onDelete}
           testID="media-job-delete"
-        />
+          variant="destructive"
+        >
+          Delete
+        </MobileButton>
       ) : null}
     </View>
-  );
-}
-
-function Action({
-  busy,
-  label,
-  onPress,
-  testID,
-}: {
-  readonly busy: boolean;
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled: busy }}
-      disabled={busy}
-      onPress={onPress}
-      style={styles.button}
-      testID={testID}
-    >
-      <Text selectable style={styles.buttonLabel}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -219,26 +204,5 @@ function canDeleteJob(phase: MediaJobPhase): boolean {
 
 const styles = StyleSheet.create({
   actions: { gap: mobileSpacing.small },
-  body: { color: mobileColors.textSecondary, lineHeight: 20 },
-  button: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
-  buttonLabel: { color: mobileColors.textPrimary, fontWeight: "700" },
-  label: { color: mobileColors.textSecondary, fontSize: 12, fontWeight: "700" },
-  panel: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
-  },
-  title: { color: mobileColors.textPrimary, fontSize: 22, fontWeight: "700" },
+  screen: { gap: mobileSpacing.medium },
 });

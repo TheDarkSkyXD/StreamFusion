@@ -4,8 +4,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   mobileColors,
   mobileRadii,
+  mobileShadows,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { FocusedWatchSession, WatchPeek, WatchTarget } from "../capabilities/watch";
 import {
@@ -128,7 +130,7 @@ function Control({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={styles.control}
+      style={({ pressed }) => [styles.control, pressed ? styles.controlPressed : null]}
       testID={testID}
     >
       <Text selectable style={styles.controlLabel}>
@@ -141,9 +143,8 @@ function Control({
 const styles = StyleSheet.create({
   shell: {
     backgroundColor: mobileColors.surfaceRaised,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: mobileRadii.large,
+    boxShadow: mobileShadows.toast,
     flexDirection: "row",
     maxWidth: 320,
     position: "absolute",
@@ -158,13 +159,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.small,
   },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "700",
+    ...mobileType.title,
+    fontSize: 14,
+    lineHeight: 18,
   },
   meta: {
+    ...mobileType.caption,
     color: mobileColors.textSecondary,
-    fontSize: 11,
   },
   control: {
     alignItems: "center",
@@ -174,9 +175,10 @@ const styles = StyleSheet.create({
     minWidth: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.xSmall,
   },
+  controlPressed: {
+    backgroundColor: mobileColors.surfaceMuted,
+  },
   controlLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "700",
+    ...mobileType.caption,
   },
 });

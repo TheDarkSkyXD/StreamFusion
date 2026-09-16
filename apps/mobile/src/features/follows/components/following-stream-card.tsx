@@ -3,11 +3,15 @@ import type { Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 
 export function FollowingStreamCard({
   onOpenProvider,
@@ -29,7 +33,7 @@ export function FollowingStreamCard({
           platform: stream.platform,
         })
       }
-      style={styles.card}
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
       testID={`following-stream-${stream.platform}-${stream.id}`}
     >
       <View style={styles.thumbWrap}>
@@ -58,9 +62,15 @@ export function FollowingStreamCard({
           <Text selectable style={styles.title}>
             {stream.title}
           </Text>
-          <Text selectable style={styles.channel}>
-            {stream.channelDisplayName}
-          </Text>
+          <View style={styles.channelRow}>
+            <Text selectable style={styles.channel}>
+              {stream.channelDisplayName}
+            </Text>
+            {stream.channelIsVerified ? (
+              <MobileVerifiedBadge platform={stream.platform} />
+            ) : null}
+          </View>
+          <MobileCatalogTags language={stream.language} tags={stream.tags} />
         </View>
         <MobilePlatformBadge platform={stream.platform} />
       </View>
@@ -70,9 +80,13 @@ export function FollowingStreamCard({
 
 const styles = StyleSheet.create({
   card: {
+    ...mobilePressRing.rest,
     backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
     overflow: "hidden",
+  },
+  pressed: {
+    ...mobilePressRing.pressed,
   },
   thumbWrap: {
     aspectRatio: 16 / 9,
@@ -117,11 +131,14 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
   },
   copy: { flex: 1, gap: mobileSpacing.xSmall },
+  channelRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
+  },
   title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.title,
   },
   channel: {
     color: mobileColors.textSecondary,

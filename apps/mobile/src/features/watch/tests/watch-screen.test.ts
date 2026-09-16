@@ -1,7 +1,7 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { WatchScreen } from "../components/watch-screen";
+import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
 import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
@@ -384,5 +384,17 @@ describe("watch screen", () => {
       true,
     );
     expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(true);
+  });
+
+  it("renders the empty Watch page with display title and empty panel", () => {
+    const nodes = descendants(WatchEmptyState());
+    const title = nodes.find((node) => node.props.children === "Watch");
+    expect(title?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
+    expect(nodes.some((node) => node.props.testID === "watch-empty")).toBe(true);
+    expect(
+      nodes.some((node) =>
+        String(node.props.children).includes("Select a live stream or recording"),
+      ),
+    ).toBe(true);
   });
 });

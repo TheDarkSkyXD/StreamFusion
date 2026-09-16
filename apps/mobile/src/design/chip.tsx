@@ -32,7 +32,7 @@ export function MobileFilterChip({
       style={({ pressed }) => [
         styles.chip,
         selected ? styles.selected : null,
-        pressed ? styles.pressed : null,
+        pressed && !selected ? styles.pressed : null,
       ]}
       testID={testID}
     >
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     backgroundColor: mobileColors.navigationSelected,
   },
   pressed: {
-    opacity: 0.9,
+    backgroundColor: mobileColors.tagSurfaceHover,
   },
   label: {
     color: mobileColors.tagText,

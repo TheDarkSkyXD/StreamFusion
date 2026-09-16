@@ -1,12 +1,15 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import type { Stream } from "@streamfusion/core/content";
 
 export function HomeStreamCard({
@@ -16,13 +19,8 @@ export function HomeStreamCard({
   readonly onOpen?: () => void;
   readonly stream: Stream;
 }) {
-  const category = stream.categoryName ?? stream.language;
-  const card = (
-    <View
-      accessibilityLabel={`${stream.channelDisplayName} live on ${stream.platform}`}
-      style={styles.card}
-      testID={`home-stream-${stream.platform}-${stream.id}`}
-    >
+  const inner = (
+    <>
       <View style={styles.thumbWrap}>
         {stream.thumbnailUrl ? (
           <Image
@@ -58,39 +56,62 @@ export function HomeStreamCard({
           <Text selectable style={styles.title}>
             {stream.title}
           </Text>
-          <Text selectable style={styles.channel}>
-            {stream.channelDisplayName}
-          </Text>
-          {category ? (
+          <View style={styles.channelRow}>
+            <Text selectable style={styles.channel}>
+              {stream.channelDisplayName}
+            </Text>
+            {stream.channelIsVerified ? (
+              <MobileVerifiedBadge platform={stream.platform} />
+            ) : null}
+          </View>
+          {stream.categoryName ? (
             <Text selectable style={styles.category}>
-              {stream.categoryName
-                ? `${stream.categoryName}${stream.language ? ` · ${stream.language}` : ""}`
-                : stream.language}
+              {stream.categoryName}
             </Text>
           ) : null}
+          <MobileCatalogTags
+            language={stream.language}
+            tags={stream.tags}
+            testID={`home-stream-tags-${stream.id}`}
+          />
         </View>
         <MobilePlatformBadge platform={stream.platform} />
       </View>
-    </View>
+    </>
   );
-  if (onOpen === undefined) return card;
+  const label = `${stream.channelDisplayName} live on ${stream.platform}`;
+  const testID = `home-stream-${stream.platform}-${stream.id}`;
+  if (onOpen === undefined) {
+    return (
+      <View accessibilityLabel={label} style={styles.card} testID={testID}>
+        {inner}
+      </View>
+    );
+  }
   return (
     <Pressable
       accessibilityHint="Opens channel details"
+      accessibilityLabel={label}
       accessibilityRole="button"
       android_ripple={{ color: mobileColors.surfaceRaised }}
       onPress={onOpen}
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+      testID={testID}
     >
-      {card}
+      {inner}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    ...mobilePressRing.rest,
     backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
     overflow: "hidden",
+  },
+  pressed: {
+    ...mobilePressRing.pressed,
   },
   thumbWrap: {
     aspectRatio: 16 / 9,
@@ -145,6 +166,12 @@ const styles = StyleSheet.create({
   },
   copy: {
     flex: 1,
+    gap: mobileSpacing.xSmall,
+  },
+  channelRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.xSmall,
   },
   title: {

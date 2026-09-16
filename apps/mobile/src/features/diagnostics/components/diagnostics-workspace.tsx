@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
-  mobileRadii,
-  mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import {
   MOBILE_DIAGNOSTICS_TABS,
@@ -25,48 +27,6 @@ type DiagnosticsWorkspaceProps = {
   readonly slots: Record<MobileDiagnosticsTab, ReactNode>;
 };
 
-function diagnosticsTab(input: {
-  readonly onSelect: (tab: MobileDiagnosticsTab) => void;
-  readonly selected: boolean;
-  readonly tab: MobileDiagnosticsTab;
-}): ReactNode {
-  return (
-    <Pressable
-      accessibilityLabel={DIAGNOSTICS_TAB_LABELS[input.tab]}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: input.selected }}
-      key={input.tab}
-      onPress={() => input.onSelect(input.tab)}
-      style={[styles.tab, input.selected ? styles.tabSelected : null]}
-      testID={`diagnostics-tab-${input.tab}`}
-    >
-      <Text
-        selectable
-        style={[styles.tabText, input.selected ? styles.tabTextSelected : null]}
-      >
-        {DIAGNOSTICS_TAB_LABELS[input.tab]}
-      </Text>
-    </Pressable>
-  );
-}
-
-function diagnosticsRunCheck(onRunCheck: () => void): ReactNode {
-  return (
-    <Pressable
-      accessibilityHint="Starts a bounded Capability Profile collection run"
-      accessibilityLabel="Run check"
-      accessibilityRole="button"
-      onPress={onRunCheck}
-      style={({ pressed }) => [styles.check, pressed ? styles.pressed : null]}
-      testID="run-check"
-    >
-      <Text selectable style={styles.checkLabel}>
-        Run check
-      </Text>
-    </Pressable>
-  );
-}
-
 export function DiagnosticsWorkspace({
   collectionCopy,
   observationCopy,
@@ -77,6 +37,9 @@ export function DiagnosticsWorkspace({
 }: DiagnosticsWorkspaceProps) {
   return (
     <View style={styles.screen} testID="screen-diagnostics">
+      <View style={styles.header}>
+        <MobileScreenHeader title="Diagnostics" />
+      </View>
       <View
         accessibilityLabel="Diagnostics sections"
         accessibilityRole="tablist"
@@ -87,13 +50,17 @@ export function DiagnosticsWorkspace({
           horizontal
           showsHorizontalScrollIndicator={false}
         >
-          {MOBILE_DIAGNOSTICS_TABS.map((tab) =>
-            diagnosticsTab({
-              onSelect: onSelectTab,
-              selected: tab === selectedTab,
-              tab,
-            }),
-          )}
+          {MOBILE_DIAGNOSTICS_TABS.map((tab) => (
+            <MobileFilterChip
+              accessibilityLabel={DIAGNOSTICS_TAB_LABELS[tab]}
+              accessibilityRole="tab"
+              key={tab}
+              label={DIAGNOSTICS_TAB_LABELS[tab]}
+              onPress={() => onSelectTab(tab)}
+              selected={tab === selectedTab}
+              testID={`diagnostics-tab-${tab}`}
+            />
+          ))}
         </ScrollView>
       </View>
       <ScrollView
@@ -103,16 +70,28 @@ export function DiagnosticsWorkspace({
         style={styles.body}
         testID={`diagnostics-panel-${selectedTab}`}
       >
-        <Text selectable style={styles.meta} testID="diagnostics-observation">
+        <Text selectable style={mobileType.body} testID="diagnostics-observation">
           {observationCopy}
         </Text>
-        <Text selectable style={styles.meta} testID="diagnostics-collection">
+        <Text selectable style={mobileType.body} testID="diagnostics-collection">
           {collectionCopy}
         </Text>
-        <Text selectable style={styles.meta} testID="diagnostics-redaction-copy">
+        <Text
+          selectable
+          style={mobileType.body}
+          testID="diagnostics-redaction-copy"
+        >
           {DIAGNOSTICS_REDACTION_COPY}
         </Text>
-        {diagnosticsRunCheck(onRunCheck)}
+        <MobileButton
+          accessibilityHint="Starts a bounded Capability Profile collection run"
+          accessibilityLabel="Run check"
+          onPress={onRunCheck}
+          testID="run-check"
+          variant="primary"
+        >
+          Run check
+        </MobileButton>
         {slots[selectedTab]}
       </ScrollView>
     </View>
@@ -124,35 +103,18 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  header: {
+    paddingHorizontal: mobileSpacing.medium,
+    paddingTop: mobileSpacing.medium,
+  },
   tabs: {
-    borderBottomColor: mobileColors.border,
+    borderBottomColor: mobileColors.dividerMuted,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   tabRow: {
     gap: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
-  },
-  tab: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.full,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  tabSelected: {
-    backgroundColor: mobileColors.navigationSelected,
-  },
-  tabText: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  tabTextSelected: {
-    color: mobileColors.textPrimary,
-    fontWeight: "700",
   },
   body: {
     flex: 1,
@@ -162,26 +124,5 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.large,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
-  },
-  meta: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  check: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  checkLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  pressed: {
-    opacity: 0.85,
   },
 });

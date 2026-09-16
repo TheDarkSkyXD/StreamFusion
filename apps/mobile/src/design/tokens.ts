@@ -23,6 +23,24 @@ export const mobileColors = {
   kickDeep: "#3dd912",
   kickBright: "#7aff4d",
   overlay: "rgba(0,0,0,0.72)",
+  playerScrim: "rgba(15,15,15,0.42)",
+  dividerMuted: "rgba(51,51,51,0.5)",
+} as const;
+
+export const mobileShadows = {
+  popover: "0 4px 16px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3)",
+  toast: "0 2px 8px rgba(0,0,0,0.3)",
+  dialog: "0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)",
+} as const;
+
+export const mobilePressRing = {
+  rest: {
+    borderColor: "transparent",
+    borderWidth: 1,
+  },
+  pressed: {
+    borderColor: mobileColors.border,
+  },
 } as const;
 
 export const mobileSpacing = {

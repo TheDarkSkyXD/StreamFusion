@@ -33,7 +33,7 @@ export function fixtureChannel(
     id: `${platform}-c1`,
     isLive: live,
     isPartner: false,
-    isVerified: false,
+    isVerified: platform === "twitch",
     lastStreamTitle: live ? `${platform} catalog proof stream` : "Last broadcast",
     platform,
     username: `${platform}-live`,

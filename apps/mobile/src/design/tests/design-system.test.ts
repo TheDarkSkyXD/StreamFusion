@@ -6,7 +6,9 @@ import { MobileFilterChip } from "../chip";
 import { MobilePlatformBadge } from "../platform-badge";
 import { MobileScreenHeader } from "../screen-header";
 import { MobileStatusPanel } from "../status-panel";
-import { mobileColors, mobileRadii, mobileType } from "../tokens";
+import { MobileCatalogTags, catalogTagLabels } from "../tag";
+import { mobileColors, mobileRadii, mobileShadows, mobileType } from "../tokens";
+import { MobileVerifiedBadge } from "../verified-badge";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
@@ -209,5 +211,38 @@ describe("mobile design primitives", () => {
     const box = panel.find((node) => node.props.testID === "home-empty");
     expect(flattenStyle(box?.props.style).borderColor).toBe(mobileColors.border);
     expect(flattenStyle(box?.props.style).backgroundColor).toBe(mobileColors.surface);
+  });
+
+  it("keeps catalog tags compact and verified badges as platform guests", () => {
+    expect(catalogTagLabels({ language: "en", tags: ["en", "proof", " "] })).toEqual([
+      "en",
+      "proof",
+    ]);
+    const tags = descendants(
+      MobileCatalogTags({
+        language: "en",
+        tags: ["proof"],
+        testID: "stream-tags",
+      }),
+    );
+    expect(tags.some((node) => node.props.testID === "stream-tags")).toBe(true);
+    const proof = tags.find((node) => node.props.children === "proof");
+    expect(flattenStyle(proof?.props.style).color).toBe(mobileColors.tagText);
+    const twitch = descendants(MobileVerifiedBadge({ platform: "twitch" }));
+    const kick = descendants(MobileVerifiedBadge({ platform: "kick" }));
+    expect(
+      twitch.some(
+        (node) => resolveStyle(node.props.style).backgroundColor === mobileColors.twitch,
+      ),
+    ).toBe(true);
+    expect(
+      kick.some(
+        (node) => resolveStyle(node.props.style).backgroundColor === mobileColors.kick,
+      ),
+    ).toBe(true);
+    expect(mobileShadows.toast).toContain("rgba(0,0,0,0.3)");
+    expect(mobileShadows.popover).toContain("0 4px 16px");
+    expect(mobileShadows.dialog).toContain("0 8px 32px");
+    expect(mobileColors.playerScrim).toBe("rgba(15,15,15,0.42)");
   });
 });

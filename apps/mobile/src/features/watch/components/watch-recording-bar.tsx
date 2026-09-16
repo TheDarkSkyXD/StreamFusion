@@ -4,14 +4,11 @@ import type {
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 import { validCommands } from "@streamfusion/core/media-jobs";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileButton } from "@mobile/design/button";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
+import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import {
   mediaJobCommandLabel,
   mediaJobDisplayedStatus,
@@ -51,11 +48,11 @@ export function WatchRecordingBar({
   if (eligibility.kind === "hidden") return null;
   if (eligibility.kind === "unsupported") {
     return (
-      <View style={styles.panel} testID="watch-recording">
-        <Text selectable style={styles.body} testID="watch-recording-unsupported">
+      <MobileStatusPanel testID="watch-recording" tone="info">
+        <Text selectable style={mobileType.body} testID="watch-recording-unsupported">
           {eligibility.reason}
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   return (
@@ -104,13 +101,13 @@ function ActiveRecording({
   );
   return (
     <>
-      <Text selectable style={styles.body} testID="watch-recording-phase">
+      <Text selectable style={mobileType.body} testID="watch-recording-phase">
         {mediaJobPhaseLabel(job.phase)}
       </Text>
-      <Text selectable style={styles.body} testID="watch-recording-status">
+      <Text selectable style={mobileType.body} testID="watch-recording-status">
         {mediaJobDisplayedStatus(status, job.statusMessage)}
       </Text>
-      <Text selectable style={styles.body} testID="watch-recording-progress">
+      <Text selectable style={mobileType.body} testID="watch-recording-progress">
         {progressLabel(job)}
       </Text>
       <View style={styles.actions}>
@@ -121,6 +118,7 @@ function ActiveRecording({
             label={mediaJobCommandLabel(command, "recording")}
             onPress={() => onCommand(command)}
             testID={`watch-recording-command-${command}`}
+            variant={command === "cancel" ? "destructive" : "secondary"}
           />
         ))}
         {job.phase === "completed" ? (
@@ -145,6 +143,7 @@ function ActiveRecording({
             label="Delete"
             onPress={onDelete}
             testID="watch-recording-delete"
+            variant="destructive"
           />
         ) : null}
       </View>
@@ -157,26 +156,24 @@ function Action({
   label,
   onPress,
   testID,
+  variant = "secondary",
 }: {
   readonly busy: boolean;
   readonly label: string;
   readonly onPress: () => void;
   readonly testID: string;
+  readonly variant?: "secondary" | "destructive";
 }) {
   return (
-    <Pressable
+    <MobileButton
       accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled: busy }}
-      disabled={busy}
+      busy={busy}
       onPress={onPress}
-      style={styles.button}
       testID={testID}
+      variant={variant}
     >
-      <Text selectable style={styles.buttonLabel}>
-        {label}
-      </Text>
-    </Pressable>
+      {label}
+    </MobileButton>
   );
 }
 
@@ -207,17 +204,5 @@ function canDeleteJob(phase: MediaJobPhase): boolean {
 
 const styles = StyleSheet.create({
   actions: { gap: mobileSpacing.small },
-  body: { color: mobileColors.textSecondary, lineHeight: 20 },
-  button: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
-  buttonLabel: { color: mobileColors.textPrimary, fontWeight: "700" },
   panel: { gap: mobileSpacing.small },
 });
