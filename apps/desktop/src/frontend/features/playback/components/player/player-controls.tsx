@@ -286,7 +286,7 @@ export function PlayerControls(props: PlayerControlsProps) {
         )}
 
         <div
-          className="flex items-center justify-between w-full max-w-screen-2xl mx-auto pointer-events-auto"
+          className={`flex items-center justify-between w-full pointer-events-auto ${isFullscreen ? "" : "max-w-screen-2xl mx-auto"}`}
           onMouseEnter={handleControlsEnter}
           onMouseLeave={handleControlsLeave}
         >
