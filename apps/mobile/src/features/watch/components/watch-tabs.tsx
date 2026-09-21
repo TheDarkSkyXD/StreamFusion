@@ -2,7 +2,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
 import { MobileButton } from "@mobile/design/button";
-import { MobileFilterChip } from "@mobile/design/chip";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { MobileCatalogTags } from "@mobile/design/tag";
@@ -22,6 +21,13 @@ import type {
   WatchTab,
 } from "../capabilities/watch";
 
+/**
+ * Under-player surface while watching.
+ *
+ * Default: live chat (or comments for VOD/clip). Stream info appears when the
+ * player is tapped. Channel Home / Videos / Clips live on the channel surface
+ * opened from the profile row — not as Info/Related/Chat chips here.
+ */
 export function WatchTabs({
   chat,
   info,
@@ -43,35 +49,25 @@ export function WatchTabs({
   readonly related: WatchRelated | null;
   readonly tab: WatchTab;
 }) {
-  const chatTab = recorded ? "comments" : "chat";
+  const chatTab: WatchTab = recorded ? "comments" : "chat";
   return (
-    <View style={styles.region}>
-      <View accessibilityRole="tablist" style={styles.tabs}>
-        <MobileFilterChip
-          accessibilityLabel={recorded ? "Details" : "Info"}
-          accessibilityRole="tab"
-          label={recorded ? "Details" : "Info"}
-          onPress={() => onSelect("info")}
-          selected={tab === "info"}
-          testID="watch-tab-info"
-        />
-        <MobileFilterChip
-          accessibilityLabel="Related"
-          accessibilityRole="tab"
-          label="Related"
-          onPress={() => onSelect("related")}
-          selected={tab === "related"}
-          testID="watch-tab-related"
-        />
-        <MobileFilterChip
-          accessibilityLabel={recorded ? "Comments" : "Chat"}
-          accessibilityRole="tab"
-          label={recorded ? "Comments" : "Chat"}
+    <View style={styles.region} testID="watch-under-player">
+      {tab === "info" ? (
+        <Pressable
+          accessibilityLabel={recorded ? "Show comments" : "Show chat"}
+          accessibilityRole="button"
           onPress={() => onSelect(chatTab)}
-          selected={tab === chatTab}
-          testID={`watch-tab-${chatTab}`}
-        />
-      </View>
+          style={({ pressed }) => [
+            styles.switchRow,
+            pressed ? styles.switchPressed : null,
+          ]}
+          testID={recorded ? "watch-show-comments" : "watch-show-chat"}
+        >
+          <Text style={styles.switchLabel}>
+            {recorded ? "Show comments" : "Show chat"}
+          </Text>
+        </Pressable>
+      ) : null}
       {tab === "chat" ? (
         <ChatPane chat={chat} {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })} />
       ) : null}
@@ -82,13 +78,13 @@ export function WatchTabs({
         />
       ) : null}
       {tab === "info" ? (
-        <InfoPane
-          info={info}
-          {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
-        />
-      ) : null}
-      {tab === "related" ? (
-        <RelatedPane onOpenRelated={onOpenRelated} related={related} />
+        <>
+          <InfoPane
+            info={info}
+            {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
+          />
+          <RelatedPane onOpenRelated={onOpenRelated} related={related} />
+        </>
       ) : null}
     </View>
   );
@@ -334,6 +330,9 @@ function RelatedPane({
   }
   return (
     <View style={styles.pane} testID="watch-related">
+      <Text selectable style={mobileType.title}>
+        Related
+      </Text>
       {related.items.map((stream) => (
         <Pressable
           accessibilityRole="button"
@@ -370,10 +369,20 @@ const styles = StyleSheet.create({
   region: {
     gap: mobileSpacing.small,
   },
-  tabs: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.xSmall,
+  switchRow: {
+    ...mobilePressRing.rest,
+    alignSelf: "flex-start",
+    borderRadius: mobileRadii.full,
+    minHeight: mobileSizing.minimumTouchTarget,
+    justifyContent: "center",
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  switchPressed: {
+    ...mobilePressRing.pressed,
+  },
+  switchLabel: {
+    ...mobileType.label,
+    color: mobileColors.twitchBright,
   },
   pane: {
     gap: mobileSpacing.small,

@@ -847,6 +847,19 @@ function ShellScreen({
           download={mediaJobSession}
           recording={mediaJobSession}
           onAddToMultistream={addLiveToMultistream}
+          onOpenChannel={(watchTarget) =>
+            dispatch({
+              type: "navigate",
+              location: {
+                channel: {
+                  id: watchTarget.channelId,
+                  platform: watchTarget.platform,
+                  username: watchTarget.channelName,
+                },
+                route: "more/channel",
+              },
+            })
+          }
           onOpenRelated={(stream) =>
             openWatch({
               channelId: stream.channelId,

@@ -6,6 +6,7 @@ import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
 import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
+  Image: "Image",
   Modal: "Modal",
   Pressable: "Pressable",
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
@@ -480,6 +481,190 @@ describe("watch screen", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+
+  it("defaults under-player to chat without Info/Related/Chat chips", () => {
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Guest chat is live. Sending stays locked.",
+          kind: "live",
+          messages: [{ displayName: "Ada", id: "msg-1", text: "hello" }],
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-under-player")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-chat")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-tab-info")).toBe(
+      false,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-tab-related")).toBe(
+      false,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-tab-chat")).toBe(
+      false,
+    );
+  });
+
+  it("opens stream info under the player from a player tap", () => {
+    const tabs: string[] = [];
+    const playback = {
+      integration: "twitch-gql-usher" as const,
+      kind: "active" as const,
+      phase: "playing" as const,
+      policySequence: 1,
+      protection: { kind: "normal" as const },
+      session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      target,
+    };
+    const root = WatchScreen({
+      PlayerSurface: () => null,
+      chat: {
+        detail: "Connecting guest chat.",
+        kind: "connecting",
+      },
+      inspection: null,
+      onMute: () => undefined,
+      onOpenProviderPage: () => undefined,
+      onOpenRelated: () => undefined,
+      onPip: () => undefined,
+      onPlayPause: () => undefined,
+      onPlayerTap: () => {
+        tabs.push("info");
+      },
+      onQualityPress: () => undefined,
+      onRetry: () => undefined,
+      onSelectTab: () => undefined,
+      onStart: () => undefined,
+      onToggleControls: () => undefined,
+      onToggleFullscreen: () => undefined,
+      peek: {
+        kind: "active",
+        muted: false,
+        presentation: {
+          pip: "unavailable",
+          presentation: "watch",
+          previous: null,
+          snapRegion: "bottom-end",
+        },
+        quality: "auto",
+        qualities: ["auto"],
+        progress: { durationMs: 0, positionMs: 0, seekable: false },
+        state: playback,
+        volume: 1,
+      },
+      playback,
+      tab: "chat",
+      target,
+    });
+    const nodes = descendants(root);
+    nodes.find((node) => node.props.testID === "player-chrome-toggle")?.props.onPress?.();
+    expect(tabs).toEqual(["info"]);
+    const infoNodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Connecting guest chat.",
+          kind: "connecting",
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: (tab) => {
+          tabs.push(tab);
+        },
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "info",
+        target,
+      }),
+    );
+    expect(infoNodes.some((node) => node.props.testID === "watch-info")).toBe(
+      true,
+    );
+    expect(
+      infoNodes.some((node) => node.props.testID === "watch-show-chat"),
+    ).toBe(true);
+  });
+
+  it("opens the channel surface from the profile row", () => {
+    const opened: string[] = [];
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Connecting guest chat.",
+          kind: "connecting",
+        },
+        inspection: null,
+        onOpenChannel: () => {
+          opened.push("channel");
+        },
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-open-channel")).toBe(
+      true,
+    );
+    nodes.find((node) => node.props.testID === "watch-open-channel")?.props.onPress?.();
+    expect(opened).toEqual(["channel"]);
+  });
+
+  it("uses comments under the player for recorded media", () => {
+    const video = {
+      ...target,
+      media: {
+        durationSeconds: 90,
+        id: "vod-1",
+        kind: "video" as const,
+        title: "VOD",
+      },
+    };
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Comments are unavailable offline.",
+          kind: "unavailable",
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target: video },
+        tab: "comments",
+        target: video,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-comments")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-tab-comments")).toBe(
+      false,
+    );
   });
 
   it("wires Watch empty to Home live discovery when a discovery session is provided", () => {

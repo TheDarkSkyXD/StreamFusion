@@ -50,7 +50,7 @@ export type PlaybackProgress = {
   readonly seekable: boolean;
 };
 
-export type WatchTab = "chat" | "comments" | "info" | "related";
+export type WatchTab = "chat" | "comments" | "info";
 
 export type WatchContextFailure =
   | { readonly kind: "cancelled" }

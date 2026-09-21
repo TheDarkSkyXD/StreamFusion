@@ -46,6 +46,7 @@ export function PlayerControls({
   onSeekBack,
   onSeekForward,
   onSelectQuality,
+  onPlayerTap,
   onToggleVisible,
   paused,
   pipAvailable,
@@ -77,6 +78,7 @@ export function PlayerControls({
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
   readonly onSelectQuality?: (quality: string) => void;
+  readonly onPlayerTap?: () => void;
   readonly onToggleVisible: () => void;
   readonly paused: boolean;
   readonly pipAvailable: boolean;
@@ -100,7 +102,10 @@ export function PlayerControls({
       <Pressable
         accessibilityLabel={visible ? "Hide player controls" : "Show player controls"}
         accessibilityRole="button"
-        onPress={onToggleVisible}
+        onPress={() => {
+          onPlayerTap?.();
+          onToggleVisible();
+        }}
         style={styles.tapCatcher}
         testID="player-chrome-toggle"
       />

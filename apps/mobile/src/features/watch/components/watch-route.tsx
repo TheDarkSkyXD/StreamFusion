@@ -75,6 +75,7 @@ export function WatchRoute({
   recording,
   discovery,
   onAddToMultistream,
+  onOpenChannel,
   onOpenRelated,
   onOpenSearch,
   onWatchRecent,
@@ -90,6 +91,7 @@ export function WatchRoute({
     readonly session: DiscoverySession;
   };
   readonly onAddToMultistream?: (target: WatchTarget) => void;
+  readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onOpenSearch?: () => void;
   readonly onWatchRecent?: (target: WatchTarget) => void;
@@ -127,6 +129,7 @@ export function WatchRoute({
       {...(download === undefined ? {} : { download })}
       {...(recording === undefined ? {} : { recording })}
       {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
+      {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(playerPrefs === undefined ? {} : { playerPrefs })}
     />
   );
@@ -137,6 +140,7 @@ function WatchSessionRoute({
   download,
   recording,
   onAddToMultistream,
+  onOpenChannel,
   onOpenRelated,
   playerPrefs,
   screen,
@@ -146,18 +150,23 @@ function WatchSessionRoute({
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
+  readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget;
 }) {
-  const [tab, setTab] = useState<WatchTab>("info");
+  const defaultTab: WatchTab = target.media ? "comments" : "chat";
+  const [tab, setTab] = useState<WatchTab>(defaultTab);
   const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
+  useEffect(() => {
+    setTab(target.media ? "comments" : "chat");
+  }, [target.channelId, target.media?.id, target.media?.kind, target.platform]);
   const session = screen.runtime.session;
   const chat = useWatchChat(screen.chat, target);
   const playback = useFocusedWatchSession(session, target);
@@ -235,6 +244,12 @@ function WatchSessionRoute({
       }}
       onOpenProviderPage={() => {
         void screen.openProviderPage.open(target);
+      }}
+      {...(onOpenChannel === undefined
+        ? {}
+        : { onOpenChannel: () => onOpenChannel(target) })}
+      onPlayerTap={() => {
+        setTab("info");
       }}
       onOpenRelated={onOpenRelated}
       onPip={() => {

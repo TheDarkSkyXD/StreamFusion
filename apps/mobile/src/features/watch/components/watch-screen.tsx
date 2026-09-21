@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
 import type {
@@ -86,8 +86,10 @@ export function WatchScreen({
   inspection,
   onAddToMultistream,
   onChatRetry,
+  onOpenChannel,
   onOpenProviderPage,
   onOpenRelated,
+  onPlayerTap,
   onRetry,
   onSelectTab,
   onStart,
@@ -126,8 +128,10 @@ export function WatchScreen({
   readonly onAddToMultistream?: () => void;
   readonly onChatRetry?: () => void;
   readonly onCloseQualityMenu?: () => void;
+  readonly onOpenChannel?: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
+  readonly onPlayerTap?: () => void;
   readonly onRetry: () => void;
   readonly onSelectQuality?: (quality: string) => void;
   readonly onSelectTab: (tab: WatchTab) => void;
@@ -162,6 +166,8 @@ export function WatchScreen({
     onQualityPress &&
     onToggleFullscreen &&
     onToggleControls;
+  const avatarUrl = channelAvatarUrl(inspection);
+  const displayName = channelDisplayName(inspection, target.channelName);
   return (
     <View
       style={[styles.screen, pipSurface ? styles.pipScreen : null]}
@@ -186,6 +192,15 @@ export function WatchScreen({
             </Text>
           </View>
         )}
+        {!showControls && onPlayerTap && !pipSurface ? (
+          <Pressable
+            accessibilityLabel="Show stream info"
+            accessibilityRole="button"
+            onPress={onPlayerTap}
+            style={StyleSheet.absoluteFill}
+            testID="watch-player-tap"
+          />
+        ) : null}
         {showControls && peek.kind === "active" ? (
           <PlayerControls
             fullscreen={fullscreen}
@@ -196,6 +211,7 @@ export function WatchScreen({
             onPlayPause={onPlayPause}
             onQualityPress={onQualityPress}
             onToggleVisible={onToggleControls}
+            {...(onPlayerTap === undefined ? {} : { onPlayerTap })}
             qualities={peek.qualities}
             qualityMenuOpen={qualityMenuOpen}
             visible={controlsVisible}
@@ -220,12 +236,34 @@ export function WatchScreen({
       </View>
       {pipSurface ? null : (
         <>
-          <View style={styles.meta} testID="watch-target">
-            <MobilePlatformBadge platform={target.platform} />
-            <Text selectable style={mobileType.title}>
-              {target.channelName}
-            </Text>
-          </View>
+          <Pressable
+            accessibilityHint="Opens channel Home, Videos, and Clips"
+            accessibilityLabel={`Open ${displayName} channel`}
+            accessibilityRole="button"
+            disabled={onOpenChannel === undefined}
+            onPress={onOpenChannel}
+            style={({ pressed }) => [
+              styles.meta,
+              pressed ? styles.metaPressed : null,
+            ]}
+            testID="watch-open-channel"
+          >
+            {avatarUrl ? (
+              <Image
+                accessibilityIgnoresInvertColors
+                source={{ uri: avatarUrl }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.avatar} testID="watch-channel-avatar-placeholder" />
+            )}
+            <View style={styles.metaCopy}>
+              <MobilePlatformBadge platform={target.platform} />
+              <Text selectable style={mobileType.title} testID="watch-target">
+                {displayName}
+              </Text>
+            </View>
+          </Pressable>
           {adblockView === undefined ? null : (
             <WatchAdBlockStatus platform={target.platform} view={adblockView} />
           )}
@@ -279,6 +317,22 @@ export function WatchScreen({
       )}
     </View>
   );
+}
+
+
+function channelAvatarUrl(inspection: WatchInspection | null): string | null {
+  const info = inspection?.info;
+  if (!info || info.kind === "unavailable") return null;
+  return info.channel.avatarUrl ?? null;
+}
+
+function channelDisplayName(
+  inspection: WatchInspection | null,
+  fallback: string,
+): string {
+  const info = inspection?.info;
+  if (!info || info.kind === "unavailable") return fallback;
+  return info.channel.displayName;
 }
 
 function showsProvider(playback: FocusedWatchState): boolean {
@@ -390,5 +444,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.small,
+  },
+  metaPressed: {
+    opacity: 0.85,
+  },
+  metaCopy: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.small,
+  },
+  avatar: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.full,
+    height: 40,
+    width: 40,
   },
 });
