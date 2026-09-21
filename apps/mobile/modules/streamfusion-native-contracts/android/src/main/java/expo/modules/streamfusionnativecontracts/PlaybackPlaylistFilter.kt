@@ -11,6 +11,16 @@ object PlaybackPlaylistFilter {
     "twitch-stitched-ad",
     "amazon-ad",
     "com.twitch.tv/ad",
+    "x-tv-twitch-ad",
+  )
+  private val mediaBearingTags = listOf(
+    "#EXTINF",
+    "#EXT-X-BYTERANGE",
+    "#EXT-X-MAP",
+    "#EXT-X-PART",
+    "#EXT-X-PRELOAD-HINT",
+    "#EXT-X-RENDITION-REPORT",
+    "#EXT-X-TWITCH-PREFETCH",
   )
 
   data class Result(
@@ -35,15 +45,17 @@ object PlaybackPlaylistFilter {
         adsDetected = true,
       )
     }
-    val stripped = stripAdSegments(playlist)
-    if (!hasMediaSegments(stripped)) {
-      // Desktop VAFT/manifest proxy: holdUnsafeTwitchMediaPlaylist — do not
-      // re-serve the commercial slate when the window is interstitial-only.
-      val held = holdUnsafeMediaPlaylist(playlist)
+    val neutralized = neutralizeTrackingUrls(playlist)
+    val stripped = stripAdSegments(neutralized)
+    // Desktop no-backup path always holdUnsafe after ads. Mobile has no ULW
+    // backup orchestrator, so hold whenever strip leaves no explicit live
+    // media — including interstitial-only commercial slates.
+    if (!hasLiveMedia(stripped)) {
+      val held = holdUnsafeMediaPlaylist(neutralized)
       return Result(
         true,
         true,
-        "Strip emptied playlist; held without media (desktop unsafe-hold).",
+        "No live media after strip; held without media (desktop unsafe-hold).",
         held,
       )
     }
@@ -57,8 +69,26 @@ object PlaybackPlaylistFilter {
 
   fun hasAds(playlist: String): Boolean {
     val lower = playlist.lowercase()
-    if (lower.contains("stitched") || lower.contains("amazon|")) return true
+    if (lower.contains("stitched") || lower.contains("amazon|") || lower.contains("x-tv-twitch-ad")) {
+      return true
+    }
     return playlist.lineSequence().any { isAdLine(it) }
+  }
+
+  /** Desktop-equivalent of holdUnsafeTwitchMediaPlaylist: drop media so the player holds. */
+  fun holdUnsafeMediaPlaylist(playlist: String): String {
+    return playlist
+      .replace("\r", "")
+      .split("\n")
+      .filter { line ->
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || !trimmed.startsWith("#")) {
+          false
+        } else {
+          mediaBearingTags.none { tag -> trimmed.startsWith(tag) }
+        }
+      }
+      .joinToString("\n")
   }
 
   private fun keep(
@@ -67,6 +97,15 @@ object PlaybackPlaylistFilter {
     adsDetected: Boolean = false,
   ): Result {
     return Result(adsDetected, false, diagnostic, playlist)
+  }
+
+  private fun neutralizeTrackingUrls(playlist: String): String {
+    return playlist
+      .replace(Regex("""(X-TV-TWITCH-AD-URL=")[^"]*(")"""), "$1https://twitch.tv$2")
+      .replace(
+        Regex("""(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")[^"]*(")"""),
+        "$1https://twitch.tv$2",
+      )
   }
 
   private fun stripAdSegments(playlist: String): String {
@@ -83,7 +122,7 @@ object PlaybackPlaylistFilter {
           insideDateRangeAd = true
           index += 1
         }
-        isAdCueOut(line) -> {
+        isAdCueOut(line) || isScte35(line) -> {
           insideCueAd = true
           index += 1
         }
@@ -106,7 +145,7 @@ object PlaybackPlaylistFilter {
           val adByUrl = isAdSegment(nextLine)
           val adByInf = isAdExtInf(line)
           val adByCue = insideCueAd && !live
-          val adByRange = insideDateRangeAd && (adByUrl || adByInf)
+          val adByRange = insideDateRangeAd && (adByUrl || adByInf || !live)
           if (adByUrl || adByInf || adByCue || adByRange) {
             index += if (isMediaUri(nextLine)) 2 else 1
           } else {
@@ -126,37 +165,20 @@ object PlaybackPlaylistFilter {
     return kept.joinToString("\n")
   }
 
-  private val mediaBearingTags = listOf(
-    "#EXTINF",
-    "#EXT-X-BYTERANGE",
-    "#EXT-X-MAP",
-    "#EXT-X-PART",
-    "#EXT-X-PRELOAD-HINT",
-    "#EXT-X-RENDITION-REPORT",
-    "#EXT-X-TWITCH-PREFETCH",
-  )
-
-  /** Desktop-equivalent of holdUnsafeTwitchMediaPlaylist: drop media so the player holds. */
-  private fun holdUnsafeMediaPlaylist(playlist: String): String {
-    return playlist
-      .replace("\r", "")
-      .split("\n")
-      .filter { line ->
-        val trimmed = line.trim()
-        if (trimmed.isEmpty() || !trimmed.startsWith("#")) {
-          false
-        } else {
-          mediaBearingTags.none { tag -> trimmed.startsWith(tag) }
+  private fun hasLiveMedia(playlist: String): Boolean {
+    val lines = playlist.replace("\r", "").split("\n")
+    var index = 0
+    while (index < lines.size) {
+      val line = lines[index]
+      if (line.startsWith("#EXTINF:") && line.lowercase().contains(",live")) {
+        val next = lines.getOrNull(index + 1)?.trim().orEmpty()
+        if (next.isNotEmpty() && !next.startsWith("#")) {
+          return true
         }
       }
-      .joinToString("\n")
-  }
-
-  private fun hasMediaSegments(playlist: String): Boolean {
-    return playlist.lineSequence().any { line ->
-      val trimmed = line.trim()
-      trimmed.isNotEmpty() && !trimmed.startsWith("#")
+      index += 1
     }
+    return false
   }
 
   private fun isMediaUri(line: String): Boolean {
@@ -168,6 +190,7 @@ object PlaybackPlaylistFilter {
     return isAdDateRange(line) ||
       isAdCueOut(line) ||
       isAdCueIn(line) ||
+      isScte35(line) ||
       isAdExtInf(line) ||
       isAdSegment(line)
   }
@@ -186,6 +209,12 @@ object PlaybackPlaylistFilter {
     return line.startsWith("#EXT-X-CUE-IN")
   }
 
+  private fun isScte35(line: String): Boolean {
+    return line.startsWith("#EXT-OATCLS-SCTE35:") ||
+      line.startsWith("#EXT-X-SCTE35:") ||
+      line.contains("SCTE35-OUT=")
+  }
+
   private fun isAdExtInf(line: String): Boolean {
     if (!line.startsWith("#EXTINF:")) return false
     val lower = line.lowercase()
@@ -201,6 +230,7 @@ object PlaybackPlaylistFilter {
       val path = uri.path?.lowercase().orEmpty()
       when {
         host in adHosts -> true
+        host.endsWith(".cloudfront.net") && path.split("/").contains("ad") -> true
         path.split("/").contains("ad") -> true
         path.contains("amazon-ad") || path.contains("stitched-ad") -> true
         else -> false

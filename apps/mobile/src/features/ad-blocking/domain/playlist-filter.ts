@@ -13,6 +13,7 @@ const DATE_RANGE_PATTERNS = [
   "twitch-stitched-ad",
   "amazon-ad",
   "com.twitch.tv/ad",
+  "x-tv-twitch-ad",
 ];
 
 const TWITCH_PREFETCH = "#EXT-X-TWITCH-PREFETCH:";
@@ -35,16 +36,19 @@ export function filterTwitchPlaylist(
       true,
     );
   }
-  const stripped = stripAdSegments(playlist);
-  if (!hasMediaSegments(stripped)) {
-    // Desktop VAFT/manifest proxy: holdUnsafeTwitchMediaPlaylist — do not
-    // re-serve the commercial slate when the window is interstitial-only.
-    const held = holdUnsafeMediaPlaylist(playlist);
+  const neutralized = neutralizeTrackingUrls(playlist);
+  const stripped = stripAdSegments(neutralized);
+  // Desktop no-backup path always holdUnsafe after ads. Mobile has no ULW
+  // backup orchestrator, so hold whenever strip leaves no explicit live
+  // media — including interstitial-only commercial slates and SCTE35 windows
+  // whose non-live residue would otherwise still append.
+  if (!hasLiveMedia(stripped)) {
+    const held = holdUnsafeMediaPlaylist(neutralized);
     return {
       adsDetected: true,
       applied: true,
       diagnostic:
-        "Strip emptied playlist; held without media (desktop unsafe-hold).",
+        "No live media after strip; held without media (desktop unsafe-hold).",
       playlist: held,
     };
   }
@@ -68,7 +72,17 @@ export function playlistHasAds(playlist: string): boolean {
   const text = playlist.toLowerCase();
   if (text.includes("stitched")) return true;
   if (text.includes("amazon|")) return true;
+  if (text.includes("x-tv-twitch-ad")) return true;
   return playlist.split(/\r?\n/).some((line) => isAdLine(line));
+}
+
+function neutralizeTrackingUrls(playlist: string): string {
+  return playlist
+    .replace(/(X-TV-TWITCH-AD-URL=")[^"]*(")/g, "$1https://twitch.tv$2")
+    .replace(
+      /(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")[^"]*(")/g,
+      "$1https://twitch.tv$2",
+    );
 }
 
 function stripAdSegments(playlist: string): string {
@@ -85,7 +99,7 @@ function stripAdSegments(playlist: string): string {
       index += 1;
       continue;
     }
-    if (isAdCueOut(line)) {
+    if (isAdCueOut(line) || isScte35(line)) {
       insideCueAd = true;
       index += 1;
       continue;
@@ -114,7 +128,7 @@ function stripAdSegments(playlist: string): string {
       const adByUrl = isAdSegment(nextLine);
       const adByInf = isAdExtInf(line);
       const adByCue = insideCueAd && !live;
-      const adByRange = insideDateRangeAd && (adByUrl || adByInf);
+      const adByRange = insideDateRangeAd && (adByUrl || adByInf || !live);
       if (adByUrl || adByInf || adByCue || adByRange) {
         index += isMediaUri(nextLine) ? 2 : 1;
         continue;
@@ -143,7 +157,7 @@ const MEDIA_BEARING_TAGS = [
 ];
 
 /** Desktop-equivalent of holdUnsafeTwitchMediaPlaylist: drop media so the player holds. */
-function holdUnsafeMediaPlaylist(playlist: string): string {
+export function holdUnsafeMediaPlaylist(playlist: string): string {
   return playlist
     .replace(/\r/g, "")
     .split("\n")
@@ -155,11 +169,16 @@ function holdUnsafeMediaPlaylist(playlist: string): string {
     .join("\n");
 }
 
-function hasMediaSegments(playlist: string): boolean {
-  return playlist.split("\n").some((line) => {
-    const trimmed = line.trim();
-    return trimmed !== "" && !trimmed.startsWith("#");
-  });
+function hasLiveMedia(playlist: string): boolean {
+  const lines = playlist.replace(/\r/g, "").split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (!line.startsWith("#EXTINF:")) continue;
+    if (!line.toLowerCase().includes(",live")) continue;
+    const next = (lines[index + 1] ?? "").trim();
+    if (next !== "" && !next.startsWith("#")) return true;
+  }
+  return false;
 }
 
 function isMediaUri(line: string): boolean {
@@ -172,6 +191,7 @@ function isAdLine(line: string): boolean {
     isAdDateRange(line) ||
     isAdCueOut(line) ||
     isAdCueIn(line) ||
+    isScte35(line) ||
     isAdExtInf(line) ||
     isAdSegment(line)
   );
@@ -191,6 +211,14 @@ function isAdCueIn(line: string): boolean {
   return line.startsWith("#EXT-X-CUE-IN");
 }
 
+function isScte35(line: string): boolean {
+  return (
+    line.startsWith("#EXT-OATCLS-SCTE35:") ||
+    line.startsWith("#EXT-X-SCTE35:") ||
+    line.includes("SCTE35-OUT=")
+  );
+}
+
 function isAdExtInf(line: string): boolean {
   if (!line.startsWith("#EXTINF:")) return false;
   const lower = line.toLowerCase();
@@ -205,6 +233,9 @@ function isAdSegment(value: string): boolean {
     const host = url.hostname.toLowerCase();
     const path = url.pathname.toLowerCase();
     if (AD_HOSTS.has(host)) return true;
+    if (host.endsWith(".cloudfront.net") && path.split("/").includes("ad")) {
+      return true;
+    }
     if (path.split("/").includes("ad")) return true;
     return path.includes("amazon-ad") || path.includes("stitched-ad");
   } catch {

@@ -70,16 +70,21 @@ class FilteringDataSource(
   }
 
   private fun rewriteOrKeep(original: ByteArray): ByteArray {
+    val text = String(original, StandardCharsets.UTF_8)
     return try {
-      val rewritten = PlaybackPlaylistFilter.rewrite(
-        String(original, StandardCharsets.UTF_8),
-        mode,
-      )
+      val rewritten = PlaybackPlaylistFilter.rewrite(text, mode)
       onDiagnostic(rewritten.diagnostic)
       rewritten.playlist.toByteArray(StandardCharsets.UTF_8)
     } catch (_: Throwable) {
-      onDiagnostic("Filter failed. Original playlist kept.")
-      original
+      // Desktop fail-closed: known-unsafe media must not reach the player.
+      if (mode == "strip" && PlaybackPlaylistFilter.hasAds(text)) {
+        onDiagnostic("Filter failed; held unsafe media (fail-closed).")
+        PlaybackPlaylistFilter.holdUnsafeMediaPlaylist(text)
+          .toByteArray(StandardCharsets.UTF_8)
+      } else {
+        onDiagnostic("Filter failed. Original playlist kept.")
+        original
+      }
     }
   }
 
