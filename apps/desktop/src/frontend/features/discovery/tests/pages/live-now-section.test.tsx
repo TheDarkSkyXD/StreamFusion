@@ -19,6 +19,7 @@ function installIntersectionObserverMock() {
   class MockIntersectionObserver implements IntersectionObserver {
     readonly root = null;
     readonly rootMargin = "";
+    readonly scrollMargin = "";
     readonly thresholds = [];
     constructor(callback: IntersectionObserverCallback) {
       callbacks.push(callback);
