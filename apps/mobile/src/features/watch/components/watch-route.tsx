@@ -74,6 +74,8 @@ export function WatchRoute({
   recording,
   onAddToMultistream,
   onOpenRelated,
+  onOpenSearch,
+  onWatchRecent,
   playerPrefs,
   screen,
   target,
@@ -83,6 +85,8 @@ export function WatchRoute({
   readonly recording?: WatchDownloadSession;
   readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
+  readonly onOpenSearch?: () => void;
+  readonly onWatchRecent?: (target: WatchTarget) => void;
   readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget | null;
@@ -90,7 +94,15 @@ export function WatchRoute({
   const peek = useWatchPeek(screen.runtime.session);
   const resolved =
     target ?? (peek.kind === "active" ? peek.state.target : null);
-  if (!resolved) return <WatchEmptyState />;
+  if (!resolved) {
+    return (
+      <WatchEmptyState
+        history={screen.history}
+        {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
+        {...(onWatchRecent === undefined ? {} : { onWatch: onWatchRecent })}
+      />
+    );
+  }
   return (
     <WatchSessionRoute
       onOpenRelated={onOpenRelated}

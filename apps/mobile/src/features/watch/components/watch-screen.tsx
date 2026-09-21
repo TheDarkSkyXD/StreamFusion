@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
 import type {
@@ -38,6 +38,7 @@ import { WatchCaptionBar, type WatchCaptionBarProps } from "./watch-caption-bar"
 import { WatchCaptionOverlay } from "./watch-caption-overlay";
 import { WatchDownloadBar } from "./watch-download-bar";
 import { WatchRecordingBar } from "./watch-recording-bar";
+import { WatchRecentList } from "./watch-recent-list";
 import { WatchTabs } from "./watch-tabs";
 
 export type PlayerSurfaceProps = {
@@ -267,9 +268,22 @@ function showsProvider(playback: FocusedWatchState): boolean {
   return playback.failure.recovery.includes("open-provider");
 }
 
-export function WatchEmptyState() {
+export function WatchEmptyState({
+  history,
+  onOpenSearch,
+  onWatch,
+}: {
+  readonly history?: WatchHistoryRepository;
+  readonly onOpenSearch?: () => void;
+  readonly onWatch?: (target: WatchTarget) => void;
+} = {}) {
   return (
-    <View style={styles.screen} testID="screen-watch">
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      contentInsetAdjustmentBehavior="automatic"
+      style={styles.scroll}
+      testID="screen-watch"
+    >
       <MobileScreenHeader title="Watch" />
       <MobileStatusPanel testID="watch-empty" tone="empty">
         <Text selectable style={mobileType.title}>
@@ -279,11 +293,29 @@ export function WatchEmptyState() {
           Pick a live stream or recording from Search or Following to watch here.
         </Text>
       </MobileStatusPanel>
-    </View>
+      {history && onWatch ? (
+        <WatchRecentList
+          history={history}
+          onWatch={onWatch}
+          {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
+        />
+      ) : onOpenSearch ? (
+        <MobileButton
+          accessibilityHint="Opens Search to find something to watch"
+          accessibilityLabel="Find something in Search"
+          onPress={onOpenSearch}
+          testID="watch-empty-open-search"
+          variant="secondary"
+        >
+          Find something in Search
+        </MobileButton>
+      ) : null}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, minHeight: 0 },
   screen: {
     flex: 1,
     gap: mobileSpacing.medium,

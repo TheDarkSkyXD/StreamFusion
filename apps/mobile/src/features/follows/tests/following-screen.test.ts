@@ -1,4 +1,5 @@
 import { isValidElement, type ReactElement } from "react";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 
@@ -157,4 +158,15 @@ describe("Following screen", () => {
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Kick does not offer videos/);
   });
+
+  it("keeps a Search CTA for empty guest membership in the Following screen", () => {
+    const source = readFileSync(
+      new URL("../components/following-screen.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('testID="following-open-search"');
+    expect(source).toContain("Find channels in Search");
+    expect(source).toContain("onOpenSearch");
+  });
+
 });

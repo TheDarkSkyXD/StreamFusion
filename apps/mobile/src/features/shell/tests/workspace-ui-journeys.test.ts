@@ -126,6 +126,7 @@ describe("workspace UI journeys", () => {
       "more/categories",
       "more/multistream",
       "more/history",
+      "more/downloads",
       "more/moderation",
       "more/settings",
       "more/diagnostics",

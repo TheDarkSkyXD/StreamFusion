@@ -317,6 +317,21 @@ describe("Activity screen", () => {
     ).toBe(true);
   });
 
+  it("hides Mark all read and Clear when Activity has zero items", () => {
+    const nodes = render(
+      model({ allItems: [], items: [], status: "ready", unreadCount: 0 }),
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "activity-mark-all-read"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "activity-clear-completed"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "activity-unread-count"),
+    ).toBe(false);
+  });
+
   it("does not group the unavailable empty-state retry with its status text", () => {
     const nodes = render(
       model({ allItems: [], items: [], status: "unavailable", unreadCount: 0 }),

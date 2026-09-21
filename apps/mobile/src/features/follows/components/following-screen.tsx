@@ -22,9 +22,11 @@ import { useFollowingView } from "./use-following-view";
 
 export function FollowingScreen({
   onOpenManage,
+  onOpenSearch,
   session,
 }: {
   readonly onOpenManage: () => void;
+  readonly onOpenSearch?: () => void;
   readonly session: FollowingSession;
 }) {
   const [tab, setTab] = useState<FollowingTab>("live");
@@ -48,6 +50,7 @@ export function FollowingScreen({
       onOpenProvider={(target) => {
         void session.openProviderPage(target);
       }}
+      {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       onPeriod={setPeriod}
       onQuery={setQuery}
       onRetry={() => live.refresh()}
@@ -67,6 +70,7 @@ function FollowingScreenBody({
   onChip,
   onOpenManage,
   onOpenProvider,
+  onOpenSearch,
   onPeriod,
   onQuery,
   onRetry,
@@ -85,6 +89,7 @@ function FollowingScreenBody({
     readonly platform: Platform;
     readonly channelLogin: string;
   }) => void;
+  readonly onOpenSearch?: () => void;
   readonly onPeriod: (period: FollowedClipPeriod) => void;
   readonly onQuery: (query: string) => void;
   readonly onRetry: () => void;
@@ -134,6 +139,20 @@ function FollowingScreenBody({
         onRetry={onRetry}
         view={view}
       />
+      {onOpenSearch &&
+      view.live.kind === "empty" &&
+      view.live.reason === "no-membership" &&
+      tab === "live" ? (
+        <MobileButton
+          accessibilityHint="Opens Search to find channels to follow"
+          accessibilityLabel="Find channels in Search"
+          onPress={onOpenSearch}
+          testID="following-open-search"
+          variant="primary"
+        >
+          Find channels in Search
+        </MobileButton>
+      ) : null}
     </ScrollView>
   );
 }

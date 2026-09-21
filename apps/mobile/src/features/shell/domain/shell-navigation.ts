@@ -20,6 +20,7 @@ export type ShellRouteId =
   | "more/categories"
   | "more/multistream"
   | "more/history"
+  | "more/downloads"
   | "more/moderation"
   | "more/settings"
   | "more/diagnostics"
@@ -124,11 +125,40 @@ export const MORE_ROUTE_IDS = [
   "more/categories",
   "more/multistream",
   "more/history",
+  "more/downloads",
   "more/moderation",
   "more/settings",
   "more/diagnostics",
   "more/accounts",
 ] as const satisfies readonly ShellRouteId[];
+
+/** Desktop-aligned More hub groupings (labels only — keep mobile row chrome). */
+export const MORE_MENU_GROUPS = [
+  {
+    id: "browse",
+    label: "Browse",
+    routes: ["more/home", "more/categories", "more/multistream"],
+  },
+  {
+    id: "library",
+    label: "Library",
+    routes: ["more/history", "more/downloads"],
+  },
+  {
+    id: "tools",
+    label: "Tools",
+    routes: ["more/moderation"],
+  },
+  {
+    id: "system",
+    label: "System",
+    routes: ["more/settings", "more/diagnostics", "more/accounts"],
+  },
+] as const satisfies readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly routes: readonly (typeof MORE_ROUTE_IDS)[number][];
+}[];
 
 export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
   search: route(
@@ -257,6 +287,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more-history",
     "Return to watched streams, videos, and clips with their content type intact.",
     "History",
+    "more",
+  ),
+  "more/downloads": route(
+    "more/downloads",
+    "MORE",
+    "more-downloads",
+    "Saved downloads and recordings started from Watch stay on this device.",
+    "Downloads",
     "more",
   ),
   "more/moderation": route(

@@ -141,33 +141,37 @@ export function ActivityScreen({
               />
             ))}
           </View>
-          <View style={styles.unreadRow}>
-            <Text
-              selectable
-              style={styles.unreadText}
-              testID="activity-unread-count"
-            >
-              {`${model.unreadCount} unread`}
-            </Text>
-            <MarkAllReadButton
+          {model.allItems.length > 0 ? (
+            <View style={styles.unreadRow}>
+              <Text
+                selectable
+                style={styles.unreadText}
+                testID="activity-unread-count"
+              >
+                {`${model.unreadCount} unread`}
+              </Text>
+              <MarkAllReadButton
+                disabled={
+                  model.unreadCount === 0 ||
+                  model.isMarkingAllRead ||
+                  model.isRefreshing
+                }
+                isMarkingAllRead={model.isMarkingAllRead}
+                onMarkAllRead={onMarkAllRead}
+              />
+            </View>
+          ) : null}
+          {model.allItems.length > 0 ? (
+            <ClearCompletedButton
               disabled={
-                model.unreadCount === 0 ||
-                model.isMarkingAllRead ||
+                model.allItems.every((item) => !isCompletedActivity(item)) ||
+                model.isDismissing ||
                 model.isRefreshing
               }
-              isMarkingAllRead={model.isMarkingAllRead}
-              onMarkAllRead={onMarkAllRead}
+              isDismissing={model.isDismissing}
+              onDismissVisibleCompleted={onDismissVisibleCompleted}
             />
-          </View>
-          <ClearCompletedButton
-            disabled={
-              model.allItems.every((item) => !isCompletedActivity(item)) ||
-              model.isDismissing ||
-              model.isRefreshing
-            }
-            isDismissing={model.isDismissing}
-            onDismissVisibleCompleted={onDismissVisibleCompleted}
-          />
+          ) : null}
           <DismissalStatus
             model={model}
             onCancel={onCancelDismissal}

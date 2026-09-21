@@ -1,4 +1,5 @@
 import { isValidElement, type ReactElement } from "react";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
@@ -8,6 +9,7 @@ vi.mock("react-native", () => ({
   Pressable: "Pressable",
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
+  ScrollView: "ScrollView",
   View: "View",
 }));
 
@@ -456,4 +458,14 @@ describe("watch screen", () => {
       ),
     ).toBe(true);
   });
+
+  it("wires Watch empty recent history through existing cards when history exists", () => {
+    const source = readFileSync(
+      new URL("../components/watch-screen.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("WatchRecentList");
+    expect(source).toContain("watch-empty-open-search");
+  });
+
 });

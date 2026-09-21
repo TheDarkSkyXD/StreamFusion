@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
+import { ArrowLeft, ChevronRight, CircleUserRound, Settings } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
 import {
   useCallback,
@@ -70,6 +70,7 @@ import {
   slotFromAddSource,
 } from "@mobile/features/multistream/domain/multistream-layout";
 import type { PlayerSurfaceProps, WatchScreenRuntime } from "@mobile/features/watch/components/watch-screen";
+import { DownloadsScreen } from "@mobile/features/media-jobs/components/downloads-screen";
 import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
 import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
 import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
@@ -131,6 +132,7 @@ import { watchDownloadJobId } from "@mobile/features/watch/domain/watch-download
 import { watchRecordingJobId } from "@mobile/features/watch/domain/watch-recording";
 import type { WatchPeek, WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
+import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { DestinationIcon } from "./destination-icon";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { resolveHardwareBack } from "../domain/hardware-back";
@@ -145,7 +147,7 @@ import {
   getActiveShellLocation,
   getActiveShellRoute,
   getShellNavigationPlacement,
-  MORE_ROUTE_IDS,
+  MORE_MENU_GROUPS,
   SHELL_DESTINATIONS,
   SHELL_ROUTES,
   type ShellDestination,
@@ -642,23 +644,42 @@ function ShellHeader({
             : route.title}
         </Text>
       </View>
-      <Pressable
-        accessibilityHint="Opens More, including Accounts and maintenance"
-        accessibilityLabel="More"
-        accessibilityRole="button"
-        android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
-        onPress={() =>
-          dispatch({ type: "navigate", location: { route: "more" } })
-        }
-        style={styles.headerAction}
-        testID="shell-accounts"
-      >
-        <CircleUserRound
-          accessibilityElementsHidden
-          color={mobileColors.textPrimary}
-          size={mobileSizing.icon}
-        />
-      </Pressable>
+      <View style={styles.headerTrailing}>
+        <Pressable
+          accessibilityHint="Opens Settings inside More"
+          accessibilityLabel="Settings"
+          accessibilityRole="button"
+          android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          onPress={() =>
+            dispatch({ type: "navigate", location: { route: "more/settings" } })
+          }
+          style={styles.headerAction}
+          testID="shell-settings"
+        >
+          <Settings
+            accessibilityElementsHidden
+            color={mobileColors.textPrimary}
+            size={mobileSizing.icon}
+          />
+        </Pressable>
+        <Pressable
+          accessibilityHint="Opens Accounts and maintenance inside More"
+          accessibilityLabel="Accounts"
+          accessibilityRole="button"
+          android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          onPress={() =>
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+          }
+          style={styles.headerAction}
+          testID="shell-accounts"
+        >
+          <CircleUserRound
+            accessibilityElementsHidden
+            color={mobileColors.textPrimary}
+            size={mobileSizing.icon}
+          />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -828,6 +849,10 @@ function ShellScreen({
               platform: stream.platform,
             })
           }
+          onOpenSearch={() =>
+            dispatch({ type: "select", destination: "search" })
+          }
+          onWatchRecent={openWatch}
           playerPrefs={playerPrefs}
           screen={watch}
           target={target}
@@ -944,6 +969,9 @@ function ShellScreen({
               location: { route: "following/manage" },
             })
           }
+          onOpenSearch={() =>
+            dispatch({ type: "select", destination: "search" })
+          }
           route={location.route}
           session={followingSession}
         />
@@ -1055,6 +1083,22 @@ function ShellScreen({
     );
   }
 
+  if (location.route === "more/downloads") {
+    return (
+      <View style={styles.activityWorkspace} testID="screen-more-downloads">
+        <DownloadsScreen
+          jobs={mediaJobsController.model.jobs}
+          onOpenJob={(jobId) =>
+            dispatch({
+              type: "navigate",
+              location: { route: "activity/job-preview", jobId },
+            })
+          }
+        />
+      </View>
+    );
+  }
+
   if (location.route === "more/multistream") {
     return (
       <View style={styles.activityWorkspace} testID="screen-more-multistream-root">
@@ -1156,6 +1200,65 @@ function ShellScreen({
           })}
         />
       </View>
+    );
+  }
+
+  if (location.route === "more/moderation") {
+    return (
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        contentInsetAdjustmentBehavior="automatic"
+        ref={scrollView}
+        style={styles.screenScroll}
+        testID="screen-more-moderation"
+      >
+        <View style={styles.contentColumn}>
+          <MobileScreenHeader
+            summary="Moderation tools open here for connected broadcaster accounts. Guest mode stays read-only."
+            title="Moderation"
+          />
+          <View style={styles.statePanel} testID="moderation-empty">
+            <Text selectable style={styles.stateLabel}>
+              ACCOUNTS REQUIRED
+            </Text>
+            <Text selectable style={styles.cardBody}>
+              Connect Twitch or Kick under Accounts to manage eligible channels.
+              Desktop Mod View remains available for full moderator workflows.
+            </Text>
+            <Pressable
+              accessibilityHint="Opens Accounts inside More"
+              accessibilityLabel="Open Accounts"
+              accessibilityRole="button"
+              android_ripple={{ color: mobileColors.surfaceRaised }}
+              onPress={() =>
+                dispatch({
+                  type: "navigate",
+                  location: { route: "more/accounts" },
+                })
+              }
+              style={({ pressed }) => [
+                styles.card,
+                pressed ? styles.pressed : null,
+              ]}
+              testID="moderation-open-accounts"
+            >
+              <View style={styles.cardCopy}>
+                <Text selectable style={styles.cardTitle}>
+                  Open Accounts
+                </Text>
+                <Text selectable style={styles.cardBody}>
+                  Connect Platforms without leaving More.
+                </Text>
+              </View>
+              <ChevronRight
+                accessibilityElementsHidden
+                color={mobileColors.textSecondary}
+                size={mobileSizing.icon}
+              />
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
     );
   }
 
@@ -1693,40 +1796,47 @@ function MoreMenu({
 }) {
   return (
     <View accessibilityLabel="More destinations" style={styles.menu}>
-      {MORE_ROUTE_IDS.map((routeId) => {
-        const route = SHELL_ROUTES[routeId];
-        return (
-          <Pressable
-            accessibilityHint={`Opens ${route.title} inside More`}
-            accessibilityLabel={route.title}
-            accessibilityRole="button"
-            android_ripple={{ color: mobileColors.surfaceRaised }}
-            key={route.id}
-            onPress={() =>
-              dispatch({ type: "navigate", location: { route: routeId } })
-            }
-            style={({ pressed }) => [
-              styles.menuRow,
-              pressed ? styles.pressed : null,
-            ]}
-            testID={`open-${route.reviewId}`}
-          >
-            <View style={styles.menuCopy}>
-              <Text selectable style={styles.cardTitle}>
-                {route.title}
-              </Text>
-              <Text selectable style={styles.menuSummary}>
-                {route.summary}
-              </Text>
-            </View>
-            <ChevronRight
-              accessibilityElementsHidden
-              color={mobileColors.textSecondary}
-              size={mobileSizing.icon}
-            />
-          </Pressable>
-        );
-      })}
+      {MORE_MENU_GROUPS.map((group) => (
+        <View key={group.id} style={styles.menuGroup} testID={`more-group-${group.id}`}>
+          <Text selectable style={styles.menuGroupLabel}>
+            {group.label}
+          </Text>
+          {group.routes.map((routeId) => {
+            const route = SHELL_ROUTES[routeId];
+            return (
+              <Pressable
+                accessibilityHint={`Opens ${route.title} inside More`}
+                accessibilityLabel={route.title}
+                accessibilityRole="button"
+                android_ripple={{ color: mobileColors.surfaceRaised }}
+                key={route.id}
+                onPress={() =>
+                  dispatch({ type: "navigate", location: { route: routeId } })
+                }
+                style={({ pressed }) => [
+                  styles.menuRow,
+                  pressed ? styles.pressed : null,
+                ]}
+                testID={`open-${route.reviewId}`}
+              >
+                <View style={styles.menuCopy}>
+                  <Text selectable style={styles.cardTitle}>
+                    {route.title}
+                  </Text>
+                  <Text selectable style={styles.menuSummary}>
+                    {route.summary}
+                  </Text>
+                </View>
+                <ChevronRight
+                  accessibilityElementsHidden
+                  color={mobileColors.textSecondary}
+                  size={mobileSizing.icon}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -1900,6 +2010,11 @@ const styles = StyleSheet.create({
     minHeight: 64,
     paddingHorizontal: mobileSpacing.small,
   },
+  headerTrailing: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.xSmall,
+  },
   headerAction: {
     alignItems: "center",
     borderRadius: mobileRadii.full,
@@ -2019,6 +2134,17 @@ const styles = StyleSheet.create({
     borderRadius: mobileRadii.large,
     borderWidth: 1,
     overflow: "hidden",
+  },
+  menuGroup: {
+    gap: mobileSpacing.small,
+  },
+  menuGroupLabel: {
+    color: mobileColors.textCategory,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    lineHeight: 16,
+    textTransform: "uppercase",
   },
   menuRow: {
     alignItems: "center",

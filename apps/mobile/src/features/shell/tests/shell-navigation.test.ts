@@ -359,6 +359,7 @@ describe("adaptive app shell", () => {
       "more/categories",
       "more/multistream",
       "more/history",
+      "more/downloads",
       "more/moderation",
       "more/settings",
       "more/diagnostics",
