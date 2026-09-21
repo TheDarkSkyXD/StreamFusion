@@ -214,7 +214,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more",
     "STREAMFUSION",
     "more-root",
-    "Secondary tools live here, away from the viewing controls you use most.",
+    "",
     "More",
     "more",
   ),

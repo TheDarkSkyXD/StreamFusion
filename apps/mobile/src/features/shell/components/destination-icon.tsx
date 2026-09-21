@@ -1,9 +1,16 @@
 import {
+  Activity,
   Bell,
+  CircleUserRound,
+  Download,
   Heart,
+  History,
+  LayoutDashboard,
   Menu,
   Play,
   Search,
+  Settings,
+  Shield,
   type LucideIcon,
 } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
@@ -11,6 +18,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { mobileColors, mobileRadii, mobileSizing } from "@mobile/design/tokens";
 
 import type { ShellDestinationId } from "../domain/shell-navigation";
+import { MORE_ROUTE_IDS } from "../domain/shell-navigation";
 
 const destinationIcons: Readonly<Record<ShellDestinationId, LucideIcon>> = {
   search: Search,
@@ -19,6 +27,41 @@ const destinationIcons: Readonly<Record<ShellDestinationId, LucideIcon>> = {
   activity: Bell,
   more: Menu,
 };
+
+/** Electron sidebar / settings iconography mirrored for the More hub cards. */
+export const moreRouteIcons = {
+  "more/multistream": LayoutDashboard,
+  "more/history": History,
+  "more/downloads": Download,
+  "more/moderation": Shield,
+  "more/settings": Settings,
+  "more/diagnostics": Activity,
+  "more/accounts": CircleUserRound,
+} as const satisfies Readonly<
+  Record<(typeof MORE_ROUTE_IDS)[number], LucideIcon>
+>;
+
+export type MoreHubRouteId = (typeof MORE_ROUTE_IDS)[number];
+
+export function MoreRouteIcon({
+  color,
+  routeId,
+  size = mobileSizing.icon,
+}: {
+  readonly color: string;
+  readonly routeId: MoreHubRouteId;
+  readonly size?: number;
+}) {
+  const Icon = moreRouteIcons[routeId];
+  return (
+    <Icon
+      accessibilityElementsHidden
+      color={color}
+      size={size}
+      strokeWidth={2}
+    />
+  );
+}
 
 export function formatActivityUnreadBadge(unreadCount: number): string {
   return unreadCount > 99 ? "99+" : String(unreadCount);

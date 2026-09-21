@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DestinationIcon,
   formatActivityUnreadBadge,
+  moreRouteIcons,
+  MoreRouteIcon,
 } from "../components/destination-icon";
+import { MORE_ROUTE_IDS } from "../domain/shell-navigation";
 
 vi.mock("react-native", () => ({
   StyleSheet: { create: (styles: unknown) => styles },
@@ -13,11 +16,18 @@ vi.mock("react-native", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  Activity: "Activity",
   Bell: "Bell",
+  CircleUserRound: "CircleUserRound",
+  Download: "Download",
   Heart: "Heart",
+  History: "History",
+  LayoutDashboard: "LayoutDashboard",
   Menu: "Menu",
   Play: "Play",
   Search: "Search",
+  Settings: "Settings",
+  Shield: "Shield",
 }));
 
 type ElementProps = Readonly<{
@@ -80,5 +90,29 @@ describe("Activity destination badge", () => {
     expect(
       nodes.some((node) => node.props.testID === "nav-activity-unread-badge"),
     ).toBe(false);
+  });
+});
+
+// Guards: More hub cards use Electron-aligned Lucide icons with no description text
+describe("More hub route icons", () => {
+  it("maps every More hub route to an icon", () => {
+    for (const routeId of MORE_ROUTE_IDS) {
+      expect(moreRouteIcons[routeId]).toBeTruthy();
+      const node = MoreRouteIcon({
+        color: "#fff",
+        routeId,
+      });
+      expect(node.type).toBe(moreRouteIcons[routeId]);
+    }
+  });
+
+  it("uses Electron-aligned icon names for the hub", () => {
+    expect(moreRouteIcons["more/multistream"]).toBe("LayoutDashboard");
+    expect(moreRouteIcons["more/history"]).toBe("History");
+    expect(moreRouteIcons["more/downloads"]).toBe("Download");
+    expect(moreRouteIcons["more/moderation"]).toBe("Shield");
+    expect(moreRouteIcons["more/settings"]).toBe("Settings");
+    expect(moreRouteIcons["more/diagnostics"]).toBe("Activity");
+    expect(moreRouteIcons["more/accounts"]).toBe("CircleUserRound");
   });
 });

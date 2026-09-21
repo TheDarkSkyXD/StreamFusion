@@ -132,7 +132,7 @@ import { watchRecordingJobId } from "@mobile/features/watch/domain/watch-recordi
 import type { WatchPeek, WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { MobileScreenHeader } from "@mobile/design/screen-header";
-import { DestinationIcon } from "./destination-icon";
+import { DestinationIcon, MoreRouteIcon } from "./destination-icon";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { resolveHardwareBack } from "../domain/hardware-back";
 import { safeFrameBottomInset } from "../domain/keyboard-overlay-inset";
@@ -1312,9 +1312,11 @@ function ShellScreen({
           >
             {route.title}
           </Text>
-          <Text selectable style={styles.screenSummary}>
-            {route.summary}
-          </Text>
+          {route.id === "more" ? null : (
+            <Text selectable style={styles.screenSummary}>
+              {route.summary}
+            </Text>
+          )}
         </View>
         {route.id === "more" ? (
           <MoreMenu dispatch={dispatch} />
@@ -1816,14 +1818,14 @@ function MoreMenu({
             ]}
             testID={`open-${route.reviewId}`}
           >
-            <View style={styles.cardCopy}>
-              <Text selectable style={styles.cardTitle}>
-                {route.title}
-              </Text>
-              <Text selectable style={styles.cardBody}>
-                {route.summary}
-              </Text>
-            </View>
+            <MoreRouteIcon
+              color={mobileColors.textCategory}
+              routeId={routeId}
+              size={mobileSizing.icon}
+            />
+            <Text selectable style={styles.menuCardTitle}>
+              {route.title}
+            </Text>
           </Pressable>
         );
       })}
@@ -2124,10 +2126,19 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
   },
   menuCard: {
-    alignItems: "flex-start",
+    alignItems: "center",
     flexDirection: "column",
+    gap: mobileSpacing.small,
+    justifyContent: "center",
     minHeight: 96,
     width: "47%",
+  },
+  menuCardTitle: {
+    color: mobileColors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
+    textAlign: "center",
   },
   statusPanel: {
     backgroundColor: mobileColors.surfaceMuted,
