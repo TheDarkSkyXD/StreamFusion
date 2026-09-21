@@ -122,7 +122,6 @@ describe("workspace UI journeys", () => {
       "more",
     ]);
     expect(MORE_ROUTE_IDS).toEqual([
-      "more/home",
       "more/categories",
       "more/multistream",
       "more/history",

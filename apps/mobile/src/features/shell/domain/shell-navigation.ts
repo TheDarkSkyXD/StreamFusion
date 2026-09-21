@@ -15,7 +15,6 @@ export type ShellRouteId =
   | "watch/session-preview"
   | "activity/alert-preview"
   | "activity/job-preview"
-  | "more/home"
   | "more/channel"
   | "more/categories"
   | "more/multistream"
@@ -121,7 +120,6 @@ export const SHELL_DESTINATIONS = [
 const SHELL_DESTINATION_IDS = SHELL_DESTINATIONS.map(({ id }) => id);
 
 export const MORE_ROUTE_IDS = [
-  "more/home",
   "more/categories",
   "more/multistream",
   "more/history",
@@ -137,7 +135,7 @@ export const MORE_MENU_GROUPS = [
   {
     id: "browse",
     label: "Browse",
-    routes: ["more/home", "more/categories", "more/multistream"],
+    routes: ["more/categories", "more/multistream"],
   },
   {
     id: "library",
@@ -245,16 +243,8 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more",
     "STREAMFUSION",
     "more-root",
-    "Home and every secondary tool live here, away from the viewing controls you use most.",
+    "Secondary tools live here, away from the viewing controls you use most.",
     "More",
-    "more",
-  ),
-  "more/home": route(
-    "more/home",
-    "MORE",
-    "more-home",
-    "Browse the combined Twitch and Kick recommendation feed.",
-    "Home",
     "more",
   ),
   "more/channel": route(

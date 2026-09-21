@@ -97,7 +97,6 @@ import type {
 import { CategoriesScreen } from "@mobile/features/discovery/components/categories-screen";
 import { CategoryDetailScreen } from "@mobile/features/discovery/components/category-detail-screen";
 import { ChannelDetailScreen } from "@mobile/features/discovery/components/channel-detail-screen";
-import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
 import { UnifiedSearchScreen } from "@mobile/features/discovery/components/unified-search-screen";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import { FollowingWorkspace } from "@mobile/features/follows/components/following-workspace";
@@ -1004,28 +1003,6 @@ function ShellScreen({
             })
           }
           onWatch={openWatch}
-          session={homeDiscovery}
-        />
-      </View>
-    );
-  }
-
-  if (location.route === "more/home") {
-    return (
-      <View style={styles.activityWorkspace} testID="screen-more-home">
-        <HomeLiveDiscoveryScreen
-          onOpenAccounts={() =>
-            dispatch({ type: "navigate", location: { route: "more/accounts" } })
-          }
-          onOpenCategories={() =>
-            dispatch({ type: "navigate", location: { route: "more/categories" } })
-          }
-          onOpenChannel={(channel) =>
-            dispatch({
-              type: "navigate",
-              location: { channel, route: "more/channel" },
-            })
-          }
           session={homeDiscovery}
         />
       </View>
