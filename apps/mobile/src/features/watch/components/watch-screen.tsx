@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
 import type {
@@ -8,13 +8,18 @@ import type {
 import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import { WatchAdBlockStatus } from "@mobile/features/ad-blocking/components/watch-adblock-status";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
+import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
 import type {
   FocusedWatchState,
   WatchChatAvailability,
@@ -42,6 +47,7 @@ export type PlayerSurfaceProps = {
 
 export type WatchScreenRuntime = {
   readonly adblock?: AdBlockSession;
+  readonly chat: WatchChatSession;
   readonly history: WatchHistoryRepository;
   readonly openProviderPage: {
     open(target: WatchTarget): Promise<unknown>;
@@ -76,6 +82,7 @@ export function WatchScreen({
   recording,
   inspection,
   onAddToMultistream,
+  onChatRetry,
   onOpenProviderPage,
   onOpenRelated,
   onRetry,
@@ -108,6 +115,7 @@ export function WatchScreen({
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
   readonly onAddToMultistream?: () => void;
+  readonly onChatRetry?: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onRetry: () => void;
@@ -156,10 +164,10 @@ export function WatchScreen({
           <PlayerSurface sessionId={view.sessionId} testID="watch-player" />
         ) : (
           <View style={styles.placeholder}>
-            <Text selectable style={styles.title}>
+            <Text selectable style={mobileType.title}>
               {view.title}
             </Text>
-            <Text selectable style={styles.body}>
+            <Text selectable style={mobileType.body}>
               {view.detail}
             </Text>
           </View>
@@ -192,27 +200,47 @@ export function WatchScreen({
       </View>
       {pipSurface ? null : (
         <>
-          <Text selectable style={styles.meta} testID="watch-target">
-            {`${target.platform.toUpperCase()} · ${target.channelName}`}
-          </Text>
+          <View style={styles.meta} testID="watch-target">
+            <MobilePlatformBadge platform={target.platform} />
+            <Text selectable style={mobileType.title}>
+              {target.channelName}
+            </Text>
+          </View>
           {adblockView === undefined ? null : (
             <WatchAdBlockStatus platform={target.platform} view={adblockView} />
           )}
           {view.primaryAction === "start" ? (
-            <Action label="Start watching" onPress={onStart} testID="watch-start" />
+            <MobileButton
+              accessibilityLabel="Start watching"
+              onPress={onStart}
+              testID="watch-start"
+              variant="primary"
+            >
+              Start watching
+            </MobileButton>
           ) : null}
           {view.primaryAction === "retry" ? (
-            <Action label="Retry" onPress={onRetry} testID="watch-retry" />
+            <MobileButton
+              accessibilityLabel="Retry"
+              onPress={onRetry}
+              testID="watch-retry"
+              variant="primary"
+            >
+              Retry
+            </MobileButton>
           ) : null}
           {download ? <WatchDownloadBar {...download} /> : null}
           {recording ? <WatchRecordingBar {...recording} /> : null}
           {captions ? <WatchCaptionBar {...captions} /> : null}
           {showsProvider(playback) ? (
-            <Action
-              label="Open provider page"
+            <MobileButton
+              accessibilityLabel="Open provider page"
               onPress={onOpenProviderPage}
               testID="watch-open-provider"
-            />
+              variant={target.platform}
+            >
+              Open provider page
+            </MobileButton>
           ) : null}
           <WatchTabs
             chat={chat}
@@ -225,6 +253,7 @@ export function WatchScreen({
             {...(onAddToMultistream === undefined
               ? {}
               : { onAddToMultistream })}
+            {...(onChatRetry === undefined ? {} : { onChatRetry })}
           />
         </>
       )}
@@ -238,38 +267,15 @@ function showsProvider(playback: FocusedWatchState): boolean {
   return playback.failure.recovery.includes("open-provider");
 }
 
-function Action({
-  label,
-  onPress,
-  testID,
-}: {
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={styles.action}
-      testID={testID}
-    >
-      <Text selectable style={styles.actionLabel}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 export function WatchEmptyState() {
   return (
     <View style={styles.screen} testID="screen-watch">
-      <Text selectable style={styles.title}>
-        Watch
-      </Text>
-      <Text selectable style={styles.body}>
-        Select a live stream or recording to watch.
-      </Text>
+      <MobileScreenHeader title="Watch" />
+      <MobileStatusPanel testID="watch-empty" tone="empty">
+        <Text selectable style={mobileType.body}>
+          Select a live stream or recording to watch.
+        </Text>
+      </MobileStatusPanel>
     </View>
   );
 }
@@ -286,8 +292,8 @@ const styles = StyleSheet.create({
   },
   playerStage: {
     aspectRatio: 16 / 9,
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
+    backgroundColor: mobileColors.background,
+    borderRadius: mobileRadii.large,
     overflow: "hidden",
     width: "100%",
   },
@@ -301,37 +307,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: mobileSpacing.xSmall,
     justifyContent: "center",
-    padding: mobileSpacing.medium,
-  },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
-  },
-  body: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
+    padding: mobileSpacing.large,
   },
   meta: {
-    color: mobileColors.textCategory,
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 16,
-  },
-  action: {
     alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  actionLabel: {
-    color: mobileColors.background,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
   },
 });

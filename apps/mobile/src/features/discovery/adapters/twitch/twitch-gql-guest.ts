@@ -6,11 +6,16 @@ import type {
   SearchReadOutcome,
 } from "../../capabilities/platform-reads";
 import { emptySearchCatalog, streamsFromLiveChannels } from "../../domain/search-catalog";
+import {
+  gqlBroadcasterPartner,
+  gqlBroadcasterVerified,
+  gqlTags,
+} from "../../utils/catalog-fields";
 import { requestInit } from "../../utils/optional";
 
 const GQL = "https://gql.twitch.tv/gql";
 const CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
-const STREAM_FIELDS = `id title viewersCount previewImageURL(width: 440, height: 248) broadcaster { id login displayName profileImageURL(width: 70) } game { id name slug }`;
+const STREAM_FIELDS = `id title viewersCount previewImageURL(width: 440, height: 248) freeformTags { name } broadcaster { id login displayName profileImageURL(width: 70) roles { isPartner isAffiliate } } game { id name slug }`;
 
 export function createTwitchGqlGuestReader(input: {
   readonly fetch: typeof globalThis.fetch;
@@ -279,10 +284,13 @@ function streamFromNode(
     language: "",
     platform: "twitch",
     startedAt: null,
-    tags: [],
+    tags: gqlTags(node),
     thumbnailUrl: stringField(node, "previewImageURL"),
     title: stringField(node, "title"),
     viewerCount: numberField(node, "viewersCount"),
+    ...(gqlBroadcasterPartner(broadcaster) || channel?.isPartner
+      ? { channelIsVerified: true }
+      : {}),
     ...(gameNode === null
       ? {}
       : {
@@ -321,8 +329,8 @@ function userFromRecord(value: unknown): Channel | null {
     displayName: stringField(user, "displayName") || username,
     id,
     isLive: asRecord(user.stream) !== null,
-    isPartner: false,
-    isVerified: false,
+    isPartner: gqlBroadcasterPartner(user),
+    isVerified: gqlBroadcasterVerified(user),
     platform: "twitch",
     username,
     ...(bio === "" ? {} : { bio }),

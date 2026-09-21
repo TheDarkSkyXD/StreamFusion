@@ -1,12 +1,15 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import type { Channel } from "@streamfusion/core/content";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import type { FollowView, WatchAvailability } from "../capabilities/platform-reads";
 import { watchAvailabilityCopy } from "../domain/channel-detail";
 import {
@@ -55,97 +58,66 @@ export function ChannelHeader({
         <View style={styles.avatar} />
       )}
       <View style={styles.copy}>
-        <Text accessibilityRole="header" selectable style={styles.name}>
-          {channel.displayName}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text accessibilityRole="header" selectable style={mobileType.display}>
+            {channel.displayName}
+          </Text>
+          {channel.isVerified ? (
+            <MobileVerifiedBadge platform={channel.platform} />
+          ) : null}
+        </View>
         <Text selectable style={styles.meta}>
           {followers}
         </Text>
-        <View
-          style={[
-            styles.platformBadge,
-            channel.platform === "twitch" ? styles.twitch : styles.kick,
-          ]}
-        >
-          <Text selectable style={styles.platformLabel}>
-            {channel.platform === "twitch" ? "TWITCH" : "KICK"}
-          </Text>
-        </View>
+        <MobilePlatformBadge platform={channel.platform} />
       </View>
       <View style={styles.actions}>
-        <Pressable
+        <MobileButton
           accessibilityHint={followCopy(follow)}
           accessibilityLabel={followLabel}
-          accessibilityRole="button"
-          accessibilityState={{ busy: followBusy, disabled: followBusy }}
+          busy={followBusy}
           disabled={followBusy}
           onPress={onFollow}
-          style={({ pressed }) => [
-            styles.follow,
-            followBusy ? styles.busy : null,
-            pressed ? styles.pressed : null,
-          ]}
           testID="channel-follow"
+          variant="primary"
         >
-          <Text selectable style={styles.followLabel}>
-            {followLabel}
-          </Text>
-        </Pressable>
+          {followLabel}
+        </MobileButton>
         <Text selectable style={styles.followReason} testID="channel-follow-reason">
           {followCopy(follow)}
         </Text>
-        <Pressable
+        <MobileButton
           accessibilityHint={`Opens ${channel.displayName} on ${channel.platform}.`}
           accessibilityLabel={providerPageLabel(channel.platform)}
-          accessibilityRole="button"
           onPress={onOpenProviderPage}
-          style={({ pressed }) => [
-            styles.provider,
-            pressed ? styles.pressed : null,
-          ]}
           testID="channel-open-provider"
+          variant={channel.platform}
         >
-          <Text selectable style={styles.providerLabel}>
-            {providerPageLabel(channel.platform)}
-          </Text>
-        </Pressable>
-        <Pressable
+          {providerPageLabel(channel.platform)}
+        </MobileButton>
+        <MobileButton
           accessibilityHint={watchCopy}
           accessibilityLabel="Watch"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !watchEnabled }}
           disabled={!watchEnabled}
           onPress={onWatch}
-          style={[styles.watch, watchEnabled ? styles.watchEnabled : null]}
           testID="channel-watch"
+          variant="primary"
         >
-          <Text
-            selectable
-            style={[styles.watchLabel, watchEnabled ? styles.watchLabelEnabled : null]}
-          >
-            Watch
-          </Text>
-        </Pressable>
+          Watch
+        </MobileButton>
         <Text selectable style={styles.followReason} testID="channel-watch-reason">
           {watchCopy}
         </Text>
-        <Pressable
+        <MobileButton
           accessibilityHint={addCopy}
           accessibilityLabel="Add to Multistream"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !watchEnabled }}
           disabled={!watchEnabled}
           onPress={() => onAddToMultistream?.()}
-          style={[styles.watch, watchEnabled ? styles.watchEnabled : null]}
           testID="channel-add-multistream"
+          variant="secondary"
         >
-          <Text
-            selectable
-            style={[styles.watchLabel, watchEnabled ? styles.watchLabelEnabled : null]}
-          >
-            Add to Multistream
-          </Text>
-        </Pressable>
+          Add to Multistream
+        </MobileButton>
         <Text
           selectable
           style={styles.followReason}
@@ -173,100 +145,20 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: mobileSpacing.xSmall,
   },
-  name: {
-    color: mobileColors.textPrimary,
-    fontSize: 22,
-    fontWeight: "700",
-    lineHeight: 28,
+  nameRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
   },
   meta: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  platformBadge: {
-    alignSelf: "flex-start",
-    borderRadius: mobileRadii.small,
-    minHeight: 24,
-    justifyContent: "center",
-    paddingHorizontal: mobileSpacing.small,
-  },
-  twitch: { backgroundColor: "#9146ff" },
-  kick: { backgroundColor: "#53fc18" },
-  platformLabel: {
-    color: mobileColors.background,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
+    ...mobileType.body,
   },
   actions: {
     gap: mobileSpacing.xSmall,
-    maxWidth: 148,
-  },
-  follow: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  busy: {
-    opacity: 0.72,
-  },
-  pressed: {
-    opacity: 0.86,
-  },
-  followLabel: {
-    color: mobileColors.background,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
+    maxWidth: 168,
   },
   followReason: {
-    color: mobileColors.textCategory,
-    fontSize: 12,
-    fontWeight: "500",
-    lineHeight: 16,
-  },
-  provider: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  providerLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  watch: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceMuted,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    opacity: 0.72,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  watchEnabled: {
-    backgroundColor: mobileColors.textPrimary,
-    borderWidth: 0,
-    opacity: 1,
-  },
-  watchLabel: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  watchLabelEnabled: {
-    color: mobileColors.background,
+    ...mobileType.label,
   },
 });

@@ -17,11 +17,16 @@ import {
 } from "react-native";
 
 import type { ActivityFilter } from "@mobile/features/storage/capabilities/persistence";
+import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { ActivityViewModel } from "@mobile/features/activity/components/activity-controller";
 import type { DevelopmentActivityProofViewModel } from "@mobile/features/activity/capabilities/development-activity-proof";
@@ -97,19 +102,10 @@ export function ActivityScreen({
       }
       ListHeaderComponent={
         <View style={styles.headerContent}>
-          <View style={styles.intro}>
-            <Text
-              accessibilityRole="header"
-              selectable
-              style={styles.screenTitle}
-            >
-              Activity
-            </Text>
-            <Text selectable style={styles.screenSummary}>
-              Channel alerts, jobs, and device updates stay available offline
-              and after you reopen the app.
-            </Text>
-          </View>
+          <MobileScreenHeader
+            summary="Channel alerts, jobs, and device updates stay available offline and after you reopen the app."
+            title="Activity"
+          />
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}
             {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
@@ -133,32 +129,17 @@ export function ActivityScreen({
             status={model.status}
           />
           <View accessibilityLabel="Activity filters" style={styles.filters}>
-            {filters.map((filter) => {
-              const selected = model.filter === filter.id;
-              return (
-                <Pressable
-                  accessibilityLabel={`${filter.label} Activity`}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected }}
-                  key={filter.id}
-                  onPress={() => onSelectFilter(filter.id)}
-                  style={[
-                    styles.filter,
-                    selected ? styles.filterSelected : null,
-                  ]}
-                  testID={`activity-filter-${filter.id}`}
-                >
-                  <Text
-                    selectable
-                    style={
-                      selected ? styles.filterTextSelected : styles.filterText
-                    }
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {filters.map((filter) => (
+              <MobileFilterChip
+                accessibilityLabel={`${filter.label} Activity`}
+                accessibilityRole="tab"
+                key={filter.id}
+                label={filter.label}
+                onPress={() => onSelectFilter(filter.id)}
+                selected={model.filter === filter.id}
+                testID={`activity-filter-${filter.id}`}
+              />
+            ))}
           </View>
           <View style={styles.unreadRow}>
             <Text
@@ -467,7 +448,16 @@ function ActivityEmptyState({
   readonly status: ActivityViewModel["status"];
 }) {
   return (
-    <View style={styles.empty} testID="activity-empty-state">
+    <MobileStatusPanel
+      testID="activity-empty-state"
+      tone={
+        status === "unavailable"
+          ? "error"
+          : status === "loading"
+            ? "loading"
+            : "empty"
+      }
+    >
       <Text
         accessibilityLiveRegion="polite"
         selectable
@@ -485,21 +475,17 @@ function ActivityEmptyState({
           : "New local events will appear here without requiring notification permission."}
       </Text>
       {status === "unavailable" ? (
-        <Pressable
+        <MobileButton
           accessibilityLabel="Try opening Activity again"
-          accessibilityRole="button"
-          accessibilityState={{ busy: isRefreshing, disabled: isRefreshing }}
           disabled={isRefreshing}
           onPress={() => void onRefresh()}
-          style={styles.retryButton}
           testID="activity-retry-load"
+          variant="primary"
         >
-          <Text selectable style={styles.markAllText}>
-            Try again
-          </Text>
-        </Pressable>
+          Try again
+        </MobileButton>
       ) : null}
-    </View>
+    </MobileStatusPanel>
   );
 }
 
@@ -561,11 +547,11 @@ export function ActivityDetailScreen({
           <Text
             accessibilityRole="header"
             selectable
-            style={styles.screenTitle}
+            style={mobileType.display}
           >
             {item.title}
           </Text>
-          <Text selectable style={styles.screenSummary}>
+          <Text selectable style={mobileType.body}>
             {item.body}
           </Text>
           {mutationFailure === "mark-read" ? (
@@ -630,14 +616,14 @@ export function ActivityDetailScreen({
           ) : null}
         </View>
       ) : (
-        <View accessible style={styles.empty}>
+        <MobileStatusPanel tone="empty">
           <Text selectable style={styles.itemTitle}>
             Activity item unavailable
           </Text>
           <Text selectable style={styles.itemBody}>
             This Activity item is no longer available on this device.
           </Text>
-        </View>
+        </MobileStatusPanel>
       )}
       <DismissalStatus
         model={{
@@ -746,36 +732,7 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     paddingBottom: mobileSpacing.small,
   },
-  intro: { gap: mobileSpacing.xSmall },
-  screenTitle: {
-    color: mobileColors.textPrimary,
-    fontSize: 24,
-    fontWeight: "700",
-  },
-  screenSummary: {
-    color: mobileColors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  filters: { flexDirection: "row", gap: mobileSpacing.xSmall },
-  filter: {
-    alignItems: "center",
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  filterSelected: { backgroundColor: mobileColors.surfaceRaised },
-  filterText: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  filterTextSelected: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  filters: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
   unreadRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -872,14 +829,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   itemChevron: { marginTop: mobileSpacing.small },
-  empty: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.large,
-  },
   failure: {
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.medium,

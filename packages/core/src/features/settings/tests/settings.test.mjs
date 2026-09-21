@@ -36,12 +36,18 @@ test("light and system theme patches stay dark", () => {
     theme: "light",
   });
   assert.equal(result.preferences.theme, "dark");
-  assert.equal(result.rejected[0], "Dark mode is the only appearance on this build.");
+  assert.equal(
+    result.rejected[0],
+    "Dark mode is the only appearance on this build.",
+  );
   const system = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
     theme: "system",
   });
   assert.equal(system.preferences.theme, "dark");
-  assert.equal(system.rejected[0], "Dark mode is the only appearance on this build.");
+  assert.equal(
+    system.rejected[0],
+    "Dark mode is the only appearance on this build.",
+  );
   const storedLight = parseProductPreferences(
     JSON.stringify({ ...DEFAULT_PRODUCT_PREFERENCES, theme: "light" }),
   );
@@ -70,7 +76,9 @@ test("local search matches HEVC and player chrome without losing panel order", (
 });
 
 test("local search isolates notifications, adblock, and proxy panels", () => {
-  assert.deepEqual(settingsPanelsFor(searchSettingsControls("proxy")), ["proxy"]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("proxy")), [
+    "proxy",
+  ]);
   assert.deepEqual(settingsPanelsFor(searchSettingsControls("adblock")), [
     "adblock",
   ]);

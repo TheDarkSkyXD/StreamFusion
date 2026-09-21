@@ -2,8 +2,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   mobileColors,
+  mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 
 import type { PictureInPicturePhase } from "../capabilities/watch";
@@ -62,7 +64,8 @@ export function PlayerControls({
   const showFullscreen = chrome?.showFullscreen !== false;
   return (
     <View pointerEvents="box-none" style={styles.overlay}>
-      <View style={styles.row}>
+      <View style={styles.rail}>
+        <View style={styles.row}>
         <Control
           label={paused ? "Play" : "Pause"}
           onPress={onPlayPause}
@@ -125,6 +128,7 @@ export function PlayerControls({
           unavailable until those capabilities ship.
         </Text>
       )}
+      </View>
     </View>
   );
 }
@@ -192,7 +196,12 @@ function Control({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.control, disabled ? styles.disabled : null]}
+      android_ripple={{ color: mobileColors.navigationSelected }}
+      style={({ pressed }) => [
+        styles.control,
+        pressed && !disabled ? styles.controlPressed : null,
+        disabled ? styles.disabled : null,
+      ]}
       testID={testID}
     >
       <Text selectable style={styles.label}>
@@ -205,8 +214,11 @@ function Control({
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(15,15,15,0.35)",
     justifyContent: "flex-end",
+  },
+  rail: {
+    backgroundColor: mobileColors.playerScrim,
+    gap: mobileSpacing.xSmall,
     padding: mobileSpacing.small,
   },
   row: {
@@ -217,29 +229,29 @@ const styles = StyleSheet.create({
   control: {
     alignItems: "center",
     backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
     minWidth: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.small,
   },
+  controlPressed: {
+    backgroundColor: mobileColors.surfaceMuted,
+  },
   disabled: {
     opacity: 0.45,
   },
   label: {
+    ...mobileType.label,
     color: mobileColors.textPrimary,
-    fontSize: 12,
-    fontWeight: "700",
   },
   status: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    lineHeight: 16,
+    ...mobileType.caption,
     marginTop: mobileSpacing.xSmall,
   },
   limitation: {
+    ...mobileType.caption,
     color: mobileColors.textSecondary,
-    fontSize: 11,
-    lineHeight: 16,
     marginTop: mobileSpacing.xSmall,
   },
 });

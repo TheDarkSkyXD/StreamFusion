@@ -35,6 +35,7 @@ export function fixtureStream(
         ? "Twitch catalog proof stream"
         : "Kick catalog proof stream",
     viewerCount: viewers,
+    channelIsVerified: platform === "twitch",
   };
 }
 

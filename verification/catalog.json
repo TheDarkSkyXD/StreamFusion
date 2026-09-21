@@ -1051,7 +1051,7 @@
           {
             "id": "dumpsys-notification",
             "path": "verification/evidence/issue-172/dumpsys-notification.txt",
-            "sha256": "sha256:49c680bad8c2349c2ddbda72aa594b5f7d8a91c7607bbd281485ee841c206196",
+            "sha256": "sha256:068b825d3bb20cd6d5696dd67ed0e90551df293c2fb26a192a0b9f29fe056ec7",
             "mediaType": "text/plain"
           }
         ]
@@ -1168,7 +1168,7 @@
           {
             "id": "dumpsys-notification",
             "path": "verification/evidence/issue-172/dumpsys-notification.txt",
-            "sha256": "sha256:49c680bad8c2349c2ddbda72aa594b5f7d8a91c7607bbd281485ee841c206196",
+            "sha256": "sha256:068b825d3bb20cd6d5696dd67ed0e90551df293c2fb26a192a0b9f29fe056ec7",
             "mediaType": "text/plain"
           }
         ]

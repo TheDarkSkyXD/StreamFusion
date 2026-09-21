@@ -27,7 +27,7 @@ export function fixtureChannel(platform: Platform, id: string): Channel {
     id,
     isLive: true,
     isPartner: false,
-    isVerified: false,
+    isVerified: platform === "twitch",
     platform,
     username: `${platform}-live`,
   };

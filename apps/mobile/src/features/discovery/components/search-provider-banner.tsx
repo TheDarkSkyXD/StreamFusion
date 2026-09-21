@@ -1,10 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobileButton } from "@mobile/design/button";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { SearchReadOutcome } from "../capabilities/platform-reads";
@@ -40,36 +40,23 @@ export function SearchProviderBanner({
         </Text>
       ) : null}
       {canRetry ? (
-        <Pressable
+        <MobileButton
           accessibilityLabel={`Retry ${outcome.platform}`}
-          accessibilityRole="button"
-          android_ripple={{ color: mobileColors.surfaceRaised }}
           onPress={() => onRetry(outcome.platform)}
-          style={({ pressed }) => [
-            styles.retry,
-            pressed ? styles.pressed : null,
-          ]}
           testID={`search-retry-${outcome.platform}`}
+          variant={outcome.platform}
         >
-          <Text selectable style={styles.retryLabel}>
-            {`Retry ${outcome.platform}`}
-          </Text>
-        </Pressable>
+          {`Retry ${outcome.platform}`}
+        </MobileButton>
       ) : showLogin ? (
-        <Pressable
+        <MobileButton
           accessibilityLabel={`Sign in to ${outcome.platform}`}
-          accessibilityRole="button"
           onPress={onOpenAccounts}
-          style={({ pressed }) => [
-            styles.retry,
-            pressed ? styles.pressed : null,
-          ]}
           testID={`search-login-${outcome.platform}`}
+          variant={outcome.platform}
         >
-          <Text selectable style={styles.retryLabel}>
-            Sign in
-          </Text>
-        </Pressable>
+          Sign in
+        </MobileButton>
       ) : null}
     </View>
   );
@@ -142,23 +129,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 21,
-  },
-  retry: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  retryLabel: {
-    color: mobileColors.background,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  pressed: {
-    opacity: 0.76,
   },
 });

@@ -18,6 +18,7 @@ import type {
   WatchTab,
   WatchTarget,
 } from "../capabilities/watch";
+import { useWatchChat } from "@mobile/features/chat/components/use-watch-chat";
 import {
   useFocusedWatchSession,
   useWatchPeek,
@@ -40,11 +41,6 @@ import type {
   CaptionModelState,
   CaptionSessionState,
 } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
-
-const chat = {
-  detail: "Chat is not connected in this build. Watching continues.",
-  kind: "not-connected" as const,
-};
 
 export type WatchDownloadSession = {
   readonly busy: boolean;
@@ -133,6 +129,7 @@ function WatchSessionRoute({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const session = screen.runtime.session;
+  const chat = useWatchChat(screen.chat, target);
   const playback = useFocusedWatchSession(session, target);
   const peek = useWatchPeek(session);
   const eligibility = watchDownloadEligibility(target);
@@ -181,6 +178,7 @@ function WatchSessionRoute({
       adblockView={adblockView}
       chat={chat}
       inspection={inspection.data ?? null}
+      onChatRetry={() => screen.chat.retry()}
       onMute={() => {
         if (peek.kind === "active") void session.setMuted(!peek.muted);
       }}

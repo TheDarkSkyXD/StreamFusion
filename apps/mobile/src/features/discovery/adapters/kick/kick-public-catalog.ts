@@ -1,5 +1,7 @@
 import type { Category, Channel, Stream } from "@streamfusion/core/content";
 
+import { kickTags, kickVerified } from "../../utils/catalog-fields";
+
 export const KICK_PUBLIC_ACCEPT = { Accept: "application/json" } as const;
 export const KICK_FEATURED_LIVESTREAMS =
   "https://kick.com/stream/featured-livestreams/en";
@@ -8,6 +10,19 @@ export const KICK_PUBLIC_SUBCATEGORIES = "https://kick.com/api/v1/subcategories"
 
 export function kickPublicChannelUrl(slug: string): string {
   return `https://kick.com/api/v1/channels/${encodeURIComponent(slug)}`;
+}
+
+export function kickChatroomId(value: unknown): string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "";
+  }
+  const record = value as Record<string, unknown>;
+  const chatroom = objectField(record, "chatroom");
+  if (chatroom) {
+    const id = identifier(chatroom, "id");
+    if (id !== "") return id;
+  }
+  return identifier(record, "chatroom_id");
 }
 
 export function mapKickPublicStreams(value: unknown): readonly Stream[] {
@@ -34,7 +49,7 @@ export function mapKickPublicStreams(value: unknown): readonly Stream[] {
         language: stringField(record, "language"),
         platform: "kick" as const,
         startedAt: null,
-        tags: [],
+        tags: kickTags(record),
         thumbnailUrl: thumbnailUrl(record),
         title:
           stringField(record, "session_title") || stringField(record, "title"),
@@ -42,6 +57,9 @@ export function mapKickPublicStreams(value: unknown): readonly Stream[] {
           numberField(record, "viewer_count"),
           numberField(record, "viewers"),
         ),
+        ...(kickVerified(record) || kickVerified(channel) || kickVerified(user)
+          ? { channelIsVerified: true }
+          : {}),
         ...(category === null
           ? {}
           : { categoryId: category.id, categoryName: category.name }),
@@ -96,7 +114,7 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
     id,
     isLive: livestream?.is_live === true || record.is_live === true,
     isPartner: record.is_affiliate === true || record.is_partner === true,
-    isVerified: user.verified === true || record.verified === true,
+    isVerified: kickVerified(record) || kickVerified(user),
     platform: "kick",
     username,
     ...(bio === "" ? {} : { bio }),
@@ -126,7 +144,7 @@ export function mapKickPublicLive(
     language: stringField(live, "language") || stringField(record, "language"),
     platform: "kick",
     startedAt: null,
-    tags: [],
+    tags: kickTags(live).length > 0 ? kickTags(live) : kickTags(record),
     thumbnailUrl: thumbnailUrl(live) || thumbnailUrl(record),
     title:
       stringField(live, "session_title") ||
@@ -136,6 +154,9 @@ export function mapKickPublicLive(
       numberField(live, "viewer_count"),
       numberField(live, "viewers"),
     ),
+    ...(channel.isVerified || channel.isPartner
+      ? { channelIsVerified: true }
+      : {}),
     ...(category === null
       ? {}
       : { categoryId: category.id, categoryName: category.name }),

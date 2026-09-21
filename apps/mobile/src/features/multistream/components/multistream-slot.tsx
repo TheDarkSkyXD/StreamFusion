@@ -1,11 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 
+import { MobileButton } from "@mobile/design/button";
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { PlayerSurfaceProps } from "@mobile/features/watch/components/watch-screen";
 import type { MultistreamSlotPhase } from "../capabilities/multistream";
@@ -30,10 +32,10 @@ export function MultistreamSlotCard({
   if (cell.kind === "empty") {
     return (
       <View
-        style={[styles.cell, { width: widthPercent }]}
+        style={[styles.cell, styles.empty, { width: widthPercent }]}
         testID={`multistream-slot-empty-${cell.index}`}
       >
-        <Text selectable style={styles.meta}>
+        <Text selectable style={mobileType.label}>
           Empty slot
         </Text>
       </View>
@@ -63,51 +65,41 @@ export function MultistreamSlotCard({
           />
         ) : (
           <View style={styles.placeholder}>
-            <Text selectable style={styles.meta}>
+            <Text selectable style={mobileType.label}>
               {label}
             </Text>
           </View>
         )}
       </Pressable>
-      <Text selectable style={styles.name}>
-        {cell.slot.displayName}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {`${cell.slot.platform === "twitch" ? "TWITCH" : "KICK"} · ${label}`}
+      <View style={styles.heading}>
+        <Text selectable style={mobileType.title}>
+          {cell.slot.displayName}
+        </Text>
+        <MobilePlatformBadge platform={cell.slot.platform} />
+      </View>
+      <Text selectable style={mobileType.label}>
+        {label}
       </Text>
       <View style={styles.actions}>
-        <Pressable
+        <MobileButton
           accessibilityHint="Makes this eligible active slot the one audio owner"
           accessibilityLabel="Audio owner"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: cell.phase !== "active" }}
           disabled={cell.phase !== "active"}
           onPress={() => onAudioOwner(cell.slot.id)}
-          style={[styles.action, cell.audioOwner ? styles.actionOn : null]}
           testID={`audio-owner-${cell.slot.id}`}
+          variant={cell.audioOwner ? "primary" : "secondary"}
         >
-          <Text
-            selectable
-            style={[
-              styles.actionLabel,
-              cell.audioOwner ? styles.actionLabelOn : null,
-            ]}
-          >
-            {cell.audioOwner ? "Audio" : "Set audio"}
-          </Text>
-        </Pressable>
-        <Pressable
+          {cell.audioOwner ? "Audio" : "Set audio"}
+        </MobileButton>
+        <MobileButton
           accessibilityHint="Asks before removing this configured slot"
           accessibilityLabel="Remove slot"
-          accessibilityRole="button"
           onPress={() => onRemove(cell.slot.id)}
-          style={styles.action}
           testID={`remove-multistream-slot-${cell.slot.id}`}
+          variant="secondary"
         >
-          <Text selectable style={styles.actionLabel}>
-            Remove
-          </Text>
-        </Pressable>
+          Remove
+        </MobileButton>
       </View>
     </View>
   );
@@ -134,19 +126,23 @@ function phaseLabel(phase: MultistreamSlotPhase): string {
 
 const styles = StyleSheet.create({
   cell: {
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
+    backgroundColor: mobileColors.surface,
+    borderRadius: mobileRadii.large,
     gap: mobileSpacing.xSmall,
     padding: mobileSpacing.small,
   },
+  empty: {
+    backgroundColor: mobileColors.background,
+    justifyContent: "center",
+    minHeight: 96,
+  },
   focused: {
-    borderColor: mobileColors.textPrimary,
+    backgroundColor: mobileColors.surfaceMuted,
   },
   surface: {
     aspectRatio: 16 / 9,
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.small,
+    backgroundColor: mobileColors.background,
+    borderRadius: mobileRadii.medium,
     overflow: "hidden",
   },
   placeholder: {
@@ -154,40 +150,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
-  name: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  meta: {
-    color: mobileColors.textSecondary,
-    fontSize: 12,
-    fontWeight: "500",
-    lineHeight: 16,
+  heading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    justifyContent: "space-between",
   },
   actions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.small,
-  },
-  action: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  actionOn: {
-    backgroundColor: mobileColors.textPrimary,
-  },
-  actionLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  actionLabelOn: {
-    color: mobileColors.background,
   },
 });

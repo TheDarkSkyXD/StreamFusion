@@ -52,9 +52,7 @@ export function CategoryRecordedRow({
 const styles = StyleSheet.create({
   row: {
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     flexDirection: "row",
     gap: mobileSpacing.medium,
     overflow: "hidden",

@@ -3,7 +3,9 @@ import { KeyboardAvoidingView, ScrollView, StyleSheet, Text } from "react-native
 import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
-import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
+import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
   DiscoveryFixtureMode,
   SearchHistoryRepository,
@@ -145,10 +147,8 @@ export function UnifiedSearchView({
         keyboardShouldPersistTaps="handled"
         style={styles.scroll}
       >
-        <Text accessibilityRole="header" selectable style={styles.title}>
-          Search Twitch + Kick
-        </Text>
-        <Text selectable style={styles.summary} testID="search-phase">
+        <MobileScreenHeader title="Search Twitch + Kick" />
+        <Text selectable style={mobileType.body} testID="search-phase">
           {phaseCopy(view)}
         </Text>
         {proofMode && onSelectProofMode ? (
@@ -192,9 +192,11 @@ export function UnifiedSearchView({
               {resultsHeading(tab)}
             </Text>
             {view.phase === "empty" ? (
-              <Text selectable style={styles.summary}>
-                No matching channels, streams, videos, clips, or categories.
-              </Text>
+              <MobileStatusPanel tone="empty">
+                <Text selectable style={mobileType.body}>
+                  No matching channels, streams, videos, clips, or categories.
+                </Text>
+              </MobileStatusPanel>
             ) : null}
             <SearchResultsView
               view={view}
@@ -262,23 +264,8 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
-  },
-  summary: {
-    color: mobileColors.textCategory,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 24,
-  },
   heading: {
-    color: mobileColors.textCategory,
-    fontSize: 12,
-    fontWeight: "700",
+    ...mobileType.label,
     letterSpacing: 1,
-    lineHeight: 16,
   },
 });

@@ -7,6 +7,7 @@ import {
   type LiveNotificationPreferences,
 } from "@streamfusion/core/follows";
 
+import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
   mobileRadii,
@@ -45,9 +46,7 @@ export function FollowingManageScreen({
       style={styles.scroll}
       testID="following-manage-screen"
     >
-      <Text accessibilityRole="header" selectable style={styles.title}>
-        Manage Guest Follows
-      </Text>
+      <MobileScreenHeader title="Manage Guest Follows" />
       <ManageNotices
         onToggleGuest={() => {
           void session
@@ -255,12 +254,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
-  },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
   },
   copy: {
     color: mobileColors.textSecondary,

@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
-} from "../src/features/follows/domain/index.ts";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "../src/features/follows/domain/index.ts";
 import {
   buildLiveNotificationProjection,
   fingerprintNativePushToken,

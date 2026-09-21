@@ -242,7 +242,9 @@ function isSafeNotificationPayload(
   );
 }
 
-function isSafeDestination(value: unknown): value is SafeNotificationDestination {
+function isSafeDestination(
+  value: unknown,
+): value is SafeNotificationDestination {
   if (!isRecord(value) || !isString(value.kind)) return false;
   if (value.kind === "watch-channel") {
     return (
@@ -283,7 +285,8 @@ function isLiveNotificationPair(value: unknown): value is LiveNotificationPair {
 }
 
 function uniquePairCount(pairs: readonly LiveNotificationPair[]): number {
-  return new Set(pairs.map((pair) => `${pair.platform}:${pair.channelId}`)).size;
+  return new Set(pairs.map((pair) => `${pair.platform}:${pair.channelId}`))
+    .size;
 }
 
 function containsForbiddenMaterial(value: unknown): boolean {

@@ -1,10 +1,10 @@
 import type { TextInputProps, TextStyle } from "react-native";
 
-import { mobileColors, mobileSpacing } from "./tokens";
+import { mobileColors, mobileSpacing, mobileType } from "./tokens";
 
 export const mobileTextFieldStyle: Omit<TextStyle, "fontWeight"> = {
   color: mobileColors.textPrimary,
-  fontSize: 16,
+  fontSize: mobileType.body.fontSize,
   includeFontPadding: false,
   paddingVertical: mobileSpacing.small,
 };

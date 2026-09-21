@@ -6,6 +6,7 @@ import type {
   PlatformReadOutcome,
 } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
+import { kickTags, kickVerified } from "../../utils/catalog-fields";
 import { readKickPublicChannelVideos } from "./kick-public-videos";
 import {
   canonicalTimestamp,
@@ -118,7 +119,7 @@ function toChannel(record: Record<string, unknown>): Channel {
       record.is_live === true ||
       stream?.is_live === true,
     isPartner: record.is_partner === true,
-    isVerified: record.verified === true || user.verified === true,
+    isVerified: kickVerified(record) || kickVerified(user),
     platform: "kick",
     username: stringField(record, "slug") || stringField(user, "username"),
     ...(bannerUrl === "" ? {} : { bannerUrl }),
@@ -141,7 +142,7 @@ function toLive(record: Record<string, unknown>, channel: Channel): Stream {
     language: stringField(stream, "language"),
     platform: "kick",
     startedAt: startedAt ?? null,
-    tags: [],
+    tags: kickTags(stream).length > 0 ? kickTags(stream) : kickTags(record),
     thumbnailUrl:
       stringField(stream, "thumbnail_url") || stringField(stream, "thumbnail"),
     title:
@@ -149,6 +150,9 @@ function toLive(record: Record<string, unknown>, channel: Channel): Stream {
       stringField(stream, "title") ||
       channel.displayName,
     viewerCount: numberField(stream, "viewer_count"),
+    ...(channel.isVerified || channel.isPartner
+      ? { channelIsVerified: true }
+      : {}),
   };
 }
 

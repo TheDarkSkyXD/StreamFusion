@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 
+import { MobileButton, type MobileButtonVariant } from "@mobile/design/button";
 import {
   mobileColors,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { KickFixtureCallbackKind } from "@mobile/features/auth/capabilities/kick-session";
 import { shouldShowTwitchAvatar } from "@mobile/features/auth/components/account-avatar-state";
@@ -53,7 +55,7 @@ export function KickAccountCard({
       {developmentFixture ? (
         <View style={styles.fixtureRow}>
           <Text style={styles.fixture} testID="kick-development-fixture">
-            Development fixture — not a live Kick account
+            Development fixture, not a live Kick account
           </Text>
           {onDisableDevelopmentFixture ? (
             <Action
@@ -108,7 +110,7 @@ function KickState({
     return (
       <>
         <Status text={model.message ?? "Not connected"} />
-        <Action id="connect-kick-account" label="Connect Kick" onPress={actions.connect} />
+        <Action id="connect-kick-account" label="Connect Kick" onPress={actions.connect} variant="kick" />
       </>
     );
   if (model.kind === "launching")
@@ -166,6 +168,7 @@ function KickState({
           id="retry-kick-account-connect"
           label="Reconnect Kick"
           onPress={actions.retry}
+          variant="kick"
         />
       </>
     );
@@ -186,8 +189,14 @@ function KickState({
               : `Confirm disconnect ${model.displayName}`
           }
           onPress={actions.disconnect}
+          variant="destructive"
         />
-        <Action disabled={model.refreshing} label="Keep account" onPress={actions.manage} />
+        <Action
+          disabled={model.refreshing}
+          id="keep-kick-account"
+          label="Keep account"
+          onPress={actions.manage}
+        />
       </>
     );
   return (
@@ -227,7 +236,11 @@ function KickState({
       ) : null}
       <View style={styles.actions}>
         {model.view === "manage" ? (
-          <Action label="Close account details" onPress={actions.manage} />
+          <Action
+            id="close-kick-account-details"
+            label="Close account details"
+            onPress={actions.manage}
+          />
         ) : (
           <Action id="manage-kick-account" label="Manage" onPress={actions.manage} />
         )}
@@ -236,6 +249,7 @@ function KickState({
             id="disconnect-kick-account"
             label="Disconnect Kick"
             onPress={actions.disconnect}
+            variant="destructive"
           />
         ) : null}
       </View>
@@ -281,41 +295,30 @@ function Action({
   id,
   label,
   onPress,
+  variant = "secondary",
 }: {
   readonly disabled?: boolean;
   readonly busy?: boolean;
-  readonly id?: string;
+  readonly id: string;
   readonly label: string;
   readonly onPress: () => void;
+  readonly variant?: MobileButtonVariant;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled }}
+    <MobileButton
+      accessibilityLabel={label}
+      busy={busy}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.action,
-        pressed && styles.pressed,
-        disabled && styles.disabled,
-      ]}
       testID={id}
+      variant={variant}
     >
-      <Text style={styles.actionText}>{label}</Text>
-    </Pressable>
+      {label}
+    </MobileButton>
   );
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  actionText: { color: mobileColors.textPrimary, fontWeight: "700" },
   actions: { gap: mobileSpacing.small, marginTop: mobileSpacing.small },
   avatar: {
     alignItems: "center",
@@ -325,19 +328,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: mobileSizing.minimumTouchTarget,
   },
-  avatarText: { color: mobileColors.textPrimary, fontSize: 18, fontWeight: "800" },
+  avatarText: { color: mobileColors.textPrimary, fontSize: 18, fontWeight: "700" },
   card: {
     backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
     gap: mobileSpacing.small,
     padding: mobileSpacing.large,
   },
-  cardTitle: { color: mobileColors.textPrimary, fontSize: 18, fontWeight: "700" },
-  detail: { color: mobileColors.textSecondary, lineHeight: 21 },
-  disabled: { opacity: 0.5 },
+  cardTitle: { ...mobileType.title },
+  detail: { ...mobileType.body },
   fixture: { color: mobileColors.live, fontWeight: "700" },
   fixtureRow: { gap: mobileSpacing.small },
   identity: { alignItems: "center", flexDirection: "row", gap: mobileSpacing.small },
   identityCopy: { flex: 1, minWidth: 0 },
-  pressed: { opacity: 0.8 },
 });

@@ -20,10 +20,10 @@ function createItemsDatabase(): DatabaseSync {
 
 function itemRows(
   database: DatabaseSync,
-): ReadonlyArray<{ readonly name: string }> {
-  return database.prepare("SELECT name FROM items").all() as Array<{
+): readonly { readonly name: string }[] {
+  return database.prepare("SELECT name FROM items").all() as {
     readonly name: string;
-  }>;
+  }[];
 }
 
 // Guards: nested BEGIN fails on an open SQLite transaction; savepoints still commit or roll back

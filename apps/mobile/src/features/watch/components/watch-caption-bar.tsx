@@ -2,14 +2,11 @@ import {
   LOCAL_CAPTION_DISPLAY_SIZE,
   LOCAL_CAPTION_NOT_INSTALLED_STATUS,
 } from "@streamfusion/core/local-captions";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileButton } from "@mobile/design/button";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
+import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
   CaptionModelState,
   CaptionSessionState,
@@ -43,27 +40,27 @@ export function WatchCaptionBar({
   if (eligibility.kind === "hidden") return null;
   if (eligibility.kind === "unsupported") {
     return (
-      <View style={styles.panel} testID="watch-captions">
-        <Text selectable style={styles.body} testID="watch-captions-unsupported">
+      <MobileStatusPanel testID="watch-captions" tone="info">
+        <Text selectable style={mobileType.body} testID="watch-captions-unsupported">
           {eligibility.reason}
         </Text>
-      </View>
+      </MobileStatusPanel>
     );
   }
   const installed = model?.installed === true;
   const active = session?.state === "active";
   return (
-    <View style={styles.panel} testID="watch-captions">
-      <Text selectable style={styles.body} testID="watch-captions-size">
+    <MobileStatusPanel testID="watch-captions" tone="info">
+      <Text selectable style={mobileType.body} testID="watch-captions-size">
         {model?.displaySize ?? LOCAL_CAPTION_DISPLAY_SIZE} English model
       </Text>
-      <Text selectable style={styles.body} testID="watch-captions-status">
+      <Text selectable style={mobileType.body} testID="watch-captions-status">
         {status ??
           session?.reason ??
           model?.statusMessage ??
           LOCAL_CAPTION_NOT_INSTALLED_STATUS}
       </Text>
-      <Text selectable style={styles.meta} testID="watch-captions-privacy">
+      <Text selectable style={mobileType.label} testID="watch-captions-privacy">
         Decoded program PCM stays on this device. No microphone. No upload.
       </Text>
       <View style={styles.actions}>
@@ -76,7 +73,7 @@ export function WatchCaptionBar({
           <Action busy={busy} key={action.testID} {...action} />
         ))}
       </View>
-    </View>
+    </MobileStatusPanel>
   );
 }
 
@@ -138,43 +135,18 @@ function Action({
   readonly testID: string;
 }) {
   return (
-    <Pressable
+    <MobileButton
       accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: busy }}
-      disabled={busy}
+      busy={busy}
       onPress={onPress}
-      style={styles.action}
       testID={testID}
+      variant={testID === "watch-captions-remove" ? "destructive" : "secondary"}
     >
-      <Text selectable style={styles.buttonLabel}>
-        {label}
-      </Text>
-    </Pressable>
+      {label}
+    </MobileButton>
   );
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  body: { color: mobileColors.textPrimary, lineHeight: 20 },
-  buttonLabel: { color: mobileColors.textPrimary, fontWeight: "700" },
-  meta: { color: mobileColors.textSecondary, lineHeight: 18 },
-  panel: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
-  },
 });

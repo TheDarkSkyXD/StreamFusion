@@ -1,9 +1,12 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSpacing,
+  mobileType,
 } from "@mobile/design/tokens";
 import type { CatalogCategory } from "../domain/category-identity";
 
@@ -42,6 +45,11 @@ export function CategoryCard({
       <Text selectable style={styles.name}>
         {category.name}
       </Text>
+      <View style={styles.tags}>
+        <MobileCatalogTags
+          {...(category.tags === undefined ? {} : { tags: category.tags })}
+        />
+      </View>
       <Text selectable style={styles.viewers}>
         {category.viewerCount === undefined
           ? "Viewers unavailable"
@@ -53,10 +61,9 @@ export function CategoryCard({
 
 const styles = StyleSheet.create({
   card: {
+    ...mobilePressRing.rest,
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     overflow: "hidden",
     width: "47%",
   },
@@ -82,12 +89,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   name: {
-    color: mobileColors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 20,
+    ...mobileType.title,
     paddingHorizontal: mobileSpacing.small,
     paddingTop: mobileSpacing.small,
+  },
+  tags: {
+    paddingHorizontal: mobileSpacing.small,
   },
   viewers: {
     color: mobileColors.textSecondary,
@@ -96,6 +103,6 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.small,
   },
   pressed: {
-    opacity: 0.76,
+    ...mobilePressRing.pressed,
   },
 });

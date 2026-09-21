@@ -1,12 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text } from "react-native";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileButton } from "@mobile/design/button";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileStatusPanel } from "@mobile/design/status-panel";
+import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
   DiscoveryFixtureMode,
   DiscoverySession,
@@ -59,6 +57,11 @@ export function HomeLiveDiscoveryView({
   readonly proofMode?: DiscoveryFixtureMode;
   readonly view: HomeLiveDiscoveryModel;
 }) {
+  const phase = (
+    <Text selectable style={mobileType.body} testID="home-phase">
+      {phaseCopy(view)}
+    </Text>
+  );
   return (
     <ScrollView
       contentContainerStyle={styles.content}
@@ -66,46 +69,39 @@ export function HomeLiveDiscoveryView({
       style={styles.scroll}
       testID="home-live-discovery"
     >
-      <View style={styles.titleRow}>
-        <Text accessibilityRole="header" selectable style={styles.title}>
-          Home
-        </Text>
-        <Pressable
-          accessibilityHint="Opens categories"
-          accessibilityLabel="Categories"
-          accessibilityRole="button"
-          android_ripple={{ color: mobileColors.surfaceRaised }}
-          onPress={onOpenCategories}
-          style={({ pressed }) => [
-            styles.categories,
-            pressed ? styles.pressed : null,
-          ]}
-          testID="home-categories"
-        >
-          <Text selectable style={styles.categoriesLabel}>
+      <MobileScreenHeader
+        action={
+          <MobileButton
+            accessibilityHint="Opens categories"
+            accessibilityLabel="Categories"
+            onPress={onOpenCategories}
+            testID="home-categories"
+            variant="secondary"
+          >
             Categories
-          </Text>
-        </Pressable>
-      </View>
-      <Text selectable style={styles.heading}>
+          </MobileButton>
+        }
+        title="Home"
+      />
+      <Text selectable style={mobileType.title}>
         Recommended live
       </Text>
-      <Text selectable style={styles.summary} testID="home-phase">
-        {phaseCopy(view)}
-      </Text>
-      <Pressable
+      {view.phase === "empty" || view.phase === "failed" ? (
+        <MobileStatusPanel tone={view.phase === "failed" ? "error" : "empty"}>
+          {phase}
+        </MobileStatusPanel>
+      ) : (
+        phase
+      )}
+      <MobileButton
         accessibilityHint="Opens Categories inside More"
         accessibilityLabel="Open Categories"
-        accessibilityRole="button"
-        android_ripple={{ color: mobileColors.surfaceRaised }}
         onPress={onOpenCategories}
-        style={({ pressed }) => [styles.login, pressed ? styles.pressed : null]}
         testID="open-categories"
+        variant="primary"
       >
-        <Text selectable style={styles.loginLabel}>
-          Categories
-        </Text>
-      </Pressable>
+        Categories
+      </MobileButton>
       {proofMode && onSelectProofMode ? (
         <HomeDiscoveryProofControls
           mode={proofMode}
@@ -157,58 +153,5 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
-  },
-  titleRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
-  },
-  categories: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  categoriesLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  heading: {
-    color: mobileColors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
-  },
-  summary: {
-    color: mobileColors.textCategory,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 24,
-  },
-  login: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  loginLabel: {
-    color: mobileColors.background,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  pressed: {
-    opacity: 0.76,
   },
 });

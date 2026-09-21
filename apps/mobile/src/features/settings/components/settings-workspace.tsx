@@ -5,6 +5,7 @@ import {
   type SettingsPanelId,
 } from "@streamfusion/core/settings";
 
+import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
   mobileRadii,
@@ -63,9 +64,7 @@ export function SettingsWorkspace({
       testID="screen-more-settings"
     >
       <View style={[styles.column, { gap }]} testID="screen-settings">
-        <Text selectable style={styles.title}>
-          Settings
-        </Text>
+        <MobileScreenHeader title="Settings" />
         <SettingsSearchField session={session} value={view.query} />
         <RejectedNotices messages={view.rejected} />
         <VisibleSettingsPanels extras={extras} session={session} view={view} />
@@ -90,7 +89,7 @@ function SettingsSearchField({
         void session.search(query);
       }}
       placeholder="Search appearance, playback, notifications, updates"
-      placeholderTextColor={mobileColors.textSecondary}
+      placeholderTextColor={mobileColors.textMuted}
       style={styles.search}
       testID="settings-search"
       value={value}
@@ -157,12 +156,6 @@ const styles = StyleSheet.create({
   },
   column: {
     width: "100%",
-  },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 22,
-    fontWeight: "700",
-    lineHeight: 28,
   },
   search: {
     backgroundColor: mobileColors.surfaceRaised,

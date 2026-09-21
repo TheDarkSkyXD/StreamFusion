@@ -41,12 +41,14 @@ export type MultistreamView = {
 };
 
 export const MULTISTREAM_CHAT_DETAIL =
-  "Chat is not connected in this build. Guest Multistream keeps one focused chat pane without a live connection.";
+  "Select a live slot to connect guest chat over Twitch IRC or Kick Pusher.";
 
 export const MULTISTREAM_CAPTION_DETAIL =
-  "Local captions are not connected in this build.";
+  "Captions stay on the focused Watch player. Multistream does not overlay a second caption session.";
 
 export function composeMultistreamView(input: {
+  readonly chatDetail?: string;
+  readonly captionDetail?: string;
   readonly confirm?: MultistreamConfirm;
   readonly editing?: boolean;
   readonly qualified: QualifiedMultistream;
@@ -75,9 +77,9 @@ export function composeMultistreamView(input: {
   );
   return {
     activeCount: input.qualified.activeSlotIds.length,
-    captionDetail: MULTISTREAM_CAPTION_DETAIL,
+    captionDetail: input.captionDetail ?? MULTISTREAM_CAPTION_DETAIL,
     cells,
-    chatDetail: MULTISTREAM_CHAT_DETAIL,
+    chatDetail: input.chatDetail ?? MULTISTREAM_CHAT_DETAIL,
     configuredCount: layout.slots.length,
     confirm: input.confirm ?? { kind: "idle" },
     editing: input.editing === true,

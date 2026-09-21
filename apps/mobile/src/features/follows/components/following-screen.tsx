@@ -1,17 +1,15 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import type {
   FollowedClipPeriod,
   FollowedRecordedSort,
 } from "@streamfusion/core/relay";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { mobileSpacing } from "@mobile/design/tokens";
 
 import type {
   FollowingChip,
@@ -105,19 +103,15 @@ function FollowingScreenBody({
       style={styles.scroll}
       testID="following-screen"
     >
-      <Text accessibilityRole="header" selectable style={styles.title}>
-        Following
-      </Text>
-      <Pressable
-        accessibilityRole="button"
+      <MobileScreenHeader title="Following" />
+      <MobileButton
+        accessibilityLabel="Manage Guest Follows"
         onPress={onOpenManage}
-        style={styles.manage}
         testID="following-open-manage"
+        variant="secondary"
       >
-        <Text selectable style={styles.manageLabel}>
-          Manage Guest Follows
-        </Text>
-      </Pressable>
+        Manage Guest Follows
+      </MobileButton>
       <FollowingControls
         chip={chip}
         onChip={onChip}
@@ -160,35 +154,25 @@ function RecordedControls({
   return (
     <View style={styles.row}>
       {(["recent", "views"] as const).map((value) => (
-        <Pressable
+        <MobileFilterChip
           accessibilityLabel={`Sort by ${value}`}
-          accessibilityRole="button"
-          accessibilityState={{ selected: sort === value }}
           key={value}
+          label={value}
           onPress={() => onSort(value)}
-          style={[styles.chip, sort === value ? styles.selected : null]}
+          selected={sort === value}
           testID={`following-sort-${value}`}
-        >
-          <Text selectable style={styles.chipLabel}>
-            {value}
-          </Text>
-        </Pressable>
+        />
       ))}
       {tab === "clips"
         ? (["day", "week", "month", "all"] as const).map((value) => (
-            <Pressable
+            <MobileFilterChip
               accessibilityLabel={`Clips period ${value}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: period === value }}
               key={value}
+              label={value}
               onPress={() => onPeriod(value)}
-              style={[styles.chip, period === value ? styles.selected : null]}
+              selected={period === value}
               testID={`following-period-${value}`}
-            >
-              <Text selectable style={styles.chipLabel}>
-                {value}
-              </Text>
-            </Pressable>
+            />
           ))
         : null}
     </View>
@@ -202,38 +186,5 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 34,
-  },
-  manage: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  manageLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  chip: {
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  selected: { backgroundColor: mobileColors.navigationSelected },
-  chipLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
-  },
 });

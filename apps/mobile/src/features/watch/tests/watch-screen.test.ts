@@ -1,7 +1,7 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { WatchScreen } from "../components/watch-screen";
+import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
 import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
@@ -40,12 +40,12 @@ const target: WatchTarget = {
 };
 
 describe("watch screen", () => {
-  it("requires an explicit start and keeps chat disconnected", () => {
+  it("requires an explicit start and shows connecting guest chat", () => {
     const root = WatchScreen({
       PlayerSurface: () => null,
       chat: {
-        detail: "Chat is not connected in this build. Watching continues.",
-        kind: "not-connected",
+        detail: "Connecting guest chat.",
+        kind: "connecting",
       },
       inspection: null,
       onOpenProviderPage: () => undefined,
@@ -64,9 +64,63 @@ describe("watch screen", () => {
     );
     expect(
       nodes.some((node) =>
-        String(node.props.children).includes("Chat is not connected"),
+        String(node.props.children).includes("Connecting guest chat"),
       ),
     ).toBe(true);
+  });
+
+  it("renders live guest chat messages and retries a failed chat pane", () => {
+    const retried: string[] = [];
+    const liveNodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Guest chat is live. Sending stays locked.",
+          kind: "live",
+          messages: [{ displayName: "Ada", id: "msg-1", text: "hello" }],
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    expect(
+      liveNodes.some(
+        (node) =>
+          node.props.testID === "watch-chat-message-msg-1" &&
+          String(node.props.children).includes("Ada: hello"),
+      ),
+    ).toBe(true);
+    const failedNodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Twitch chat closed before messages arrived.",
+          kind: "failed",
+          retry: "manual",
+        },
+        inspection: null,
+        onChatRetry: () => {
+          retried.push("chat");
+        },
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onStart: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    failedNodes.find((node) => node.props.testID === "watch-chat-retry")?.props.onPress?.();
+    expect(retried).toEqual(["chat"]);
   });
 
   it("renders transport controls and named PiP unavailable copy", () => {
@@ -82,8 +136,8 @@ describe("watch screen", () => {
     const root = WatchScreen({
       PlayerSurface: () => null,
       chat: {
-        detail: "Chat is not connected in this build. Watching continues.",
-        kind: "not-connected",
+        detail: "Connecting guest chat.",
+        kind: "connecting",
       },
       inspection: null,
       onMute: () => undefined,
@@ -149,8 +203,8 @@ describe("watch screen", () => {
     const root = WatchScreen({
       PlayerSurface: () => null,
       chat: {
-        detail: "Chat is not connected in this build. Watching continues.",
-        kind: "not-connected",
+        detail: "Connecting guest chat.",
+        kind: "connecting",
       },
       inspection: null,
       onMute: () => undefined,
@@ -207,8 +261,8 @@ describe("watch screen", () => {
           twitchSupported: true,
         },
         chat: {
-          detail: "Chat is not connected in this build. Watching continues.",
-          kind: "not-connected",
+          detail: "Connecting guest chat.",
+          kind: "connecting",
         },
         inspection: null,
         onOpenProviderPage: () => undefined,
@@ -240,8 +294,8 @@ describe("watch screen", () => {
       WatchScreen({
         PlayerSurface: () => null,
         chat: {
-          detail: "Chat is not connected in this build. Watching continues.",
-          kind: "not-connected",
+          detail: "Connecting guest chat.",
+          kind: "connecting",
         },
         download: {
           busy: false,
@@ -288,8 +342,8 @@ describe("watch screen", () => {
       WatchScreen({
         PlayerSurface: () => null,
         chat: {
-          detail: "Chat is not connected in this build. Watching continues.",
-          kind: "not-connected",
+          detail: "Connecting guest chat.",
+          kind: "connecting",
         },
         download: {
           busy: false,
@@ -366,8 +420,8 @@ describe("watch screen", () => {
           },
         },
         chat: {
-          detail: "Chat is not connected in this build. Watching continues.",
-          kind: "not-connected",
+          detail: "Connecting guest chat.",
+          kind: "connecting",
         },
         inspection: null,
         onOpenProviderPage: () => undefined,
@@ -384,5 +438,17 @@ describe("watch screen", () => {
       true,
     );
     expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(true);
+  });
+
+  it("renders the empty Watch page with display title and empty panel", () => {
+    const nodes = descendants(WatchEmptyState());
+    const title = nodes.find((node) => node.props.children === "Watch");
+    expect(title?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
+    expect(nodes.some((node) => node.props.testID === "watch-empty")).toBe(true);
+    expect(
+      nodes.some((node) =>
+        String(node.props.children).includes("Select a live stream or recording"),
+      ),
+    ).toBe(true);
   });
 });

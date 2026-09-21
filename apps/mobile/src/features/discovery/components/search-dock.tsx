@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { MobileButton } from "@mobile/design/button";
 import {
   mobileTextFieldProps,
   mobileTextFieldStyle,
@@ -32,7 +33,7 @@ export function SearchDock({
         onChangeText={onChangeText}
         onSubmitEditing={({ nativeEvent }) => onSubmit(nativeEvent.text)}
         placeholder="Search Twitch and Kick"
-        placeholderTextColor={mobileColors.textSecondary}
+        placeholderTextColor={mobileColors.textMuted}
         returnKeyType="search"
         style={styles.field}
         testID="search-field"
@@ -54,22 +55,15 @@ export function SearchDock({
           </Text>
         </Pressable>
       ) : null}
-      <Pressable
+      <MobileButton
         accessibilityHint="Submits the visible query"
         accessibilityLabel="Submit search"
-        accessibilityRole="button"
-        android_ripple={{ color: mobileColors.surfaceRaised }}
         onPress={() => onSubmit(value)}
-        style={({ pressed }) => [
-          styles.submit,
-          pressed ? styles.pressed : null,
-        ]}
         testID="submit-search"
+        variant="primary"
       >
-        <Text selectable style={styles.submitLabel}>
-          Search
-        </Text>
-      </Pressable>
+        Search
+      </MobileButton>
     </View>
   );
 }
@@ -100,20 +94,6 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  submit: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  submitLabel: {
-    color: mobileColors.background,
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
