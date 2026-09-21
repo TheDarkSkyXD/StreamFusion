@@ -155,9 +155,9 @@ function RecordedControls({
     <View style={styles.row}>
       {(["recent", "views"] as const).map((value) => (
         <MobileFilterChip
-          accessibilityLabel={`Sort by ${value}`}
+          accessibilityLabel={`Sort by ${sortLabel(value)}`}
           key={value}
-          label={value}
+          label={sortLabel(value)}
           onPress={() => onSort(value)}
           selected={sort === value}
           testID={`following-sort-${value}`}
@@ -166,9 +166,9 @@ function RecordedControls({
       {tab === "clips"
         ? (["day", "week", "month", "all"] as const).map((value) => (
             <MobileFilterChip
-              accessibilityLabel={`Clips period ${value}`}
+              accessibilityLabel={`Clips period ${periodLabel(value)}`}
               key={value}
-              label={value}
+              label={periodLabel(value)}
               onPress={() => onPeriod(value)}
               selected={period === value}
               testID={`following-period-${value}`}
@@ -177,6 +177,23 @@ function RecordedControls({
         : null}
     </View>
   );
+}
+
+function sortLabel(sort: FollowedRecordedSort): string {
+  return sort === "recent" ? "Recent" : "Views";
+}
+
+function periodLabel(period: FollowedClipPeriod): string {
+  switch (period) {
+    case "day":
+      return "Day";
+    case "week":
+      return "Week";
+    case "month":
+      return "Month";
+    case "all":
+      return "All";
+  }
 }
 
 const styles = StyleSheet.create({

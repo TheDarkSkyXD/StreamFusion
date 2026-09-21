@@ -272,8 +272,11 @@ export function WatchEmptyState() {
     <View style={styles.screen} testID="screen-watch">
       <MobileScreenHeader title="Watch" />
       <MobileStatusPanel testID="watch-empty" tone="empty">
+        <Text selectable style={mobileType.title}>
+          Nothing playing
+        </Text>
         <Text selectable style={mobileType.body}>
-          Select a live stream or recording to watch.
+          Pick a live stream or recording from Search or Following to watch here.
         </Text>
       </MobileStatusPanel>
     </View>

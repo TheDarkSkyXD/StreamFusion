@@ -1,4 +1,4 @@
-import { StyleSheet, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import { MobileFilterChip } from "@mobile/design/chip";
 import {
@@ -52,32 +52,68 @@ export function FollowingControls({
         testID="following-search"
         value={query}
       />
-      <View style={styles.row}>
+      <View accessibilityLabel="Following filters" style={styles.row}>
         {CHIPS.map((value) => (
           <MobileFilterChip
-            accessibilityLabel={`${value} filter`}
+            accessibilityLabel={chipLabel(value)}
             key={value}
-            label={value}
+            label={chipLabel(value)}
             onPress={() => onChip(value)}
             selected={chip === value}
             testID={`following-chip-${value}`}
           />
         ))}
       </View>
-      <View style={styles.row}>
+      <ScrollView
+        accessibilityLabel="Following content"
+        accessibilityRole="tablist"
+        contentContainerStyle={styles.tabRow}
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator={false}
+      >
         {TABS.map((value) => (
           <MobileFilterChip
-            accessibilityLabel={`${value} tab`}
+            accessibilityLabel={tabLabel(value)}
+            accessibilityRole="tab"
             key={value}
-            label={value}
+            label={tabLabel(value)}
             onPress={() => onTab(value)}
             selected={tab === value}
             testID={`following-tab-${value}`}
           />
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
+}
+
+function chipLabel(chip: FollowingChip): string {
+  switch (chip) {
+    case "all":
+      return "All";
+    case "live":
+      return "Live only";
+    case "twitch":
+      return "Twitch";
+    case "kick":
+      return "Kick";
+  }
+}
+
+function tabLabel(tab: FollowingTab): string {
+  switch (tab) {
+    case "live":
+      return "Live";
+    case "videos":
+      return "Videos";
+    case "clips":
+      return "Clips";
+    case "categories":
+      return "Categories";
+    case "channels":
+      return "Channels";
+  }
 }
 
 const styles = StyleSheet.create({
@@ -92,4 +128,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
   },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
+  tabRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    paddingRight: mobileSpacing.small,
+  },
 });

@@ -445,9 +445,14 @@ describe("watch screen", () => {
     const title = nodes.find((node) => node.props.children === "Watch");
     expect(title?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
     expect(nodes.some((node) => node.props.testID === "watch-empty")).toBe(true);
+    expect(nodes.some((node) => node.props.children === "Nothing playing")).toBe(
+      true,
+    );
     expect(
       nodes.some((node) =>
-        String(node.props.children).includes("Select a live stream or recording"),
+        String(node.props.children).includes(
+          "Pick a live stream or recording from Search or Following",
+        ),
       ),
     ).toBe(true);
   });
