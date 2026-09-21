@@ -130,34 +130,6 @@ export const MORE_ROUTE_IDS = [
   "more/accounts",
 ] as const satisfies readonly ShellRouteId[];
 
-/** Desktop-aligned More hub groupings (labels only — keep mobile row chrome). */
-export const MORE_MENU_GROUPS = [
-  {
-    id: "browse",
-    label: "Browse",
-    routes: ["more/categories", "more/multistream"],
-  },
-  {
-    id: "library",
-    label: "Library",
-    routes: ["more/history", "more/downloads"],
-  },
-  {
-    id: "tools",
-    label: "Tools",
-    routes: ["more/moderation"],
-  },
-  {
-    id: "system",
-    label: "System",
-    routes: ["more/settings", "more/diagnostics", "more/accounts"],
-  },
-] as const satisfies readonly {
-  readonly id: string;
-  readonly label: string;
-  readonly routes: readonly (typeof MORE_ROUTE_IDS)[number][];
-}[];
-
 export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
   search: route(
     "search",

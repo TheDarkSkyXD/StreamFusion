@@ -146,7 +146,7 @@ import {
   getActiveShellLocation,
   getActiveShellRoute,
   getShellNavigationPlacement,
-  MORE_MENU_GROUPS,
+  MORE_ROUTE_IDS,
   SHELL_DESTINATIONS,
   SHELL_ROUTES,
   type ShellDestination,
@@ -314,6 +314,7 @@ export function AppShell({
       : "main";
   const activity = useActivityController({
     epoch: activityRepositoryEpoch,
+    listMembership: () => followingSession.listMembership(),
     repository: activityRepository,
   });
   const settings = useSettingsSession(settingsSession);
@@ -886,7 +887,6 @@ function ShellScreen({
             dispatch({ type: "navigate", location: nextLocation })
           }
           onRefresh={activity.refresh}
-          onSelectFilter={activity.selectFilter}
           scrollRequest={scrollRequest}
         />
       </View>
@@ -1783,47 +1783,36 @@ function MoreMenu({
 }) {
   return (
     <View accessibilityLabel="More destinations" style={styles.menu}>
-      {MORE_MENU_GROUPS.map((group) => (
-        <View key={group.id} style={styles.menuGroup} testID={`more-group-${group.id}`}>
-          <Text selectable style={styles.menuGroupLabel}>
-            {group.label}
-          </Text>
-          {group.routes.map((routeId) => {
-            const route = SHELL_ROUTES[routeId];
-            return (
-              <Pressable
-                accessibilityHint={`Opens ${route.title} inside More`}
-                accessibilityLabel={route.title}
-                accessibilityRole="button"
-                android_ripple={{ color: mobileColors.surfaceRaised }}
-                key={route.id}
-                onPress={() =>
-                  dispatch({ type: "navigate", location: { route: routeId } })
-                }
-                style={({ pressed }) => [
-                  styles.menuRow,
-                  pressed ? styles.pressed : null,
-                ]}
-                testID={`open-${route.reviewId}`}
-              >
-                <View style={styles.menuCopy}>
-                  <Text selectable style={styles.cardTitle}>
-                    {route.title}
-                  </Text>
-                  <Text selectable style={styles.menuSummary}>
-                    {route.summary}
-                  </Text>
-                </View>
-                <ChevronRight
-                  accessibilityElementsHidden
-                  color={mobileColors.textSecondary}
-                  size={mobileSizing.icon}
-                />
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
+      {MORE_ROUTE_IDS.map((routeId) => {
+        const route = SHELL_ROUTES[routeId];
+        return (
+          <Pressable
+            accessibilityHint={`Opens ${route.title} inside More`}
+            accessibilityLabel={route.title}
+            accessibilityRole="button"
+            android_ripple={{ color: mobileColors.surfaceRaised }}
+            key={route.id}
+            onPress={() =>
+              dispatch({ type: "navigate", location: { route: routeId } })
+            }
+            style={({ pressed }) => [
+              styles.card,
+              styles.menuCard,
+              pressed ? styles.pressed : null,
+            ]}
+            testID={`open-${route.reviewId}`}
+          >
+            <View style={styles.cardCopy}>
+              <Text selectable style={styles.cardTitle}>
+                {route.title}
+              </Text>
+              <Text selectable style={styles.cardBody}>
+                {route.summary}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -2117,42 +2106,15 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   menu: {
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  menuGroup: {
-    gap: mobileSpacing.small,
-  },
-  menuGroupLabel: {
-    color: mobileColors.textCategory,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    lineHeight: 16,
-    textTransform: "uppercase",
-  },
-  menuRow: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surface,
-    borderBottomColor: mobileColors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.medium,
-    minHeight: 72,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
   },
-  menuCopy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-  },
-  menuSummary: {
-    color: mobileColors.textSecondary,
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 18,
+  menuCard: {
+    alignItems: "flex-start",
+    flexDirection: "column",
+    minHeight: 96,
+    width: "47%",
   },
   statusPanel: {
     backgroundColor: mobileColors.surfaceMuted,

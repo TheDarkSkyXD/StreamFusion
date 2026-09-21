@@ -8,7 +8,6 @@ import {
   getActiveShellLocation,
   getActiveShellRoute,
   getShellNavigationPlacement,
-  MORE_MENU_GROUPS,
   MORE_ROUTE_IDS,
   restoreShellNavigationState,
   SHELL_DESTINATIONS,
@@ -354,7 +353,7 @@ describe("adaptive app shell", () => {
     ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
-  it("keeps Categories first under Browse and Accounts last under More", () => {
+  it("keeps Categories first and Accounts last under More without a Home entry", () => {
     expect(MORE_ROUTE_IDS).toEqual([
       "more/categories",
       "more/multistream",
@@ -365,9 +364,6 @@ describe("adaptive app shell", () => {
       "more/diagnostics",
       "more/accounts",
     ]);
-    expect(MORE_MENU_GROUPS[0]).toMatchObject({
-      id: "browse",
-      routes: ["more/categories", "more/multistream"],
-    });
+    expect(MORE_ROUTE_IDS.includes("more/home" as never)).toBe(false);
   });
 });
