@@ -73,7 +73,7 @@ function model(overrides: Partial<ActivityViewModel> = {}): ActivityViewModel {
     dismissalConfirmation: null,
     dismissalFailure: false,
     dismissalResult: null,
-    filter: "all",
+    filter: "channels",
     isDismissing: false,
     isMarkingAllRead: false,
     isRefreshing: false,
@@ -122,7 +122,6 @@ function render(
     onMarkAllRead: async () => undefined,
     onOpen: () => undefined,
     onRefresh: async () => undefined,
-    onSelectFilter: () => undefined,
   }) as ReactElement<{
     ListHeaderComponent: unknown;
     ListEmptyComponent: unknown;
@@ -195,7 +194,7 @@ describe("Activity screen", () => {
     });
   });
 
-  it("states that Clear completed applies across Activity tabs", () => {
+  it("states that Clear completed hides go-live alerts", () => {
     const nodes = render(
       model({
         dismissalConfirmation: {
@@ -209,7 +208,33 @@ describe("Activity screen", () => {
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children.includes("across all Activity tabs"),
+          node.props.children.includes("completed go-live"),
+      ),
+    ).toBe(true);
+  });
+
+  it("hides All/Channels/Jobs filter chrome and uses followed go-live empty copy", () => {
+    const nodes = render(
+      model({ allItems: [], items: [], status: "ready", unreadCount: 0 }),
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "activity-filter-all"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "activity-filter-jobs"),
+    ).toBe(false);
+    expect(
+      nodes.some(
+        (node) =>
+          typeof node.props.children === "string" &&
+          node.props.children === "No followed go-lives yet",
+      ),
+    ).toBe(true);
+    expect(
+      nodes.some(
+        (node) =>
+          typeof node.props.children === "string" &&
+          node.props.children.includes("Guest Follows on this device count"),
       ),
     ).toBe(true);
   });

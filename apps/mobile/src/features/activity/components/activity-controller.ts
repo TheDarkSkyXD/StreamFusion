@@ -11,7 +11,10 @@ import type {
   ActivityRepository,
 } from "@mobile/features/storage/capabilities/persistence";
 
-import type { ActivityInboxViewModel } from "../domain/activity-inbox-workflow";
+import type {
+  ActivityFollowMembershipReader,
+  ActivityInboxViewModel,
+} from "../domain/activity-inbox-workflow";
 import { createActivityInboxLifecycle } from "../domain/activity-inbox-lifecycle";
 
 export type ActivityViewModel = ActivityInboxViewModel;
@@ -35,6 +38,7 @@ export function createStorageCheckActivityItem(
 
 export function useActivityController(options: {
   readonly epoch?: string;
+  readonly listMembership?: ActivityFollowMembershipReader;
   readonly now?: () => number;
   readonly repository: ActivityRepository;
 }): {
@@ -52,9 +56,15 @@ export function useActivityController(options: {
 } {
   const now = options.now ?? Date.now;
   const epoch = options.epoch ?? "main";
+  const listMembership = options.listMembership;
   const lifecycle = useMemo(
-    () => createActivityInboxLifecycle({ now, repository: options.repository }),
-    [now, options.repository],
+    () =>
+      createActivityInboxLifecycle({
+        now,
+        repository: options.repository,
+        ...(listMembership === undefined ? {} : { listMembership }),
+      }),
+    [listMembership, now, options.repository],
   );
   const [model, setModel] = useState<ActivityViewModel>(() =>
     lifecycle.snapshot(),

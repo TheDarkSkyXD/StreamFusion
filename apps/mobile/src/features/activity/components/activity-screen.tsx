@@ -16,9 +16,7 @@ import {
   View,
 } from "react-native";
 
-import type { ActivityFilter } from "@mobile/features/storage/capabilities/persistence";
 import { MobileButton } from "@mobile/design/button";
-import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
@@ -41,15 +39,6 @@ const activityDateFormat = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
   timeStyle: "short",
 });
-const filters = [
-  { id: "all", label: "All" },
-  { id: "channels", label: "Channels" },
-  { id: "jobs", label: "Jobs" },
-] as const satisfies readonly {
-  readonly id: ActivityFilter;
-  readonly label: string;
-}[];
-
 function isCompletedActivity(item: ActivityItem): boolean {
   return item.kind !== "job" || item.job.state.kind === "terminal";
 }
@@ -65,7 +54,6 @@ export function ActivityScreen({
   onMarkAllRead,
   onOpen,
   onRefresh,
-  onSelectFilter,
   scrollRequest = 0,
 }: {
   readonly developmentProof?: DevelopmentActivityProofViewModel | null;
@@ -78,7 +66,6 @@ export function ActivityScreen({
   readonly onMarkAllRead: () => Promise<void>;
   readonly onOpen: (location: ShellLocation) => void;
   readonly onRefresh: () => Promise<void>;
-  readonly onSelectFilter: (filter: ActivityFilter) => void;
   readonly scrollRequest?: number;
 }) {
   const listRef = useRef<FlatListView<ActivityItem>>(null);
@@ -103,7 +90,7 @@ export function ActivityScreen({
       ListHeaderComponent={
         <View style={styles.headerContent}>
           <MobileScreenHeader
-            summary="Channel alerts, jobs, and device updates stay available offline and after you reopen the app."
+            summary="When channels you follow go live, alerts appear here — including Guest Follows on this device."
             title="Activity"
           />
           <DevelopmentActivityProofBanner
@@ -128,19 +115,6 @@ export function ActivityScreen({
             onRefresh={onRefresh}
             status={model.status}
           />
-          <View accessibilityLabel="Activity filters" style={styles.filters}>
-            {filters.map((filter) => (
-              <MobileFilterChip
-                accessibilityLabel={`${filter.label} Activity`}
-                accessibilityRole="tab"
-                key={filter.id}
-                label={filter.label}
-                onPress={() => onSelectFilter(filter.id)}
-                selected={model.filter === filter.id}
-                testID={`activity-filter-${filter.id}`}
-              />
-            ))}
-          </View>
           {model.allItems.length > 0 ? (
             <View style={styles.unreadRow}>
               <Text
@@ -341,8 +315,8 @@ function DismissalStatus({
           style={styles.itemBody}
         >
           {confirmation.kind === "clear-completed"
-            ? `Hide ${count} completed Activity ${count === 1 ? "item" : "items"} across all Activity tabs? Active jobs stay visible. This does not cancel jobs or change Android notifications.`
-            : "Hide this completed Activity item? This does not cancel work or change Android notifications."}
+            ? `Hide ${count} completed go-live ${count === 1 ? "alert" : "alerts"}? This does not change Android notifications.`
+            : "Hide this go-live alert? This does not change Android notifications."}
         </Text>
         {model.dismissalFailure ? (
           <Text
@@ -390,7 +364,7 @@ function DismissalStatus({
     );
   }
   if (!model.dismissalResult) return null;
-  const { activeCount, alreadyDismissedCount, dismissedCount, missingCount } =
+  const { alreadyDismissedCount, dismissedCount, missingCount } =
     model.dismissalResult;
   return (
     <Text
@@ -399,7 +373,7 @@ function DismissalStatus({
       style={styles.itemBody}
       testID="activity-dismissal-result"
     >
-      {`Hidden ${dismissedCount} completed ${dismissedCount === 1 ? "item" : "items"}.${alreadyDismissedCount > 0 ? ` ${alreadyDismissedCount} ${alreadyDismissedCount === 1 ? "item was" : "items were"} already hidden.` : ""}${activeCount > 0 ? ` Kept ${activeCount} active ${activeCount === 1 ? "job" : "jobs"}.` : ""}${missingCount > 0 ? ` ${missingCount} ${missingCount === 1 ? "item was" : "items were"} no longer available.` : ""}`}
+      {`Hidden ${dismissedCount} completed ${dismissedCount === 1 ? "alert" : "alerts"}.${alreadyDismissedCount > 0 ? ` ${alreadyDismissedCount} ${alreadyDismissedCount === 1 ? "alert was" : "alerts were"} already hidden.` : ""}${missingCount > 0 ? ` ${missingCount} ${missingCount === 1 ? "alert was" : "alerts were"} no longer available.` : ""}`}
     </Text>
   );
 }
@@ -471,12 +445,12 @@ function ActivityEmptyState({
           ? "Opening Activity"
           : status === "unavailable"
             ? "Activity is temporarily unavailable"
-            : "Nothing here yet"}
+            : "No followed go-lives yet"}
       </Text>
       <Text selectable style={styles.itemBody}>
         {status === "unavailable"
           ? "Saved Activity could not be opened. Try again."
-          : "New local events will appear here without requiring notification permission."}
+          : "When channels you follow go live, they appear here. Guest Follows on this device count."}
       </Text>
       {status === "unavailable" ? (
         <MobileButton
@@ -599,7 +573,7 @@ export function ActivityDetailScreen({
               style={styles.itemBody}
               testID="activity-active-job-dismissal-note"
             >
-              Active jobs stay in Activity until terminal reconciliation.
+              This Activity item stays visible until it can be dismissed.
             </Text>
           )}
           {activityDestinationLocation(item) ? (
@@ -736,7 +710,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     paddingBottom: mobileSpacing.small,
   },
-  filters: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
   unreadRow: {
     alignItems: "center",
     flexDirection: "row",

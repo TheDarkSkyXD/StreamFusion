@@ -48,6 +48,60 @@ function jobItem(eventId: string): JobActivityItem {
   };
 }
 
+
+function channelLiveAlert(
+  eventId: string,
+  overrides: Partial<{
+    readonly channelId: string;
+    readonly login: string;
+    readonly platform: "twitch" | "kick";
+    readonly readAt: SerializedTimestamp | null;
+  }> = {},
+): ActivityItem {
+  const channelId = overrides.channelId ?? "channel:alpha";
+  const login = overrides.login ?? "alpha";
+  const platform = overrides.platform ?? "twitch";
+  return {
+    body: "A followed channel went live.",
+    channel: {
+      displayName: "Alpha",
+      id: channelId,
+      login,
+      platform,
+    },
+    destination: {
+      channelId,
+      channelLogin: login,
+      kind: "watch-channel",
+      platform,
+    },
+    event: "live-alert",
+    eventId,
+    kind: "channel",
+    occurredAt: "2026-09-08T00:00:00.000Z" as SerializedTimestamp,
+    readAt: overrides.readAt === undefined ? null : overrides.readAt,
+    schemaVersion: 1,
+    source: "local",
+    title: "Alpha is live",
+  };
+}
+
+function guestFollow(
+  overrides: Partial<{
+    readonly channelId: string;
+    readonly channelLogin: string;
+    readonly platform: "twitch" | "kick";
+  }> = {},
+) {
+  return {
+    channelId: overrides.channelId ?? "channel:alpha",
+    channelLogin: overrides.channelLogin ?? "alpha",
+    displayName: "Alpha",
+    followedAt: "2026-09-01T00:00:00.000Z" as SerializedTimestamp,
+    platform: overrides.platform ?? "twitch",
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -76,8 +130,14 @@ function repository(
   };
 }
 
-function workflow(activityRepository: ActivityRepository) {
+function workflow(
+  activityRepository: ActivityRepository,
+  listMembership: () => Promise<readonly ReturnType<typeof guestFollow>[]> = async () => [
+    guestFollow(),
+  ],
+) {
   return createActivityInboxWorkflow({
+    listMembership,
     now: () => Date.parse("2026-09-08T01:00:00.000Z"),
     repository: activityRepository,
   });
@@ -95,9 +155,9 @@ describe("Activity inbox workflow", () => {
 
     const older = inbox.refresh();
     const newer = inbox.refresh();
-    second.resolve([systemItem("event:new")]);
+    second.resolve([channelLiveAlert("event:new")]);
     await newer;
-    first.resolve([systemItem("event:old")]);
+    first.resolve([channelLiveAlert("event:old")]);
     await older;
 
     expect(inbox.snapshot()).toMatchObject({
@@ -109,8 +169,8 @@ describe("Activity inbox workflow", () => {
 
   it("re-reads repository truth so a post-mark-all Activity event stays unread", async () => {
     const readAt = "2026-09-08T01:00:00.000Z" as SerializedTimestamp;
-    const original = systemItem("event:original");
-    const incoming = systemItem("event:incoming");
+    const original = channelLiveAlert("event:original");
+    const incoming = channelLiveAlert("event:incoming");
     const markAll = deferred<number>();
     let items: readonly ActivityItem[] = [original];
     const inbox = workflow(
@@ -170,32 +230,19 @@ describe("Activity inbox workflow", () => {
     });
   });
 
-  it("confirms only the captured completed IDs and retains an item that became active", async () => {
-    const completed = jobItem("job:completed");
-    const active: JobActivityItem = {
-      ...completed,
-      job: { ...completed.job, state: { kind: "active" } },
-    };
+  it("confirms only the captured completed IDs and refreshes followed go-lives", async () => {
+    const completed = channelLiveAlert("event:completed");
+    const remaining = channelLiveAlert("event:new");
     let stored: readonly ActivityItem[] = [completed];
     const dismissCompleted = vi
       .fn<ActivityRepository["dismissCompleted"]>()
       .mockImplementation(async (eventIds) => {
-        const activeEventIds = stored
-          .filter(
-            (item) =>
-              eventIds.includes(item.eventId) &&
-              item.kind === "job" &&
-              item.job.state.kind === "active",
-          )
-          .map((item) => item.eventId);
-        const dismissedEventIds = eventIds.filter(
-          (eventId) => !activeEventIds.includes(eventId),
-        );
+        const dismissedEventIds = [...eventIds];
         stored = stored.filter(
           (item) => !dismissedEventIds.includes(item.eventId),
         );
         return {
-          activeEventIds,
+          activeEventIds: [],
           alreadyDismissedEventIds: [],
           dismissedEventIds,
           missingEventIds: [],
@@ -206,22 +253,22 @@ describe("Activity inbox workflow", () => {
     );
     await inbox.refresh();
     inbox.dismissAllCompleted();
-    stored = [active, systemItem("event:new")];
+    stored = [remaining];
     await inbox.confirmDismissal();
 
     expect(dismissCompleted).toHaveBeenCalledWith(
-      ["job:completed"],
+      ["event:completed"],
       "2026-09-08T01:00:00.000Z",
     );
     expect(inbox.snapshot()).toMatchObject({
       dismissalConfirmation: null,
-      dismissalResult: { activeCount: 1, dismissedCount: 0, missingCount: 0 },
-      items: [{ eventId: "job:completed" }, { eventId: "event:new" }],
+      dismissalResult: { activeCount: 0, dismissedCount: 1, missingCount: 0 },
+      items: [{ eventId: "event:new" }],
     });
   });
 
   it("keeps the captured dismissal confirmation retryable after a failed write", async () => {
-    const item = systemItem("event:dismiss");
+    const item = channelLiveAlert("event:dismiss");
     const dismissCompleted = vi
       .fn<ActivityRepository["dismissCompleted"]>()
       .mockRejectedValueOnce(new Error("unavailable"))
@@ -247,7 +294,7 @@ describe("Activity inbox workflow", () => {
   });
 
   it("removes an already-hidden confirmation target when its authoritative refresh fails", async () => {
-    const item = systemItem("event:hidden");
+    const item = channelLiveAlert("event:hidden");
     const list = vi
       .fn<() => Promise<readonly ActivityItem[]>>()
       .mockResolvedValueOnce([item])
@@ -280,7 +327,7 @@ describe("Activity inbox workflow", () => {
   });
 
   it("contains a pruned confirmation target when its authoritative refresh fails", async () => {
-    const item = systemItem("event:pruned");
+    const item = channelLiveAlert("event:pruned");
     const list = vi
       .fn<() => Promise<readonly ActivityItem[]>>()
       .mockResolvedValueOnce([item])
@@ -326,7 +373,7 @@ describe("Activity inbox workflow", () => {
     const refresh = inbox.refresh();
     expect(inbox.snapshot().isRefreshing).toBe(true);
     await inbox.markAllRead();
-    pendingList.resolve([systemItem("event:late")]);
+    pendingList.resolve([channelLiveAlert("event:late")]);
     await refresh;
 
     expect(inbox.snapshot()).toMatchObject({
@@ -340,7 +387,7 @@ describe("Activity inbox workflow", () => {
   it("keeps another Activity row busy while an earlier mark-read refresh settles", async () => {
     const firstRefresh = deferred<readonly ActivityItem[]>();
     const secondRefresh = deferred<readonly ActivityItem[]>();
-    const stored = [systemItem("event:first"), systemItem("event:second")];
+    const stored = [channelLiveAlert("event:first"), channelLiveAlert("event:second")];
     const list = vi
       .fn<() => Promise<readonly ActivityItem[]>>()
       .mockResolvedValueOnce(stored)
@@ -368,8 +415,8 @@ describe("Activity inbox workflow", () => {
     expect(inbox.snapshot().markingReadEventIds).toEqual([]);
   });
 
-  it("keeps retained filtered items visible and exposes an unavailable refresh", async () => {
-    const item = jobItem("event:stored");
+  it("keeps retained followed go-lives visible and exposes an unavailable refresh", async () => {
+    const item = channelLiveAlert("event:stored");
     const list = vi
       .fn<() => Promise<readonly ActivityItem[]>>()
       .mockResolvedValueOnce([item])
@@ -380,11 +427,35 @@ describe("Activity inbox workflow", () => {
     await inbox.refresh();
 
     expect(inbox.snapshot()).toMatchObject({
-      filter: "jobs",
+      filter: "channels",
       isRefreshing: false,
       items: [{ eventId: "event:stored" }],
       status: "unavailable",
     });
+  });
+
+  it("shows only followed live-alerts and hides jobs, system, and unfollowed channels", async () => {
+    const followed = channelLiveAlert("event:followed");
+    const unfollowed = channelLiveAlert("event:other", {
+      channelId: "channel:other",
+      login: "other",
+    });
+    const inbox = workflow(
+      repository({
+        list: async () => [
+          followed,
+          unfollowed,
+          jobItem("event:job"),
+          systemItem("event:system"),
+        ],
+      }),
+      async () => [guestFollow()],
+    );
+    await inbox.refresh();
+    expect(inbox.snapshot().items.map((item) => item.eventId)).toEqual([
+      "event:followed",
+    ]);
+    expect(inbox.snapshot().unreadCount).toBe(1);
   });
 
   it("does not publish a completed mutation after disposal", async () => {
@@ -419,6 +490,7 @@ describe("Activity inbox workflow", () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const lifecycle = createActivityInboxLifecycle({
+      listMembership: async () => [guestFollow()],
       now: () => Date.parse("2026-09-08T01:00:00.000Z"),
       repository: repository({ list }),
     });
@@ -427,9 +499,9 @@ describe("Activity inbox workflow", () => {
     const detachFirst = lifecycle.attach(listener);
     detachFirst();
     const detachSecond = lifecycle.attach(listener);
-    second.resolve([systemItem("event:second")]);
+    second.resolve([channelLiveAlert("event:second")]);
     await second.promise;
-    first.resolve([systemItem("event:first")]);
+    first.resolve([channelLiveAlert("event:first")]);
     await first.promise;
 
     expect(lifecycle.snapshot()).toMatchObject({
@@ -445,7 +517,7 @@ describe("Activity inbox workflow", () => {
   });
 
   it("contains failed record and mark-read mutations without stale busy state", async () => {
-    const stored = systemItem("event:stored");
+    const stored = channelLiveAlert("event:stored");
     const inbox = workflow(
       repository({
         list: async () => [stored],

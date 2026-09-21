@@ -5,10 +5,12 @@ import type { Platform } from "@streamfusion/core/platform";
 import type { FollowedIdentityRef } from "@streamfusion/core/relay";
 
 import type {
+  ActivityRepository,
   DisposableCache,
   GuestFollowRepository,
   LiveNotificationPreferenceStore,
 } from "@mobile/features/storage/capabilities/persistence";
+import { createGuestLiveAlertReconciler } from "@mobile/features/activity/domain/guest-live-alert-reconciler";
 
 import { createRelayFollowedContentReader } from "../adapters/relay/relay-followed-content-reader";
 import { createExpoProviderPageOpener } from "../adapters/expo-provider-page";
@@ -17,6 +19,7 @@ import type {
   FollowingSession,
   FollowMutationResult,
 } from "../capabilities/following-session";
+
 import { createFollowedLiveCache } from "../data/followed-live-cache";
 import { guestFollowMutation } from "../domain/guest-follow-mutation";
 import { identityRefsFor } from "../utils/following-query";
@@ -25,6 +28,7 @@ type FollowedReader = ReturnType<typeof createRelayFollowedContentReader>;
 type LiveCache = ReturnType<typeof createFollowedLiveCache>;
 
 export function createFollowingRuntime(input: {
+  readonly activity?: ActivityRepository;
   readonly cache: DisposableCache;
   readonly fetch?: typeof globalThis.fetch;
   readonly guestFollows: GuestFollowRepository;
@@ -37,11 +41,20 @@ export function createFollowingRuntime(input: {
   readonly now?: () => number;
   readonly relayBaseUrl: string;
 }): FollowingSession {
+  const now = input.now ?? Date.now;
   return bindSession({
     guestFollows: input.guestFollows,
+    liveAlertPrimed: { value: false },
+    liveAlertReconciler:
+      input.activity === undefined
+        ? null
+        : createGuestLiveAlertReconciler({
+            activity: input.activity,
+            now,
+          }),
     liveCache: createFollowedLiveCache(input.cache),
     liveNotifications: input.liveNotifications,
-    now: input.now ?? Date.now,
+    now,
     pages: createExpoProviderPageOpener(),
     reader: createRelayFollowedContentReader({
       baseUrl: input.relayBaseUrl,
@@ -54,6 +67,10 @@ export function createFollowingRuntime(input: {
 
 function bindSession(deps: {
   readonly guestFollows: GuestFollowRepository;
+  readonly liveAlertPrimed: { value: boolean };
+  readonly liveAlertReconciler: ReturnType<
+    typeof createGuestLiveAlertReconciler
+  > | null;
   readonly liveCache: LiveCache;
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly now: () => number;
@@ -84,7 +101,12 @@ function bindSession(deps: {
 async function hydrateLive(
   deps: {
     readonly guestFollows: GuestFollowRepository;
+    readonly liveAlertPrimed: { value: boolean };
+    readonly liveAlertReconciler: ReturnType<
+      typeof createGuestLiveAlertReconciler
+    > | null;
     readonly liveCache: LiveCache;
+    readonly liveNotifications: LiveNotificationPreferenceStore;
     readonly reader: FollowedReader;
   },
   signal?: AbortSignal,
@@ -107,6 +129,26 @@ async function hydrateLive(
       ...extra,
     }),
   ]);
+  if (deps.liveAlertReconciler) {
+    const fresh =
+      twitch.status === "complete" ||
+      twitch.status === "partial" ||
+      kick.status === "complete" ||
+      kick.status === "partial";
+    if (fresh) {
+      const preferences = await deps.liveNotifications.read();
+      // First observation after cold start is silent so already-live channels
+      // do not flood Activity; subsequent hydrates emit offline→live alerts.
+      const silent = !deps.liveAlertPrimed.value;
+      deps.liveAlertPrimed.value = true;
+      await deps.liveAlertReconciler.observe({
+        membership,
+        preferences,
+        silent,
+        streams: [...twitch.items, ...kick.items],
+      });
+    }
+  }
   return { kick, twitch };
 }
 

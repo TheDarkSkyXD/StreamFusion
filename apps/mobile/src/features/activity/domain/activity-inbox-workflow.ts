@@ -3,12 +3,14 @@ import {
   type ActivityItem,
   type SerializedTimestamp,
 } from "@streamfusion/core/activity";
+import type { GuestFollow } from "@streamfusion/core/follows";
 
 import type {
   ActivityFilter,
   ActivityRepository,
 } from "@mobile/features/storage/capabilities/persistence";
 
+import { filterFollowedLiveAlerts } from "./activity-followed-feed";
 import {
   dismissCompletedActivitySafely,
   markActivityReadSafely,
@@ -64,12 +66,16 @@ export interface ActivityInboxWorkflow {
 
 type ActivityMutationFailure = ActivityInboxViewModel["mutationFailure"];
 
+export type ActivityFollowMembershipReader = () => Promise<
+  readonly GuestFollow[]
+>;
+
 export const initialActivityInboxViewModel: ActivityInboxViewModel = {
   allItems: [],
   dismissalConfirmation: null,
   dismissalFailure: false,
   dismissalResult: null,
-  filter: "all",
+  filter: "channels",
   isDismissing: false,
   isMarkingAllRead: false,
   isRefreshing: false,
@@ -93,12 +99,8 @@ function projectSnapshot(input: {
   readonly mutationFailure: ActivityMutationFailure;
   readonly status: ActivityInboxViewModel["status"];
 }): ActivityInboxViewModel {
-  const items =
-    input.filter === "channels"
-      ? input.allItems.filter((item) => item.kind === "channel")
-      : input.filter === "jobs"
-        ? input.allItems.filter((item) => item.kind === "job")
-        : input.allItems;
+  // Activity is a followed go-live feed; filter chrome is gone. allItems is already
+  // narrowed to followed live-alerts, so items mirrors allItems.
   return {
     allItems: input.allItems,
     dismissalConfirmation: input.dismissalConfirmation,
@@ -108,7 +110,7 @@ function projectSnapshot(input: {
     isDismissing: input.isDismissing,
     isMarkingAllRead: input.isMarkingAllRead,
     isRefreshing: input.isRefreshing,
-    items,
+    items: input.allItems,
     markingReadEventIds: [...input.markingReadEventIds],
     mutationFailure: input.mutationFailure,
     status: input.status,
@@ -117,6 +119,7 @@ function projectSnapshot(input: {
 }
 
 export function createActivityInboxWorkflow(options: {
+  readonly listMembership?: ActivityFollowMembershipReader;
   readonly now: () => number;
   readonly repository: ActivityRepository;
 }): ActivityInboxWorkflow {
@@ -124,6 +127,8 @@ export function createActivityInboxWorkflow(options: {
   let listGeneration = 0;
   let state = initialActivityInboxViewModel;
   const listeners = new Set<(snapshot: ActivityInboxViewModel) => void>();
+  const listMembership =
+    options.listMembership ?? (async () => [] as readonly GuestFollow[]);
 
   const publish = (next: ActivityInboxViewModel) => {
     if (disposed) return;
@@ -172,8 +177,12 @@ export function createActivityInboxWorkflow(options: {
     const generation = ++listGeneration;
     update({ isRefreshing: true });
     try {
-      const allItems = await options.repository.list();
+      const [stored, membership] = await Promise.all([
+        options.repository.list(),
+        listMembership(),
+      ]);
       if (disposed || generation !== listGeneration) return;
+      const allItems = filterFollowedLiveAlerts(stored, membership);
       update({ allItems, isRefreshing: false, status: "ready" });
     } catch {
       if (disposed || generation !== listGeneration) return;
@@ -335,8 +344,9 @@ export function createActivityInboxWorkflow(options: {
     markRead,
     record,
     refresh,
-    selectFilter(filter) {
-      update({ filter });
+    selectFilter(_filter) {
+      // Filter chrome removed; Activity stays on followed go-lives.
+      update({ filter: "channels" });
     },
     snapshot: () => state,
     subscribe(listener) {

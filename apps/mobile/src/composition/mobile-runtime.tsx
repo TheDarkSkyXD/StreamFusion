@@ -263,6 +263,7 @@ const settingsSession = createSettingsSession({
   settings: persistenceRuntime.productState.settings,
 });
 const followingSession = createFollowingRuntime({
+  activity: persistenceRuntime.productState.activity,
   cache: persistenceRuntime.disposableCache,
   fetch: connectivitySession.fetch,
   guestFollows: persistenceRuntime.productState.guestFollows,

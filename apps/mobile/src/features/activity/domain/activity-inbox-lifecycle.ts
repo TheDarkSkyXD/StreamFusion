@@ -3,6 +3,7 @@ import type { ActivityRepository } from "@mobile/features/storage/capabilities/p
 import {
   createActivityInboxWorkflow,
   initialActivityInboxViewModel,
+  type ActivityFollowMembershipReader,
   type ActivityInboxViewModel,
   type ActivityInboxWorkflow,
 } from "./activity-inbox-workflow";
@@ -24,6 +25,7 @@ export interface ActivityInboxLifecycle {
 }
 
 export function createActivityInboxLifecycle(options: {
+  readonly listMembership?: ActivityFollowMembershipReader;
   readonly now: () => number;
   readonly repository: ActivityRepository;
 }): ActivityInboxLifecycle {

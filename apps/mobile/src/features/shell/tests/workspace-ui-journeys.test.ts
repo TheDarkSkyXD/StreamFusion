@@ -229,7 +229,7 @@ describe("workspace UI journeys", () => {
         dismissalConfirmation: null,
         dismissalFailure: false,
         dismissalResult: null,
-        filter: "all",
+        filter: "channels",
         isDismissing: false,
         isMarkingAllRead: false,
         isRefreshing: false,
@@ -245,7 +245,6 @@ describe("workspace UI journeys", () => {
       onMarkAllRead: async () => undefined,
       onOpen: () => undefined,
       onRefresh: async () => retriedActivity.push("activity"),
-      onSelectFilter: () => undefined,
     }) as ReactElement<{ ListEmptyComponent: unknown }>;
     const activity = descendants(activityRoot.props.ListEmptyComponent);
     press(activity, "activity-retry-load");
