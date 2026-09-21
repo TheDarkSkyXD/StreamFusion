@@ -28,7 +28,7 @@ More Settings hosts a live Ad Blocking panel. Guests can leave filtering on, swi
 
 ## Evidence residuals
 
-TalkBack was not driven. Desktop VAFT pattern refresh is not on Mobile. Watch Kick title still names the Twitch canary method while the detail states Kick is unfiltered.
+TalkBack was not driven. Desktop VAFT pattern refresh is not on Mobile. Watch Kick title still names the Twitch canary method while the detail states Kick is unfiltered. Interstitial-only midroll playlists that would empty after strip still keep the original playlist (Twitch "Commercial break in progress" slate can remain until live segments return); mixed playlists strip CUE-OUT interstitial and stitched markers on the ExoPlayer path.
 
 ## Blocking for public release
 

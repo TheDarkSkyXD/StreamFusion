@@ -85,7 +85,9 @@ class FilteringDataSource(
 
   private fun shouldRewrite(uri: Uri): Boolean {
     val path = uri.path?.lowercase().orEmpty()
-    return path.endsWith(".m3u8")
+    // Twitch media playlists always carry .m3u8 in the path; match contains() so
+    // encoded or compound path segments still rewrite (desktop uses includes).
+    return path.contains(".m3u8")
   }
 
   private fun readAll(source: DataSource): ByteArray {

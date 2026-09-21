@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
+import type { EffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/capabilities/installation-policy";
+import type { ProductSettingsStore } from "@mobile/features/storage/capabilities/persistence";
+
 import { createFocusedWatchSession } from "../domain/focused-watch-session";
 import type {
   FocusedPlaybackPort,
@@ -201,6 +205,110 @@ describe("focused watch session", () => {
       enabled: true,
       mode: "strip",
       platform: "twitch",
+    });
+  });
+
+  it("wires default-on AdBlockSession strip into Twitch Watch start", async () => {
+    const requests: { filtering?: { enabled: boolean; mode: string; platform: string } }[] = [];
+    const settings: ProductSettingsStore = {
+      async read() {
+        return null;
+      },
+      async write(_key, _value, _updatedAt) {},
+    };
+    const policy: EffectiveCapabilityPolicyReader = {
+      read: async () => ({
+        kind: "enabled",
+        sequence: 1,
+        verifiedAtEpochMs: 1,
+      }),
+    };
+    const playback = playbackPort({
+      start: async (request) => {
+        requests.push(request);
+        return {
+          kind: "started",
+          session: {
+            pictureInPictureEligible: false,
+            sessionId: request.sessionId,
+          },
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      filtering: createAdBlockSession({ policy, settings }),
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    expect(requests[0]?.filtering).toEqual({
+      enabled: true,
+      mode: "strip",
+      platform: "twitch",
+    });
+  });
+
+  it("does not invent a Kick playlist filter on Watch start", async () => {
+    const requests: { filtering?: { mode: string; platform: string } }[] = [];
+    const kickTarget: WatchTarget = {
+      channelId: "kick-1",
+      channelName: "kicklive",
+      platform: "kick",
+    };
+    const kickUri = asHlsSourceUri("https://fa723fc1b171.cloudfront.net/live.m3u8")!;
+    const settings: ProductSettingsStore = {
+      async read() {
+        return null;
+      },
+      async write(_key, _value, _updatedAt) {},
+    };
+    const adPolicy: EffectiveCapabilityPolicyReader = {
+      read: async () => ({
+        kind: "enabled",
+        sequence: 1,
+        verifiedAtEpochMs: 1,
+      }),
+    };
+    const playback = playbackPort({
+      start: async (request) => {
+        requests.push(request);
+        return {
+          kind: "started",
+          session: {
+            pictureInPictureEligible: false,
+            sessionId: request.sessionId,
+          },
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      filtering: createAdBlockSession({ policy: adPolicy, settings }),
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:kick" },
+      sources: {
+        kick: {
+          integration: "kick-v1-playback-url",
+          platform: "kick",
+          resolve: async () => ({
+            integration: "kick-v1-playback-url",
+            kind: "resolved",
+            requestHeaders: {},
+            sourceUri: kickUri,
+          }),
+        },
+        twitch: sources().twitch,
+      },
+    });
+    await session.start(kickTarget);
+    expect(requests[0]?.filtering).toEqual({
+      enabled: true,
+      mode: "passthrough",
+      platform: "kick",
     });
   });
 

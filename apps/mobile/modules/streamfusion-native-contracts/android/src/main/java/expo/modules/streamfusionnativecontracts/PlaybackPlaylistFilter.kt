@@ -52,7 +52,8 @@ object PlaybackPlaylistFilter {
   }
 
   fun hasAds(playlist: String): Boolean {
-    if (playlist.lowercase().contains("stitched")) return true
+    val lower = playlist.lowercase()
+    if (lower.contains("stitched") || lower.contains("amazon|")) return true
     return playlist.lineSequence().any { isAdLine(it) }
   }
 
@@ -67,29 +68,58 @@ object PlaybackPlaylistFilter {
   private fun stripAdSegments(playlist: String): String {
     val lines = playlist.replace("\r", "").split("\n")
     val kept = ArrayList<String>(lines.size)
+    var insideDateRangeAd = false
+    var insideCueAd = false
     var index = 0
     while (index < lines.size) {
-      val skip = skippedAdLines(lines, index)
-      if (skip > 0) {
-        index += skip
-        continue
+      val line = lines[index]
+      val nextLine = lines.getOrNull(index + 1).orEmpty()
+      when {
+        isAdDateRange(line) -> {
+          insideDateRangeAd = true
+          index += 1
+        }
+        isAdCueOut(line) -> {
+          insideCueAd = true
+          index += 1
+        }
+        isAdCueIn(line) -> {
+          insideCueAd = false
+          insideDateRangeAd = false
+          index += 1
+        }
+        line.startsWith("#EXT-X-DISCONTINUITY") -> {
+          insideDateRangeAd = false
+          kept.add(line)
+          index += 1
+        }
+        line.startsWith(PREFETCH_PREFIX) &&
+          isAdSegment(line.substring(PREFETCH_PREFIX.length)) -> {
+          index += 1
+        }
+        line.startsWith("#EXTINF:") -> {
+          val live = line.lowercase().contains(",live")
+          val adByUrl = isAdSegment(nextLine)
+          val adByInf = isAdExtInf(line)
+          val adByCue = insideCueAd && !live
+          val adByRange = insideDateRangeAd && (adByUrl || adByInf)
+          if (adByUrl || adByInf || adByCue || adByRange) {
+            index += if (isMediaUri(nextLine)) 2 else 1
+          } else {
+            if (insideDateRangeAd && !adByUrl && !adByInf) {
+              insideDateRangeAd = false
+            }
+            kept.add(line)
+            index += 1
+          }
+        }
+        else -> {
+          kept.add(line)
+          index += 1
+        }
       }
-      kept.add(lines[index])
-      index += 1
     }
     return kept.joinToString("\n")
-  }
-
-  private fun skippedAdLines(lines: List<String>, index: Int): Int {
-    val line = lines[index]
-    if (isAdDateRange(line) || isAdCue(line)) return 1
-    if (line.startsWith(PREFETCH_PREFIX) && isAdSegment(line.substring(PREFETCH_PREFIX.length))) {
-      return 1
-    }
-    if (line.startsWith("#EXTINF:") && isAdSegment(lines.getOrNull(index + 1).orEmpty())) {
-      return 2
-    }
-    return 0
   }
 
   private fun hasMediaSegments(playlist: String): Boolean {
@@ -99,8 +129,17 @@ object PlaybackPlaylistFilter {
     }
   }
 
+  private fun isMediaUri(line: String): Boolean {
+    val trimmed = line.trim()
+    return trimmed.isNotEmpty() && !trimmed.startsWith("#")
+  }
+
   private fun isAdLine(line: String): Boolean {
-    return isAdDateRange(line) || isAdCue(line) || isAdSegment(line)
+    return isAdDateRange(line) ||
+      isAdCueOut(line) ||
+      isAdCueIn(line) ||
+      isAdExtInf(line) ||
+      isAdSegment(line)
   }
 
   private fun isAdDateRange(line: String): Boolean {
@@ -109,8 +148,18 @@ object PlaybackPlaylistFilter {
     return dateRangePatterns.any(lower::contains)
   }
 
-  private fun isAdCue(line: String): Boolean {
-    return line.startsWith("#EXT-X-CUE-OUT") || line.startsWith("#EXT-X-CUE-IN")
+  private fun isAdCueOut(line: String): Boolean {
+    return line.startsWith("#EXT-X-CUE-OUT")
+  }
+
+  private fun isAdCueIn(line: String): Boolean {
+    return line.startsWith("#EXT-X-CUE-IN")
+  }
+
+  private fun isAdExtInf(line: String): Boolean {
+    if (!line.startsWith("#EXTINF:")) return false
+    val lower = line.lowercase()
+    return lower.contains("stitched") || lower.contains("amazon|")
   }
 
   private fun isAdSegment(value: String): Boolean {
@@ -122,7 +171,7 @@ object PlaybackPlaylistFilter {
       val path = uri.path?.lowercase().orEmpty()
       when {
         host in adHosts -> true
-        host.endsWith(".cloudfront.net") && path.split("/").contains("ad") -> true
+        path.split("/").contains("ad") -> true
         path.contains("amazon-ad") || path.contains("stitched-ad") -> true
         else -> false
       }

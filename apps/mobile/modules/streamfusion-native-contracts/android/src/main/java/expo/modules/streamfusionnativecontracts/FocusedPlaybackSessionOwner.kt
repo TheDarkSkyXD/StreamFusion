@@ -378,11 +378,20 @@ object FocusedPlaybackSessionOwner {
 
   private fun playlistFilterMode(request: Map<String, Any>): String {
     val filtering = request["filtering"] as? Map<*, *> ?: return "passthrough"
-    val enabled = filtering["enabled"] == true
+    val enabled = isTruthy(filtering["enabled"])
     val platform = filtering["platform"] as? String
     val mode = filtering["mode"] as? String ?: "passthrough"
     if (!enabled || platform != "twitch") return "passthrough"
     return if (mode == "canary" || mode == "strip") mode else "passthrough"
+  }
+
+  private fun isTruthy(value: Any?): Boolean {
+    return when (value) {
+      is Boolean -> value
+      is Number -> value.toInt() != 0
+      is String -> value.equals("true", ignoreCase = true)
+      else -> false
+    }
   }
 
   private fun isHttpsMedia(sourceUri: String): Boolean {
