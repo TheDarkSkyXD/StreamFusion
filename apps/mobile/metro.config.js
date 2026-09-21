@@ -2,9 +2,10 @@ const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
 
 const workspaceRoot = path.resolve(__dirname, "../..");
-const config = getDefaultConfig(__dirname);
+const mobileRoot = __dirname;
+const config = getDefaultConfig(mobileRoot);
 const queryStringCompatPath = path.resolve(
-  __dirname,
+  mobileRoot,
   "vendor/query-string-compat.cjs",
 );
 const coreSubpathPattern = /^@streamfusion\/core\/([a-z-]+)$/u;
@@ -13,21 +14,37 @@ const tanstackModern = new Set([
   "@tanstack/react-query",
 ]);
 
-config.watchFolders = [
-  path.resolve(workspaceRoot, "node_modules"),
-  path.resolve(workspaceRoot, "packages/core"),
+// Expo SDK 52+ already configures monorepo watchFolders + nodeModulesPaths.
+// Replacing nodeModulesPaths can load duplicate react-native copies and crash
+// Hermes with "property is not writable" inside setUpDefaultReactNativeEnvironment.
+// Only trim unrelated workspace apps from watchers to keep FD usage down.
+const ignoredWatchSuffixes = [
+  `${path.sep}apps${path.sep}desktop`,
+  `${path.sep}apps${path.sep}worker`,
+  `${path.sep}apps${path.sep}integration-relay`,
 ];
-config.resolver.nodeModulesPaths = [
-  path.resolve(__dirname, "node_modules"),
-  path.resolve(workspaceRoot, "node_modules"),
-];
+config.watchFolders = (config.watchFolders ?? []).filter(
+  (folder) =>
+    !ignoredWatchSuffixes.some((suffix) => folder.endsWith(suffix)),
+);
+
+const mobileOrigin = path.join(mobileRoot, "package.json");
+
+function isReactFamily(moduleName) {
+  return (
+    moduleName === "react" ||
+    moduleName === "react-native" ||
+    moduleName.startsWith("react/") ||
+    moduleName.startsWith("react-native/")
+  );
+}
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const coreSubpath = coreSubpathPattern.exec(moduleName)?.[1];
   if (coreSubpath) {
     return {
       filePath: path.resolve(
-        __dirname,
+        mobileRoot,
         "../../packages/core/src",
         coreSubpath,
         "index.ts",
@@ -51,6 +68,16 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     /[\\/]node_modules[\\/]expo-router[\\/]/.test(context.originModulePath)
   ) {
     return { filePath: queryStringCompatPath, type: "sourceFile" };
+  }
+
+  // Prefer the app workspace copy of react / react-native so Metro never mixes
+  // root 0.86.2 with apps/mobile 0.86.3 during RN environment setup.
+  if (isReactFamily(moduleName)) {
+    return context.resolveRequest(
+      { ...context, originModulePath: mobileOrigin },
+      moduleName,
+      platform,
+    );
   }
 
   return context.resolveRequest(context, moduleName, platform);

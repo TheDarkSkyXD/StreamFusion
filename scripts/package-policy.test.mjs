@@ -347,6 +347,10 @@ test("the root owns the dependency policy and override baseline", () => {
   });
   assert.equal(rootPackage.overrides["react-native-reanimated"], "4.5.1");
   assert.equal(rootPackage.overrides["react-native-worklets"], "0.10.1");
+  assert.equal(rootPackage.overrides.react, "19.2.8");
+  assert.equal(rootPackage.overrides["react-dom"], "19.2.8");
+  assert.equal(rootPackage.overrides["react-native"], "0.86.3");
+  assert.equal(rootPackage.overrides.expo, "57.0.17");
   assert.ok(Object.keys(rootPackage.allowScripts).length > 0);
   assert.deepEqual(
     rootLockfile.packages[""].workspaces,

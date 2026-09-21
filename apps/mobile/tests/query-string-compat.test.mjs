@@ -130,3 +130,57 @@ test("Metro loads TanStack Query from the modern build instead of the react-nati
     assert.equal(resolution.type, "sourceFile");
   }
 });
+
+test("Metro keeps Expo monorepo nodeModulesPaths (no manual overwrite)", () => {
+  const { getDefaultConfig } = require("expo/metro-config");
+  const defaults = getDefaultConfig(mobileDirectory);
+  assert.deepEqual(
+    config.resolver.nodeModulesPaths,
+    defaults.resolver.nodeModulesPaths,
+  );
+  assert.ok(
+    (config.watchFolders ?? []).every(
+      (folder) =>
+        !folder.endsWith(`${path.sep}apps${path.sep}desktop`) &&
+        !folder.endsWith(`${path.sep}apps${path.sep}worker`) &&
+        !folder.endsWith(`${path.sep}apps${path.sep}integration-relay`),
+    ),
+  );
+});
+
+test("Metro pins react-native resolution through the mobile workspace origin", () => {
+  const origins = [];
+  const resolution = config.resolver.resolveRequest(
+    {
+      originModulePath: path.join(
+        mobileDirectory,
+        "../../node_modules/expo/AppEntry.js",
+      ),
+      resolveRequest(nextContext, moduleName, platform) {
+        origins.push(nextContext.originModulePath);
+        return {
+          filePath: path.join(
+            mobileDirectory,
+            "../../node_modules",
+            "react-native",
+            "index.js",
+          ),
+          type: "sourceFile",
+        };
+      },
+    },
+    "react-native",
+    "android",
+  );
+
+  assert.deepEqual(origins, [path.join(mobileDirectory, "package.json")]);
+  assert.equal(
+    resolution.filePath,
+    path.join(
+      mobileDirectory,
+      "../../node_modules",
+      "react-native",
+      "index.js",
+    ),
+  );
+});

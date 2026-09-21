@@ -4,7 +4,9 @@
     "slug": "streamfusion-development",
     "version": "0.1.0",
     "userInterfaceStyle": "dark",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "scheme": "streamfusion-development",
     "newArchEnabled": true,
     "android": {
@@ -23,7 +25,10 @@
               "pathPrefix": "/auth/kick/android/callback"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -61,7 +66,8 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "autolinkingModuleResolution": true
     }
   }
 }
