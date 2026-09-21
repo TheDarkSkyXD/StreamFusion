@@ -1,4 +1,5 @@
 import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { TwitchPlaylistProxyPreferences } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
   FocusedPlaybackPort,
@@ -58,6 +59,9 @@ export function createFocusedWatchSession(input: {
   };
   readonly playback: FocusedPlaybackPort;
   readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
+  readonly playlistProxy?: {
+    snapshot(): Promise<TwitchPlaylistProxyPreferences>;
+  };
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
   readonly recorded?: RecordedPlaybackSources;
@@ -295,6 +299,9 @@ export function createFocusedWatchSession(input: {
         ...(input.playbackSettings === undefined
           ? {}
           : { playbackSettings: input.playbackSettings }),
+        ...(input.playlistProxy === undefined
+          ? {}
+          : { playlistProxy: input.playlistProxy }),
         ...(input.recorded === undefined ? {} : { recorded: input.recorded }),
       });
       if (outcome.kind === "cancelled") return { kind: "cancelled" };

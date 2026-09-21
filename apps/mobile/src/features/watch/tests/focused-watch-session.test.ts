@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
+import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
 import type { EffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/capabilities/installation-policy";
 import type { ProductSettingsStore } from "@mobile/features/storage/capabilities/persistence";
 
@@ -545,5 +546,135 @@ describe("focused watch session", () => {
     expect(started).toEqual([sourceUri]);
     await session.seekTo(10_000);
     expect(seeks).toEqual([10_000]);
+  });
+
+  it("falls back across Twitch playlist proxy sources then direct usher", async () => {
+    const started: string[] = [];
+    const values = new Map<string, string>();
+    const settings: ProductSettingsStore = {
+      async read(key) {
+        return values.get(key) ?? null;
+      },
+      async write(key, value, _updatedAt) {
+        values.set(key, value);
+      },
+    };
+    const playlistProxy = createTwitchPlaylistProxySession({ settings });
+    await playlistProxy.save({
+      enabled: true,
+      sources: [
+        {
+          addQueryParams: false,
+          enabled: true,
+          id: "bad",
+          url: "https://bad.example/live/$channel",
+        },
+        {
+          addQueryParams: false,
+          enabled: true,
+          id: "good",
+          url: "https://good.example/live/$channel",
+        },
+      ],
+    });
+    let sessionCounter = 0;
+    const playback = playbackPort({
+      async start(request) {
+        started.push(request.sourceUri);
+        if (request.sourceUri.includes("bad.example")) {
+          return {
+            failure: { code: "INVOCATION_FAILED", detail: "bad proxy" },
+            kind: "unavailable",
+          };
+        }
+        return {
+          kind: "started",
+          session: {
+            pictureInPictureEligible: false,
+            sessionId: request.sessionId,
+          },
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      filtering: createAdBlockSession({
+        playlistProxy,
+        policy: {
+          read: async () => ({
+            kind: "enabled",
+            sequence: 1,
+            verifiedAtEpochMs: 1,
+          }),
+        },
+        settings,
+      }),
+      playback,
+      playlistProxy,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: {
+        create: () => {
+          sessionCounter += 1;
+          return `watch:${sessionCounter}`;
+        },
+      },
+      sources: sources(),
+    });
+    await expect(session.start(target)).resolves.toMatchObject({ kind: "started" });
+    expect(started[0]).toBe("https://bad.example/live/live");
+    expect(started[1]).toBe("https://good.example/live/live");
+    expect(started).toHaveLength(2);
+  });
+
+  it("forces passthrough filtering when Twitch playlist proxy mode is on", async () => {
+    const requests: { filtering?: { mode: string } }[] = [];
+    const values = new Map<string, string>();
+    const settings: ProductSettingsStore = {
+      async read(key) {
+        return values.get(key) ?? null;
+      },
+      async write(key, value, _updatedAt) {
+        values.set(key, value);
+      },
+    };
+    const playlistProxy = createTwitchPlaylistProxySession({ settings });
+    // Defaults are enabled-on; leave them so mode stays on.
+    const playback = playbackPort({
+      async start(request) {
+        requests.push(request);
+        return {
+          kind: "started",
+          session: {
+            pictureInPictureEligible: false,
+            sessionId: request.sessionId,
+          },
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      filtering: createAdBlockSession({
+        playlistProxy,
+        policy: {
+          read: async () => ({
+            kind: "enabled",
+            sequence: 1,
+            verifiedAtEpochMs: 1,
+          }),
+        },
+        settings,
+      }),
+      playback,
+      playlistProxy,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:proxy-pass" },
+      sources: sources(),
+    });
+    await session.start(target);
+    expect(requests[0]?.filtering).toEqual({
+      enabled: false,
+      mode: "passthrough",
+      platform: "twitch",
+    });
   });
 });

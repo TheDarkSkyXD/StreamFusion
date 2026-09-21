@@ -1,4 +1,5 @@
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
 import { playbackSessionPolicy } from "@mobile/features/settings/domain/settings-view";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
@@ -31,11 +32,13 @@ export function createGuestWatchScreen(input: {
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
   readonly playbackSettings?: SettingsSession;
+  readonly playlistProxy?: TwitchPlaylistProxySession;
   readonly policyStore: VerifiedPolicyStore;
   readonly sessionIds: WatchSessionIdSource;
 }): WatchScreenRuntime {
   const filtering = input.filtering;
   const playbackSettings = input.playbackSettings;
+  const playlistProxy = input.playlistProxy;
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     chat: createWatchChatSession({ fetch: input.fetch }),
@@ -51,6 +54,7 @@ export function createGuestWatchScreen(input: {
               snapshot: () => playbackSessionPolicy(playbackSettings.snapshot()),
             },
           }),
+      ...(playlistProxy === undefined ? {} : { playlistProxy }),
       inspection: createDiscoveryWatchInspectionReader(input.discovery),
       playback: createAndroidFocusedPlaybackPort(input.playback),
       policy: createPlaybackCompatibilityPolicy(

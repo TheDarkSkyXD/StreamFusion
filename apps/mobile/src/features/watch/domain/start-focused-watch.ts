@@ -1,4 +1,5 @@
 import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { TwitchPlaylistProxyPreferences } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
   FocusedPlaybackPort,
@@ -15,6 +16,7 @@ import type {
   WatchStartResult,
   WatchTarget,
 } from "../capabilities/watch";
+import { playlistProxyPlaybackAttempts } from "./twitch-playlist-proxy-routing";
 import { integrationFor, resolveWatchSource } from "./watch-source-resolution";
 
 export type FocusedWatchStartOutcome =
@@ -37,6 +39,9 @@ type FocusedWatchStartInput = {
   readonly generation: () => number;
   readonly playback: FocusedPlaybackPort;
   readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
+  readonly playlistProxy?: {
+    snapshot(): Promise<TwitchPlaylistProxyPreferences>;
+  };
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
   readonly recorded?: RecordedPlaybackSources;
@@ -101,7 +106,6 @@ async function startAuthorizedSession(
   stale: () => boolean,
   policySequence: number,
 ): Promise<FocusedWatchStartOutcome> {
-  const sessionId = input.sessionIds.create();
   const filtering =
     input.filtering === undefined
       ? undefined
@@ -111,40 +115,66 @@ async function startAuthorizedSession(
     return { kind: "cancelled" };
   }
   const settings = input.playbackSettings?.snapshot();
-  const started = await input.playback.start({
-    ...(filtering === undefined ? {} : { filtering }),
-    ...(settings === undefined
-      ? {}
-      : {
-          allowHevc: settings.allowHevc,
-          buffer: {
-            liveSyncDurationCount: settings.liveSyncDurationCount,
-            lowLatencyMode: settings.lowLatencyMode,
-            maxBufferLengthSec: settings.forwardBufferSec,
-            maxMaxBufferLengthSec: settings.maxBufferSec,
-          },
-        }),
-    requestHeaders: resolved.requestHeaders,
-    sessionId,
-    sourceUri: resolved.sourceUri,
-  });
+  const proxyPreferences =
+    input.playlistProxy === undefined
+      ? undefined
+      : await input.playlistProxy.snapshot();
   if (stale()) {
-    void input.playback.end(sessionId);
+    controller.abort();
     return { kind: "cancelled" };
   }
-  if (started.kind === "unavailable") {
-    return nativeUnavailable(integration, input.target.platform, started.failure.detail);
+  const attempts = playlistProxyPlaybackAttempts({
+    direct: {
+      requestHeaders: resolved.requestHeaders,
+      sourceUri: resolved.sourceUri,
+    },
+    preferences: proxyPreferences,
+    target: input.target,
+  });
+  let lastDetail = "Native playback could not start.";
+  for (const attempt of attempts) {
+    if (stale()) {
+      controller.abort();
+      return { kind: "cancelled" };
+    }
+    const sessionId = input.sessionIds.create();
+    const started = await input.playback.start({
+      ...(filtering === undefined ? {} : { filtering }),
+      ...(settings === undefined
+        ? {}
+        : {
+            allowHevc: settings.allowHevc,
+            buffer: {
+              liveSyncDurationCount: settings.liveSyncDurationCount,
+              lowLatencyMode: settings.lowLatencyMode,
+              maxBufferLengthSec: settings.forwardBufferSec,
+              maxMaxBufferLengthSec: settings.maxBufferSec,
+            },
+          }),
+      requestHeaders: attempt.requestHeaders,
+      sessionId,
+      sourceUri: attempt.sourceUri,
+    });
+    if (stale()) {
+      void input.playback.end(sessionId);
+      return { kind: "cancelled" };
+    }
+    if (started.kind === "unavailable") {
+      lastDetail = started.failure.detail;
+      continue;
+    }
+    if (settings && settings.quality !== "auto") {
+      await input.playback.setQuality(sessionId, settings.quality);
+    }
+    return {
+      integration,
+      kind: "started",
+      lease: input.protection.acquire(started.session.sessionId),
+      policySequence,
+      session: started.session,
+    };
   }
-  if (settings && settings.quality !== "auto") {
-    await input.playback.setQuality(sessionId, settings.quality);
-  }
-  return {
-    integration,
-    kind: "started",
-    lease: input.protection.acquire(started.session.sessionId),
-    policySequence,
-    session: started.session,
-  };
+  return nativeUnavailable(integration, input.target.platform, lastDetail);
 }
 
 function compatibilityDisabled(

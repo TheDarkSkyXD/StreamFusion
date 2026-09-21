@@ -439,6 +439,7 @@
       ],
       "implementation": [
         "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
+        "apps/mobile/src/features/ad-blocking/components/twitch-playlist-proxy-settings-panel.tsx",
         "apps/mobile/src/features/shell/components/app-shell.tsx"
       ],
       "verification": "tests",
@@ -689,7 +690,8 @@
         161
       ],
       "implementation": [
-        "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx"
+        "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
+        "apps/mobile/src/features/ad-blocking/components/twitch-playlist-proxy-settings-panel.tsx"
       ],
       "verification": "tests",
       "evidence": [],
@@ -2581,7 +2583,7 @@
     {
       "id": "GAP-195-03",
       "status": "owned-elsewhere",
-      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03.",
+      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01\u2013N03.",
       "owners": [
         143,
         168,

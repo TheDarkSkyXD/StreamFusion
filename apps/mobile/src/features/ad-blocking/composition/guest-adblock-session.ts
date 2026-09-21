@@ -8,15 +8,20 @@ import {
   type AdBlockSession,
   type AdBlockView,
 } from "../capabilities/ad-blocking";
+import type { TwitchPlaylistProxyPreferences } from "../capabilities/twitch-playlist-proxy";
 import {
   composeAdBlockView,
   parseAdBlockPreferences,
   playbackFilterRequest,
 } from "../domain/adblock-policy";
 import { createAdBlockPreferenceStore } from "../data/adblock-preference-store";
+import { isTwitchPlaylistProxyMode } from "../domain/twitch-playlist-proxy";
 
 export function createAdBlockSession(input: {
   readonly now?: () => number;
+  readonly playlistProxy?: {
+    snapshot(): Promise<TwitchPlaylistProxyPreferences>;
+  };
   readonly policy: EffectiveCapabilityPolicyReader;
   readonly settings: ProductSettingsStore;
 }): AdBlockSession {
@@ -38,9 +43,23 @@ export function createAdBlockSession(input: {
     });
   }
 
+  async function playlistProxyEnabled(): Promise<boolean> {
+    if (!input.playlistProxy) return false;
+    const prefs = await input.playlistProxy.snapshot();
+    return isTwitchPlaylistProxyMode({ twitchPlaylistProxy: prefs });
+  }
+
   return {
     async effective(platform: Platform) {
-      return playbackFilterRequest(platform, await snapshot());
+      const view = await snapshot();
+      if (await playlistProxyEnabled()) {
+        return {
+          enabled: false,
+          mode: "passthrough",
+          platform,
+        };
+      }
+      return playbackFilterRequest(platform, view);
     },
     load: snapshot,
     async save(next: AdBlockPreferences) {

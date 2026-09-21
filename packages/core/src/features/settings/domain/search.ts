@@ -193,6 +193,20 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       "ads",
     ]),
     entry("adblock-method", "adblock", "Method", ["method", "strip", "canary"]),
+    entry("twitch-playlist-sources", "adblock", "Twitch playlist sources", [
+      "playlist",
+      "luminous",
+      "fallback",
+      "$channel",
+      "usher",
+    ]),
+    entry("ordered-playlist-sources", "adblock", "Ordered playlist sources", [
+      "playlist",
+      "sources",
+      "order",
+      "fallback",
+      "luminous",
+    ]),
     entry("proxy-enabled", "proxy", "Enable proxy", [
       "proxy",
       "network",

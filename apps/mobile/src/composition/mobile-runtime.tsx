@@ -64,6 +64,7 @@ import {
 } from "@mobile/features/follows/adapters/twitch-account-follow-membership";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
+import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
@@ -259,7 +260,11 @@ const connectivitySession = createConnectivityRuntime({
   secrets: secureSecretStore,
   settings: persistenceRuntime.productState.settings,
 });
+const twitchPlaylistProxySession = createTwitchPlaylistProxySession({
+  settings: persistenceRuntime.productState.settings,
+});
 const adblockSession = createAdBlockSession({
+  playlistProxy: twitchPlaylistProxySession,
   policy: createEffectiveCapabilityPolicyReader({
     nowEpochMs: Date.now,
     store: installationPolicyRuntime.policyStore,
@@ -464,6 +469,7 @@ export function MobileRuntime() {
         history: persistenceRuntime.productState.watchHistory,
         playback: androidCapabilityRuntime.contracts.playback,
         playbackSettings: settingsSession,
+        playlistProxy: twitchPlaylistProxySession,
         policyStore: installationPolicyRuntime.policyStore,
         sessionIds: { create: secureRandom.uuid },
       }),
@@ -582,6 +588,7 @@ export function MobileRuntime() {
       followingSession={followingSession}
       connectivitySession={connectivitySession}
       adblockSession={adblockSession}
+      twitchPlaylistProxySession={twitchPlaylistProxySession}
       notificationSession={notificationSession}
       nativeNotifications={nativeNotifications}
       settingsSession={settingsSession}

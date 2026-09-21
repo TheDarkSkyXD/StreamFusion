@@ -58,7 +58,7 @@ Missing means no route or control exists yet.
 | `screen:settings-notifications` | implemented | #169, #172 | apps/mobile/src/features/settings/components/settings-workspace.tsx, apps/mobile/src/features/settings/components/notifications-settings-panel.tsx | tests |
 | `screen:settings-chat` | missing | — | — | missing |
 | `screen:settings-predictions` | missing | — | — | missing |
-| `screen:settings-adblock` | implemented | #161, #169 | apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
+| `screen:settings-adblock` | implemented | #161, #169 | apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx, apps/mobile/src/features/ad-blocking/components/twitch-playlist-proxy-settings-panel.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `screen:settings-proxy` | implemented | #162, #169 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `screen:settings-integrations` | missing | — | — | missing |
 | `screen:settings-api-tokens` | missing | — | — | missing |
@@ -75,7 +75,7 @@ Missing means no route or control exists yet.
 | `panel:notifications` | implemented | #169, #172 | apps/mobile/src/features/settings/components/notifications-settings-panel.tsx | tests |
 | `panel:chat` | missing | — | — | missing |
 | `panel:predictions` | missing | — | — | missing |
-| `panel:adblock` | implemented | #161 | apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx | tests |
+| `panel:adblock` | implemented | #161 | apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx, apps/mobile/src/features/ad-blocking/components/twitch-playlist-proxy-settings-panel.tsx | tests |
 | `panel:proxy` | implemented | #162 | apps/mobile/src/features/connectivity/components/proxy-settings-panel.tsx | tests |
 | `panel:integrations` | missing | — | — | missing |
 | `panel:api-tokens` | missing | — | — | missing |

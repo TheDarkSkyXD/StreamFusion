@@ -104,6 +104,8 @@ import type { ConnectivitySession } from "@mobile/features/connectivity/capabili
 import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
 import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/adblock-settings-panel";
+import { TwitchPlaylistProxySettingsPanel } from "@mobile/features/ad-blocking/components/twitch-playlist-proxy-settings-panel";
+import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { NotificationSettingsSession } from "@mobile/features/settings/capabilities/notification-settings";
 import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
@@ -251,6 +253,7 @@ export function AppShell({
   followingSession,
   connectivitySession,
   adblockSession,
+  twitchPlaylistProxySession,
   notificationSession,
   nativeNotifications,
   settingsSession,
@@ -300,6 +303,7 @@ export function AppShell({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
+  readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
   readonly notificationSession: NotificationSettingsSession;
   readonly nativeNotifications: NativeNotificationRuntime;
   readonly settingsSession: SettingsSession;
@@ -507,6 +511,7 @@ export function AppShell({
               followingSession={followingSession}
               connectivitySession={connectivitySession}
               adblockSession={adblockSession}
+              twitchPlaylistProxySession={twitchPlaylistProxySession}
               notificationSession={notificationSession}
               onPresentNotificationProof={() =>
                 nativeNotifications.presentProof(
@@ -723,6 +728,7 @@ function ShellScreen({
   followingSession,
   connectivitySession,
   adblockSession,
+  twitchPlaylistProxySession,
   notificationSession,
   onPresentNotificationProof,
   playerPrefs,
@@ -774,6 +780,7 @@ function ShellScreen({
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
+  readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
   readonly notificationSession: NotificationSettingsSession;
   readonly onPresentNotificationProof: () => Promise<void>;
   readonly playerPrefs: ProductPreferences;
@@ -1282,7 +1289,17 @@ function ShellScreen({
         <SettingsWorkspace
           extras={{
             about: <AboutSettingsPanel session={supportSession} />,
-            adblock: <AdBlockSettingsPanel session={adblockSession} />,
+            adblock: (
+              <>
+                <TwitchPlaylistProxySettingsPanel
+                  session={twitchPlaylistProxySession}
+                />
+                <AdBlockSettingsPanel
+                  playlistProxySession={twitchPlaylistProxySession}
+                  session={adblockSession}
+                />
+              </>
+            ),
             diagnostics: (
               <DiagnosticsSettingsPanel
                 onOpenDiagnostics={() => {

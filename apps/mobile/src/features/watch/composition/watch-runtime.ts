@@ -1,4 +1,5 @@
 import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { TwitchPlaylistProxyPreferences } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
   FocusedPlaybackPort,
@@ -18,6 +19,9 @@ export function createWatchRuntime(input: {
   readonly inspection: WatchInspectionReader;
   readonly playback: FocusedPlaybackPort;
   readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
+  readonly playlistProxy?: {
+    snapshot(): Promise<TwitchPlaylistProxyPreferences>;
+  };
   readonly policy: PlaybackCompatibilityPolicy;
   readonly protection: FocusedPlaybackProtectionPort;
   readonly recorded?: RecordedPlaybackSources;
