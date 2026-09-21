@@ -278,7 +278,6 @@ export function WatchEmptyState({
 }: {
   readonly discovery?: {
     readonly onOpenAccounts: () => void;
-    readonly onOpenCategories: () => void;
     readonly onSelectStream: (stream: Stream) => void;
     readonly session: DiscoverySession;
   };
@@ -310,7 +309,6 @@ export function WatchEmptyState({
       <View style={styles.scroll} testID="screen-watch">
         <HomeLiveDiscoveryScreen
           onOpenAccounts={discovery.onOpenAccounts}
-          onOpenCategories={discovery.onOpenCategories}
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
           title="Watch"

@@ -1,9 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
-import { MobileButton } from "@mobile/design/button";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -15,14 +14,21 @@ import type {
 import { channelFromStream } from "../domain/channel-detail";
 
 import { HomeDiscoveryProofControls } from "./home-discovery-proof-controls";
+import {
+  featuredCarouselStreams,
+  HomeFeaturedCarouselView,
+  recommendedLiveStreams,
+} from "./home-featured-carousel";
 import { HomeProviderBanner } from "./home-provider-banner";
 import { HomeStreamCard } from "./home-stream-card";
 import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
+/** Match Electron HOME_CAROUSEL_INTERVAL_DEFAULT_MS (15s). */
+const HOME_FEATURED_ROTATE_MS = 15_000;
+
 export function HomeLiveDiscoveryScreen({
   footer,
   onOpenAccounts,
-  onOpenCategories,
   onOpenChannel,
   onSelectStream,
   session,
@@ -30,17 +36,41 @@ export function HomeLiveDiscoveryScreen({
 }: {
   readonly footer?: ReactNode;
   readonly onOpenAccounts: () => void;
-  readonly onOpenCategories: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onSelectStream?: (stream: Stream) => void;
   readonly session: DiscoverySession;
   readonly title?: string;
 }) {
   const live = useHomeLiveDiscovery({ session });
+  const featured = useMemo(
+    () => featuredCarouselStreams(live.view.streams),
+    [live.view.streams],
+  );
+  const featuredIdentity = useMemo(
+    () => featured.map((stream) => `${stream.platform}:${stream.id}`).join("|"),
+    [featured],
+  );
+  const [featuredIndex, setFeaturedIndex] = useState(0);
+
+  useEffect(() => {
+    setFeaturedIndex(0);
+  }, [featuredIdentity]);
+
+  useEffect(() => {
+    if (featured.length < 2) return;
+    const timer = setInterval(() => {
+      setFeaturedIndex((current) =>
+        current >= featured.length - 1 ? 0 : current + 1,
+      );
+    }, HOME_FEATURED_ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [featured.length, featuredIdentity]);
+
   return (
     <HomeLiveDiscoveryView
+      featuredIndex={featuredIndex}
+      onFeaturedIndexChange={setFeaturedIndex}
       onOpenAccounts={onOpenAccounts}
-      onOpenCategories={onOpenCategories}
       onRetry={live.retry}
       view={live.view}
       {...(footer === undefined ? {} : { footer })}
@@ -52,9 +82,10 @@ export function HomeLiveDiscoveryScreen({
 }
 
 export function HomeLiveDiscoveryView({
+  featuredIndex = 0,
   footer,
+  onFeaturedIndexChange,
   onOpenAccounts,
-  onOpenCategories,
   onOpenChannel,
   onRetry,
   onSelectProofMode,
@@ -63,9 +94,10 @@ export function HomeLiveDiscoveryView({
   title = "Home",
   view,
 }: {
+  readonly featuredIndex?: number;
   readonly footer?: ReactNode;
+  readonly onFeaturedIndexChange?: (index: number) => void;
   readonly onOpenAccounts: () => void;
-  readonly onOpenCategories: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
@@ -74,6 +106,15 @@ export function HomeLiveDiscoveryView({
   readonly title?: string;
   readonly view: HomeLiveDiscoveryModel;
 }) {
+  const featured = featuredCarouselStreams(view.streams);
+  const recommended = recommendedLiveStreams(view.streams);
+  const openStream = (stream: Stream) => {
+    if (onSelectStream) {
+      onSelectStream(stream);
+      return;
+    }
+    onOpenChannel?.(channelFromStream(stream));
+  };
   const phase = (
     <Text selectable style={mobileType.body} testID="home-phase">
       {phaseCopy(view)}
@@ -86,20 +127,15 @@ export function HomeLiveDiscoveryView({
       style={styles.scroll}
       testID="home-live-discovery"
     >
-      <MobileScreenHeader
-        action={
-          <MobileButton
-            accessibilityHint="Opens categories"
-            accessibilityLabel="Categories"
-            onPress={onOpenCategories}
-            testID="home-categories"
-            variant="secondary"
-          >
-            Categories
-          </MobileButton>
-        }
-        title={title}
-      />
+      <MobileScreenHeader title={title} />
+      {featured.length > 0 ? (
+        <HomeFeaturedCarouselView
+          activeIndex={featuredIndex}
+          onSelectIndex={(index) => onFeaturedIndexChange?.(index)}
+          onWatch={openStream}
+          streams={featured}
+        />
+      ) : null}
       <Text selectable style={mobileType.title}>
         Recommended live
       </Text>
@@ -110,15 +146,6 @@ export function HomeLiveDiscoveryView({
       ) : (
         phase
       )}
-      <MobileButton
-        accessibilityHint="Opens Categories inside More"
-        accessibilityLabel="Open Categories"
-        onPress={onOpenCategories}
-        testID="open-categories"
-        variant="primary"
-      >
-        Categories
-      </MobileButton>
       {proofMode && onSelectProofMode ? (
         <HomeDiscoveryProofControls
           mode={proofMode}
@@ -135,16 +162,10 @@ export function HomeLiveDiscoveryView({
         onRetry={onRetry}
         outcome={view.providers.kick}
       />
-      {view.streams.map((stream) => (
+      {(featured.length > 0 ? recommended : view.streams).map((stream) => (
         <HomeStreamCard
           key={`${stream.platform}:${stream.id}`}
-          onOpen={() => {
-            if (onSelectStream) {
-              onSelectStream(stream);
-              return;
-            }
-            onOpenChannel?.(channelFromStream(stream));
-          }}
+          onOpen={() => openStream(stream)}
           stream={stream}
         />
       ))}

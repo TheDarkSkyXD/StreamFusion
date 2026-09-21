@@ -87,7 +87,6 @@ export function WatchRoute({
   readonly recording?: WatchDownloadSession;
   readonly discovery?: {
     readonly onOpenAccounts: () => void;
-    readonly onOpenCategories: () => void;
     readonly session: DiscoverySession;
   };
   readonly onAddToMultistream?: (target: WatchTarget) => void;
@@ -110,7 +109,6 @@ export function WatchRoute({
           : {
               discovery: {
                 onOpenAccounts: discovery.onOpenAccounts,
-                onOpenCategories: discovery.onOpenCategories,
                 onSelectStream: onOpenRelated,
                 session: discovery.session,
               },

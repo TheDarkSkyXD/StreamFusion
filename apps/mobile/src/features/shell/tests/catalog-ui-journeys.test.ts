@@ -85,13 +85,11 @@ const chatting = {
 
 // Guards: catalog journeys keep navigation, retry, and empty/error distinct from ready cards
 describe("catalog UI journeys", () => {
-  it("opens Categories from Home and retries a failed Twitch catalog", () => {
-    const opened: string[] = [];
+  it("shows Watch-home featured carousel and retries a failed Twitch catalog", () => {
     const retried: string[] = [];
     const ready = descendants(
       HomeLiveDiscoveryView({
         onOpenAccounts: () => undefined,
-        onOpenCategories: () => opened.push("categories"),
         onOpenChannel: () => undefined,
         onRetry: (platform) => retried.push(platform),
         view: composeHomeLiveDiscovery({
@@ -104,12 +102,15 @@ describe("catalog UI journeys", () => {
     expect(ready.some((node) => node.props.testID === "home-live-discovery")).toBe(
       true,
     );
-    press(ready, "home-categories");
-    expect(opened).toEqual(["categories"]);
+    expect(ready.some((node) => node.props.testID === "home-featured-carousel")).toBe(
+      true,
+    );
+    expect(ready.some((node) => node.props.testID === "home-categories")).toBe(
+      false,
+    );
     const failed = descendants(
       HomeLiveDiscoveryView({
         onOpenAccounts: () => undefined,
-        onOpenCategories: () => undefined,
         onOpenChannel: () => undefined,
         onRetry: (platform) => retried.push(platform),
         view: composeHomeLiveDiscovery({
@@ -214,7 +215,7 @@ describe("catalog UI journeys", () => {
       UnifiedSearchView({
         draft: "arcade",
         liveOnly: false,
-        mode: "history",
+        mode: "search",
         onCancelClear: () => undefined,
         onChangeDraft: () => undefined,
         onClearDraft: () => undefined,
@@ -233,7 +234,7 @@ describe("catalog UI journeys", () => {
         tab: "all",
         view: composeUnifiedSearch({
           history: { ...emptySearchHistory(), channels: ["arcade"] },
-          intent: fixtureSearchIntent("arcade"),
+          intent: null,
           kick: fixtureSearchOutcome("kick", "ready"),
           loading: false,
           twitch: fixtureSearchOutcome("twitch", "ready"),

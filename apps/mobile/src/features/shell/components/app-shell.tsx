@@ -842,11 +842,6 @@ function ShellScreen({
           discovery={{
             onOpenAccounts: () =>
               dispatch({ type: "navigate", location: { route: "more/accounts" } }),
-            onOpenCategories: () =>
-              dispatch({
-                type: "navigate",
-                location: { route: "more/categories" },
-              }),
             session: homeDiscovery,
           }}
           download={mediaJobSession}
