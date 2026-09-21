@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
@@ -33,6 +33,15 @@ import {
 
 const QUERY_KEY = ["multistream-layout"];
 
+/** Stable fallback while the layout query is loading — fresh objects retrigger sync. */
+const LOADING_MULTISTREAM_LAYOUT: MultistreamLayout = emptyMultistreamLayout(0);
+
+const EMPTY_CHAT_TARGET: WatchTarget = {
+  channelId: "",
+  channelName: "",
+  platform: "twitch",
+};
+
 export function useMultistream(input: {
   readonly chat?: WatchChatSession;
   readonly nowEpochMs?: () => number;
@@ -52,7 +61,7 @@ export function useMultistream(input: {
   });
   const [confirm, setConfirm] = useState<MultistreamConfirm>({ kind: "idle" });
   const [editing, setEditing] = useState(false);
-  const layout = query.data ?? emptyMultistreamLayout();
+  const layout = query.data ?? LOADING_MULTISTREAM_LAYOUT;
   const admission = useMemo(
     () =>
       input.profile
@@ -67,7 +76,11 @@ export function useMultistream(input: {
       stage: input.stage,
     });
   }, [admission, input.playback, input.stage, layout]);
-  const snapshot = input.playback.snapshot();
+  const snapshot = useSyncExternalStore(
+    input.playback.subscribe,
+    input.playback.snapshot,
+    input.playback.snapshot,
+  );
   const focused =
     layout.slots.find((slot) => slot.id === layout.focusedSlotId) ??
     layout.slots[0];
@@ -77,7 +90,7 @@ export function useMultistream(input: {
         channelName: focused.channelLogin,
         platform: focused.platform,
       }
-    : { channelId: "", channelName: "", platform: "twitch" };
+    : EMPTY_CHAT_TARGET;
   const chat = useWatchChat(focused ? (input.chat ?? null) : null, chatTarget);
   const view = useMemo(
     () =>

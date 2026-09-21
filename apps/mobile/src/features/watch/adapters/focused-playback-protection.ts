@@ -3,6 +3,8 @@ import type {
   FocusedPlaybackProtectionPort,
 } from "../capabilities/watch";
 
+const NORMAL_PROTECTION: FocusedPlaybackProtection = { kind: "normal" };
+
 export function createMemoryPlaybackProtection(): FocusedPlaybackProtectionPort {
   const held = new Set<string>();
   const listeners = new Set<() => void>();
@@ -16,7 +18,7 @@ export function createMemoryPlaybackProtection(): FocusedPlaybackProtectionPort 
       };
     },
     snapshot(): FocusedPlaybackProtection {
-      return { kind: "normal" };
+      return NORMAL_PROTECTION;
     },
     subscribe(listener) {
       listeners.add(listener);

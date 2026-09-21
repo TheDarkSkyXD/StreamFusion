@@ -10,7 +10,10 @@ import { twitchHlsRequestHeaders } from "@mobile/features/watch/domain/hls-reque
 
 import { emptyMultistreamLayout } from "../capabilities/multistream";
 import { addMultistreamSlot, slotFromWatchTarget } from "../domain/multistream-layout";
-import { createMultistreamPlayback } from "../domain/multistream-playback";
+import {
+  createMultistreamPlayback,
+  IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT,
+} from "../domain/multistream-playback";
 
 // Guards: Multistream starts one session per active slot and mutes non-owners
 // Guards: thermal stage keeps extra slots retained instead of dropping them
@@ -155,5 +158,34 @@ describe("multistream playback", () => {
     });
     expect(thermal.activeSlotIds).toEqual([twitch.id]);
     await engine.dispose();
+  });
+});
+
+describe("multistream playback getSnapshot stability", () => {
+  it("returns the same snapshot object until playback state changes", async () => {
+    const engine = createMultistreamPlayback({
+      playback: playbackPort(),
+      policy,
+      sources: sources(),
+    });
+    expect(engine.snapshot()).toBe(IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT);
+    expect(engine.snapshot()).toBe(engine.snapshot());
+    const twitch = slotFromWatchTarget({
+      channelId: "1",
+      channelName: "one",
+      platform: "twitch",
+    });
+    let layout = emptyMultistreamLayout();
+    const added = addMultistreamSlot(layout, twitch, 1);
+    if (added.kind === "applied") layout = added.layout;
+    await engine.sync({
+      admission: { limit: 1, reason: "one" },
+      layout,
+      stage: 0,
+    });
+    expect(engine.snapshot()).toBe(engine.snapshot());
+    expect(engine.snapshot()).not.toBe(IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT);
+    await engine.dispose();
+    expect(engine.snapshot()).toBe(IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT);
   });
 });

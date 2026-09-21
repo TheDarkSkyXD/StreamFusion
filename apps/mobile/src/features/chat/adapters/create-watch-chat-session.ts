@@ -14,6 +14,11 @@ const CONNECTING: WatchChatAvailability = {
   kind: "connecting",
 };
 
+const EMPTY_LIVE: WatchChatAvailability = {
+  detail: "Guest chat is live. Sending stays locked.",
+  kind: "empty",
+};
+
 export function createWatchChatSession(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly socketFactory?: WatchChatSocketFactory;
@@ -47,10 +52,7 @@ export function createWatchChatSession(input: {
     setSnapshot(CONNECTING);
     const onOpen = () => {
       if (current !== generation) return;
-      setSnapshot({
-        detail: "Guest chat is live. Sending stays locked.",
-        kind: "empty",
-      });
+      setSnapshot(EMPTY_LIVE);
     };
     const onMessage = (message: WatchChatMessage) => {
       if (current !== generation) return;

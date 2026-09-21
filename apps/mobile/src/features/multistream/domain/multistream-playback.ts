@@ -44,6 +44,19 @@ const NO_PROTECTION = {
   subscribe: () => () => undefined,
 };
 
+/** Cached for useSyncExternalStore — a fresh object each call loops Multistream. */
+export const IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT: MultistreamPlaybackSnapshot = {
+  phases: {},
+  qualified: {
+    activeSlotIds: [],
+    admission: { limit: 1, reason: "No Multistream measurement yet." },
+    layout: emptyMultistreamLayout(0),
+    notice: null,
+    pausedSlotIds: [],
+    thumbnailSlotIds: [],
+  },
+};
+
 export function createMultistreamPlayback(input: {
   readonly filtering?: PlaybackFiltering;
   readonly playback: FocusedPlaybackPort;
@@ -59,7 +72,22 @@ export function createMultistreamPlayback(input: {
   let generation = 0;
   let phases: Record<string, SlotPlaybackPhase> = {};
   let qualified: QualifiedMultistream | null = null;
-  const notify = () => listeners.forEach((listener) => listener());
+  let cachedSnapshot: MultistreamPlaybackSnapshot =
+    IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT;
+  const refreshSnapshotCache = () => {
+    if (qualified === null && Object.keys(phases).length === 0) {
+      cachedSnapshot = IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT;
+      return;
+    }
+    cachedSnapshot = {
+      phases,
+      qualified: qualified ?? IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT.qualified,
+    };
+  };
+  const notify = () => {
+    refreshSnapshotCache();
+    listeners.forEach((listener) => listener());
+  };
   const unsubscribe = input.playback.subscribe((event) => {
     applyEvent(event);
   });
@@ -149,6 +177,7 @@ export function createMultistreamPlayback(input: {
       running.clear();
       phases = {};
       qualified = null;
+      cachedSnapshot = IDLE_MULTISTREAM_PLAYBACK_SNAPSHOT;
       held.forEach((item) => item.lease.release());
       await Promise.all(ids.map((id) => input.playback.end(multistreamSessionId(id))));
     },
@@ -158,10 +187,7 @@ export function createMultistreamPlayback(input: {
       await input.playback.enterPictureInPicture(multistreamSessionId(owner));
     },
     snapshot() {
-      return {
-        phases,
-        qualified: qualified ?? idleQualified(),
-      };
+      return cachedSnapshot;
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -203,17 +229,6 @@ function phaseFromEvent(kind: NativePlaybackEvent["kind"]): SlotPlaybackPhase | 
     default:
       return null;
   }
-}
-
-function idleQualified(): QualifiedMultistream {
-  return {
-    activeSlotIds: [],
-    admission: { limit: 1, reason: "No Multistream measurement yet." },
-    layout: emptyMultistreamLayout(),
-    notice: null,
-    pausedSlotIds: [],
-    thumbnailSlotIds: [],
-  };
 }
 
 function slotIdFromSession(sessionId: string): string | null {

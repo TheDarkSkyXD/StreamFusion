@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { createWatchChatSession } from "../adapters/create-watch-chat-session";
 import { CONNECTING_WATCH_CHAT_SNAPSHOT } from "../components/use-watch-chat";
 
 // Guards: null-session getSnapshot must be referentially stable (Multistream empty mount).
@@ -12,5 +13,11 @@ describe("useWatchChat getSnapshot stability", () => {
       detail: "Connecting guest chat.",
       kind: "connecting",
     });
+  });
+
+  it("keeps session.snapshot referentially stable while connecting", () => {
+    const session = createWatchChatSession({ fetch: vi.fn() as unknown as typeof fetch });
+    expect(session.snapshot()).toBe(session.snapshot());
+    expect(session.snapshot().kind).toBe("connecting");
   });
 });
