@@ -122,7 +122,6 @@ describe("workspace UI journeys", () => {
       "more",
     ]);
     expect(MORE_ROUTE_IDS).toEqual([
-      "more/categories",
       "more/multistream",
       "more/history",
       "more/downloads",
@@ -131,6 +130,7 @@ describe("workspace UI journeys", () => {
       "more/diagnostics",
       "more/accounts",
     ]);
+    expect(MORE_ROUTE_IDS.includes("more/categories" as never)).toBe(false);
     expect(SHELL_ROUTES.watch.id).toBe("watch");
     expect(SHELL_ROUTES["following/manage"].id).toBe("following/manage");
     expect(SHELL_ROUTES["activity/job-preview"].id).toBe("activity/job-preview");

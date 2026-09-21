@@ -992,6 +992,25 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-search-root">
         <UnifiedSearchScreen
+          categoriesPanel={
+            <CategoriesScreen
+              embedded
+              onOpenAccounts={() =>
+                dispatch({
+                  type: "navigate",
+                  location: { route: "more/accounts" },
+                })
+              }
+              onOpenCategory={(category) =>
+                dispatch({
+                  type: "navigate",
+                  location: { category, route: "more/category-detail" },
+                })
+              }
+              preferences={discoveryPreferences}
+              session={homeDiscovery}
+            />
+          }
           history={searchHistory}
           onOpenAccounts={() =>
             dispatch({ type: "navigate", location: { route: "more/accounts" } })

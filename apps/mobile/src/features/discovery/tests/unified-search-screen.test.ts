@@ -58,6 +58,7 @@ function render(
     readonly confirmClear?: boolean;
     readonly history?: readonly string[];
     readonly loading?: boolean;
+    readonly mode?: "search" | "categories" | "history";
     readonly resultType?: "all" | "videos";
   } = {},
 ) {
@@ -66,6 +67,7 @@ function render(
   const root = UnifiedSearchView({
     draft: "arcade",
     liveOnly: false,
+    mode: extras.mode ?? "search",
     onCancelClear: () => undefined,
     onChangeDraft: () => undefined,
     onClearDraft: () => undefined,
@@ -79,6 +81,7 @@ function render(
     onRetry: (platform) => {
       retried.push(platform);
     },
+    onSelectMode: () => undefined,
     onSelectPlatform: () => undefined,
     onSelectTab: () => undefined,
     onSubmit: () => undefined,
@@ -164,6 +167,7 @@ describe("Unified search screen", () => {
   it("repeats local history and confirms clear", () => {
     const { nodes, repeated } = render(undefined, undefined, {
       history: ["arcade"],
+      mode: "history",
     });
     const repeat = nodes.find(
       (node) => node.props.testID === "repeat-search-arcade",
@@ -171,7 +175,10 @@ describe("Unified search screen", () => {
     repeat?.props.onPress?.();
     expect(repeated).toEqual(["arcade"]);
 
-    const confirm = render(undefined, undefined, { confirmClear: true });
+    const confirm = render(undefined, undefined, {
+      confirmClear: true,
+      mode: "history",
+    });
     expect(
       confirm.nodes.some((node) => node.props.testID === "search-clear-confirm"),
     ).toBe(true);
@@ -216,6 +223,32 @@ describe("Unified search screen", () => {
       (node) => node.props.testID === "search-phase",
     );
     expect(phase?.props.children).toMatch(/without signing in/);
+  });
+
+  it("exposes Search, Categories, and History mode tabs", () => {
+    const { nodes } = render(undefined, undefined, { mode: "search" });
+    expect(nodes.some((node) => node.props.testID === "search-mode-tabs")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "search-mode-search")).toBe(
+      true,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "search-mode-categories"),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "search-mode-history")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "search-history")).toBe(
+      false,
+    );
+    const historyMode = render(undefined, undefined, {
+      history: ["arcade"],
+      mode: "history",
+    });
+    expect(
+      historyMode.nodes.some((node) => node.props.testID === "search-history"),
+    ).toBe(true);
   });
 
   it("shows cached age and guest-unavailable copy without requiring login", () => {

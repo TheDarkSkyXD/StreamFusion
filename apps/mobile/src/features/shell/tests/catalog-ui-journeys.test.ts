@@ -202,6 +202,7 @@ describe("catalog UI journeys", () => {
       UnifiedSearchView({
         draft: "arcade",
         liveOnly: false,
+        mode: "history",
         onCancelClear: () => undefined,
         onChangeDraft: () => undefined,
         onClearDraft: () => undefined,
@@ -211,6 +212,7 @@ describe("catalog UI journeys", () => {
         onRepeatHistory: (query) => repeated.push(query),
         onRequestClear: () => undefined,
         onRetry: () => undefined,
+        onSelectMode: () => undefined,
         onSelectPlatform: () => undefined,
         onSelectTab: () => undefined,
         onSubmit: () => undefined,

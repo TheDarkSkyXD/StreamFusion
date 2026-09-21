@@ -120,7 +120,6 @@ export const SHELL_DESTINATIONS = [
 const SHELL_DESTINATION_IDS = SHELL_DESTINATIONS.map(({ id }) => id);
 
 export const MORE_ROUTE_IDS = [
-  "more/categories",
   "more/multistream",
   "more/history",
   "more/downloads",

@@ -5,6 +5,7 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import type {
   SearchHistoryRepository,
+  SearchHistoryScope,
   SearchSession,
 } from "../capabilities/platform-reads";
 import {
@@ -28,6 +29,7 @@ export function searchCatalogQueryKey(
 export function useUnifiedSearch(input: {
   readonly enabled?: boolean;
   readonly history: SearchHistoryRepository;
+  readonly historyScope?: SearchHistoryScope;
   readonly liveOnly: boolean;
   readonly platform: SearchPlatformFilter;
   readonly query: string;
@@ -37,6 +39,8 @@ export function useUnifiedSearch(input: {
   const queryClient = useQueryClient();
   const [history, setHistory] = useState(emptySearchHistory);
   const [historyConfirmClear, setHistoryConfirmClear] = useState(false);
+  const historyScope =
+    input.historyScope ?? historyScopeForTab(input.resultType);
   const enabled = input.enabled !== false;
   const query = input.query.trim();
   const shouldFetch = enabled && query.length > 0;
@@ -90,7 +94,7 @@ export function useUnifiedSearch(input: {
     async confirmClear() {
       const next = clearSearchHistory(
         history,
-        historyScopeForTab(input.resultType),
+        historyScope,
       );
       setHistoryConfirmClear(false);
       await persist(next);
@@ -98,7 +102,7 @@ export function useUnifiedSearch(input: {
     record(queryValue: string) {
       const next = addSearchHistory(
         history,
-        historyScopeForTab(input.resultType),
+        historyScope,
         queryValue,
       );
       void persist(next);
@@ -107,7 +111,7 @@ export function useUnifiedSearch(input: {
       void persist(
         removeSearchHistory(
           history,
-          historyScopeForTab(input.resultType),
+          historyScope,
           queryValue,
         ),
       );

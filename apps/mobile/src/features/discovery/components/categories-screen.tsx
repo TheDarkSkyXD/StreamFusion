@@ -26,11 +26,13 @@ import { HomeProviderBanner } from "./home-provider-banner";
 import { useCategoryCatalog } from "./use-category-catalog";
 
 export function CategoriesScreen({
+  embedded = false,
   onOpenAccounts,
   onOpenCategory,
   preferences,
   session,
 }: {
+  readonly embedded?: boolean;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategory: (category: CategoryIdentity) => void;
   readonly preferences: DiscoveryPreferenceStore;
@@ -44,6 +46,7 @@ export function CategoriesScreen({
   });
   return (
     <CategoriesView
+      embedded={embedded}
       onChangeLanguage={live.setLanguage}
       onChangeQuery={setQuery}
       onOpenAccounts={onOpenAccounts}
@@ -55,6 +58,7 @@ export function CategoriesScreen({
 }
 
 export function CategoriesView({
+  embedded = false,
   onChangeLanguage,
   onChangeQuery,
   onOpenAccounts,
@@ -64,6 +68,7 @@ export function CategoriesView({
   proofMode,
   view,
 }: {
+  readonly embedded?: boolean;
   readonly onChangeLanguage: (language: LanguageFilter) => void;
   readonly onChangeQuery: (query: string) => void;
   readonly onOpenAccounts: () => void;
@@ -80,7 +85,7 @@ export function CategoriesView({
       style={styles.scroll}
       testID="categories-screen"
     >
-      <MobileScreenHeader title="Categories" />
+      {embedded ? null : <MobileScreenHeader title="Categories" />}
       <Text selectable style={mobileType.body} testID="categories-phase">
         {phaseCopy(view.phase)}
       </Text>
