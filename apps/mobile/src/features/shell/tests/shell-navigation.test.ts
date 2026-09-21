@@ -9,8 +9,10 @@ import {
   getActiveShellRoute,
   getShellNavigationPlacement,
   MORE_ROUTE_IDS,
+  resolveShellHeaderCopy,
   restoreShellNavigationState,
   SHELL_DESTINATIONS,
+  SHELL_ROUTES,
   serializeShellNavigationState,
   shellNavigationReducer,
 } from "@mobile/features/shell/domain/shell-navigation";
@@ -365,5 +367,89 @@ describe("adaptive app shell", () => {
     ]);
     expect(MORE_ROUTE_IDS.includes("more/categories" as never)).toBe(false);
     expect(MORE_ROUTE_IDS.includes("more/home" as never)).toBe(false);
+  });
+});
+
+describe("resolveShellHeaderCopy", () => {
+  it("labels live, video, and clip watch sessions by content type", () => {
+    const route = SHELL_ROUTES["watch/session-preview"];
+    expect(
+      resolveShellHeaderCopy(
+        {
+          route: "watch/session-preview",
+          target: {
+            kind: "channel",
+            platform: "twitch",
+            channelId: "channel-1",
+            channelLogin: "proofstreamer",
+          },
+        },
+        route,
+      ),
+    ).toEqual({ eyebrow: "LIVE", title: "proofstreamer" });
+    expect(
+      resolveShellHeaderCopy(
+        {
+          route: "watch/session-preview",
+          target: {
+            kind: "channel",
+            platform: "twitch",
+            channelId: "channel-1",
+            channelLogin: "proofstreamer",
+            media: {
+              durationSeconds: 90,
+              id: "clip-1",
+              kind: "clip",
+              title: "Huge play",
+            },
+          },
+        },
+        route,
+      ),
+    ).toEqual({ eyebrow: "CLIP", title: "Huge play" });
+    expect(
+      resolveShellHeaderCopy(
+        {
+          route: "watch/session-preview",
+          target: {
+            kind: "channel",
+            platform: "kick",
+            channelId: "channel-2",
+            channelLogin: "kickstreamer",
+            media: {
+              durationSeconds: 3600,
+              id: "video-1",
+              kind: "video",
+              title: "Yesterday VOD",
+            },
+          },
+        },
+        route,
+      ),
+    ).toEqual({ eyebrow: "VIDEO", title: "Yesterday VOD" });
+  });
+
+  it("falls back to Watch for empty session preview and keeps category names", () => {
+    expect(SHELL_ROUTES["watch/session-preview"].title).toBe("Watch");
+    expect(
+      resolveShellHeaderCopy(
+        { route: "watch/session-preview", target: { kind: "preview" } },
+        SHELL_ROUTES["watch/session-preview"],
+      ),
+    ).toEqual({ eyebrow: "WATCH", title: "Watch" });
+    expect(
+      resolveShellHeaderCopy(
+        {
+          route: "more/category-detail",
+          category: {
+            boxArtUrl: "https://example.com/box.png",
+            id: "509658",
+            name: "Just Chatting",
+            platform: "twitch",
+          },
+        },
+        SHELL_ROUTES["more/category-detail"],
+      ),
+    ).toEqual({ eyebrow: "CATEGORIES", title: "Just Chatting" });
   });
 });

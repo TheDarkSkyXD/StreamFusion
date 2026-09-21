@@ -147,6 +147,7 @@ import {
   getActiveShellRoute,
   getShellNavigationPlacement,
   MORE_ROUTE_IDS,
+  resolveShellHeaderCopy,
   SHELL_DESTINATIONS,
   SHELL_ROUTES,
   type ShellDestination,
@@ -609,6 +610,7 @@ function ShellHeader({
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
+  const header = resolveShellHeaderCopy(location, route);
   const showsBack = canNavigateBack(state);
   return (
     <View style={styles.header}>
@@ -636,12 +638,10 @@ function ShellHeader({
       )}
       <View accessible style={styles.headerTitle}>
         <Text selectable style={styles.headerEyebrow}>
-          {route.eyebrow}
+          {header.eyebrow}
         </Text>
         <Text accessibilityRole="header" selectable style={styles.headerText}>
-          {location.route === "more/category-detail"
-            ? location.category.name
-            : route.title}
+          {header.title}
         </Text>
       </View>
       <View style={styles.headerTrailing}>

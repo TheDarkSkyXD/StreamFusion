@@ -182,8 +182,8 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "watch/session-preview",
     "WATCH",
     "watch-session-preview",
-    "The selected destination is restored without starting playback automatically.",
-    "Session preview",
+    "Live, video, and clip destinations open here without starting playback automatically.",
+    "Watch",
     "watch",
   ),
   activity: route(
@@ -347,6 +347,37 @@ export function getActiveShellLocation(
 export function getActiveShellRoute(state: ShellNavigationState): ShellRoute {
   return SHELL_ROUTES[getActiveShellLocation(state).route];
 }
+
+export function resolveShellHeaderCopy(
+  location: ShellLocation,
+  route: ShellRoute,
+): { readonly eyebrow: string; readonly title: string } {
+  if (location.route === "more/category-detail") {
+    return { eyebrow: route.eyebrow, title: location.category.name };
+  }
+  if (location.route === "watch/session-preview") {
+    return shellWatchSessionHeader(location.target, route);
+  }
+  return { eyebrow: route.eyebrow, title: route.title };
+}
+
+function shellWatchSessionHeader(
+  target: Extract<ShellLocation, { route: "watch/session-preview" }>["target"],
+  route: ShellRoute,
+): { readonly eyebrow: string; readonly title: string } {
+  if (target.kind === "preview") {
+    return { eyebrow: route.eyebrow, title: route.title };
+  }
+  if (target.media?.kind === "clip") {
+    return { eyebrow: "CLIP", title: target.media.title };
+  }
+  if (target.media?.kind === "video") {
+    return { eyebrow: "VIDEO", title: target.media.title };
+  }
+  return { eyebrow: "LIVE", title: target.channelLogin };
+}
+
+
 
 export function canNavigateBack(state: ShellNavigationState): boolean {
   return state.histories[state.activeDestination].trail.length > 0;

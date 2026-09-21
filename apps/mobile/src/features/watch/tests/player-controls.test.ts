@@ -47,6 +47,13 @@ function descendants(node: unknown): readonly Element[] {
   return [element, ...childNodes.flatMap((child) => descendants(child))];
 }
 
+function findByTestId(
+  nodes: readonly Element[],
+  testID: string,
+): Element | undefined {
+  return nodes.find((node) => node.props.testID === testID);
+}
+
 const base = {
   fullscreen: false,
   muted: false,
@@ -66,17 +73,13 @@ const base = {
 };
 
 describe("player controls chrome", () => {
-  it("shows a LIVE badge and no seek chips on live streams", () => {
+  it("centers play/pause for live streams without seek chips", () => {
     const nodes = descendants(PlayerControls(base));
-    expect(nodes.some((node) => node.props.testID === "player-live-badge")).toBe(
-      true,
-    );
-    expect(nodes.some((node) => node.props.testID === "player-seek-back")).toBe(
-      false,
-    );
-    expect(
-      nodes.some((node) => node.props.testID === "player-seek-forward"),
-    ).toBe(false);
+    expect(findByTestId(nodes, "player-center-transport")).toBeTruthy();
+    expect(findByTestId(nodes, "player-play-pause")).toBeTruthy();
+    expect(findByTestId(nodes, "player-live-badge")).toBeTruthy();
+    expect(findByTestId(nodes, "player-seek-back")).toBeUndefined();
+    expect(findByTestId(nodes, "player-seek-forward")).toBeUndefined();
     expect(
       nodes.some((node) =>
         String(node.props.children).includes("Theater and stats"),
@@ -84,7 +87,7 @@ describe("player controls chrome", () => {
     ).toBe(false);
   });
 
-  it("shows VOD seek icons and scrub time when seekable", () => {
+  it("flanks center play with VOD seek icons and keeps scrub time on the rail", () => {
     const nodes = descendants(
       PlayerControls({
         ...base,
@@ -94,12 +97,12 @@ describe("player controls chrome", () => {
         seekable: true,
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "player-seek-back")).toBe(
-      true,
-    );
-    expect(
-      nodes.some((node) => node.props.testID === "player-seek-forward"),
-    ).toBe(true);
+    const center = findByTestId(nodes, "player-center-transport");
+    expect(center).toBeTruthy();
+    const centerDescendants = descendants(center);
+    expect(findByTestId(centerDescendants, "player-seek-back")).toBeTruthy();
+    expect(findByTestId(centerDescendants, "player-play-pause")).toBeTruthy();
+    expect(findByTestId(centerDescendants, "player-seek-forward")).toBeTruthy();
     expect(
       nodes.some(
         (node) =>
@@ -107,24 +110,32 @@ describe("player controls chrome", () => {
           String(node.props.children).includes("0:12 / 1:30"),
       ),
     ).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "player-live-badge")).toBe(
-      false,
-    );
+    expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
   });
 
-  it("hides the rail when chrome is not visible but keeps the tap catcher", () => {
+  it("keeps mute, quality, pip, and fullscreen on the bottom rail", () => {
+    const nodes = descendants(PlayerControls(base));
+    const rail = findByTestId(nodes, "player-controls-rail");
+    expect(rail).toBeTruthy();
+    const railDescendants = descendants(rail);
+    expect(findByTestId(railDescendants, "player-mute")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-quality")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-pip")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-fullscreen")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-play-pause")).toBeUndefined();
+    expect(findByTestId(railDescendants, "player-seek-back")).toBeUndefined();
+  });
+
+  it("hides the rail and center transport when chrome is not visible but keeps the tap catcher", () => {
     const nodes = descendants(
       PlayerControls({
         ...base,
         visible: false,
       }),
     );
-    expect(
-      nodes.some((node) => node.props.testID === "player-chrome-toggle"),
-    ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.testID === "player-controls-rail"),
-    ).toBe(false);
+    expect(findByTestId(nodes, "player-chrome-toggle")).toBeTruthy();
+    expect(findByTestId(nodes, "player-controls-rail")).toBeUndefined();
+    expect(findByTestId(nodes, "player-center-transport")).toBeUndefined();
   });
 
   it("opens a compact quality sheet from the settings icon", () => {
@@ -139,12 +150,8 @@ describe("player controls chrome", () => {
         qualityMenuOpen: true,
       }),
     );
-    expect(
-      nodes.some((node) => node.props.testID === "player-quality-menu"),
-    ).toBe(true);
-    const option = nodes.find(
-      (node) => node.props.testID === "player-quality-option-720p",
-    );
+    expect(findByTestId(nodes, "player-quality-menu")).toBeTruthy();
+    const option = findByTestId(nodes, "player-quality-option-720p");
     expect(option).toBeTruthy();
     (
       option?.props as { onPress?: () => void } | undefined

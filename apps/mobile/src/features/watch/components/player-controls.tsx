@@ -23,8 +23,12 @@ import {
 
 import type { PictureInPicturePhase } from "../capabilities/watch";
 
+const CENTER_PLAY_ICON = 40;
+const CENTER_SEEK_ICON = 28;
+const CENTER_PLAY_HIT = 64;
+
 /**
- * Mobile Watch player chrome — Electron-style bottom icon rail adapted for touch.
+ * Mobile Watch player chrome — center transport + bottom utility rail.
  *
  * Capability gaps intentionally not shown on-player (keep docs/comments only):
  * theater mode, video stats, volume slider, and playback speed are desktop-only
@@ -101,85 +105,97 @@ export function PlayerControls({
         testID="player-chrome-toggle"
       />
       {visible ? (
-        <View pointerEvents="box-none" style={styles.railWrap}>
-          <View pointerEvents="none" style={styles.scrim} />
-          <View style={styles.rail} testID="player-controls-rail">
-            {seekable && progress ? (
-              <Text selectable style={styles.progress} testID="player-progress">
-                {`${formatClock(progress.positionMs)} / ${formatClock(progress.durationMs)}`}
-              </Text>
+        <>
+          <View
+            pointerEvents="box-none"
+            style={styles.centerTransport}
+            testID="player-center-transport"
+          >
+            {seekable && onSeekBack ? (
+              <IconControl
+                Icon={RotateCcw}
+                accessibilityLabel={`Back ${rewindSeconds} seconds`}
+                badge={String(rewindSeconds)}
+                iconSize={CENTER_SEEK_ICON}
+                onPress={onSeekBack}
+                testID="player-seek-back"
+              />
             ) : null}
-            <View style={styles.row}>
-              <View style={styles.left}>
-                {seekable && onSeekBack ? (
+            <IconControl
+              Icon={paused ? Play : Pause}
+              accessibilityLabel={paused ? "Play" : "Pause"}
+              hitSize={CENTER_PLAY_HIT}
+              iconSize={CENTER_PLAY_ICON}
+              onPress={onPlayPause}
+              testID="player-play-pause"
+            />
+            {seekable && onSeekForward ? (
+              <IconControl
+                Icon={RotateCw}
+                accessibilityLabel={`Forward ${fastForwardSeconds} seconds`}
+                badge={String(fastForwardSeconds)}
+                iconSize={CENTER_SEEK_ICON}
+                onPress={onSeekForward}
+                testID="player-seek-forward"
+              />
+            ) : null}
+          </View>
+          <View pointerEvents="box-none" style={styles.railWrap}>
+            <View pointerEvents="none" style={styles.scrim} />
+            <View style={styles.rail} testID="player-controls-rail">
+              {seekable && progress ? (
+                <Text selectable style={styles.progress} testID="player-progress">
+                  {`${formatClock(progress.positionMs)} / ${formatClock(progress.durationMs)}`}
+                </Text>
+              ) : null}
+              <View style={styles.row}>
+                <View style={styles.left}>
+                  {showVolume ? (
+                    <IconControl
+                      Icon={muted ? VolumeX : Volume2}
+                      accessibilityLabel={muted ? "Unmute" : "Mute"}
+                      onPress={onMute}
+                      testID="player-mute"
+                    />
+                  ) : null}
+                  {live ? (
+                    <View style={styles.liveBadge} testID="player-live-badge">
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveLabel}>LIVE</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.right}>
+                  {showQuality ? (
+                    <IconControl
+                      Icon={Settings2}
+                      accessibilityLabel={`Quality ${quality}`}
+                      onPress={onQualityPress}
+                      testID="player-quality"
+                    />
+                  ) : null}
                   <IconControl
-                    Icon={RotateCcw}
-                    accessibilityLabel={`Back ${rewindSeconds} seconds`}
-                    badge={String(rewindSeconds)}
-                    onPress={onSeekBack}
-                    testID="player-seek-back"
+                    Icon={PictureInPicture2}
+                    accessibilityLabel={pipAccessibilityLabel(pipAvailable, pipPhase)}
+                    disabled={!pipAvailable || pipBusy}
+                    onPress={onPip}
+                    testID="player-pip"
                   />
-                ) : null}
-                <IconControl
-                  Icon={paused ? Play : Pause}
-                  accessibilityLabel={paused ? "Play" : "Pause"}
-                  onPress={onPlayPause}
-                  testID="player-play-pause"
-                />
-                {seekable && onSeekForward ? (
-                  <IconControl
-                    Icon={RotateCw}
-                    accessibilityLabel={`Forward ${fastForwardSeconds} seconds`}
-                    badge={String(fastForwardSeconds)}
-                    onPress={onSeekForward}
-                    testID="player-seek-forward"
-                  />
-                ) : null}
-                {showVolume ? (
-                  <IconControl
-                    Icon={muted ? VolumeX : Volume2}
-                    accessibilityLabel={muted ? "Unmute" : "Mute"}
-                    onPress={onMute}
-                    testID="player-mute"
-                  />
-                ) : null}
-                {live ? (
-                  <View style={styles.liveBadge} testID="player-live-badge">
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveLabel}>LIVE</Text>
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.right}>
-                {showQuality ? (
-                  <IconControl
-                    Icon={Settings2}
-                    accessibilityLabel={`Quality ${quality}`}
-                    onPress={onQualityPress}
-                    testID="player-quality"
-                  />
-                ) : null}
-                <IconControl
-                  Icon={PictureInPicture2}
-                  accessibilityLabel={pipAccessibilityLabel(pipAvailable, pipPhase)}
-                  disabled={!pipAvailable || pipBusy}
-                  onPress={onPip}
-                  testID="player-pip"
-                />
-                {showFullscreen ? (
-                  <IconControl
-                    Icon={fullscreen ? Minimize : Maximize}
-                    accessibilityLabel={
-                      fullscreen ? "Exit fullscreen" : "Fullscreen"
-                    }
-                    onPress={onFullscreen}
-                    testID="player-fullscreen"
-                  />
-                ) : null}
+                  {showFullscreen ? (
+                    <IconControl
+                      Icon={fullscreen ? Minimize : Maximize}
+                      accessibilityLabel={
+                        fullscreen ? "Exit fullscreen" : "Fullscreen"
+                      }
+                      onPress={onFullscreen}
+                      testID="player-fullscreen"
+                    />
+                  ) : null}
+                </View>
               </View>
             </View>
           </View>
-        </View>
+        </>
       ) : null}
       {showQuality && qualityMenuOpen && onSelectQuality && onCloseQualityMenu ? (
         <QualitySheet
@@ -261,6 +277,8 @@ function IconControl({
   accessibilityLabel,
   badge,
   disabled = false,
+  hitSize = mobileSizing.minimumTouchTarget,
+  iconSize = mobileSizing.icon,
   onPress,
   testID,
 }: {
@@ -268,6 +286,8 @@ function IconControl({
   readonly accessibilityLabel: string;
   readonly badge?: string;
   readonly disabled?: boolean;
+  readonly hitSize?: number;
+  readonly iconSize?: number;
   readonly onPress: () => void;
   readonly testID: string;
 }) {
@@ -281,6 +301,7 @@ function IconControl({
       android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true }}
       style={({ pressed }) => [
         styles.iconHit,
+        { height: hitSize, width: hitSize },
         pressed && !disabled ? styles.iconHitPressed : null,
         disabled ? styles.disabled : null,
       ]}
@@ -290,7 +311,7 @@ function IconControl({
         <Icon
           accessibilityElementsHidden
           color={mobileColors.textPrimary}
-          size={mobileSizing.icon}
+          size={iconSize}
           strokeWidth={2.25}
         />
         {badge ? (
@@ -333,19 +354,29 @@ function pipAccessibilityLabel(
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
-    justifyContent: "flex-end",
   },
   tapCatcher: {
     ...StyleSheet.absoluteFill,
   },
+  centerTransport: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.large,
+    justifyContent: "center",
+    zIndex: 1,
+  },
   railWrap: {
+    bottom: 0,
     justifyContent: "flex-end",
-    position: "relative",
+    left: 0,
+    position: "absolute",
+    right: 0,
   },
   scrim: {
     backgroundColor: "rgba(0,0,0,0.72)",
     bottom: 0,
-    height: 132,
+    height: 96,
     left: 0,
     position: "absolute",
     right: 0,
