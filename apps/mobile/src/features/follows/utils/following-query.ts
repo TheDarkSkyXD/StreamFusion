@@ -6,11 +6,18 @@ export function identityRefsFor(
   follows: readonly GuestFollow[],
   platform: Platform,
 ): readonly FollowedIdentityRef[] {
-  return follows.flatMap((follow) =>
-    follow.platform === platform
-      ? [{ kind: "id" as const, value: follow.channelId }]
-      : [],
-  );
+  return follows.flatMap((follow) => {
+    if (follow.platform !== platform) return [];
+    const refs: FollowedIdentityRef[] = [
+      { kind: "id" as const, value: follow.channelId },
+    ];
+    // Kick relay resolves live status by broadcaster id or slug; slug-only
+    // account follows (legacy web rows) need a login ref.
+    if (platform === "kick" && follow.channelLogin.length > 0) {
+      refs.push({ kind: "login" as const, value: follow.channelLogin });
+    }
+    return refs;
+  });
 }
 
 export function requestInit(

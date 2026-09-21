@@ -57,8 +57,8 @@ import { createSearchHistoryRepository } from "@mobile/features/discovery/compos
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createGuestLiveAlertPoller } from "@mobile/features/activity/domain/guest-live-alert-poller";
+import { createKickAccountFollowMembership } from "@mobile/features/follows/adapters/kick-account-follow-membership";
 import {
-  createKickAccountFollowMembershipUnavailable,
   createTwitchAccountFollowMembership,
   createTwitchAccountLiveStreamsSource,
 } from "@mobile/features/follows/adapters/twitch-account-follow-membership";
@@ -302,7 +302,25 @@ const twitchAccountLiveStreams = createTwitchAccountLiveStreamsSource({
   fetch: connectivitySession.fetch,
   readCredential: readTwitchCredentialForActivity,
 });
-const kickAccountFollows = createKickAccountFollowMembershipUnavailable();
+async function readKickCredentialForActivity(): Promise<{
+  readonly accessToken: string;
+} | null> {
+  for (const repository of [
+    productionKickRepository,
+    developmentKickRepository,
+  ]) {
+    const snapshot = await repository.read();
+    if (snapshot.kind === "ready") {
+      return { accessToken: snapshot.credential.accessToken };
+    }
+  }
+  return null;
+}
+
+const kickAccountFollows = createKickAccountFollowMembership({
+  fetch: connectivitySession.fetch,
+  readCredential: readKickCredentialForActivity,
+});
 
 const followingSession = createFollowingRuntime({
   activity: persistenceRuntime.productState.activity,

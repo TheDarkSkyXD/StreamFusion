@@ -159,7 +159,9 @@ async function hydrateLive(
   const accountMembership = await readAccountFollows(deps.accountFollows);
   const membership = unionFollowMembership(guestMembership, accountMembership);
   const extra = signal === undefined ? {} : { signal };
-  // Guest live hydrate still keys off Guest Follows only (Following UI scope).
+  // Twitch account live status uses Helix streams/followed (accountLiveStreams).
+  // Kick has no official live-followed API — hydrate Kick via relay using the
+  // Guest ∪ Kick-account membership union so Activity go-lives include them.
   const [twitch, kick, accountLive] = await Promise.all([
     hydratePlatform({
       liveCache: deps.liveCache,
@@ -170,7 +172,7 @@ async function hydrateLive(
     }),
     hydratePlatform({
       liveCache: deps.liveCache,
-      membership: guestMembership,
+      membership,
       platform: "kick",
       reader: deps.reader,
       ...extra,

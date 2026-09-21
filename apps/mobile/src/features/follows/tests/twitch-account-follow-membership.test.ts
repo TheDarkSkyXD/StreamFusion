@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createKickAccountFollowMembershipUnavailable,
   createTwitchAccountFollowMembership,
   helixFollowedChannelsToGuestFollows,
 } from "../adapters/twitch-account-follow-membership";
@@ -42,12 +41,4 @@ describe("twitch account follow membership", () => {
     });
   });
 
-  it("documents Kick followed catalog as unavailable", async () => {
-    await expect(
-      createKickAccountFollowMembershipUnavailable().read(),
-    ).resolves.toEqual({
-      kind: "unavailable",
-      reason: "kick-followed-unavailable",
-    });
-  });
 });

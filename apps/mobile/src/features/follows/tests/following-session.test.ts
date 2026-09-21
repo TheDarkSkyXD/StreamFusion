@@ -227,27 +227,36 @@ describe("createFollowingRuntime", () => {
     ).resolves.toEqual({ kind: "rejected", reason: "unresolved-channel" });
   });
 
-  it("unions Twitch account follows into listMembership without breaking guest", async () => {
+  it("unions Twitch and Kick account follows into listMembership without breaking guest", async () => {
     const guest = guestFollow({
       channelId: "71092938",
       channelLogin: "alice",
       platform: "twitch",
     });
-    const account = guestFollow({
+    const twitchAccount = guestFollow({
       channelId: "999",
       channelLogin: "bob",
       displayName: "Bob",
       platform: "twitch",
     });
+    const kickAccount = guestFollow({
+      channelId: "411439",
+      channelLogin: "summit1g",
+      displayName: "Summit1G",
+      platform: "kick",
+    });
     const session = createFollowingRuntime({
       accountFollows: [
         {
-          read: async () => ({ kind: "available" as const, follows: [account] }),
+          read: async () => ({
+            kind: "available" as const,
+            follows: [twitchAccount],
+          }),
         },
         {
           read: async () => ({
-            kind: "unavailable" as const,
-            reason: "kick-followed-unavailable",
+            kind: "available" as const,
+            follows: [kickAccount],
           }),
         },
       ],
@@ -269,6 +278,7 @@ describe("createFollowingRuntime", () => {
     });
     const membership = await session.listMembership();
     expect(membership.map((row) => row.channelId).sort()).toEqual([
+      "411439",
       "71092938",
       "999",
     ]);

@@ -6,15 +6,22 @@ Activity membership is the union of:
 2. **Twitch account follows** via Helix `GET /channels/followed` when a Twitch
    credential is ready and a client id is present
    (`EXPO_PUBLIC_TWITCH_CLIENT_ID`, or the development fixture client id in `__DEV__`)
-3. **Kick account follows** — **unavailable** on mobile today. The Kick official
-   public API does not expose a followed-channels catalog; desktop uses the legacy
-   Kick web API. Mobile degrades with reason `kick-followed-unavailable` and keeps
-   Guest Follows working.
+3. **Kick account follows** via the legacy Kick web catalog
+   `GET https://kick.com/api/v2/channels/followed` with the signed-in OAuth
+   Bearer token (same cheap path desktop `_tryBearerFetch` uses). Official
+   `api.kick.com` has no followed-channels endpoint. Desktop may also use
+   cookie / BrowserWindow fallbacks that mobile cannot; when Bearer auth fails,
+   Cloudflare challenges, or the payload cannot be parsed, mobile returns
+   `unavailable` (reasons such as `kick-signed-out`, `kick-followed-auth-failed`,
+   `kick-followed-cloudflare`, `kick-followed-network`, `kick-followed-parse`)
+   and Guest Follows keep working.
 
 Go-live observation:
 
 - Guest live status continues to use relay `followed-content/streams` for Guest Follows.
 - Twitch signed-in live status uses Helix `GET /streams/followed` when credential + client id are present.
+- Kick signed-in live status reuses relay `followed-content/streams` with the
+  Guest ∪ Kick-account membership union (Kick has no official live-followed API).
 - Missing client ids or signed-out credentials return `unavailable` / empty live lists without breaking guest.
 
 Background poller:

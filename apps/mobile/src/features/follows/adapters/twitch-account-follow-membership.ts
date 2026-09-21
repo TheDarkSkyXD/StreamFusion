@@ -90,17 +90,8 @@ export function createTwitchAccountLiveStreamsSource(input: {
   };
 }
 
-/** Kick official mobile API has no followed-channels catalog (desktop uses legacy web API). */
-export function createKickAccountFollowMembershipUnavailable(): AccountFollowMembershipSource {
-  return {
-    async read() {
-      return {
-        kind: "unavailable",
-        reason: "kick-followed-unavailable",
-      };
-    },
-  };
-}
+/** @deprecated Import from kick-account-follow-membership instead. */
+export { createKickAccountFollowMembershipUnavailable } from "./kick-account-follow-membership";
 
 export function helixFollowedChannelsToGuestFollows(
   channels: readonly HelixFollowedChannel[],
