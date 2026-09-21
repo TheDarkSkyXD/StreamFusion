@@ -35,6 +35,18 @@ describe("platform catalog readers", () => {
             ],
           });
         }
+        if (url.includes("/channels/followed")) {
+          return json({
+            data: [
+              {
+                broadcaster_id: "u1",
+                broadcaster_login: "alice",
+                broadcaster_name: "Alice",
+                followed_at: "2017-01-01T00:00:00Z",
+              },
+            ],
+          });
+        }
         if (url.includes("/streams/followed")) {
           return json({
             data: [
@@ -94,6 +106,17 @@ describe("platform catalog readers", () => {
     });
     await expect(reader.getFollowedStreams()).resolves.toMatchObject({
       items: [{ channelIsVerified: true, tags: ["English"], title: "Followed" }],
+    });
+    await expect(reader.getFollowedChannels()).resolves.toMatchObject({
+      items: [
+        {
+          channelId: "u1",
+          channelLogin: "alice",
+          displayName: "Alice",
+          platform: "twitch",
+        },
+      ],
+      status: "complete",
     });
   });
 

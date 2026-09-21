@@ -122,6 +122,35 @@ export function helixLiveStreamsFromSearch(value: unknown): readonly Stream[] {
   });
 }
 
+
+export type HelixFollowedChannel = {
+  readonly platform: "twitch";
+  readonly channelId: string;
+  readonly channelLogin: string;
+  readonly displayName: string;
+  readonly followedAt: string;
+};
+
+export function helixFollowedChannels(value: unknown): readonly HelixFollowedChannel[] {
+  return helixRows(value).flatMap((record) => {
+    const channelId = stringField(record, "broadcaster_id");
+    const channelLogin = stringField(record, "broadcaster_login").toLowerCase();
+    if (channelId === "" || channelLogin === "") return [];
+    const displayName = stringField(record, "broadcaster_name") || channelLogin;
+    const followedAt =
+      stringField(record, "followed_at") || "1970-01-01T00:00:00.000Z";
+    return [
+      {
+        platform: "twitch" as const,
+        channelId,
+        channelLogin,
+        displayName,
+        followedAt,
+      },
+    ];
+  });
+}
+
 export function helixCategories(value: unknown): readonly Category[] {
   return helixRows(value).flatMap((record) => {
     const id = stringField(record, "id");

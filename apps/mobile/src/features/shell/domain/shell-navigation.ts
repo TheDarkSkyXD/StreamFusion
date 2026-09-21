@@ -191,7 +191,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "activity",
     "INBOX",
     "activity-root",
-    "Followed channels going live appear here, including Guest Follows on this device.",
+    "Followed channels going live appear here, including Guest Follows and signed-in account follows when available.",
     "Activity",
     "activity",
   ),

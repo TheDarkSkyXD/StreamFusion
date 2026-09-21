@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
 import { useEffect, useMemo, useState } from "react";
+import { AppState } from "react-native";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
@@ -55,6 +56,12 @@ import {
 import { createSearchHistoryRepository } from "@mobile/features/discovery/composition/search-history-repository";
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
+import { createGuestLiveAlertPoller } from "@mobile/features/activity/domain/guest-live-alert-poller";
+import {
+  createKickAccountFollowMembershipUnavailable,
+  createTwitchAccountFollowMembership,
+  createTwitchAccountLiveStreamsSource,
+} from "@mobile/features/follows/adapters/twitch-account-follow-membership";
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
@@ -262,8 +269,45 @@ const adblockSession = createAdBlockSession({
 const settingsSession = createSettingsSession({
   settings: persistenceRuntime.productState.settings,
 });
+async function readTwitchCredentialForActivity(): Promise<{
+  readonly accessToken: string;
+  readonly userId: string;
+} | null> {
+  for (const repository of [
+    productionTwitchRepository,
+    developmentTwitchRepository,
+  ]) {
+    const snapshot = await repository.read();
+    if (snapshot.kind === "ready") {
+      return {
+        accessToken: snapshot.credential.accessToken,
+        userId: snapshot.credential.account.id,
+      };
+    }
+  }
+  return null;
+}
+
+function twitchClientIdForActivity(): string | null {
+  return twitchClientId ?? (__DEV__ ? DEVELOPMENT_TWITCH_CLIENT_ID : null);
+}
+
+const twitchAccountFollows = createTwitchAccountFollowMembership({
+  clientId: twitchClientIdForActivity,
+  fetch: connectivitySession.fetch,
+  readCredential: readTwitchCredentialForActivity,
+});
+const twitchAccountLiveStreams = createTwitchAccountLiveStreamsSource({
+  clientId: twitchClientIdForActivity,
+  fetch: connectivitySession.fetch,
+  readCredential: readTwitchCredentialForActivity,
+});
+const kickAccountFollows = createKickAccountFollowMembershipUnavailable();
+
 const followingSession = createFollowingRuntime({
   activity: persistenceRuntime.productState.activity,
+  accountFollows: [twitchAccountFollows, kickAccountFollows],
+  accountLiveStreams: [twitchAccountLiveStreams],
   cache: persistenceRuntime.disposableCache,
   fetch: connectivitySession.fetch,
   guestFollows: persistenceRuntime.productState.guestFollows,
@@ -276,6 +320,11 @@ const followingSession = createFollowingRuntime({
   liveNotifications: persistenceRuntime.productState.liveNotifications,
   network: () => connectivitySession.readNetwork(),
   relayBaseUrl: relayBaseUrl(),
+});
+
+/** Foreground go-live poller: reuses Following hydrateLive + guest reconciler. */
+const liveAlertPoller = createGuestLiveAlertPoller({
+  hydrateLive: () => followingSession.hydrateLive(),
 });
 const nativeNotifications = createNativeNotificationRuntimeForApp({
   activityRepository: persistenceRuntime.productState.activity,
@@ -416,6 +465,16 @@ export function MobileRuntime() {
   );
   useEffect(() => () => void watch.runtime.session.dispose(), [watch]);
   useEffect(() => () => void multistream.playback.dispose(), [multistream]);
+  useEffect(() => {
+    liveAlertPoller.setForeground(AppState.currentState === "active");
+    const subscription = AppState.addEventListener("change", (state) => {
+      liveAlertPoller.setForeground(state === "active");
+    });
+    return () => {
+      subscription.remove();
+      liveAlertPoller.setForeground(false);
+    };
+  }, []);
   useEffect(() => {
     if (!developmentActivityProof) return;
     const unsubscribe = developmentActivityProof.subscribe(setActivityProof);

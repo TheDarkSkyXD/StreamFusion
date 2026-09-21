@@ -226,4 +226,85 @@ describe("createFollowingRuntime", () => {
       session.mutateFollow({ channelLogin: "missing", platform: "twitch" }),
     ).resolves.toEqual({ kind: "rejected", reason: "unresolved-channel" });
   });
+
+  it("unions Twitch account follows into listMembership without breaking guest", async () => {
+    const guest = guestFollow({
+      channelId: "71092938",
+      channelLogin: "alice",
+      platform: "twitch",
+    });
+    const account = guestFollow({
+      channelId: "999",
+      channelLogin: "bob",
+      displayName: "Bob",
+      platform: "twitch",
+    });
+    const session = createFollowingRuntime({
+      accountFollows: [
+        {
+          read: async () => ({ kind: "available" as const, follows: [account] }),
+        },
+        {
+          read: async () => ({
+            kind: "unavailable" as const,
+            reason: "kick-followed-unavailable",
+          }),
+        },
+      ],
+      cache: memoryCache(),
+      fetch: async () =>
+        new Response(
+          JSON.stringify(
+            envelope({ channels: [], missing: [], platform: "twitch" }),
+          ),
+        ),
+      guestFollows: memoryGuestFollows([guest]),
+      installation: async () => ({
+        credential: "install",
+        kind: "ready",
+      }),
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      relayBaseUrl: "http://relay.test/",
+    });
+    const membership = await session.listMembership();
+    expect(membership.map((row) => row.channelId).sort()).toEqual([
+      "71092938",
+      "999",
+    ]);
+  });
+
+  it("keeps guest membership when account follow sources are unavailable", async () => {
+    const guest = guestFollow({
+      channelId: "71092938",
+      channelLogin: "alice",
+      platform: "twitch",
+    });
+    const session = createFollowingRuntime({
+      accountFollows: [
+        {
+          read: async () => ({
+            kind: "unavailable" as const,
+            reason: "twitch-client-id-missing",
+          }),
+        },
+      ],
+      cache: memoryCache(),
+      fetch: async () =>
+        new Response(
+          JSON.stringify(
+            envelope({ channels: [], missing: [], platform: "twitch" }),
+          ),
+        ),
+      guestFollows: memoryGuestFollows([guest]),
+      installation: async () => ({
+        credential: "install",
+        kind: "ready",
+      }),
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      relayBaseUrl: "http://relay.test/",
+    });
+    expect(await session.listMembership()).toEqual([guest]);
+  });
 });

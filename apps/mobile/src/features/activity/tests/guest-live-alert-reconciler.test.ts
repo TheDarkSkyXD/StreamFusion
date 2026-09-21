@@ -156,3 +156,47 @@ describe("guest live-alert reconciler", () => {
     expect(record).not.toHaveBeenCalled();
   });
 });
+
+describe("account follow live-alert reconciler", () => {
+  it("records account-follow go-lives when guestFollows pref is off", async () => {
+    const record = vi.fn<ActivityRepository["record"]>(async (item) => ({
+      item,
+      kind: "created",
+    }));
+    const reconciler = createGuestLiveAlertReconciler({
+      activity: repository({ record }),
+      now: () => Date.parse("2026-09-08T01:00:00.000Z"),
+    });
+    const accountOnly = follow;
+    await reconciler.observe({
+      guestMembership: [],
+      membership: [accountOnly],
+      preferences: {
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        guestFollows: false,
+      },
+      silent: true,
+      streams: [stream()],
+    });
+    await reconciler.observe({
+      guestMembership: [],
+      membership: [accountOnly],
+      preferences: {
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        guestFollows: false,
+      },
+      streams: [],
+    });
+    const recorded = await reconciler.observe({
+      guestMembership: [],
+      membership: [accountOnly],
+      preferences: {
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        guestFollows: false,
+      },
+      streams: [stream()],
+    });
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(recorded).toHaveLength(1);
+  });
+});

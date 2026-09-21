@@ -18,6 +18,8 @@ export interface GuestLiveAlertReconciler {
   /** Observe currently live followed streams; records go-live Activity when a channel transitions offline→live. */
   observe(input: {
     readonly membership: readonly GuestFollow[];
+    /** Guest-only subset used for live-notification followSource; defaults to membership. */
+    readonly guestMembership?: readonly GuestFollow[];
     readonly preferences: LiveNotificationPreferences;
     readonly silent?: boolean;
     readonly streams: readonly Stream[];
@@ -42,6 +44,7 @@ export function createGuestLiveAlertReconciler(options: {
       const observedKeys = new Set<string>();
       const recorded: ActivityItem[] = [];
 
+      const guestMembership = input.guestMembership ?? input.membership;
       for (const stream of input.streams) {
         if (!stream.isLive) continue;
         const follow = findGuestFollow(input.membership, {
@@ -56,13 +59,19 @@ export function createGuestLiveAlertReconciler(options: {
         const wasLive = liveByChannel.get(key) === true;
         liveByChannel.set(key, true);
 
+        const isGuest =
+          findGuestFollow(guestMembership, {
+            platform: follow.platform,
+            channelId: follow.channelId,
+            channelLogin: follow.channelLogin,
+          }) !== undefined;
         const eligible = isFollowEligibleForLiveNotification({
           channel: {
             platform: follow.platform,
             id: follow.channelId,
             username: follow.channelLogin,
           },
-          followSource: "guest",
+          followSource: isGuest ? "guest" : follow.platform,
           preferences: input.preferences,
         });
         if (silent || wasLive || !eligible) continue;

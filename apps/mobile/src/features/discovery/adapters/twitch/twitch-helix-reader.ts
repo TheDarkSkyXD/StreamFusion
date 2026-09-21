@@ -11,7 +11,12 @@ import { createTwitchHelixCategoryReads } from "./twitch-helix-category-reader";
 import { createTwitchHelixChannelReader } from "./twitch-helix-channel-reader";
 import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
 
-import { helixCategories, helixStreams } from "./helix-catalog-map";
+import {
+  helixCategories,
+  helixFollowedChannels,
+  helixStreams,
+  type HelixFollowedChannel,
+} from "./helix-catalog-map";
 import {
   completeHelixSearchCatalog,
   completeHelixStreams,
@@ -40,6 +45,20 @@ export function createTwitchHelixReader(input: {
         input,
         map: helixCategories,
         path: "/games/top?first=20",
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
+    },
+    async getFollowedChannels(read: {
+      readonly signal?: AbortSignal;
+    } = {}): Promise<PlatformReadOutcome<HelixFollowedChannel>> {
+      const userId = (await input.readUserId?.()) ?? null;
+      if (userId === null) {
+        return missingToken("twitch", "signed-out-login-required");
+      }
+      return helixCollection({
+        input,
+        map: helixFollowedChannels,
+        path: `/channels/followed?user_id=${encodeURIComponent(userId)}&first=100`,
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
