@@ -557,14 +557,27 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
 }
 
 function unixPortOwnership(port, rootPid) {
-  const ownerResult = spawnSync(
+  const fromLsof = spawnSync(
     "lsof",
     ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"],
     {
       encoding: "utf8",
     },
   );
-  const ownerPid = Number(ownerResult.stdout.trim().split(/\s+/)[0]);
+  let ownerPid = Number((fromLsof.stdout ?? "").trim().split(/\s+/)[0]);
+  if (!ownerPid) {
+    // Boxes without lsof still expose listeners via ss (iproute2).
+    const fromSs = spawnSync("ss", ["-ltnp"], { encoding: "utf8" });
+    const needle = `:${port}`;
+    for (const line of (fromSs.stdout ?? "").split(/\r?\n/)) {
+      if (!line.includes(needle) || !/LISTEN/i.test(line)) continue;
+      const match = line.match(/pid=(\d+)/);
+      if (match) {
+        ownerPid = Number(match[1]);
+        break;
+      }
+    }
+  }
   if (!ownerPid) return { ownerPid: null, chain: [], belongsToLaunch: false };
   const chain = [];
   let current = ownerPid;
@@ -573,7 +586,7 @@ function unixPortOwnership(port, rootPid) {
     const parent = spawnSync("ps", ["-o", "ppid=", "-p", String(current)], {
       encoding: "utf8",
     });
-    current = Number(parent.stdout.trim());
+    current = Number((parent.stdout ?? "").trim());
   }
   return { ownerPid, chain, belongsToLaunch: chain.includes(rootPid) };
 }
