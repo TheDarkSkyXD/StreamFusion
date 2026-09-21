@@ -37,10 +37,14 @@ object PlaybackPlaylistFilter {
     }
     val stripped = stripAdSegments(playlist)
     if (!hasMediaSegments(stripped)) {
-      return keep(
-        playlist,
-        "Strip would empty the playlist. Original playlist kept.",
-        adsDetected = true,
+      // Desktop VAFT/manifest proxy: holdUnsafeTwitchMediaPlaylist — do not
+      // re-serve the commercial slate when the window is interstitial-only.
+      val held = holdUnsafeMediaPlaylist(playlist)
+      return Result(
+        true,
+        true,
+        "Strip emptied playlist; held without media (desktop unsafe-hold).",
+        held,
       )
     }
     return Result(
@@ -120,6 +124,32 @@ object PlaybackPlaylistFilter {
       }
     }
     return kept.joinToString("\n")
+  }
+
+  private val mediaBearingTags = listOf(
+    "#EXTINF",
+    "#EXT-X-BYTERANGE",
+    "#EXT-X-MAP",
+    "#EXT-X-PART",
+    "#EXT-X-PRELOAD-HINT",
+    "#EXT-X-RENDITION-REPORT",
+    "#EXT-X-TWITCH-PREFETCH",
+  )
+
+  /** Desktop-equivalent of holdUnsafeTwitchMediaPlaylist: drop media so the player holds. */
+  private fun holdUnsafeMediaPlaylist(playlist: String): String {
+    return playlist
+      .replace("\r", "")
+      .split("\n")
+      .filter { line ->
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || !trimmed.startsWith("#")) {
+          false
+        } else {
+          mediaBearingTags.none { tag -> trimmed.startsWith(tag) }
+        }
+      }
+      .joinToString("\n")
   }
 
   private fun hasMediaSegments(playlist: String): Boolean {

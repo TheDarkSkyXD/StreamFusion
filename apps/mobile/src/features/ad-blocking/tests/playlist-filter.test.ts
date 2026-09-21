@@ -103,17 +103,22 @@ describe("Twitch playlist filter", () => {
     expect(result.playlist).toContain("stitched-ad");
   });
 
-  it("keeps the original playlist when strip would empty it", () => {
+  it("holds without media when strip would empty an ads-only playlist", () => {
     const adsOnly = `#EXTM3U
+#EXT-X-VERSION:3
 #EXTINF:2.000,
 https://d2nvs31859zcd8.cloudfront.net/ad/only.ts
 `;
     const result = filterTwitchPlaylist(adsOnly, "strip");
-    expect(result.applied).toBe(false);
-    expect(result.playlist).toContain("only.ts");
+    expect(result.adsDetected).toBe(true);
+    expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toContain("only.ts");
+    expect(result.playlist).toContain("#EXTM3U");
+    expect(result.playlist).toContain("#EXT-X-VERSION:3");
   });
 
-  it("keeps interstitial-only commercial breaks when strip would empty", () => {
+  it("holds interstitial-only commercial breaks instead of keeping the slate", () => {
     const interstitialOnly = `#EXTM3U
 #EXT-X-CUE-OUT:DURATION=30
 #EXT-X-DISCONTINUITY
@@ -122,8 +127,11 @@ https://neutral.synthetic.invalid/v1/segment/commercial-break-interstitial-440.t
 `;
     const result = filterTwitchPlaylist(interstitialOnly, "strip");
     expect(result.adsDetected).toBe(true);
-    expect(result.applied).toBe(false);
-    expect(result.diagnostic).toContain("empty");
-    expect(result.playlist).toContain("commercial-break-interstitial");
+    expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toContain("commercial-break-interstitial");
+    expect(result.playlist).not.toContain("#EXTINF");
+    expect(result.playlist).toContain("#EXTM3U");
+    expect(result.playlist).toContain("#EXT-X-DISCONTINUITY");
   });
 });

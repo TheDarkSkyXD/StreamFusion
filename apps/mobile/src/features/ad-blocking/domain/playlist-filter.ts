@@ -37,11 +37,16 @@ export function filterTwitchPlaylist(
   }
   const stripped = stripAdSegments(playlist);
   if (!hasMediaSegments(stripped)) {
-    return untouched(
-      playlist,
-      "Strip would empty the playlist. Original playlist kept.",
-      true,
-    );
+    // Desktop VAFT/manifest proxy: holdUnsafeTwitchMediaPlaylist — do not
+    // re-serve the commercial slate when the window is interstitial-only.
+    const held = holdUnsafeMediaPlaylist(playlist);
+    return {
+      adsDetected: true,
+      applied: true,
+      diagnostic:
+        "Strip emptied playlist; held without media (desktop unsafe-hold).",
+      playlist: held,
+    };
   }
   return {
     adsDetected: true,
@@ -125,6 +130,29 @@ function stripAdSegments(playlist: string): string {
     index += 1;
   }
   return kept.join("\n");
+}
+
+const MEDIA_BEARING_TAGS = [
+  "#EXTINF",
+  "#EXT-X-BYTERANGE",
+  "#EXT-X-MAP",
+  "#EXT-X-PART",
+  "#EXT-X-PRELOAD-HINT",
+  "#EXT-X-RENDITION-REPORT",
+  "#EXT-X-TWITCH-PREFETCH",
+];
+
+/** Desktop-equivalent of holdUnsafeTwitchMediaPlaylist: drop media so the player holds. */
+function holdUnsafeMediaPlaylist(playlist: string): string {
+  return playlist
+    .replace(/\r/g, "")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("#")) return false;
+      return !MEDIA_BEARING_TAGS.some((tag) => trimmed.startsWith(tag));
+    })
+    .join("\n");
 }
 
 function hasMediaSegments(playlist: string): boolean {

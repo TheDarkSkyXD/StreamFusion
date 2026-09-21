@@ -6,7 +6,7 @@
 - Android owner: Mobile `ad-blocking` plus native `FilteringDataSource` playlist rewrite
 - Progress: `implemented`
 - Delivery: `adapted`
-- Adaptation: Isolated compatibility capability. Twitch live playlists can strip known ad markers or run canary inside ExoPlayer. Desktop VAFT stays Desktop-owned. Kick has no approved filter and stays passthrough. Filter failure keeps the original playlist. Signed policy `no-valid-policy` enables filtering like playback compatibility. The Settings kill switch is independent.
+- Adaptation: Isolated compatibility capability. Twitch live playlists can strip known ad markers or run canary inside ExoPlayer. Desktop VAFT stays Desktop-owned. Kick has no approved filter and stays passthrough. Native rewrite exceptions keep the original playlist. Interstitial-only empty-after-strip uses desktop unsafe-hold (header-only, no media) instead of re-serving the commercial slate. Signed policy `no-valid-policy` enables filtering like playback compatibility. The Settings kill switch is independent.
 - Freshness: `current` at `verification/evidence/issue-161-adblock.json` on APK `sha256:0b8e1dab209058f1448c255fee699e16f0a7a9546af1dcbcc2cc35b7616c105e`
 
 ## Desktop outcome
@@ -15,7 +15,7 @@ Block supported ads and retain safe stream playback when ad handling changes.
 
 ## Android outcome
 
-More Settings hosts a live Ad Blocking panel. Guests can leave filtering on, switch to canary, or kill the filter. Twitch Watch discloses the effective method. Kick Watch discloses that this session is unfiltered. Empty-after-strip and native rewrite exceptions keep the original playlist inside the player.
+More Settings hosts a live Ad Blocking panel. Guests can leave filtering on, switch to canary, or kill the filter. Twitch Watch discloses the effective method. Kick Watch discloses that this session is unfiltered. Native rewrite exceptions keep the original playlist. Interstitial-only empty-after-strip holds without media (desktop unsafe-hold) so the commercial slate does not play.
 
 ## Required evidence
 
@@ -28,7 +28,7 @@ More Settings hosts a live Ad Blocking panel. Guests can leave filtering on, swi
 
 ## Evidence residuals
 
-TalkBack was not driven. Desktop VAFT pattern refresh is not on Mobile. Watch Kick title still names the Twitch canary method while the detail states Kick is unfiltered. Interstitial-only midroll playlists that would empty after strip still keep the original playlist (Twitch "Commercial break in progress" slate can remain until live segments return); mixed playlists strip CUE-OUT interstitial and stitched markers on the ExoPlayer path.
+TalkBack was not driven. Desktop VAFT pattern refresh is not on Mobile. Watch Kick title still names the Twitch canary method while the detail states Kick is unfiltered. Interstitial-only midrolls hold without media (desktop unsafe-hold) until live segments return; player may freeze on the last buffered live frame rather than show the commercial slate. Mixed playlists strip CUE-OUT interstitial and stitched markers. No mobile ULW/backup-stream port yet — midroll gaps without a live segment still cannot continue live video. Kick stays passthrough.
 
 ## Blocking for public release
 
