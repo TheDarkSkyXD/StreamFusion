@@ -71,7 +71,9 @@ import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/ad
 import { createSupportLogPort } from "@mobile/features/settings/adapters/support-log-buffer";
 import { createSupportMaintenancePort } from "@mobile/features/settings/adapters/support-maintenance";
 import { createSupportSharePort } from "@mobile/features/settings/adapters/support-share";
+import { createChatDisplaySettingsSession } from "@mobile/features/settings/composition/chat-display-runtime";
 import { createNotificationSettingsSession } from "@mobile/features/settings/composition/notification-settings-runtime";
+import { createPredictionSettingsSession } from "@mobile/features/settings/composition/prediction-settings-runtime";
 import { createSettingsSession } from "@mobile/features/settings/composition/settings-runtime";
 import { createSupportSettingsSession } from "@mobile/features/settings/composition/support-settings-runtime";
 import { createSupportPreferenceStore } from "@mobile/features/settings/data/support-settings-store";
@@ -362,6 +364,12 @@ const notificationSession = createNotificationSettingsSession({
   registrationCopy: async () => nativeNotifications.peek().copy,
   store: persistenceRuntime.productState.liveNotifications,
 });
+const chatDisplaySession = createChatDisplaySettingsSession({
+  settings: persistenceRuntime.productState.settings,
+});
+const predictionSession = createPredictionSettingsSession({
+  settings: persistenceRuntime.productState.settings,
+});
 const supportStore = createSupportPreferenceStore(
   persistenceRuntime.productState.settings,
 );
@@ -590,6 +598,8 @@ export function MobileRuntime() {
       adblockSession={adblockSession}
       twitchPlaylistProxySession={twitchPlaylistProxySession}
       notificationSession={notificationSession}
+      chatDisplaySession={chatDisplaySession}
+      predictionSession={predictionSession}
       nativeNotifications={nativeNotifications}
       settingsSession={settingsSession}
       supportSession={supportSession}

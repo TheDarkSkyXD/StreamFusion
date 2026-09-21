@@ -87,6 +87,22 @@ test("local search isolates notifications, adblock, and proxy panels", () => {
   ]);
 });
 
+test("local search finds chat, predictions, integrations, and token panels", () => {
+  assert.ok(
+    settingsPanelsFor(searchSettingsControls("chat")).includes("chat"),
+  );
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("predictions")), [
+    "chat",
+    "predictions",
+  ]);
+  assert.deepEqual(settingsPanelsFor(searchSettingsControls("integrations")), [
+    "integrations",
+  ]);
+  assert.ok(
+    settingsPanelsFor(searchSettingsControls("token")).includes("api-tokens"),
+  );
+});
+
 test("local search isolates updates, diagnostics, logs, report, and about", () => {
   assert.deepEqual(settingsPanelsFor(searchSettingsControls("github")), [
     "updates",

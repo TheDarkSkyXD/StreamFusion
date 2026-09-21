@@ -154,7 +154,6 @@ const implemented = new Set([
   "shell-route:search",
   "shell-route:following",
   "shell-route:following/manage",
-  "shell-route:more/home",
   "shell-route:more/channel",
   "shell-route:more/categories",
   "shell-route:more/category-detail",
@@ -198,6 +197,14 @@ const implemented = new Set([
   "screen:settings-multiview",
   "screen:settings-notifications",
   "panel:notifications",
+  "screen:settings-chat",
+  "panel:chat",
+  "screen:settings-predictions",
+  "panel:predictions",
+  "screen:settings-integrations",
+  "panel:integrations",
+  "screen:settings-api-tokens",
+  "panel:api-tokens",
   "screen:settings-updates",
   "panel:updates",
   "screen:settings-diagnostics",
@@ -297,6 +304,14 @@ const owners = {
   "panel:notifications": [169, 172],
   "screen:settings-notifications": [169, 172],
   "action:notification-permission": [169, 172],
+  "panel:chat": [156, 157, 158, 168],
+  "screen:settings-chat": [156, 157, 158, 168],
+  "panel:predictions": [156, 157, 168],
+  "screen:settings-predictions": [156, 157, 168],
+  "panel:integrations": [135, 145, 146, 168],
+  "screen:settings-integrations": [135, 145, 146, 168],
+  "panel:api-tokens": [135, 145, 146, 168],
+  "screen:settings-api-tokens": [135, 145, 146, 168],
   "panel:updates": [170, 176],
   "screen:settings-updates": [170, 176],
   "panel:diagnostics": [170, 171],
@@ -468,9 +483,6 @@ const paths = {
   "shell-route:following/manage": [
     "apps/mobile/src/features/follows/components/following-workspace.tsx",
   ],
-  "shell-route:more/home": [
-    "apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx",
-  ],
   "shell-route:more/channel": [
     "apps/mobile/src/features/discovery/components/channel-detail-screen.tsx",
   ],
@@ -556,6 +568,34 @@ const paths = {
   ],
   "panel:notifications": [
     "apps/mobile/src/features/settings/components/notifications-settings-panel.tsx",
+  ],
+  "panel:chat": [
+    "apps/mobile/src/features/settings/components/chat-settings-panel.tsx",
+  ],
+  "screen:settings-chat": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/chat-settings-panel.tsx",
+  ],
+  "panel:predictions": [
+    "apps/mobile/src/features/settings/components/predictions-settings-panel.tsx",
+  ],
+  "screen:settings-predictions": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/predictions-settings-panel.tsx",
+  ],
+  "panel:integrations": [
+    "apps/mobile/src/features/settings/components/integrations-settings-panel.tsx",
+  ],
+  "screen:settings-integrations": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/integrations-settings-panel.tsx",
+  ],
+  "panel:api-tokens": [
+    "apps/mobile/src/features/settings/components/api-tokens-settings-panel.tsx",
+  ],
+  "screen:settings-api-tokens": [
+    "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "apps/mobile/src/features/settings/components/api-tokens-settings-panel.tsx",
   ],
   "action:notification-permission": [
     "apps/mobile/src/features/settings/adapters/android-notification-permission.ts",
@@ -724,14 +764,14 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat and later Settings panels remain on M06+.",
+      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
     owners: [147, 148, 149, 150, 152, 159, 167],
   },
   {
     id: "GAP-195-03",
     status: "owned-elsewhere",
     finding:
-      "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03.",
+      "Chat, Predictions, Integrations, and API tokens Settings panels ship on this build. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03.",
     owners: [143, 168, 169, 170, 171, 172, 173, 174],
   },
   {

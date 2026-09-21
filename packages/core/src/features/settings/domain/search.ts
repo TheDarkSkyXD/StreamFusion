@@ -5,8 +5,12 @@ export type SettingsPanelId =
   | "buffer"
   | "multiview"
   | "notifications"
+  | "chat"
+  | "predictions"
   | "adblock"
   | "proxy"
+  | "integrations"
+  | "api-tokens"
   | "updates"
   | "diagnostics"
   | "logs"
@@ -187,6 +191,117 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       "grace",
       "cooldown",
     ]),
+    entry("chat-density", "chat", "Chat density", [
+      "chat",
+      "density",
+      "compact",
+      "cozy",
+      "loose",
+    ]),
+    entry("chat-timestamps", "chat", "Show timestamps", [
+      "chat",
+      "timestamps",
+      "time",
+    ]),
+    entry("chat-timestamp-format", "chat", "Timestamp format", [
+      "chat",
+      "timestamp",
+      "format",
+    ]),
+    entry("chat-font-size", "chat", "Font size", [
+      "chat",
+      "font",
+      "size",
+    ]),
+    entry("chat-emote-size", "chat", "Emote size", ["chat", "emote", "size"]),
+    entry("chat-readable-color", "chat", "Readable username colors", [
+      "chat",
+      "color",
+      "username",
+      "readable",
+    ]),
+    entry("chat-theme-adapt", "chat", "Adapt username colors", [
+      "chat",
+      "theme",
+      "username",
+      "color",
+    ]),
+    entry("chat-emotes-7tv", "chat", "7TV emotes", ["chat", "7tv", "emotes"]),
+    entry("chat-emotes-bttv", "chat", "BTTV emotes", ["chat", "bttv", "emotes"]),
+    entry("chat-emotes-ffz", "chat", "FFZ emotes", ["chat", "ffz", "emotes"]),
+    entry("chat-animated-emotes", "chat", "Animated emotes", [
+      "chat",
+      "animated",
+      "emotes",
+    ]),
+    entry("chat-overlay-emotes", "chat", "Overlay emotes", [
+      "chat",
+      "overlay",
+      "emotes",
+    ]),
+    entry("chat-system-emotes", "chat", "Emotes in system messages", [
+      "chat",
+      "system",
+      "emotes",
+    ]),
+    entry("chat-badges", "chat", "Third-party badges", [
+      "chat",
+      "badges",
+      "7tv",
+      "bttv",
+      "ffz",
+    ]),
+    entry("chat-paints", "chat", "7TV username paints", [
+      "chat",
+      "paints",
+      "7tv",
+    ]),
+    entry("chat-message-limit", "chat", "Message limit", [
+      "chat",
+      "message",
+      "limit",
+      "buffer",
+    ]),
+    entry("chat-recent-on-join", "chat", "Load recent messages on join", [
+      "chat",
+      "recent",
+      "join",
+    ]),
+    entry("chat-user-notices", "chat", "Show sub and raid notices", [
+      "chat",
+      "notices",
+      "subs",
+      "raids",
+      "events",
+    ]),
+    entry("chat-deleted", "chat", "Deleted message display", [
+      "chat",
+      "deleted",
+      "moderation",
+    ]),
+    entry("chat-clear", "chat", "Show chat cleared notices", [
+      "chat",
+      "clear",
+      "moderation",
+    ]),
+    entry("chat-first-msg", "chat", "Highlight first-time chatters", [
+      "chat",
+      "first",
+      "highlight",
+    ]),
+    entry("chat-polls", "chat", "Show polls", ["chat", "polls", "events"]),
+    entry("chat-predictions-events", "chat", "Show predictions in chat", [
+      "chat",
+      "predictions",
+      "events",
+    ]),
+    entry("prediction-style", "predictions", "Prediction style", [
+      "predictions",
+      "style",
+      "native",
+      "unified",
+      "widget",
+    ]),
     entry("adblock", "adblock", "Enable ad blocking", [
       "adblock",
       "filter",
@@ -223,6 +338,22 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       "proxy",
       "password",
       "secret",
+    ]),
+    entry("integrations-accounts", "integrations", "Connected accounts", [
+      "integrations",
+      "accounts",
+      "twitch",
+      "kick",
+      "signin",
+      "connect",
+    ]),
+    entry("api-token-status", "api-tokens", "Token status", [
+      "api",
+      "tokens",
+      "token",
+      "scopes",
+      "expiry",
+      "validate",
     ]),
     entry("update-status", "updates", "Current version", [
       "updates",

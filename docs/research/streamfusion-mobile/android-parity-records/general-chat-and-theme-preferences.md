@@ -6,7 +6,7 @@
 - Android owner: Mobile `settings` plus Watch, Multistream, and ExoPlayer LoadControl
 - Progress: `implemented` for Appearance, Playback, Player controls, Buffer, and Multiview
 - Delivery: `adapted`
-- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Notifications, Ad blocking, Proxy, Updates, Diagnostics, Logs, Report a bug, and About search from the same Settings workspace. Chat, predictions, integrations, and tokens remain later tickets.
+- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Notifications, Ad blocking, Proxy, Updates, Diagnostics, Logs, Report a bug, and About search from the same Settings workspace. Chat, Predictions, Integrations, and API tokens Settings panels now ship (see settings-chat-predictions-integrations-tokens.md).
 - Freshness: `current` at `verification/evidence/issue-167-settings.json`
 
 ## Desktop outcome
@@ -28,8 +28,8 @@ More Settings searches and persists those five panels plus Notifications, Proxy,
 
 ## Evidence residuals
 
-TalkBack was not enabled. Font scale used `settings put system font_scale`. Chat Settings stays on M06.
+TalkBack was not enabled. Font scale used `settings put system font_scale`. Chat Settings panel shipped; Watch chat live-apply of every toggle remains incremental.
 
 ## Blocking for public release
 
-OAuth stays on #145 and #146. Chat Settings stays on #168.
+OAuth stays on #145 and #146. Live predictions widget and full Watch chat preference application remain follow-ups.

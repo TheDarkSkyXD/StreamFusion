@@ -107,10 +107,16 @@ import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/ad
 import { TwitchPlaylistProxySettingsPanel } from "@mobile/features/ad-blocking/components/twitch-playlist-proxy-settings-panel";
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { ChatDisplaySettingsSession } from "@mobile/features/settings/capabilities/chat-display-settings";
 import type { NotificationSettingsSession } from "@mobile/features/settings/capabilities/notification-settings";
+import type { PredictionSettingsSession } from "@mobile/features/settings/capabilities/prediction-settings";
 import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
 import type { SupportSettingsSession } from "@mobile/features/settings/capabilities/support-settings";
+import { ApiTokensSettingsPanel } from "@mobile/features/settings/components/api-tokens-settings-panel";
+import { ChatSettingsPanel } from "@mobile/features/settings/components/chat-settings-panel";
+import { IntegrationsSettingsPanel } from "@mobile/features/settings/components/integrations-settings-panel";
 import { NotificationsSettingsPanel } from "@mobile/features/settings/components/notifications-settings-panel";
+import { PredictionsSettingsPanel } from "@mobile/features/settings/components/predictions-settings-panel";
 import { SettingsWorkspace } from "@mobile/features/settings/components/settings-workspace";
 import {
   AboutSettingsPanel,
@@ -255,6 +261,8 @@ export function AppShell({
   adblockSession,
   twitchPlaylistProxySession,
   notificationSession,
+  chatDisplaySession,
+  predictionSession,
   nativeNotifications,
   settingsSession,
   supportSession,
@@ -305,6 +313,8 @@ export function AppShell({
   readonly adblockSession: AdBlockSession;
   readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
   readonly notificationSession: NotificationSettingsSession;
+  readonly chatDisplaySession: ChatDisplaySettingsSession;
+  readonly predictionSession: PredictionSettingsSession;
   readonly nativeNotifications: NativeNotificationRuntime;
   readonly settingsSession: SettingsSession;
   readonly supportSession: SupportSettingsSession;
@@ -513,6 +523,8 @@ export function AppShell({
               adblockSession={adblockSession}
               twitchPlaylistProxySession={twitchPlaylistProxySession}
               notificationSession={notificationSession}
+              chatDisplaySession={chatDisplaySession}
+              predictionSession={predictionSession}
               onPresentNotificationProof={() =>
                 nativeNotifications.presentProof(
                   proofLivePayload(new Date().toISOString()),
@@ -730,6 +742,8 @@ function ShellScreen({
   adblockSession,
   twitchPlaylistProxySession,
   notificationSession,
+  chatDisplaySession,
+  predictionSession,
   onPresentNotificationProof,
   playerPrefs,
   settingsSession,
@@ -782,6 +796,8 @@ function ShellScreen({
   readonly adblockSession: AdBlockSession;
   readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
   readonly notificationSession: NotificationSettingsSession;
+  readonly chatDisplaySession: ChatDisplaySettingsSession;
+  readonly predictionSession: PredictionSettingsSession;
   readonly onPresentNotificationProof: () => Promise<void>;
   readonly playerPrefs: ProductPreferences;
   readonly settingsSession: SettingsSession;
@@ -1289,6 +1305,18 @@ function ShellScreen({
         <SettingsWorkspace
           extras={{
             about: <AboutSettingsPanel session={supportSession} />,
+            "api-tokens": (
+              <ApiTokensSettingsPanel
+                kick={kickAccount}
+                onOpenIntegrations={() => {
+                  dispatch({
+                    type: "navigate",
+                    location: { route: "more/accounts" },
+                  });
+                }}
+                twitch={twitchAccount}
+              />
+            ),
             adblock: (
               <>
                 <TwitchPlaylistProxySettingsPanel
@@ -1300,6 +1328,7 @@ function ShellScreen({
                 />
               </>
             ),
+            chat: <ChatSettingsPanel session={chatDisplaySession} />,
             diagnostics: (
               <DiagnosticsSettingsPanel
                 onOpenDiagnostics={() => {
@@ -1311,9 +1340,24 @@ function ShellScreen({
                 session={supportSession}
               />
             ),
+            integrations: (
+              <IntegrationsSettingsPanel
+                kick={kickAccount}
+                onOpenAccounts={() => {
+                  dispatch({
+                    type: "navigate",
+                    location: { route: "more/accounts" },
+                  });
+                }}
+                twitch={twitchAccount}
+              />
+            ),
             logs: <LogsSettingsPanel session={supportSession} />,
             notifications: (
               <NotificationsSettingsPanel session={notificationSession} />
+            ),
+            predictions: (
+              <PredictionsSettingsPanel session={predictionSession} />
             ),
             proxy: <ProxySettingsPanel session={connectivitySession} />,
             "report-bug": <ReportBugSettingsPanel session={supportSession} />,

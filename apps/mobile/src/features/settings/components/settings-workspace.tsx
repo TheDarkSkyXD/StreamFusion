@@ -88,7 +88,7 @@ function SettingsSearchField({
       onChangeText={(query) => {
         void session.search(query);
       }}
-      placeholder="Search appearance, playback, notifications, updates"
+      placeholder="Search appearance, chat, predictions, integrations, token"
       placeholderTextColor={mobileColors.textMuted}
       style={styles.search}
       testID="settings-search"

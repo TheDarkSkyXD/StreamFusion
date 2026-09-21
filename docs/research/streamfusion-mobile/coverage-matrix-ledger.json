@@ -8,10 +8,10 @@
   ],
   "totals": {
     "discovered": 185,
-    "implemented": 110,
+    "implemented": 117,
     "partial": 11,
     "placeholder": 4,
-    "missing": 60
+    "missing": 53
   },
   "entries": [
     {
@@ -410,10 +410,18 @@
       "id": "screen:settings-chat",
       "kind": "screen",
       "name": "settings-chat",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        156,
+        157,
+        158,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/chat-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -421,10 +429,17 @@
       "id": "screen:settings-predictions",
       "kind": "screen",
       "name": "settings-predictions",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        156,
+        157,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/predictions-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -439,7 +454,6 @@
       ],
       "implementation": [
         "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
-        "apps/mobile/src/features/ad-blocking/components/twitch-playlist-proxy-settings-panel.tsx",
         "apps/mobile/src/features/shell/components/app-shell.tsx"
       ],
       "verification": "tests",
@@ -466,10 +480,18 @@
       "id": "screen:settings-integrations",
       "kind": "screen",
       "name": "settings-integrations",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        135,
+        145,
+        146,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/integrations-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -477,10 +499,18 @@
       "id": "screen:settings-api-tokens",
       "kind": "screen",
       "name": "settings-api-tokens",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        135,
+        145,
+        146,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+        "apps/mobile/src/features/settings/components/api-tokens-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -663,10 +693,17 @@
       "id": "panel:chat",
       "kind": "panel",
       "name": "chat",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        156,
+        157,
+        158,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/chat-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -674,10 +711,16 @@
       "id": "panel:predictions",
       "kind": "panel",
       "name": "predictions",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        156,
+        157,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/predictions-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -690,8 +733,7 @@
         161
       ],
       "implementation": [
-        "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx",
-        "apps/mobile/src/features/ad-blocking/components/twitch-playlist-proxy-settings-panel.tsx"
+        "apps/mobile/src/features/ad-blocking/components/adblock-settings-panel.tsx"
       ],
       "verification": "tests",
       "evidence": [],
@@ -716,10 +758,17 @@
       "id": "panel:integrations",
       "kind": "panel",
       "name": "integrations",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        135,
+        145,
+        146,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/integrations-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -727,10 +776,17 @@
       "id": "panel:api-tokens",
       "kind": "panel",
       "name": "api-tokens",
-      "status": "missing",
-      "owners": [],
-      "implementation": [],
-      "verification": "missing",
+      "status": "implemented",
+      "owners": [
+        135,
+        145,
+        146,
+        168
+      ],
+      "implementation": [
+        "apps/mobile/src/features/settings/components/api-tokens-settings-panel.tsx"
+      ],
+      "verification": "tests",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2414,19 +2470,6 @@
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
     {
-      "id": "shell-route:more/home",
-      "kind": "shell-route",
-      "name": "more/home",
-      "status": "implemented",
-      "owners": [],
-      "implementation": [
-        "apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx"
-      ],
-      "verification": "tests",
-      "evidence": [],
-      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
-    },
-    {
       "id": "shell-route:more/channel",
       "kind": "shell-route",
       "name": "more/channel",
@@ -2481,6 +2524,17 @@
         "apps/mobile/src/features/media-library/components/history-screen.tsx"
       ],
       "verification": "tests",
+      "evidence": [],
+      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
+    },
+    {
+      "id": "shell-route:more/downloads",
+      "kind": "shell-route",
+      "name": "more/downloads",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2569,7 +2623,7 @@
     {
       "id": "GAP-195-02",
       "status": "owned-elsewhere",
-      "finding": "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat and later Settings panels remain on M06+.",
+      "finding": "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
       "owners": [
         147,
         148,
@@ -2583,7 +2637,7 @@
     {
       "id": "GAP-195-03",
       "status": "owned-elsewhere",
-      "finding": "Chat Settings remains M06. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01\u2013N03.",
+      "finding": "Chat, Predictions, Integrations, and API tokens Settings panels ship on this build. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03.",
       "owners": [
         143,
         168,
