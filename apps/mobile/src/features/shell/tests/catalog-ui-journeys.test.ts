@@ -25,12 +25,17 @@ import { composeUnifiedSearch } from "@mobile/features/discovery/domain/unified-
 vi.mock("react-native", () => ({
   Image: "Image",
   KeyboardAvoidingView: "KeyboardAvoidingView",
+  Modal: "Modal",
   Pressable: "Pressable",
   ScrollView: "ScrollView",
-  StyleSheet: { create: (styles: unknown) => styles },
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   TextInput: "TextInput",
   View: "View",
+}));
+
+vi.mock("lucide-react-native", () => ({
+  ChevronDown: "ChevronDown",
 }));
 
 type ElementProps = Readonly<{
@@ -54,7 +59,14 @@ function descendants(node: unknown): readonly Element[] {
           typeof candidate.type === "function"
         ? (candidate.type as (props: ElementProps) => unknown)
         : null;
-  if (component) return [element, ...descendants(component(element.props))];
+  if (component) {
+    try {
+      return [element, ...descendants(component(element.props))];
+    } catch {
+      // Hooked design components (e.g. MobileSelect) cannot run as plain functions.
+      return [element];
+    }
+  }
   const children = element.props.children;
   return [element, ...(Array.isArray(children) ? children : [children]).flatMap(descendants)];
 }

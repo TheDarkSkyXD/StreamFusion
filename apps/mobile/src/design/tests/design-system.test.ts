@@ -8,10 +8,12 @@ import { MobileScreenHeader } from "../screen-header";
 import { MobileStatusPanel } from "../status-panel";
 import { MobileCatalogTags, catalogTagLabels } from "../tag";
 import { mobileColors, mobileRadii, mobileShadows, mobileType } from "../tokens";
+import { MobileUnderlineTabs } from "../underline-tabs";
 import { MobileVerifiedBadge } from "../verified-badge";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
+  ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
   View: "View",
@@ -244,5 +246,30 @@ describe("mobile design primitives", () => {
     expect(mobileShadows.popover).toContain("0 4px 16px");
     expect(mobileShadows.dialog).toContain("0 8px 32px");
     expect(mobileColors.playerScrim).toBe("rgba(15,15,15,0.42)");
+  });
+});
+
+describe("MobileUnderlineTabs", () => {
+  it("marks the active tab selected without pill chip styling", () => {
+    const selected: string[] = [];
+    const nodes = descendants(
+      MobileUnderlineTabs({
+        accessibilityLabel: "Modes",
+        onSelect: (id) => selected.push(id),
+        selectedId: "search",
+        tabs: [
+          { id: "search", label: "Search", testID: "tab-search" },
+          { id: "history", label: "History", testID: "tab-history" },
+        ],
+        testID: "mode-tabs",
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "mode-tabs")).toBe(true);
+    const active = nodes.find((node) => node.props.testID === "tab-search");
+    expect(active?.props.accessibilityState?.selected).toBe(true);
+    const inactive = nodes.find((node) => node.props.testID === "tab-history");
+    expect(inactive?.props.accessibilityState?.selected).toBe(false);
+    inactive?.props.onPress?.();
+    expect(selected).toEqual(["history"]);
   });
 });

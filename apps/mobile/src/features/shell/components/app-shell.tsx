@@ -1911,7 +1911,7 @@ function PrimaryNavigation({
         const selected = destination.id === state.activeDestination;
         const color = selected
           ? mobileColors.textPrimary
-          : mobileColors.textSecondary;
+          : mobileColors.textMuted;
         return (
           <Pressable
             accessibilityHint={`Opens the ${destination.label} main screen`}
@@ -1939,7 +1939,6 @@ function PrimaryNavigation({
               placement === "bottom" && layout === "grid-2"
                 ? styles.navigationItemGridTwo
                 : null,
-              selected ? styles.navigationItemSelected : null,
               pressed ? styles.pressed : null,
             ]}
             testID={`nav-${destination.id}`}
@@ -2191,9 +2190,6 @@ const styles = StyleSheet.create({
   navigationItemGridTwo: {
     flex: 0,
     width: "50%",
-  },
-  navigationItemSelected: {
-    backgroundColor: mobileColors.navigationSelected,
   },
   navigationLabel: {
     fontSize: 11,

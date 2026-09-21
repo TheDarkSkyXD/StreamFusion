@@ -1,6 +1,7 @@
-import { ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import {
   mobileTextFieldProps,
   mobileTextFieldStyle,
@@ -64,26 +65,18 @@ export function FollowingControls({
           />
         ))}
       </View>
-      <ScrollView
+      <MobileUnderlineTabs
         accessibilityLabel="Following content"
-        accessibilityRole="tablist"
-        contentContainerStyle={styles.tabRow}
-        horizontal
-        nestedScrollEnabled
-        showsHorizontalScrollIndicator={false}
-      >
-        {TABS.map((value) => (
-          <MobileFilterChip
-            accessibilityLabel={tabLabel(value)}
-            accessibilityRole="tab"
-            key={value}
-            label={tabLabel(value)}
-            onPress={() => onTab(value)}
-            selected={tab === value}
-            testID={`following-tab-${value}`}
-          />
-        ))}
-      </ScrollView>
+        onSelect={onTab}
+        selectedId={tab}
+        tabs={TABS.map((value) => ({
+          accessibilityLabel: tabLabel(value),
+          id: value,
+          label: tabLabel(value),
+          testID: `following-tab-${value}`,
+        }))}
+        testID="following-content-tabs"
+      />
     </View>
   );
 }
@@ -128,10 +121,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
   },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  tabRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    paddingRight: mobileSpacing.small,
-  },
 });

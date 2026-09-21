@@ -11,6 +11,7 @@ import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -232,24 +233,18 @@ export function UnifiedSearchView({
 
   const modeTabs =
     onSelectMode === undefined ? null : (
-      <View
+      <MobileUnderlineTabs
         accessibilityLabel="Search modes"
-        accessibilityRole="tablist"
-        style={styles.modeTabs}
+        onSelect={onSelectMode}
+        selectedId={mode}
+        tabs={SEARCH_MODES.map((entry) => ({
+          accessibilityLabel: `${entry.label} search mode`,
+          id: entry.id,
+          label: entry.label,
+          testID: `search-mode-${entry.id}`,
+        }))}
         testID="search-mode-tabs"
-      >
-        {SEARCH_MODES.map((entry) => (
-          <MobileFilterChip
-            accessibilityLabel={`${entry.label} search mode`}
-            accessibilityRole="tab"
-            key={entry.id}
-            label={entry.label}
-            onPress={() => onSelectMode(entry.id)}
-            selected={mode === entry.id}
-            testID={`search-mode-${entry.id}`}
-          />
-        ))}
-      </View>
+      />
     );
 
   if (mode === "categories") {
@@ -413,11 +408,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     paddingHorizontal: mobileSpacing.medium,
     paddingTop: mobileSpacing.medium,
-  },
-  modeTabs: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.small,
   },
   scopeTabs: {
     flexDirection: "row",

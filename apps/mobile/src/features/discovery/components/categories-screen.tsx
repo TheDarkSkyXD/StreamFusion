@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileSelect } from "@mobile/design/select";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
@@ -137,18 +137,16 @@ function LanguageRow({
 }) {
   const options: readonly LanguageFilter[] = ["all", ...BROADCAST_LANGUAGES];
   return (
-    <View style={styles.languageRow}>
-      {options.map((option) => (
-        <MobileFilterChip
-          accessibilityLabel={`Language ${languageLabel(option)}`}
-          key={option}
-          label={languageLabel(option)}
-          onPress={() => onChangeLanguage(option)}
-          selected={option === language}
-          testID={`categories-language-${option}`}
-        />
-      ))}
-    </View>
+    <MobileSelect
+      accessibilityLabel="Language"
+      onChange={onChangeLanguage}
+      options={options.map((option) => ({
+        label: languageLabel(option),
+        value: option,
+      }))}
+      testID="categories-language"
+      value={language}
+    />
   );
 }
 
@@ -176,11 +174,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
-  },
-  languageRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.small,
   },
   grid: {
     flexDirection: "row",
