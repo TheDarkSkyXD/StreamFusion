@@ -839,6 +839,16 @@ function ShellScreen({
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
           captions={watchCaptionSession(captionsController)}
+          discovery={{
+            onOpenAccounts: () =>
+              dispatch({ type: "navigate", location: { route: "more/accounts" } }),
+            onOpenCategories: () =>
+              dispatch({
+                type: "navigate",
+                location: { route: "more/categories" },
+              }),
+            session: homeDiscovery,
+          }}
           download={mediaJobSession}
           recording={mediaJobSession}
           onAddToMultistream={addLiveToMultistream}

@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
+import type { Stream } from "@streamfusion/core/content";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
@@ -18,43 +20,58 @@ import { HomeStreamCard } from "./home-stream-card";
 import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
 export function HomeLiveDiscoveryScreen({
+  footer,
   onOpenAccounts,
   onOpenCategories,
   onOpenChannel,
+  onSelectStream,
   session,
+  title = "Home",
 }: {
+  readonly footer?: ReactNode;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategories: () => void;
-  readonly onOpenChannel: (channel: ChannelIdentity) => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+  readonly onSelectStream?: (stream: Stream) => void;
   readonly session: DiscoverySession;
+  readonly title?: string;
 }) {
   const live = useHomeLiveDiscovery({ session });
   return (
     <HomeLiveDiscoveryView
       onOpenAccounts={onOpenAccounts}
       onOpenCategories={onOpenCategories}
-      onOpenChannel={onOpenChannel}
       onRetry={live.retry}
       view={live.view}
+      {...(footer === undefined ? {} : { footer })}
+      {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
+      {...(onSelectStream === undefined ? {} : { onSelectStream })}
+      {...(title === undefined ? {} : { title })}
     />
   );
 }
 
 export function HomeLiveDiscoveryView({
+  footer,
   onOpenAccounts,
   onOpenCategories,
   onOpenChannel,
   onRetry,
   onSelectProofMode,
+  onSelectStream,
   proofMode,
+  title = "Home",
   view,
 }: {
+  readonly footer?: ReactNode;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategories: () => void;
-  readonly onOpenChannel: (channel: ChannelIdentity) => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
+  readonly onSelectStream?: (stream: Stream) => void;
   readonly proofMode?: DiscoveryFixtureMode;
+  readonly title?: string;
   readonly view: HomeLiveDiscoveryModel;
 }) {
   const phase = (
@@ -81,7 +98,7 @@ export function HomeLiveDiscoveryView({
             Categories
           </MobileButton>
         }
-        title="Home"
+        title={title}
       />
       <Text selectable style={mobileType.title}>
         Recommended live
@@ -121,10 +138,17 @@ export function HomeLiveDiscoveryView({
       {view.streams.map((stream) => (
         <HomeStreamCard
           key={`${stream.platform}:${stream.id}`}
-          onOpen={() => onOpenChannel(channelFromStream(stream))}
+          onOpen={() => {
+            if (onSelectStream) {
+              onSelectStream(stream);
+              return;
+            }
+            onOpenChannel?.(channelFromStream(stream));
+          }}
           stream={stream}
         />
       ))}
+      {footer ?? null}
     </ScrollView>
   );
 }

@@ -12,6 +12,7 @@ import type {
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
 import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { ProductPreferences } from "@streamfusion/core/settings";
+import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import type {
   FocusedWatchSession,
   WatchPeek,
@@ -72,6 +73,7 @@ export function WatchRoute({
   captions,
   download,
   recording,
+  discovery,
   onAddToMultistream,
   onOpenRelated,
   onOpenSearch,
@@ -83,6 +85,11 @@ export function WatchRoute({
   readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
+  readonly discovery?: {
+    readonly onOpenAccounts: () => void;
+    readonly onOpenCategories: () => void;
+    readonly session: DiscoverySession;
+  };
   readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onOpenSearch?: () => void;
@@ -98,6 +105,16 @@ export function WatchRoute({
     return (
       <WatchEmptyState
         history={screen.history}
+        {...(discovery === undefined
+          ? {}
+          : {
+              discovery: {
+                onOpenAccounts: discovery.onOpenAccounts,
+                onOpenCategories: discovery.onOpenCategories,
+                onSelectStream: onOpenRelated,
+                session: discovery.session,
+              },
+            })}
         {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
         {...(onWatchRecent === undefined ? {} : { onWatch: onWatchRecent })}
       />

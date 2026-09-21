@@ -183,4 +183,32 @@ describe("Home live discovery screen", () => {
     );
     expect(phase?.props.children).toMatch(/could not be loaded/);
   });
+
+  it("supports Watch empty reuse via title and onSelectStream", () => {
+    const selected: string[] = [];
+    const root = HomeLiveDiscoveryView({
+      onOpenAccounts: () => undefined,
+      onOpenCategories: () => undefined,
+      onRetry: () => undefined,
+      onSelectStream: (stream) => {
+        selected.push(`${stream.platform}:${stream.id}`);
+      },
+      title: "Watch",
+      view: composeHomeLiveDiscovery({
+        kick: fixtureOutcome("kick", "ready"),
+        loading: false,
+        twitch: fixtureOutcome("twitch", "ready"),
+      }),
+    });
+    const nodes = descendants(root);
+    expect(nodes.some((node) => node.props.children === "Watch")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "home-live-discovery")).toBe(
+      true,
+    );
+    nodes
+      .find((node) => node.props.testID === "home-stream-twitch-twitch-ready")
+      ?.props.onPress?.();
+    expect(selected).toEqual(["twitch:twitch-ready"]);
+  });
+
 });

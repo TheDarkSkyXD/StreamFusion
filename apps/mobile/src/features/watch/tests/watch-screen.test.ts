@@ -459,13 +459,22 @@ describe("watch screen", () => {
     ).toBe(true);
   });
 
-  it("wires Watch empty recent history through existing cards when history exists", () => {
+  it("wires Watch empty to Home live discovery when a discovery session is provided", () => {
     const source = readFileSync(
       new URL("../components/watch-screen.tsx", import.meta.url),
       "utf8",
     );
+    expect(source).toContain("HomeLiveDiscoveryScreen");
+    expect(source).toContain('title="Watch"');
+    expect(source).toContain("onSelectStream");
     expect(source).toContain("WatchRecentList");
     expect(source).toContain("watch-empty-open-search");
+    const route = readFileSync(
+      new URL("../components/watch-route.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(route).toContain("onSelectStream: onOpenRelated");
+    expect(route).toContain("discovery.session");
   });
 
 });
