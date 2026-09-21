@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { Platform } from "@streamfusion/core/platform";
 
@@ -35,10 +35,12 @@ export function SearchFilters({
 }) {
   return (
     <View style={styles.stack}>
-      <View
+      <ScrollView
         accessibilityLabel="Search result types"
         accessibilityRole="tablist"
-        style={styles.row}
+        contentContainerStyle={styles.row}
+        horizontal
+        showsHorizontalScrollIndicator={false}
       >
         {TABS.map((next) => (
           <MobileFilterChip
@@ -51,7 +53,7 @@ export function SearchFilters({
             testID={`search-tab-${next}`}
           />
         ))}
-      </View>
+      </ScrollView>
       <View accessibilityLabel="Search filters" style={styles.row}>
         {PLATFORMS.map((next) => (
           <MobileFilterChip

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
 import {
@@ -31,7 +31,10 @@ export function SearchDock({
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={onChangeText}
-        onSubmitEditing={({ nativeEvent }) => onSubmit(nativeEvent.text)}
+        onSubmitEditing={({ nativeEvent }) => {
+          Keyboard.dismiss();
+          onSubmit(nativeEvent.text);
+        }}
         placeholder="Search Twitch and Kick"
         placeholderTextColor={mobileColors.textMuted}
         returnKeyType="search"
@@ -58,7 +61,10 @@ export function SearchDock({
       <MobileButton
         accessibilityHint="Submits the visible query"
         accessibilityLabel="Submit search"
-        onPress={() => onSubmit(value)}
+        onPress={() => {
+          Keyboard.dismiss();
+          onSubmit(value);
+        }}
         testID="submit-search"
         variant="primary"
       >

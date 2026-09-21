@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text } from "react-native";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  Text,
+} from "react-native";
 import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
@@ -58,6 +64,7 @@ export function UnifiedSearchScreen({
     const next = value.trim();
     setDraft(next);
     setQuery(next);
+    Keyboard.dismiss();
     if (next.length > 0) live.record(next);
   };
 
@@ -139,11 +146,47 @@ export function UnifiedSearchView({
   readonly tab: SearchResultType;
   readonly view: UnifiedSearchModel;
 }) {
+  const resultsBlock =
+    view.phase === "idle" ? null : (
+      <>
+        <Text selectable style={styles.heading} testID="search-results-heading">
+          {resultsHeading(tab)}
+        </Text>
+        {view.phase === "empty" ? (
+          <MobileStatusPanel tone="empty">
+            <Text selectable style={mobileType.body}>
+              No matching channels, streams, videos, clips, or categories.
+            </Text>
+          </MobileStatusPanel>
+        ) : null}
+        <SearchResultsView
+          view={view}
+          {...(onOpenChannel === undefined
+            ? {}
+            : {
+                onOpenChannel: (channel) =>
+                  onOpenChannel({
+                    id: channel.id,
+                    platform: channel.platform,
+                    username: channel.username,
+                  }),
+              })}
+          {...(onWatch === undefined
+            ? {}
+            : {
+                onWatchClip: (clip) => onWatch(watchTargetFromClip(clip)),
+                onWatchVideo: (video) => onWatch(watchTargetFromVideo(video)),
+              })}
+        />
+      </>
+    );
+
   return (
     <KeyboardAvoidingView style={styles.frame} testID="unified-search">
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         style={styles.scroll}
       >
@@ -162,16 +205,6 @@ export function UnifiedSearchView({
           platform={platform}
           tab={tab}
         />
-        <SearchHistoryPanel
-          confirmClear={view.historyConfirmClear}
-          history={view.history}
-          onCancelClear={onCancelClear}
-          onClear={onRequestClear}
-          onConfirmClear={onConfirmClear}
-          onRemove={onRemoveHistory}
-          onRepeat={onRepeatHistory}
-          scope={historyScopeForTab(tab)}
-        />
         {view.intent ? (
           <>
             <SearchProviderBanner
@@ -186,40 +219,17 @@ export function UnifiedSearchView({
             />
           </>
         ) : null}
-        {view.phase === "idle" ? null : (
-          <>
-            <Text selectable style={styles.heading}>
-              {resultsHeading(tab)}
-            </Text>
-            {view.phase === "empty" ? (
-              <MobileStatusPanel tone="empty">
-                <Text selectable style={mobileType.body}>
-                  No matching channels, streams, videos, clips, or categories.
-                </Text>
-              </MobileStatusPanel>
-            ) : null}
-            <SearchResultsView
-              view={view}
-              {...(onOpenChannel === undefined
-                ? {}
-                : {
-                    onOpenChannel: (channel) =>
-                      onOpenChannel({
-                        id: channel.id,
-                        platform: channel.platform,
-                        username: channel.username,
-                      }),
-                  })}
-              {...(onWatch === undefined
-                ? {}
-                : {
-                    onWatchClip: (clip) => onWatch(watchTargetFromClip(clip)),
-                    onWatchVideo: (video) =>
-                      onWatch(watchTargetFromVideo(video)),
-                  })}
-            />
-          </>
-        )}
+        {resultsBlock}
+        <SearchHistoryPanel
+          confirmClear={view.historyConfirmClear}
+          history={view.history}
+          onCancelClear={onCancelClear}
+          onClear={onRequestClear}
+          onConfirmClear={onConfirmClear}
+          onRemove={onRemoveHistory}
+          onRepeat={onRepeatHistory}
+          scope={historyScopeForTab(tab)}
+        />
       </ScrollView>
       <SearchDock
         onChangeText={onChangeDraft}
