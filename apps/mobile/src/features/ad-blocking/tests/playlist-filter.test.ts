@@ -199,3 +199,58 @@ https://video.twitch.tv/ambiguous.ts
     expect(held).not.toContain("#EXT-X-TWITCH-PREFETCH");
   });
 });
+
+const FIXTURE_DIR = new URL("./fixtures/", import.meta.url);
+
+async function readFixture(name: string): Promise<string> {
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  return readFileSync(fileURLToPath(new URL(name, FIXTURE_DIR)), "utf8");
+}
+
+describe("Twitch playlist filter — commercial-slate m3u8 fixtures", () => {
+  it("holds interstitial-only midroll fixture (no media URIs)", async () => {
+    const body = await readFixture("interstitial-only-midroll.m3u8");
+    const result = filterTwitchPlaylist(body, "strip");
+    expect(result.adsDetected).toBe(true);
+    expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toMatch(/^[^#\s].*\.ts/m);
+    expect(result.playlist).not.toContain("#EXTINF");
+    expect(result.playlist).not.toContain("commercial-slate");
+  });
+
+  it("holds SCTE35-only midroll fixture", async () => {
+    const body = await readFixture("scte35-only-midroll.m3u8");
+    const result = filterTwitchPlaylist(body, "strip");
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toContain("#EXTINF");
+    expect(result.playlist).not.toContain("scte-slate");
+  });
+
+  it("holds X-TV-TWITCH-AD-only commercial fixture", async () => {
+    const body = await readFixture("xtv-twitch-ad-only.m3u8");
+    const result = filterTwitchPlaylist(body, "strip");
+    expect(result.adsDetected).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toContain("#EXTINF");
+    expect(result.playlist).not.toContain("xtv-ad-");
+  });
+
+  it("holds stitched-commercial-only midroll fixture", async () => {
+    const body = await readFixture("stitched-commercial-only.m3u8");
+    const result = filterTwitchPlaylist(body, "strip");
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toContain("cloudfront.net");
+    expect(result.playlist).not.toContain("#EXTINF");
+  });
+
+  it("strips ads but keeps live from stitched-then-live fixture", async () => {
+    const body = await readFixture("stitched-then-live.m3u8");
+    const result = filterTwitchPlaylist(body, "strip");
+    expect(result.applied).toBe(true);
+    expect(result.playlist).not.toContain("cloudfront.net");
+    expect(result.playlist).toContain("segment10.ts");
+    expect(result.playlist).toContain("segment11.ts");
+  });
+});

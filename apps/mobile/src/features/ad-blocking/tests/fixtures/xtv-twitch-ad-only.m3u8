@@ -1,0 +1,11 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:700
+#EXT-X-DATERANGE:ID="ad-midroll-1",CLASS="twitch-stitched-ad",X-TV-TWITCH-AD-URL="https://ads.example/track",X-TV-TWITCH-AD-CLICK-TRACKING-URL="https://ads.example/click",DURATION=6.0
+#EXTINF:2.000,
+https://neutral.synthetic.invalid/v1/segment/xtv-ad-700.ts
+#EXTINF:2.000,
+https://neutral.synthetic.invalid/v1/segment/xtv-ad-701.ts
+#EXTINF:2.000,
+https://neutral.synthetic.invalid/v1/segment/xtv-ad-702.ts
