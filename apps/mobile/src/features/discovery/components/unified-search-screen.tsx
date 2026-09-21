@@ -40,12 +40,11 @@ import { SearchProviderBanner } from "./search-provider-banner";
 import { SearchResultsView, resultsHeading } from "./search-results-view";
 import { useUnifiedSearch } from "./use-unified-search";
 
-export type SearchScreenMode = "search" | "categories" | "history";
+export type SearchScreenMode = "search" | "categories";
 
 const SEARCH_MODES = [
   { id: "search", label: "Search" },
   { id: "categories", label: "Categories" },
-  { id: "history", label: "History" },
 ] as const satisfies readonly {
   readonly id: SearchScreenMode;
   readonly label: string;
@@ -267,55 +266,6 @@ export function UnifiedSearchView({
     );
   }
 
-  if (mode === "history") {
-    return (
-      <KeyboardAvoidingView style={styles.frame} testID="unified-search">
-        <ScrollView
-          contentContainerStyle={styles.content}
-          contentInsetAdjustmentBehavior="automatic"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          style={styles.scroll}
-        >
-          <MobileScreenHeader title="Search Twitch + Kick" />
-          {modeTabs}
-          <Text
-            selectable
-            style={mobileType.body}
-            testID="search-history-mode-copy"
-          >
-            Recent searches stay on this device. Repeat opens Search.
-          </Text>
-          {onSelectHistoryScope ? (
-            <View accessibilityLabel="History types" style={styles.scopeTabs}>
-              {HISTORY_SCOPES.map((entry) => (
-                <MobileFilterChip
-                  accessibilityLabel={`${entry.label} search history`}
-                  accessibilityRole="tab"
-                  key={entry.id}
-                  label={entry.label}
-                  onPress={() => onSelectHistoryScope(entry.id)}
-                  selected={activeHistoryScope === entry.id}
-                  testID={`search-history-scope-${entry.id}`}
-                />
-              ))}
-            </View>
-          ) : null}
-          <SearchHistoryPanel
-            confirmClear={view.historyConfirmClear}
-            history={view.history}
-            onCancelClear={onCancelClear}
-            onClear={onRequestClear}
-            onConfirmClear={onConfirmClear}
-            onRemove={onRemoveHistory}
-            onRepeat={onRepeatHistory}
-            scope={activeHistoryScope}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
-
   return (
     <KeyboardAvoidingView style={styles.frame} testID="unified-search">
       <ScrollView
@@ -355,7 +305,37 @@ export function UnifiedSearchView({
             />
           </>
         ) : null}
-        {resultsBlock}
+        {view.phase === "idle" ? (
+          <>
+            {onSelectHistoryScope ? (
+              <View accessibilityLabel="History types" style={styles.scopeTabs}>
+                {HISTORY_SCOPES.map((entry) => (
+                  <MobileFilterChip
+                    accessibilityLabel={`${entry.label} search history`}
+                    accessibilityRole="tab"
+                    key={entry.id}
+                    label={entry.label}
+                    onPress={() => onSelectHistoryScope(entry.id)}
+                    selected={activeHistoryScope === entry.id}
+                    testID={`search-history-scope-${entry.id}`}
+                  />
+                ))}
+              </View>
+            ) : null}
+            <SearchHistoryPanel
+              confirmClear={view.historyConfirmClear}
+              history={view.history}
+              onCancelClear={onCancelClear}
+              onClear={onRequestClear}
+              onConfirmClear={onConfirmClear}
+              onRemove={onRemoveHistory}
+              onRepeat={onRepeatHistory}
+              scope={activeHistoryScope}
+            />
+          </>
+        ) : (
+          resultsBlock
+        )}
       </ScrollView>
       <SearchDock
         onChangeText={onChangeDraft}

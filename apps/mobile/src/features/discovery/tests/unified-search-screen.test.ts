@@ -58,7 +58,8 @@ function render(
     readonly confirmClear?: boolean;
     readonly history?: readonly string[];
     readonly loading?: boolean;
-    readonly mode?: "search" | "categories" | "history";
+    readonly mode?: "search" | "categories";
+    readonly idle?: boolean;
     readonly resultType?: "all" | "videos";
   } = {},
 ) {
@@ -94,10 +95,12 @@ function render(
         channels: extras.history ?? ["arcade"],
       },
       historyConfirmClear: extras.confirmClear === true,
-      intent: {
-        ...fixtureSearchIntent("arcade"),
-        resultType: extras.resultType ?? "all",
-      },
+      intent: extras.idle
+        ? null
+        : {
+            ...fixtureSearchIntent("arcade"),
+            resultType: extras.resultType ?? "all",
+          },
       kick,
       loading: extras.loading === true,
       twitch,
@@ -167,7 +170,7 @@ describe("Unified search screen", () => {
   it("repeats local history and confirms clear", () => {
     const { nodes, repeated } = render(undefined, undefined, {
       history: ["arcade"],
-      mode: "history",
+      idle: true,
     });
     const repeat = nodes.find(
       (node) => node.props.testID === "repeat-search-arcade",
@@ -177,7 +180,7 @@ describe("Unified search screen", () => {
 
     const confirm = render(undefined, undefined, {
       confirmClear: true,
-      mode: "history",
+      idle: true,
     });
     expect(
       confirm.nodes.some((node) => node.props.testID === "search-clear-confirm"),
@@ -225,7 +228,7 @@ describe("Unified search screen", () => {
     expect(phase?.props.children).toMatch(/without signing in/);
   });
 
-  it("exposes Search, Categories, and History mode tabs", () => {
+  it("exposes Search and Categories mode tabs, with history on Search", () => {
     const { nodes } = render(undefined, undefined, { mode: "search" });
     expect(nodes.some((node) => node.props.testID === "search-mode-tabs")).toBe(
       true,
@@ -237,17 +240,17 @@ describe("Unified search screen", () => {
       nodes.some((node) => node.props.testID === "search-mode-categories"),
     ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "search-mode-history")).toBe(
-      true,
+      false,
     );
     expect(nodes.some((node) => node.props.testID === "search-history")).toBe(
       false,
     );
-    const historyMode = render(undefined, undefined, {
+    const idleSearch = render(undefined, undefined, {
       history: ["arcade"],
-      mode: "history",
+      idle: true,
     });
     expect(
-      historyMode.nodes.some((node) => node.props.testID === "search-history"),
+      idleSearch.nodes.some((node) => node.props.testID === "search-history"),
     ).toBe(true);
   });
 
