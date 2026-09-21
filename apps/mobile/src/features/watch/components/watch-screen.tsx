@@ -94,10 +94,15 @@ export function WatchScreen({
   onMute,
   onPip,
   onPlayPause,
-  onQuality,
+  onQualityPress,
+  onCloseQualityMenu,
+  onSelectQuality,
   onSeekBack,
   onSeekForward,
   onToggleFullscreen,
+  onToggleControls,
+  controlsVisible = true,
+  qualityMenuOpen = false,
   peek,
   playback,
   rewindSeconds,
@@ -114,25 +119,30 @@ export function WatchScreen({
     readonly showQuality: boolean;
     readonly showVolume: boolean;
   };
+  readonly controlsVisible?: boolean;
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
   readonly onAddToMultistream?: () => void;
   readonly onChatRetry?: () => void;
+  readonly onCloseQualityMenu?: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onRetry: () => void;
+  readonly onSelectQuality?: (quality: string) => void;
   readonly onSelectTab: (tab: WatchTab) => void;
   readonly onStart: () => void;
   readonly onMute?: () => void;
   readonly onPip?: () => void;
   readonly onPlayPause?: () => void;
-  readonly onQuality?: () => void;
+  readonly onQualityPress?: () => void;
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
+  readonly onToggleControls?: () => void;
   readonly onToggleFullscreen?: () => void;
   readonly peek?: WatchPeek;
   readonly playback: FocusedWatchState;
+  readonly qualityMenuOpen?: boolean;
   readonly rewindSeconds?: number;
   readonly fastForwardSeconds?: number;
   readonly tab: WatchTab;
@@ -149,8 +159,9 @@ export function WatchScreen({
     onMute &&
     onPip &&
     onPlayPause &&
-    onQuality &&
-    onToggleFullscreen;
+    onQualityPress &&
+    onToggleFullscreen &&
+    onToggleControls;
   return (
     <View
       style={[styles.screen, pipSurface ? styles.pipScreen : null]}
@@ -183,12 +194,18 @@ export function WatchScreen({
             onMute={onMute}
             onPip={onPip}
             onPlayPause={onPlayPause}
-            onQuality={onQuality}
+            onQualityPress={onQualityPress}
+            onToggleVisible={onToggleControls}
+            qualities={peek.qualities}
+            qualityMenuOpen={qualityMenuOpen}
+            visible={controlsVisible}
             {...(chrome === undefined ? {} : { chrome })}
             {...(fastForwardSeconds === undefined ? {} : { fastForwardSeconds })}
             {...(rewindSeconds === undefined ? {} : { rewindSeconds })}
             {...(onSeekBack === undefined ? {} : { onSeekBack })}
             {...(onSeekForward === undefined ? {} : { onSeekForward })}
+            {...(onSelectQuality === undefined ? {} : { onSelectQuality })}
+            {...(onCloseQualityMenu === undefined ? {} : { onCloseQualityMenu })}
             paused={peek.state.phase === "paused"}
             pipAvailable={peek.state.session.pictureInPictureEligible}
             pipPhase={peek.presentation.pip}

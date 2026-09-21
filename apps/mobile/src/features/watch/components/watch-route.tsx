@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BackHandler } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
@@ -155,6 +155,9 @@ function WatchSessionRoute({
   const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
   const chat = useWatchChat(screen.chat, target);
   const playback = useFocusedWatchSession(session, target);
@@ -199,6 +202,24 @@ function WatchSessionRoute({
     });
     return () => subscription.remove();
   }, [peek, session]);
+  const playing =
+    peek.kind === "active" && peek.state.phase !== "paused";
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    setIdleToken((token) => token + 1);
+  }, []);
+  useEffect(() => {
+    if (!playing) {
+      setControlsVisible(true);
+      return undefined;
+    }
+    if (qualityMenuOpen) {
+      setControlsVisible(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setControlsVisible(false), 3_000);
+    return () => clearTimeout(timer);
+  }, [idleToken, playing, qualityMenuOpen]);
   return (
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
@@ -206,7 +227,10 @@ function WatchSessionRoute({
       chat={chat}
       inspection={inspection.data ?? null}
       onChatRetry={() => screen.chat.retry()}
+      controlsVisible={controlsVisible}
+      onCloseQualityMenu={() => setQualityMenuOpen(false)}
       onMute={() => {
+        revealControls();
         if (peek.kind === "active") void session.setMuted(!peek.muted);
       }}
       onOpenProviderPage={() => {
@@ -214,24 +238,43 @@ function WatchSessionRoute({
       }}
       onOpenRelated={onOpenRelated}
       onPip={() => {
+        revealControls();
         void session.requestPictureInPicture();
       }}
       onPlayPause={() => {
+        revealControls();
         if (peek.kind === "active") {
           void session.setPlaying(peek.state.phase === "paused");
         }
       }}
-      onQuality={() => cycleWatchQuality(session, peek)}
+      onQualityPress={() => {
+        revealControls();
+        setQualityMenuOpen(true);
+      }}
       onRetry={() => {
         void session.start(target);
       }}
-      onSeekBack={() => seekWatchSession(session, peek, -rewindMs)}
-      onSeekForward={() => seekWatchSession(session, peek, forwardMs)}
+      onSeekBack={() => {
+        revealControls();
+        seekWatchSession(session, peek, -rewindMs);
+      }}
+      onSeekForward={() => {
+        revealControls();
+        seekWatchSession(session, peek, forwardMs);
+      }}
+      onSelectQuality={(nextQuality) => {
+        if (peek.kind === "active") void session.setQuality(nextQuality);
+      }}
       onSelectTab={setTab}
       onStart={() => {
         void startWatchThenResume(session, target);
       }}
+      onToggleControls={() => {
+        setControlsVisible((current) => !current);
+        setIdleToken((token) => token + 1);
+      }}
       onToggleFullscreen={() => {
+        revealControls();
         if (peek.kind === "active" && peek.presentation.presentation === "fullscreen") {
           session.exitFullscreen();
           return;
@@ -240,6 +283,7 @@ function WatchSessionRoute({
       }}
       peek={peek}
       playback={playback}
+      qualityMenuOpen={qualityMenuOpen}
       tab={tab}
       target={target}
       {...(playerPrefs === undefined
@@ -307,15 +351,6 @@ function WatchSessionRoute({
   );
 }
 
-function cycleWatchQuality(
-  session: FocusedWatchSession,
-  peek: WatchPeek,
-): void {
-  if (peek.kind !== "active") return;
-  const index = peek.qualities.indexOf(peek.quality);
-  const next = peek.qualities[(index + 1) % peek.qualities.length] ?? "auto";
-  void session.setQuality(next);
-}
 
 function seekWatchSession(
   session: FocusedWatchSession,

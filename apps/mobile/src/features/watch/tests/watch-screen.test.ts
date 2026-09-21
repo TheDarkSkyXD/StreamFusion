@@ -6,11 +6,25 @@ import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
 import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
+  Modal: "Modal",
   Pressable: "Pressable",
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   ScrollView: "ScrollView",
   View: "View",
+}));
+
+vi.mock("lucide-react-native", () => ({
+  Maximize: "Maximize",
+  Minimize: "Minimize",
+  Pause: "Pause",
+  PictureInPicture2: "PictureInPicture2",
+  Play: "Play",
+  RotateCcw: "RotateCcw",
+  RotateCw: "RotateCw",
+  Settings2: "Settings2",
+  Volume2: "Volume2",
+  VolumeX: "VolumeX",
 }));
 
 type ElementProps = Readonly<{
@@ -125,7 +139,7 @@ describe("watch screen", () => {
     expect(retried).toEqual(["chat"]);
   });
 
-  it("renders transport controls and named PiP unavailable copy", () => {
+  it("renders icon transport chrome without verbose limitation copy", () => {
     const playback = {
       integration: "twitch-gql-usher" as const,
       kind: "active" as const,
@@ -147,10 +161,11 @@ describe("watch screen", () => {
       onOpenRelated: () => undefined,
       onPip: () => undefined,
       onPlayPause: () => undefined,
-      onQuality: () => undefined,
+      onQualityPress: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
       onStart: () => undefined,
+      onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
         kind: "active",
@@ -183,13 +198,20 @@ describe("watch screen", () => {
       true,
     );
     expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-live-badge")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "player-controls-rail")).toBe(
+      true,
+    );
     expect(
-      nodes.some(
-        (node) =>
-          node.props.testID === "player-pip-status" &&
-          String(node.props.children).includes("unavailable"),
+      nodes.some((node) =>
+        String(node.props.children).includes("Theater and stats"),
       ),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "player-pip-status"),
+    ).toBe(false);
   });
 
   it("hides Watch chrome while Picture-in-Picture owns the surface", () => {
@@ -214,10 +236,11 @@ describe("watch screen", () => {
       onOpenRelated: () => undefined,
       onPip: () => undefined,
       onPlayPause: () => undefined,
-      onQuality: () => undefined,
+      onQualityPress: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
       onStart: () => undefined,
+      onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
         kind: "active",
