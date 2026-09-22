@@ -73,3 +73,9 @@ export type ChatDisplaySettingsSession = {
 };
 
 export const CHAT_DISPLAY_SETTING_KEY = "chatDisplay.v1";
+
+export function serializeChatDisplayPreferences(
+  value: ChatDisplayPreferences,
+): string {
+  return JSON.stringify({ ...value, version: 1 });
+}

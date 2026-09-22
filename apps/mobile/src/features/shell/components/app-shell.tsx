@@ -327,9 +327,13 @@ export function AppShell({
       developmentActivityProof.selected)
       ? developmentActivityProof.namespace
       : "main";
+  const listActivityMembership = useCallback(
+    () => followingSession.listMembership(),
+    [followingSession],
+  );
   const activity = useActivityController({
     epoch: activityRepositoryEpoch,
-    listMembership: () => followingSession.listMembership(),
+    listMembership: listActivityMembership,
     repository: activityRepository,
   });
   const settings = useSettingsSession(settingsSession);
@@ -685,7 +689,7 @@ function ShellHeader({
           accessibilityRole="button"
           android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
           onPress={() =>
-            dispatch({ type: "navigate", location: { route: "more/accounts" } })
+            dispatch({ type: "navigate", location: { route: "more" } })
           }
           style={styles.headerAction}
           testID="shell-accounts"

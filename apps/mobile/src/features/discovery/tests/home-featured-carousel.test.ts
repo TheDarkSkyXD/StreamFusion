@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { fixtureStream } from "../domain/discovery-fixture";
+import {
+  featuredCarouselStreams,
+  HOME_FEATURED_CAROUSEL_LIMIT,
+  recommendedLiveStreams,
+} from "../components/home-featured-carousel";
+
 vi.mock("react-native", () => ({
   Image: "Image",
   Pressable: "Pressable",
   StyleSheet: {
     create: (styles: unknown) => styles,
-    absoluteFillObject: {
+    absoluteFill: {
       bottom: 0,
       left: 0,
       position: "absolute",
@@ -16,13 +23,6 @@ vi.mock("react-native", () => ({
   Text: "Text",
   View: "View",
 }));
-
-import { fixtureStream } from "../domain/discovery-fixture";
-import {
-  featuredCarouselStreams,
-  HOME_FEATURED_CAROUSEL_LIMIT,
-  recommendedLiveStreams,
-} from "../components/home-featured-carousel";
 
 describe("home featured carousel helpers", () => {
   it("caps featured slides at Electron Home limit and mirrors Live Now slice(1)", () => {

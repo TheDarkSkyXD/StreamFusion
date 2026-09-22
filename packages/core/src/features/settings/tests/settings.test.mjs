@@ -88,9 +88,7 @@ test("local search isolates notifications, adblock, and proxy panels", () => {
 });
 
 test("local search finds chat, predictions, integrations, and token panels", () => {
-  assert.ok(
-    settingsPanelsFor(searchSettingsControls("chat")).includes("chat"),
-  );
+  assert.ok(settingsPanelsFor(searchSettingsControls("chat")).includes("chat"));
   assert.deepEqual(settingsPanelsFor(searchSettingsControls("predictions")), [
     "chat",
     "predictions",

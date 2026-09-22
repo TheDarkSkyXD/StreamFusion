@@ -2,9 +2,9 @@ import type { ProductSettingsStore } from "@mobile/features/storage/capabilities
 
 import {
   TWITCH_PLAYLIST_PROXY_SETTING_KEY,
+  serializeTwitchPlaylistProxyPreferences,
   type TwitchPlaylistProxyPreferences,
 } from "../capabilities/twitch-playlist-proxy";
-import { serializeTwitchPlaylistProxyPreferences } from "../domain/twitch-playlist-proxy-preferences";
 
 export function createTwitchPlaylistProxyStore(input: {
   readonly now?: () => number;

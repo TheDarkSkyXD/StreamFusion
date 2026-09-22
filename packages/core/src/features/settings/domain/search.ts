@@ -208,11 +208,7 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       "timestamp",
       "format",
     ]),
-    entry("chat-font-size", "chat", "Font size", [
-      "chat",
-      "font",
-      "size",
-    ]),
+    entry("chat-font-size", "chat", "Font size", ["chat", "font", "size"]),
     entry("chat-emote-size", "chat", "Emote size", ["chat", "emote", "size"]),
     entry("chat-readable-color", "chat", "Readable username colors", [
       "chat",
@@ -227,7 +223,11 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       "color",
     ]),
     entry("chat-emotes-7tv", "chat", "7TV emotes", ["chat", "7tv", "emotes"]),
-    entry("chat-emotes-bttv", "chat", "BTTV emotes", ["chat", "bttv", "emotes"]),
+    entry("chat-emotes-bttv", "chat", "BTTV emotes", [
+      "chat",
+      "bttv",
+      "emotes",
+    ]),
     entry("chat-emotes-ffz", "chat", "FFZ emotes", ["chat", "ffz", "emotes"]),
     entry("chat-animated-emotes", "chat", "Animated emotes", [
       "chat",

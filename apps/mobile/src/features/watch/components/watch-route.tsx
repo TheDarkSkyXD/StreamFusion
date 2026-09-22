@@ -156,17 +156,20 @@ function WatchSessionRoute({
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget;
 }) {
+  const tabTargetKey = `${target.platform}:${target.channelId}:${target.media?.kind ?? "live"}:${target.media?.id ?? ""}`;
   const defaultTab: WatchTab = target.media ? "comments" : "chat";
   const [tab, setTab] = useState<WatchTab>(defaultTab);
+  const [tabTarget, setTabTarget] = useState(tabTargetKey);
+  if (tabTarget !== tabTargetKey) {
+    setTabTarget(tabTargetKey);
+    setTab(target.media ? "comments" : "chat");
+  }
   const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
-  useEffect(() => {
-    setTab(target.media ? "comments" : "chat");
-  }, [target.channelId, target.media?.id, target.media?.kind, target.platform]);
   const session = screen.runtime.session;
   const chat = useWatchChat(screen.chat, target);
   const playback = useFocusedWatchSession(session, target);
@@ -217,18 +220,15 @@ function WatchSessionRoute({
     setControlsVisible(true);
     setIdleToken((token) => token + 1);
   }, []);
+  const controlsForcedVisible = !playing || qualityMenuOpen;
   useEffect(() => {
-    if (!playing) {
-      setControlsVisible(true);
-      return undefined;
-    }
-    if (qualityMenuOpen) {
-      setControlsVisible(true);
+    if (controlsForcedVisible) {
       return undefined;
     }
     const timer = setTimeout(() => setControlsVisible(false), 3_000);
     return () => clearTimeout(timer);
-  }, [idleToken, playing, qualityMenuOpen]);
+  }, [controlsForcedVisible, idleToken]);
+  const showControls = controlsForcedVisible || controlsVisible;
   return (
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
@@ -236,7 +236,7 @@ function WatchSessionRoute({
       chat={chat}
       inspection={inspection.data ?? null}
       onChatRetry={() => screen.chat.retry()}
-      controlsVisible={controlsVisible}
+      controlsVisible={showControls}
       onCloseQualityMenu={() => setQualityMenuOpen(false)}
       onMute={() => {
         revealControls();

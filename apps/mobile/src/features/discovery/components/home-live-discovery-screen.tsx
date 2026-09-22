@@ -51,10 +51,11 @@ export function HomeLiveDiscoveryScreen({
     [featured],
   );
   const [featuredIndex, setFeaturedIndex] = useState(0);
-
-  useEffect(() => {
+  const [carouselIdentity, setCarouselIdentity] = useState(featuredIdentity);
+  if (featuredIdentity !== carouselIdentity) {
+    setCarouselIdentity(featuredIdentity);
     setFeaturedIndex(0);
-  }, [featuredIdentity]);
+  }
 
   useEffect(() => {
     if (featured.length < 2) return;

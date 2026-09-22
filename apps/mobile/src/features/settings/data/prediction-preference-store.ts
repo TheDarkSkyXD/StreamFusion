@@ -2,9 +2,9 @@ import type { ProductSettingsStore } from "@mobile/features/storage/capabilities
 
 import {
   PREDICTION_SETTING_KEY,
+  serializePredictionPreferences,
   type PredictionPreferences,
 } from "../capabilities/prediction-settings";
-import { serializePredictionPreferences } from "../domain/prediction-preferences";
 
 export function createPredictionPreferenceStore(input: {
   readonly now?: () => number;

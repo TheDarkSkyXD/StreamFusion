@@ -105,15 +105,7 @@ export function parseTwitchPlaylistProxyPreferences(
   }
 }
 
-export function serializeTwitchPlaylistProxyPreferences(
-  value: TwitchPlaylistProxyPreferences,
-): string {
-  return JSON.stringify({
-    enabled: value.enabled,
-    sources: value.sources,
-    version: 1,
-  });
-}
+export { serializeTwitchPlaylistProxyPreferences } from "../capabilities/twitch-playlist-proxy";
 
 export function composeTwitchPlaylistProxyView(
   preferences: TwitchPlaylistProxyPreferences,

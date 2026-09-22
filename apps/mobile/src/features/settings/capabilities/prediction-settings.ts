@@ -22,3 +22,9 @@ export type PredictionSettingsSession = {
 };
 
 export const PREDICTION_SETTING_KEY = "predictions.v1";
+
+export function serializePredictionPreferences(
+  value: PredictionPreferences,
+): string {
+  return JSON.stringify({ ...value, version: 1 });
+}

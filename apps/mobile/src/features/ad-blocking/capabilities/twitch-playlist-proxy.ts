@@ -31,3 +31,13 @@ export type TwitchPlaylistProxySession = {
 };
 
 export const TWITCH_PLAYLIST_PROXY_SETTING_KEY = "twitchPlaylistProxy.v1";
+
+export function serializeTwitchPlaylistProxyPreferences(
+  value: TwitchPlaylistProxyPreferences,
+): string {
+  return JSON.stringify({
+    enabled: value.enabled,
+    sources: value.sources,
+    version: 1,
+  });
+}

@@ -53,8 +53,8 @@ function renderControllerHook(options: {
 
 it("uses the Mobile React instance for the DOM hook renderer", async () => {
   const importedAgain = await import("react");
-  expect(React.version).toBe("19.2.3");
-  expect(ReactDOM.version).toBe("19.2.3");
+  expect(React.version).toBe("19.2.8");
+  expect(ReactDOM.version).toBe("19.2.8");
   expect(importedAgain.default).toBe(React);
 });
 

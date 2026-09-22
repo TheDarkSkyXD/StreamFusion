@@ -247,9 +247,17 @@ function mapLegacyFollowedItem(item: unknown): KickFollowedChannelRow | null {
     (typeof user?.profile_pic === "string" ? user.profile_pic : null) ??
     (typeof record.profile_pic === "string" ? record.profile_pic : "") ??
     "";
+  const recordUserId =
+    typeof record.user_id === "string" || typeof record.user_id === "number"
+      ? record.user_id
+      : null;
+  const userId =
+    typeof user?.id === "string" || typeof user?.id === "number"
+      ? user.id
+      : null;
   const broadcasterUserId = firstValidKickBroadcasterUserId(
-    record.user_id,
-    user?.id,
+    recordUserId,
+    userId,
     broadcasterIdFromAvatar(avatar),
   );
   const legacyId =
@@ -283,7 +291,7 @@ function mapLegacyFollowedItem(item: unknown): KickFollowedChannelRow | null {
 }
 
 function firstValidKickBroadcasterUserId(
-  ...candidates: Array<string | number | null | undefined>
+  ...candidates: (string | number | null | undefined)[]
 ): string | null {
   for (const candidate of candidates) {
     if (candidate === null || candidate === undefined) continue;

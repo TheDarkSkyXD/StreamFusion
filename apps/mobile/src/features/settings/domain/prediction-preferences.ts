@@ -25,11 +25,7 @@ export function parsePredictionPreferences(
   }
 }
 
-export function serializePredictionPreferences(
-  value: PredictionPreferences,
-): string {
-  return JSON.stringify({ ...value, version: 1 });
-}
+export { serializePredictionPreferences } from "../capabilities/prediction-settings";
 
 export function mergePredictionPreferences(
   base: PredictionPreferences,

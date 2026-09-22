@@ -34,13 +34,15 @@ export function AdBlockSettingsPanel({
   }, [session]);
   useEffect(() => {
     if (!playlistProxySession) {
-      setPlaylistProxyEnabled(false);
       return;
     }
     void playlistProxySession.snapshot().then((prefs) => {
       setPlaylistProxyEnabled(prefs.enabled);
     });
   }, [playlistProxySession]);
+  const effectivePlaylistProxyEnabled = playlistProxySession
+    ? playlistProxyEnabled
+    : false;
   return (
     <AdBlockSettingsView
       busy={busy}
@@ -53,7 +55,7 @@ export function AdBlockSettingsPanel({
             setBusy(false);
           });
       }}
-      playlistProxyEnabled={playlistProxyEnabled}
+      playlistProxyEnabled={effectivePlaylistProxyEnabled}
       view={view}
     />
   );

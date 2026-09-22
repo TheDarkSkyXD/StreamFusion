@@ -9,8 +9,10 @@ import {
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
-import type { WatchHistoryItem } from "@mobile/features/media-library/capabilities/watch-history";
-import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
+import type {
+  WatchHistoryItem,
+  WatchHistoryRepository,
+} from "@mobile/features/media-library/capabilities/watch-history";
 import { watchTargetFromHistory } from "@mobile/features/media-library/domain/watch-history";
 import type { WatchTarget } from "../capabilities/watch";
 

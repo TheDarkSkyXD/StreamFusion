@@ -2,9 +2,9 @@ import type { ProductSettingsStore } from "@mobile/features/storage/capabilities
 
 import {
   CHAT_DISPLAY_SETTING_KEY,
+  serializeChatDisplayPreferences,
   type ChatDisplayPreferences,
 } from "../capabilities/chat-display-settings";
-import { serializeChatDisplayPreferences } from "../domain/chat-display-preferences";
 
 export function createChatDisplayStore(input: {
   readonly now?: () => number;

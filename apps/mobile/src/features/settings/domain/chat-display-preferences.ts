@@ -98,11 +98,7 @@ export function parseChatDisplayPreferences(
   }
 }
 
-export function serializeChatDisplayPreferences(
-  value: ChatDisplayPreferences,
-): string {
-  return JSON.stringify({ ...value, version: 1 });
-}
+export { serializeChatDisplayPreferences } from "../capabilities/chat-display-settings";
 
 export function mergeChatDisplayPreferences(
   base: ChatDisplayPreferences,

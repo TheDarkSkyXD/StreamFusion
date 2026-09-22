@@ -3,7 +3,7 @@ import {
   type ActivityItem,
   type SystemActivityItem,
 } from "@streamfusion/core/activity";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AppState } from "react-native";
 
 import type {
@@ -57,21 +57,15 @@ export function useActivityController(options: {
   const now = options.now ?? Date.now;
   const epoch = options.epoch ?? "main";
   const repository = options.repository;
-  // Keep membership reads current without recreating the lifecycle when AppShell
-  // passes an inline `() => followingSession.listMembership()` each render.
-  const listMembershipRef = useRef(options.listMembership);
-  listMembershipRef.current = options.listMembership;
+  const listMembership = options.listMembership;
   const lifecycle = useMemo(
     () =>
       createActivityInboxLifecycle({
         now,
         repository,
-        listMembership: async () => {
-          const reader = listMembershipRef.current;
-          return reader ? reader() : [];
-        },
+        ...(listMembership === undefined ? {} : { listMembership }),
       }),
-    [now, repository],
+    [listMembership, now, repository],
   );
   const [model, setModel] = useState<ActivityViewModel>(() =>
     lifecycle.snapshot(),

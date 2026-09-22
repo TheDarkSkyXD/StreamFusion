@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   scrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: mobileColors.playerScrim,
   },
   viewerBadge: {
