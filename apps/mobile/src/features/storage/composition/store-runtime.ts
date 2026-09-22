@@ -8,9 +8,11 @@ import type {
 } from "@mobile/features/storage/capabilities/persistence";
 
 import { CacheStore, DEFAULT_CACHE_MAXIMUM_BYTES } from "../data/cache-store";
+import { createPayloadSecretBox } from "../adapters/payload-secretbox";
 import {
   type EncryptedDatabaseDriver,
   SqlCipherUnavailableError,
+  UNENCRYPTED_STORE_CIPHER_VERSION,
   type StoreDatabase,
 } from "../data/database-contracts";
 import {
@@ -63,6 +65,7 @@ interface OpenStoreSet {
   readonly cacheDatabase: StoreDatabase;
   readonly cacheSchemaVersion: number;
   readonly cipherVersion: string;
+  readonly encryption: "sqlcipher" | "app-layer-secretbox";
   readonly guestFollows: GuestFollowStore;
   readonly liveNotifications: LiveNotificationStore;
   readonly product: ProductStore;
@@ -139,16 +142,21 @@ async function getOrCreateKey(options: {
 }
 
 async function integrityIsHealthy(database: StoreDatabase): Promise<boolean> {
-  const cipherRows = await database.query<Record<string, string>>(
-    "PRAGMA cipher_integrity_check",
-  );
+  const unencrypted =
+    database.cipherVersion === UNENCRYPTED_STORE_CIPHER_VERSION;
+  let cipherHealthy = true;
+  if (!unencrypted) {
+    const cipherRows = await database.query<Record<string, string>>(
+      "PRAGMA cipher_integrity_check",
+    );
+    cipherHealthy =
+      cipherRows.length === 0 ||
+      cipherRows.every((row) =>
+        Object.values(row).every((value) => value === "ok"),
+      );
+  }
   const quickRows =
     await database.query<Record<string, string>>("PRAGMA quick_check");
-  const cipherHealthy =
-    cipherRows.length === 0 ||
-    cipherRows.every((row) =>
-      Object.values(row).every((value) => value === "ok"),
-    );
   const quickHealthy =
     quickRows.length > 0 &&
     quickRows.every((row) =>
@@ -311,6 +319,103 @@ export function createMobileStoreRuntime(
     return stores.cache;
   }
 
+  async function openUnencryptedStores(
+    productMigrationSet: readonly StoreMigration[],
+    maximumCacheBytes: number,
+  ): Promise<OpenStoreSet | PersistenceRuntimeState> {
+    const productDatabaseExisted = options.databaseDriver.exists(
+      storeNames.product,
+    );
+    if (
+      productDatabaseExisted &&
+      (await options.databaseDriver.appearsEncrypted(storeNames.product))
+    ) {
+      return {
+        kind: "unavailable",
+        reason: "sqlcipher-unavailable",
+        diagnostic: startupDiagnostic("product-open"),
+        message:
+          "An encrypted Product Store is present, but SQLCipher is unavailable. The file was left untouched.",
+      };
+    }
+
+    const productKey = await getOrCreateKey({
+      databaseExists: false,
+      keyName: storeNames.productKey,
+      mayDiscardDatabase: true,
+      randomKey,
+      secretStore: options.secretStore,
+    }).catch(() => {
+      throw new StoreStartupError(startupDiagnostic("product-key"));
+    });
+    if (productKey.kind === "missing") {
+      throw new Error("App-layer payload keys may always be recreated.");
+    }
+    const payloadCipher = createPayloadSecretBox(productKey.value);
+
+    let productDatabase: StoreDatabase | undefined;
+    try {
+      productDatabase = await options.databaseDriver.openUnencrypted(
+        storeNames.product,
+      );
+      if (!(await integrityIsHealthy(productDatabase))) {
+        throw new Error("App-layer Product Store integrity check failed.");
+      }
+    } catch {
+      await productDatabase?.close().catch(() => undefined);
+      throw new StoreStartupError(startupDiagnostic("product-open"));
+    }
+
+    const openedProduct = productDatabase;
+    let productSchemaVersion: number;
+    try {
+      productSchemaVersion = await applyMigrations({
+        database: openedProduct,
+        migrations: productMigrationSet,
+      });
+    } catch {
+      await openedProduct.close().catch(() => undefined);
+      throw new StoreStartupError(startupDiagnostic("product-open"));
+    }
+
+    if (
+      options.databaseDriver.exists(storeNames.cache) &&
+      (await options.databaseDriver.appearsEncrypted(storeNames.cache))
+    ) {
+      await options.databaseDriver.delete(storeNames.cache);
+      await options.secretStore.delete(storeNames.cacheKey);
+    }
+
+    try {
+      const cacheDatabase = await options.databaseDriver.openUnencrypted(
+        storeNames.cache,
+      );
+      const cacheSchemaVersion = await applyMigrations({
+        database: cacheDatabase,
+        migrations: cacheMigrations,
+      });
+      return {
+        cache: new CacheStore(cacheDatabase, {
+          maximumBytes: maximumCacheBytes,
+          now,
+        }),
+        cacheDatabase,
+        cacheSchemaVersion,
+        cipherVersion: "app-layer-secretbox",
+        encryption: "app-layer-secretbox",
+        guestFollows: new GuestFollowStore(openedProduct),
+        liveNotifications: new LiveNotificationStore(openedProduct),
+        product: new ProductStore(openedProduct, payloadCipher),
+        productDatabase: openedProduct,
+        productSchemaVersion,
+        recoveredProductStore: false,
+      };
+    } catch {
+      await openedProduct.close().catch(() => undefined);
+      throw new StoreStartupError(startupDiagnostic("cache-open"));
+    }
+  }
+
   async function openStores(
     productMigrationSet: readonly StoreMigration[] = configuredProductMigrations,
     maximumCacheBytes = DEFAULT_CACHE_MAXIMUM_BYTES,
@@ -323,6 +428,13 @@ export function createMobileStoreRuntime(
         message: "SecureStore is unavailable. No Product data was written.",
       };
     }
+
+    const sqlCipherAvailable =
+      await options.databaseDriver.isSqlCipherAvailable();
+    if (!sqlCipherAvailable) {
+      return openUnencryptedStores(productMigrationSet, maximumCacheBytes);
+    }
+
     const productDatabaseExisted = options.databaseDriver.exists(
       storeNames.product,
     );
@@ -382,13 +494,7 @@ export function createMobileStoreRuntime(
           await options.databaseDriver.delete(storeNames.backup);
           await options.secretStore.delete(storeNames.backupKey);
         }
-        return {
-          kind: "unavailable",
-          reason: "sqlcipher-unavailable",
-          diagnostic: startupDiagnostic("product-open"),
-          message:
-            "Encrypted storage needs the StreamFusion development client. No Product data was written.",
-        };
+        return openUnencryptedStores(productMigrationSet, maximumCacheBytes);
       }
       if (error instanceof ProductStoreRecoveryError) {
         return {
@@ -436,6 +542,7 @@ export function createMobileStoreRuntime(
         cacheDatabase,
         cacheSchemaVersion,
         cipherVersion: productResult.database.cipherVersion,
+        encryption: "sqlcipher",
         guestFollows: new GuestFollowStore(productResult.database),
         liveNotifications: new LiveNotificationStore(productResult.database),
         product: new ProductStore(productResult.database),
@@ -450,13 +557,7 @@ export function createMobileStoreRuntime(
           await options.databaseDriver.delete(storeNames.cache);
           await options.secretStore.delete(storeNames.cacheKey);
         }
-        return {
-          kind: "unavailable",
-          reason: "sqlcipher-unavailable",
-          diagnostic: startupDiagnostic("cache-open"),
-          message:
-            "Encrypted storage needs the StreamFusion development client. No Product data was written.",
-        };
+        return openUnencryptedStores(productMigrationSet, maximumCacheBytes);
       }
       throw new StoreStartupError(startupDiagnostic("cache-open"));
     }
@@ -758,6 +859,7 @@ function readyState(stores: OpenStoreSet): PersistenceRuntimeState {
     kind: "ready",
     cacheSchemaVersion: stores.cacheSchemaVersion,
     cipherVersion: stores.cipherVersion,
+    encryption: stores.encryption,
     productSchemaVersion: stores.productSchemaVersion,
     recoveredProductStore: stores.recoveredProductStore,
   };

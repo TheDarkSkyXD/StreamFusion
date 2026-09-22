@@ -32,7 +32,7 @@ import {
 } from "@mobile/features/storage/composition/store-runtime";
 
 class MigrationDatabase implements StoreDatabase {
-  readonly cipherVersion = "SQLCipher 4";
+  cipherVersion = "SQLCipher 4";
   readonly path = "memory";
   readonly statements: string[] = [];
   private userVersion = 0;
@@ -303,10 +303,32 @@ const random = {
   uuid: () => "proofid",
 };
 
+function withCipherDriver(
+  driver: Omit<
+    EncryptedDatabaseDriver,
+    "appearsEncrypted" | "isSqlCipherAvailable" | "openUnencrypted"
+  > &
+    Partial<
+      Pick<
+        EncryptedDatabaseDriver,
+        "appearsEncrypted" | "isSqlCipherAvailable" | "openUnencrypted"
+      >
+    >,
+): EncryptedDatabaseDriver {
+  return {
+    appearsEncrypted: async () => false,
+    isSqlCipherAvailable: async () => true,
+    openUnencrypted: async () => {
+      throw new Error("openUnencrypted not configured for this test");
+    },
+    ...driver,
+  };
+}
+
 describe("encrypted store policy", () => {
   it("rejects every non-proof cleanup namespace before a driver deletion", async () => {
     const deleted: string[] = [];
-    const databaseDriver: EncryptedDatabaseDriver = {
+    const databaseDriver = withCipherDriver({
       backup: async () => undefined,
       containsBytes: async () => false,
       corrupt: async () => undefined,
@@ -316,7 +338,7 @@ describe("encrypted store policy", () => {
       open: async () => new MigrationDatabase(),
       quarantine: async () => "artifact",
       restore: async () => undefined,
-    };
+    });
     const secrets = memorySecrets();
 
     for (const namespace of ["main", "activity-proof-not-a-uuid", "other-proof-11111111-1111-4111-8111-111111111111"]) {
@@ -338,7 +360,7 @@ describe("encrypted store policy", () => {
     product.failNextClose = true;
     const runtime = createMobileStoreRuntime({
       backupExcluded: true,
-      databaseDriver: {
+      databaseDriver: withCipherDriver({
         backup: async () => undefined,
         containsBytes: async () => false,
         corrupt: async () => undefined,
@@ -348,7 +370,7 @@ describe("encrypted store policy", () => {
         open: async (name) => name.includes("cache") ? cache : product,
         quarantine: async () => "artifact",
         restore: async () => undefined,
-      },
+      }),
       random,
       secretStore: memorySecrets(),
     });
@@ -638,7 +660,7 @@ describe("encrypted store policy", () => {
 
   it("exposes disposable cache without touching Product Store rows", async () => {
     const opened = new Map<string, SqliteTestDatabase>();
-    const driver: EncryptedDatabaseDriver = {
+    const driver = withCipherDriver({
       backup: async () => undefined,
       containsBytes: async () => false,
       corrupt: async () => undefined,
@@ -656,7 +678,7 @@ describe("encrypted store policy", () => {
       },
       quarantine: async () => "artifact",
       restore: async () => undefined,
-    };
+    });
     const runtime = createMobileStoreRuntime({
       backupExcluded: true,
       databaseDriver: driver,
@@ -696,7 +718,7 @@ describe("encrypted store policy", () => {
   });
 
   it("preserves an existing Product database when its SecureStore key is missing", async () => {
-    const driver: EncryptedDatabaseDriver = {
+    const driver = withCipherDriver({
       backup: async () => undefined,
       containsBytes: async () => false,
       corrupt: async () => undefined,
@@ -708,7 +730,7 @@ describe("encrypted store policy", () => {
       },
       quarantine: async () => "artifact",
       restore: async () => undefined,
-    };
+    });
     const state = await createMobileStoreRuntime({
       backupExcluded: true,
       databaseDriver: driver,
@@ -721,40 +743,87 @@ describe("encrypted store policy", () => {
     });
   });
 
-  it("fails closed and removes new keys when SQLCipher is unavailable", async () => {
-    const deleted: string[] = [];
+  it("opens app-layer encrypted stores when SQLCipher is unavailable", async () => {
+    const opened: string[] = [];
     const secrets = memorySecrets();
-    const driver: EncryptedDatabaseDriver = {
+    const product = new CloseRecordingDatabase();
+    product.cipherVersion = "unencrypted";
+    const cache = new CloseRecordingDatabase();
+    cache.cipherVersion = "unencrypted";
+    const driver = withCipherDriver({
       backup: async () => undefined,
       containsBytes: async () => false,
       corrupt: async () => undefined,
-      delete: async (name) => {
-        deleted.push(name);
-      },
+      delete: async () => undefined,
       deleteQuarantines: async () => undefined,
       exists: () => false,
+      isSqlCipherAvailable: async () => false,
       open: async () => {
         throw new SqlCipherUnavailableError();
       },
+      openUnencrypted: async (name) => {
+        opened.push(name);
+        return name.includes("cache") ? cache : product;
+      },
       quarantine: async () => "artifact",
       restore: async () => undefined,
-    };
-    const state = await createMobileStoreRuntime({
+    });
+    const runtime = createMobileStoreRuntime({
       backupExcluded: true,
       databaseDriver: driver,
       random,
       secretStore: secrets,
+    });
+    const state = await runtime.initialize();
+    expect(state).toMatchObject({
+      kind: "ready",
+      encryption: "app-layer-secretbox",
+      cipherVersion: "app-layer-secretbox",
+    });
+    expect(opened.some((name) => name.endsWith("product.db"))).toBe(true);
+    expect(opened.some((name) => name.endsWith("cache.db"))).toBe(true);
+    expect(persistenceViewModel(state, null, false).title).toBe(
+      "App-layer encrypted storage is ready",
+    );
+    expect(persistenceViewModel(state, null, false).developmentDiagnostic).toBe(
+      "expo-go-app-layer-secretbox",
+    );
+    await runtime.close();
+  });
+
+  it("fails closed when SQLCipher is unavailable but an encrypted Product file exists", async () => {
+    const driver = withCipherDriver({
+      appearsEncrypted: async (name) => name.endsWith("product.db"),
+      backup: async () => undefined,
+      containsBytes: async () => false,
+      corrupt: async () => undefined,
+      delete: async () => undefined,
+      deleteQuarantines: async () => undefined,
+      exists: (name) => name.endsWith("product.db"),
+      isSqlCipherAvailable: async () => false,
+      open: async () => {
+        throw new SqlCipherUnavailableError();
+      },
+      openUnencrypted: async () => {
+        throw new Error("must not open encrypted Product as plain SQLite");
+      },
+      quarantine: async () => "artifact",
+      restore: async () => undefined,
+    });
+    const state = await createMobileStoreRuntime({
+      backupExcluded: true,
+      databaseDriver: driver,
+      random,
+      secretStore: memorySecrets(),
     }).initialize();
     expect(state).toMatchObject({
       kind: "unavailable",
       reason: "sqlcipher-unavailable",
     });
-    expect(secrets.values.size).toBe(0);
-    expect(deleted.some((name) => name.endsWith("product.db"))).toBe(true);
   });
 
   it("returns a sanitized startup diagnostic when opening the Product Store rejects", async () => {
-    const driver: EncryptedDatabaseDriver = {
+    const driver = withCipherDriver({
       backup: async () => undefined,
       containsBytes: async () => false,
       corrupt: async () => undefined,
@@ -766,7 +835,7 @@ describe("encrypted store policy", () => {
       },
       quarantine: async () => "artifact",
       restore: async () => undefined,
-    };
+    });
     await expect(
       createMobileStoreRuntime({
         backupExcluded: true,
@@ -800,6 +869,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
+        encryption: "sqlcipher",
         productSchemaVersion: 5,
         recoveredProductStore: false,
       },
@@ -816,6 +886,7 @@ describe("encrypted store policy", () => {
         kind: "ready",
         cacheSchemaVersion: 1,
         cipherVersion: "SQLCipher 4.6.1",
+        encryption: "sqlcipher",
         productSchemaVersion: 5,
         recoveredProductStore: false,
       },

@@ -32,23 +32,32 @@ export function persistenceViewModel(
     };
   }
   if (state.kind === "ready") {
+    const unencrypted = state.encryption === "app-layer-secretbox";
     const proofPassed =
       proof !== null && Object.values(proof).every((result) => result);
     return {
-      canRunProof: true,
-      developmentDiagnostic: null,
-      detail: `${state.cipherVersion}. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`,
-      proofDetail: proofFailed
-        ? "The isolated native storage proof could not complete. Temporary proof data was removed."
-        : proof
-          ? proofPassed
-            ? "8/8 native storage checks passed."
-            : "A native storage check failed."
-          : null,
+      canRunProof: !unencrypted,
+      developmentDiagnostic: unencrypted
+        ? "expo-go-app-layer-secretbox"
+        : null,
+      detail: unencrypted
+        ? `Expo Go storage uses app-layer secretbox over SQLite (${state.cipherVersion}). Key is in SecureStore. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`
+        : `${state.cipherVersion}. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`,
+      proofDetail: unencrypted
+        ? "SQLCipher native proof requires the StreamFusion development client. App-layer secretbox is active here."
+        : proofFailed
+          ? "The isolated native storage proof could not complete. Temporary proof data was removed."
+          : proof
+            ? proofPassed
+              ? "8/8 native storage checks passed."
+              : "A native storage check failed."
+            : null,
       proofRunning,
-      title: state.recoveredProductStore
-        ? "Encrypted storage recovered from backup"
-        : "Encrypted storage is ready",
+      title: unencrypted
+        ? "App-layer encrypted storage is ready"
+        : state.recoveredProductStore
+          ? "Encrypted storage recovered from backup"
+          : "Encrypted storage is ready",
     };
   }
   return {

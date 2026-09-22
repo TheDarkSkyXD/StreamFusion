@@ -30,6 +30,11 @@ export interface GuestLiveAlertReconciler {
 export function createGuestLiveAlertReconciler(options: {
   readonly activity: ActivityRepository;
   readonly now: () => number;
+  readonly presentSystemNotification?: (input: {
+    readonly item: ActivityItem;
+    readonly silent: boolean;
+  }) => Promise<void>;
+  readonly systemNotificationsSupported?: boolean;
 }): GuestLiveAlertReconciler {
   const liveByChannel = new Map<string, boolean>();
   const lastNotifiedAtByChannel = new Map<string, number>();
@@ -83,7 +88,8 @@ export function createGuestLiveAlertReconciler(options: {
           nowMs,
           preferences: input.preferences,
           silentSync: false,
-          systemNotificationsSupported: false,
+          systemNotificationsSupported:
+            options.systemNotificationsSupported === true,
           wasLive: false,
           ...(lastNotifiedAt === undefined
             ? {}
@@ -95,6 +101,16 @@ export function createGuestLiveAlertReconciler(options: {
         await options.activity.record(item);
         lastNotifiedAtByChannel.set(key, nowMs);
         recorded.push(item);
+        if (
+          decision.kind === "deliver" &&
+          decision.systemNotification &&
+          options.presentSystemNotification
+        ) {
+          await options.presentSystemNotification({
+            item,
+            silent: decision.systemNotification.silent,
+          });
+        }
       }
 
       for (const [key, isLive] of liveByChannel) {

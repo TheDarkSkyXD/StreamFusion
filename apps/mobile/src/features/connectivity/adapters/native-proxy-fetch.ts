@@ -4,6 +4,7 @@ import type { ProxyTransport } from "../capabilities/connectivity-session";
 export function nativeProxyAvailability(): "ready" | "unavailable" {
   try {
     const module = getConnectivityModule();
+    if (!module) return "unavailable";
     return module.getContractVersion() === 1 ? "ready" : "unavailable";
   } catch {
     return "unavailable";
@@ -30,6 +31,11 @@ export function createProxyFetch(input: {
     if (init?.signal?.aborted) throw abortError();
     const credentials = await input.readCredentials();
     const module = getConnectivityModule();
+    if (!module) {
+      throw new TypeError(
+        "Proxy is enabled, but StreamFusion Development is required to apply it.",
+      );
+    }
     const requestId = `${Date.now()}:${Math.random().toString(16).slice(2)}`;
     const abort = () => {
       void module.cancelProxyRequest(requestId);

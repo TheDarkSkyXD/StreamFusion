@@ -82,6 +82,7 @@ function driver(): EncryptedDatabaseDriver & {
 } {
   const deleted: string[] = [];
   const result = {
+    appearsEncrypted: async () => false,
     backup: async () => undefined,
     containsBytes: async () => false,
     corrupt: async () => undefined,
@@ -92,7 +93,11 @@ function driver(): EncryptedDatabaseDriver & {
     deleteQuarantines: async (name) => void deleted.push(`${name}:quarantines`),
     exists: () => false,
     failDelete: false,
+    isSqlCipherAvailable: async () => true,
     open: async () => {
+      throw new Error("not used by this composition test");
+    },
+    openUnencrypted: async () => {
       throw new Error("not used by this composition test");
     },
     quarantine: async () => "proof-quarantine",
@@ -108,6 +113,7 @@ function driver(): EncryptedDatabaseDriver & {
 const ready: PersistenceRuntimeState = {
   cacheSchemaVersion: 1,
   cipherVersion: "proof",
+  encryption: "sqlcipher",
   kind: "ready",
   productSchemaVersion: 3,
   recoveredProductStore: false,

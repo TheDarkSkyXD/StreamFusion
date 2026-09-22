@@ -11,13 +11,15 @@ import {
   type DatabaseValue,
   type EncryptedDatabaseDriver,
   SqlCipherUnavailableError,
+  UNENCRYPTED_STORE_CIPHER_VERSION,
   type StoreDatabase,
 } from "../data/database-contracts";
 import { runSavepointTransaction } from "./sqlite-transaction";
 
 const encryptionKeyPattern = /^[a-f0-9]{64}$/u;
+const sqliteHeaderPrefix = new TextEncoder().encode("SQLite format 3");
 const nativeDatabases = new WeakMap<StoreDatabase, SQLiteDatabase>();
-let cipherVersionPromise: Promise<string> | undefined;
+let cipherVersionPromise: Promise<string | null> | undefined;
 
 function requireEncryptionKey(value: string): void {
   if (!encryptionKeyPattern.test(value)) {
@@ -73,7 +75,7 @@ function wrapDatabase(
   return wrapped;
 }
 
-async function probeCipherVersion(): Promise<string> {
+async function probeCipherVersion(): Promise<string | null> {
   const probe = await openDatabaseAsync(":memory:", {
     useNewConnection: true,
   });
@@ -81,20 +83,30 @@ async function probeCipherVersion(): Promise<string> {
     const cipher = await probe.getFirstAsync<{
       readonly cipher_version: string;
     }>("PRAGMA cipher_version");
-    if (!cipher?.cipher_version) throw new SqlCipherUnavailableError();
-    return cipher.cipher_version;
+    return cipher?.cipher_version ?? null;
   } finally {
     await probe.closeAsync().catch(() => undefined);
   }
 }
 
-function detectCipherVersion(): Promise<string> {
+function detectCipherVersion(): Promise<string | null> {
   cipherVersionPromise ??= probeCipherVersion();
   return cipherVersionPromise;
 }
 
-async function applyOpenedDatabasePragmas(database: SQLiteDatabase): Promise<void> {
-  await database.execAsync("PRAGMA cipher_memory_security = ON");
+async function requireCipherVersion(): Promise<string> {
+  const cipherVersion = await detectCipherVersion();
+  if (!cipherVersion) throw new SqlCipherUnavailableError();
+  return cipherVersion;
+}
+
+async function applyOpenedDatabasePragmas(
+  database: SQLiteDatabase,
+  encrypted: boolean,
+): Promise<void> {
+  if (encrypted) {
+    await database.execAsync("PRAGMA cipher_memory_security = ON");
+  }
   await database.execAsync("PRAGMA foreign_keys = ON");
   await database.execAsync("PRAGMA journal_mode = WAL");
 }
@@ -107,13 +119,31 @@ async function openEncryptedDatabase(
   readonly database: SQLiteDatabase;
 }> {
   requireEncryptionKey(encryptionKey);
-  const cipherVersion = await detectCipherVersion();
+  const cipherVersion = await requireCipherVersion();
   const database = await openDatabaseAsync(databaseName);
   try {
     await database.execAsync(`PRAGMA key = "x'${encryptionKey}'"`);
     await database.getFirstAsync("SELECT count(*) AS count FROM sqlite_master");
-    await applyOpenedDatabasePragmas(database);
+    await applyOpenedDatabasePragmas(database, true);
     return { cipherVersion, database };
+  } catch (error) {
+    await database.closeAsync().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function openPlainDatabase(databaseName: string): Promise<{
+  readonly cipherVersion: string;
+  readonly database: SQLiteDatabase;
+}> {
+  const database = await openDatabaseAsync(databaseName);
+  try {
+    await database.getFirstAsync("SELECT count(*) AS count FROM sqlite_master");
+    await applyOpenedDatabasePragmas(database, false);
+    return {
+      cipherVersion: UNENCRYPTED_STORE_CIPHER_VERSION,
+      database,
+    };
   } catch (error) {
     await database.closeAsync().catch(() => undefined);
     throw error;
@@ -160,6 +190,11 @@ function containsSequence(bytes: Uint8Array, sequence: Uint8Array): boolean {
   return false;
 }
 
+function startsWithSequence(bytes: Uint8Array, sequence: Uint8Array): boolean {
+  if (sequence.length > bytes.length) return false;
+  return matchesAt(bytes, sequence, 0);
+}
+
 function nativeDatabaseFor(source: StoreDatabase): SQLiteDatabase {
   const database = nativeDatabases.get(source);
   if (!database) throw new Error("The source database does not belong to this driver.");
@@ -175,13 +210,16 @@ async function deleteEncryptedDatabase(databaseName: string): Promise<void> {
   }
 }
 
-async function backupEncryptedDatabase(
+async function backupDatabase(
   source: StoreDatabase,
   backupName: string,
   encryptionKey: string,
 ): Promise<void> {
   await deleteEncryptedDatabase(backupName);
-  const openedBackup = await openEncryptedDatabase(backupName, encryptionKey);
+  const unencrypted = source.cipherVersion === UNENCRYPTED_STORE_CIPHER_VERSION;
+  const openedBackup = unencrypted
+    ? await openPlainDatabase(backupName)
+    : await openEncryptedDatabase(backupName, encryptionKey);
   try {
     await backupDatabaseAsync({
       destDatabase: openedBackup.database,
@@ -203,6 +241,15 @@ async function databaseContainsBytes(
     file.exists &&
     containsSequence(await file.bytes(), new TextEncoder().encode(value))
   );
+}
+
+async function databaseAppearsEncrypted(databaseName: string): Promise<boolean> {
+  const file = databaseFile(databaseName);
+  if (!file.exists) return false;
+  const bytes = await file.bytes();
+  if (bytes.length === 0) return false;
+  // Plain SQLite files begin with "SQLite format 3". SQLCipher ciphertext does not.
+  return !startsWithSequence(bytes, sqliteHeaderPrefix);
 }
 
 async function corruptDatabase(databaseName: string): Promise<void> {
@@ -251,20 +298,29 @@ async function restoreEncryptedDatabase(
   backupKey: string,
   databaseKey: string,
 ): Promise<void> {
-  requireEncryptionKey(backupKey);
-  requireEncryptionKey(databaseKey);
   const backup = databaseFile(backupName);
   if (!backup.exists) {
     throw new Error(`Recovery backup ${backupName} is unavailable.`);
   }
   await deleteEncryptedDatabase(databaseName);
   await backup.copy(databaseFile(databaseName), { overwrite: true });
-  const restored = await openEncryptedDatabase(databaseName, backupKey);
-  try {
-    await restored.database.execAsync(`PRAGMA rekey = "x'${databaseKey}'"`);
-    await restored.database.execAsync("PRAGMA wal_checkpoint(TRUNCATE)");
-  } finally {
-    await restored.database.closeAsync();
+  if (await databaseAppearsEncrypted(databaseName)) {
+    requireEncryptionKey(backupKey);
+    requireEncryptionKey(databaseKey);
+    const restored = await openEncryptedDatabase(databaseName, backupKey);
+    try {
+      await restored.database.execAsync(`PRAGMA rekey = "x'${databaseKey}'"`);
+      await restored.database.execAsync("PRAGMA wal_checkpoint(TRUNCATE)");
+    } finally {
+      await restored.database.closeAsync();
+    }
+  } else {
+    const restored = await openPlainDatabase(databaseName);
+    try {
+      await restored.database.execAsync("PRAGMA wal_checkpoint(TRUNCATE)");
+    } finally {
+      await restored.database.closeAsync();
+    }
   }
   deleteSidecars(databaseName);
 }
@@ -274,14 +330,20 @@ export function createSqliteEncryptedDatabaseDriver(
 ): EncryptedDatabaseDriver {
   const now = options.now ?? Date.now;
   return {
-    backup: backupEncryptedDatabase,
+    appearsEncrypted: databaseAppearsEncrypted,
+    backup: backupDatabase,
     containsBytes: databaseContainsBytes,
     corrupt: corruptDatabase,
     delete: deleteEncryptedDatabase,
     deleteQuarantines: deleteDatabaseQuarantines,
     exists: (databaseName) => databaseFile(databaseName).exists,
+    isSqlCipherAvailable: async () => (await detectCipherVersion()) !== null,
     async open(databaseName, encryptionKey) {
       const opened = await openEncryptedDatabase(databaseName, encryptionKey);
+      return wrapDatabase(opened.database, opened.cipherVersion);
+    },
+    async openUnencrypted(databaseName) {
+      const opened = await openPlainDatabase(databaseName);
       return wrapDatabase(opened.database, opened.cipherVersion);
     },
     quarantine: (databaseName, reason) =>

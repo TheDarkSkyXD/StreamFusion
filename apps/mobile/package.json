@@ -10,7 +10,9 @@
   },
   "scripts": {
     "preinstall": "node ../../scripts/require-npm.mjs",
-    "start": "expo start --dev-client",
+    "start": "expo start",
+    "start:go": "expo start",
+    "start:dev-client": "expo start --dev-client",
     "android": "node scripts/start-development-client.mjs",
     "android:native": "node scripts/run-android.mjs",
     "prebuild:android": "expo prebuild --platform android --no-install",

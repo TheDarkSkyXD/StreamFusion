@@ -431,7 +431,7 @@ describe("focused watch session", () => {
     });
     expect(session.peek()).toMatchObject({
       kind: "active",
-      presentation: { pip: "unavailable", presentation: "watch" },
+      presentation: { pip: "idle", presentation: "mini" },
     });
     expect(playback.ended).toEqual([]);
   });

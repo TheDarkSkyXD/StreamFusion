@@ -67,7 +67,10 @@ export interface NativePushTokenSource {
 }
 
 export interface LocalNotificationPresenter {
-  present(payload: SafeNotificationPayload): Promise<void>;
+  present(
+    payload: SafeNotificationPayload,
+    options?: { readonly silent?: boolean },
+  ): Promise<void>;
 }
 
 export interface NotificationReceiptSource {

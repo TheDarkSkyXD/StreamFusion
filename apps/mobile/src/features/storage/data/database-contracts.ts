@@ -19,7 +19,10 @@ export interface StoreDatabase {
   ): Promise<void>;
 }
 
+export const UNENCRYPTED_STORE_CIPHER_VERSION = "unencrypted";
+
 export interface EncryptedDatabaseDriver {
+  appearsEncrypted(databaseName: string): Promise<boolean>;
   backup(
     source: StoreDatabase,
     backupName: string,
@@ -30,7 +33,9 @@ export interface EncryptedDatabaseDriver {
   delete(databaseName: string): Promise<void>;
   deleteQuarantines(databaseName: string): Promise<void>;
   exists(databaseName: string): boolean;
+  isSqlCipherAvailable(): Promise<boolean>;
   open(databaseName: string, encryptionKey: string): Promise<StoreDatabase>;
+  openUnencrypted(databaseName: string): Promise<StoreDatabase>;
   quarantine(databaseName: string, reason: string): Promise<string>;
   restore(
     backupName: string,

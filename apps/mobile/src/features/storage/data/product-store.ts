@@ -14,6 +14,7 @@ import type {
   ActivityWriteResult,
 } from "@mobile/features/storage/capabilities/persistence";
 
+import type { PayloadSecretBox } from "../adapters/payload-secretbox";
 import type { StoreDatabase } from "./database-contracts";
 
 export interface ProductSetting {
@@ -80,12 +81,16 @@ function databaseTimestamp(value: unknown): SerializedTimestamp | null {
 
 async function readActivityItems(
   database: StoreDatabase,
+  openPayload: (value: string) => string = (value) => value,
 ): Promise<ActivityItem[]> {
-  return (await readStoredActivityItems(database)).map(({ item }) => item);
+  return (await readStoredActivityItems(database, openPayload)).map(
+    ({ item }) => item,
+  );
 }
 
 async function readStoredActivityItems(
   database: StoreDatabase,
+  openPayload: (value: string) => string = (value) => value,
 ): Promise<StoredActivityItem[]> {
   const rows = await database.query<ActivityItemRow>(
     `SELECT id, kind, payload, occurred_at, read_at, dismissed_at
@@ -93,7 +98,7 @@ async function readStoredActivityItems(
      ORDER BY occurred_at DESC, id ASC`,
   );
   return rows.flatMap((row) => {
-    const item = rowToActivityItem(row);
+    const item = rowToActivityItem({ ...row, payload: openPayload(row.payload) });
     const dismissedAt =
       row.dismissed_at === null ? null : databaseTimestamp(row.dismissed_at);
     return item && (row.dismissed_at === null || dismissedAt)
@@ -107,7 +112,22 @@ function isActiveJob(item: ActivityItem): boolean {
 }
 
 export class ProductStore {
-  constructor(private readonly database: StoreDatabase) {}
+  private readonly cipher: PayloadSecretBox | null;
+
+  constructor(
+    private readonly database: StoreDatabase,
+    cipher: PayloadSecretBox | null = null,
+  ) {
+    this.cipher = cipher;
+  }
+
+  private seal(value: string): string {
+    return this.cipher ? this.cipher.seal(value) : value;
+  }
+
+  private open(value: string): string {
+    return this.cipher ? this.cipher.open(value) : value;
+  }
 
   close(): Promise<void> {
     return this.database.close();
@@ -119,7 +139,11 @@ export class ProductStore {
       [key],
     );
     return row
-      ? { key: row.key, updatedAt: row.updated_at, value: row.value }
+      ? {
+          key: row.key,
+          updatedAt: row.updated_at,
+          value: this.open(row.value),
+        }
       : null;
   }
 
@@ -129,7 +153,7 @@ export class ProductStore {
        ON CONFLICT(key) DO UPDATE SET
          value = excluded.value,
          updated_at = excluded.updated_at`,
-      [setting.key, setting.value, setting.updatedAt],
+      [setting.key, this.seal(setting.value), setting.updatedAt],
     );
   }
 
@@ -138,7 +162,7 @@ export class ProductStore {
   }
 
   async listActivity(filter: ActivityFilter = "all"): Promise<ActivityItem[]> {
-    const items = (await readStoredActivityItems(this.database))
+    const items = (await readStoredActivityItems(this.database, (value) => this.open(value)))
       .filter(
         ({ dismissedAt, item }) => dismissedAt === null || isActiveJob(item),
       )
@@ -160,7 +184,12 @@ export class ProductStore {
          FROM activity_items WHERE id = ?`,
         [incoming.eventId],
       );
-      const existing = existingRow ? rowToActivityItem(existingRow) : null;
+      const existing = existingRow
+        ? rowToActivityItem({
+            ...existingRow,
+            payload: this.open(existingRow.payload),
+          })
+        : null;
       const item = existing
         ? reconcileActivityItem(existing, incoming)
         : incoming;
@@ -182,14 +211,14 @@ export class ProductStore {
         [
           item.eventId,
           item.kind,
-          JSON.stringify(item),
+          this.seal(JSON.stringify(item)),
           Date.parse(item.occurredAt),
           item.readAt === null ? null : Date.parse(item.readAt),
           dismissedAt,
         ],
       );
 
-      const activityItems = await readActivityItems(database);
+      const activityItems = await readActivityItems(database, (value) => this.open(value));
       const retained = new Set(
         selectRetainedActivityEventIds(activityItems, { nowMs }),
       );
@@ -215,7 +244,7 @@ export class ProductStore {
        FROM activity_items WHERE id = ?`,
       [eventId],
     );
-    const existing = row ? rowToActivityItem(row) : null;
+    const existing = row ? rowToActivityItem({ ...row, payload: this.open(row.payload) }) : null;
     if (!existing) return null;
     const item = markActivityItemRead(existing, readAt);
     if (item !== existing) {
@@ -228,7 +257,12 @@ export class ProductStore {
          FROM activity_items WHERE id = ?`,
         [eventId],
       );
-      return storedRow ? rowToActivityItem(storedRow) : null;
+      return storedRow
+        ? rowToActivityItem({
+            ...storedRow,
+            payload: this.open(storedRow.payload),
+          })
+        : null;
     }
     return item;
   }
@@ -236,7 +270,9 @@ export class ProductStore {
   async markAllActivityRead(readAt: SerializedTimestamp): Promise<number> {
     let changes = 0;
     await this.database.transaction(async (database) => {
-      const entries = await readStoredActivityItems(database);
+      const entries = await readStoredActivityItems(database, (value) =>
+        this.open(value),
+      );
       for (const { dismissedAt, item } of entries) {
         if (
           item.readAt !== null ||
@@ -269,7 +305,7 @@ export class ProductStore {
            FROM activity_items WHERE id = ?`,
           [eventId],
         );
-        const item = row ? rowToActivityItem(row) : null;
+        const item = row ? rowToActivityItem({ ...row, payload: this.open(row.payload) }) : null;
         if (!row || !item) {
           missingEventIds.push(eventId);
           continue;

@@ -1,4 +1,4 @@
-import { requireNativeModule } from "expo";
+import { requireOptionalNativeModule } from "expo";
 
 export interface NativeUnsupportedResponse {
   readonly code: "NATIVE_OPERATION_UNSUPPORTED";
@@ -83,28 +83,91 @@ interface NativeConnectivityModule {
   }): Promise<NativeProxyRequestResult>;
 }
 
-export function getPlaybackModule(): NativePlaybackModule {
-  return requireNativeModule<NativePlaybackModule>("StreamFusionPlayback");
+export class NativeModuleUnavailableError extends Error {
+  constructor(readonly moduleName: string) {
+    super(`${moduleName} is unavailable in this runtime.`);
+    this.name = "NativeModuleUnavailableError";
+  }
 }
 
-export function getMediaJobsModule(): NativeMediaJobsModule {
-  return requireNativeModule<NativeMediaJobsModule>("StreamFusionMediaJobs");
+function optionalNativeModule<T>(moduleName: string): T | null {
+  try {
+    return requireOptionalNativeModule<T>(moduleName);
+  } catch {
+    return null;
+  }
 }
 
-export function getCaptionsModule(): NativeCaptionsModule {
-  return requireNativeModule<NativeCaptionsModule>("StreamFusionCaptions");
+function requireLinkedNativeModule<T>(moduleName: string): T {
+  const module = optionalNativeModule<T>(moduleName);
+  if (!module) throw new NativeModuleUnavailableError(moduleName);
+  return module;
 }
 
-export function getDiagnosticsModule(): NativeDiagnosticsModule {
-  return requireNativeModule<NativeDiagnosticsModule>("StreamFusionDiagnostics");
+/** Returns null in Expo Go and other hosts without the native module. Never throws. */
+export function getPlaybackModule(): NativePlaybackModule | null {
+  return optionalNativeModule<NativePlaybackModule>("StreamFusionPlayback");
 }
 
-export function getMaintenanceModule(): NativeMaintenanceModule {
-  return requireNativeModule<NativeMaintenanceModule>("StreamFusionMaintenance");
+/** Returns null when the native module is absent. Never throws. */
+export function getMediaJobsModule(): NativeMediaJobsModule | null {
+  return optionalNativeModule<NativeMediaJobsModule>("StreamFusionMediaJobs");
 }
 
-export function getConnectivityModule(): NativeConnectivityModule {
-  return requireNativeModule<NativeConnectivityModule>(
+/** Returns null when the native module is absent. Never throws. */
+export function getCaptionsModule(): NativeCaptionsModule | null {
+  return optionalNativeModule<NativeCaptionsModule>("StreamFusionCaptions");
+}
+
+/** Returns null when the native module is absent. Never throws. */
+export function getDiagnosticsModule(): NativeDiagnosticsModule | null {
+  return optionalNativeModule<NativeDiagnosticsModule>(
+    "StreamFusionDiagnostics",
+  );
+}
+
+/** Returns null when the native module is absent. Never throws. */
+export function getMaintenanceModule(): NativeMaintenanceModule | null {
+  return optionalNativeModule<NativeMaintenanceModule>(
+    "StreamFusionMaintenance",
+  );
+}
+
+/** Returns null when the native module is absent. Never throws. */
+export function getConnectivityModule(): NativeConnectivityModule | null {
+  return optionalNativeModule<NativeConnectivityModule>(
+    "StreamFusionConnectivity",
+  );
+}
+
+export function requirePlaybackModule(): NativePlaybackModule {
+  return requireLinkedNativeModule<NativePlaybackModule>("StreamFusionPlayback");
+}
+
+export function requireMediaJobsModule(): NativeMediaJobsModule {
+  return requireLinkedNativeModule<NativeMediaJobsModule>(
+    "StreamFusionMediaJobs",
+  );
+}
+
+export function requireCaptionsModule(): NativeCaptionsModule {
+  return requireLinkedNativeModule<NativeCaptionsModule>("StreamFusionCaptions");
+}
+
+export function requireDiagnosticsModule(): NativeDiagnosticsModule {
+  return requireLinkedNativeModule<NativeDiagnosticsModule>(
+    "StreamFusionDiagnostics",
+  );
+}
+
+export function requireMaintenanceModule(): NativeMaintenanceModule {
+  return requireLinkedNativeModule<NativeMaintenanceModule>(
+    "StreamFusionMaintenance",
+  );
+}
+
+export function requireConnectivityModule(): NativeConnectivityModule {
+  return requireLinkedNativeModule<NativeConnectivityModule>(
     "StreamFusionConnectivity",
   );
 }

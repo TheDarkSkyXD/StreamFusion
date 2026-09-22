@@ -92,22 +92,32 @@ export interface ExpoMaintenanceBinding {
   ) => Promise<unknown>;
 }
 
+function requireBinding<TBinding>(
+  module: TBinding | null,
+  moduleName: string,
+): TBinding {
+  if (!module) {
+    throw new Error(`${moduleName} is unavailable in this runtime.`);
+  }
+  return module;
+}
+
 export const expoPlaybackBindingReader: ExpoBindingReader<ExpoPlaybackBinding> = {
-  read: getPlaybackModule,
+  read: () => requireBinding(getPlaybackModule(), "StreamFusionPlayback"),
 };
 
 export const expoMediaJobsBindingReader: ExpoBindingReader<ExpoMediaJobsBinding> = {
-  read: getMediaJobsModule,
+  read: () => requireBinding(getMediaJobsModule(), "StreamFusionMediaJobs"),
 };
 
 export const expoCaptionsBindingReader: ExpoBindingReader<ExpoCaptionsBinding> = {
-  read: getCaptionsModule,
+  read: () => requireBinding(getCaptionsModule(), "StreamFusionCaptions"),
 };
 
 export const expoDiagnosticsBindingReader: ExpoBindingReader<ExpoDiagnosticsBinding> = {
-  read: getDiagnosticsModule,
+  read: () => requireBinding(getDiagnosticsModule(), "StreamFusionDiagnostics"),
 };
 
 export const expoMaintenanceBindingReader: ExpoBindingReader<ExpoMaintenanceBinding> = {
-  read: getMaintenanceModule,
+  read: () => requireBinding(getMaintenanceModule(), "StreamFusionMaintenance"),
 };

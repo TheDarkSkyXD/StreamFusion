@@ -36,6 +36,7 @@ export type PersistenceRuntimeState =
       readonly kind: "ready";
       readonly cacheSchemaVersion: number;
       readonly cipherVersion: string;
+      readonly encryption: "sqlcipher" | "app-layer-secretbox";
       readonly productSchemaVersion: number;
       readonly recoveredProductStore: boolean;
     }

@@ -67,6 +67,7 @@ import { createConnectivityRuntime } from "@mobile/features/connectivity/composi
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
+import { createExpoLocalNotificationPresenter } from "@mobile/features/notifications/adapters/expo-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
 import { createSupportLogPort } from "@mobile/features/settings/adapters/support-log-buffer";
@@ -332,6 +333,8 @@ const kickAccountFollows = createKickAccountFollowMembership({
   readCredential: readKickCredentialForActivity,
 });
 
+const localLiveAlertPresenter = createExpoLocalNotificationPresenter();
+
 const followingSession = createFollowingRuntime({
   activity: persistenceRuntime.productState.activity,
   accountFollows: [twitchAccountFollows, kickAccountFollows],
@@ -347,6 +350,30 @@ const followingSession = createFollowingRuntime({
   },
   liveNotifications: persistenceRuntime.productState.liveNotifications,
   network: () => connectivitySession.readNetwork(),
+  presentSystemNotification: async ({ item, silent }) => {
+    if (item.kind !== "channel" || item.destination.kind !== "watch-channel") {
+      return;
+    }
+    await localLiveAlertPresenter.present(
+      {
+        schemaVersion: 1,
+        eventId: item.eventId,
+        sourceId: "local-live-alert",
+        channel: "live",
+        title: item.title,
+        body: item.body,
+        occurredAt: item.occurredAt,
+        destination: {
+          kind: "watch-channel",
+          platform: item.destination.platform,
+          channelId: item.destination.channelId,
+          channelLogin: item.destination.channelLogin,
+          streamState: "live",
+        },
+      },
+      { silent },
+    );
+  },
   relayBaseUrl: relayBaseUrl(),
 });
 

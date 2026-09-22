@@ -21,7 +21,7 @@ export function nativeRegistrationCopy(
     return snapshot.lastFailure;
   }
   if (snapshot.state === "unavailable") {
-    return "Native FCM registration is unavailable on this device. Activity and local channels still work.";
+    return "Remote FCM is unavailable here. Local live alerts still post when Android notifications are enabled. Activity history stays on.";
   }
   if (snapshot.state === "denied") {
     return "Android blocked notification posting. Activity history stays on. Retry the permission or open system settings.";

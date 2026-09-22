@@ -4,6 +4,7 @@ import { parseGuestFollowWrite, type GuestFollow } from "@streamfusion/core/foll
 import type { Platform } from "@streamfusion/core/platform";
 import type { FollowedIdentityRef } from "@streamfusion/core/relay";
 
+import type { ActivityItem } from "@streamfusion/core/activity";
 import type {
   ActivityRepository,
   DisposableCache,
@@ -48,6 +49,10 @@ export function createFollowingRuntime(input: {
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly network: () => Promise<"online" | "offline">;
   readonly now?: () => number;
+  readonly presentSystemNotification?: (input: {
+    readonly item: ActivityItem;
+    readonly silent: boolean;
+  }) => Promise<void>;
   readonly relayBaseUrl: string;
 }): FollowingSession {
   const now = input.now ?? Date.now;
@@ -62,6 +67,12 @@ export function createFollowingRuntime(input: {
         : createGuestLiveAlertReconciler({
             activity: input.activity,
             now,
+            systemNotificationsSupported: true,
+            ...(input.presentSystemNotification === undefined
+              ? {}
+              : {
+                  presentSystemNotification: input.presentSystemNotification,
+                }),
           }),
     liveCache: createFollowedLiveCache(input.cache),
     liveNotifications: input.liveNotifications,

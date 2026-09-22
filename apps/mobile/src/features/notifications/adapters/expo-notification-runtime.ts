@@ -59,6 +59,8 @@ export function createExpoPushTokenSource(): NativePushTokenSource {
   return {
     async read() {
       try {
+        // Android Expo Go (SDK 53+) cannot use remote FCM / Expo push APIs —
+        // calling them can throw. Local live alerts still work via presenter.
         if (Constants.appOwnership === "expo") return null;
         return nativeTokenData(
           (await Notifications.getDevicePushTokenAsync()).data,
@@ -68,6 +70,7 @@ export function createExpoPushTokenSource(): NativePushTokenSource {
       }
     },
     subscribe(listener) {
+      if (Constants.appOwnership === "expo") return () => undefined;
       const subscription = Notifications.addPushTokenListener((event) => {
         const token = nativeTokenData(event.data);
         if (token) listener(token);
@@ -108,18 +111,24 @@ export function createExpoNotificationReceiptSource(): NotificationReceiptSource
 
 export function createExpoLocalNotificationPresenter(): LocalNotificationPresenter {
   return {
-    async present(payload) {
+    async present(payload, options) {
       const channelId = payload.channel ?? "live";
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: payload.title,
-          body: payload.body,
-          data: payload,
-          sound: true,
-          color: "#0f0f0f",
-        },
-        trigger: { channelId },
-      });
+      const silent = options?.silent === true;
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: payload.title,
+            body: payload.body,
+            data: payload,
+            sound: silent ? false : true,
+            color: "#0f0f0f",
+            ...(Platform.OS === "android" ? { channelId } : {}),
+          },
+          trigger: null,
+        });
+      } catch {
+        // Expo Go / permission edges must not crash Settings or proof controls.
+      }
     },
   };
 }

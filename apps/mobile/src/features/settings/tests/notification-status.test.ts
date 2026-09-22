@@ -48,7 +48,7 @@ describe("notification settings status", () => {
 
   it("describes one-mode topic and direct delivery after permission is granted", () => {
     expect(notificationPermissionCopy("granted", 33)).toMatch(
-      /one topic or one direct token/,
+      /Local live alerts post on this device/,
     );
   });
 

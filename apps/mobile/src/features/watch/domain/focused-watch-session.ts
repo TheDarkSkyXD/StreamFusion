@@ -262,10 +262,14 @@ export function createFocusedWatchSession(input: {
         notify();
         return result;
       }
-      presentation = applyPictureInPictureResult(
-        presentation,
-        result.kind === "unsupported" ? "unavailable" : "failed",
-      );
+      // Expo Go and hosts without system PiP: floating mini-player is the
+      // working Picture-in-Picture action. Playback continues without ending.
+      presentation = {
+        pip: "idle",
+        presentation: "mini",
+        previous: "watch",
+        snapRegion: presentation.snapRegion,
+      };
       notify();
       return result;
     },

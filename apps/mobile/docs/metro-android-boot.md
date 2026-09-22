@@ -36,7 +36,11 @@ and never the long `F:\My Github Repos\...` path for native rebuilds):
 ```bat
 npm ci
 cd apps\mobile
-npx expo start --dev-client --clear --port 8081
+npm start
 ```
 
-Then reload the development client on the emulator.
+Open `exp://LAN:8081` in Expo Go. For a custom development APK instead:
+
+```bat
+npm run start:dev-client -- --clear --port 8081
+```

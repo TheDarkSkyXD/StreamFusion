@@ -34,7 +34,7 @@ export function notificationPermissionCopy(
     case "unavailable":
       return "Notification permission is unavailable on this device. Activity history still records eligible live events.";
     case "granted":
-      return "Android allows notification posting. Native FCM registration runs on this device. Live alerts use one topic or one direct token, never both.";
+      return "Android allows notification posting. Local live alerts post on this device. Remote FCM registers when a development client token is available.";
   }
 }
 
@@ -64,9 +64,9 @@ function nativeRegistrationFallback(input: {
     return DENIED_PERMISSION_COPY;
   }
   if (!input.preferences.enabled) {
-    return "Native FCM registration starts when Android notifications are on.";
+    return "Turn on Android notifications to post local live alerts. Remote FCM registers when a device push token is available.";
   }
-  return "Native FCM registration is in progress.";
+  return "Local live alerts are enabled. Remote FCM registration continues when a device push token is available.";
 }
 
 export function composeNotificationSettingsView(input: {
