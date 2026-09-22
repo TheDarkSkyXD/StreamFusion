@@ -8,6 +8,7 @@ import { composeWatchHistoryView } from "../domain/watch-history-view";
 vi.mock("react-native", () => ({
   Image: "Image",
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",

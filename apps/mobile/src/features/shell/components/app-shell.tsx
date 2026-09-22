@@ -30,13 +30,16 @@ import type {
   ActivityRepository,
   ShellRestorationRepository,
 } from "@mobile/features/storage/capabilities/persistence";
+import { MobileConnectivityBanner } from "@mobile/design/connectivity-banner";
 import {
   mobileColors,
+  mobileHitSlop,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
+import { useNetworkStatus } from "@mobile/features/connectivity/components/use-network-status";
 import { useActivityController } from "@mobile/features/activity/components/activity-controller";
 import { InAppNotificationBannerView } from "@mobile/features/notifications/components/in-app-notification-banner";
 import { NotificationProofControl } from "@mobile/features/notifications/components/notification-proof-control";
@@ -391,6 +394,14 @@ export function AppShell({
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const keyboardInset = useKeyboardInset();
+  const readNetwork = useCallback(
+    () => connectivitySession.readNetwork(),
+    [connectivitySession],
+  );
+  const networkStatus = useNetworkStatus({
+    enabled: !pictureInPictureSurface,
+    readNetwork,
+  });
   const placement = getShellNavigationPlacement(width);
 
   const cancelDismissal = activity.cancelDismissal;
@@ -461,6 +472,9 @@ export function AppShell({
               }
               status={lifecycle.status}
             />
+            {pictureInPictureSurface ? null : (
+              <MobileConnectivityBanner status={networkStatus.status} />
+            )}
             {notificationBanner ? (
               <InAppNotificationBannerView
                 banner={notificationBanner}
@@ -645,6 +659,7 @@ function ShellHeader({
             color: mobileColors.surfaceRaised,
             borderless: true,
           }}
+          hitSlop={mobileHitSlop}
           onPress={() => dispatch({ type: "back" })}
           style={styles.headerAction}
           testID="shell-back"
@@ -672,6 +687,7 @@ function ShellHeader({
           accessibilityLabel="Settings"
           accessibilityRole="button"
           android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          hitSlop={mobileHitSlop}
           onPress={() =>
             dispatch({ type: "navigate", location: { route: "more/settings" } })
           }
@@ -689,6 +705,7 @@ function ShellHeader({
           accessibilityLabel="Accounts"
           accessibilityRole="button"
           android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          hitSlop={mobileHitSlop}
           onPress={() =>
             dispatch({ type: "navigate", location: { route: "more" } })
           }
@@ -1136,6 +1153,7 @@ function ShellScreen({
               location: { route: "activity/job-preview", jobId },
             })
           }
+          onRefresh={() => mediaJobsController.refresh()}
         />
       </View>
     );

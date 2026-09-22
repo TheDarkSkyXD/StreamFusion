@@ -29,6 +29,10 @@ export default defineConfig({
       { find: /^react\/(.*)$/, replacement: path.join(reactRoot, "$1") },
       { find: /^react-dom$/, replacement: path.join(reactDomRoot, "index.js") },
       { find: /^react-dom\/(.*)$/, replacement: path.join(reactDomRoot, "$1") },
+      {
+        find: "expo-haptics",
+        replacement: path.join(mobileRoot, "src/design/tests/expo-haptics-stub.ts"),
+      },
     ],
     dedupe: ["react", "react-dom"],
   },

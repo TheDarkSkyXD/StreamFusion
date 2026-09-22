@@ -119,6 +119,12 @@ export function useUnifiedSearch(input: {
     requestClear() {
       setHistoryConfirmClear(true);
     },
+    refresh() {
+      return queryClient.invalidateQueries({
+        queryKey: ["discovery", "search"],
+      });
+    },
+    refreshing: (fetchTwitch && twitch.isFetching) || (fetchKick && kick.isFetching),
     retry(platform: Platform) {
       void queryClient.invalidateQueries({
         queryKey: ["discovery", "search", platform],

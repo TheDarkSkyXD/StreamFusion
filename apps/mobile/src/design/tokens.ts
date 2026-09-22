@@ -105,3 +105,13 @@ export const mobileType = {
     lineHeight: 14,
   },
 } as const satisfies Record<string, TextStyle>;
+
+/** Expand icon-only controls to at least the minimum touch target. */
+export const mobileHitSlop = {
+  top: 10,
+  bottom: 10,
+  left: 10,
+  right: 10,
+} as const;
+
+export const mobilePressedOpacity = 0.72;

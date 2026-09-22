@@ -14,6 +14,7 @@ vi.mock("react-native", () => ({
   Image: "Image",
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",

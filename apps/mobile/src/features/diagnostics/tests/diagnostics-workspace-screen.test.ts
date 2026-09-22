@@ -7,6 +7,7 @@ import { MOBILE_DIAGNOSTICS_TABS } from "../capabilities/diagnostics-workspace";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",

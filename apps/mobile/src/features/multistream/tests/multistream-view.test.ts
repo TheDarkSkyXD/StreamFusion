@@ -12,6 +12,7 @@ import { MultistreamView } from "../components/multistream-view";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
   View: "View",

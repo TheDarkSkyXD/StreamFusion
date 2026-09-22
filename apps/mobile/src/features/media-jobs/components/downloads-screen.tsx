@@ -1,7 +1,8 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 
 import { MobileButton } from "@mobile/design/button";
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
@@ -15,14 +16,20 @@ import { mediaJobPhaseLabel } from "../utils/media-job-labels";
 export function DownloadsScreen({
   jobs,
   onOpenJob,
+  onRefresh,
+  refreshing = false,
 }: {
   readonly jobs: readonly MediaJobSnapshot[];
   readonly onOpenJob: (jobId: string) => void;
+  readonly onRefresh?: () => void | Promise<void>;
+  readonly refreshing?: boolean;
 }) {
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
+      onRefresh={onRefresh}
+      refreshing={refreshing}
       style={styles.scroll}
       testID="screen-downloads"
     >
@@ -69,7 +76,7 @@ export function DownloadsScreen({
           })}
         </View>
       )}
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }
 

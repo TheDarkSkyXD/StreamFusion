@@ -24,6 +24,8 @@ export function HistoryScreen({
       }}
       onOpen={(item) => onWatch(history.open(item, "open"))}
       onRemove={history.requestRemove}
+      onRefresh={() => history.refresh()}
+      refreshing={history.refreshing}
       onReplay={(item) => onWatch(history.open(item, "replay"))}
       onResume={(item) => onWatch(history.open(item, "resume"))}
       onRetry={() => {

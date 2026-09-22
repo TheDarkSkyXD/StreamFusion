@@ -13,6 +13,7 @@ import { MediaJobScreen } from "../components/media-job-screen";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
   View: "View",

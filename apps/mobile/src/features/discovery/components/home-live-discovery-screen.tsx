@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -33,6 +34,7 @@ export function HomeLiveDiscoveryScreen({
   onSelectStream,
   session,
   title = "Home",
+  topShelf,
 }: {
   readonly footer?: ReactNode;
   readonly onOpenAccounts: () => void;
@@ -40,6 +42,7 @@ export function HomeLiveDiscoveryScreen({
   readonly onSelectStream?: (stream: Stream) => void;
   readonly session: DiscoverySession;
   readonly title?: string;
+  readonly topShelf?: ReactNode;
 }) {
   const live = useHomeLiveDiscovery({ session });
   const featured = useMemo(
@@ -72,12 +75,15 @@ export function HomeLiveDiscoveryScreen({
       featuredIndex={featuredIndex}
       onFeaturedIndexChange={setFeaturedIndex}
       onOpenAccounts={onOpenAccounts}
+      onRefresh={live.refresh}
       onRetry={live.retry}
+      refreshing={live.refreshing}
       view={live.view}
       {...(footer === undefined ? {} : { footer })}
       {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(onSelectStream === undefined ? {} : { onSelectStream })}
       {...(title === undefined ? {} : { title })}
+      {...(topShelf === undefined ? {} : { topShelf })}
     />
   );
 }
@@ -88,11 +94,14 @@ export function HomeLiveDiscoveryView({
   onFeaturedIndexChange,
   onOpenAccounts,
   onOpenChannel,
+  onRefresh,
   onRetry,
   onSelectProofMode,
   onSelectStream,
   proofMode,
+  refreshing = false,
   title = "Home",
+  topShelf,
   view,
 }: {
   readonly featuredIndex?: number;
@@ -100,11 +109,14 @@ export function HomeLiveDiscoveryView({
   readonly onFeaturedIndexChange?: (index: number) => void;
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+  readonly onRefresh?: () => void | Promise<void>;
   readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly onSelectStream?: (stream: Stream) => void;
   readonly proofMode?: DiscoveryFixtureMode;
+  readonly refreshing?: boolean;
   readonly title?: string;
+  readonly topShelf?: ReactNode;
   readonly view: HomeLiveDiscoveryModel;
 }) {
   const featured = featuredCarouselStreams(view.streams);
@@ -122,13 +134,16 @@ export function HomeLiveDiscoveryView({
     </Text>
   );
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
+      onRefresh={onRefresh}
+      refreshing={refreshing}
       style={styles.scroll}
       testID="home-live-discovery"
     >
       <MobileScreenHeader title={title} />
+      {topShelf ?? null}
       {featured.length > 0 ? (
         <HomeFeaturedCarouselView
           activeIndex={featuredIndex}
@@ -171,7 +186,7 @@ export function HomeLiveDiscoveryView({
         />
       ))}
       {footer ?? null}
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }
 

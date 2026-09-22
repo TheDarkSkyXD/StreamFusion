@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import type {
   FollowedClipPeriod,
@@ -8,6 +8,7 @@ import type {
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { mobileSpacing } from "@mobile/design/tokens";
 
@@ -53,11 +54,13 @@ export function FollowingScreen({
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       onPeriod={setPeriod}
       onQuery={setQuery}
+      onRefresh={() => live.refresh()}
       onRetry={() => live.refresh()}
       onSort={setSort}
       onTab={setTab}
       period={period}
       query={query}
+      refreshing={live.refreshing}
       sort={sort}
       tab={tab}
       view={live.view}
@@ -73,11 +76,13 @@ function FollowingScreenBody({
   onOpenSearch,
   onPeriod,
   onQuery,
+  onRefresh,
   onRetry,
   onSort,
   onTab,
   period,
   query,
+  refreshing,
   sort,
   tab,
   view,
@@ -92,19 +97,23 @@ function FollowingScreenBody({
   readonly onOpenSearch?: () => void;
   readonly onPeriod: (period: FollowedClipPeriod) => void;
   readonly onQuery: (query: string) => void;
+  readonly onRefresh: () => void | Promise<void>;
   readonly onRetry: () => void;
   readonly onSort: (sort: FollowedRecordedSort) => void;
   readonly onTab: (tab: FollowingTab) => void;
   readonly period: FollowedClipPeriod;
   readonly query: string;
+  readonly refreshing: boolean;
   readonly sort: FollowedRecordedSort;
   readonly tab: FollowingTab;
   readonly view: ReturnType<typeof useFollowingView>["view"];
 }) {
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
+      onRefresh={onRefresh}
+      refreshing={refreshing}
       style={styles.scroll}
       testID="following-screen"
     >
@@ -153,7 +162,7 @@ function FollowingScreenBody({
           Find channels in Search
         </MobileButton>
       ) : null}
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }
 

@@ -1,6 +1,8 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
+import { warningHaptic } from "@mobile/design/haptics";
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
@@ -23,10 +25,12 @@ export function HistoryView({
   onClear,
   onConfirm,
   onOpen,
+  onRefresh,
   onRemove,
   onReplay,
   onResume,
   onRetry,
+  refreshing = false,
 }: {
   readonly model: WatchHistoryView;
   readonly onCancel: () => void;
@@ -34,19 +38,23 @@ export function HistoryView({
   readonly onClear: () => void;
   readonly onConfirm: () => void;
   readonly onOpen: (item: WatchHistoryItem) => void;
+  readonly onRefresh?: () => void | Promise<void>;
   readonly onRemove: (item: WatchHistoryItem) => void;
   readonly onReplay: (item: WatchHistoryItem) => void;
   readonly onResume: (item: WatchHistoryItem) => void;
   readonly onRetry: () => void;
+  readonly refreshing?: boolean;
 }) {
   const showClear =
     model.items.length > 0 || model.confirmation?.kind === "clear";
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
+      onRefresh={onRefresh ?? onRetry}
+      refreshing={refreshing}
       style={styles.screen}
       testID="screen-history"
     >
@@ -56,7 +64,10 @@ export function HistoryView({
             <MobileButton
               accessibilityHint="Asks before removing only Watch History"
               accessibilityLabel="Clear history"
-              onPress={onClear}
+              onPress={() => {
+                void warningHaptic();
+                onClear();
+              }}
               testID="history-clear"
               variant="ghost"
             >
@@ -91,7 +102,7 @@ export function HistoryView({
           onResume={() => onResume(item)}
         />
       ))}
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }
 

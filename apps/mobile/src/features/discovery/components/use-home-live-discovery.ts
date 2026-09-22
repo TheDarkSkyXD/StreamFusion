@@ -41,6 +41,12 @@ export function useHomeLiveDiscovery(input: {
     retry: false,
   });
   return {
+    refresh() {
+      return queryClient.invalidateQueries({
+        queryKey: ["discovery", "top-streams"],
+      });
+    },
+    refreshing: twitch.isFetching || kick.isFetching,
     retry(platform: Platform) {
       void queryClient.invalidateQueries({
         queryKey: ["discovery", "top-streams", platform],

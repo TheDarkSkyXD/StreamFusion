@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -11,6 +10,7 @@ import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
@@ -121,8 +121,10 @@ export function UnifiedSearchScreen({
       onRemoveHistory={live.remove}
       onRepeatHistory={submit}
       onRequestClear={live.requestClear}
+      onRefresh={() => live.refresh()}
       onRetry={live.retry}
       onSelectHistoryScope={setHistoryScope}
+      refreshing={live.refreshing}
       onSelectMode={setMode}
       onSelectPlatform={setPlatform}
       onSelectTab={setTab}
@@ -148,6 +150,7 @@ export function UnifiedSearchView({
   onClearDraft,
   onConfirmClear,
   onOpenAccounts,
+  onRefresh,
   onRemoveHistory,
   onRepeatHistory,
   onRequestClear,
@@ -163,6 +166,7 @@ export function UnifiedSearchView({
   onWatch,
   platform,
   proofMode,
+  refreshing = false,
   tab,
   view,
 }: {
@@ -176,6 +180,7 @@ export function UnifiedSearchView({
   readonly onClearDraft: () => void;
   readonly onConfirmClear: () => void;
   readonly onOpenAccounts: () => void;
+  readonly onRefresh?: () => void | Promise<void>;
   readonly onRemoveHistory: (query: string) => void;
   readonly onRepeatHistory: (query: string) => void;
   readonly onRequestClear: () => void;
@@ -191,6 +196,7 @@ export function UnifiedSearchView({
   readonly onWatch?: (target: WatchTarget) => void;
   readonly platform: SearchPlatformFilter;
   readonly proofMode?: DiscoveryFixtureMode;
+  readonly refreshing?: boolean;
   readonly tab: SearchResultType;
   readonly view: UnifiedSearchModel;
 }) {
@@ -268,11 +274,13 @@ export function UnifiedSearchView({
 
   return (
     <KeyboardAvoidingView style={styles.frame} testID="unified-search">
-      <ScrollView
+      <MobileRefreshableScroll
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        onRefresh={onRefresh}
+        refreshing={refreshing}
         style={styles.scroll}
       >
         <MobileScreenHeader title="Search Twitch + Kick" />
@@ -336,7 +344,7 @@ export function UnifiedSearchView({
         ) : (
           resultsBlock
         )}
-      </ScrollView>
+      </MobileRefreshableScroll>
       <SearchDock
         onChangeText={onChangeDraft}
         onClear={onClearDraft}

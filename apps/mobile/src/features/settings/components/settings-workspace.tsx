@@ -40,11 +40,13 @@ import {
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
+  mobileHitSlop,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
+import { warningHaptic } from "@mobile/design/haptics";
 import type { SettingsSession, SettingsView } from "../capabilities/settings";
 import {
   SETTINGS_CATEGORY_SECTIONS,
@@ -213,6 +215,7 @@ export function SettingsCategoryDetail({
           <Pressable
             accessibilityLabel="Back to settings"
             accessibilityRole="button"
+            hitSlop={mobileHitSlop}
             onPress={onBack}
             style={({ pressed }) => [
               styles.backButton,
@@ -433,8 +436,10 @@ function SettingsSearchField({
       {hasQuery ? (
         <Pressable
           accessibilityLabel="Clear settings search"
+          hitSlop={mobileHitSlop}
           accessibilityRole="button"
           onPress={() => {
+            void warningHaptic();
             void session.search("");
           }}
           style={({ pressed }) => [

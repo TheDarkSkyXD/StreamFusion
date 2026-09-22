@@ -9,8 +9,10 @@ import {
   X,
 } from "lucide-react-native";
 
+import { impactHaptic } from "@mobile/design/haptics";
 import {
   mobileColors,
+  mobileHitSlop,
   mobileRadii,
   mobileShadows,
   mobileSizing,
@@ -204,7 +206,11 @@ function IconControl({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      onPress={onPress}
+      hitSlop={mobileHitSlop}
+      onPress={() => {
+        void impactHaptic("light");
+        onPress();
+      }}
       style={({ pressed }) => [styles.control, pressed ? styles.controlPressed : null]}
       testID={testID}
     >

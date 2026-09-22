@@ -33,8 +33,13 @@ export function useFollowingView(input: {
   const queries = useFollowingQueries(input);
   return {
     refresh() {
-      void queryClient.invalidateQueries({ queryKey: ["follows"] });
+      return queryClient.invalidateQueries({ queryKey: ["follows"] });
     },
+    refreshing:
+      queries.membership.isFetching ||
+      queries.live.isFetching ||
+      queries.notifications.isFetching ||
+      (queries.recordedEnabled && queries.recorded.isFetching),
     view: composeFollowingView({
       chip: input.chip,
       loadingLive: queries.membership.isPending || queries.live.isPending,

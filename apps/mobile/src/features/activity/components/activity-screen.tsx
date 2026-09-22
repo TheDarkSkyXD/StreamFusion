@@ -78,6 +78,10 @@ export function ActivityScreen({
       contentContainerStyle={styles.listContent}
       contentInsetAdjustmentBehavior="automatic"
       data={model.items}
+      onRefresh={() => {
+        void onRefresh();
+      }}
+      refreshing={model.isRefreshing}
       ref={listRef}
       keyExtractor={(item) => item.eventId}
       ListEmptyComponent={

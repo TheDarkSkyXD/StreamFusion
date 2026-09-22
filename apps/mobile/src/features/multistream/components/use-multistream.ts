@@ -62,6 +62,7 @@ export function useMultistream(input: {
   const [confirm, setConfirm] = useState<MultistreamConfirm>({ kind: "idle" });
   const [editing, setEditing] = useState(false);
   const layout = query.data ?? LOADING_MULTISTREAM_LAYOUT;
+  const refresh = () => client.invalidateQueries({ queryKey: QUERY_KEY });
   const admission = useMemo(
     () =>
       input.profile
@@ -114,6 +115,8 @@ export function useMultistream(input: {
   }
 
   return {
+    refresh,
+    refreshing: query.isFetching,
     add: async (source: AddMultistreamSource) => {
       const result = addMultistreamSlot(
         layout,

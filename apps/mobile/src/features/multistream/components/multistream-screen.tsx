@@ -1,5 +1,7 @@
-import { ScrollView, useWindowDimensions } from "react-native";
+import { useWindowDimensions } from "react-native";
 import type { ComponentType } from "react";
+
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 
 import type {
   CapabilityProfile,
@@ -44,9 +46,11 @@ export function MultistreamScreen({
     windowWidth: width,
   });
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentInsetAdjustmentBehavior="automatic"
       keyboardDismissMode="on-drag"
+      onRefresh={() => session.refresh()}
+      refreshing={session.refreshing}
       testID="screen-more-multistream"
     >
       <MultistreamView
@@ -70,6 +74,6 @@ export function MultistreamScreen({
         view={session.view}
         windowWidth={width}
       />
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }

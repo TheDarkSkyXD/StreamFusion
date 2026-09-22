@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileSelect } from "@mobile/design/select";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -63,9 +64,11 @@ export function CategoriesView({
   onChangeQuery,
   onOpenAccounts,
   onOpenCategory,
+  onRefresh,
   onRetry,
   onSelectProofMode,
   proofMode,
+  refreshing = false,
   view,
 }: {
   readonly embedded?: boolean;
@@ -73,15 +76,19 @@ export function CategoriesView({
   readonly onChangeQuery: (query: string) => void;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategory: (category: CategoryIdentity) => void;
+  readonly onRefresh?: () => void | Promise<void>;
   readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly proofMode?: DiscoveryFixtureMode;
+  readonly refreshing?: boolean;
   readonly view: ReturnType<typeof composeCategoryCatalog>;
 }) {
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
+      onRefresh={onRefresh}
+      refreshing={refreshing}
       style={styles.scroll}
       testID="categories-screen"
     >
@@ -124,7 +131,7 @@ export function CategoriesView({
         query={view.query}
         testID="categories-search"
       />
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }
 

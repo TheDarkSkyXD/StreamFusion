@@ -13,8 +13,10 @@ import {
 } from "lucide-react-native";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { impactHaptic } from "@mobile/design/haptics";
 import {
   mobileColors,
+  mobileHitSlop,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
@@ -302,7 +304,11 @@ function IconControl({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
-      onPress={onPress}
+      hitSlop={mobileHitSlop}
+      onPress={() => {
+        void impactHaptic("light");
+        onPress();
+      }}
       android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true }}
       style={({ pressed }) => [
         styles.iconHit,

@@ -8,6 +8,7 @@ import { HomeLiveDiscoveryView } from "../components/home-live-discovery-screen"
 vi.mock("react-native", () => ({
   Image: "Image",
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: {
     create: (styles: unknown) => styles,

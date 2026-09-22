@@ -21,6 +21,7 @@ vi.mock("react-native", () => ({
     addEventListener: () => ({ remove: () => undefined }),
   },
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: {
     create: (styles: unknown) => styles,

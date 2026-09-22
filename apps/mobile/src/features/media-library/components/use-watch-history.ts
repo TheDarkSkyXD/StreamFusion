@@ -23,6 +23,7 @@ export function useWatchHistory(input: {
   readonly confirm: () => Promise<void>;
   readonly open: (item: WatchHistoryItem, mode: WatchHistoryOpenMode) => WatchTarget;
   readonly refresh: () => Promise<void>;
+  readonly refreshing: boolean;
   readonly requestClear: () => void;
   readonly requestRemove: (item: WatchHistoryItem) => void;
   readonly setQuery: (query: string) => void;
@@ -65,7 +66,9 @@ export function useWatchHistory(input: {
     refresh: async () => {
       setWriteFailed(false);
       await historyQuery.refetch();
+      await networkQuery.refetch();
     },
+    refreshing: historyQuery.isFetching || networkQuery.isFetching,
     requestClear: () => setConfirmation({ kind: "clear" }),
     requestRemove: (item) =>
       setConfirmation({ id: item.id, kind: "remove", title: item.title }),

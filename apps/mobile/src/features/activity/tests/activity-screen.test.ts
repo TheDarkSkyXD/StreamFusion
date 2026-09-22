@@ -16,6 +16,7 @@ type SystemActivityItem = Extract<
 vi.mock("react-native", () => ({
   FlatList: "FlatList",
   Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",

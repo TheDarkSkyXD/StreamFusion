@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
@@ -63,10 +64,11 @@ export function DiagnosticsWorkspace({
           ))}
         </ScrollView>
       </View>
-      <ScrollView
+      <MobileRefreshableScroll
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         nestedScrollEnabled
+        onRefresh={onRunCheck}
         style={styles.body}
         testID={`diagnostics-panel-${selectedTab}`}
       >
@@ -93,7 +95,7 @@ export function DiagnosticsWorkspace({
           Run check
         </MobileButton>
         {slots[selectedTab]}
-      </ScrollView>
+      </MobileRefreshableScroll>
     </View>
   );
 }

@@ -87,6 +87,14 @@ export function useCategoryCatalog(input: {
     retry: false,
   });
   return {
+    refresh() {
+      return queryClient.invalidateQueries({ queryKey: ["discovery"] });
+    },
+    refreshing:
+      twitch.isFetching ||
+      kick.isFetching ||
+      remoteTwitch.isFetching ||
+      remoteKick.isFetching,
     async setLanguage(next: LanguageFilter) {
       setLanguage(next);
       await input.preferences.writeLanguage(next);

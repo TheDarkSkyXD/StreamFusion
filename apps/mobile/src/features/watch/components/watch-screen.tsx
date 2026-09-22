@@ -9,6 +9,7 @@ import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/c
 import { WatchAdBlockStatus } from "@mobile/features/ad-blocking/components/watch-adblock-status";
 
 import { MobileButton } from "@mobile/design/button";
+import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
@@ -356,7 +357,7 @@ export function WatchEmptyState({
   readonly onOpenSearch?: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
 } = {}) {
-  const recentFooter =
+  const continueWatching =
     history && onWatch ? (
       <WatchRecentList
         history={history}
@@ -383,20 +384,21 @@ export function WatchEmptyState({
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
           title="Watch"
-          {...(recentFooter === null ? {} : { footer: recentFooter })}
+          {...(continueWatching === null ? {} : { topShelf: continueWatching })}
         />
       </View>
     );
   }
 
   return (
-    <ScrollView
+    <MobileRefreshableScroll
       contentContainerStyle={styles.screen}
       contentInsetAdjustmentBehavior="automatic"
       style={styles.scroll}
       testID="screen-watch"
     >
       <MobileScreenHeader title="Watch" />
+      {continueWatching}
       <MobileStatusPanel testID="watch-empty" tone="empty">
         <Text selectable style={mobileType.title}>
           Nothing playing
@@ -405,8 +407,7 @@ export function WatchEmptyState({
           Pick a live stream or recording from Search or Following to watch here.
         </Text>
       </MobileStatusPanel>
-      {recentFooter}
-    </ScrollView>
+    </MobileRefreshableScroll>
   );
 }
 

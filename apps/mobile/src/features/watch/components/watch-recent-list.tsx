@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
+  mobilePressedOpacity,
   mobileRadii,
+  mobileSizing,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
@@ -13,7 +15,12 @@ import type {
   WatchHistoryItem,
   WatchHistoryRepository,
 } from "@mobile/features/media-library/capabilities/watch-history";
-import { watchTargetFromHistory } from "@mobile/features/media-library/domain/watch-history";
+import {
+  canResumeWatchHistory,
+  watchHistoryProgressRatio,
+  watchTargetFromHistory,
+} from "@mobile/features/media-library/domain/watch-history";
+import { impactHaptic } from "@mobile/design/haptics";
 import type { WatchTarget } from "../capabilities/watch";
 
 const RECENT_LIMIT = 8;
@@ -35,7 +42,7 @@ export function WatchRecentList({
   if (query.isLoading) {
     return (
       <Text selectable style={styles.caption} testID="watch-recent-loading">
-        Loading recent watches…
+        Loading Continue Watching…
       </Text>
     );
   }
@@ -54,17 +61,20 @@ export function WatchRecentList({
   }
   return (
     <View style={styles.stack} testID="watch-recent-list">
-      <Text selectable style={styles.heading}>
-        Recent
+      <Text selectable style={styles.heading} testID="continue-watching-heading">
+        Continue Watching
       </Text>
       <Text selectable style={styles.caption}>
-        Continue from Watch History without autoplay.
+        Resume or open from History. Playback never autoplays.
       </Text>
       {items.map((item) => (
         <RecentRow
           item={item}
           key={item.id}
-          onWatch={() => onWatch(watchTargetFromHistory(item, "open"))}
+          onWatch={(mode) => {
+            void impactHaptic("light");
+            onWatch(watchTargetFromHistory(item, mode));
+          }}
         />
       ))}
     </View>
@@ -76,10 +86,27 @@ function RecentRow({
   onWatch,
 }: {
   readonly item: WatchHistoryItem;
-  readonly onWatch: () => void;
+  readonly onWatch: (mode: "open" | "resume") => void;
 }) {
+  const canResume = canResumeWatchHistory(item);
+  const progress = watchHistoryProgressRatio(item);
   return (
-    <View style={styles.card} testID={`watch-recent-${item.id}`}>
+    <Pressable
+      accessibilityHint={
+        canResume
+          ? "Resumes this recording from your saved position"
+          : "Opens this item without autoplay"
+      }
+      accessibilityLabel={`${canResume ? "Resume" : "Open"} ${item.title}`}
+      accessibilityRole="button"
+      android_ripple={{ color: mobileColors.surfaceRaised }}
+      onPress={() => onWatch(canResume ? "resume" : "open")}
+      style={({ pressed }) => [
+        styles.card,
+        pressed ? styles.cardPressed : null,
+      ]}
+      testID={`watch-recent-${item.id}`}
+    >
       <View style={styles.meta}>
         <MobilePlatformBadge platform={item.platform} />
         <View style={styles.copy}>
@@ -89,17 +116,28 @@ function RecentRow({
           <Text numberOfLines={1} selectable style={styles.channel}>
             {item.channelDisplayName}
           </Text>
+          {progress !== null ? (
+            <View
+              accessibilityLabel={`${Math.round(progress * 100)} percent watched`}
+              style={styles.progressTrack}
+              testID={`watch-recent-progress-${item.id}`}
+            >
+              <View
+                style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]}
+              />
+            </View>
+          ) : null}
         </View>
       </View>
       <MobileButton
-        accessibilityLabel={`Open ${item.title}`}
-        onPress={onWatch}
+        accessibilityLabel={`${canResume ? "Resume" : "Open"} ${item.title}`}
+        onPress={() => onWatch(canResume ? "resume" : "open")}
         testID={`watch-recent-open-${item.id}`}
         variant="secondary"
       >
-        Open
+        {canResume ? "Resume" : "Open"}
       </MobileButton>
-    </View>
+    </Pressable>
   );
 }
 
@@ -119,7 +157,11 @@ const styles = StyleSheet.create({
     borderRadius: mobileRadii.large,
     borderWidth: 1,
     gap: mobileSpacing.small,
+    minHeight: mobileSizing.minimumTouchTarget,
     padding: mobileSpacing.medium,
+  },
+  cardPressed: {
+    opacity: mobilePressedOpacity,
   },
   meta: {
     alignItems: "flex-start",
@@ -138,5 +180,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
+  },
+  progressTrack: {
+    backgroundColor: mobileColors.surfaceMuted,
+    borderRadius: mobileRadii.full,
+    height: 4,
+    marginTop: mobileSpacing.xSmall,
+    overflow: "hidden",
+    width: "100%",
+  },
+  progressFill: {
+    backgroundColor: mobileColors.textPrimary,
+    height: "100%",
   },
 });

@@ -1,4 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { impactHaptic } from "@mobile/design/haptics";
 import { useState } from "react";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
@@ -49,6 +51,7 @@ export function useChannelFollow(input: {
     },
     toggle() {
       if (pending) return;
+      void impactHaptic("light");
       void mutateFollow({
         channel: input.channel,
         following: input.following,
