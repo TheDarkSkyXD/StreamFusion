@@ -1,6 +1,7 @@
 import { KICK_ANDROID_REDIRECT_URI } from "@streamfusion/core/auth";
 import { PLATFORMS } from "@streamfusion/core/platform";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nextProvider } from "react-i18next";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
 import { useEffect, useMemo, useState } from "react";
@@ -75,6 +76,9 @@ import { createChatDisplaySettingsSession } from "@mobile/features/settings/comp
 import { createNotificationSettingsSession } from "@mobile/features/settings/composition/notification-settings-runtime";
 import { createPredictionSettingsSession } from "@mobile/features/settings/composition/prediction-settings-runtime";
 import { createSettingsSession } from "@mobile/features/settings/composition/settings-runtime";
+import { DisplayLanguageSync } from "@mobile/i18n/DisplayLanguageSync";
+import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
+import { bootstrapMobileI18n, i18n } from "@mobile/i18n";
 import { createSupportSettingsSession } from "@mobile/features/settings/composition/support-settings-runtime";
 import { createSupportPreferenceStore } from "@mobile/features/settings/data/support-settings-store";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
@@ -512,8 +516,24 @@ export function MobileRuntime() {
     void developmentActivityProof.recover();
     return unsubscribe;
   }, []);
+  const [i18nReady, setI18nReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void bootstrapMobileI18n().then(() => {
+      if (!cancelled) setI18nReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const settings = useSettingsSession(settingsSession);
   return (
     <QueryClientProvider client={queryClient}>
+    <I18nextProvider i18n={i18n}>
+    <DisplayLanguageSync
+      language={settings.view.preferences.language}
+      ready={i18nReady && settings.ready}
+    >
     <AppShell
       activityRepository={
         developmentActivityProof?.repository ??
@@ -605,6 +625,8 @@ export function MobileRuntime() {
       watch={watch}
       multistream={multistream}
     />
+    </DisplayLanguageSync>
+    </I18nextProvider>
     </QueryClientProvider>
   );
 }

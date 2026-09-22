@@ -4,7 +4,7 @@ import boundaries from "eslint-plugin-boundaries";
 
 const productionFiles = ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}"];
 const featureLayers = ["mobile-routes", "mobile-components", "mobile-domain", "mobile-capabilities", "mobile-adapters", "mobile-data", "mobile-utils", "mobile-feature-composition"];
-const coreSubpaths = ["platform", "content", "discovery", "follows", "auth", "chat", "activity", "reliability", "relay", "media-jobs", "local-captions", "settings"];
+const coreSubpaths = ["platform", "content", "discovery", "follows", "auth", "chat", "activity", "reliability", "relay", "media-jobs", "local-captions", "display-language", "settings"];
 const restrictedRuntimeImports = [{ group: ["@streamfusion/core/testing", "@streamfusion/core/src/**", "node:*", "electron", "electron/**", "../../desktop/**", "../../../desktop/**", "../../worker/**", "../../../worker/**", "../../integration-relay/**", "../../../integration-relay/**"], message: "Mobile code uses public Core contracts and Mobile feature boundaries." }];
 const nativeBridgeImports = [{ group: ["expo-modules-core", "expo-modules-core/**", "react-native/Libraries/BatchedBridge/NativeModules", "react-native/Libraries/BatchedBridge/NativeModules/**", "react-native/Libraries/TurboModule/TurboModuleRegistry", "react-native/Libraries/TurboModule/TurboModuleRegistry/**"], message: "Only feature adapters and local Expo modules may access native bridge SDKs." }, { group: ["expo"], importNames: ["requireNativeModule", "requireOptionalNativeModule"], message: "Only feature adapters and local Expo modules may access native bridge SDKs." }, { group: ["react-native"], importNames: ["NativeModules", "TurboModuleRegistry"], message: "Only feature adapters and local Expo modules may access native bridge SDKs." }];
 const nativeBridgeRestrictedFiles = ["app/**/*.{ts,tsx}", "src/composition/**/*.{ts,tsx}", ...["routes", "components", "domain", "capabilities", "data", "utils", "composition"].map((layer) => `src/features/**/${layer}/**/*.{ts,tsx}`)];
@@ -17,11 +17,12 @@ export default defineConfig([
     files: productionFiles,
     plugins: { boundaries },
     settings: {
-      "import/resolver": { alias: { map: [["@mobile", "./src"]], extensions: [".ts", ".tsx"] } },
+      "import/resolver": { alias: { map: [["@mobile", "./src"], ["@desktop-i18n", "../desktop/src/frontend/i18n"]], extensions: [".ts", ".tsx", ".json"] } },
       "boundaries/elements": [
         { type: "mobile-entry", pattern: "app", partialMatch: false },
         { type: "mobile-design", pattern: "src/design", partialMatch: false },
         { type: "mobile-runtime-composition", pattern: "src/composition", partialMatch: false },
+        { type: "mobile-i18n", pattern: "src/i18n", partialMatch: false },
         { type: "mobile-native-module", pattern: "modules/*/src", partialMatch: false },
         ...["routes", "components", "domain", "capabilities", "adapters", "data", "utils", "composition", "tests"].map((layer) => ({ type: `mobile-${layer === "composition" ? "feature-composition" : layer}`, pattern: `src/features/*/${layer}`, partialMatch: false }))
       ]
@@ -29,10 +30,14 @@ export default defineConfig([
     rules: {
       "boundaries/no-unknown-files": "error",
       "boundaries/dependencies": ["error", { default: "disallow", checkAllOrigins: true, checkUnknownLocals: true, checkInternals: true, policies: [
-        { from: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", "mobile-native-module", ...featureLayers, "mobile-tests"] } } }, allow: { to: { module: { origin: "external" } } } },
+        { from: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", "mobile-i18n", "mobile-native-module", ...featureLayers, "mobile-tests"] } } }, allow: { to: { module: { origin: "external" } } } },
         { from: { element: { types: { anyOf: ["mobile-entry"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-runtime-composition"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-design"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-design"] } } } } },
-        { from: { element: { types: { anyOf: ["mobile-runtime-composition", "mobile-feature-composition"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", ...featureLayers] } } } } },
+        { from: { element: { types: { anyOf: ["mobile-runtime-composition", "mobile-feature-composition"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", "mobile-i18n", ...featureLayers] } } } } },
+        { from: { element: { types: { anyOf: ["mobile-i18n"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-i18n"] } } } } },
+        { from: { element: { types: { anyOf: ["mobile-components", "mobile-feature-composition", "mobile-runtime-composition", "mobile-tests"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-i18n"] } } } } },
+        { from: { element: { types: { anyOf: ["mobile-i18n"] } } }, allow: { dependency: { source: "@desktop-i18n" } } },
+        { from: { element: { types: { anyOf: ["mobile-i18n"] } } }, allow: { dependency: { source: "@desktop-i18n/**" } } },
         { from: { element: { types: { anyOf: ["mobile-routes"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-components"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils", "mobile-design"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-domain"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-domain", "mobile-capabilities", "mobile-utils"] } } } } },
@@ -43,7 +48,7 @@ export default defineConfig([
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", ...featureLayers] } } } } },
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { dependency: { source: "node:fs" } } },
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { dependency: { source: "node:url" } } },
-        ...coreSubpaths.map((subpath) => ({ from: { element: { types: { anyOf: ["mobile-runtime-composition", ...featureLayers, "mobile-tests"] } } }, allow: { dependency: { source: `@streamfusion/core/${subpath}` } } }))
+        ...coreSubpaths.map((subpath) => ({ from: { element: { types: { anyOf: ["mobile-runtime-composition", "mobile-i18n", ...featureLayers, "mobile-tests"] } } }, allow: { dependency: { source: `@streamfusion/core/${subpath}` } } }))
       ] }],
       "no-restricted-imports": ["error", { patterns: restrictedRuntimeImports }]
     }

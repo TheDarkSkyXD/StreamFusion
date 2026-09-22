@@ -20,6 +20,7 @@ const publicSubpaths = new Set([
   "relay",
   "media-jobs",
   "local-captions",
+  "display-language",
   "settings",
   "testing",
 ]);

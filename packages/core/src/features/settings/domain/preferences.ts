@@ -1,8 +1,17 @@
+import {
+  DISPLAY_LANGUAGE_REGISTRY,
+  isSupportedDisplayLanguageInput,
+  resolveDisplayLanguage,
+  type DisplayLanguage,
+} from "../../../display-language/index.ts";
+
 export const PRODUCT_SETTINGS_VERSION = 1 as const;
 
 export const THEME_OPTIONS = ["dark"] as const;
 export const DENSITY_OPTIONS = ["compact", "comfortable", "spacious"] as const;
-export const LANGUAGE_OPTIONS = ["en"] as const;
+export const LANGUAGE_OPTIONS = DISPLAY_LANGUAGE_REGISTRY.map(
+  (definition) => definition.code,
+) as readonly DisplayLanguage[];
 export const VIDEO_QUALITY_OPTIONS = [
   "auto",
   "highest",
@@ -28,7 +37,7 @@ export const DEFAULT_MAX_BUFFER_SEC = 30;
 
 export type ThemePreference = (typeof THEME_OPTIONS)[number];
 export type DensityPreference = (typeof DENSITY_OPTIONS)[number];
-export type LanguagePreference = (typeof LANGUAGE_OPTIONS)[number];
+export type LanguagePreference = DisplayLanguage;
 export type VideoQualityPreference = (typeof VIDEO_QUALITY_OPTIONS)[number];
 export type TokenPlayerPreference = (typeof TOKEN_PLAYER_OPTIONS)[number];
 export type SeekIntervalSeconds = (typeof SEEK_INTERVAL_OPTIONS)[number];
@@ -240,13 +249,10 @@ function languageOr(
   rejected: string[],
 ): LanguagePreference {
   if (value === undefined) return fallback;
-  if (
-    typeof value === "string" &&
-    LANGUAGE_OPTIONS.includes(value as LanguagePreference)
-  ) {
-    return value as LanguagePreference;
+  if (isSupportedDisplayLanguageInput(value)) {
+    return resolveDisplayLanguage(value);
   }
-  rejected.push("Only English is available on this build.");
+  rejected.push("Unsupported display language.");
   return fallback;
 }
 

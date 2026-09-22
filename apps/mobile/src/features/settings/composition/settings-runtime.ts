@@ -4,11 +4,13 @@ import {
   applyPreferencePatch,
   type PreferencePatch,
 } from "@streamfusion/core/settings";
+import { resolveDisplayLanguage } from "@streamfusion/core/display-language";
 
 import type { SettingsSession, SettingsView } from "../capabilities/settings";
 import { createProductPreferenceStore } from "../data/settings-store";
 import { composeSettingsView } from "../domain/settings-view";
 import { applyAppearanceScheme } from "../adapters/appearance-scheme";
+import { activateDisplayLanguage } from "@mobile/i18n";
 
 export function createSettingsSession(input: {
   readonly now?: () => number;
@@ -35,9 +37,14 @@ export function createSettingsSession(input: {
     listeners.forEach((listener) => listener());
   }
 
+  async function syncLanguage(): Promise<void> {
+    await activateDisplayLanguage(resolveDisplayLanguage(cached.language));
+  }
+
   async function hydrate(): Promise<void> {
     cached = await store.read();
     applyAppearanceScheme();
+    await syncLanguage();
   }
 
   return {
@@ -70,6 +77,9 @@ export function createSettingsSession(input: {
       rejected = applied.rejected;
       applyAppearanceScheme();
       await store.write(cached);
+      if (patch.language !== undefined) {
+        await syncLanguage();
+      }
       notify();
       return applied;
     },

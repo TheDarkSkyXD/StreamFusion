@@ -54,6 +54,10 @@
       "types": "./src/local-captions/index.ts",
       "default": "./src/local-captions/index.ts"
     },
+    "./display-language": {
+      "types": "./src/display-language/index.ts",
+      "default": "./src/display-language/index.ts"
+    },
     "./settings": {
       "types": "./src/settings/index.ts",
       "default": "./src/settings/index.ts"

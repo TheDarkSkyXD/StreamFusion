@@ -3,6 +3,10 @@ const { getDefaultConfig } = require("expo/metro-config");
 
 const workspaceRoot = path.resolve(__dirname, "../..");
 const mobileRoot = __dirname;
+const desktopI18nRoot = path.resolve(
+  workspaceRoot,
+  "apps/desktop/src/frontend/i18n",
+);
 const config = getDefaultConfig(mobileRoot);
 const queryStringCompatPath = path.resolve(
   mobileRoot,
@@ -27,6 +31,10 @@ config.watchFolders = (config.watchFolders ?? []).filter(
   (folder) =>
     !ignoredWatchSuffixes.some((suffix) => folder.endsWith(suffix)),
 );
+// Share desktop display-language catalogs without watching the whole Electron app.
+if (!config.watchFolders.includes(desktopI18nRoot)) {
+  config.watchFolders.push(desktopI18nRoot);
+}
 
 const mobileOrigin = path.join(mobileRoot, "package.json");
 
@@ -39,7 +47,34 @@ function isReactFamily(moduleName) {
   );
 }
 
+const fs = require("node:fs");
+
+function resolveDesktopI18nPath(remainder) {
+  const base = path.resolve(desktopI18nRoot, remainder);
+  for (const ext of ["", ".ts", ".tsx", ".js", ".json"]) {
+    const candidate = `${base}${ext}`;
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  for (const ext of [".ts", ".tsx", ".js"]) {
+    const candidate = path.join(base, `index${ext}`);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return base;
+}
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === "@desktop-i18n" || moduleName.startsWith("@desktop-i18n/")) {
+    const remainder =
+      moduleName === "@desktop-i18n"
+        ? "index"
+        : moduleName.slice("@desktop-i18n/".length);
+    return {
+      filePath: resolveDesktopI18nPath(remainder),
+      type: "sourceFile",
+    };
+  }
   const coreSubpath = coreSubpathPattern.exec(moduleName)?.[1];
   if (coreSubpath) {
     return {

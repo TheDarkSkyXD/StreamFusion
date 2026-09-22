@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   BackHandler,
   Pressable,
@@ -112,6 +113,7 @@ export function SettingsWorkspace({
   readonly session: SettingsSession;
 }) {
   const { view } = useSettingsSession(session);
+  const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<SettingsPanelId | null>(null);
   const gap = mobileSpacing.medium * densityGapMultiplier(view.preferences.density);
 
@@ -155,8 +157,8 @@ export function SettingsWorkspace({
     >
       <View style={[styles.column, { gap }]} testID="screen-settings">
         <MobileScreenHeader
-          summary="Pick a category. Search filters the list and can open a matching panel."
-          title="Settings"
+          summary={t("settings.languageAndAppPreferences")}
+          title={t("navigation.settings")}
         />
         <SettingsSearchField session={session} value={view.query} />
         <RejectedNotices messages={view.rejected} />

@@ -6,7 +6,12 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "paths": {
-      "@mobile/*": ["./src/*"]
+      "@mobile/*": [
+        "./src/*"
+      ],
+      "@desktop-i18n/*": [
+        "../desktop/src/frontend/i18n/*"
+      ]
     }
   },
   "include": [
@@ -19,5 +24,7 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["src/features/**/tests/**"]
+  "exclude": [
+    "src/features/**/tests/**"
+  ]
 }

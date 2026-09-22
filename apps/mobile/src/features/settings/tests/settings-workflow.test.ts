@@ -1,14 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
 import type { ProductSettingsStore } from "@mobile/features/storage/capabilities/persistence";
 import { createSettingsSession } from "../composition/settings-runtime";
 import { playbackSessionPolicy } from "../domain/settings-view";
+import { activateDisplayLanguage, i18n } from "@mobile/i18n";
 
 vi.mock("../adapters/appearance-scheme", () => ({
   applyAppearanceScheme: vi.fn(),
 }));
+
+vi.mock("@mobile/i18n", async () => {
+  const actual = await vi.importActual<typeof import("@mobile/i18n")>("@mobile/i18n");
+  return {
+    ...actual,
+    activateDisplayLanguage: vi.fn(actual.activateDisplayLanguage),
+  };
+});
 
 function memorySettings(): ProductSettingsStore {
   const values = new Map<string, string>();
@@ -24,8 +33,11 @@ function session() {
   return createSettingsSession({ settings: memorySettings() });
 }
 
-// Guards: Settings stay dark-only, reject unsupported locales, and map buffer/HEVC into Watch policy
 describe("settings workflow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("loads defaults and rejects a light theme patch", async () => {
     const settings = session();
     const loaded = await settings.load();
@@ -36,13 +48,27 @@ describe("settings workflow", () => {
     expect(settings.snapshot().theme).toBe("dark");
   });
 
-  it("keeps English when another locale is requested", async () => {
+  it("persists a supported display language and activates i18n", async () => {
     const settings = session();
     await settings.load();
     const applied = await settings.apply({ language: "fr", quality: "720p" });
-    expect(applied.preferences.language).toBe("en");
+    expect(applied.preferences.language).toBe("fr");
     expect(applied.preferences.quality).toBe("720p");
-    expect(applied.rejected[0]).toMatch(/English/);
+    expect(applied.rejected).toEqual([]);
+    expect(settings.snapshot().language).toBe("fr");
+    expect(activateDisplayLanguage).toHaveBeenCalledWith("fr");
+    await activateDisplayLanguage("fr");
+    expect(i18n.resolvedLanguage ?? i18n.language).toBe("fr");
+    expect(i18n.t("navigation.settings")).toBe("Paramètres");
+  });
+
+  it("rejects unsupported locales without overwriting the saved language", async () => {
+    const settings = session();
+    await settings.load();
+    await settings.apply({ language: "es" });
+    const applied = await settings.apply({ language: "klingon" });
+    expect(applied.preferences.language).toBe("es");
+    expect(applied.rejected[0]).toMatch(/Unsupported display language/);
   });
 
   it("keeps Notifications, Ad blocking, Proxy, and Updates in local search", async () => {

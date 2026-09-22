@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import {
   DENSITY_OPTIONS,
   SEEK_INTERVAL_OPTIONS,
@@ -9,6 +11,7 @@ import type { SettingsView } from "../capabilities/settings";
 import {
   SettingsChoiceRow,
   SettingsCopy,
+  SettingsLanguagePicker,
   SettingsSection,
   SettingsSwitch,
 } from "./settings-controls";
@@ -28,8 +31,9 @@ const PLAYER_CHROME_TOGGLES = [
 ] as const;
 
 export function AppearanceSettingsPanel({ onChange, view }: SettingsPanelProps) {
+  const { t } = useTranslation();
   return (
-    <SettingsSection testID="panel-appearance" title="APPEARANCE">
+    <SettingsSection testID="panel-appearance" title={t("settings.general").toUpperCase()}>
       <AppearanceLookRows onChange={onChange} view={view} />
       <AppearanceSessionRows onChange={onChange} view={view} />
     </SettingsSection>
@@ -37,6 +41,7 @@ export function AppearanceSettingsPanel({ onChange, view }: SettingsPanelProps) 
 }
 
 function AppearanceLookRows({ onChange, view }: SettingsPanelProps) {
+  const { t } = useTranslation();
   const prefs = view.preferences;
   return (
     <>
@@ -48,11 +53,10 @@ function AppearanceLookRows({ onChange, view }: SettingsPanelProps) {
         options={DENSITY_OPTIONS}
         testID="density"
       />
-      <SettingsChoiceRow
+      <SettingsLanguagePicker
         current={prefs.language}
-        label="Language"
+        label={t("settings.displayLanguage")}
         onSelect={(language) => onChange({ language })}
-        options={["en"]}
         testID="language"
       />
       <SettingsCopy testID="language-effective" value={view.effective.language} />

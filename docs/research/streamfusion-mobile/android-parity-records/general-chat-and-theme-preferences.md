@@ -6,7 +6,7 @@
 - Android owner: Mobile `settings` plus Watch, Multistream, and ExoPlayer LoadControl
 - Progress: `implemented` for Appearance, Playback, Player controls, Buffer, and Multiview
 - Delivery: `adapted`
-- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language stays English and rejects other locales without overwriting the saved value. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Notifications, Ad blocking, Proxy, Updates, Diagnostics, Logs, Report a bug, and About search from the same Settings workspace. Chat, Predictions, Integrations, and API tokens Settings panels now ship (see settings-chat-predictions-integrations-tokens.md).
+- Adaptation: Appearance is dark-only. Light and system patches are rejected and coerced to dark. Native `Appearance.setColorScheme('dark')` plus `StatusBar.setBarStyle('light-content')` stay forced. Density scales Settings spacing. Language uses the shared DISPLAY_LANGUAGE_REGISTRY (~50 locales). Unsupported codes are rejected without overwriting the saved value; selecting a locale persists preference and activates mobile i18n catalogs shared with desktop. Restore-session gates shell restoration. Resume-playback never autoplays Watch. Default quality, captions, HEVC, seek intervals, and buffer knobs apply to the focused native session. Multiview cap is `min(6, preference)`. Background quality applies to unfocused Multistream slots. Notifications, Ad blocking, Proxy, Updates, Diagnostics, Logs, Report a bug, and About search from the same Settings workspace. Chat, Predictions, Integrations, and API tokens Settings panels now ship (see settings-chat-predictions-integrations-tokens.md).
 - Freshness: `current` at `verification/evidence/issue-167-settings.json`
 
 ## Desktop outcome
@@ -15,7 +15,7 @@ Searchable Settings panels persist appearance, playback, player chrome, buffer, 
 
 ## Android outcome
 
-More Settings searches and persists those five panels plus Notifications, Proxy, Ad blocking, Updates, Diagnostics, Logs, Report a bug, and About. Theme stays dark-only. Captions, quality, seek, buffer, HEVC, and slot cap survive process death and feed Watch and Multistream.
+More Settings searches and persists those five panels plus Notifications, Proxy, Ad blocking, Updates, Diagnostics, Logs, Report a bug, and About. Theme stays dark-only (honest mobile gap vs desktop light/system until light tokens ship). Captions, quality, seek, buffer, HEVC, and slot cap survive process death and feed Watch and Multistream. Display language switching matches desktop.
 
 ## Required evidence
 

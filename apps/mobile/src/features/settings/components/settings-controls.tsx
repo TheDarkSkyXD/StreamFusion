@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
+  DISPLAY_LANGUAGE_REGISTRY,
+  type DisplayLanguage,
+} from "@streamfusion/core/display-language";
+
+import {
   mobileColors,
   mobileRadii,
   mobileSizing,
@@ -187,6 +192,51 @@ export function SettingsField({
   );
 }
 
+
+export function SettingsLanguagePicker({
+  current,
+  label = "Language",
+  onSelect,
+  testID = "language",
+}: {
+  readonly current: DisplayLanguage;
+  readonly label?: string;
+  readonly onSelect: (language: DisplayLanguage) => void;
+  readonly testID?: string;
+}) {
+  return (
+    <View style={styles.choiceBlock} testID={testID}>
+      <Text selectable style={styles.rowLabel}>
+        {label}
+      </Text>
+      <View style={styles.languageList}>
+        {DISPLAY_LANGUAGE_REGISTRY.map((language) => {
+          const selected = current === language.code;
+          const label =
+            language.nativeLabel === language.englishLabel
+              ? language.nativeLabel
+              : `${language.nativeLabel} (${language.englishLabel})`;
+          return (
+            <Pressable
+              key={language.code}
+              accessibilityLabel={`Language ${label}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => onSelect(language.code)}
+              style={[styles.languageRow, selected ? styles.languageRowSelected : null]}
+              testID={`${testID}-${language.code}`}
+            >
+              <Text selectable style={styles.choiceLabel}>
+                {selected ? `Selected ${label}` : label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   panel: {
     backgroundColor: mobileColors.surface,
@@ -244,6 +294,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
+  },
+  languageList: {
+    gap: mobileSpacing.small,
+  },
+  languageRow: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
+  },
+  languageRowSelected: {
+    borderColor: mobileColors.twitchBright,
+    borderWidth: 1,
   },
   field: {
     backgroundColor: mobileColors.surfaceRaised,

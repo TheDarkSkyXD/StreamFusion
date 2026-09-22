@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DEFAULT_PRODUCT_PREFERENCES,
+  LANGUAGE_OPTIONS,
   applyPreferencePatch,
   nativeColorScheme,
   parseProductPreferences,
@@ -23,12 +24,33 @@ test("defaults match desktop dark theme, auto quality, and 10s seek", () => {
   assert.equal(DEFAULT_PRODUCT_PREFERENCES.resumePlayback, false);
 });
 
-test("unsupported language does not overwrite the saved locale", () => {
-  const result = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
+test("display language options match the shared registry", () => {
+  assert.equal(LANGUAGE_OPTIONS[0], "en");
+  assert.equal(LANGUAGE_OPTIONS.length, 50);
+  assert.ok(LANGUAGE_OPTIONS.includes("fr"));
+  assert.ok(LANGUAGE_OPTIONS.includes("zh-CN"));
+});
+
+test("supported language patches persist the resolved locale", () => {
+  const french = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
     language: "fr",
   });
+  assert.equal(french.preferences.language, "fr");
+  assert.deepEqual(french.rejected, []);
+
+  const brazilian = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
+    language: "pt",
+  });
+  assert.equal(brazilian.preferences.language, "pt-BR");
+  assert.deepEqual(brazilian.rejected, []);
+});
+
+test("unsupported language does not overwrite the saved locale", () => {
+  const result = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
+    language: "klingon",
+  });
   assert.equal(result.preferences.language, "en");
-  assert.equal(result.rejected[0], "Only English is available on this build.");
+  assert.equal(result.rejected[0], "Unsupported display language.");
 });
 
 test("light and system theme patches stay dark", () => {

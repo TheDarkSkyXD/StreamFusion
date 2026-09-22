@@ -4,6 +4,10 @@ import {
   settingsPanelsFor,
   type ProductPreferences,
 } from "@streamfusion/core/settings";
+import {
+  getDisplayLanguage,
+  resolveDisplayLanguage,
+} from "@streamfusion/core/display-language";
 
 import type {
   PlaybackSessionPolicy,
@@ -48,6 +52,11 @@ export function playbackSessionPolicy(
 export function composeEffectiveCopy(
   preferences: ProductPreferences,
 ): SettingsEffectiveCopy {
+  const language = getDisplayLanguage(resolveDisplayLanguage(preferences.language));
+  const languageLabel =
+    language.nativeLabel === language.englishLabel
+      ? language.nativeLabel
+      : `${language.nativeLabel} (${language.englishLabel})`;
   return {
     backgroundQuality: `Unfocused Multistream slots request ${preferences.backgroundQuality} when thermal or decoder pressure lowers quality.`,
     buffer:
@@ -64,8 +73,9 @@ export function composeEffectiveCopy(
       "HEVC is preferred when the device decoder supports it.",
       "Playback prefers H.264 over HEVC.",
     ),
-    language: "English is the only locale on this build.",
-    theme: "Dark mode is the only appearance on this build.",
+    language: `Interface language: ${languageLabel}.`,
+    theme:
+      "Dark mode is the only appearance on this build. Light and system themes stay desktop-only until mobile light tokens ship.",
     multiviewCap: `Configured cap is ${preferences.multiviewCap}. Measured active video can be lower.`,
     playerChrome:
       "Speed, theater, and video stats stay unavailable until those capabilities ship. Hidden controls stay off Watch chrome.",

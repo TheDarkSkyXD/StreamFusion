@@ -103,14 +103,23 @@ function fakeSession(): SettingsSession {
   };
 }
 
-// Guards: Appearance panel stays dark-only and still exposes density and restore controls
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+}));
+
+// Guards: Appearance stays dark-only for theme, exposes full display-language picker, density, restore
 describe("settings panels", () => {
-  it("renders dark-only theme copy and changes density from the assigned button", () => {
+  it("renders dark-only theme copy, language options, and changes density", () => {
     let density = DEFAULT_PRODUCT_PREFERENCES.density;
+    let language = DEFAULT_PRODUCT_PREFERENCES.language;
     const nodes = descendants(
       AppearanceSettingsPanel({
         onChange: (patch) => {
           if (patch.density) density = patch.density;
+          if (typeof patch.language === "string") language = patch.language as typeof language;
         },
         view: composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES }),
       }),
@@ -118,9 +127,14 @@ describe("settings panels", () => {
     expect(hasTestId(nodes, "panel-appearance")).toBe(true);
     expect(hasTestId(nodes, "theme")).toBe(true);
     expect(hasTestId(nodes, "theme-light")).toBe(false);
+    expect(hasTestId(nodes, "language")).toBe(true);
+    expect(hasTestId(nodes, "language-fr")).toBe(true);
+    expect(hasTestId(nodes, "language-ja")).toBe(true);
     expect(hasTestId(nodes, "restore-session")).toBe(true);
     nodes.find((node) => node.props.testID === "density-compact")?.props.onPress?.();
     expect(density).toBe("compact");
+    nodes.find((node) => node.props.testID === "language-fr")?.props.onPress?.();
+    expect(language).toBe("fr");
   });
 });
 
