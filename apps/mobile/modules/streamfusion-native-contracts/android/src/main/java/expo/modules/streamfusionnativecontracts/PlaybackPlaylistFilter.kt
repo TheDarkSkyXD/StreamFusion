@@ -1,7 +1,6 @@
 package expo.modules.streamfusionnativecontracts
 
 object PlaybackPlaylistFilter {
-  private const val PREFETCH_PREFIX = "#EXT-X-TWITCH-PREFETCH:"
   private val adHosts = setOf(
     "d2nvs31859zcd8.cloudfront.net",
     "d2vjef5jvl6bfs.cloudfront.net",
@@ -45,25 +44,18 @@ object PlaybackPlaylistFilter {
         adsDetected = true,
       )
     }
+    // Desktop no-backup path always holdUnsafe after ads (never surgically
+    // serve leftover ,live rows). Mobile has no ULW backup orchestrator, so
+    // match that: any ad-marked playlist is held without media. Surgical strip
+    // previously kept post-DISCONTINUITY ,live commercial-break slates on the
+    // weaver host, which painted the Twitch interstitial for ~15s.
     val neutralized = neutralizeTrackingUrls(playlist)
-    val stripped = stripAdSegments(neutralized)
-    // Desktop no-backup path always holdUnsafe after ads. Mobile has no ULW
-    // backup orchestrator, so hold whenever strip leaves no explicit live
-    // media — including interstitial-only commercial slates.
-    if (!hasLiveMedia(stripped)) {
-      val held = holdUnsafeMediaPlaylist(neutralized)
-      return Result(
-        true,
-        true,
-        "No live media after strip; held without media (desktop unsafe-hold).",
-        held,
-      )
-    }
+    val held = holdUnsafeMediaPlaylist(neutralized)
     return Result(
       true,
       true,
-      "Twitch ad segments were stripped from this playlist.",
-      stripped,
+      "Ads detected; held without media (desktop unsafe-hold, no backup).",
+      held,
     )
   }
 
@@ -106,84 +98,6 @@ object PlaybackPlaylistFilter {
         Regex("""(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")[^"]*(")"""),
         "$1https://twitch.tv$2",
       )
-  }
-
-  private fun stripAdSegments(playlist: String): String {
-    val lines = playlist.replace("\r", "").split("\n")
-    val kept = ArrayList<String>(lines.size)
-    var insideDateRangeAd = false
-    var insideCueAd = false
-    var index = 0
-    while (index < lines.size) {
-      val line = lines[index]
-      val nextLine = lines.getOrNull(index + 1).orEmpty()
-      when {
-        isAdDateRange(line) -> {
-          insideDateRangeAd = true
-          index += 1
-        }
-        isAdCueOut(line) || isScte35(line) -> {
-          insideCueAd = true
-          index += 1
-        }
-        isAdCueIn(line) -> {
-          insideCueAd = false
-          insideDateRangeAd = false
-          index += 1
-        }
-        line.startsWith("#EXT-X-DISCONTINUITY") -> {
-          insideDateRangeAd = false
-          kept.add(line)
-          index += 1
-        }
-        line.startsWith(PREFETCH_PREFIX) &&
-          isAdSegment(line.substring(PREFETCH_PREFIX.length)) -> {
-          index += 1
-        }
-        line.startsWith("#EXTINF:") -> {
-          val live = line.lowercase().contains(",live")
-          val adByUrl = isAdSegment(nextLine)
-          val adByInf = isAdExtInf(line)
-          val adByCue = insideCueAd && !live
-          val adByRange = insideDateRangeAd && (adByUrl || adByInf || !live)
-          if (adByUrl || adByInf || adByCue || adByRange) {
-            index += if (isMediaUri(nextLine)) 2 else 1
-          } else {
-            if (insideDateRangeAd && !adByUrl && !adByInf) {
-              insideDateRangeAd = false
-            }
-            kept.add(line)
-            index += 1
-          }
-        }
-        else -> {
-          kept.add(line)
-          index += 1
-        }
-      }
-    }
-    return kept.joinToString("\n")
-  }
-
-  private fun hasLiveMedia(playlist: String): Boolean {
-    val lines = playlist.replace("\r", "").split("\n")
-    var index = 0
-    while (index < lines.size) {
-      val line = lines[index]
-      if (line.startsWith("#EXTINF:") && line.lowercase().contains(",live")) {
-        val next = lines.getOrNull(index + 1)?.trim().orEmpty()
-        if (next.isNotEmpty() && !next.startsWith("#")) {
-          return true
-        }
-      }
-      index += 1
-    }
-    return false
-  }
-
-  private fun isMediaUri(line: String): Boolean {
-    val trimmed = line.trim()
-    return trimmed.isNotEmpty() && !trimmed.startsWith("#")
   }
 
   private fun isAdLine(line: String): Boolean {

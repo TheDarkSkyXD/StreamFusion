@@ -83,47 +83,53 @@ describe("Twitch playlist filter", () => {
     expect(result.playlist).toContain("segment10.ts");
   });
 
-  it("strips known ad hosts and date ranges while keeping live", () => {
+  it("holds known ad hosts and date ranges without serving leftover live", () => {
     const result = filterTwitchPlaylist(STITCHED, "strip");
     expect(result.adsDetected).toBe(true);
     expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
     expect(result.playlist).not.toContain("cloudfront.net");
-    expect(result.playlist).not.toContain("EXT-X-DATERANGE");
-    expect(result.playlist).toContain("segment10.ts");
-    expect(result.diagnostic).toContain("stripped");
+    expect(result.playlist).not.toContain("#EXTINF");
+    expect(result.playlist).not.toContain("segment10.ts");
   });
 
-  it("strips commercial-break interstitial segments after CUE-OUT", () => {
+  it("holds commercial-break playlists instead of serving interstitial or live residue", () => {
     const result = filterTwitchPlaylist(COMMERCIAL_BREAK, "strip");
     expect(result.adsDetected).toBe(true);
     expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
     expect(result.playlist).not.toContain("commercial-break-interstitial");
-    expect(result.playlist).not.toContain("EXT-X-CUE-OUT");
-    expect(result.playlist).toContain("segment10.ts");
-    expect(result.playlist).toContain("segment11.ts");
+    expect(result.playlist).not.toContain("#EXTINF");
+    expect(result.playlist).not.toContain("segment10.ts");
   });
 
-  it("strips EXTINF stitched signifiers even on neutral hosts", () => {
+  it("holds EXTINF stitched signifiers even when live residue remains", () => {
     const result = filterTwitchPlaylist(SIGNIFIER, "strip");
     expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
     expect(result.playlist).not.toContain("signifier-700");
-    expect(result.playlist).toContain("segment10.ts");
+    expect(result.playlist).not.toContain("segment10.ts");
+    expect(result.playlist).not.toContain("#EXTINF");
   });
 
-  it("strips date-range path /ad/ segments until discontinuity", () => {
+  it("holds date-range path /ad/ playlists without serving post-discontinuity live", () => {
     const result = filterTwitchPlaylist(DATERANGE_PATH_AD, "strip");
     expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
     expect(result.playlist).not.toContain("segment-200");
-    expect(result.playlist).toContain("segment10.ts");
+    expect(result.playlist).not.toContain("segment10.ts");
+    expect(result.playlist).not.toContain("#EXTINF");
   });
 
-  it("detects X-TV-TWITCH-AD daterange attrs and keeps live after strip", () => {
+  it("detects X-TV-TWITCH-AD daterange attrs and holds without live residue", () => {
     const result = filterTwitchPlaylist(TWITCH_AD_ATTR, "strip");
     expect(result.adsDetected).toBe(true);
     expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
     expect(result.playlist).not.toContain("twitch-ad-attr-1");
-    expect(result.playlist).toContain("segment10.ts");
+    expect(result.playlist).not.toContain("segment10.ts");
     expect(result.playlist).not.toContain("ads.example/track");
+    expect(result.playlist).not.toContain("#EXTINF");
   });
 
   it("keeps the original playlist in canary", () => {
@@ -245,12 +251,25 @@ describe("Twitch playlist filter — commercial-slate m3u8 fixtures", () => {
     expect(result.playlist).not.toContain("#EXTINF");
   });
 
-  it("strips ads but keeps live from stitched-then-live fixture", async () => {
+  it("holds stitched-then-live fixture without serving leftover live rows", async () => {
     const body = await readFixture("stitched-then-live.m3u8");
     const result = filterTwitchPlaylist(body, "strip");
     expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
     expect(result.playlist).not.toContain("cloudfront.net");
-    expect(result.playlist).toContain("segment10.ts");
-    expect(result.playlist).toContain("segment11.ts");
+    expect(result.playlist).not.toContain("segment10.ts");
+    expect(result.playlist).not.toContain("segment11.ts");
+    expect(result.playlist).not.toContain("#EXTINF");
+  });
+
+  it("holds live-tagged commercial slate after ad discontinuity (Kamet0 gap)", async () => {
+    const body = await readFixture("live-tagged-slate-after-ad.m3u8");
+    const result = filterTwitchPlaylist(body, "strip");
+    expect(result.adsDetected).toBe(true);
+    expect(result.applied).toBe(true);
+    expect(result.diagnostic).toContain("unsafe-hold");
+    expect(result.playlist).not.toContain("commercial-break-slate");
+    expect(result.playlist).not.toContain("cloudfront.net");
+    expect(result.playlist).not.toContain("#EXTINF");
   });
 });

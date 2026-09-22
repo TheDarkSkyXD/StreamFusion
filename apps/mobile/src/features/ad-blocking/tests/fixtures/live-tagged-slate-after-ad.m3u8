@@ -1,0 +1,12 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:900
+#EXT-X-DATERANGE:ID="stitched-ad-mid",CLASS="twitch-stitched-ad",DURATION=6.0
+#EXTINF:2.000,
+https://d2nvs31859zcd8.cloudfront.net/ad/midroll-0.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:2.000,live
+https://video-weaver.lax01.hls.ttvnw.net/v1/segment/commercial-break-slate-901.ts
+#EXTINF:2.000,live
+https://video-weaver.lax01.hls.ttvnw.net/v1/segment/commercial-break-slate-902.ts

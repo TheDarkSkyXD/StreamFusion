@@ -16,8 +16,6 @@ const DATE_RANGE_PATTERNS = [
   "x-tv-twitch-ad",
 ];
 
-const TWITCH_PREFETCH = "#EXT-X-TWITCH-PREFETCH:";
-
 export function filterTwitchPlaylist(
   playlist: string,
   mode: PlaybackFilterMode,
@@ -36,27 +34,19 @@ export function filterTwitchPlaylist(
       true,
     );
   }
+  // Desktop no-backup path always holdUnsafe after ads (never surgically
+  // serve leftover ,live rows). Mobile has no ULW backup orchestrator, so
+  // match that: any ad-marked playlist is held without media. Surgical strip
+  // previously kept post-DISCONTINUITY ,live commercial-break slates on the
+  // weaver host, which painted the Twitch interstitial for ~15s.
   const neutralized = neutralizeTrackingUrls(playlist);
-  const stripped = stripAdSegments(neutralized);
-  // Desktop no-backup path always holdUnsafe after ads. Mobile has no ULW
-  // backup orchestrator, so hold whenever strip leaves no explicit live
-  // media — including interstitial-only commercial slates and SCTE35 windows
-  // whose non-live residue would otherwise still append.
-  if (!hasLiveMedia(stripped)) {
-    const held = holdUnsafeMediaPlaylist(neutralized);
-    return {
-      adsDetected: true,
-      applied: true,
-      diagnostic:
-        "No live media after strip; held without media (desktop unsafe-hold).",
-      playlist: held,
-    };
-  }
+  const held = holdUnsafeMediaPlaylist(neutralized);
   return {
     adsDetected: true,
     applied: true,
-    diagnostic: "Twitch ad segments were stripped from this playlist.",
-    playlist: stripped,
+    diagnostic:
+      "Ads detected; held without media (desktop unsafe-hold, no backup).",
+    playlist: held,
   };
 }
 
@@ -85,67 +75,6 @@ function neutralizeTrackingUrls(playlist: string): string {
     );
 }
 
-function stripAdSegments(playlist: string): string {
-  const lines = playlist.replace(/\r/g, "").split("\n");
-  const kept: string[] = [];
-  let insideDateRangeAd = false;
-  let insideCueAd = false;
-  for (let index = 0; index < lines.length; ) {
-    const line = lines[index] ?? "";
-    const nextLine = lines[index + 1] ?? "";
-
-    if (isAdDateRange(line)) {
-      insideDateRangeAd = true;
-      index += 1;
-      continue;
-    }
-    if (isAdCueOut(line) || isScte35(line)) {
-      insideCueAd = true;
-      index += 1;
-      continue;
-    }
-    if (isAdCueIn(line)) {
-      insideCueAd = false;
-      insideDateRangeAd = false;
-      index += 1;
-      continue;
-    }
-    if (line.startsWith("#EXT-X-DISCONTINUITY")) {
-      insideDateRangeAd = false;
-      kept.push(line);
-      index += 1;
-      continue;
-    }
-    if (
-      line.startsWith(TWITCH_PREFETCH) &&
-      isAdSegment(line.slice(TWITCH_PREFETCH.length))
-    ) {
-      index += 1;
-      continue;
-    }
-    if (line.startsWith("#EXTINF:")) {
-      const live = line.toLowerCase().includes(",live");
-      const adByUrl = isAdSegment(nextLine);
-      const adByInf = isAdExtInf(line);
-      const adByCue = insideCueAd && !live;
-      const adByRange = insideDateRangeAd && (adByUrl || adByInf || !live);
-      if (adByUrl || adByInf || adByCue || adByRange) {
-        index += isMediaUri(nextLine) ? 2 : 1;
-        continue;
-      }
-      if (insideDateRangeAd && !adByUrl && !adByInf) {
-        insideDateRangeAd = false;
-      }
-      kept.push(line);
-      index += 1;
-      continue;
-    }
-    kept.push(line);
-    index += 1;
-  }
-  return kept.join("\n");
-}
-
 const MEDIA_BEARING_TAGS = [
   "#EXTINF",
   "#EXT-X-BYTERANGE",
@@ -167,23 +96,6 @@ export function holdUnsafeMediaPlaylist(playlist: string): string {
       return !MEDIA_BEARING_TAGS.some((tag) => trimmed.startsWith(tag));
     })
     .join("\n");
-}
-
-function hasLiveMedia(playlist: string): boolean {
-  const lines = playlist.replace(/\r/g, "").split("\n");
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    if (!line.startsWith("#EXTINF:")) continue;
-    if (!line.toLowerCase().includes(",live")) continue;
-    const next = (lines[index + 1] ?? "").trim();
-    if (next !== "" && !next.startsWith("#")) return true;
-  }
-  return false;
-}
-
-function isMediaUri(line: string): boolean {
-  const trimmed = line.trim();
-  return trimmed !== "" && !trimmed.startsWith("#");
 }
 
 function isAdLine(line: string): boolean {
