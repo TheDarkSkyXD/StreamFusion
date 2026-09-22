@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import androidx.media3.common.C
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -395,17 +394,11 @@ object FocusedPlaybackSessionOwner {
   }
 
   private fun isHttpsMedia(sourceUri: String): Boolean {
-    val uri = Uri.parse(sourceUri)
-    val path = uri.path.orEmpty().lowercase()
-    return uri.scheme == "https" && (path.contains(".m3u8") || path.endsWith(".mp4"))
+    return PlaybackSourceUri.isAcceptedHttpsMedia(sourceUri)
   }
 
   private fun mimeType(sourceUri: String): String {
-    return if (sourceUri.lowercase().contains(".m3u8")) {
-      MimeTypes.APPLICATION_M3U8
-    } else {
-      MimeTypes.APPLICATION_MP4
-    }
+    return PlaybackSourceUri.mimeTypeFor(sourceUri)
   }
 
   private fun captionRenderers(context: Context): DefaultRenderersFactory {

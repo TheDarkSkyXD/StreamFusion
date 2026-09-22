@@ -266,7 +266,6 @@ const twitchPlaylistProxySession = createTwitchPlaylistProxySession({
   settings: persistenceRuntime.productState.settings,
 });
 const adblockSession = createAdBlockSession({
-  playlistProxy: twitchPlaylistProxySession,
   policy: createEffectiveCapabilityPolicyReader({
     nowEpochMs: Date.now,
     store: installationPolicyRuntime.policyStore,

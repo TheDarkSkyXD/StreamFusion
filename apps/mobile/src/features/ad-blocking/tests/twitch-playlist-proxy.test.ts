@@ -132,7 +132,7 @@ describe("twitch playlist proxy utilities", () => {
   });
 });
 
-describe("twitch playlist proxy session and adblock passthrough", () => {
+describe("twitch playlist proxy session and adblock strip", () => {
   it("persists twitchPlaylistProxy preferences", async () => {
     const settings = memorySettings();
     const session = createTwitchPlaylistProxySession({ settings });
@@ -142,7 +142,7 @@ describe("twitch playlist proxy session and adblock passthrough", () => {
     await expect(session.snapshot()).resolves.toEqual({ enabled: false, sources: [] });
   });
 
-  it("forces AdBlockSession effective mode to passthrough when proxy mode is on", async () => {
+  it("keeps AdBlockSession effective strip when playlist proxy prefs are on", async () => {
     const settings = memorySettings();
     const playlistProxy = createTwitchPlaylistProxySession({ settings });
     const policy: EffectiveCapabilityPolicyReader = {
@@ -153,16 +153,12 @@ describe("twitch playlist proxy session and adblock passthrough", () => {
       }),
     };
     const adblock = createAdBlockSession({
-      playlistProxy,
       policy,
       settings,
     });
-    await expect(adblock.effective("twitch")).resolves.toEqual({
-      enabled: false,
-      mode: "passthrough",
-      platform: "twitch",
-    });
-    await playlistProxy.save({ enabled: false, sources: [] });
+    // Proxy mode no longer blanks effective(); Watch applies passthrough only
+    // to proxy URL attempts so direct/usher still strips commercial slates.
+    expect((await playlistProxy.snapshot()).enabled).toBe(true);
     await expect(adblock.effective("twitch")).resolves.toEqual({
       enabled: true,
       mode: "strip",

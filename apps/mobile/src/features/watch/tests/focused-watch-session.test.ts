@@ -598,7 +598,6 @@ describe("focused watch session", () => {
     });
     const session = createFocusedWatchSession({
       filtering: createAdBlockSession({
-        playlistProxy,
         policy: {
           read: async () => ({
             kind: "enabled",
@@ -626,8 +625,11 @@ describe("focused watch session", () => {
     expect(started).toHaveLength(2);
   });
 
-  it("forces passthrough filtering when Twitch playlist proxy mode is on", async () => {
-    const requests: { filtering?: { mode: string } }[] = [];
+  it("uses passthrough on proxy URLs and strip on direct usher fallback", async () => {
+    const requests: {
+      filtering?: { enabled: boolean; mode: string; platform: string };
+      sourceUri: string;
+    }[] = [];
     const values = new Map<string, string>();
     const settings: ProductSettingsStore = {
       async read(key) {
@@ -638,10 +640,30 @@ describe("focused watch session", () => {
       },
     };
     const playlistProxy = createTwitchPlaylistProxySession({ settings });
-    // Defaults are enabled-on; leave them so mode stays on.
+    await playlistProxy.save({
+      enabled: true,
+      sources: [
+        {
+          addQueryParams: false,
+          enabled: true,
+          id: "bad",
+          url: "https://bad.example/live/$channel",
+        },
+      ],
+    });
+    let sessionCounter = 0;
     const playback = playbackPort({
       async start(request) {
-        requests.push(request);
+        requests.push({
+          filtering: request.filtering,
+          sourceUri: request.sourceUri,
+        });
+        if (request.sourceUri.includes("bad.example")) {
+          return {
+            failure: { code: "INVOCATION_FAILED", detail: "bad proxy" },
+            kind: "unavailable",
+          };
+        }
         return {
           kind: "started",
           session: {
@@ -653,7 +675,6 @@ describe("focused watch session", () => {
     });
     const session = createFocusedWatchSession({
       filtering: createAdBlockSession({
-        playlistProxy,
         policy: {
           read: async () => ({
             kind: "enabled",
@@ -667,14 +688,23 @@ describe("focused watch session", () => {
       playlistProxy,
       policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
       protection: protection(),
-      sessionIds: { create: () => "watch:proxy-pass" },
+      sessionIds: {
+        create: () => {
+          sessionCounter += 1;
+          return `watch:proxy-pass:${sessionCounter}`;
+        },
+      },
       sources: sources(),
     });
-    await session.start(target);
-    expect(requests[0]?.filtering).toEqual({
-      enabled: false,
-      mode: "passthrough",
-      platform: "twitch",
+    await expect(session.start(target)).resolves.toMatchObject({ kind: "started" });
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({
+      filtering: { enabled: false, mode: "passthrough", platform: "twitch" },
+      sourceUri: "https://bad.example/live/live",
+    });
+    expect(requests[1]).toMatchObject({
+      filtering: { enabled: true, mode: "strip", platform: "twitch" },
+      sourceUri,
     });
   });
 });

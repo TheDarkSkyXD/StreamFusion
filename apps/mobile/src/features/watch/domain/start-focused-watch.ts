@@ -137,9 +137,23 @@ async function startAuthorizedSession(
       controller.abort();
       return { kind: "cancelled" };
     }
+    // External playlist proxies own ad removal. Keep local strip/canary for the
+    // direct usher URI (proxy→direct fallback and Multistream, which has no
+    // proxy routing) so the commercial-break slate cannot paint.
+    const isProxyAttempt = attempt.sourceUri !== resolved.sourceUri;
+    const attemptFiltering =
+      filtering === undefined
+        ? undefined
+        : isProxyAttempt
+          ? {
+              enabled: false,
+              mode: "passthrough" as const,
+              platform: input.target.platform,
+            }
+          : filtering;
     const sessionId = input.sessionIds.create();
     const started = await input.playback.start({
-      ...(filtering === undefined ? {} : { filtering }),
+      ...(attemptFiltering === undefined ? {} : { filtering: attemptFiltering }),
       ...(settings === undefined
         ? {}
         : {
