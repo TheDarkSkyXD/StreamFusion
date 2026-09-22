@@ -4,14 +4,56 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
 import { composeSettingsView } from "../domain/settings-view";
+import {
+  settingsCategoriesForPanels,
+  settingsCategoryTitle,
+} from "../domain/settings-categories";
 import { AppearanceSettingsPanel } from "../components/settings-panels";
+import {
+  SettingsCategoryDetail,
+  SettingsHub,
+} from "../components/settings-workspace";
+import type { SettingsSession } from "../capabilities/settings";
 
 vi.mock("react-native", () => ({
+  BackHandler: {
+    addEventListener: () => ({ remove: () => undefined }),
+  },
   Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
+  ScrollView: "ScrollView",
+  StyleSheet: {
+    create: (styles: unknown) => styles,
+    hairlineWidth: 1,
+  },
   Text: "Text",
+  TextInput: "TextInput",
   View: "View",
 }));
+
+vi.mock("lucide-react-native", () => {
+  const Icon = () => null;
+  return {
+    Activity: Icon,
+    ArrowLeft: Icon,
+    Bell: Icon,
+    Bug: Icon,
+    ChevronRight: Icon,
+    CircleHelp: Icon,
+    FileText: Icon,
+    Gauge: Icon,
+    KeyRound: Icon,
+    LayoutDashboard: Icon,
+    MessageSquare: Icon,
+    MonitorPlay: Icon,
+    Palette: Icon,
+    RefreshCw: Icon,
+    ShieldBan: Icon,
+    SlidersHorizontal: Icon,
+    Target: Icon,
+    Users: Icon,
+    Wifi: Icon,
+  };
+});
 
 type ElementProps = Readonly<{
   children?: unknown;
@@ -32,7 +74,11 @@ function descendants(node: unknown): readonly Element[] {
 function renderFunction(element: Element): unknown {
   const candidate = element.type as unknown;
   if (typeof candidate !== "function") return null;
-  return (candidate as (props: ElementProps) => unknown)(element.props);
+  try {
+    return (candidate as (props: ElementProps) => unknown)(element.props);
+  } catch {
+    return null;
+  }
 }
 
 function childNodes(element: Element): readonly unknown[] {
@@ -42,6 +88,19 @@ function childNodes(element: Element): readonly unknown[] {
 
 function hasTestId(nodes: readonly Element[], testID: string): boolean {
   return nodes.some((node) => node.props.testID === testID);
+}
+
+function fakeSession(): SettingsSession {
+  const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+  return {
+    apply: async () => view,
+    load: async () => view,
+    peek: () => view,
+    read: async () => view.preferences,
+    search: async () => view,
+    snapshot: () => view.preferences,
+    subscribe: () => () => undefined,
+  };
 }
 
 // Guards: Appearance panel stays dark-only and still exposes density and restore controls
@@ -62,5 +121,74 @@ describe("settings panels", () => {
     expect(hasTestId(nodes, "restore-session")).toBe(true);
     nodes.find((node) => node.props.testID === "density-compact")?.props.onPress?.();
     expect(density).toBe("compact");
+  });
+});
+
+describe("settings hub navigation", () => {
+  it("lists Frosty-style category tiles instead of dumping every panel", () => {
+    const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+    const nodes = descendants(
+      SettingsHub({
+        onOpenPanel: () => undefined,
+        view,
+      }),
+    );
+    expect(hasTestId(nodes, "settings-hub")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-appearance")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-playback")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-chat")).toBe(true);
+    expect(hasTestId(nodes, "panel-appearance")).toBe(false);
+  });
+
+  it("filters hub tiles from search and exposes control deep-links", () => {
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+      query: "proxy",
+    });
+    expect(view.panels).toEqual(["proxy"]);
+    const categories = settingsCategoriesForPanels(view.panels);
+    expect(categories.map((category) => category.id)).toEqual(["proxy"]);
+    expect(settingsCategoryTitle("proxy")).toBe("Proxy");
+
+    const nodes = descendants(
+      SettingsHub({
+        onOpenPanel: () => undefined,
+        view,
+      }),
+    );
+    expect(hasTestId(nodes, "settings-category-proxy")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-appearance")).toBe(false);
+    expect(hasTestId(nodes, "settings-search-matches")).toBe(true);
+  });
+
+  it("opens a single category detail with only that panel", () => {
+    const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+    let opened: string | null = null;
+    const hub = descendants(
+      SettingsHub({
+        onOpenPanel: (panel) => {
+          opened = panel;
+        },
+        view,
+      }),
+    );
+    hub.find((node) => node.props.testID === "settings-category-appearance")
+      ?.props.onPress?.();
+    expect(opened).toBe("appearance");
+
+    const detail = descendants(
+      SettingsCategoryDetail({
+        extras: {},
+        gap: 16,
+        onBack: () => undefined,
+        panel: "appearance",
+        session: fakeSession(),
+        view,
+      }),
+    );
+    expect(hasTestId(detail, "screen-more-settings-appearance")).toBe(true);
+    expect(hasTestId(detail, "settings-category-back")).toBe(true);
+    expect(hasTestId(detail, "panel-appearance")).toBe(true);
+    expect(hasTestId(detail, "panel-playback")).toBe(false);
   });
 });

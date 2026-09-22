@@ -542,6 +542,7 @@ export function AppShell({
               multistream={multistream}
             />
             <WatchMiniPlayerHost
+              PlayerSurface={watch.PlayerSurface}
               hidden={watchingWatch || pictureInPictureSurface}
               onExpand={(target) => {
                 watch.runtime.session.reveal();
