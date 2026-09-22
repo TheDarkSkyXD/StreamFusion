@@ -35,6 +35,7 @@
     "plugins": [
       "expo-router",
       "./plugins/with-picture-in-picture",
+      "./plugins/with-no-draw-over-apps",
       [
         "expo-secure-store",
         {

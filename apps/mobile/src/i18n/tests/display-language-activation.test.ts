@@ -7,6 +7,10 @@ describe("mobile display language activation", () => {
     await bootstrapMobileI18n();
   });
 
+  it("disables react-i18next Suspense so Settings does not blank while catalogs load", () => {
+    expect(i18n.options.react).toMatchObject({ useSuspense: false });
+  });
+
   it("switches navigation.settings copy when French is activated", async () => {
     await activateDisplayLanguage("en");
     expect(i18n.t("navigation.settings")).toBe("Settings");

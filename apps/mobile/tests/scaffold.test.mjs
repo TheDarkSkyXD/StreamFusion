@@ -173,3 +173,22 @@ test("native animation peers match the Expo SDK and resolve without conflicts", 
 
   assert.equal(peerCheck.status, 0, peerCheck.stderr || peerCheck.stdout);
 });
+
+test("draw-over-apps stays off main so Search does not leave the app", () => {
+  assert.ok(
+    appManifest.expo.plugins.includes("./plugins/with-no-draw-over-apps"),
+    "prebuild must strip SYSTEM_ALERT_WINDOW from main via with-no-draw-over-apps",
+  );
+  const main = readFileSync("android/app/src/main/AndroidManifest.xml", "utf8");
+  const debug = readFileSync("android/app/src/debug/AndroidManifest.xml", "utf8");
+  assert.doesNotMatch(
+    main,
+    /android\.permission\.SYSTEM_ALERT_WINDOW/u,
+    "release/main must not request SYSTEM_ALERT_WINDOW; Search stays in-app",
+  );
+  assert.match(
+    debug,
+    /android\.permission\.SYSTEM_ALERT_WINDOW/u,
+    "debug may keep SYSTEM_ALERT_WINDOW for the RN Dev Menu / FPS overlay",
+  );
+});

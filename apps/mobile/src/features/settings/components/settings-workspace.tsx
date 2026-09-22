@@ -29,6 +29,7 @@ import {
   Target,
   Users,
   Wifi,
+  X,
   type LucideIcon,
 } from "lucide-react-native";
 import {
@@ -117,6 +118,18 @@ export function SettingsWorkspace({
   const [activePanel, setActivePanel] = useState<SettingsPanelId | null>(null);
   const gap = mobileSpacing.medium * densityGapMultiplier(view.preferences.density);
 
+  // Session search query is in-memory and survives Settings remounts. Clear on
+  // hub enter so a stale filter (e.g. "lang" after language work) never hides
+  // Playback/Chat/Ad-blocking/Proxy and the rest of the Frosty hub.
+  useEffect(() => {
+    void session.search("");
+  }, [session]);
+
+  const openPanel = (panel: SettingsPanelId) => {
+    void session.search("");
+    setActivePanel(panel);
+  };
+
   const detailPanel =
     activePanel !== null && view.panels.includes(activePanel)
       ? activePanel
@@ -163,7 +176,7 @@ export function SettingsWorkspace({
         <SettingsSearchField session={session} value={view.query} />
         <RejectedNotices messages={view.rejected} />
         <SettingsHub
-          onOpenPanel={setActivePanel}
+          onOpenPanel={openPanel}
           view={view}
         />
       </View>
@@ -401,20 +414,44 @@ function SettingsSearchField({
   readonly session: SettingsSession;
   readonly value: string;
 }) {
+  const hasQuery = value.trim().length > 0;
   return (
-    <TextInput
-      accessibilityLabel="Search settings"
-      autoCapitalize="none"
-      autoCorrect={false}
-      onChangeText={(query) => {
-        void session.search(query);
-      }}
-      placeholder="Search appearance, chat, predictions, integrations…"
-      placeholderTextColor={mobileColors.textMuted}
-      style={styles.search}
-      testID="settings-search"
-      value={value}
-    />
+    <View style={styles.searchRow}>
+      <TextInput
+        accessibilityLabel="Search settings"
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={(query) => {
+          void session.search(query);
+        }}
+        placeholder="Search appearance, chat, predictions, integrations…"
+        placeholderTextColor={mobileColors.textMuted}
+        style={styles.search}
+        testID="settings-search"
+        value={value}
+      />
+      {hasQuery ? (
+        <Pressable
+          accessibilityLabel="Clear settings search"
+          accessibilityRole="button"
+          onPress={() => {
+            void session.search("");
+          }}
+          style={({ pressed }) => [
+            styles.searchClear,
+            pressed ? styles.tilePressed : null,
+          ]}
+          testID="settings-search-clear"
+        >
+          <X
+            accessibilityElementsHidden
+            color={mobileColors.textSecondary}
+            size={18}
+            strokeWidth={2}
+          />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -442,15 +479,31 @@ const styles = StyleSheet.create({
   column: {
     width: "100%",
   },
+  searchRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+  },
   search: {
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.medium,
     borderWidth: 1,
     color: mobileColors.textPrimary,
+    flex: 1,
     fontSize: 16,
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
+  },
+  searchClear: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surface,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.medium,
+    borderWidth: 1,
+    height: mobileSizing.minimumTouchTarget,
+    justifyContent: "center",
+    width: mobileSizing.minimumTouchTarget,
   },
   rejected: {
     color: mobileColors.live,

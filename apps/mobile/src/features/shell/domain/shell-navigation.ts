@@ -432,6 +432,14 @@ export function shellNavigationReducer(
       const current = history.trail.at(-1);
       if (current && locationsMatch(current, action.location))
         return { ...state, activeDestination: route.destination };
+      // Replace an existing Watch session tip so Watch now / related open always
+      // lands on the new target (feed → session) instead of stacking previews.
+      const replaceWatchSession =
+        action.location.route === "watch/session-preview" &&
+        current?.route === "watch/session-preview";
+      const nextTrail = replaceWatchSession
+        ? [...history.trail.slice(0, -1), action.location]
+        : [...history.trail, action.location];
       return {
         ...state,
         activeDestination: route.destination,
@@ -439,7 +447,7 @@ export function shellNavigationReducer(
           ...state.histories,
           [route.destination]: {
             ...history,
-            trail: [...history.trail, action.location].slice(-20),
+            trail: nextTrail.slice(-20),
           },
         },
       };

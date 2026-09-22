@@ -29,6 +29,7 @@ export async function bootstrapMobileI18n(): Promise<typeof i18n> {
       fallbackLng: DEFAULT_DISPLAY_LANGUAGE,
       interpolation: { escapeValue: false },
       compatibilityJSON: "v4",
+      react: { useSuspense: false },
     });
   } else if (!i18n.hasResourceBundle(DEFAULT_DISPLAY_LANGUAGE, "translation")) {
     i18n.addResourceBundle(DEFAULT_DISPLAY_LANGUAGE, "translation", en, true, true);

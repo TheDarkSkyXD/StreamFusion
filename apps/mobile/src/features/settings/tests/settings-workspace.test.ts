@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -52,6 +53,7 @@ vi.mock("lucide-react-native", () => {
     Target: Icon,
     Users: Icon,
     Wifi: Icon,
+    X: Icon,
   };
 });
 
@@ -175,6 +177,74 @@ describe("settings hub navigation", () => {
     expect(hasTestId(nodes, "settings-search-matches")).toBe(true);
   });
 
+  it("shows the full category set when the hub query is empty", () => {
+    const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+    expect(view.query).toBe("");
+    const categories = settingsCategoriesForPanels(view.panels);
+    expect(categories.map((category) => category.id)).toEqual(
+      expect.arrayContaining([
+        "appearance",
+        "playback",
+        "chat",
+        "adblock",
+        "proxy",
+        "notifications",
+      ]),
+    );
+    expect(categories.length).toBeGreaterThan(8);
+
+    const nodes = descendants(
+      SettingsHub({
+        onOpenPanel: () => undefined,
+        view,
+      }),
+    );
+    expect(hasTestId(nodes, "settings-category-appearance")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-playback")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-chat")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-adblock")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-proxy")).toBe(true);
+    expect(hasTestId(nodes, "settings-search-matches")).toBe(false);
+  });
+
+  it("keeps Language matches for lang and restores every category when cleared", () => {
+    const filtered = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+      query: "lang",
+    });
+    expect(filtered.panels).toContain("appearance");
+    expect(filtered.matches.some((match) => match.id === "language")).toBe(true);
+    expect(filtered.panels).not.toContain("proxy");
+
+    const filteredNodes = descendants(
+      SettingsHub({
+        onOpenPanel: () => undefined,
+        view: filtered,
+      }),
+    );
+    expect(hasTestId(filteredNodes, "settings-category-appearance")).toBe(true);
+    expect(hasTestId(filteredNodes, "settings-search-matches")).toBe(true);
+    expect(hasTestId(filteredNodes, "settings-category-playback")).toBe(false);
+    expect(hasTestId(filteredNodes, "settings-category-proxy")).toBe(false);
+
+    const cleared = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+      query: "",
+    });
+    const clearedNodes = descendants(
+      SettingsHub({
+        onOpenPanel: () => undefined,
+        view: cleared,
+      }),
+    );
+    expect(hasTestId(clearedNodes, "settings-category-appearance")).toBe(true);
+    expect(hasTestId(clearedNodes, "settings-category-playback")).toBe(true);
+    expect(hasTestId(clearedNodes, "settings-category-chat")).toBe(true);
+    expect(hasTestId(clearedNodes, "settings-category-adblock")).toBe(true);
+    expect(hasTestId(clearedNodes, "settings-category-proxy")).toBe(true);
+    expect(hasTestId(clearedNodes, "settings-search-matches")).toBe(false);
+  });
+
   it("opens a single category detail with only that panel", () => {
     const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
     let opened: string | null = null;
@@ -204,5 +274,15 @@ describe("settings hub navigation", () => {
     expect(hasTestId(detail, "settings-category-back")).toBe(true);
     expect(hasTestId(detail, "panel-appearance")).toBe(true);
     expect(hasTestId(detail, "panel-playback")).toBe(false);
+  });
+
+  it("clears hub search on enter and exposes a clear control", () => {
+    const source = readFileSync(
+      new URL("../components/settings-workspace.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('void session.search("")');
+    expect(source).toContain('testID="settings-search-clear"');
+    expect(source).toContain("Clear settings search");
   });
 });

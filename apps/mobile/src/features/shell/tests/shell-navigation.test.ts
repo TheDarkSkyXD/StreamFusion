@@ -159,6 +159,57 @@ describe("adaptive app shell", () => {
     );
   });
 
+  it("replaces a Watch session tip so Watch now opens the new live target", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: { kind: "preview" },
+      },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "123",
+          channelLogin: "tumblurr",
+        },
+      },
+    });
+    expect(getActiveShellLocation(state)).toEqual({
+      route: "watch/session-preview",
+      target: {
+        kind: "channel",
+        platform: "twitch",
+        channelId: "123",
+        channelLogin: "tumblurr",
+      },
+    });
+    expect(state.histories.watch.trail).toHaveLength(1);
+
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "456",
+          channelLogin: "pokimane",
+        },
+      },
+    });
+    expect(getActiveShellLocation(state)).toMatchObject({
+      route: "watch/session-preview",
+      target: { channelLogin: "pokimane" },
+    });
+    expect(state.histories.watch.trail).toHaveLength(1);
+  });
+
   it("restores allowlisted locations and all independent histories", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {

@@ -86,6 +86,30 @@ describe("settings workflow", () => {
     expect(bug.panels).toEqual(["report-bug"]);
   });
 
+  it("clears a stale lang hub filter so every category returns", async () => {
+    const settings = session();
+    await settings.load();
+    const filtered = await settings.search("lang");
+    expect(filtered.query).toBe("lang");
+    expect(filtered.panels).toContain("appearance");
+    expect(filtered.matches.some((match) => match.id === "language")).toBe(true);
+    expect(filtered.panels.includes("proxy")).toBe(false);
+
+    const cleared = await settings.search("");
+    expect(cleared.query).toBe("");
+    expect(cleared.panels).toEqual(
+      expect.arrayContaining([
+        "appearance",
+        "playback",
+        "chat",
+        "adblock",
+        "proxy",
+        "notifications",
+      ]),
+    );
+    expect(cleared.panels.length).toBeGreaterThan(8);
+  });
+
   it("maps playback policy for Watch and Multistream", () => {
     const policy = playbackSessionPolicy({
       ...DEFAULT_PRODUCT_PREFERENCES,
