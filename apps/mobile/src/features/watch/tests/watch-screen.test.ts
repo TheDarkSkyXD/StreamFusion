@@ -1,6 +1,6 @@
 import { isValidElement, type ReactElement } from "react";
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
 import type { WatchTarget } from "../capabilities/watch";
@@ -28,6 +28,20 @@ vi.mock("lucide-react-native", () => ({
   Volume2: "Volume2",
   VolumeX: "VolumeX",
 }));
+
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, _options?: Record<string, unknown>) => key as string,
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+  initReactI18next: { type: "3rdParty", init: () => undefined },
+}));
+
+
 
 type ElementProps = Readonly<{
   children?: unknown;
@@ -58,6 +72,14 @@ const target: WatchTarget = {
 };
 
 describe("watch screen", () => {
+  beforeAll(async () => {
+    const { bootstrapMobileI18n, i18n } = await import("@mobile/i18n");
+    await bootstrapMobileI18n();
+    i18nTest.t = (key: string, options?: Record<string, unknown>) =>
+      i18n.t(key, options as never);
+  });
+
+
   it("requires an explicit start and shows connecting guest chat", () => {
     const root = WatchScreen({
       PlayerSurface: () => null,
@@ -674,7 +696,7 @@ describe("watch screen", () => {
       "utf8",
     );
     expect(source).toContain("HomeLiveDiscoveryScreen");
-    expect(source).toContain('title="Watch"');
+    expect(source).toContain('title={t("navigation.watch")}');
     expect(source).toContain("onSelectStream");
     expect(source).toContain("WatchRecentList");
     expect(source).toContain("watch-empty-open-search");

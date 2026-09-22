@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { findGuestFollow, type GuestFollow } from "@streamfusion/core/follows";
 import type { Platform } from "@streamfusion/core/platform";
@@ -27,6 +28,7 @@ export function FollowingAddForm({
   readonly onAdded: () => void;
   readonly session: FollowingSession;
 }) {
+  const { t } = useTranslation();
   const [platform, setPlatform] = useState<Platform>("twitch");
   const [login, setLogin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -34,12 +36,14 @@ export function FollowingAddForm({
   return (
     <View style={styles.stack} testID="following-add-form">
       <Text selectable style={styles.heading}>
-        Add a Guest Follow
+        {t("discovery.following.addGuestFollow")}
       </Text>
       <View style={styles.row}>
         {(["twitch", "kick"] as const).map((value) => (
           <MobileFilterChip
-            accessibilityLabel={`Add Guest Follow on ${value}`}
+            accessibilityLabel={t("discovery.following.addGuestOnPlatform", {
+              platform: value,
+            })}
             key={value}
             label={value}
             onPress={() => setPlatform(value)}
@@ -50,20 +54,22 @@ export function FollowingAddForm({
       </View>
       <TextInput
         {...mobileTextFieldProps}
-        accessibilityLabel="Channel login"
+        accessibilityLabel={t("discovery.following.channelLogin")}
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={setLogin}
-        placeholder="channel login"
+        placeholder={t("discovery.following.channelLoginPlaceholder")}
         placeholderTextColor={mobileColors.textMuted}
         style={styles.input}
         testID="following-add-login"
         value={login}
       />
       <MobileButton
-        accessibilityLabel="Follow as guest"
+        accessibilityLabel={t("discovery.following.followAsGuest")}
         disabled={busy}
         onPress={() => {
+          const translate = (key: string, values?: Record<string, unknown>) =>
+            values === undefined ? t(key) : t(key, values);
           void addFollow({
             login,
             membership,
@@ -72,12 +78,13 @@ export function FollowingAddForm({
             session,
             setBusy,
             setMessage,
+            t: translate,
           });
         }}
         testID="following-add-submit"
         variant="primary"
       >
-        Follow as guest
+        {t("discovery.following.followAsGuest")}
       </MobileButton>
       {message ? (
         <Text selectable style={styles.message} testID="following-add-message">
@@ -96,14 +103,15 @@ async function addFollow(input: {
   readonly session: FollowingSession;
   readonly setBusy: (busy: boolean) => void;
   readonly setMessage: (message: string) => void;
+  readonly t: (key: string, values?: Record<string, unknown>) => string;
 }): Promise<void> {
   const channelLogin = input.login.trim().toLowerCase();
   if (channelLogin.length === 0) {
-    input.setMessage("Enter a channel login.");
+    input.setMessage(input.t("discovery.following.enterChannelLogin"));
     return;
   }
   if (findGuestFollow(input.membership, { channelLogin, platform: input.platform })) {
-    input.setMessage("That channel is already a Guest Follow.");
+    input.setMessage(input.t("discovery.following.alreadyGuestFollow"));
     return;
   }
   input.setBusy(true);
@@ -113,14 +121,18 @@ async function addFollow(input: {
   });
   input.setBusy(false);
   if (result.kind === "followed") {
-    input.setMessage(`Following ${result.follow.displayName} as a guest.`);
+    input.setMessage(
+      input.t("discovery.following.followingAsGuest", {
+        name: result.follow.displayName,
+      }),
+    );
     input.onAdded();
     return;
   }
   input.setMessage(
     result.kind === "rejected" && result.reason === "unresolved-channel"
-      ? "That channel could not be found."
-      : "Guest Follows cannot use a signed-in account.",
+      ? input.t("discovery.following.channelNotFound")
+      : input.t("discovery.following.guestSignedInBlocked"),
   );
 }
 

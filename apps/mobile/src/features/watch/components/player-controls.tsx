@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Maximize,
   Minimize,
@@ -98,11 +99,14 @@ export function PlayerControls({
   const showVolume = chrome?.showVolume !== false;
   const showFullscreen = chrome?.showFullscreen !== false;
   const live = !seekable;
+  const { t } = useTranslation();
 
   return (
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable
-        accessibilityLabel={visible ? "Hide player controls" : "Show player controls"}
+        accessibilityLabel={
+          visible ? t("playback.watch.hideControls") : t("playback.watch.showControls")
+        }
         accessibilityRole="button"
         onPress={() => {
           onPlayerTap?.();
@@ -121,7 +125,9 @@ export function PlayerControls({
             {seekable && onSeekBack ? (
               <IconControl
                 Icon={RotateCcw}
-                accessibilityLabel={`Back ${rewindSeconds} seconds`}
+                accessibilityLabel={t("playback.watch.seekBack", {
+                  seconds: rewindSeconds,
+                })}
                 badge={String(rewindSeconds)}
                 iconSize={CENTER_SEEK_ICON}
                 onPress={onSeekBack}
@@ -130,7 +136,7 @@ export function PlayerControls({
             ) : null}
             <IconControl
               Icon={paused ? Play : Pause}
-              accessibilityLabel={paused ? "Play" : "Pause"}
+              accessibilityLabel={paused ? t("playback.play") : t("playback.pause")}
               hitSize={CENTER_PLAY_HIT}
               iconSize={CENTER_PLAY_ICON}
               onPress={onPlayPause}
@@ -139,7 +145,9 @@ export function PlayerControls({
             {seekable && onSeekForward ? (
               <IconControl
                 Icon={RotateCw}
-                accessibilityLabel={`Forward ${fastForwardSeconds} seconds`}
+                accessibilityLabel={t("playback.watch.seekForward", {
+                  seconds: fastForwardSeconds,
+                })}
                 badge={String(fastForwardSeconds)}
                 iconSize={CENTER_SEEK_ICON}
                 onPress={onSeekForward}
@@ -160,7 +168,7 @@ export function PlayerControls({
                   {showVolume ? (
                     <IconControl
                       Icon={muted ? VolumeX : Volume2}
-                      accessibilityLabel={muted ? "Unmute" : "Mute"}
+                      accessibilityLabel={muted ? t("playback.unmute") : t("playback.mute")}
                       onPress={onMute}
                       testID="player-mute"
                     />
@@ -168,7 +176,7 @@ export function PlayerControls({
                   {live ? (
                     <View style={styles.liveBadge} testID="player-live-badge">
                       <View style={styles.liveDot} />
-                      <Text style={styles.liveLabel}>LIVE</Text>
+                      <Text style={styles.liveLabel}>{t("playback.live")}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -176,14 +184,20 @@ export function PlayerControls({
                   {showQuality ? (
                     <IconControl
                       Icon={Settings2}
-                      accessibilityLabel={`Quality ${quality}`}
+                      accessibilityLabel={t("playback.watch.qualityNamed", {
+                        quality,
+                      })}
                       onPress={onQualityPress}
                       testID="player-quality"
                     />
                   ) : null}
                   <IconControl
                     Icon={PictureInPicture2}
-                    accessibilityLabel={pipAccessibilityLabel(pipAvailable, pipPhase)}
+                    accessibilityLabel={pipAccessibilityLabel(
+                      pipAvailable,
+                      pipPhase,
+                      (key) => t(key),
+                    )}
                     disabled={!pipAvailable || pipBusy}
                     onPress={onPip}
                     testID="player-pip"
@@ -192,7 +206,9 @@ export function PlayerControls({
                     <IconControl
                       Icon={fullscreen ? Minimize : Maximize}
                       accessibilityLabel={
-                        fullscreen ? "Exit fullscreen" : "Fullscreen"
+                        fullscreen
+                          ? t("playback.watch.exitFullscreen")
+                          : t("playback.watch.fullscreen")
                       }
                       onPress={onFullscreen}
                       testID="player-fullscreen"
@@ -227,18 +243,19 @@ function QualitySheet({
   readonly qualities: readonly string[];
   readonly selected: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible>
       <View style={styles.sheetBackdrop}>
         <Pressable
-          accessibilityLabel="Dismiss quality menu"
+          accessibilityLabel={t("playback.watch.dismissQualityMenu")}
           onPress={onClose}
           style={StyleSheet.absoluteFill}
           testID="player-quality-dismiss"
         />
         <View style={styles.sheet} testID="player-quality-menu">
           <Text selectable style={styles.sheetTitle}>
-            Quality
+            {t("playback.quality")}
           </Text>
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
             {qualities.map((option) => {
@@ -351,15 +368,16 @@ function formatClock(milliseconds: number): string {
 function pipAccessibilityLabel(
   pipAvailable: boolean,
   pipPhase: PictureInPicturePhase,
+  t: (key: string) => string,
 ): string {
-  if (pipPhase === "requesting") return "Picture in Picture requesting";
-  if (pipPhase === "active") return "Picture in Picture active";
-  if (pipPhase === "failed") return "Picture in Picture failed";
-  if (pipPhase === "returned") return "Picture in Picture returned";
+  if (pipPhase === "requesting") return t("playback.watch.pipRequesting");
+  if (pipPhase === "active") return t("playback.watch.pipActive");
+  if (pipPhase === "failed") return t("playback.watch.pipFailed");
+  if (pipPhase === "returned") return t("playback.watch.pipReturned");
   if (!pipAvailable || pipPhase === "unavailable") {
-    return "Picture in Picture unavailable";
+    return t("playback.watch.pipUnavailable");
   }
-  return "Picture in Picture";
+  return t("playback.watch.pip");
 }
 
 const styles = StyleSheet.create({

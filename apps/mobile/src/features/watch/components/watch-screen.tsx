@@ -1,4 +1,5 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
 import type {
@@ -30,7 +31,7 @@ import type {
   WatchTab,
   WatchTarget,
 } from "../capabilities/watch";
-import { composeWatchView } from "../domain/watch-view";
+import { composeWatchView, resolveWatchCopy } from "../domain/watch-view";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
@@ -153,7 +154,12 @@ export function WatchScreen({
   readonly tab: WatchTab;
   readonly target: WatchTarget;
 }) {
+  const { t } = useTranslation();
+  const translate = (key: string, values?: Record<string, unknown>) =>
+    values === undefined ? t(key) : t(key, values);
   const view = composeWatchView(playback);
+  const title = resolveWatchCopy(view.title, translate);
+  const detail = resolveWatchCopy(view.detail, translate);
   const fullscreen =
     peek?.kind === "active" && peek.presentation.presentation === "fullscreen";
   const pipSurface =
@@ -186,16 +192,16 @@ export function WatchScreen({
         ) : (
           <View style={styles.placeholder}>
             <Text selectable style={mobileType.title}>
-              {view.title}
+              {title}
             </Text>
             <Text selectable style={mobileType.body}>
-              {view.detail}
+              {detail}
             </Text>
           </View>
         )}
         {!showControls && onPlayerTap && !pipSurface ? (
           <Pressable
-            accessibilityLabel="Show stream info"
+            accessibilityLabel={t("playback.watch.showStreamInfo")}
             accessibilityRole="button"
             onPress={onPlayerTap}
             style={StyleSheet.absoluteFill}
@@ -238,8 +244,10 @@ export function WatchScreen({
       {pipSurface ? null : (
         <>
           <Pressable
-            accessibilityHint="Opens channel Home, Videos, and Clips"
-            accessibilityLabel={`Open ${displayName} channel`}
+            accessibilityHint={t("playback.watch.openChannelHint")}
+            accessibilityLabel={t("playback.watch.openChannel", {
+              name: displayName,
+            })}
             accessibilityRole="button"
             disabled={onOpenChannel === undefined}
             onPress={onOpenChannel}
@@ -270,22 +278,22 @@ export function WatchScreen({
           )}
           {view.primaryAction === "start" ? (
             <MobileButton
-              accessibilityLabel="Start watching"
+              accessibilityLabel={t("playback.watch.startWatching")}
               onPress={onStart}
               testID="watch-start"
               variant="primary"
             >
-              Start watching
+              {t("playback.watch.startWatching")}
             </MobileButton>
           ) : null}
           {view.primaryAction === "retry" ? (
             <MobileButton
-              accessibilityLabel="Retry"
+              accessibilityLabel={t("playback.retry")}
               onPress={onRetry}
               testID="watch-retry"
               variant="primary"
             >
-              Retry
+              {t("playback.retry")}
             </MobileButton>
           ) : null}
           {download ? <WatchDownloadBar {...download} /> : null}
@@ -293,12 +301,12 @@ export function WatchScreen({
           {captions ? <WatchCaptionBar {...captions} /> : null}
           {showsProvider(playback) ? (
             <MobileButton
-              accessibilityLabel="Open provider page"
+              accessibilityLabel={t("playback.watch.openProviderPage")}
               onPress={onOpenProviderPage}
               testID="watch-open-provider"
               variant={target.platform}
             >
-              Open provider page
+              {t("playback.watch.openProviderPage")}
             </MobileButton>
           ) : null}
           <WatchTabs
@@ -357,6 +365,7 @@ export function WatchEmptyState({
   readonly onOpenSearch?: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
 } = {}) {
+  const { t } = useTranslation();
   const continueWatching =
     history && onWatch ? (
       <WatchRecentList
@@ -366,13 +375,13 @@ export function WatchEmptyState({
       />
     ) : onOpenSearch ? (
       <MobileButton
-        accessibilityHint="Opens Search to find something to watch"
-        accessibilityLabel="Find something in Search"
+        accessibilityHint={t("playback.watch.findInSearchHint")}
+        accessibilityLabel={t("playback.watch.findInSearch")}
         onPress={onOpenSearch}
         testID="watch-empty-open-search"
         variant="secondary"
       >
-        Find something in Search
+        {t("playback.watch.findInSearch")}
       </MobileButton>
     ) : null;
 
@@ -383,7 +392,7 @@ export function WatchEmptyState({
           onOpenAccounts={discovery.onOpenAccounts}
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
-          title="Watch"
+          title={t("navigation.watch")}
           {...(continueWatching === null ? {} : { topShelf: continueWatching })}
         />
       </View>
@@ -397,14 +406,14 @@ export function WatchEmptyState({
       style={styles.scroll}
       testID="screen-watch"
     >
-      <MobileScreenHeader title="Watch" />
+      <MobileScreenHeader title={t("navigation.watch")} />
       {continueWatching}
       <MobileStatusPanel testID="watch-empty" tone="empty">
         <Text selectable style={mobileType.title}>
-          Nothing playing
+          {t("playback.watch.emptyTitle")}
         </Text>
         <Text selectable style={mobileType.body}>
-          Pick a live stream or recording from Search or Following to watch here.
+          {t("playback.watch.emptyDetail")}
         </Text>
       </MobileStatusPanel>
     </MobileRefreshableScroll>

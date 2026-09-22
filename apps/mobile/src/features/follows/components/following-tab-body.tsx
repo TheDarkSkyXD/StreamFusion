@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
@@ -30,14 +31,17 @@ export function FollowingTabBody({
   readonly onRetry: (platform: Platform) => void;
   readonly view: FollowingView;
 }) {
+  const { t } = useTranslation();
+  const translate = (key: string, values?: Record<string, unknown>) =>
+    values === undefined ? t(key) : t(key, values);
   const items = itemsFor(view);
   return (
     <View style={styles.stack} testID={`following-tab-body-${view.tab}`}>
       <Text selectable style={styles.copy} testID="following-phase">
-        {tabItemsCopy(view.tab, items)}
+        {tabItemsCopy(view.tab, items, translate)}
       </Text>
       {items.kind === "partial" || items.kind === "failed"
-        ? retryRow(items, onRetry)
+        ? retryRow(items, onRetry, translate)
         : null}
       {view.tab === "live" && items.kind !== "loading" && items.kind !== "empty"
         ? (items.items as readonly Stream[]).map((stream) => (
@@ -49,7 +53,7 @@ export function FollowingTabBody({
           ))
         : null}
       {view.tab === "channels" ? channelRows(items, onOpenProvider) : null}
-      {view.tab === "categories" ? categoryRows(items) : null}
+      {view.tab === "categories" ? categoryRows(items, translate) : null}
       {view.tab === "videos" ? videoRows(items) : null}
       {view.tab === "clips" ? clipRows(items) : null}
     </View>
@@ -67,6 +71,7 @@ function itemsFor(view: FollowingView): TabItems<unknown> {
 function retryRow(
   items: Extract<TabItems<unknown>, { kind: "partial" | "failed" }>,
   onRetry: (platform: Platform) => void,
+  t: (key: string, values?: Record<string, unknown>) => string,
 ) {
   const platforms =
     items.kind === "failed" ? items.retryablePlatforms : items.failedPlatforms;
@@ -74,13 +79,13 @@ function retryRow(
     <View style={styles.row}>
       {platforms.map((platform) => (
         <MobileButton
-          accessibilityLabel={`Retry ${platform}`}
+          accessibilityLabel={t("discovery.following.retryPlatform", { platform })}
           key={platform}
           onPress={() => onRetry(platform)}
           testID={`following-retry-${platform}`}
           variant={platform}
         >
-          {`Retry ${platform}`}
+          {t("discovery.following.retryPlatform", { platform })}
         </MobileButton>
       ))}
     </View>
@@ -104,7 +109,10 @@ function channelRows(
   ));
 }
 
-function categoryRows(items: TabItems<unknown>) {
+function categoryRows(
+  items: TabItems<unknown>,
+  t: (key: string, values?: Record<string, unknown>) => string,
+) {
   if (items.kind === "loading" || items.kind === "empty") return null;
   return (items.items as readonly Category[]).map((category) => (
     <View
@@ -116,7 +124,10 @@ function categoryRows(items: TabItems<unknown>) {
         {category.name}
       </Text>
       <Text selectable style={styles.meta}>
-        {`${category.viewerCount ?? 0} viewers · ${category.platform}`}
+        {t("discovery.following.viewersMeta", {
+          count: category.viewerCount ?? 0,
+          platform: category.platform,
+        })}
       </Text>
     </View>
   ));

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   LOCAL_CAPTION_DISPLAY_SIZE,
   LOCAL_CAPTION_NOT_INSTALLED_STATUS,
@@ -37,6 +38,7 @@ export function WatchCaptionBar({
   session,
   status,
 }: WatchCaptionBarProps) {
+  const { t } = useTranslation();
   if (eligibility.kind === "hidden") return null;
   if (eligibility.kind === "unsupported") {
     return (
@@ -52,7 +54,9 @@ export function WatchCaptionBar({
   return (
     <MobileStatusPanel testID="watch-captions" tone="info">
       <Text selectable style={mobileType.body} testID="watch-captions-size">
-        {model?.displaySize ?? LOCAL_CAPTION_DISPLAY_SIZE} English model
+        {t("playback.watch.englishModelSize", {
+          size: model?.displaySize ?? LOCAL_CAPTION_DISPLAY_SIZE,
+        })}
       </Text>
       <Text selectable style={mobileType.body} testID="watch-captions-status">
         {status ??
@@ -61,10 +65,10 @@ export function WatchCaptionBar({
           LOCAL_CAPTION_NOT_INSTALLED_STATUS}
       </Text>
       <Text selectable style={mobileType.label} testID="watch-captions-privacy">
-        Decoded program PCM stays on this device. No microphone. No upload.
+        {t("playback.watch.captionsPrivacy")}
       </Text>
       <View style={styles.actions}>
-        {captionActions(installed, active, {
+        {captionActions(installed, active, (key) => t(key), {
           onInstall,
           onRemove,
           onStart,
@@ -80,6 +84,7 @@ export function WatchCaptionBar({
 function captionActions(
   installed: boolean,
   active: boolean,
+  t: (key: string) => string,
   handlers: {
     readonly onInstall: () => void;
     readonly onRemove: () => void;
@@ -94,28 +99,28 @@ function captionActions(
   }[] = [];
   if (!installed) {
     actions.push({
-      label: "Install English model",
+      label: t("playback.watch.installEnglishModel"),
       onPress: handlers.onInstall,
       testID: "watch-captions-install",
     });
   }
   if (installed && !active) {
     actions.push({
-      label: "Start captions",
+      label: t("playback.watch.startCaptions"),
       onPress: handlers.onStart,
       testID: "watch-captions-start",
     });
   }
   if (active) {
     actions.push({
-      label: "Stop captions",
+      label: t("playback.watch.stopCaptions"),
       onPress: handlers.onStop,
       testID: "watch-captions-stop",
     });
   }
   if (installed) {
     actions.push({
-      label: "Remove model",
+      label: t("playback.removeModel"),
       onPress: handlers.onRemove,
       testID: "watch-captions-remove",
     });

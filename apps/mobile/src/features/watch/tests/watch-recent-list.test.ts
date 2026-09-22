@@ -9,14 +9,15 @@ const source = readFileSync(
 
 describe("WatchRecentList Continue Watching shelf", () => {
   it("labels the shelf Continue Watching and uses Resume when possible", () => {
-    expect(source).toContain("Continue Watching");
+    expect(source).toContain("playback.watch.continueWatching");
     expect(source).toContain("canResumeWatchHistory");
-    expect(source).toContain('canResume ? "Resume" : "Open"');
+    expect(source).toContain("mediaLibrary.resume");
+    expect(source).toContain("mediaLibrary.open");
     expect(source).toContain("watchTargetFromHistory");
   });
 
   it("keeps Start watching rules by never autoplaying from the shelf", () => {
-    expect(source).toContain("Playback never autoplays");
+    expect(source).toContain("playback.watch.continueWatchingCaption");
     expect(source).toContain("impactHaptic");
   });
 });

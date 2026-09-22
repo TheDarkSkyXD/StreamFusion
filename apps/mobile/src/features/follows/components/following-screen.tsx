@@ -121,12 +121,12 @@ function FollowingScreenBody({
     >
       <MobileScreenHeader title={t("discovery.following.title")} />
       <MobileButton
-        accessibilityLabel="Manage Guest Follows"
+        accessibilityLabel={t("discovery.following.manageTitle")}
         onPress={onOpenManage}
         testID="following-open-manage"
         variant="secondary"
       >
-        Manage Guest Follows
+        {t("discovery.following.manageTitle")}
       </MobileButton>
       <FollowingControls
         chip={chip}
@@ -155,13 +155,13 @@ function FollowingScreenBody({
       view.live.reason === "no-membership" &&
       tab === "live" ? (
         <MobileButton
-          accessibilityHint="Opens Search to find channels to follow"
-          accessibilityLabel="Find channels in Search"
+          accessibilityHint={t("discovery.following.findChannelsHint")}
+          accessibilityLabel={t("discovery.following.findChannelsInSearch")}
           onPress={onOpenSearch}
           testID="following-open-search"
           variant="primary"
         >
-          Find channels in Search
+          {t("discovery.following.findChannelsInSearch")}
         </MobileButton>
       ) : null}
     </MobileRefreshableScroll>
@@ -181,13 +181,18 @@ function RecordedControls({
   readonly sort: FollowedRecordedSort;
   readonly tab: FollowingTab;
 }) {
+  const { t } = useTranslation();
+  const translate = (key: string, values?: Record<string, unknown>) =>
+    values === undefined ? t(key) : t(key, values);
   return (
     <View style={styles.row}>
       {(["recent", "views"] as const).map((value) => (
         <MobileFilterChip
-          accessibilityLabel={`Sort by ${sortLabel(value)}`}
+          accessibilityLabel={t("discovery.following.sortByLabel", {
+            label: sortLabel(value, translate),
+          })}
           key={value}
-          label={sortLabel(value)}
+          label={sortLabel(value, translate)}
           onPress={() => onSort(value)}
           selected={sort === value}
           testID={`following-sort-${value}`}
@@ -196,9 +201,11 @@ function RecordedControls({
       {tab === "clips"
         ? (["day", "week", "month", "all"] as const).map((value) => (
             <MobileFilterChip
-              accessibilityLabel={`Clips period ${periodLabel(value)}`}
+              accessibilityLabel={t("discovery.following.clipsPeriodLabel", {
+                label: periodLabel(value, translate),
+              })}
               key={value}
-              label={periodLabel(value)}
+              label={periodLabel(value, translate)}
               onPress={() => onPeriod(value)}
               selected={period === value}
               testID={`following-period-${value}`}
@@ -209,20 +216,24 @@ function RecordedControls({
   );
 }
 
-function sortLabel(sort: FollowedRecordedSort): string {
-  return sort === "recent" ? "Recent" : "Views";
+type Translate = (key: string, values?: Record<string, unknown>) => string;
+
+function sortLabel(sort: FollowedRecordedSort, t: Translate): string {
+  return sort === "recent"
+    ? t("discovery.following.sortRecent")
+    : t("discovery.following.sortViews");
 }
 
-function periodLabel(period: FollowedClipPeriod): string {
+function periodLabel(period: FollowedClipPeriod, t: Translate): string {
   switch (period) {
     case "day":
-      return "Day";
+      return t("discovery.following.periodDay");
     case "week":
-      return "Week";
+      return t("discovery.following.periodWeek");
     case "month":
-      return "Month";
+      return t("discovery.following.periodMonth");
     case "all":
-      return "All";
+      return t("discovery.following.all");
   }
 }
 

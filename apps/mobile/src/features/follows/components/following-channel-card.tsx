@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
@@ -22,6 +23,7 @@ export function FollowingChannelCard({
   }) => void;
   readonly row: FollowingChannelRow;
 }) {
+  const { t } = useTranslation();
   return (
     <View
       style={styles.card}
@@ -34,16 +36,21 @@ export function FollowingChannelCard({
         <MobilePlatformBadge platform={row.follow.platform} />
       </View>
       <Text selectable style={styles.meta}>
-        {row.isLive ? "Live" : "Offline"} · {row.follow.platform}
+        {row.isLive ? t("discovery.live") : t("discovery.offline")} · {row.follow.platform}
       </Text>
       <Text selectable style={styles.meta}>
-        Guest Follow · not imported
+        {t("discovery.following.guestFollowNotImported")}
       </Text>
       <Text selectable style={styles.meta}>
-        {row.eligible ? "Live alerts eligible" : "Live alerts not eligible"}
+        {row.eligible
+          ? t("discovery.following.liveAlertsEligible")
+          : t("discovery.following.liveAlertsNotEligible")}
       </Text>
       <MobileButton
-        accessibilityLabel={`Open ${row.follow.displayName} on ${row.follow.platform}`}
+        accessibilityLabel={t("discovery.following.openNameOnPlatform", {
+          name: row.follow.displayName,
+          platform: row.follow.platform,
+        })}
         onPress={() =>
           onOpenProvider({
             channelLogin: row.follow.channelLogin,
@@ -53,7 +60,7 @@ export function FollowingChannelCard({
         testID={`following-channel-provider-${row.follow.platform}-${row.follow.channelId}`}
         variant={row.follow.platform}
       >
-        {`Open on ${row.follow.platform}`}
+        {t("discovery.following.openOnPlatform", { platform: row.follow.platform })}
       </MobileButton>
     </View>
   );

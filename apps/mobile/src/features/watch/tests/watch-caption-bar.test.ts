@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { WatchCaptionBar } from "../components/watch-caption-bar";
 import { WatchCaptionOverlay } from "../components/watch-caption-overlay";
@@ -42,7 +42,30 @@ function press(nodes: readonly Element[], testID: string): void {
 }
 
 // Guards: live captions install/start locally; overlay shows cue text; Videos stay hidden
+
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, _options?: Record<string, unknown>) => key as string,
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+  initReactI18next: { type: "3rdParty", init: () => undefined },
+}));
+
+
+
 describe("Watch caption chrome", () => {
+  beforeAll(async () => {
+    const { bootstrapMobileI18n, i18n } = await import("@mobile/i18n");
+    await bootstrapMobileI18n();
+    i18nTest.t = (key: string, options?: Record<string, unknown>) =>
+      i18n.t(key, options as never);
+  });
+
+
   it("installs the English model and starts one focused session", () => {
     const actions: string[] = [];
     const nodes = descendants(

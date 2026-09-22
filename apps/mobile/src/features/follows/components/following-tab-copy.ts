@@ -1,53 +1,56 @@
 import type { FollowingTab, TabItems } from "../capabilities/following-session";
 
+type Translate = (key: string, values?: Record<string, unknown>) => string;
+
 export function tabItemsCopy<T>(
   tab: FollowingTab,
   items: TabItems<T>,
+  t: Translate,
 ): string {
   if (items.kind === "loading") {
     return tab === "live"
-      ? "Loading live Guest Follows from Twitch and Kick."
-      : `Loading ${tab} for your Guest Follows.`;
+      ? t("discovery.following.loadingLiveGuest")
+      : t("discovery.following.loadingTabGuest", { tab });
   }
   if (items.kind === "empty" && items.reason === "no-membership") {
-    return "Follow channels as a guest. They stay on this device.";
+    return t("discovery.following.guestEmptyMembership");
   }
   if (items.kind === "empty" && items.reason === "none-live") {
-    return "None of your Guest Follows are live right now.";
+    return t("discovery.following.guestNoneLive");
   }
   if (items.kind === "empty") {
-    return "No Guest Follows match this search or filter.";
+    return t("discovery.following.guestNoMatches");
   }
   if (items.kind === "unsupported") {
-    return "Kick does not offer videos and clips through StreamFusion yet.";
+    return t("discovery.following.kickRecordedUnsupported");
   }
   if (items.kind === "failed" && items.offline) {
-    return "You're offline. Guest Follows are saved on this device.";
+    return t("discovery.following.guestOfflineSaved");
   }
   if (items.kind === "failed") {
     return tab === "live"
-      ? "Live Guest Follows could not be loaded."
-      : `${tab} for your Guest Follows could not be loaded.`;
+      ? t("discovery.following.guestLiveLoadFailed")
+      : t("discovery.following.guestTabLoadFailed", { tab });
   }
   if (items.kind === "partial") {
     return items.stale
-      ? "Some platforms could not refresh. Showing saved live channels."
-      : "Some platforms could not refresh. Live channels still shown.";
+      ? t("discovery.following.guestPartialStale")
+      : t("discovery.following.guestPartial");
   }
-  return readyCopy(tab, items.stale);
+  return readyCopy(tab, items.stale, t);
 }
 
-function readyCopy(tab: FollowingTab, stale: boolean): string {
+function readyCopy(tab: FollowingTab, stale: boolean, t: Translate): string {
   if (stale) {
     return tab === "live"
-      ? "Showing saved live channels while a refresh is unavailable."
-      : `Showing saved ${tab} while a refresh is unavailable.`;
+      ? t("discovery.following.guestReadyLiveStale")
+      : t("discovery.following.guestReadyTabStale", { tab });
   }
-  if (tab === "live") return "Live Guest Follows from Twitch and Kick.";
-  if (tab === "videos") return "Videos from your Guest Follows.";
-  if (tab === "clips") return "Clips from your Guest Follows.";
+  if (tab === "live") return t("discovery.following.guestReadyLive");
+  if (tab === "videos") return t("discovery.following.guestReadyVideos");
+  if (tab === "clips") return t("discovery.following.guestReadyClips");
   if (tab === "categories") {
-    return "Categories your live Guest Follows are in.";
+    return t("discovery.following.guestReadyCategories");
   }
-  return "Guest Follows on this device. Live channels stay first.";
+  return t("discovery.following.guestReadyChannels");
 }

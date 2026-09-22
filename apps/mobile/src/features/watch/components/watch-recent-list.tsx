@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
@@ -34,6 +35,7 @@ export function WatchRecentList({
   readonly onOpenSearch?: () => void;
   readonly onWatch: (target: WatchTarget) => void;
 }) {
+  const { t } = useTranslation();
   const query = useQuery({
     queryFn: () => history.list(),
     queryKey: ["watch-history", "watch-empty-recent"],
@@ -42,30 +44,30 @@ export function WatchRecentList({
   if (query.isLoading) {
     return (
       <Text selectable style={styles.caption} testID="watch-recent-loading">
-        Loading Continue Watching…
+        {t("playback.watch.continueWatchingLoading")}
       </Text>
     );
   }
   if (items.length === 0) {
     return onOpenSearch ? (
       <MobileButton
-        accessibilityHint="Opens Search to find something to watch"
-        accessibilityLabel="Find something in Search"
+        accessibilityHint={t("playback.watch.findInSearchHint")}
+        accessibilityLabel={t("playback.watch.findInSearch")}
         onPress={onOpenSearch}
         testID="watch-empty-open-search"
         variant="secondary"
       >
-        Find something in Search
+        {t("playback.watch.findInSearch")}
       </MobileButton>
     ) : null;
   }
   return (
     <View style={styles.stack} testID="watch-recent-list">
       <Text selectable style={styles.heading} testID="continue-watching-heading">
-        Continue Watching
+        {t("playback.watch.continueWatching")}
       </Text>
       <Text selectable style={styles.caption}>
-        Resume or open from History. Playback never autoplays.
+        {t("playback.watch.continueWatchingCaption")}
       </Text>
       {items.map((item) => (
         <RecentRow
@@ -88,16 +90,20 @@ function RecentRow({
   readonly item: WatchHistoryItem;
   readonly onWatch: (mode: "open" | "resume") => void;
 }) {
+  const { t } = useTranslation();
   const canResume = canResumeWatchHistory(item);
   const progress = watchHistoryProgressRatio(item);
+  const actionLabel = canResume
+    ? t("playback.watch.resumeItem", { title: item.title })
+    : t("playback.watch.openItem", { title: item.title });
   return (
     <Pressable
       accessibilityHint={
         canResume
-          ? "Resumes this recording from your saved position"
-          : "Opens this item without autoplay"
+          ? t("playback.watch.resumeHint")
+          : t("playback.watch.openHint")
       }
-      accessibilityLabel={`${canResume ? "Resume" : "Open"} ${item.title}`}
+      accessibilityLabel={actionLabel}
       accessibilityRole="button"
       android_ripple={{ color: mobileColors.surfaceRaised }}
       onPress={() => onWatch(canResume ? "resume" : "open")}
@@ -118,7 +124,9 @@ function RecentRow({
           </Text>
           {progress !== null ? (
             <View
-              accessibilityLabel={`${Math.round(progress * 100)} percent watched`}
+              accessibilityLabel={t("playback.watch.percentWatched", {
+                percent: Math.round(progress * 100),
+              })}
               style={styles.progressTrack}
               testID={`watch-recent-progress-${item.id}`}
             >
@@ -130,12 +138,12 @@ function RecentRow({
         </View>
       </View>
       <MobileButton
-        accessibilityLabel={`${canResume ? "Resume" : "Open"} ${item.title}`}
+        accessibilityLabel={actionLabel}
         onPress={() => onWatch(canResume ? "resume" : "open")}
         testID={`watch-recent-open-${item.id}`}
         variant="secondary"
       >
-        {canResume ? "Resume" : "Open"}
+        {canResume ? t("mediaLibrary.resume") : t("mediaLibrary.open")}
       </MobileButton>
     </Pressable>
   );

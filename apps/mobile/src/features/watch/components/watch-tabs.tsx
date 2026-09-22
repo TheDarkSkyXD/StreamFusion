@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
@@ -49,12 +50,15 @@ export function WatchTabs({
   readonly related: WatchRelated | null;
   readonly tab: WatchTab;
 }) {
+  const { t } = useTranslation();
   const chatTab: WatchTab = recorded ? "comments" : "chat";
   return (
     <View style={styles.region} testID="watch-under-player">
       {tab === "info" ? (
         <Pressable
-          accessibilityLabel={recorded ? "Show comments" : "Show chat"}
+          accessibilityLabel={
+            recorded ? t("playback.watch.showComments") : t("playback.watch.showChat")
+          }
           accessibilityRole="button"
           onPress={() => onSelect(chatTab)}
           style={({ pressed }) => [
@@ -64,7 +68,7 @@ export function WatchTabs({
           testID={recorded ? "watch-show-comments" : "watch-show-chat"}
         >
           <Text style={styles.switchLabel}>
-            {recorded ? "Show comments" : "Show chat"}
+            {recorded ? t("playback.watch.showComments") : t("playback.watch.showChat")}
           </Text>
         </Pressable>
       ) : null}
@@ -97,11 +101,12 @@ function CommentsPane({
   readonly chat: WatchChatAvailability;
   readonly onRetry?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <ChatPane
       chat={chat}
       testID="watch-comments"
-      title="Comments"
+      title={t("playback.watch.comments")}
       {...(onRetry === undefined ? {} : { onRetry })}
     />
   );
@@ -111,18 +116,20 @@ function ChatPane({
   chat,
   onRetry,
   testID = "watch-chat",
-  title = "Chat",
+  title,
 }: {
   readonly chat: WatchChatAvailability;
   readonly onRetry?: () => void;
   readonly testID?: string;
   readonly title?: string;
 }) {
+  const { t } = useTranslation();
+  const paneTitle = title ?? t("playback.watch.chat");
   if (chat.kind === "connecting") {
     return (
       <MobileStatusPanel testID={testID} tone="loading">
         <Text selectable style={mobileType.title}>
-          {title}
+          {paneTitle}
         </Text>
         <Text selectable style={mobileType.body}>
           {chat.detail}
@@ -134,19 +141,19 @@ function ChatPane({
     return (
       <MobileStatusPanel testID={testID} tone="error">
         <Text selectable style={mobileType.title}>
-          {title}
+          {paneTitle}
         </Text>
         <Text selectable style={mobileType.body}>
           {chat.detail}
         </Text>
         {onRetry ? (
           <MobileButton
-            accessibilityLabel="Retry chat"
+            accessibilityLabel={t("playback.watch.retryChat")}
             onPress={onRetry}
             testID={`${testID}-retry`}
             variant="secondary"
           >
-            Retry
+            {t("playback.retry")}
           </MobileButton>
         ) : null}
       </MobileStatusPanel>
@@ -156,7 +163,7 @@ function ChatPane({
     return (
       <MobileStatusPanel testID={testID} tone="info">
         <Text selectable style={mobileType.title}>
-          {title}
+          {paneTitle}
         </Text>
         <Text selectable style={mobileType.body}>
           {chat.detail}
@@ -168,7 +175,7 @@ function ChatPane({
     return (
       <MobileStatusPanel testID={testID} tone="empty">
         <Text selectable style={mobileType.title}>
-          {title}
+          {paneTitle}
         </Text>
         <Text selectable style={mobileType.body}>
           {chat.detail}
@@ -179,7 +186,7 @@ function ChatPane({
   return (
     <View style={styles.pane} testID={testID}>
       <Text selectable style={mobileType.title}>
-        {title}
+        {paneTitle}
       </Text>
       {chat.messages.map((message) => (
         <Text
@@ -202,11 +209,12 @@ function InfoPane({
   readonly info: WatchInfo | null;
   readonly onAddToMultistream?: () => void;
 }) {
+  const { t } = useTranslation();
   if (!info) {
     return (
       <MobileStatusPanel testID="watch-info" tone="loading">
         <Text selectable style={mobileType.body}>
-          Loading channel details.
+          {t("playback.watch.loadingChannelDetails")}
         </Text>
       </MobileStatusPanel>
     );
@@ -216,7 +224,7 @@ function InfoPane({
       <MobileStatusPanel testID="watch-info" tone="error">
         <Text selectable style={mobileType.body}>
           {info.failure.kind === "cancelled"
-            ? "Channel details were cancelled."
+            ? t("playback.watch.channelDetailsCancelled")
             : info.failure.detail}
         </Text>
       </MobileStatusPanel>
@@ -232,7 +240,7 @@ function InfoPane({
           {`${info.channel.displayName} · ${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
         </Text>
         <Text selectable style={mobileType.body}>
-          Multistream keeps live channels only.
+          {t("playback.watch.multistreamLiveOnly")}
         </Text>
       </View>
     );
@@ -249,7 +257,7 @@ function InfoPane({
           ) : null}
         </View>
         <Text selectable style={mobileType.body}>
-          This channel is not live.
+          {t("playback.watch.channelNotLive")}
         </Text>
       </View>
     );
@@ -261,7 +269,7 @@ function InfoPane({
       </Text>
       <View style={styles.identity}>
         <Text selectable style={mobileType.body}>
-          {`${info.channel.displayName} · ${info.stream.viewerCount} viewers`}
+          {`${info.channel.displayName} · ${info.stream.viewerCount} ${t("playback.viewers")}`}
         </Text>
         {info.channel.isVerified ? (
           <MobileVerifiedBadge platform={info.channel.platform} />
@@ -279,13 +287,13 @@ function InfoPane({
       />
       {onAddToMultistream ? (
         <MobileButton
-          accessibilityHint="Adds this live channel to the Multistream room"
-          accessibilityLabel="Add to Multistream"
+          accessibilityHint={t("playback.watch.addToMultistreamHint")}
+          accessibilityLabel={t("playback.watch.addToMultistream")}
           onPress={onAddToMultistream}
           testID="watch-add-multistream"
           variant="secondary"
         >
-          Add to Multistream
+          {t("playback.watch.addToMultistream")}
         </MobileButton>
       ) : null}
     </View>
@@ -299,11 +307,12 @@ function RelatedPane({
   readonly onOpenRelated: (stream: Stream) => void;
   readonly related: WatchRelated | null;
 }) {
+  const { t } = useTranslation();
   if (!related) {
     return (
       <MobileStatusPanel testID="watch-related" tone="loading">
         <Text selectable style={mobileType.body}>
-          Loading related streams.
+          {t("playback.watch.loadingRelated")}
         </Text>
       </MobileStatusPanel>
     );
@@ -312,7 +321,7 @@ function RelatedPane({
     return (
       <MobileStatusPanel testID="watch-related" tone="empty">
         <Text selectable style={mobileType.body}>
-          No related live streams.
+          {t("playback.watch.noRelated")}
         </Text>
       </MobileStatusPanel>
     );
@@ -322,7 +331,7 @@ function RelatedPane({
       <MobileStatusPanel testID="watch-related" tone="error">
         <Text selectable style={mobileType.body}>
           {related.failure.kind === "cancelled"
-            ? "Related streams were cancelled."
+            ? t("playback.watch.relatedCancelled")
             : related.failure.detail}
         </Text>
       </MobileStatusPanel>
@@ -331,7 +340,7 @@ function RelatedPane({
   return (
     <View style={styles.pane} testID="watch-related">
       <Text selectable style={mobileType.title}>
-        Related
+        {t("playback.watch.related")}
       </Text>
       {related.items.map((stream) => (
         <Pressable

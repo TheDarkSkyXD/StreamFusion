@@ -4,6 +4,7 @@ import type {
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 import { validCommands } from "@streamfusion/core/media-jobs";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
@@ -96,6 +97,7 @@ function ActiveRecording({
   readonly onOpenArtifact: () => void;
   readonly status?: string | null;
 }) {
+  const { t } = useTranslation();
   const commands = jobCommands.filter((command) =>
     validCommands(job.phase).includes(command),
   );
@@ -125,13 +127,13 @@ function ActiveRecording({
           <>
             <Action
               busy={busy}
-              label="Open"
+              label={t("mediaLibrary.open")}
               onPress={onOpenArtifact}
               testID="watch-recording-open"
             />
             <Action
               busy={busy}
-              label="Export"
+              label={t("playback.watch.export")}
               onPress={onExport}
               testID="watch-recording-export"
             />
@@ -140,7 +142,7 @@ function ActiveRecording({
         {canDeleteJob(job.phase) ? (
           <Action
             busy={busy}
-            label="Delete"
+            label={t("playback.watch.delete")}
             onPress={onDelete}
             testID="watch-recording-delete"
             variant="destructive"

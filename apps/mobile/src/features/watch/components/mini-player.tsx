@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -99,11 +100,14 @@ export function MiniPlayer({
     SNAP_CYCLE[
       (SNAP_CYCLE.indexOf(peek.presentation.snapRegion) + 1) % SNAP_CYCLE.length
     ]!;
+  const { t } = useTranslation();
   const sessionId = peek.state.session.sessionId;
   const live = peek.state.target.media === undefined;
   return (
     <View
-      accessibilityLabel={`${peek.state.target.channelName} mini-player`}
+      accessibilityLabel={t("playback.watch.miniPlayerLabel", {
+        channel: peek.state.target.channelName,
+      })}
       style={[
         styles.shell,
         miniPlayerSnapStyle(peek.presentation.snapRegion, {
@@ -114,7 +118,7 @@ export function MiniPlayer({
       testID="mini-player"
     >
       <Pressable
-        accessibilityLabel="Expand mini-player"
+        accessibilityLabel={t("playback.watch.expandMiniPlayer")}
         accessibilityRole="button"
         onPress={onExpand}
         style={styles.videoPress}
@@ -129,7 +133,7 @@ export function MiniPlayer({
           {live ? (
             <View style={styles.liveBadge} testID="mini-player-live">
               <View style={styles.liveDot} />
-              <Text style={styles.liveLabel}>LIVE</Text>
+              <Text style={styles.liveLabel}>{t("playback.live")}</Text>
             </View>
           ) : null}
           {paused ? (
@@ -155,34 +159,38 @@ export function MiniPlayer({
             {peek.state.target.channelName}
           </Text>
           <Text selectable style={styles.meta}>
-            {paused ? "Paused" : "Playing"}
+            {paused ? t("playback.watch.paused") : t("playback.watch.playing")}
           </Text>
         </View>
       </Pressable>
       <View style={styles.controls}>
         <IconControl
           Icon={paused ? Play : Pause}
-          accessibilityLabel={paused ? "Resume" : "Pause"}
+          accessibilityLabel={
+            paused ? t("mediaLibrary.resume") : t("playback.pause")
+          }
           onPress={onPause}
           testID="mini-player-pause"
         />
         {onPip ? (
           <IconControl
             Icon={PictureInPicture2}
-            accessibilityLabel="Enter Picture-in-Picture"
+            accessibilityLabel={t("playback.watch.enterPip")}
             onPress={onPip}
             testID="mini-player-pip"
           />
         ) : null}
         <IconControl
           Icon={Move}
-          accessibilityLabel={`Move to ${nextRegion}`}
+          accessibilityLabel={t("playback.watch.moveToRegion", {
+            region: nextRegion,
+          })}
           onPress={() => onRelocate(nextRegion)}
           testID="mini-player-relocate"
         />
         <IconControl
           Icon={X}
-          accessibilityLabel="Close"
+          accessibilityLabel={t("playback.close")}
           onPress={onDismiss}
           testID="dismiss-player"
         />

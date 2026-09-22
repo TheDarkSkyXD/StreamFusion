@@ -42,6 +42,7 @@ import type {
   CaptionModelState,
   CaptionSessionState,
 } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
+import { i18n } from "@mobile/i18n";
 
 export type WatchDownloadSession = {
   readonly busy: boolean;
@@ -327,7 +328,7 @@ function WatchSessionRoute({
                   setDownloadError,
                   eligibility,
                   "download",
-                  "Download cancelled.",
+                  i18n.t("playback.watch.downloadCancelled"),
                 );
               },
               downloadError,
@@ -348,7 +349,7 @@ function WatchSessionRoute({
                   setRecordingError,
                   recordingEligibility,
                   "recording",
-                  "Recording cancelled.",
+                  i18n.t("playback.watch.recordingCancelled"),
                 );
               },
               recordingError,

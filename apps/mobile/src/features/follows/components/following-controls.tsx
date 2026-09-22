@@ -41,6 +41,8 @@ export function FollowingControls({
   readonly tab: FollowingTab;
 }) {
   const { t } = useTranslation();
+  const translate = (key: string, values?: Record<string, unknown>) =>
+    values === undefined ? t(key) : t(key, values);
   return (
     <View style={styles.stack}>
       <TextInput
@@ -55,12 +57,12 @@ export function FollowingControls({
         testID="following-search"
         value={query}
       />
-      <View accessibilityLabel="Following filters" style={styles.row}>
+      <View accessibilityLabel={t("discovery.following.filtersA11y")} style={styles.row}>
         {CHIPS.map((value) => (
           <MobileFilterChip
-            accessibilityLabel={chipLabel(value)}
+            accessibilityLabel={chipLabel(value, translate)}
             key={value}
-            label={chipLabel(value)}
+            label={chipLabel(value, translate)}
             onPress={() => onChip(value)}
             selected={chip === value}
             testID={`following-chip-${value}`}
@@ -68,13 +70,13 @@ export function FollowingControls({
         ))}
       </View>
       <MobileUnderlineTabs
-        accessibilityLabel="Following content"
+        accessibilityLabel={t("discovery.following.contentA11y")}
         onSelect={onTab}
         selectedId={tab}
         tabs={TABS.map((value) => ({
-          accessibilityLabel: tabLabel(value),
+          accessibilityLabel: tabLabel(value, translate),
           id: value,
-          label: tabLabel(value),
+          label: tabLabel(value, translate),
           testID: `following-tab-${value}`,
         }))}
         testID="following-content-tabs"
@@ -83,12 +85,14 @@ export function FollowingControls({
   );
 }
 
-function chipLabel(chip: FollowingChip): string {
+type Translate = (key: string, values?: Record<string, unknown>) => string;
+
+function chipLabel(chip: FollowingChip, t: Translate): string {
   switch (chip) {
     case "all":
-      return "All";
+      return t("discovery.following.all");
     case "live":
-      return "Live only";
+      return t("discovery.following.liveOnly");
     case "twitch":
       return "Twitch";
     case "kick":
@@ -96,18 +100,18 @@ function chipLabel(chip: FollowingChip): string {
   }
 }
 
-function tabLabel(tab: FollowingTab): string {
+function tabLabel(tab: FollowingTab, t: Translate): string {
   switch (tab) {
     case "live":
-      return "Live";
+      return t("discovery.following.liveLabel");
     case "videos":
-      return "Videos";
+      return t("discovery.videos");
     case "clips":
-      return "Clips";
+      return t("discovery.clips");
     case "categories":
-      return "Categories";
+      return t("discovery.categories");
     case "channels":
-      return "Channels";
+      return t("discovery.channels");
   }
 }
 

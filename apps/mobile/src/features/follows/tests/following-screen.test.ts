@@ -1,6 +1,6 @@
 import { isValidElement, type ReactElement } from "react";
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 
 import { composeFollowingView } from "../domain/compose-following-view";
@@ -22,6 +22,20 @@ vi.mock("react-native", () => ({
   TextInput: "TextInput",
   View: "View",
 }));
+
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, _options?: Record<string, unknown>) => key as string,
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+  initReactI18next: { type: "3rdParty", init: () => undefined },
+}));
+
+
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
@@ -59,6 +73,14 @@ const liveStream = followedStream({
 });
 
 describe("Following screen", () => {
+  beforeAll(async () => {
+    const { bootstrapMobileI18n, i18n } = await import("@mobile/i18n");
+    await bootstrapMobileI18n();
+    i18nTest.t = (key: string, options?: Record<string, unknown>) =>
+      i18n.t(key, options as never);
+  });
+
+
   it("renders live Guest Follow cards", () => {
     const view = composeFollowingView({
       chip: "all",
@@ -166,7 +188,7 @@ describe("Following screen", () => {
       "utf8",
     );
     expect(source).toContain('testID="following-open-search"');
-    expect(source).toContain("Find channels in Search");
+    expect(source).toContain("discovery.following.findChannelsInSearch");
     expect(source).toContain("onOpenSearch");
   });
 

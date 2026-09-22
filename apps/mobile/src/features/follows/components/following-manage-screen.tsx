@@ -91,28 +91,26 @@ function ManageNotices({
   readonly onToggleGuest: () => void;
   readonly prefs: LiveNotificationPreferences;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <Text selectable style={styles.copy}>
-        Guest Follows stay on this device. Account import is unavailable while
-        signed out.
+        {t("discovery.following.guestStayOnDevice")}
       </Text>
       <View style={styles.card} testID="following-import-disabled">
         <Text selectable style={styles.cardTitle}>
-          Import from Twitch or Kick
+          {t("discovery.following.importFromPlatforms")}
         </Text>
         <Text selectable style={styles.copy}>
-          Account follow import is disabled until you connect a platform
-          account.
+          {t("discovery.following.importDisabled")}
         </Text>
       </View>
       <View style={styles.card} testID="following-push-stub">
         <Text selectable style={styles.cardTitle}>
-          System notifications
+          {t("discovery.following.systemNotifications")}
         </Text>
         <Text selectable style={styles.copy}>
-          In-app live alerts can use Guest Follow preferences. System push is
-          not shipped yet.
+          {t("discovery.following.systemPushNotShipped")}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -122,8 +120,8 @@ function ManageNotices({
         >
           <Text selectable style={styles.actionLabel}>
             {prefs.guestFollows
-              ? "Guest live alerts on"
-              : "Guest live alerts off"}
+              ? t("discovery.following.guestAlertsOn")
+              : t("discovery.following.guestAlertsOff")}
           </Text>
         </Pressable>
       </View>
@@ -136,23 +134,25 @@ function NotificationTruths({
 }: {
   readonly prefs: LiveNotificationPreferences;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.card} testID="following-notification-truths">
       <Text selectable style={styles.cardTitle}>
-        Live alert status
+        {t("discovery.following.liveAlertStatus")}
       </Text>
       <Text selectable style={styles.copy}>
-        Eligibility: Guest Follows {prefs.guestFollows ? "can" : "cannot"} use
-        in-app live alerts.
+        {prefs.guestFollows
+          ? t("discovery.following.eligibilityCan")
+          : t("discovery.following.eligibilityCannot")}
       </Text>
       <Text selectable style={styles.copy}>
-        Permission: not requested. This device stays signed out.
+        {t("discovery.following.permissionNotRequested")}
       </Text>
       <Text selectable style={styles.copy}>
-        Registration: not registered. System push is not shipped.
+        {t("discovery.following.registrationNotRegistered")}
       </Text>
       <Text selectable style={styles.copy}>
-        Delivery: in-app preference only. No system notification is sent.
+        {t("discovery.following.deliveryInAppOnly")}
       </Text>
     </View>
   );
@@ -171,6 +171,7 @@ function ManageRow({
   readonly prefs: LiveNotificationPreferences;
   readonly session: FollowingSession;
 }) {
+  const { t } = useTranslation();
   return (
     <View
       style={styles.card}
@@ -183,11 +184,13 @@ function ManageRow({
         {follow.platform} · {follow.channelLogin}
       </Text>
       <Text selectable style={styles.copy}>
-        Guest Follow · not imported
+        {t("discovery.following.guestFollowNotImported")}
       </Text>
       <View style={styles.row}>
         <Pressable
-          accessibilityLabel={`Unfollow ${follow.displayName}`}
+          accessibilityLabel={t("discovery.following.unfollowName", {
+            name: follow.displayName,
+          })}
           accessibilityRole="button"
           onPress={() => {
             void session
@@ -201,11 +204,19 @@ function ManageRow({
           testID={`following-unfollow-${follow.platform}-${follow.channelId}`}
         >
           <Text selectable style={styles.actionLabel}>
-            Unfollow
+            {t("discovery.following.unfollow")}
           </Text>
         </Pressable>
         <Pressable
-          accessibilityLabel={`${notify ? "Disable" : "Enable"} live alerts for ${follow.displayName}`}
+          accessibilityLabel={
+            notify
+              ? t("discovery.following.disableLiveAlertsFor", {
+                  name: follow.displayName,
+                })
+              : t("discovery.following.enableLiveAlertsFor", {
+                  name: follow.displayName,
+                })
+          }
           accessibilityRole="button"
           onPress={() => {
             void session
@@ -226,11 +237,16 @@ function ManageRow({
           testID={`following-notify-${follow.platform}-${follow.channelId}`}
         >
           <Text selectable style={styles.actionLabel}>
-            {notify ? "Live alerts on" : "Live alerts off"}
+            {notify
+              ? t("discovery.following.liveAlertsOn")
+              : t("discovery.following.liveAlertsOff")}
           </Text>
         </Pressable>
         <Pressable
-          accessibilityLabel={`Open ${follow.displayName} on ${follow.platform}`}
+          accessibilityLabel={t("discovery.following.openNameOnPlatform", {
+            name: follow.displayName,
+            platform: follow.platform,
+          })}
           accessibilityRole="button"
           onPress={() => {
             void session.openProviderPage({
@@ -242,7 +258,9 @@ function ManageRow({
           testID={`following-provider-${follow.platform}-${follow.channelId}`}
         >
           <Text selectable style={styles.actionLabel}>
-            Open on {follow.platform}
+            {t("discovery.following.openOnPlatform", {
+              platform: follow.platform,
+            })}
           </Text>
         </Pressable>
       </View>

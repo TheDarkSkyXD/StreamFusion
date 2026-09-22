@@ -6,23 +6,35 @@ import type {
 
 export type WatchPrimaryAction = "start" | "retry" | "none";
 
+export type WatchCopy =
+  | { readonly key: string; readonly values?: Record<string, unknown> }
+  | { readonly text: string };
+
 export type WatchView = {
-  readonly detail: string;
+  readonly detail: WatchCopy;
   readonly primaryAction: WatchPrimaryAction;
   readonly recovery: readonly WatchRecovery[];
   readonly sessionId: string | null;
   readonly showPlayer: boolean;
-  readonly title: string;
+  readonly title: WatchCopy;
 };
+
+export function resolveWatchCopy(
+  copy: WatchCopy,
+  t: (key: string, values?: Record<string, unknown>) => string,
+): string {
+  if ("text" in copy) return copy.text;
+  return copy.values === undefined ? t(copy.key) : t(copy.key, copy.values);
+}
 
 export function composeWatchView(state: FocusedWatchState): WatchView {
   const recorded = Boolean(state.target.media);
   if (state.kind === "ready") {
     return view(
-      "Watch",
+      key("playback.watch.readyTitle"),
       recorded
-        ? "Start watching this recording."
-        : "Start watching this live stream.",
+        ? key("playback.watch.startRecordingDetail")
+        : key("playback.watch.startLiveDetail"),
       "start",
       null,
       false,
@@ -31,10 +43,10 @@ export function composeWatchView(state: FocusedWatchState): WatchView {
   }
   if (state.kind === "resolving") {
     return view(
-      "Starting Watch",
+      key("playback.watch.startingTitle"),
       recorded
-        ? "Resolving a recorded source for this video."
-        : "Resolving a live source for this stream.",
+        ? key("playback.watch.resolvingRecording")
+        : key("playback.watch.resolvingLive"),
       "none",
       null,
       false,
@@ -53,10 +65,12 @@ export function composeWatchView(state: FocusedWatchState): WatchView {
   }
   if (state.kind === "ended") {
     return view(
-      recorded ? "Recording ended" : "Stream ended",
       recorded
-        ? "This recording is no longer playing."
-        : "This live stream is no longer playing.",
+        ? key("playback.watch.recordingEnded")
+        : key("playback.watch.streamEnded"),
+      recorded
+        ? key("playback.watch.recordingEndedDetail")
+        : key("playback.watch.streamEndedDetail"),
       "retry",
       null,
       false,
@@ -69,8 +83,8 @@ export function composeWatchView(state: FocusedWatchState): WatchView {
 function failureView(failure: WatchPlaybackFailure): WatchView {
   if (failure.kind === "compatibility-disabled") {
     return view(
-      "Watch unavailable",
-      "Live playback is disabled by the current capability policy.",
+      key("playback.watch.watchUnavailable"),
+      key("playback.watch.watchUnavailableDetail"),
       "retry",
       null,
       false,
@@ -80,7 +94,7 @@ function failureView(failure: WatchPlaybackFailure): WatchView {
   if (failure.kind === "source-unavailable") {
     return view(
       sourceTitle(failure.code),
-      failure.detail,
+      text(failure.detail),
       "retry",
       null,
       false,
@@ -89,8 +103,8 @@ function failureView(failure: WatchPlaybackFailure): WatchView {
   }
   if (failure.kind === "native-unavailable") {
     return view(
-      "Player unavailable",
-      failure.detail,
+      key("playback.watch.playerUnavailable"),
+      text(failure.detail),
       "retry",
       null,
       false,
@@ -98,8 +112,8 @@ function failureView(failure: WatchPlaybackFailure): WatchView {
     );
   }
   return view(
-    "Playback stopped",
-    failure.detail,
+    key("playback.watch.playbackStopped"),
+    text(failure.detail),
     "retry",
     null,
     false,
@@ -109,33 +123,41 @@ function failureView(failure: WatchPlaybackFailure): WatchView {
 
 function sourceTitle(
   code: Extract<WatchPlaybackFailure, { kind: "source-unavailable" }>["code"],
-): string {
-  if (code === "channel-offline") return "Channel is offline";
-  if (code === "offline") return "Network unavailable";
-  if (code === "provider-rejected") return "Provider rejected playback";
-  return "Live source unavailable";
+): WatchCopy {
+  if (code === "channel-offline") return key("playback.watch.channelOffline");
+  if (code === "offline") return key("playback.watch.networkUnavailable");
+  if (code === "provider-rejected") return key("playback.watch.providerRejected");
+  return key("playback.watch.liveSourceUnavailable");
 }
 
-function phaseTitle(phase: "buffering" | "paused" | "playing"): string {
-  if (phase === "buffering") return "Buffering";
-  if (phase === "paused") return "Paused";
-  return "Playing";
+function phaseTitle(phase: "buffering" | "paused" | "playing"): WatchCopy {
+  if (phase === "buffering") return key("playback.watch.buffering");
+  if (phase === "paused") return key("playback.watch.paused");
+  return key("playback.watch.playing");
 }
 
 function protectionDetail(
   state: Extract<FocusedWatchState, { kind: "active" }>,
-): string {
+): WatchCopy {
   if (state.protection.kind === "normal") {
     return state.phase === "buffering"
-      ? "The player is buffering this live stream."
-      : "Focused live playback is active.";
+      ? key("playback.watch.bufferingDetail")
+      : key("playback.watch.focusedActive");
   }
-  return state.protection.detail;
+  return text(state.protection.detail);
+}
+
+function key(key: string, values?: Record<string, unknown>): WatchCopy {
+  return values ? { key, values } : { key };
+}
+
+function text(text: string): WatchCopy {
+  return { text };
 }
 
 function view(
-  title: string,
-  detail: string,
+  title: WatchCopy,
+  detail: WatchCopy,
   primaryAction: WatchPrimaryAction,
   sessionId: string | null,
   showPlayer: boolean,
