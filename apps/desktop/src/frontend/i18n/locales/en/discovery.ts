@@ -40,7 +40,12 @@ export const discoveryEn = {
     noThumbnail: "No Thumbnail",
     verified: "{{platform}} verified",
     search: {
-      placeholder: "Search StreamFusion...",
+      placeholder: "Search Twitch and Kick",
+      title: "Search Twitch + Kick",
+      history: "Search history",
+      historyHint: "Last 10 per type",
+      submit: "Search",
+      clearField: "Clear",
       tabs: {
         channels: "Channels",
         categories: "Categories",
@@ -99,7 +104,8 @@ export const discoveryEn = {
       all: "All",
       filterBy: "Filter by:",
       sortBy: "Sort by:",
-      searchPlaceholder: "Search followed channels…",
+      searchPlaceholder: "Search Guest Follows",
+      manageTitle: "Manage Guest Follows",
       retry: "Retry",
       browseChannels: "Browse Channels",
       checkConnection: "Check your connection and try again.",

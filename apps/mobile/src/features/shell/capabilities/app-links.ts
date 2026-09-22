@@ -3,6 +3,10 @@ import type { Platform } from "@streamfusion/core/platform";
 export type AppLinkIntent =
   | { readonly kind: "activity-item"; readonly eventId: string }
   | {
+      readonly kind: "search";
+      readonly query?: string;
+    }
+  | {
       readonly kind: "watch-channel";
       readonly platform: Platform;
       readonly channelId: string;

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { StyleSheet, TextInput, View } from "react-native";
 
 import { MobileFilterChip } from "@mobile/design/chip";
@@ -39,15 +40,16 @@ export function FollowingControls({
   readonly query: string;
   readonly tab: FollowingTab;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.stack}>
       <TextInput
         {...mobileTextFieldProps}
-        accessibilityLabel="Search Guest Follows"
+        accessibilityLabel={t("discovery.following.searchPlaceholder")}
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={onQuery}
-        placeholder="Search Guest Follows"
+        placeholder={t("discovery.following.searchPlaceholder")}
         placeholderTextColor={mobileColors.textMuted}
         style={styles.search}
         testID="following-search"

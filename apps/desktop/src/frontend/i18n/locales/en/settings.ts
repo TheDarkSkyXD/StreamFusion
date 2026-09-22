@@ -196,6 +196,7 @@ export const settingsEn = {
     settings: "Settings",
     personalizeYourStreamfusionExperience: "Personalize your StreamFusion experience",
     searchSettings: "Search settings",
+    hubSearchPlaceholder: "Search appearance, chat, predictions, integrations…",
     clearSearch: "Clear search",
     settingsNavigation: "Settings navigation",
     valueSettings: "{{value1}} settings",

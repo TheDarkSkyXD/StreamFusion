@@ -35,7 +35,11 @@ export const coreEn = {
   },
   navigation: {
     home: "Home",
+    search: "Search",
     following: "Following",
+    watch: "Watch",
+    activity: "Activity",
+    more: "More",
     categories: "Categories",
     multiview: "MultiView",
     history: "History",

@@ -417,17 +417,18 @@ function SettingsSearchField({
   readonly session: SettingsSession;
   readonly value: string;
 }) {
+  const { t } = useTranslation();
   const hasQuery = value.trim().length > 0;
   return (
     <View style={styles.searchRow}>
       <TextInput
-        accessibilityLabel="Search settings"
+        accessibilityLabel={t("settings.searchSettings")}
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={(query) => {
           void session.search(query);
         }}
-        placeholder="Search appearance, chat, predictions, integrations…"
+        placeholder={t("settings.hubSearchPlaceholder")}
         placeholderTextColor={mobileColors.textMuted}
         style={styles.search}
         testID="settings-search"

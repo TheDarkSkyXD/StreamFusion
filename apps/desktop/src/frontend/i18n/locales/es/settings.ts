@@ -205,6 +205,7 @@ export const settingsEs = {
     settings: "Ajustes",
     personalizeYourStreamfusionExperience: "Personaliza tu experiencia en StreamFusion",
     searchSettings: "Buscar ajustes",
+    hubSearchPlaceholder: "Buscar apariencia, chat, predicciones, integraciones…",
     clearSearch: "Borrar búsqueda",
     settingsNavigation: "Navegación por los ajustes",
     valueSettings: "Ajustes de {{value1}}",

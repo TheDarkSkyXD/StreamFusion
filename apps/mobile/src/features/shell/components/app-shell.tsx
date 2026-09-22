@@ -1,5 +1,6 @@
 import { ArrowLeft, ChevronRight, CircleUserRound, Settings } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
+import { useTranslation } from "react-i18next";
 import {
   useCallback,
   useEffect,
@@ -346,7 +347,7 @@ export function AppShell({
     restoreSession: settings.view.preferences.restoreSession,
     settingsReady: settings.ready,
   });
-  const { dispatch, state: navigation } = lifecycle;
+  const { dispatch, launchSearchQuery, state: navigation } = lifecycle;
   const [notificationBanner, setNotificationBanner] = useState(
     nativeNotifications.peekBanner(),
   );
@@ -534,6 +535,7 @@ export function AppShell({
               homeDiscovery={homeDiscovery}
               mediaJobsController={mediaJobsController}
               captionsController={captionsController}
+              launchSearchQuery={launchSearchQuery}
               searchHistory={searchHistory}
               discoveryPreferences={discoveryPreferences}
               followingSession={followingSession}
@@ -757,6 +759,7 @@ function ShellScreen({
   homeDiscovery,
   mediaJobsController,
   captionsController,
+  launchSearchQuery,
   searchHistory,
   discoveryPreferences,
   followingSession,
@@ -811,6 +814,7 @@ function ShellScreen({
   readonly homeDiscovery: DiscoverySession;
   readonly mediaJobsController: ReturnType<typeof useMediaJobsController>;
   readonly captionsController: ReturnType<typeof useLocalCaptionsController>;
+  readonly launchSearchQuery: string | null;
   readonly searchHistory: SearchHistoryRepository;
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
@@ -1045,6 +1049,8 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-search-root">
         <UnifiedSearchScreen
+          key={launchSearchQuery ?? "search-root"}
+          {...(launchSearchQuery ? { initialQuery: launchSearchQuery } : {})}
           categoriesPanel={
             <CategoriesScreen
               embedded
@@ -1964,6 +1970,9 @@ function PrimaryNavigation({
   readonly placement: "bottom" | "rail";
   readonly state: ShellNavigationState;
 }) {
+  const { t } = useTranslation();
+  const destinationLabel = (id: (typeof SHELL_DESTINATIONS)[number]["id"]) =>
+    t(`navigation.${id}`);
   const measurementActive = useRef(true);
   const [layout, setLayout] = useState<CompactNavigationLayout>("row");
 
@@ -2008,11 +2017,11 @@ function PrimaryNavigation({
           : mobileColors.textMuted;
         return (
           <Pressable
-            accessibilityHint={`Opens the ${destination.label} main screen`}
+            accessibilityHint={`Opens the ${destinationLabel(destination.id)} main screen`}
             accessibilityLabel={
               destination.id === "activity" && activityUnreadCount > 0
-                ? `${destination.label}, ${activityUnreadCount} unread`
-                : destination.label
+                ? `${destinationLabel(destination.id)}, ${activityUnreadCount} unread`
+                : destinationLabel(destination.id)
             }
             accessibilityRole="tab"
             accessibilityState={{ selected }}
@@ -2051,7 +2060,7 @@ function PrimaryNavigation({
               selectable
               style={[styles.navigationLabel, { color }]}
             >
-              {destination.label}
+              {destinationLabel(destination.id)}
             </Text>
           </Pressable>
         );

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,6 +25,7 @@ export function FollowingManageScreen({
 }: {
   readonly session: FollowingSession;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const membership = useQuery({
     queryFn: () => session.listMembership(),
@@ -46,7 +48,7 @@ export function FollowingManageScreen({
       style={styles.scroll}
       testID="following-manage-screen"
     >
-      <MobileScreenHeader title="Manage Guest Follows" />
+      <MobileScreenHeader title={t("discovery.following.manageTitle")} />
       <ManageNotices
         onToggleGuest={() => {
           void session

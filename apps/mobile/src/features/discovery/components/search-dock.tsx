@@ -1,4 +1,5 @@
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { MobileButton } from "@mobile/design/button";
 import {
@@ -23,11 +24,12 @@ export function SearchDock({
   readonly onSubmit: (value?: string) => void;
   readonly value: string;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.dock} testID="search-dock">
       <TextInput
         {...mobileTextFieldProps}
-        accessibilityLabel="Search streams"
+        accessibilityLabel={t("discovery.search.placeholder")}
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={onChangeText}
@@ -35,7 +37,7 @@ export function SearchDock({
           Keyboard.dismiss();
           onSubmit(nativeEvent.text);
         }}
-        placeholder="Search Twitch and Kick"
+        placeholder={t("discovery.search.placeholder")}
         placeholderTextColor={mobileColors.textMuted}
         returnKeyType="search"
         style={styles.field}
@@ -54,7 +56,7 @@ export function SearchDock({
           testID="clear-search-field"
         >
           <Text selectable style={styles.actionLabel}>
-            Clear
+            {t("discovery.search.clearField")}
           </Text>
         </Pressable>
       ) : null}
@@ -68,7 +70,7 @@ export function SearchDock({
         testID="submit-search"
         variant="primary"
       >
-        Search
+        {t("discovery.search.submit")}
       </MobileButton>
     </View>
   );

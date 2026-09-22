@@ -46,11 +46,37 @@ describe("allowlisted app links", () => {
     });
   });
 
+
+  it("parses Search destinations with optional query", () => {
+    expect(parseAppLink("streamfusion-development://search")).toEqual({
+      kind: "search",
+    });
+    expect(parseAppLink("streamfusion-development://search?q=xqc")).toEqual({
+      kind: "search",
+      query: "xqc",
+    });
+    expect(
+      parseAppLink("streamfusion-development:///search?q=poker"),
+    ).toEqual({ kind: "search", query: "poker" });
+    expect(parseAppLink("streamfusion-development://search?q=xqc&extra=1")).toBeNull();
+  });
+
+  it("applies a Search deep link to the Search root", () => {
+    const state = applyShellStartupInputs(
+      createInitialShellNavigationState(),
+      [{ kind: "search", query: "xqc" }],
+      [],
+    );
+    expect(getActiveShellLocation(state)).toEqual({ route: "search" });
+    expect(state.activeDestination).toBe("search");
+  });
+
   it("rejects web URLs, credentials, unknown routes, extra fields, and malformed IDs", () => {
     const rejected = [
       "https://example.com/activity/event-1",
       "streamfusion-development://user:pass@activity/event-1",
       "streamfusion-development://moderation/ban",
+      "streamfusion-development://search/extra",
       "streamfusion-development://activity/event-1?token=secret",
       "streamfusion-development://watch/twitch/name?channelId=id&url=https://example.com",
       "streamfusion-development://watch/twitch/xqc?channelId=71092938&mediaKind=clip",

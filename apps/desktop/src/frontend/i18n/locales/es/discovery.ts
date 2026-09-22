@@ -44,7 +44,12 @@ export const discoveryEs = {
     noThumbnail: "Sin miniatura",
     verified: "{{platform}} verificado",
     search: {
-      placeholder: "Buscar en StreamFusion...",
+      placeholder: "Buscar en Twitch y Kick",
+      title: "Buscar Twitch + Kick",
+      history: "Historial de búsqueda",
+      historyHint: "Últimas 10 por tipo",
+      submit: "Buscar",
+      clearField: "Borrar",
       tabs: {
         channels: "Canales",
         categories: "Categorías",
@@ -104,7 +109,8 @@ export const discoveryEs = {
       all: "Todo",
       filterBy: "Filtrar por:",
       sortBy: "Ordenar por:",
-      searchPlaceholder: "Buscar canales seguidos…",
+      searchPlaceholder: "Buscar follows de invitado",
+      manageTitle: "Gestionar follows de invitado",
       retry: "Reintentar",
       browseChannels: "Explorar canales",
       checkConnection: "Comprueba tu conexión e inténtalo de nuevo.",

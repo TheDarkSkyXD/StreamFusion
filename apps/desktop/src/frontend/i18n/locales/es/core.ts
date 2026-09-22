@@ -41,7 +41,11 @@ export const coreEs = {
   },
   navigation: {
     home: "Inicio",
+    search: "Buscar",
     following: "Siguiendo",
+    watch: "Ver",
+    activity: "Actividad",
+    more: "Más",
     categories: "Categorías",
     multiview: "Multivista",
     history: "Historial",

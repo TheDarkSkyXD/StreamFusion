@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -36,16 +37,17 @@ export function SearchHistoryPanel({
   readonly onRepeat: (query: string) => void;
   readonly scope: SearchHistoryScope;
 }) {
+  const { t } = useTranslation();
   const queries = history[scope];
   return (
     <View style={styles.panel} testID="search-history">
       <View style={styles.heading}>
         <View style={styles.headingCopy}>
           <Text selectable style={styles.label}>
-            Search history
+            {t("discovery.search.history")}
           </Text>
           <Text selectable style={styles.hint}>
-            Last 10 per type
+            {t("discovery.search.historyHint")}
           </Text>
         </View>
         {confirmClear ? (

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { ActivityItem } from "@streamfusion/core/activity";
 import {
   Bell,
@@ -68,6 +69,7 @@ export function ActivityScreen({
   readonly onRefresh: () => Promise<void>;
   readonly scrollRequest?: number;
 }) {
+  const { t } = useTranslation();
   const listRef = useRef<FlatListView<ActivityItem>>(null);
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
@@ -95,7 +97,7 @@ export function ActivityScreen({
         <View style={styles.headerContent}>
           <MobileScreenHeader
             summary="When channels you follow go live, alerts appear here — including Guest Follows on this device."
-            title="Activity"
+            title={t("navigation.activity")}
           />
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}

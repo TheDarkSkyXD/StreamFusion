@@ -9,6 +9,7 @@ const allowedProtocols = new Set([
 ]);
 const identifierPattern = /^[a-zA-Z0-9._:-]{1,256}$/u;
 const channelLoginPattern = /^[a-zA-Z0-9_-]{1,64}$/u;
+const searchQueryPattern = /^[^\u0000-\u001f]{1,100}$/u;
 const watchLiveKeys = new Set(["channelId"]);
 const watchMediaKeys = new Set([
   "channelId",
@@ -17,6 +18,7 @@ const watchMediaKeys = new Set([
   "mediaKind",
   "title",
 ]);
+const searchKeys = new Set(["q"]);
 
 function decodeSegment(value: string): string | null {
   try {
@@ -31,10 +33,37 @@ function isPlatform(value: string): value is Platform {
   return value === "twitch" || value === "kick";
 }
 
-export function parseAppLink(value: string): AppLinkIntent | null {
+/** Normalize Expo Router / Expo Go path URLs into host-style app links. */
+function normalizeAppLinkUrl(value: string): string {
   let url: URL;
   try {
     url = new URL(value);
+  } catch {
+    return value;
+  }
+  if (!allowedProtocols.has(url.protocol) && url.protocol !== "exp:") {
+    return value;
+  }
+  const path = url.pathname.replace(/^\/+/u, "");
+  // Expo Go: exp://host:port/--/search?q=…  or custom scheme path form.
+  const expoPath = path.startsWith("--/") ? path.slice(3) : path;
+  if (!url.hostname || url.hostname === "127.0.0.1" || url.hostname.includes(".")) {
+    const [head, ...rest] = expoPath.split("/").filter(Boolean);
+    if (head === "search" || head === "watch" || head === "activity") {
+      const scheme = allowedProtocols.has(url.protocol)
+        ? url.protocol.replace(/:$/u, "")
+        : "streamfusion-development";
+      const tail = rest.length > 0 ? `/${rest.join("/")}` : "";
+      return `${scheme}://${head}${tail}${url.search}`;
+    }
+  }
+  return value;
+}
+
+export function parseAppLink(value: string): AppLinkIntent | null {
+  let url: URL;
+  try {
+    url = new URL(normalizeAppLinkUrl(value));
   } catch {
     return null;
   }
@@ -55,7 +84,33 @@ export function parseAppLink(value: string): AppLinkIntent | null {
     const eventId = decodeSegment(segments[0] ?? "");
     return eventId ? { kind: "activity-item", eventId } : null;
   }
+  const search = parseSearchLink(url, segments);
+  if (search !== undefined) return search;
   return parseWatchLink(url, segments);
+}
+
+function parseSearchLink(
+  url: URL,
+  segments: readonly string[],
+): AppLinkIntent | null | undefined {
+  if (url.hostname !== "search") return undefined;
+  if (segments.length !== 0) return null;
+  if (![...url.searchParams.keys()].every((key) => searchKeys.has(key))) {
+    return null;
+  }
+  const raw = url.searchParams.get("q");
+  if (raw === null) {
+    return url.search === "" ? { kind: "search" } : null;
+  }
+  let query: string;
+  try {
+    query = raw.trim();
+  } catch {
+    return null;
+  }
+  if (query.length === 0) return { kind: "search" };
+  if (!searchQueryPattern.test(query)) return null;
+  return { kind: "search", query };
 }
 
 function parseWatchLink(url: URL, segments: readonly string[]): AppLinkIntent | null {

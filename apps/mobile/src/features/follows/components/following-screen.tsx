@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
@@ -108,6 +109,7 @@ function FollowingScreenBody({
   readonly tab: FollowingTab;
   readonly view: ReturnType<typeof useFollowingView>["view"];
 }) {
+  const { t } = useTranslation();
   return (
     <MobileRefreshableScroll
       contentContainerStyle={styles.content}
@@ -117,7 +119,7 @@ function FollowingScreenBody({
       style={styles.scroll}
       testID="following-screen"
     >
-      <MobileScreenHeader title="Following" />
+      <MobileScreenHeader title={t("discovery.following.title")} />
       <MobileButton
         accessibilityLabel="Manage Guest Follows"
         onPress={onOpenManage}

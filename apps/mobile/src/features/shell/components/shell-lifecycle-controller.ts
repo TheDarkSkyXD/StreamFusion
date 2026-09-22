@@ -29,6 +29,9 @@ export function appLinkIntentToLocation(intent: AppLinkIntent): ShellLocation {
   if (intent.kind === "activity-item") {
     return { route: "activity/alert-preview", eventId: intent.eventId };
   }
+  if (intent.kind === "search") {
+    return { route: "search" };
+  }
   return {
     route: "watch/session-preview",
     target:
@@ -47,6 +50,13 @@ export function appLinkIntentToLocation(intent: AppLinkIntent): ShellLocation {
             media: intent.media,
           },
   };
+}
+
+
+export function appLinkIntentSearchQuery(intent: AppLinkIntent): string | null {
+  return intent.kind === "search" && intent.query !== undefined && intent.query.length > 0
+    ? intent.query
+    : null;
 }
 
 export function applyShellStartupInputs(
@@ -86,12 +96,14 @@ export function useShellLifecycleController(options: {
   readonly settingsReady?: boolean;
 }): {
   readonly dispatch: (action: ShellNavigationAction) => void;
+  readonly launchSearchQuery: string | null;
   readonly state: ShellNavigationState;
   readonly status: ShellLifecycleStatus;
 } {
   const now = options.now ?? Date.now;
   const [state, setState] = useState(createInitialShellNavigationState);
   const [status, setStatus] = useState<ShellLifecycleStatus>("loading");
+  const [launchSearchQuery, setLaunchSearchQuery] = useState<string | null>(null);
   const hydrated = useRef(false);
   const mounted = useRef(true);
   const pendingActions = useRef<ShellNavigationAction[]>([]);
@@ -121,6 +133,8 @@ export function useShellLifecycleController(options: {
         pendingIntents.current.push(intent);
         return;
       }
+      const query = appLinkIntentSearchQuery(intent);
+      if (query !== null) setLaunchSearchQuery(query);
       dispatch({ type: "navigate", location: appLinkIntentToLocation(intent) });
     });
 
@@ -157,6 +171,11 @@ export function useShellLifecycleController(options: {
       pendingActions.current = [];
       if (!active) return;
       hydrated.current = true;
+      const bootQuery = [...intents]
+        .reverse()
+        .map(appLinkIntentSearchQuery)
+        .find((query) => query !== null);
+      if (bootQuery !== undefined) setLaunchSearchQuery(bootQuery);
       setState(next);
       setStatus(nextStatus);
     })();
@@ -185,5 +204,5 @@ export function useShellLifecycleController(options: {
     });
   }, [now, options.restoration, state]);
 
-  return { dispatch, state, status };
+  return { dispatch, launchSearchQuery, state, status };
 }

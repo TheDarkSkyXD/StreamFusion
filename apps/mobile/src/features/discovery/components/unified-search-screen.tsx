@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -62,6 +63,7 @@ const HISTORY_SCOPES = [
 export function UnifiedSearchScreen({
   categoriesPanel,
   history,
+  initialQuery,
   onOpenAccounts,
   onOpenChannel,
   onWatch,
@@ -69,14 +71,16 @@ export function UnifiedSearchScreen({
 }: {
   readonly categoriesPanel?: ReactNode;
   readonly history: SearchHistoryRepository;
+  readonly initialQuery?: string;
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly session: SearchSession;
 }) {
+  const seededQuery = initialQuery?.trim() ?? "";
   const [mode, setMode] = useState<SearchScreenMode>("search");
-  const [draft, setDraft] = useState("");
-  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState(seededQuery);
+  const [query, setQuery] = useState(seededQuery);
   const [tab, setTab] = useState<SearchResultType>("all");
   const [platform, setPlatform] = useState<SearchPlatformFilter>("all");
   const [liveOnly, setLiveOnly] = useState(false);
@@ -200,6 +204,7 @@ export function UnifiedSearchView({
   readonly tab: SearchResultType;
   readonly view: UnifiedSearchModel;
 }) {
+  const { t } = useTranslation();
   const activeHistoryScope = historyScope ?? historyScopeForTab(tab);
   const resultsBlock =
     view.phase === "idle" ? null : (
@@ -256,7 +261,7 @@ export function UnifiedSearchView({
     return (
       <KeyboardAvoidingView style={styles.frame} testID="unified-search">
         <View style={styles.modeChrome}>
-          <MobileScreenHeader title="Search Twitch + Kick" />
+          <MobileScreenHeader title={t("discovery.search.title")} />
           {modeTabs}
         </View>
         <View style={styles.panel} testID="search-categories-panel">
@@ -283,7 +288,7 @@ export function UnifiedSearchView({
         refreshing={refreshing}
         style={styles.scroll}
       >
-        <MobileScreenHeader title="Search Twitch + Kick" />
+        <MobileScreenHeader title={t("discovery.search.title")} />
         {modeTabs}
         <Text selectable style={mobileType.body} testID="search-phase">
           {phaseCopy(view)}
