@@ -46,6 +46,12 @@ describe("notification settings status", () => {
     ).toMatch(/Preferences save on this device/);
   });
 
+  it("explains not-requested permission before the Android prompt", () => {
+    expect(notificationPermissionCopy("not-requested", 33)).toMatch(
+      /has not been requested yet/,
+    );
+  });
+
   it("describes one-mode topic and direct delivery after permission is granted", () => {
     expect(notificationPermissionCopy("granted", 33)).toMatch(
       /Local live alerts post on this device/,

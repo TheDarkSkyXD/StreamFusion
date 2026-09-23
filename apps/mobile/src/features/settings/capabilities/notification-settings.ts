@@ -3,7 +3,11 @@ import type {
   LiveNotificationRestartGraceMinutes,
 } from "@streamfusion/core/follows";
 
-export type NotificationPermissionStatus = "granted" | "denied" | "unavailable";
+export type NotificationPermissionStatus =
+  | "granted"
+  | "denied"
+  | "not-requested"
+  | "unavailable";
 
 export type NotificationNetwork = "online" | "offline";
 

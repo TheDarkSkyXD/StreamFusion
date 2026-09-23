@@ -31,6 +31,8 @@ export function notificationPermissionCopy(
   switch (permission) {
     case "denied":
       return DENIED_PERMISSION_COPY;
+    case "not-requested":
+      return "Notification permission has not been requested yet. Turn on Android or Guest Follow notifications to prompt, or open system settings.";
     case "unavailable":
       return "Notification permission is unavailable on this device. Activity history still records eligible live events.";
     case "granted":
@@ -52,6 +54,13 @@ export function notificationDeliveryCopy(input: {
   }
   if (!preferences.liveAlerts) {
     return "Activity does not create live-alert rows. Android posting stays independent.";
+  }
+  if (
+    preferences.enabled &&
+    preferences.guestFollows &&
+    permission === "granted"
+  ) {
+    return "Guest Follow local system alerts are eligible. Overflow past 2000 topics uses direct tokens when remote FCM is available. Activity still records if a send fails.";
   }
   return "Guest Follow live alerts stay eligible. Overflow past 2000 topics uses direct tokens. Activity still records if a send fails.";
 }

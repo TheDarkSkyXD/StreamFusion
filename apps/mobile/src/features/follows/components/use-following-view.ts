@@ -15,7 +15,7 @@ import { recordedFollows } from "../domain/following-filters";
 import { mapPool, RECORDED_READ_CONCURRENCY } from "../utils/following-query";
 
 export function followingQueryKey(
-  part: "membership" | "live" | "notifications" | "recorded",
+  part: "membership" | "live" | "notifications" | "notification-permission" | "recorded",
   extra: readonly string[] = [],
 ): readonly string[] {
   return ["follows", part, ...extra];

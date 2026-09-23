@@ -183,14 +183,34 @@ export const discoveryEn = {
       systemNotifications: "System notifications",
       systemPushNotShipped:
         "In-app live alerts can use Guest Follow preferences. System push is not shipped yet.",
+      systemLocalAlertsReady:
+        "Local system alerts post in the notification shade when a followed channel goes live. Remote FCM push is unavailable in Expo Go.",
+      systemLocalAlertsNeedPermission:
+        "Turn on Guest Follow notifications and grant Android notification permission to post local system alerts. Remote FCM push stays unavailable in Expo Go.",
+      systemGuestFollowsOff:
+        "Guest Follow notifications are off. Local system alerts stay quiet until you enable them.",
       guestAlertsOn: "Guest live alerts on",
       guestAlertsOff: "Guest live alerts off",
       liveAlertStatus: "Live alert status",
-      eligibilityCan: "Eligibility: Guest Follows can use in-app live alerts.",
-      eligibilityCannot: "Eligibility: Guest Follows cannot use in-app live alerts.",
-      permissionNotRequested: "Permission: not requested. This device stays signed out.",
-      registrationNotRegistered: "Registration: not registered. System push is not shipped.",
-      deliveryInAppOnly: "Delivery: in-app preference only. No system notification is sent.",
+      eligibilityCan: "Eligibility: Guest Follows can use live alerts.",
+      eligibilityCannot: "Eligibility: Guest Follows cannot use live alerts.",
+      permissionGranted: "Permission: granted. Local system alerts can post.",
+      permissionDenied:
+        "Permission: denied. Open system settings or retry to allow notification posting.",
+      permissionNotRequested:
+        "Permission: not requested. Enable Guest Follow notifications to prompt.",
+      permissionUnavailable:
+        "Permission: unavailable on this device. Activity history can still record live events.",
+      registrationNotRegistered:
+        "Registration: remote FCM is not registered on this build.",
+      registrationRemoteUnavailable:
+        "Registration: remote FCM is unavailable in Expo Go. Local system alerts still work.",
+      deliveryLocalSystem:
+        "Delivery: local system alerts post when a followed channel goes live.",
+      deliveryNeedsPermission:
+        "Delivery: grant notification permission to post local system alerts. Activity history still records.",
+      deliveryInAppOnly:
+        "Delivery: preference saved. Local system alerts need Guest Follow notifications on, Android notifications on, and permission granted.",
       guestFollowNotImported: "Guest Follow · not imported",
       liveAlertsOn: "Live alerts on",
       liveAlertsOff: "Live alerts off",

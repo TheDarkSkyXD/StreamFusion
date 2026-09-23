@@ -41,8 +41,9 @@ async function snapshotPermission(
   }
 }
 
-function permissionFromStatus(status: string): NotificationPermissionStatus {
+export function permissionFromStatus(status: string): NotificationPermissionStatus {
   if (status === "granted") return "granted";
   if (status === "denied") return "denied";
+  if (status === "undetermined") return "not-requested";
   return "unavailable";
 }

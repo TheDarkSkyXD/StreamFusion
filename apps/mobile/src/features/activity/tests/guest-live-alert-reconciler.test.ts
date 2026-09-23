@@ -138,6 +138,44 @@ describe("guest live-alert reconciler", () => {
     });
   });
 
+
+  it("presents a local system notification on offline-to-live when supported", async () => {
+    const record = vi.fn<ActivityRepository["record"]>(async (item) => ({
+      item,
+      kind: "created",
+    }));
+    const presentSystemNotification = vi.fn(async () => undefined);
+    const reconciler = createGuestLiveAlertReconciler({
+      activity: repository({ record }),
+      now: () => Date.parse("2026-09-08T01:00:00.000Z"),
+      presentSystemNotification,
+      systemNotificationsSupported: true,
+    });
+
+    await reconciler.observe({
+      membership: [follow],
+      preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      silent: true,
+      streams: [stream()],
+    });
+    await reconciler.observe({
+      membership: [follow],
+      preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      streams: [],
+    });
+    await reconciler.observe({
+      membership: [follow],
+      preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      streams: [stream()],
+    });
+
+    expect(presentSystemNotification).toHaveBeenCalledTimes(1);
+    expect(presentSystemNotification.mock.calls[0]?.[0]).toMatchObject({
+      silent: false,
+      item: { event: "live-alert", title: "Alpha is live" },
+    });
+  });
+
   it("ignores ineligible Guest Follow preferences", async () => {
     const record = vi.fn<ActivityRepository["record"]>();
     const reconciler = createGuestLiveAlertReconciler({

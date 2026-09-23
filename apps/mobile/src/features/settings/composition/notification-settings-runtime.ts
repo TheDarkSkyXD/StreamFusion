@@ -57,7 +57,9 @@ export function createNotificationSettingsSession(input: {
     },
     load: () => hydrate(),
     async apply(patch: NotificationPreferencePatch) {
-      const permission = await (patch.enabled === true
+      const shouldRequest =
+        patch.enabled === true || patch.guestFollows === true;
+      const permission = await (shouldRequest
         ? input.permission.request()
         : input.permission.read());
       await input.store.write(

@@ -192,14 +192,34 @@ export const discoveryEs = {
       systemNotifications: "Notificaciones del sistema",
       systemPushNotShipped:
         "Las alertas en la app pueden usar preferencias de follows de invitado. El push del sistema aún no está disponible.",
+      systemLocalAlertsReady:
+        "Las alertas locales del sistema aparecen en la sombra de notificaciones cuando un canal seguido pasa a en directo. El push FCM remoto no está disponible en Expo Go.",
+      systemLocalAlertsNeedPermission:
+        "Activa las notificaciones de follows de invitado y concede el permiso de Android para publicar alertas locales. El push FCM remoto sigue sin estar disponible en Expo Go.",
+      systemGuestFollowsOff:
+        "Las notificaciones de follows de invitado están desactivadas. Las alertas locales del sistema permanecen en silencio hasta que las actives.",
       guestAlertsOn: "Alertas en directo de invitado activadas",
       guestAlertsOff: "Alertas en directo de invitado desactivadas",
       liveAlertStatus: "Estado de alertas en directo",
-      eligibilityCan: "Elegibilidad: los follows de invitado pueden usar alertas en la app.",
-      eligibilityCannot: "Elegibilidad: los follows de invitado no pueden usar alertas en la app.",
-      permissionNotRequested: "Permiso: no solicitado. Este dispositivo sigue sin sesión.",
-      registrationNotRegistered: "Registro: no registrado. El push del sistema no está disponible.",
-      deliveryInAppOnly: "Entrega: solo preferencia en la app. No se envía notificación del sistema.",
+      eligibilityCan: "Elegibilidad: los follows de invitado pueden usar alertas en directo.",
+      eligibilityCannot: "Elegibilidad: los follows de invitado no pueden usar alertas en directo.",
+      permissionGranted: "Permiso: concedido. Se pueden publicar alertas locales del sistema.",
+      permissionDenied:
+        "Permiso: denegado. Abre los ajustes del sistema o reintenta para permitir notificaciones.",
+      permissionNotRequested:
+        "Permiso: no solicitado. Activa las notificaciones de follows de invitado para pedirlo.",
+      permissionUnavailable:
+        "Permiso: no disponible en este dispositivo. El historial de Activity aún puede registrar eventos en directo.",
+      registrationNotRegistered:
+        "Registro: FCM remoto no está registrado en esta build.",
+      registrationRemoteUnavailable:
+        "Registro: FCM remoto no está disponible en Expo Go. Las alertas locales del sistema sí funcionan.",
+      deliveryLocalSystem:
+        "Entrega: se publican alertas locales del sistema cuando un canal seguido pasa a en directo.",
+      deliveryNeedsPermission:
+        "Entrega: concede el permiso de notificaciones para publicar alertas locales. Activity sigue registrando.",
+      deliveryInAppOnly:
+        "Entrega: preferencia guardada. Las alertas locales necesitan follows de invitado, notificaciones de Android y permiso concedido.",
       guestFollowNotImported: "Follow de invitado · no importado",
       liveAlertsOn: "Alertas en directo activadas",
       liveAlertsOff: "Alertas en directo desactivadas",

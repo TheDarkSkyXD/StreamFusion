@@ -105,6 +105,19 @@ describe("notification settings session", () => {
     expect(retried.denied).toBe(true);
   });
 
+
+  it("requests permission when Guest Follow notifications are turned on", async () => {
+    const store = memoryNotifications({
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      guestFollows: false,
+    });
+    const { requests, settings } = session({ store });
+    await settings.load();
+    await settings.apply({ guestFollows: true });
+    expect(requests.count).toBe(1);
+    expect(settings.peek().preferences.guestFollows).toBe(true);
+  });
+
   it("keeps local save copy when the device is offline", async () => {
     const { settings } = session({ network: "offline" });
     const loaded = await settings.load();
