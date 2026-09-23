@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppState } from "react-native";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
+import { applyAndroidSystemChrome } from "@mobile/features/shell/adapters/apply-android-system-chrome";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
 import { createAndroidCapabilityContractRuntime } from "@mobile/features/native-contracts/composition/android-capability-contract-runtime";
 import { createCapabilityProfileRuntime } from "@mobile/features/capability-profile/composition/capability-profile-runtime";
@@ -420,6 +421,10 @@ const supportSession = createSupportSettingsSession({
 });
 
 export function MobileRuntime() {
+  useEffect(() => {
+    applyAndroidSystemChrome();
+  }, []);
+
   const [activityProof, setActivityProof] = useState(
     () => developmentActivityProof?.snapshot() ?? null,
   );

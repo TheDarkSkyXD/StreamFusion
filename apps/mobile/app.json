@@ -30,7 +30,8 @@
             "DEFAULT"
           ]
         }
-      ]
+      ],
+      "backgroundColor": "#1a1a1a"
     },
     "plugins": [
       "expo-router",
@@ -64,11 +65,24 @@
           "color": "#0f0f0f",
           "defaultChannel": "live"
         }
+      ],
+      "expo-system-ui",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "autolinkingModuleResolution": true
+    },
+    "backgroundColor": "#1a1a1a",
+    "androidNavigationBar": {
+      "backgroundColor": "#1a1a1a",
+      "barStyle": "light-content"
     }
   }
 }

@@ -89,4 +89,17 @@ describe("shell layout", () => {
       /screenScroll:\s*\{\s*flex:\s*1,\s*minHeight:\s*0,/u,
     );
   });
+
+  it("paints the shell with tab surface so Android under-nav chrome matches", () => {
+    expect(source).toMatch(
+      /app:\s*\{[\s\S]*?backgroundColor:\s*mobileColors\.surface/u,
+    );
+    expect(source).toMatch(
+      /safeFrame:\s*\{[\s\S]*?backgroundColor:\s*mobileColors\.surface/u,
+    );
+    expect(source).toContain(
+      'applyKeyboardOverlay: Platform.OS !== "android"',
+    );
+  });
+
 });

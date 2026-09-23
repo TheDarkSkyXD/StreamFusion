@@ -2082,11 +2082,13 @@ function PrimaryNavigation({
 
 const styles = StyleSheet.create({
   app: {
-    backgroundColor: mobileColors.background,
+    // Match Android system chrome / tab surface so letterboxed or under-nav
+    // strips are continuous with PrimaryNavigation (not foreign #0f0f0f).
+    backgroundColor: mobileColors.surface,
     flex: 1,
   },
   safeFrame: {
-    backgroundColor: mobileColors.background,
+    backgroundColor: mobileColors.surface,
     flex: 1,
   },
   phoneLayout: {
