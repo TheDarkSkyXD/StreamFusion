@@ -1,11 +1,17 @@
+import { isRunningInExpoGo } from "expo";
+
 import type { NetworkRead } from "../capabilities/connectivity-session";
 
 /**
- * Lazily reads network state. Avoids a top-level `expo-network` import because
- * that package calls requireNativeModule("ExpoNetwork") at module load and can
- * throw before any try/catch (mismatched Expo Go / stripped hosts).
+ * Lazily reads network state. Never top-level-import `expo-network`: that
+ * package calls requireNativeModule("ExpoNetwork") at module load. Metro can
+ * also redbox dynamic import failures ("unknown module") even inside try/catch,
+ * so Expo Go skips the import entirely and assumes online.
  */
 export async function readExpoNetwork(): Promise<NetworkRead> {
+  if (isRunningInExpoGo()) {
+    return "online";
+  }
   try {
     const { getNetworkStateAsync } = await import("expo-network");
     const state = await getNetworkStateAsync();

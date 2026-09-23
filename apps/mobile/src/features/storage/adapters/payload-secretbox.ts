@@ -1,3 +1,4 @@
+import { getRandomValues } from "expo-crypto";
 import nacl from "tweetnacl";
 
 const SEAL_PREFIX = "sf1:";
@@ -39,7 +40,7 @@ export function createPayloadSecretBox(keyHex: string): PayloadSecretBox {
   return {
     seal(plaintext) {
       const nonce = new Uint8Array(nacl.secretbox.nonceLength);
-      globalThis.crypto.getRandomValues(nonce);
+      getRandomValues(nonce);
       const message = new TextEncoder().encode(plaintext);
       const boxed = nacl.secretbox(message, nonce, key);
       if (!boxed) throw new Error("Payload encryption failed.");
