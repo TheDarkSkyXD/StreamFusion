@@ -1,1 +1,5 @@
-export { MobileRuntime as default } from "@mobile/composition/mobile-runtime";
+import { MobileRuntime } from "@mobile/composition/mobile-runtime";
+
+export default function IndexRoute() {
+  return <MobileRuntime />;
+}

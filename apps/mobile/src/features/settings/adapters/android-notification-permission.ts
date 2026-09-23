@@ -1,4 +1,4 @@
-import * as Notifications from "expo-notifications";
+import { isRunningInExpoGo } from "expo";
 import { Linking, Platform } from "react-native";
 
 import type {
@@ -12,21 +12,31 @@ const RUNTIME_PERMISSION_API = 33;
 export function createAndroidNotificationPermissionPort(): NotificationPermissionPort {
   return {
     openSystemSettings: () => Linking.openSettings(),
-    read: () => snapshotPermission(() => Notifications.getPermissionsAsync()),
-    request: () =>
-      snapshotPermission(() => Notifications.requestPermissionsAsync()),
+    read: () => snapshotPermission(),
+    request: () => snapshotPermission(true),
   };
 }
 
 async function snapshotPermission(
-  query: () => Promise<{ readonly status: string }>,
+  request = false,
 ): Promise<NotificationPermissionSnapshot> {
   const apiLevel = Number(Platform.Version);
   if (apiLevel < RUNTIME_PERMISSION_API) {
     return { apiLevel, permission: "granted" };
   }
-  const existing = await query();
-  return { apiLevel, permission: permissionFromStatus(existing.status) };
+  // Avoid importing/touching expo-notifications push paths on Expo Go Android.
+  if (isRunningInExpoGo()) {
+    return { apiLevel, permission: "unavailable" };
+  }
+  try {
+    const Notifications = await import("expo-notifications");
+    const existing = request
+      ? await Notifications.requestPermissionsAsync()
+      : await Notifications.getPermissionsAsync();
+    return { apiLevel, permission: permissionFromStatus(existing.status) };
+  } catch {
+    return { apiLevel, permission: "unavailable" };
+  }
 }
 
 function permissionFromStatus(status: string): NotificationPermissionStatus {

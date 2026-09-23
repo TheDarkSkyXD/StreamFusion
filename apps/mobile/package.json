@@ -11,7 +11,7 @@
   "scripts": {
     "preinstall": "node ../../scripts/require-npm.mjs",
     "start": "expo start",
-    "start:go": "expo start",
+    "start:go": "expo start --go",
     "start:dev-client": "expo start --dev-client",
     "android": "node scripts/start-development-client.mjs",
     "android:native": "node scripts/run-android.mjs",

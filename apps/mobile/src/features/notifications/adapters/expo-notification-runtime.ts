@@ -2,8 +2,7 @@ import {
   safeNotificationPayloadSchema,
   type SafeNotificationPayload,
 } from "@streamfusion/core/relay";
-import Constants from "expo-constants";
-import * as Notifications from "expo-notifications";
+import { isRunningInExpoGo } from "expo";
 import { Platform } from "react-native";
 
 import type {
@@ -13,38 +12,51 @@ import type {
   NotificationReceiptSource,
 } from "../capabilities/native-notifications";
 
-const CHANNELS = [
-  {
-    id: "live",
-    name: "Live alerts",
-    importance: Notifications.AndroidImportance.MAX,
-  },
-  {
-    id: "media",
-    name: "Downloads and recordings",
-    importance: Notifications.AndroidImportance.DEFAULT,
-  },
-  {
-    id: "account-device",
-    name: "Account and device",
-    importance: Notifications.AndroidImportance.DEFAULT,
-  },
-] as const;
+/**
+ * Never statically import `expo-notifications` on Android Expo Go: its
+ * DevicePushTokenAutoRegistration side effect calls addPushTokenListener,
+ * which throws (SDK 53+). Stubs keep the app bootable; local push is skipped.
+ */
+const expoGo = isRunningInExpoGo();
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import("expo-notifications");
+
+let notificationsModulePromise: Promise<NotificationsModule | null> | undefined;
+
+async function loadNotifications(): Promise<NotificationsModule | null> {
+  if (expoGo) return null;
+  if (!notificationsModulePromise) {
+    notificationsModulePromise = import("expo-notifications")
+      .then((mod) => mod)
+      .catch(() => null);
+  }
+  return notificationsModulePromise;
+}
 
 export function createExpoNotificationChannels(): NativeNotificationChannels {
   return {
     async ensure() {
-      if (Platform.OS !== "android") return;
-      for (const channel of CHANNELS) {
+      if (expoGo || Platform.OS !== "android") return;
+      const Notifications = await loadNotifications();
+      if (!Notifications) return;
+      const channels = [
+        {
+          id: "live",
+          name: "Live alerts",
+          importance: Notifications.AndroidImportance.MAX,
+        },
+        {
+          id: "media",
+          name: "Downloads and recordings",
+          importance: Notifications.AndroidImportance.DEFAULT,
+        },
+        {
+          id: "account-device",
+          name: "Account and device",
+          importance: Notifications.AndroidImportance.DEFAULT,
+        },
+      ] as const;
+      for (const channel of channels) {
         await Notifications.setNotificationChannelAsync(channel.id, {
           name: channel.name,
           importance: channel.importance,
@@ -58,10 +70,10 @@ export function createExpoNotificationChannels(): NativeNotificationChannels {
 export function createExpoPushTokenSource(): NativePushTokenSource {
   return {
     async read() {
+      if (expoGo) return null;
+      const Notifications = await loadNotifications();
+      if (!Notifications) return null;
       try {
-        // Android Expo Go (SDK 53+) cannot use remote FCM / Expo push APIs —
-        // calling them can throw. Local live alerts still work via presenter.
-        if (Constants.appOwnership === "expo") return null;
         return nativeTokenData(
           (await Notifications.getDevicePushTokenAsync()).data,
         );
@@ -70,12 +82,21 @@ export function createExpoPushTokenSource(): NativePushTokenSource {
       }
     },
     subscribe(listener) {
-      if (Constants.appOwnership === "expo") return () => undefined;
-      const subscription = Notifications.addPushTokenListener((event) => {
-        const token = nativeTokenData(event.data);
-        if (token) listener(token);
+      if (expoGo) return () => undefined;
+      let remove = () => undefined;
+      void loadNotifications().then((Notifications) => {
+        if (!Notifications) return;
+        try {
+          const subscription = Notifications.addPushTokenListener((event) => {
+            const token = nativeTokenData(event.data);
+            if (token) listener(token);
+          });
+          remove = () => subscription.remove();
+        } catch {
+          remove = () => undefined;
+        }
       });
-      return () => subscription.remove();
+      return () => remove();
     },
   };
 }
@@ -83,28 +104,55 @@ export function createExpoPushTokenSource(): NativePushTokenSource {
 export function createExpoNotificationReceiptSource(): NotificationReceiptSource {
   return {
     async initial() {
-      const response = await Notifications.getLastNotificationResponseAsync();
-      return payloadFromData(response?.notification.request.content.data);
+      if (expoGo) return null;
+      const Notifications = await loadNotifications();
+      if (!Notifications) return null;
+      try {
+        const response = await Notifications.getLastNotificationResponseAsync();
+        return payloadFromData(response?.notification.request.content.data);
+      } catch {
+        return null;
+      }
     },
     subscribe(listener) {
-      const received = Notifications.addNotificationReceivedListener(
-        (notification) => {
-          const payload = payloadFromData(notification.request.content.data);
-          if (payload) listener({ foreground: true, payload });
-        },
-      );
-      const response = Notifications.addNotificationResponseReceivedListener(
-        (event) => {
-          const payload = payloadFromData(
-            event.notification.request.content.data,
+      if (expoGo) return () => undefined;
+      let remove = () => undefined;
+      void loadNotifications().then((Notifications) => {
+        if (!Notifications) return;
+        try {
+          Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+              shouldPlaySound: true,
+              shouldSetBadge: false,
+              shouldShowBanner: true,
+              shouldShowList: true,
+            }),
+          });
+          const received = Notifications.addNotificationReceivedListener(
+            (notification) => {
+              const payload = payloadFromData(
+                notification.request.content.data,
+              );
+              if (payload) listener({ foreground: true, payload });
+            },
           );
-          if (payload) listener({ foreground: false, payload });
-        },
-      );
-      return () => {
-        received.remove();
-        response.remove();
-      };
+          const response = Notifications.addNotificationResponseReceivedListener(
+            (event) => {
+              const payload = payloadFromData(
+                event.notification.request.content.data,
+              );
+              if (payload) listener({ foreground: false, payload });
+            },
+          );
+          remove = () => {
+            received.remove();
+            response.remove();
+          };
+        } catch {
+          remove = () => undefined;
+        }
+      });
+      return () => remove();
     },
   };
 }
@@ -112,6 +160,9 @@ export function createExpoNotificationReceiptSource(): NotificationReceiptSource
 export function createExpoLocalNotificationPresenter(): LocalNotificationPresenter {
   return {
     async present(payload, options) {
+      if (expoGo) return;
+      const Notifications = await loadNotifications();
+      if (!Notifications) return;
       const channelId = payload.channel ?? "live";
       const silent = options?.silent === true;
       try {
