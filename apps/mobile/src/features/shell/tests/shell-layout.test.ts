@@ -62,8 +62,24 @@ describe("shell layout", () => {
   it("hides compact bottom navigation while the keyboard is open", () => {
     expect(source).toContain("const keyboard = useKeyboardInset()");
     expect(source).toContain("safeFrameBottomInset({");
+    expect(source).toContain("applyKeyboardOverlay: Platform.OS !== \"android\"");
     expect(source).toContain(
       "placement === \"bottom\" &&\n        !pictureInPictureSurface &&\n        !keyboard.open",
+    );
+  });
+
+  it("keeps KeyboardAvoidingView inert so Android resize is not double-lifted", () => {
+    expect(source).toContain("enabled={false}");
+    expect(source).toContain("behavior={undefined}");
+  });
+
+  it("extends bottom tab bar background through the system inset", () => {
+    expect(source).toContain("bottomInset={bottomInset}");
+    expect(source).toContain(
+      'placement === "bottom" ? { paddingBottom: bottomInset } : null',
+    );
+    expect(source).not.toContain(
+      "paddingBottom: bottomNavigationSafeInset(insets.bottom)",
     );
   });
 

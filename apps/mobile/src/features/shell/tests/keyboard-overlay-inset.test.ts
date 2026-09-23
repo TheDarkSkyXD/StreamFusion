@@ -43,4 +43,23 @@ describe("keyboard overlay inset", () => {
       }),
     ).toBe(0);
   });
+
+  it("skips keyboard overlay padding when applyKeyboardOverlay is false (Android resize)", () => {
+    expect(
+      safeFrameBottomInset({
+        applyKeyboardOverlay: false,
+        fallbackInset: 0,
+        keyboardInset: 549,
+        pictureInPicture: false,
+      }),
+    ).toBe(0);
+    expect(
+      safeFrameBottomInset({
+        applyKeyboardOverlay: false,
+        fallbackInset: 24,
+        keyboardInset: 549,
+        pictureInPicture: false,
+      }),
+    ).toBe(24);
+  });
 });

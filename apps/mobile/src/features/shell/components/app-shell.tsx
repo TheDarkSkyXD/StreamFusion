@@ -13,6 +13,7 @@ import {
   BackHandler,
   KeyboardAvoidingView,
   type NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -431,9 +432,10 @@ export function AppShell({
     return () => subscription.remove();
   }, [cancelDismissal, dispatch, hasDismissalConfirmation, navigation]);
 
-  const navigationView = (
+  const navigationView = (bottomInset = 0) => (
     <PrimaryNavigation
       activityUnreadCount={activity.model.unreadCount}
+      bottomInset={bottomInset}
       dispatch={dispatch}
       key={`${placement}:${width}:${fontScale}`}
       placement={placement}
@@ -442,13 +444,21 @@ export function AppShell({
   );
 
   return (
-    <KeyboardAvoidingView style={styles.app} testID="development-client-ready">
+    <KeyboardAvoidingView
+      // Android adjustResize already shrinks the window; never lift the shell.
+      // iOS overlap is handled by safeFrameBottomInset — keep KAV inert there too.
+      behavior={undefined}
+      enabled={false}
+      style={styles.app}
+      testID="development-client-ready"
+    >
       <View
         accessibilityLabel="StreamFusion app shell"
         style={[
           styles.safeFrame,
           {
             paddingBottom: safeFrameBottomInset({
+              applyKeyboardOverlay: Platform.OS !== "android",
               fallbackInset: placement === "rail" ? insets.bottom : 0,
               keyboardInset,
               pictureInPicture: pictureInPictureSurface,
@@ -463,7 +473,9 @@ export function AppShell({
         <View
           style={placement === "rail" ? styles.railLayout : styles.phoneLayout}
         >
-          {placement === "rail" && !pictureInPictureSurface ? navigationView : null}
+          {placement === "rail" && !pictureInPictureSurface
+            ? navigationView()
+            : null}
           <View style={styles.workspace}>
             {pictureInPictureSurface ? null : (
               <ShellHeader dispatch={dispatch} state={navigation} />
@@ -583,13 +595,8 @@ export function AppShell({
         {placement === "bottom" &&
         !pictureInPictureSurface &&
         !keyboard.open ? (
-          <View
-            style={{
-              flexShrink: 0,
-              paddingBottom: bottomNavigationSafeInset(insets.bottom),
-            }}
-          >
-            {navigationView}
+          <View style={{ flexShrink: 0 }}>
+            {navigationView(bottomNavigationSafeInset(insets.bottom))}
           </View>
         ) : null}
       </View>
@@ -1961,11 +1968,13 @@ function DevelopmentStatus({
 
 function PrimaryNavigation({
   activityUnreadCount,
+  bottomInset = 0,
   dispatch,
   placement,
   state,
 }: {
   readonly activityUnreadCount: number;
+  readonly bottomInset?: number;
   readonly dispatch: (action: ShellNavigationAction) => void;
   readonly placement: "bottom" | "rail";
   readonly state: ShellNavigationState;
@@ -2007,6 +2016,8 @@ function PrimaryNavigation({
         placement === "bottom" && layout !== "row"
           ? styles.navigationBottomGrid
           : null,
+        // Extend the bar background through the system inset; icons stay above.
+        placement === "bottom" ? { paddingBottom: bottomInset } : null,
       ]}
       testID={`navigation-${placement}`}
     >
