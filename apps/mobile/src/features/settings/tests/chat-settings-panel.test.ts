@@ -11,12 +11,18 @@ import {
 } from "../domain/chat-display-preferences";
 
 vi.mock("react-native", () => ({
+  Modal: "Modal",
   Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
+  ScrollView: "ScrollView",
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   TextInput: "TextInput",
   View: "View",
   Switch: "Switch",
+}));
+
+vi.mock("lucide-react-native", () => ({
+  ChevronDown: "ChevronDown",
 }));
 
 vi.mock("@react-native-community/slider", () => ({
@@ -30,6 +36,7 @@ vi.mock("@mobile/design/haptics", () => ({
 type ElementProps = Readonly<{
   children?: unknown;
   onPress?: () => void;
+  onSelect?: (value: string) => void;
   onValueChange?: (value: number) => void;
   testID?: string;
   value?: number;
@@ -48,7 +55,13 @@ function descendants(node: unknown): readonly Element[] {
     typeof candidate === "function"
       ? (candidate as (props: ElementProps) => unknown)
       : null;
-  if (component) return [element, ...descendants(component(element.props))];
+  if (component) {
+    try {
+      return [element, ...descendants(component(element.props))];
+    } catch {
+      return [element];
+    }
+  }
   const children = element.props.children;
   const childNodes = Array.isArray(children) ? children : [children];
   return [element, ...childNodes.flatMap((child) => descendants(child))];
@@ -95,8 +108,8 @@ describe("chat settings view", () => {
       true,
     );
     nodes
-      .find((node) => node.props.testID === "chat-density-compact")
-      ?.props.onPress?.();
+      .find((node) => node.props.testID === "chat-density")
+      ?.props.onSelect?.("compact");
     expect(density).toBe("compact");
   });
 

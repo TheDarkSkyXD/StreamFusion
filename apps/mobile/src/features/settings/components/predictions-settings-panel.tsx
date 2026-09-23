@@ -8,12 +8,15 @@ import type {
 } from "../capabilities/prediction-settings";
 import { defaultPredictionSettingsView } from "../domain/prediction-preferences";
 import {
-  SettingsChoiceRow,
   SettingsCopy,
   SettingsSection,
+  SettingsSelect,
 } from "./settings-controls";
 
-const STYLE_OPTIONS: readonly PredictionStyle[] = ["native", "unified"];
+const STYLE_OPTIONS: readonly { value: PredictionStyle; label: string }[] = [
+  { value: "native", label: "Native (per platform)" },
+  { value: "unified", label: "Unified (StreamFusion)" },
+];
 
 export function PredictionsSettingsPanel({
   session,
@@ -50,7 +53,7 @@ export function PredictionsSettingsView({
   return (
     <SettingsSection testID="panel-predictions" title="PREDICTIONS">
       <SettingsCopy testID="prediction-disclosure" value={view.disclosure} />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={view.preferences.style}
         label="Style"
         onSelect={(style) => onChange({ style })}

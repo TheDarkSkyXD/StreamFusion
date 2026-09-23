@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 
+import { selectionHaptic } from "./haptics";
 import {
   mobileColors,
   mobileRadii,
@@ -23,12 +24,14 @@ export type MobileSelectOption<T extends string> = {
 
 export function MobileSelect<T extends string>({
   accessibilityLabel,
+  disabled = false,
   onChange,
   options,
   testID,
   value,
 }: {
   readonly accessibilityLabel: string;
+  readonly disabled?: boolean;
   readonly onChange: (value: T) => void;
   readonly options: readonly MobileSelectOption<T>[];
   readonly testID: string;
@@ -43,11 +46,13 @@ export function MobileSelect<T extends string>({
       <Pressable
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
+        accessibilityState={{ disabled, expanded: open }}
+        disabled={disabled}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.trigger,
-          pressed ? styles.triggerPressed : null,
+          disabled ? styles.triggerDisabled : null,
+          pressed && !disabled ? styles.triggerPressed : null,
         ]}
         testID={`${testID}-trigger`}
       >
@@ -57,23 +62,24 @@ export function MobileSelect<T extends string>({
         <ChevronDown color={mobileColors.textSecondary} size={18} />
       </Pressable>
       <Modal
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setOpen(false)}
         transparent
         visible={open}
       >
         <View style={styles.backdrop}>
           <Pressable
-            accessibilityLabel="Dismiss language menu"
+            accessibilityLabel={`Dismiss ${accessibilityLabel}`}
             onPress={() => setOpen(false)}
             style={StyleSheet.absoluteFill}
             testID={`${testID}-dismiss`}
           />
           <View
             accessibilityLabel={accessibilityLabel}
-            style={styles.menu}
+            style={styles.sheet}
             testID={`${testID}-menu`}
           >
+            <View style={styles.sheetHandle} />
             <Text selectable style={styles.menuTitle}>
               {accessibilityLabel}
             </Text>
@@ -90,6 +96,9 @@ export function MobileSelect<T extends string>({
                     accessibilityState={{ selected: active }}
                     key={option.value}
                     onPress={() => {
+                      if (option.value !== value) {
+                        void selectionHaptic();
+                      }
                       onChange(option.value);
                       setOpen(false);
                     }}
@@ -109,6 +118,11 @@ export function MobileSelect<T extends string>({
                     >
                       {option.label}
                     </Text>
+                    {active ? (
+                      <Text selectable style={styles.optionCheck}>
+                        Selected
+                      </Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -137,6 +151,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
   },
+  triggerDisabled: {
+    opacity: 0.45,
+  },
   triggerPressed: {
     backgroundColor: mobileColors.surfaceMuted,
   },
@@ -150,17 +167,25 @@ const styles = StyleSheet.create({
   backdrop: {
     backgroundColor: mobileColors.overlay,
     flex: 1,
-    justifyContent: "center",
-    padding: mobileSpacing.large,
+    justifyContent: "flex-end",
   },
-  menu: {
+  sheet: {
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
+    borderTopLeftRadius: mobileRadii.large,
+    borderTopRightRadius: mobileRadii.large,
+    borderTopWidth: 1,
     maxHeight: "70%",
-    paddingBottom: mobileSpacing.small,
-    paddingTop: mobileSpacing.medium,
+    paddingBottom: mobileSpacing.large,
+    paddingTop: mobileSpacing.small,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    backgroundColor: mobileColors.border,
+    borderRadius: 999,
+    height: 4,
+    marginBottom: mobileSpacing.small,
+    width: 36,
   },
   menuTitle: {
     color: mobileColors.textSecondary,
@@ -175,7 +200,10 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   option: {
-    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    justifyContent: "space-between",
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
@@ -188,6 +216,7 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     color: mobileColors.textSecondary,
+    flex: 1,
     fontSize: 15,
     fontWeight: "500",
     lineHeight: 22,
@@ -195,5 +224,11 @@ const styles = StyleSheet.create({
   optionLabelActive: {
     color: mobileColors.textPrimary,
     fontWeight: "700",
+  },
+  optionCheck: {
+    color: mobileColors.twitchBright,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
   },
 });

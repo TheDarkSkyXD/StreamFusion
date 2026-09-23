@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import Slider from "@react-native-community/slider";
-
 import { selectionHaptic } from "@mobile/design/haptics";
+import {
+  MobileSelect,
+  type MobileSelectOption,
+} from "@mobile/design/select";
 
 import {
   DISPLAY_LANGUAGE_REGISTRY,
@@ -132,6 +135,73 @@ export function SettingsSwitch({
   );
 }
 
+export type SettingsSelectOption<T extends string | number> = {
+  readonly label: string;
+  readonly value: T;
+};
+
+/**
+ * Frosty / Categories-style discrete picker: settings row shows title + current
+ * value + chevron; tap opens the shared MobileSelect bottom sheet.
+ */
+export function SettingsSelect<T extends string | number>({
+  current,
+  detail,
+  disabled = false,
+  label,
+  onSelect,
+  options,
+  testID,
+}: {
+  readonly current: T;
+  readonly detail?: string;
+  readonly disabled?: boolean;
+  readonly label: string;
+  readonly onSelect: (value: T) => void;
+  readonly options: readonly SettingsSelectOption<T>[];
+  readonly testID: string;
+}) {
+  const stringOptions: readonly MobileSelectOption<string>[] = options.map(
+    (option) => ({
+      label: option.label,
+      value: String(option.value),
+    }),
+  );
+  return (
+    <View
+      // Plain-function Vitest walks keep this callback when MobileSelect hooks cannot expand.
+      {...{ onSelect }}
+      style={[styles.selectBlock, disabled ? styles.selectDisabled : null]}
+      testID={testID}
+    >
+      <View style={styles.selectCopy} accessible={false}>
+        <Text selectable style={styles.rowLabel}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text selectable style={styles.detail}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.selectControl}>
+        <MobileSelect
+          accessibilityLabel={label}
+          disabled={disabled}
+          onChange={(next) => {
+            const match = options.find((option) => String(option.value) === next);
+            if (match) onSelect(match.value);
+          }}
+          options={stringOptions}
+          testID={`${testID}-picker`}
+          value={String(current)}
+        />
+      </View>
+    </View>
+  );
+}
+
+/** @deprecated Prefer SettingsSelect — kept as a thin labeled wrapper for call sites migrating. */
 export function SettingsChoiceRow<T extends string | number>({
   current,
   label,
@@ -146,30 +216,41 @@ export function SettingsChoiceRow<T extends string | number>({
   readonly testID: string;
 }) {
   return (
-    <View style={styles.choiceBlock} testID={testID}>
-      <Text selectable style={styles.rowLabel}>
-        {label}: {String(current)}
-      </Text>
-      <View style={styles.choiceRow}>
-        {options.map((option) => {
-          const value = String(option);
-          return (
-            <Pressable
-              key={value}
-              accessibilityLabel={`${label} ${value}`}
-              accessibilityRole="button"
-              onPress={() => onSelect(option)}
-              style={styles.choice}
-              testID={`${testID}-${value}`}
-            >
-              <Text selectable style={styles.choiceLabel}>
-                {current === option ? `Selected ${value}` : value}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
+    <SettingsSelect
+      current={current}
+      label={label}
+      onSelect={onSelect}
+      options={options.map((value) => ({ label: String(value), value }))}
+      testID={testID}
+    />
+  );
+}
+
+export function SettingsLanguagePicker({
+  current,
+  label = "Language",
+  onSelect,
+  testID = "language",
+}: {
+  readonly current: DisplayLanguage;
+  readonly label?: string;
+  readonly onSelect: (language: DisplayLanguage) => void;
+  readonly testID?: string;
+}) {
+  return (
+    <SettingsSelect
+      current={current}
+      label={label}
+      onSelect={onSelect}
+      options={DISPLAY_LANGUAGE_REGISTRY.map((language) => ({
+        label:
+          language.nativeLabel === language.englishLabel
+            ? language.nativeLabel
+            : `${language.nativeLabel} (${language.englishLabel})`,
+        value: language.code,
+      }))}
+      testID={testID}
+    />
   );
 }
 
@@ -314,49 +395,6 @@ function snapSliderValue(
   );
 }
 
-export function SettingsLanguagePicker({
-  current,
-  label = "Language",
-  onSelect,
-  testID = "language",
-}: {
-  readonly current: DisplayLanguage;
-  readonly label?: string;
-  readonly onSelect: (language: DisplayLanguage) => void;
-  readonly testID?: string;
-}) {
-  return (
-    <View style={styles.choiceBlock} testID={testID}>
-      <Text selectable style={styles.rowLabel}>
-        {label}
-      </Text>
-      <View style={styles.languageList}>
-        {DISPLAY_LANGUAGE_REGISTRY.map((language) => {
-          const selected = current === language.code;
-          const label =
-            language.nativeLabel === language.englishLabel
-              ? language.nativeLabel
-              : `${language.nativeLabel} (${language.englishLabel})`;
-          return (
-            <Pressable
-              key={language.code}
-              accessibilityLabel={`Language ${label}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => onSelect(language.code)}
-              style={[styles.languageRow, selected ? styles.languageRowSelected : null]}
-              testID={`${testID}-${language.code}`}
-            >
-              <Text selectable style={styles.choiceLabel}>
-                {selected ? `Selected ${label}` : label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   panel: {
@@ -485,5 +523,21 @@ const styles = StyleSheet.create({
     height: 40,
     marginHorizontal: -mobileSpacing.xSmall,
     width: "100%",
+  },
+  selectBlock: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    gap: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
+  },
+  selectDisabled: {
+    opacity: 0.55,
+  },
+  selectCopy: {
+    gap: mobileSpacing.xSmall,
+  },
+  selectControl: {
+    alignSelf: "stretch",
   },
 });

@@ -6,11 +6,25 @@ import { IntegrationsSettingsView } from "../components/integrations-settings-pa
 import { composeApiTokenSettingsView } from "../domain/api-token-status";
 
 vi.mock("react-native", () => ({
+  Modal: "Modal",
   Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
+  ScrollView: "ScrollView",
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   View: "View",
   Switch: "Switch",
+}));
+
+vi.mock("@react-native-community/slider", () => ({
+  default: "Slider",
+}));
+
+vi.mock("lucide-react-native", () => ({
+  ChevronDown: "ChevronDown",
+}));
+
+vi.mock("@mobile/design/haptics", () => ({
+  selectionHaptic: vi.fn(async () => undefined),
 }));
 
 type ElementProps = Readonly<{

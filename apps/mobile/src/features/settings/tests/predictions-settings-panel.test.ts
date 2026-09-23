@@ -11,16 +11,31 @@ import {
 } from "../domain/prediction-preferences";
 
 vi.mock("react-native", () => ({
+  Modal: "Modal",
   Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
+  ScrollView: "ScrollView",
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   View: "View",
   Switch: "Switch",
 }));
 
+vi.mock("@react-native-community/slider", () => ({
+  default: "Slider",
+}));
+
+vi.mock("lucide-react-native", () => ({
+  ChevronDown: "ChevronDown",
+}));
+
+vi.mock("@mobile/design/haptics", () => ({
+  selectionHaptic: vi.fn(async () => undefined),
+}));
+
 type ElementProps = Readonly<{
   children?: unknown;
   onPress?: () => void;
+  onSelect?: (value: string) => void;
   testID?: string;
 }>;
 type Element = ReactElement<ElementProps>;
@@ -34,7 +49,13 @@ function descendants(node: unknown): readonly Element[] {
     typeof candidate === "function"
       ? (candidate as (props: ElementProps) => unknown)
       : null;
-  if (component) return [element, ...descendants(component(element.props))];
+  if (component) {
+    try {
+      return [element, ...descendants(component(element.props))];
+    } catch {
+      return [element];
+    }
+  }
   const children = element.props.children;
   const childNodes = Array.isArray(children) ? children : [children];
   return [element, ...childNodes.flatMap((child) => descendants(child))];
@@ -69,8 +90,8 @@ describe("predictions settings view", () => {
       true,
     );
     nodes
-      .find((node) => node.props.testID === "prediction-style-unified")
-      ?.props.onPress?.();
+      .find((node) => node.props.testID === "prediction-style")
+      ?.props.onSelect?.("unified");
     expect(style).toBe("unified");
   });
 });

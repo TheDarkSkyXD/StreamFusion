@@ -9,9 +9,9 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import {
-  SettingsChoiceRow,
   SettingsCopy,
   SettingsSection,
+  SettingsSelect,
   SettingsSwitch,
 } from "./settings-controls";
 import type {
@@ -21,8 +21,14 @@ import type {
 } from "../capabilities/notification-settings";
 import { defaultNotificationSettingsView } from "../domain/notification-status";
 
-const GRACE_OPTIONS: readonly LiveNotificationRestartGraceMinutes[] = [
-  0, 5, 15, 30,
+const GRACE_OPTIONS: readonly {
+  value: LiveNotificationRestartGraceMinutes;
+  label: string;
+}[] = [
+  { value: 0, label: "Off" },
+  { value: 5, label: "5 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 30, label: "30 minutes" },
 ];
 
 const NOTIFICATION_TOGGLES = [
@@ -144,9 +150,10 @@ export function NotificationsSettingsView({
         testID="favorites-only-effective"
         value="Favorites only uses per-channel switches on Following."
       />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.restartGracePeriodMinutes}
-        label="Restart grace minutes"
+        detail="Suppress repeat alerts when a stream restarts inside the selected cooldown."
+        label="Restart grace"
         onSelect={(restartGracePeriodMinutes) =>
           onChange({ restartGracePeriodMinutes })
         }

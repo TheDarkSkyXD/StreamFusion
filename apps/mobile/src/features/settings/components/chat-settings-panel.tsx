@@ -15,34 +15,44 @@ import type {
 } from "../capabilities/chat-display-settings";
 import { defaultChatDisplaySettingsView } from "../domain/chat-display-preferences";
 import {
-  SettingsChoiceRow,
   SettingsCopy,
   SettingsSection,
+  SettingsSelect,
   SettingsSlider,
   SettingsSwitch,
 } from "./settings-controls";
 
-const TIMESTAMP_OPTIONS: readonly TimestampFormat[] = [
-  "H:mm",
-  "HH:mm",
-  "H:mm:ss",
-  "HH:mm:ss",
-  "h:mm a",
-  "hh:mm a",
-  "h:mm:ss a",
-  "hh:mm:ss a",
+const TIMESTAMP_OPTIONS: readonly { value: TimestampFormat; label: string }[] = [
+  { value: "H:mm", label: "24-hour (9:05)" },
+  { value: "HH:mm", label: "24-hour (09:05)" },
+  { value: "H:mm:ss", label: "24-hour (9:05:07)" },
+  { value: "HH:mm:ss", label: "24-hour (09:05:07)" },
+  { value: "h:mm a", label: "12-hour (9:05 AM)" },
+  { value: "hh:mm a", label: "12-hour (09:05 AM)" },
+  { value: "h:mm:ss a", label: "12-hour (9:05:07 AM)" },
+  { value: "hh:mm:ss a", label: "12-hour (09:05:07 AM)" },
 ];
 
-const DENSITY_OPTIONS: readonly ChatDensity[] = ["compact", "cozy", "loose"];
-const DELETED_OPTIONS: readonly DeletedMessageDisplayMode[] = [
-  "tombstone",
-  "message",
-  "compact",
-  "audit",
+const DENSITY_OPTIONS: readonly { value: ChatDensity; label: string }[] = [
+  { value: "compact", label: "Tight" },
+  { value: "cozy", label: "Medium" },
+  { value: "loose", label: "Loose" },
 ];
-const HIGHLIGHT_OPTIONS: readonly ModerationHighlightStyle[] = [
-  "compact",
-  "cozy",
+const DELETED_OPTIONS: readonly {
+  value: DeletedMessageDisplayMode;
+  label: string;
+}[] = [
+  { value: "tombstone", label: "Tombstone only" },
+  { value: "message", label: "Message content only" },
+  { value: "compact", label: "Full compact detail (recommended)" },
+  { value: "audit", label: "Audit-style detail" },
+];
+const HIGHLIGHT_OPTIONS: readonly {
+  value: ModerationHighlightStyle;
+  label: string;
+}[] = [
+  { value: "compact", label: "Compact" },
+  { value: "cozy", label: "Framed" },
 ];
 
 const APPEARANCE_TOGGLES = [
@@ -196,7 +206,7 @@ function AppearanceRows({
           testID={row.testID}
         />
       ))}
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.timestampFormat}
         label="Timestamp format"
         onSelect={(timestampFormat) => onChange({ timestampFormat })}
@@ -223,7 +233,7 @@ function AppearanceRows({
         testID="chat-emote-size"
         value={prefs.emoteSizePx}
       />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.density}
         label="Chat density"
         onSelect={(density) => onChange({ density })}
@@ -309,7 +319,7 @@ function EventRows({
           value={prefs.recentMessagesLimit}
         />
       ) : null}
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.deletedMessageDisplay}
         label="Deleted message display"
         onSelect={(deletedMessageDisplay) =>
@@ -318,7 +328,7 @@ function EventRows({
         options={DELETED_OPTIONS}
         testID="chat-deleted"
       />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.moderationHighlightStyle}
         label="Moderation highlight style"
         onSelect={(moderationHighlightStyle) =>

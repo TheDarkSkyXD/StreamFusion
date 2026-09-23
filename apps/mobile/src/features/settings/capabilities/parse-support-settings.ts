@@ -1,4 +1,5 @@
 import {
+  CHECK_FREQUENCIES,
   DIAGNOSTIC_WINDOWS,
   LOG_LEVELS,
   LOG_SOURCES,
@@ -9,6 +10,7 @@ export const DEFAULT_SUPPORT_SETTINGS: SupportSettings = {
   attachLogs: true,
   attachProfile: true,
   automaticForegroundUpdateChecks: false,
+  checkFrequency: "daily",
   diagnosticDetail: false,
   diagnosticIoWindow: "5m",
   diagnosticWindow: "5m",
@@ -32,6 +34,11 @@ export function parseSupportSettings(value: unknown): SupportSettings {
     automaticForegroundUpdateChecks: boolOr(
       record.automaticForegroundUpdateChecks,
       DEFAULT_SUPPORT_SETTINGS.automaticForegroundUpdateChecks,
+    ),
+    checkFrequency: oneOf(
+      record.checkFrequency,
+      CHECK_FREQUENCIES,
+      DEFAULT_SUPPORT_SETTINGS.checkFrequency,
     ),
     diagnosticDetail: boolOr(
       record.diagnosticDetail,

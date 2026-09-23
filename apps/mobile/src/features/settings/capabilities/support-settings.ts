@@ -19,10 +19,12 @@ export const LOG_SOURCES = [
   "storage",
   "jobs",
 ] as const;
+export const CHECK_FREQUENCIES = ["hourly", "daily", "weekly"] as const;
 
 export type DiagnosticWindow = (typeof DIAGNOSTIC_WINDOWS)[number];
 export type LogLevel = (typeof LOG_LEVELS)[number];
 export type LogSource = (typeof LOG_SOURCES)[number];
+export type CheckFrequency = (typeof CHECK_FREQUENCIES)[number];
 
 export type SupportMaintenanceKind =
   | "clear-history"
@@ -34,6 +36,7 @@ export type SupportSettings = {
   readonly attachLogs: boolean;
   readonly attachProfile: boolean;
   readonly automaticForegroundUpdateChecks: boolean;
+  readonly checkFrequency: CheckFrequency;
   readonly diagnosticDetail: boolean;
   readonly diagnosticIoWindow: DiagnosticWindow;
   readonly diagnosticWindow: DiagnosticWindow;

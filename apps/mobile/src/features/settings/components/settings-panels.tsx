@@ -12,10 +12,10 @@ import {
 
 import type { SettingsView } from "../capabilities/settings";
 import {
-  SettingsChoiceRow,
   SettingsCopy,
   SettingsLanguagePicker,
   SettingsSection,
+  SettingsSelect,
   SettingsSlider,
   SettingsSwitch,
 } from "./settings-controls";
@@ -50,11 +50,14 @@ function AppearanceLookRows({ onChange, view }: SettingsPanelProps) {
   return (
     <>
       <SettingsCopy testID="theme" value={view.effective.theme} />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.density}
-        label="Density"
+        label={t("settings.density")}
         onSelect={(density) => onChange({ density })}
-        options={DENSITY_OPTIONS}
+        options={DENSITY_OPTIONS.map((value) => ({
+          label: capitalize(value),
+          value,
+        }))}
         testID="density"
       />
       <SettingsLanguagePicker
@@ -100,14 +103,19 @@ export function PlaybackSettingsPanel({ onChange, view }: SettingsPanelProps) {
 }
 
 function PlaybackQualityRows({ onChange, view }: SettingsPanelProps) {
+  const { t } = useTranslation();
   const prefs = view.preferences;
   return (
     <>
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.quality}
-        label="Default quality"
+        detail={t("settings.preferredStreamQualityWhenAvailable")}
+        label={t("settings.defaultQuality")}
         onSelect={(quality) => onChange({ quality })}
-        options={VIDEO_QUALITY_OPTIONS}
+        options={VIDEO_QUALITY_OPTIONS.map((value) => ({
+          label: qualityLabel(t, value),
+          value,
+        }))}
         testID="quality"
       />
       <SettingsSlider
@@ -134,14 +142,21 @@ function PlaybackQualityRows({ onChange, view }: SettingsPanelProps) {
 }
 
 function PlaybackCodecRows({ onChange, view }: SettingsPanelProps) {
+  const { t } = useTranslation();
   const prefs = view.preferences;
   return (
     <>
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.tokenPlayer}
-        label="Token player"
+        detail={t("settings.playerTypeUsedWhenRequestingTheAdBlockStreamTokenLeaveOnDefaultU")}
+        label={t("settings.accessTokenPlayerType")}
         onSelect={(tokenPlayer) => onChange({ tokenPlayer })}
-        options={["native-exoplayer"]}
+        options={[
+          {
+            label: "native-exoplayer",
+            value: "native-exoplayer" as const,
+          },
+        ]}
         testID="token-player"
       />
       <SettingsCopy testID="token-player-effective" value={view.effective.tokenPlayer} />
@@ -161,6 +176,7 @@ function PlaybackCodecRows({ onChange, view }: SettingsPanelProps) {
 }
 
 export function PlayerControlsSettingsPanel({ onChange, view }: SettingsPanelProps) {
+  const { t } = useTranslation();
   const prefs = view.preferences;
   return (
     <SettingsSection testID="panel-player-controls" title="PLAYER CONTROLS">
@@ -174,18 +190,24 @@ export function PlayerControlsSettingsPanel({ onChange, view }: SettingsPanelPro
         />
       ))}
       <SettingsCopy testID="player-chrome-effective" value={view.effective.playerChrome} />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.rewindSeconds}
-        label="Rewind seconds"
+        label={t("settings.rewind")}
         onSelect={(rewindSeconds) => onChange({ rewindSeconds })}
-        options={SEEK_INTERVAL_OPTIONS}
+        options={SEEK_INTERVAL_OPTIONS.map((seconds) => ({
+          label: `${seconds} ${t("settings.seconds")}`,
+          value: seconds,
+        }))}
         testID="rewind"
       />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.fastForwardSeconds}
-        label="Fast-forward seconds"
+        label={t("settings.fastForward")}
         onSelect={(fastForwardSeconds) => onChange({ fastForwardSeconds })}
-        options={SEEK_INTERVAL_OPTIONS}
+        options={SEEK_INTERVAL_OPTIONS.map((seconds) => ({
+          label: `${seconds} ${t("settings.seconds")}`,
+          value: seconds,
+        }))}
         testID="fast-forward"
       />
     </SettingsSection>
@@ -243,22 +265,30 @@ export function BufferSettingsPanel({ onChange, view }: SettingsPanelProps) {
 }
 
 export function MultiviewSettingsPanel({ onChange, view }: SettingsPanelProps) {
+  const { t } = useTranslation();
   const prefs = view.preferences;
   return (
     <SettingsSection testID="panel-multiview" title="MULTIVIEW">
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.multiviewCap}
         label="Slot cap"
         onSelect={(multiviewCap) => onChange({ multiviewCap })}
-        options={[1, 2, 3, 4, 5, 6]}
+        options={[1, 2, 3, 4, 5, 6].map((value) => ({
+          label: String(value),
+          value,
+        }))}
         testID="multiview-cap"
       />
       <SettingsCopy testID="multiview-cap-effective" value={view.effective.multiviewCap} />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={prefs.backgroundQuality}
-        label="Background quality"
+        detail={t("settings.howNonFocusedStreamsRenderLowerSettingsFreeUpRamAndBandwidthSoTh")}
+        label={t("settings.backgroundStreamQuality")}
         onSelect={(backgroundQuality) => onChange({ backgroundQuality })}
-        options={VIDEO_QUALITY_OPTIONS}
+        options={VIDEO_QUALITY_OPTIONS.map((value) => ({
+          label: qualityLabel(t, value),
+          value,
+        }))}
         testID="background-quality"
       />
       <SettingsCopy
@@ -267,6 +297,39 @@ export function MultiviewSettingsPanel({ onChange, view }: SettingsPanelProps) {
       />
     </SettingsSection>
   );
+}
+
+
+function capitalize(value: string): string {
+  if (value.length === 0) return value;
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function qualityLabel(
+  t: (key: string) => string,
+  value: (typeof VIDEO_QUALITY_OPTIONS)[number],
+): string {
+  switch (value) {
+    case "auto":
+      return t("settings.auto");
+    case "highest":
+      return t("settings.highest");
+    case "1440p":
+    case "2k":
+      return t("settings.value1440p2k");
+    case "1080p":
+      return t("settings.value1080p60");
+    case "720p":
+      return t("settings.value720p60");
+    case "480p":
+      return t("settings.value480p");
+    case "360p":
+      return t("settings.value360p");
+    case "160p":
+      return t("settings.value160p");
+    default:
+      return value;
+  }
 }
 
 function PreferenceSwitch({

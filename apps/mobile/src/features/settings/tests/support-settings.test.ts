@@ -14,9 +14,11 @@ describe("support settings domain", () => {
   it("merges patches onto current support settings", () => {
     const merged = mergeSupportSettings(DEFAULT_SUPPORT_SETTINGS, {
       automaticForegroundUpdateChecks: true,
+      checkFrequency: "weekly",
       reportDescription: "player stalled",
     });
     expect(merged.automaticForegroundUpdateChecks).toBe(true);
+    expect(merged.checkFrequency).toBe("weekly");
     expect(merged.reportDescription).toBe("player stalled");
     expect(merged.attachLogs).toBe(true);
   });

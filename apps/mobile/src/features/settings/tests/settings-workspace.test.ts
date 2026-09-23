@@ -20,10 +20,12 @@ vi.mock("react-native", () => ({
   BackHandler: {
     addEventListener: () => ({ remove: () => undefined }),
   },
+  Modal: "Modal",
   Pressable: "Pressable",
   RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   StyleSheet: {
+    absoluteFill: {},
     create: (styles: unknown) => styles,
     hairlineWidth: 1,
   },
@@ -33,9 +35,14 @@ vi.mock("react-native", () => ({
   Switch: "Switch",
 }));
 
+vi.mock("@react-native-community/slider", () => ({
+  default: "Slider",
+}));
+
 vi.mock("lucide-react-native", () => {
   const Icon = () => null;
   return {
+    ChevronDown: Icon,
     Activity: Icon,
     ArrowLeft: Icon,
     Bell: Icon,
@@ -62,6 +69,7 @@ vi.mock("lucide-react-native", () => {
 type ElementProps = Readonly<{
   children?: unknown;
   onPress?: () => void;
+  onSelect?: (value: string) => void;
   testID?: string;
 }>;
 type Element = ReactElement<ElementProps>;
@@ -107,6 +115,10 @@ function fakeSession(): SettingsSession {
   };
 }
 
+vi.mock("@mobile/design/haptics", () => ({
+  selectionHaptic: vi.fn(async () => undefined),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -132,12 +144,13 @@ describe("settings panels", () => {
     expect(hasTestId(nodes, "theme")).toBe(true);
     expect(hasTestId(nodes, "theme-light")).toBe(false);
     expect(hasTestId(nodes, "language")).toBe(true);
-    expect(hasTestId(nodes, "language-fr")).toBe(true);
-    expect(hasTestId(nodes, "language-ja")).toBe(true);
+    expect(hasTestId(nodes, "density")).toBe(true);
     expect(hasTestId(nodes, "restore-session")).toBe(true);
-    nodes.find((node) => node.props.testID === "density-compact")?.props.onPress?.();
+    const densityRow = nodes.find((node) => node.props.testID === "density");
+    densityRow?.props.onSelect?.("compact");
     expect(density).toBe("compact");
-    nodes.find((node) => node.props.testID === "language-fr")?.props.onPress?.();
+    const languageRow = nodes.find((node) => node.props.testID === "language");
+    languageRow?.props.onSelect?.("fr");
     expect(language).toBe("fr");
   });
 });

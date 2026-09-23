@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { View } from "react-native";
 
 import {
+  CHECK_FREQUENCIES,
   DIAGNOSTIC_WINDOWS,
   LOG_LEVELS,
   LOG_SOURCES,
@@ -11,10 +12,10 @@ import {
 import { defaultSupportSettingsView } from "../domain/support-settings";
 import {
   SettingsAction,
-  SettingsChoiceRow,
   SettingsCopy,
   SettingsField,
   SettingsSection,
+  SettingsSelect,
   SettingsSwitch,
 } from "./settings-controls";
 
@@ -61,6 +62,20 @@ export function UpdatesSettingsPanel({
         }}
         testID="automatic-foreground-update-checks"
       />
+      <SettingsSelect
+        current={view.preferences.checkFrequency}
+        detail="Minimum time between automatic GitHub release checks."
+        disabled={!view.preferences.automaticForegroundUpdateChecks}
+        label="Check frequency"
+        onSelect={(checkFrequency) => {
+          void session.apply({ checkFrequency });
+        }}
+        options={CHECK_FREQUENCIES.map((value) => ({
+          label: value === "hourly" ? "Hourly" : value === "daily" ? "Daily" : "Weekly",
+          value,
+        }))}
+        testID="check-frequency"
+      />
       <SettingsAction
         label="Check now"
         onPress={() => {
@@ -82,22 +97,28 @@ export function DiagnosticsSettingsPanel({
   const view = useSupportView(session);
   return (
     <SettingsSection testID="panel-diagnostics" title="DIAGNOSTICS">
-      <SettingsChoiceRow
+      <SettingsSelect
         current={view.preferences.diagnosticWindow}
         label="Observation window"
         onSelect={(diagnosticWindow) => {
           void session.apply({ diagnosticWindow });
         }}
-        options={DIAGNOSTIC_WINDOWS}
+        options={DIAGNOSTIC_WINDOWS.map((value) => ({
+          label: value,
+          value,
+        }))}
         testID="diagnostic-window"
       />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={view.preferences.diagnosticIoWindow}
         label="I/O observation window"
         onSelect={(diagnosticIoWindow) => {
           void session.apply({ diagnosticIoWindow });
         }}
-        options={DIAGNOSTIC_WINDOWS}
+        options={DIAGNOSTIC_WINDOWS.map((value) => ({
+          label: value,
+          value,
+        }))}
         testID="diagnostic-io-window"
       />
       <SettingsSwitch
@@ -127,22 +148,28 @@ export function LogsSettingsPanel({
   const view = useSupportView(session);
   return (
     <SettingsSection testID="panel-logs" title="LOGS">
-      <SettingsChoiceRow
+      <SettingsSelect
         current={view.preferences.logLevel}
         label="Minimum level"
         onSelect={(logLevel) => {
           void session.apply({ logLevel });
         }}
-        options={LOG_LEVELS}
+        options={LOG_LEVELS.map((value) => ({
+          label: value,
+          value,
+        }))}
         testID="log-level"
       />
-      <SettingsChoiceRow
+      <SettingsSelect
         current={view.preferences.logSource}
         label="Source"
         onSelect={(logSource) => {
           void session.apply({ logSource });
         }}
-        options={LOG_SOURCES}
+        options={LOG_SOURCES.map((value) => ({
+          label: value,
+          value,
+        }))}
         testID="log-source"
       />
       <SettingsCopy testID="open-runtime-logs" value={logLinesCopy(view.logs)} />
