@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from "react-native";
 import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
-import { MobileButton } from "@mobile/design/button";
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import {
   watchTargetFromClip,
@@ -33,7 +32,6 @@ export type FollowingCategoryTarget = {
 export function FollowingTabBody({
   onOpenCategory,
   onOpenProvider,
-  onRetry,
   onWatch,
   view,
 }: {
@@ -42,7 +40,6 @@ export function FollowingTabBody({
     readonly platform: Platform;
     readonly channelLogin: string;
   }) => void;
-  readonly onRetry: (platform: Platform) => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly view: FollowingView;
 }) {
@@ -55,9 +52,6 @@ export function FollowingTabBody({
       <Text selectable style={styles.copy} testID="following-phase">
         {tabItemsCopy(view.tab, items, translate)}
       </Text>
-      {items.kind === "partial" || items.kind === "failed"
-        ? retryRow(items, onRetry, translate)
-        : null}
       {view.tab === "live" && items.kind !== "loading" && items.kind !== "empty"
         ? (items.items as readonly Stream[]).map((stream) => (
             <FollowingStreamCard
@@ -83,30 +77,6 @@ function itemsFor(view: FollowingView): TabItems<unknown> {
   if (view.tab === "clips") return view.clips;
   if (view.tab === "categories") return view.categories;
   return view.channels;
-}
-
-function retryRow(
-  items: Extract<TabItems<unknown>, { kind: "partial" | "failed" }>,
-  onRetry: (platform: Platform) => void,
-  t: (key: string, values?: Record<string, unknown>) => string,
-) {
-  const platforms =
-    items.kind === "failed" ? items.retryablePlatforms : items.failedPlatforms;
-  return (
-    <View style={styles.row}>
-      {platforms.map((platform) => (
-        <MobileButton
-          accessibilityLabel={t("discovery.following.retryPlatform", { platform })}
-          key={platform}
-          onPress={() => onRetry(platform)}
-          testID={`following-retry-${platform}`}
-          variant={platform}
-        >
-          {t("discovery.following.retryPlatform", { platform })}
-        </MobileButton>
-      ))}
-    </View>
-  );
 }
 
 function channelRows(
@@ -197,5 +167,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 24,
   },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
 });

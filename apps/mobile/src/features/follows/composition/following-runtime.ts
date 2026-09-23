@@ -14,13 +14,16 @@ import type {
 import { createGuestLiveAlertReconciler } from "@mobile/features/activity/domain/guest-live-alert-reconciler";
 import { unionFollowMembership } from "@mobile/features/activity/domain/union-follow-membership";
 
+import { createPlatformFollowedContentReader } from "../adapters/composite/platform-followed-content-reader";
 import { createRelayFollowedContentReader } from "../adapters/relay/relay-followed-content-reader";
+import { createTwitchGuestFollowedContentReader } from "../adapters/twitch/twitch-guest-followed-content-reader";
 import { createExpoProviderPageOpener } from "../adapters/expo-provider-page";
 import type {
   AccountFollowMembershipSource,
   AccountLiveStreamsSource,
 } from "../capabilities/account-follow-membership";
 import type {
+  FollowedContentReader,
   FollowedReadOutcome,
   FollowingSession,
   FollowMutationResult,
@@ -30,7 +33,7 @@ import { createFollowedLiveCache } from "../data/followed-live-cache";
 import { guestFollowMutation } from "../domain/guest-follow-mutation";
 import { identityRefsFor } from "../utils/following-query";
 
-type FollowedReader = ReturnType<typeof createRelayFollowedContentReader>;
+type FollowedReader = FollowedContentReader;
 type LiveCache = ReturnType<typeof createFollowedLiveCache>;
 
 export function createFollowingRuntime(input: {
@@ -78,11 +81,16 @@ export function createFollowingRuntime(input: {
     liveNotifications: input.liveNotifications,
     now,
     pages: createExpoProviderPageOpener(),
-    reader: createRelayFollowedContentReader({
-      baseUrl: input.relayBaseUrl,
-      fetch: input.fetch ?? globalThis.fetch,
-      installation: input.installation,
-      network: input.network,
+    reader: createPlatformFollowedContentReader({
+      relay: createRelayFollowedContentReader({
+        baseUrl: input.relayBaseUrl,
+        fetch: input.fetch ?? globalThis.fetch,
+        installation: input.installation,
+        network: input.network,
+      }),
+      twitchGuest: createTwitchGuestFollowedContentReader({
+        fetch: input.fetch ?? globalThis.fetch,
+      }),
     }),
   });
 }
@@ -103,16 +111,30 @@ function bindSession(deps: {
 }): FollowingSession {
   return {
     hydrateLive: (read = {}) => hydrateLive(deps, read.signal),
-    hydrateRecorded: (read) =>
-      read.kind === "videos"
-        ? deps.reader.readVideos(read)
+    hydrateRecorded: (read) => {
+      const login =
+        read.channelLogin === undefined
+          ? {}
+          : { channelLogin: read.channelLogin };
+      const signal =
+        read.signal === undefined ? {} : { signal: read.signal };
+      return read.kind === "videos"
+        ? deps.reader.readVideos({
+            channelId: read.channelId,
+            platform: read.platform,
+            sort: read.sort,
+            ...login,
+            ...signal,
+          })
         : deps.reader.readClips({
             channelId: read.channelId,
             platform: read.platform,
             sort: read.sort,
             period: read.period ?? "all",
-            ...(read.signal === undefined ? {} : { signal: read.signal }),
-          }),
+            ...login,
+            ...signal,
+          });
+    },
     listMembership: () => listUnionMembership(deps),
     mutateFollow: (write) => mutateGuestFollow({ ...deps, write }),
     openProviderPage: (target) => deps.pages.open(target),

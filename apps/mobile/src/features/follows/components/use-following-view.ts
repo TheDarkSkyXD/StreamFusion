@@ -18,6 +18,8 @@ import { composeFollowingView } from "../domain/compose-following-view";
 import { recordedFollows } from "../domain/following-filters";
 import { mapPool, RECORDED_READ_CONCURRENCY } from "../utils/following-query";
 
+const FOLLOW_LIVE_REFETCH_MS = 30_000;
+
 export function followingQueryKey(
   part: "membership" | "live" | "notifications" | "notification-permission" | "recorded",
   extra: readonly string[] = [],
@@ -76,7 +78,11 @@ function useFollowingQueries(input: {
   const live = useQuery({
     queryFn: ({ signal }) => input.session.hydrateLive({ signal }),
     queryKey: followingQueryKey("live"),
-    retry: false,
+    refetchInterval: FOLLOW_LIVE_REFETCH_MS,
+    refetchOnReconnect: true,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 8_000),
+    staleTime: 15_000,
   });
   const notifications = useQuery({
     queryFn: () => input.session.readNotifications(),
@@ -92,6 +98,7 @@ function useFollowingQueries(input: {
       mapPool(follows, RECORDED_READ_CONCURRENCY, (follow) =>
         input.session.hydrateRecorded({
           channelId: follow.channelId,
+          channelLogin: follow.channelLogin,
           kind: input.tab === "clips" ? "clips" : "videos",
           period: input.period,
           platform: follow.platform,
@@ -106,7 +113,11 @@ function useFollowingQueries(input: {
       input.period,
       ...follows.map((follow) => `${follow.platform}:${follow.channelId}`),
     ]),
-    retry: false,
+    refetchInterval: FOLLOW_LIVE_REFETCH_MS,
+    refetchOnReconnect: true,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 8_000),
+    staleTime: 15_000,
   });
   return { live, membership, notifications, recorded, recordedEnabled };
 }

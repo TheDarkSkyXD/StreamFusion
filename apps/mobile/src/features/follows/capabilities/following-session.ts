@@ -105,12 +105,14 @@ export interface FollowedContentReader {
   readVideos(input: {
     readonly platform: Platform;
     readonly channelId: string;
+    readonly channelLogin?: string;
     readonly sort: FollowedRecordedSort;
     readonly signal?: AbortSignal;
   }): Promise<FollowedRecordedOutcome<Video>>;
   readClips(input: {
     readonly platform: Platform;
     readonly channelId: string;
+    readonly channelLogin?: string;
     readonly period: FollowedClipPeriod;
     readonly sort: FollowedRecordedSort;
     readonly signal?: AbortSignal;
@@ -144,6 +146,7 @@ export interface FollowingSession {
     readonly kind: "videos" | "clips";
     readonly platform: Platform;
     readonly channelId: string;
+    readonly channelLogin?: string;
     readonly sort: FollowedRecordedSort;
     readonly period?: FollowedClipPeriod;
     readonly signal?: AbortSignal;

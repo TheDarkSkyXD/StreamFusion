@@ -67,7 +67,6 @@ export function FollowingScreen({
       onPeriod={setPeriod}
       onQuery={setQuery}
       onRefresh={() => live.refresh()}
-      onRetry={() => live.refresh()}
       onSort={setSort}
       onTab={setTab}
       period={period}
@@ -90,7 +89,6 @@ function FollowingScreenBody({
   onPeriod,
   onQuery,
   onRefresh,
-  onRetry,
   onSort,
   onTab,
   onWatch,
@@ -113,7 +111,6 @@ function FollowingScreenBody({
   readonly onPeriod: (period: FollowedClipPeriod) => void;
   readonly onQuery: (query: string) => void;
   readonly onRefresh: () => void | Promise<void>;
-  readonly onRetry: () => void;
   readonly onSort: (sort: FollowedRecordedSort) => void;
   readonly onTab: (tab: FollowingTab) => void;
   readonly onWatch?: (target: WatchTarget) => void;
@@ -163,7 +160,6 @@ function FollowingScreenBody({
       <FollowingTabBody
         {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
         onOpenProvider={onOpenProvider}
-        onRetry={onRetry}
         {...(onWatch === undefined ? {} : { onWatch })}
         view={view}
       />

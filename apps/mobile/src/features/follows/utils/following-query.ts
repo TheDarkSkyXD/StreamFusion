@@ -8,13 +8,19 @@ export function identityRefsFor(
 ): readonly FollowedIdentityRef[] {
   return follows.flatMap((follow) => {
     if (follow.platform !== platform) return [];
+    const login = follow.channelLogin.trim().toLowerCase();
+    // Twitch guest GQL (desktop parity / Expo Go) prefers login; id is a
+    // fallback when login is missing. Kick relay wants id and optional slug.
+    if (platform === "twitch") {
+      return login.length > 0
+        ? [{ kind: "login" as const, value: login }]
+        : [{ kind: "id" as const, value: follow.channelId }];
+    }
     const refs: FollowedIdentityRef[] = [
       { kind: "id" as const, value: follow.channelId },
     ];
-    // Kick relay resolves live status by broadcaster id or slug; slug-only
-    // account follows (legacy web rows) need a login ref.
-    if (platform === "kick" && follow.channelLogin.length > 0) {
-      refs.push({ kind: "login" as const, value: follow.channelLogin });
+    if (login.length > 0) {
+      refs.push({ kind: "login" as const, value: login });
     }
     return refs;
   });

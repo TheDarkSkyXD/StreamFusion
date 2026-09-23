@@ -104,7 +104,6 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         view,
       }),
     );
@@ -135,7 +134,6 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         view,
       }),
     );
@@ -143,8 +141,7 @@ describe("Following screen", () => {
     expect(phase?.props.children).toMatch(/Follow channels as a guest/);
   });
 
-  it("retries a failed live Following catalog", () => {
-    const retried: string[] = [];
+  it("shows failed live Guest Follow copy without a Retry button", () => {
     const view = composeFollowingView({
       chip: "all",
       loadingLive: false,
@@ -158,12 +155,18 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: (platform) => retried.push(platform),
         view,
       }),
     );
-    nodes.find((node) => node.props.testID === "following-retry-twitch")?.props.onPress?.();
-    expect(retried).toEqual(["twitch"]);
+    expect(
+      nodes.some((node) => node.props.testID === "following-retry-twitch"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) =>
+        typeof node.props.children === "string" &&
+        /Retry twitch/i.test(node.props.children),
+      ),
+    ).toBe(false);
   });
 
   it("renders Kick recorded unsupported copy", () => {
@@ -186,7 +189,6 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         view,
       }),
     );
@@ -215,7 +217,6 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         onWatch: (target) => watched.push(target.media?.id ?? "missing"),
         view,
       }),
@@ -256,7 +257,6 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         onWatch: (target) => watched.push(target.media?.id ?? "missing"),
         view,
       }),
@@ -291,7 +291,6 @@ describe("Following screen", () => {
       FollowingTabBody({
         onOpenCategory: (category) => opened.push(category.id),
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         view,
       }),
     );
@@ -315,7 +314,6 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenProvider: () => undefined,
-        onRetry: () => undefined,
         view,
       }),
     );

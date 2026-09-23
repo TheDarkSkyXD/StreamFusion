@@ -95,6 +95,27 @@ function memoryNotifications(): LiveNotificationPreferenceStore {
   };
 }
 
+
+function gqlUser(input: {
+  readonly id: string;
+  readonly login: string;
+  readonly stream?: object | null;
+}) {
+  return {
+    data: {
+      user: {
+        description: "",
+        displayName: input.login,
+        id: input.id,
+        login: input.login,
+        profileImageURL: "https://example.test/avatar.png",
+        roles: { isAffiliate: false, isPartner: false },
+        stream: input.stream === undefined ? null : input.stream,
+      },
+    },
+  };
+}
+
 function envelope(body: object) {
   return createRelaySuccessEnvelope({
     body: JSON.parse(JSON.stringify(body)),
@@ -187,16 +208,10 @@ describe("createFollowingRuntime", () => {
         urls.push(String(input));
         return new Response(
           JSON.stringify(
-            envelope({
-              channels: [
-                followedChannel({
-                  id: "71092938",
-                  platform: "twitch",
-                  username: "alice",
-                }),
-              ],
-              missing: [],
-              platform: "twitch",
+            gqlUser({
+              id: "71092938",
+              login: "alice",
+              stream: null,
             }),
           ),
         );
@@ -216,9 +231,7 @@ describe("createFollowingRuntime", () => {
       platform: "twitch",
     });
     expect(followed.kind).toBe("followed");
-    expect(urls.some((url) => url.includes("followed-content/channels"))).toBe(
-      true,
-    );
+    expect(urls.some((url) => url.includes("gql.twitch.tv"))).toBe(true);
     const membership = await session.listMembership();
     expect(membership).toHaveLength(1);
     const removed = await session.mutateFollow({
@@ -245,17 +258,27 @@ describe("createFollowingRuntime", () => {
       fetch: async (input) => {
         const url = String(input);
         urls.push(url);
-        const stream = followedStream({
-          channelId: "71092938",
-          channelName: "alice",
-          platform: "twitch",
-        });
         return new Response(
           JSON.stringify(
-            envelope({
-              missing: [{ kind: "id", value: "offline-1" }],
-              platform: "twitch",
-              streams: [stream],
+            gqlUser({
+              id: "71092938",
+              login: "alice",
+              stream: {
+                broadcaster: {
+                  displayName: "alice",
+                  id: "71092938",
+                  login: "alice",
+                  profileImageURL: "https://example.test/avatar.png",
+                  roles: { isPartner: false },
+                },
+                createdAt: "2026-09-11T00:00:00.000Z",
+                freeformTags: [],
+                game: { displayName: "Just Chatting", id: "509658", name: "Just Chatting" },
+                id: "stream-1",
+                previewImageURL: "https://example.test/thumb.png",
+                title: "live",
+                viewersCount: 12,
+              },
             }),
           ),
         );
@@ -270,8 +293,9 @@ describe("createFollowingRuntime", () => {
       relayBaseUrl: "http://relay.test/",
     });
     const live = await session.hydrateLive();
+    expect(urls.some((url) => url.includes("gql.twitch.tv"))).toBe(true);
     expect(urls.some((url) => url.includes("followed-content/streams"))).toBe(
-      true,
+      false,
     );
     expect(urls.some((url) => url.includes("getFollowedStreams"))).toBe(false);
     expect(urls.some((url) => url.includes("top-streams"))).toBe(false);
@@ -283,11 +307,7 @@ describe("createFollowingRuntime", () => {
     const session = createFollowingRuntime({
       cache: memoryCache(),
       fetch: async () =>
-        new Response(
-          JSON.stringify(
-            envelope({ channels: [], missing: [], platform: "twitch" }),
-          ),
-        ),
+        new Response(JSON.stringify({ data: { user: null } })),
       guestFollows: memoryGuestFollows(),
       installation: async () => ({
         credential: "install",
