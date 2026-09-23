@@ -69,6 +69,12 @@ export const mobileSizing = {
   selectSheetMaxHeight: "50%",
 } as const;
 
+/** Trailing selected marker for MobileSelect: filled white radio-style dot (not checkmark / not accent). */
+export const mobileSelectSelectedIndicator = {
+  color: mobileColors.textPrimary,
+  diameter: 10,
+} as const;
+
 export const mobileMotion = {
   colorMs: 200,
   transformMs: 300,

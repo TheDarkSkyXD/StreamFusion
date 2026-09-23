@@ -7,12 +7,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { Check, ChevronDown } from "lucide-react-native";
+import { ChevronDown } from "lucide-react-native";
 
 import { selectionHaptic } from "./haptics";
 import {
   mobileColors,
   mobileRadii,
+  mobileSelectSelectedIndicator,
   mobileSizing,
   mobileSpacing,
 } from "./tokens";
@@ -136,10 +137,9 @@ export function MobileSelect<T extends string>({
                       {option.label}
                     </Text>
                     {active ? (
-                      <Check
+                      <View
                         accessibilityLabel="Selected"
-                        color={mobileColors.twitchBright}
-                        size={18}
+                        style={styles.selectedDot}
                       />
                     ) : null}
                   </Pressable>
@@ -266,5 +266,12 @@ const styles = StyleSheet.create({
   optionLabelActive: {
     color: mobileColors.textPrimary,
     fontWeight: "700",
+  },
+  /** Radio-style trailing marker: filled white dot only when selected (not checkmark / not accent). */
+  selectedDot: {
+    backgroundColor: mobileSelectSelectedIndicator.color,
+    borderRadius: mobileRadii.full,
+    height: mobileSelectSelectedIndicator.diameter,
+    width: mobileSelectSelectedIndicator.diameter,
   },
 });

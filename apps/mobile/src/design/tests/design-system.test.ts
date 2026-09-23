@@ -7,7 +7,7 @@ import { MobilePlatformBadge } from "../platform-badge";
 import { MobileScreenHeader } from "../screen-header";
 import { MobileStatusPanel } from "../status-panel";
 import { MobileCatalogTags, catalogTagLabels } from "../tag";
-import { mobileColors, mobileRadii, mobileShadows, mobileSizing, mobileType } from "../tokens";
+import { mobileColors, mobileRadii, mobileShadows, mobileSizing, mobileSelectSelectedIndicator, mobileType } from "../tokens";
 import { MobileUnderlineTabs } from "../underline-tabs";
 import { MobileVerifiedBadge } from "../verified-badge";
 
@@ -87,6 +87,13 @@ describe("mobile design tokens", () => {
     expect(mobileType.display.fontWeight).toBe("700");
     expect(mobileType.body.fontSize).toBe(16);
     expect(mobileSizing.selectSheetMaxHeight).toBe("50%");
+  });
+
+  it("uses a white filled radio dot for MobileSelect selected rows", () => {
+    expect(mobileSelectSelectedIndicator.color).toBe("#ffffff");
+    expect(mobileSelectSelectedIndicator.color).toBe(mobileColors.textPrimary);
+    expect(mobileSelectSelectedIndicator.color).not.toBe(mobileColors.twitchBright);
+    expect(mobileSelectSelectedIndicator.diameter).toBe(10);
   });
 });
 
