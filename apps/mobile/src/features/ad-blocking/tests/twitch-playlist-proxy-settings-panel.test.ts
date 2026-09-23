@@ -15,6 +15,7 @@ vi.mock("react-native", () => ({
   Text: "Text",
   TextInput: "TextInput",
   View: "View",
+  Switch: "Switch",
 }));
 
 type ElementProps = Readonly<{

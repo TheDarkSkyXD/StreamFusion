@@ -4,6 +4,7 @@ import type { SearchIntent, SearchResultType } from "@streamfusion/core/discover
 import type { Platform } from "@streamfusion/core/platform";
 
 import type {
+  SearchHistoryEntry,
   SearchHistoryRepository,
   SearchHistoryScope,
   SearchSession,
@@ -99,22 +100,12 @@ export function useUnifiedSearch(input: {
       setHistoryConfirmClear(false);
       await persist(next);
     },
-    record(queryValue: string) {
-      const next = addSearchHistory(
-        history,
-        historyScope,
-        queryValue,
-      );
+    record(input: string | SearchHistoryEntry) {
+      const next = addSearchHistory(history, historyScope, input);
       void persist(next);
     },
-    remove(queryValue: string) {
-      void persist(
-        removeSearchHistory(
-          history,
-          historyScope,
-          queryValue,
-        ),
-      );
+    remove(input: string | SearchHistoryEntry) {
+      void persist(removeSearchHistory(history, historyScope, input));
     },
     requestClear() {
       setHistoryConfirmClear(true);

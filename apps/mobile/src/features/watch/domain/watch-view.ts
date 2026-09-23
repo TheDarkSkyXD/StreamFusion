@@ -30,12 +30,13 @@ export function resolveWatchCopy(
 export function composeWatchView(state: FocusedWatchState): WatchView {
   const recorded = Boolean(state.target.media);
   if (state.kind === "ready") {
+    // Selecting a stream auto-starts; show starting copy instead of a Start gate.
     return view(
-      key("playback.watch.readyTitle"),
+      key("playback.watch.startingTitle"),
       recorded
-        ? key("playback.watch.startRecordingDetail")
-        : key("playback.watch.startLiveDetail"),
-      "start",
+        ? key("playback.watch.resolvingRecording")
+        : key("playback.watch.resolvingLive"),
+      "none",
       null,
       false,
       [],

@@ -12,6 +12,7 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
   View: "View",
+  Switch: "Switch",
 }));
 
 type ElementProps = Readonly<{

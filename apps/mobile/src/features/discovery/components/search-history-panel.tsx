@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import type { Platform } from "@streamfusion/core/platform";
 
 import {
   mobileColors,
@@ -9,51 +10,54 @@ import {
 } from "@mobile/design/tokens";
 import type {
   SearchHistoryByScope,
+  SearchHistoryEntry,
   SearchHistoryScope,
 } from "../capabilities/platform-reads";
-
-const SCOPE_LABEL: Readonly<Record<SearchHistoryScope, string>> = {
-  categories: "Category",
-  channels: "Channel",
-  streams: "Stream",
-};
+import {
+  channelIdentityFromHistory,
+  historyEntryAvatarUrl,
+  historyEntryLabel,
+} from "../domain/search-history";
 
 export function SearchHistoryPanel({
   confirmClear,
+  fallbackPlatform = "twitch",
   history,
   onCancelClear,
   onClear,
   onConfirmClear,
+  onOpenChannel,
   onRemove,
   onRepeat,
   scope,
 }: {
   readonly confirmClear: boolean;
+  readonly fallbackPlatform?: Platform;
   readonly history: SearchHistoryByScope;
   readonly onCancelClear: () => void;
   readonly onClear: () => void;
   readonly onConfirmClear: () => void;
-  readonly onRemove: (query: string) => void;
-  readonly onRepeat: (query: string) => void;
+  readonly onOpenChannel?: (channel: {
+    readonly id: string;
+    readonly platform: Platform;
+    readonly username: string;
+    readonly avatarUrl?: string;
+  }) => void;
+  readonly onRemove: (entry: SearchHistoryEntry) => void;
+  readonly onRepeat: (entry: SearchHistoryEntry) => void;
   readonly scope: SearchHistoryScope;
 }) {
   const { t } = useTranslation();
-  const queries = history[scope];
+  const entries = history[scope];
   return (
     <View style={styles.panel} testID="search-history">
       <View style={styles.heading}>
-        <View style={styles.headingCopy}>
-          <Text selectable style={styles.label}>
-            {t("discovery.search.history")}
-          </Text>
-          <Text selectable style={styles.hint}>
-            {t("discovery.search.historyHint")}
-          </Text>
-        </View>
+        <Text selectable style={styles.label}>
+          {t("discovery.search.history")}
+        </Text>
         {confirmClear ? (
           <View style={styles.confirmRow}>
             <Pressable
-              accessibilityHint="Removes only this Search history type"
               accessibilityLabel="Confirm clear search history"
               accessibilityRole="button"
               android_ripple={{ color: mobileColors.surfaceRaised }}
@@ -83,9 +87,8 @@ export function SearchHistoryPanel({
               </Text>
             </Pressable>
           </View>
-        ) : queries.length > 0 ? (
+        ) : entries.length > 0 ? (
           <Pressable
-            accessibilityHint="Asks before removing only this Search history type"
             accessibilityLabel="Clear search history"
             accessibilityRole="button"
             onPress={onClear}
@@ -106,51 +109,80 @@ export function SearchHistoryPanel({
           Clear this search history?
         </Text>
       ) : null}
-      {queries.length === 0 ? (
+      {entries.length === 0 ? (
         <Text selectable style={styles.empty} testID="search-history-empty">
-          Recent Channel, Stream, and Category searches stay on this device.
+          Recent searches appear here.
         </Text>
       ) : (
-        queries.map((query) => (
-          <View key={query} style={styles.row}>
-            <View style={styles.copy}>
-              <Text selectable style={styles.query}>
-                {query}
-              </Text>
-              <Text selectable style={styles.hint}>
-                {`${SCOPE_LABEL[scope]} · this device`}
-              </Text>
+        entries.map((entry) => {
+          const label = historyEntryLabel(entry);
+          const avatarUrl = historyEntryAvatarUrl(entry);
+          const token = historyToken(label);
+          const openChannel =
+            scope === "channels" || scope === "streams"
+              ? channelIdentityFromHistory(entry, fallbackPlatform)
+              : null;
+          const onPress = () => {
+            if (openChannel && onOpenChannel) {
+              onOpenChannel({
+                ...openChannel,
+                ...(avatarUrl ? { avatarUrl } : {}),
+              });
+              return;
+            }
+            onRepeat(entry);
+          };
+          return (
+            <View key={`${entry.platform ?? "any"}:${entry.channelId ?? label}`} style={styles.row}>
+              <Pressable
+                accessibilityLabel={
+                  openChannel
+                    ? `Open ${label} channel`
+                    : `Search again for ${label}`
+                }
+                accessibilityRole="button"
+                onPress={onPress}
+                style={({ pressed }) => [
+                  styles.cardPress,
+                  pressed ? styles.pressed : null,
+                ]}
+                testID={`repeat-search-${token}`}
+              >
+                {avatarUrl ? (
+                  <Image
+                    accessibilityIgnoresInvertColors
+                    source={{ uri: avatarUrl }}
+                    style={styles.avatar}
+                    testID={`search-history-avatar-${token}`}
+                  />
+                ) : (
+                  <View style={styles.avatar} testID={`search-history-avatar-placeholder-${token}`}>
+                    <Text style={styles.avatarLetter}>
+                      {label.slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text numberOfLines={1} selectable style={styles.query}>
+                  {label}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={`Remove ${label} from history`}
+                accessibilityRole="button"
+                onPress={() => onRemove(entry)}
+                style={({ pressed }) => [
+                  styles.action,
+                  pressed ? styles.pressed : null,
+                ]}
+                testID={`remove-search-${token}`}
+              >
+                <Text selectable style={styles.actionLabel}>
+                  ✕
+                </Text>
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityLabel={`Search again for ${query}`}
-              accessibilityRole="button"
-              onPress={() => onRepeat(query)}
-              style={({ pressed }) => [
-                styles.action,
-                pressed ? styles.pressed : null,
-              ]}
-              testID={`repeat-search-${historyToken(query)}`}
-            >
-              <Text selectable style={styles.actionLabel}>
-                Repeat
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel={`Remove ${query} from history`}
-              accessibilityRole="button"
-              onPress={() => onRemove(query)}
-              style={({ pressed }) => [
-                styles.action,
-                pressed ? styles.pressed : null,
-              ]}
-              testID={`remove-search-${historyToken(query)}`}
-            >
-              <Text selectable style={styles.actionLabel}>
-                Remove
-              </Text>
-            </Pressable>
-          </View>
-        ))
+          );
+        })
       )}
     </View>
   );
@@ -169,22 +201,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: mobileSpacing.small,
   },
-  headingCopy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-  },
   label: {
     color: mobileColors.textCategory,
+    flex: 1,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
     lineHeight: 16,
-  },
-  hint: {
-    color: mobileColors.textCategory,
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 18,
   },
   confirmRow: {
     flexDirection: "row",
@@ -235,12 +258,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
   },
-  copy: {
+  cardPress: {
+    alignItems: "center",
     flex: 1,
-    gap: mobileSpacing.xSmall,
+    flexDirection: "row",
+    gap: mobileSpacing.medium,
+    minHeight: mobileSizing.minimumTouchTarget,
+  },
+  avatar: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.full,
+    height: 40,
+    justifyContent: "center",
+    overflow: "hidden",
+    width: 40,
+  },
+  avatarLetter: {
+    color: mobileColors.textPrimary,
+    fontSize: 16,
+    fontWeight: "700",
   },
   query: {
     color: mobileColors.textPrimary,
+    flex: 1,
     fontSize: 16,
     fontWeight: "700",
     lineHeight: 22,
@@ -252,10 +293,10 @@ const styles = StyleSheet.create({
     minWidth: mobileSizing.minimumTouchTarget,
   },
   actionLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 13,
+    color: mobileColors.textSecondary,
+    fontSize: 16,
     fontWeight: "600",
-    lineHeight: 18,
+    lineHeight: 20,
   },
   pressed: {
     opacity: 0.76,

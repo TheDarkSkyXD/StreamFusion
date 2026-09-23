@@ -30,6 +30,7 @@ vi.mock("react-native", () => ({
   Text: "Text",
   TextInput: "TextInput",
   View: "View",
+  Switch: "Switch",
 }));
 
 vi.mock("lucide-react-native", () => {

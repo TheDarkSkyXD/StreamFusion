@@ -20,7 +20,23 @@ vi.mock("react-native", () => ({
   Text: "Text",
   TextInput: "TextInput",
   View: "View",
+  Switch: "Switch",
 }));
+
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, options?: Record<string, unknown>) => {
+    if (options && "name" in options) return `${key}:${String(options.name)}`;
+    return key;
+  },
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+}));
+
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
@@ -76,8 +92,8 @@ function render(
     onConfirmClear: () => undefined,
     onOpenAccounts: () => undefined,
     onRemoveHistory: () => undefined,
-    onRepeatHistory: (query) => {
-      repeated.push(query);
+    onRepeatHistory: (entry) => {
+      repeated.push(typeof entry === "string" ? entry : entry.label);
     },
     onRequestClear: () => undefined,
     onRetry: (platform) => {
@@ -93,7 +109,9 @@ function render(
     view: composeUnifiedSearch({
       history: {
         ...emptySearchHistory(),
-        channels: extras.history ?? ["arcade"],
+        channels: (extras.history ?? ["arcade"]).map((item: string) => ({
+          label: item,
+        })),
       },
       historyConfirmClear: extras.confirmClear === true,
       intent: extras.idle
@@ -218,15 +236,29 @@ describe("Unified search screen", () => {
       platform: "all",
       tab: "all",
       view: composeUnifiedSearch({
-        history: emptySearchHistory(),
+        history: {
+          ...emptySearchHistory(),
+          channels: [
+            {
+              label: "arcade",
+              avatarUrl: "https://example.com/a.png",
+              channelId: "1",
+              platform: "twitch",
+              username: "arcade",
+            },
+          ],
+        },
         intent: null,
         loading: false,
       }),
     });
-    const phase = descendants(idle).find(
-      (node) => node.props.testID === "search-phase",
+    const idleNodes = descendants(idle);
+    expect(idleNodes.some((node) => node.props.testID === "search-phase")).toBe(
+      false,
     );
-    expect(phase?.props.children).toMatch(/without signing in/);
+    expect(
+      idleNodes.some((node) => node.props.testID === "search-history-avatar-arcade"),
+    ).toBe(true);
   });
 
   it("exposes Search and Categories mode tabs, with history on Search", () => {

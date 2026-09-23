@@ -234,7 +234,7 @@ describe("catalog UI journeys", () => {
         platform: "all",
         tab: "all",
         view: composeUnifiedSearch({
-          history: { ...emptySearchHistory(), channels: ["arcade"] },
+          history: { ...emptySearchHistory(), channels: [{ label: "arcade" }] },
           intent: null,
           kick: fixtureSearchOutcome("kick", "ready"),
           loading: false,

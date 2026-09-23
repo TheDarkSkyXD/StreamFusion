@@ -92,13 +92,12 @@ describe("watch screen", () => {
       onOpenRelated: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
-      onStart: () => undefined,
       playback: { kind: "ready", target },
       tab: "chat",
       target,
     });
     const nodes = descendants(root);
-    expect(nodes.some((node) => node.props.testID === "watch-start")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-start")).toBe(false);
     expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(
       false,
     );
@@ -124,8 +123,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
@@ -153,8 +151,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
@@ -188,7 +185,6 @@ describe("watch screen", () => {
       onQualityPress: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
-      onStart: () => undefined,
       onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
@@ -263,7 +259,6 @@ describe("watch screen", () => {
       onQualityPress: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
-      onStart: () => undefined,
       onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
@@ -318,8 +313,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "info",
         target,
       }),
@@ -354,8 +348,7 @@ describe("watch screen", () => {
           onDelete: () => undefined,
           onExport: () => undefined,
           onOpenArtifact: () => undefined,
-          onStart: () => undefined,
-        },
+            },
         recording: {
           busy: false,
           eligibility: {
@@ -368,15 +361,13 @@ describe("watch screen", () => {
           onDelete: () => undefined,
           onExport: () => undefined,
           onOpenArtifact: () => undefined,
-          onStart: () => undefined,
-        },
+            },
         inspection: null,
         onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "info",
         target,
       }),
@@ -406,15 +397,13 @@ describe("watch screen", () => {
           onDelete: () => undefined,
           onExport: () => undefined,
           onOpenArtifact: () => undefined,
-          onStart: () => undefined,
-        },
+            },
         inspection: null,
         onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target: video },
+          playback: { kind: "ready", target: video },
         tab: "info",
         target: video,
       }),
@@ -456,8 +445,7 @@ describe("watch screen", () => {
           },
           onInstall: () => undefined,
           onRemove: () => undefined,
-          onStart: () => undefined,
-          onStop: () => undefined,
+              onStop: () => undefined,
           session: {
             audioLeftDevice: false,
             audioUploadAttempts: 0,
@@ -477,8 +465,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "info",
         target,
       }),
@@ -521,8 +508,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
@@ -571,7 +557,6 @@ describe("watch screen", () => {
       onQualityPress: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
-      onStart: () => undefined,
       onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
@@ -610,8 +595,7 @@ describe("watch screen", () => {
         onSelectTab: (tab) => {
           tabs.push(tab);
         },
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "info",
         target,
       }),
@@ -641,8 +625,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target },
+          playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
@@ -676,8 +659,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => undefined,
-        playback: { kind: "ready", target: video },
+          playback: { kind: "ready", target: video },
         tab: "comments",
         target: video,
       }),
@@ -698,7 +680,8 @@ describe("watch screen", () => {
     expect(source).toContain("HomeLiveDiscoveryScreen");
     expect(source).toContain('title={t("navigation.watch")}');
     expect(source).toContain("onSelectStream");
-    expect(source).toContain("WatchRecentList");
+    expect(source).not.toContain("WatchRecentList");
+    expect(source).not.toContain("continueWatching");
     expect(source).toContain("watch-empty-open-search");
     const route = readFileSync(
       new URL("../components/watch-route.tsx", import.meta.url),

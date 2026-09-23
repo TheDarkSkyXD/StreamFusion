@@ -47,6 +47,9 @@ export function ChannelDetailScreen({
   const follow = useChannelFollow({
     channel,
     following,
+    ...(live.view.channel?.displayName
+      ? { displayName: live.view.channel.displayName }
+      : {}),
   });
   return (
     <ChannelDetailView

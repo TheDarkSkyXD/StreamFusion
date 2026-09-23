@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, Switch } from "react-native";
 
 import {
   mobileColors,
@@ -296,18 +296,20 @@ function SourceRow({
         {source.addQueryParams ? " · playback query params" : ""}
       </Text>
       <View style={styles.sourceActions}>
-        <Pressable
+        <Switch
           accessibilityLabel={source.enabled ? "Disable source" : "Enable source"}
-          accessibilityRole="switch"
           disabled={busy}
-          onPress={onToggle}
-          style={styles.actionButton}
+          onValueChange={() => onToggle()}
           testID={`twitch-playlist-proxy-toggle-${source.id}`}
-        >
-          <Text selectable style={styles.actionLabel}>
-            {source.enabled ? "On" : "Off"}
-          </Text>
-        </Pressable>
+          thumbColor={
+            source.enabled ? mobileColors.textPrimary : mobileColors.textSecondary
+          }
+          trackColor={{
+            false: mobileColors.border,
+            true: mobileColors.twitchBright,
+          }}
+          value={source.enabled}
+        />
         {onMoveUp ? (
           <Pressable
             accessibilityLabel="Move source up"

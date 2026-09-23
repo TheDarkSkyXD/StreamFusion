@@ -15,6 +15,7 @@ import {
   mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
+import { SettingsSwitch } from "@mobile/features/settings/components/settings-controls";
 
 import type { FollowingSession } from "../capabilities/following-session";
 import { FollowingAddForm } from "./following-add-form";
@@ -112,18 +113,12 @@ function ManageNotices({
         <Text selectable style={styles.copy}>
           {t("discovery.following.systemPushNotShipped")}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onToggleGuest}
-          style={styles.action}
+        <SettingsSwitch
+          checked={prefs.guestFollows}
+          label={t("settings.guestFollowNotifications")}
+          onToggle={onToggleGuest}
           testID="following-notify-guest"
-        >
-          <Text selectable style={styles.actionLabel}>
-            {prefs.guestFollows
-              ? t("discovery.following.guestAlertsOn")
-              : t("discovery.following.guestAlertsOff")}
-          </Text>
-        </Pressable>
+        />
       </View>
     </>
   );
@@ -207,18 +202,10 @@ function ManageRow({
             {t("discovery.following.unfollow")}
           </Text>
         </Pressable>
-        <Pressable
-          accessibilityLabel={
-            notify
-              ? t("discovery.following.disableLiveAlertsFor", {
-                  name: follow.displayName,
-                })
-              : t("discovery.following.enableLiveAlertsFor", {
-                  name: follow.displayName,
-                })
-          }
-          accessibilityRole="button"
-          onPress={() => {
+        <SettingsSwitch
+          checked={notify}
+          label="Live alerts"
+          onToggle={() => {
             void session
               .writeNotifications(
                 setPerChannelLiveNotificationPreference(
@@ -233,15 +220,8 @@ function ManageRow({
               )
               .then(onRefresh);
           }}
-          style={styles.action}
           testID={`following-notify-${follow.platform}-${follow.channelId}`}
-        >
-          <Text selectable style={styles.actionLabel}>
-            {notify
-              ? t("discovery.following.liveAlertsOn")
-              : t("discovery.following.liveAlertsOff")}
-          </Text>
-        </Pressable>
+        />
         <Pressable
           accessibilityLabel={t("discovery.following.openNameOnPlatform", {
             name: follow.displayName,

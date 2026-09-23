@@ -79,7 +79,6 @@ export function WatchRoute({
   onOpenChannel,
   onOpenRelated,
   onOpenSearch,
-  onWatchRecent,
   playerPrefs,
   screen,
   target,
@@ -95,7 +94,6 @@ export function WatchRoute({
   readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onOpenSearch?: () => void;
-  readonly onWatchRecent?: (target: WatchTarget) => void;
   readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
   readonly target: WatchTarget | null;
@@ -106,7 +104,6 @@ export function WatchRoute({
   if (!resolved) {
     return (
       <WatchEmptyState
-        history={screen.history}
         {...(discovery === undefined
           ? {}
           : {
@@ -117,7 +114,6 @@ export function WatchRoute({
               },
             })}
         {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
-        {...(onWatchRecent === undefined ? {} : { onWatch: onWatchRecent })}
       />
     );
   }
@@ -175,6 +171,10 @@ function WatchSessionRoute({
   const chat = useWatchChat(screen.chat, target);
   const playback = useFocusedWatchSession(session, target);
   const peek = useWatchPeek(session);
+  useEffect(() => {
+    if (playback.kind !== "ready") return;
+    void startWatchThenResume(session, target);
+  }, [playback.kind, session, target]);
   const eligibility = watchDownloadEligibility(target);
   const recordingEligibility = watchRecordingEligibility(target);
   const captionEligibility = watchCaptionEligibility(
@@ -282,9 +282,6 @@ function WatchSessionRoute({
         if (peek.kind === "active") void session.setQuality(nextQuality);
       }}
       onSelectTab={setTab}
-      onStart={() => {
-        void startWatchThenResume(session, target);
-      }}
       onToggleControls={() => {
         setControlsVisible((current) => !current);
         setIdleToken((token) => token + 1);

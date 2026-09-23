@@ -9,8 +9,6 @@ const TABS = [
   "all",
   "channels",
   "streams",
-  "videos",
-  "clips",
   "categories",
 ] as const satisfies readonly SearchResultType[];
 
@@ -33,6 +31,7 @@ export function SearchFilters({
   readonly platform: SearchPlatformFilter;
   readonly tab: SearchResultType;
 }) {
+  const selectedTab = tab === "videos" || tab === "clips" ? "all" : tab;
   return (
     <View style={styles.stack}>
       <ScrollView
@@ -49,19 +48,24 @@ export function SearchFilters({
             key={next}
             label={tabLabel(next)}
             onPress={() => onSelectTab(next)}
-            selected={tab === next}
+            selected={selectedTab === next}
             testID={`search-tab-${next}`}
           />
         ))}
       </ScrollView>
-      <View accessibilityLabel="Search filters" style={styles.row}>
+      <ScrollView
+        accessibilityLabel="Search filters"
+        contentContainerStyle={styles.row}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+      >
         {PLATFORMS.map((next) => (
           <MobileFilterChip
             accessibilityLabel={
               next === "all" ? "All platforms" : platformLabel(next)
             }
             key={next}
-            label={next === "all" ? "All platforms" : platformLabel(next)}
+            label={next === "all" ? "All" : platformLabel(next)}
             onPress={() => onSelectPlatform(next)}
             selected={platform === next}
             testID={`search-platform-${next}`}
@@ -69,12 +73,12 @@ export function SearchFilters({
         ))}
         <MobileFilterChip
           accessibilityLabel="Live only"
-          label="Live only"
+          label="Live"
           onPress={onToggleLiveOnly}
           selected={liveOnly}
           testID="toggle-live-only"
         />
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -106,7 +110,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: mobileSpacing.small,
+    paddingRight: mobileSpacing.medium,
   },
 });

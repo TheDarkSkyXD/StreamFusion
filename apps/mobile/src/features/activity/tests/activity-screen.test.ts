@@ -23,6 +23,21 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, options?: Record<string, unknown>) => {
+    if (options && "name" in options) return `${key}:${String(options.name)}`;
+    return key;
+  },
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+}));
+
+
 vi.mock("lucide-react-native", () => ({
   Bell: "Bell",
   BriefcaseBusiness: "BriefcaseBusiness",
@@ -228,14 +243,14 @@ describe("Activity screen", () => {
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children === "No followed go-lives yet",
+          node.props.children === "No followed go-lives",
       ),
     ).toBe(true);
     expect(
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children.includes("Guest Follows on this device count"),
+          node.props.children.includes("Follow channels to see go-live alerts."),
       ),
     ).toBe(true);
   });

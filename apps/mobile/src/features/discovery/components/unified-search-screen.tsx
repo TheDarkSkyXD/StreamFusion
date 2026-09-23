@@ -10,7 +10,6 @@ import {
 import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
-import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
@@ -18,13 +17,17 @@ import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
   DiscoveryFixtureMode,
+  SearchHistoryEntry,
   SearchHistoryRepository,
   SearchHistoryScope,
   SearchSession,
   UnifiedSearchView as UnifiedSearchModel,
 } from "../capabilities/platform-reads";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
-import { historyScopeForTab } from "../domain/search-history";
+import {
+  historyEntryLabel,
+  historyScopeForTab,
+} from "../domain/search-history";
 import {
   watchTargetFromClip,
   watchTargetFromVideo,
@@ -51,15 +54,6 @@ const SEARCH_MODES = [
   readonly label: string;
 }[];
 
-const HISTORY_SCOPES = [
-  { id: "channels", label: "Channels" },
-  { id: "streams", label: "Streams" },
-  { id: "categories", label: "Categories" },
-] as const satisfies readonly {
-  readonly id: SearchHistoryScope;
-  readonly label: string;
-}[];
-
 export function UnifiedSearchScreen({
   categoriesPanel,
   history,
@@ -73,7 +67,9 @@ export function UnifiedSearchScreen({
   readonly history: SearchHistoryRepository;
   readonly initialQuery?: string;
   readonly onOpenAccounts: () => void;
-  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+  readonly onOpenChannel?: (
+    channel: ChannelIdentity & { readonly avatarUrl?: string | null },
+  ) => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly session: SearchSession;
 }) {
@@ -84,8 +80,7 @@ export function UnifiedSearchScreen({
   const [tab, setTab] = useState<SearchResultType>("all");
   const [platform, setPlatform] = useState<SearchPlatformFilter>("all");
   const [liveOnly, setLiveOnly] = useState(false);
-  const [historyScope, setHistoryScope] =
-    useState<SearchHistoryScope>("channels");
+  const historyScope = historyScopeForTab(tab);
   const live = useUnifiedSearch({
     history,
     historyScope,
@@ -123,24 +118,43 @@ export function UnifiedSearchScreen({
       }}
       onOpenAccounts={onOpenAccounts}
       onRemoveHistory={live.remove}
-      onRepeatHistory={submit}
+      onRepeatHistory={(entry) => submit(historyEntryLabel(entry))}
       onRequestClear={live.requestClear}
       onRefresh={() => live.refresh()}
       onRetry={live.retry}
-      onSelectHistoryScope={setHistoryScope}
       refreshing={live.refreshing}
       onSelectMode={setMode}
       onSelectPlatform={setPlatform}
       onSelectTab={setTab}
       onSubmit={(value) => submit(value ?? draft)}
       onToggleLiveOnly={() => setLiveOnly((current) => !current)}
-      {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
+      {...(onOpenChannel === undefined
+        ? {}
+        : {
+            onOpenChannel: (channel) => {
+              live.record({
+                label: channel.username,
+                channelId: channel.id,
+                platform: channel.platform,
+                username: channel.username,
+                ...(channelAvatar(channel) === undefined
+                  ? {}
+                  : { avatarUrl: channelAvatar(channel) }),
+              });
+              onOpenChannel(channel);
+            },
+          })}
       {...(onWatch === undefined ? {} : { onWatch })}
       platform={platform}
       tab={tab}
       view={live.view}
     />
   );
+}
+
+function channelAvatar(channel: ChannelIdentity & { readonly avatarUrl?: string | null }): string | undefined {
+  const url = channel.avatarUrl?.trim();
+  return url && url.length > 0 ? url : undefined;
 }
 
 export function UnifiedSearchView({
@@ -159,7 +173,6 @@ export function UnifiedSearchView({
   onRepeatHistory,
   onRequestClear,
   onRetry,
-  onSelectHistoryScope,
   onSelectMode,
   onSelectPlatform,
   onSelectProofMode,
@@ -185,18 +198,19 @@ export function UnifiedSearchView({
   readonly onConfirmClear: () => void;
   readonly onOpenAccounts: () => void;
   readonly onRefresh?: () => void | Promise<void>;
-  readonly onRemoveHistory: (query: string) => void;
-  readonly onRepeatHistory: (query: string) => void;
+  readonly onRemoveHistory: (entry: SearchHistoryEntry) => void;
+  readonly onRepeatHistory: (entry: SearchHistoryEntry) => void;
   readonly onRequestClear: () => void;
   readonly onRetry: (platform: "kick" | "twitch") => void;
-  readonly onSelectHistoryScope?: (scope: SearchHistoryScope) => void;
   readonly onSelectMode?: (mode: SearchScreenMode) => void;
   readonly onSelectPlatform: (platform: SearchPlatformFilter) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly onSelectTab: (tab: SearchResultType) => void;
   readonly onSubmit: (value?: string) => void;
   readonly onToggleLiveOnly: () => void;
-  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+  readonly onOpenChannel?: (
+    channel: ChannelIdentity & { readonly avatarUrl?: string | null },
+  ) => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly platform: SearchPlatformFilter;
   readonly proofMode?: DiscoveryFixtureMode;
@@ -215,7 +229,7 @@ export function UnifiedSearchView({
         {view.phase === "empty" ? (
           <MobileStatusPanel tone="empty">
             <Text selectable style={mobileType.body}>
-              No matching channels, streams, videos, clips, or categories.
+              No results.
             </Text>
           </MobileStatusPanel>
         ) : null}
@@ -229,7 +243,10 @@ export function UnifiedSearchView({
                     id: channel.id,
                     platform: channel.platform,
                     username: channel.username,
-                  }),
+                    ...(channel.avatarUrl
+                      ? { avatarUrl: channel.avatarUrl }
+                      : {}),
+                  } as ChannelIdentity & { avatarUrl?: string }),
               })}
           {...(onWatch === undefined
             ? {}
@@ -290,9 +307,6 @@ export function UnifiedSearchView({
       >
         <MobileScreenHeader title={t("discovery.search.title")} />
         {modeTabs}
-        <Text selectable style={mobileType.body} testID="search-phase">
-          {phaseCopy(view)}
-        </Text>
         {proofMode && onSelectProofMode ? (
           <SearchProofControls mode={proofMode} onSelect={onSelectProofMode} />
         ) : null}
@@ -319,33 +333,18 @@ export function UnifiedSearchView({
           </>
         ) : null}
         {view.phase === "idle" ? (
-          <>
-            {onSelectHistoryScope ? (
-              <View accessibilityLabel="History types" style={styles.scopeTabs}>
-                {HISTORY_SCOPES.map((entry) => (
-                  <MobileFilterChip
-                    accessibilityLabel={`${entry.label} search history`}
-                    accessibilityRole="tab"
-                    key={entry.id}
-                    label={entry.label}
-                    onPress={() => onSelectHistoryScope(entry.id)}
-                    selected={activeHistoryScope === entry.id}
-                    testID={`search-history-scope-${entry.id}`}
-                  />
-                ))}
-              </View>
-            ) : null}
-            <SearchHistoryPanel
-              confirmClear={view.historyConfirmClear}
-              history={view.history}
-              onCancelClear={onCancelClear}
-              onClear={onRequestClear}
-              onConfirmClear={onConfirmClear}
-              onRemove={onRemoveHistory}
-              onRepeat={onRepeatHistory}
-              scope={activeHistoryScope}
-            />
-          </>
+          <SearchHistoryPanel
+            confirmClear={view.historyConfirmClear}
+            fallbackPlatform={platform === "all" ? "twitch" : platform}
+            history={view.history}
+            onCancelClear={onCancelClear}
+            onClear={onRequestClear}
+            onConfirmClear={onConfirmClear}
+            onRemove={onRemoveHistory}
+            onRepeat={onRepeatHistory}
+            scope={activeHistoryScope}
+            {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
+          />
         ) : (
           resultsBlock
         )}
@@ -360,24 +359,6 @@ export function UnifiedSearchView({
   );
 }
 
-function phaseCopy(view: UnifiedSearchModel): string {
-  switch (view.phase) {
-    case "idle":
-      return "Search works without signing in.";
-    case "loading":
-      return "Loading search results from Twitch and Kick.";
-    case "ready":
-      return "Search results from Twitch and Kick.";
-    case "partial":
-      return "Some platforms returned results. Failed providers stay visible.";
-    case "offline-cache":
-      return "Showing cached search results while a live read is unavailable.";
-    case "empty":
-      return "No matching channels, streams, videos, clips, or categories.";
-    case "failed":
-      return "Search results could not be loaded.";
-  }
-}
 
 const styles = StyleSheet.create({
   frame: {

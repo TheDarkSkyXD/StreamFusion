@@ -919,7 +919,6 @@ function ShellScreen({
           onOpenSearch={() =>
             dispatch({ type: "select", destination: "search" })
           }
-          onWatchRecent={openWatch}
           playerPrefs={playerPrefs}
           screen={watch}
           target={target}

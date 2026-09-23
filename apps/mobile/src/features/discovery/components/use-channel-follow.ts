@@ -15,6 +15,7 @@ export function membershipQueryKey(): readonly ["follows", "membership"] {
 
 export function useChannelFollow(input: {
   readonly channel: ChannelIdentity;
+  readonly displayName?: string;
   readonly enabled?: boolean;
   readonly following: FollowingSession;
 }): {
@@ -58,6 +59,7 @@ export function useChannelFollow(input: {
         queryClient,
         setError,
         setPending,
+        ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
       });
     },
   };
@@ -65,6 +67,7 @@ export function useChannelFollow(input: {
 
 async function mutateFollow(input: {
   readonly channel: ChannelIdentity;
+  readonly displayName?: string;
   readonly following: FollowingSession;
   readonly queryClient: ReturnType<typeof useQueryClient>;
   readonly setError: (reason: string | null) => void;
@@ -77,6 +80,9 @@ async function mutateFollow(input: {
       channelId: input.channel.id,
       channelLogin: input.channel.username,
       platform: input.channel.platform,
+      ...(input.displayName === undefined || input.displayName.trim() === ""
+        ? {}
+        : { displayName: input.displayName.trim() }),
     });
     if (result.kind === "rejected") {
       input.setError(rejectedCopy(result.reason));

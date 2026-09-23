@@ -42,7 +42,6 @@ import { WatchDownloadBar } from "./watch-download-bar";
 import { WatchRecordingBar } from "./watch-recording-bar";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
-import { WatchRecentList } from "./watch-recent-list";
 import { WatchTabs } from "./watch-tabs";
 
 export type PlayerSurfaceProps = {
@@ -94,7 +93,6 @@ export function WatchScreen({
   onPlayerTap,
   onRetry,
   onSelectTab,
-  onStart,
   onMute,
   onPip,
   onPlayPause,
@@ -137,7 +135,6 @@ export function WatchScreen({
   readonly onRetry: () => void;
   readonly onSelectQuality?: (quality: string) => void;
   readonly onSelectTab: (tab: WatchTab) => void;
-  readonly onStart: () => void;
   readonly onMute?: () => void;
   readonly onPip?: () => void;
   readonly onPlayPause?: () => void;
@@ -276,16 +273,6 @@ export function WatchScreen({
           {adblockView === undefined ? null : (
             <WatchAdBlockStatus platform={target.platform} view={adblockView} />
           )}
-          {view.primaryAction === "start" ? (
-            <MobileButton
-              accessibilityLabel={t("playback.watch.startWatching")}
-              onPress={onStart}
-              testID="watch-start"
-              variant="primary"
-            >
-              {t("playback.watch.startWatching")}
-            </MobileButton>
-          ) : null}
           {view.primaryAction === "retry" ? (
             <MobileButton
               accessibilityLabel={t("playback.retry")}
@@ -352,38 +339,27 @@ function showsProvider(playback: FocusedWatchState): boolean {
 
 export function WatchEmptyState({
   discovery,
-  history,
   onOpenSearch,
-  onWatch,
 }: {
   readonly discovery?: {
     readonly onOpenAccounts: () => void;
     readonly onSelectStream: (stream: Stream) => void;
     readonly session: DiscoverySession;
   };
-  readonly history?: WatchHistoryRepository;
   readonly onOpenSearch?: () => void;
-  readonly onWatch?: (target: WatchTarget) => void;
 } = {}) {
   const { t } = useTranslation();
-  const continueWatching =
-    history && onWatch ? (
-      <WatchRecentList
-        history={history}
-        onWatch={onWatch}
-        {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
-      />
-    ) : onOpenSearch ? (
-      <MobileButton
-        accessibilityHint={t("playback.watch.findInSearchHint")}
-        accessibilityLabel={t("playback.watch.findInSearch")}
-        onPress={onOpenSearch}
-        testID="watch-empty-open-search"
-        variant="secondary"
-      >
-        {t("playback.watch.findInSearch")}
-      </MobileButton>
-    ) : null;
+  const findInSearch = onOpenSearch ? (
+    <MobileButton
+      accessibilityHint={t("playback.watch.findInSearchHint")}
+      accessibilityLabel={t("playback.watch.findInSearch")}
+      onPress={onOpenSearch}
+      testID="watch-empty-open-search"
+      variant="secondary"
+    >
+      {t("playback.watch.findInSearch")}
+    </MobileButton>
+  ) : null;
 
   if (discovery) {
     return (
@@ -393,7 +369,6 @@ export function WatchEmptyState({
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
           title={t("navigation.watch")}
-          {...(continueWatching === null ? {} : { topShelf: continueWatching })}
         />
       </View>
     );
@@ -407,7 +382,7 @@ export function WatchEmptyState({
       testID="screen-watch"
     >
       <MobileScreenHeader title={t("navigation.watch")} />
-      {continueWatching}
+      {findInSearch}
       <MobileStatusPanel testID="watch-empty" tone="empty">
         <Text selectable style={mobileType.title}>
           {t("playback.watch.emptyTitle")}

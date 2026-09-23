@@ -96,7 +96,7 @@ export function ActivityScreen({
       ListHeaderComponent={
         <View style={styles.headerContent}>
           <MobileScreenHeader
-            summary="When channels you follow go live, alerts appear here — including Guest Follows on this device."
+            summary="Followed channels going live show up here."
             title={t("navigation.activity")}
           />
           <DevelopmentActivityProofBanner
@@ -111,7 +111,7 @@ export function ActivityScreen({
               testID="activity-write-failure"
             >
               <Text selectable style={styles.itemBody}>
-                Activity could not save that change. Try the action again.
+                Couldn't save. Try again.
               </Text>
             </View>
           ) : null}
@@ -330,7 +330,7 @@ function DismissalStatus({
             selectable
             style={styles.itemBody}
           >
-            Activity could not save that dismissal. Try again or cancel.
+            Couldn't dismiss. Try again.
           </Text>
         ) : null}
         <View style={styles.confirmationActions}>
@@ -401,8 +401,8 @@ function ActivityAvailabilityNotice({
     <View style={styles.availability} testID="activity-availability">
       <Text accessibilityLiveRegion="polite" selectable style={styles.itemBody}>
         {unavailable
-          ? "Saved Activity remains visible, but the inbox could not refresh."
-          : "Refreshing saved Activity."}
+          ? "Couldn't refresh. Saved alerts still show."
+          : "Refreshing…"}
       </Text>
       {unavailable ? (
         <Pressable
@@ -448,15 +448,15 @@ function ActivityEmptyState({
         style={styles.itemTitle}
       >
         {status === "loading"
-          ? "Opening Activity"
+          ? "Loading…"
           : status === "unavailable"
-            ? "Activity is temporarily unavailable"
-            : "No followed go-lives yet"}
+            ? "Couldn't load Activity"
+            : "No followed go-lives"}
       </Text>
       <Text selectable style={styles.itemBody}>
         {status === "unavailable"
-          ? "Saved Activity could not be opened. Try again."
-          : "When channels you follow go live, they appear here. Guest Follows on this device count."}
+          ? "Try again in a moment."
+          : "Follow channels to see go-live alerts."}
       </Text>
       {status === "unavailable" ? (
         <MobileButton

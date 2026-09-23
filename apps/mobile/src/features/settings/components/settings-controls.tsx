@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import {
   DISPLAY_LANGUAGE_REGISTRY,
@@ -79,25 +79,49 @@ function SettingsRow({
 
 export function SettingsSwitch({
   checked,
+  detail,
   label,
   onToggle,
   testID,
 }: {
   readonly checked: boolean;
+  readonly detail?: string;
   readonly label: string;
   readonly onToggle: () => void;
   readonly testID: string;
 }) {
   return (
-    <SettingsRow
+    <Pressable
       accessibilityLabel={label}
       accessibilityRole="switch"
       accessibilityState={{ checked }}
       onPress={onToggle}
+      style={styles.switchRow}
       testID={testID}
     >
-      {`${label}: ${checked ? "on" : "off"}`}
-    </SettingsRow>
+      <View style={styles.switchCopy} accessible={false}>
+        <Text selectable style={styles.rowLabel}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text selectable style={styles.detail}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      <Switch
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+        onValueChange={() => onToggle()}
+        pointerEvents="none"
+        thumbColor={checked ? mobileColors.textPrimary : mobileColors.textSecondary}
+        trackColor={{
+          false: mobileColors.border,
+          true: mobileColors.twitchBright,
+        }}
+        value={checked}
+      />
+    </Pressable>
   );
 }
 
@@ -265,6 +289,20 @@ const styles = StyleSheet.create({
     borderRadius: mobileRadii.medium,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
+  },
+  switchRow: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    flexDirection: "row",
+    gap: mobileSpacing.medium,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
+  },
+  switchCopy: {
+    flex: 1,
+    gap: mobileSpacing.xSmall,
   },
   rowLabel: {
     color: mobileColors.textPrimary,

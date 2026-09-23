@@ -1,8 +1,8 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import React from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { LuHistory, LuLayoutGrid, LuSearch, LuSparkles, LuStar, LuUser, LuX } from "react-icons/lu";
+import { LuLayoutGrid, LuSearch, LuSparkles, LuStar, LuUser, LuX } from "react-icons/lu";
 
 import type { UnifiedCategory, UnifiedChannel } from "@shared/platform-types";
 import { StreamVerifiedBadge } from "@/features/discovery/components/stream/stream-verified-badge";
@@ -14,6 +14,7 @@ import {
 } from "@/features/discovery/components/hooks/queries/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
+  type SearchHistoryEntry,
   type SearchHistoryScope,
   useSearchHistory,
 } from "@/features/discovery/components/hooks/useSearchHistory";
@@ -315,6 +316,7 @@ export function UnifiedSearchInput({
         : SEARCH_TABS.filter((tab) => tab === "channels"),
     [showCategories, showSearchTabs]
   );
+  const navigate = useNavigate();
   const { history, addSearch, removeSearch } = useSearchHistory(activeTab);
   const debouncedQuery = useDebounce(searchQuery, 250);
 
@@ -495,13 +497,10 @@ export function UnifiedSearchInput({
     return Array.from(byKey.values());
   }, [categories]);
 
-  // Filter history based on query and platform?
-  // History currently stores just strings. We can't easily filter by platform unless we store platform in history.
-  // For now, we'll just filter by query string.
   const filteredHistory = React.useMemo(() => {
     if (!searchQuery) return history;
     const normalizedQuery = searchQuery.toLowerCase();
-    return history.filter((item) => item.toLowerCase().includes(normalizedQuery));
+    return history.filter((item) => item.label.toLowerCase().includes(normalizedQuery));
   }, [searchQuery, history]);
 
   const { topMatches, otherMatches } = React.useMemo(() => {
@@ -603,14 +602,55 @@ export function UnifiedSearchInput({
   };
 
   const handleChannelClick = (channel: UnifiedChannel, e?: React.MouseEvent) => {
-    addSearch(channel.displayName, activeTab === "streams" ? "streams" : "channels");
+    addSearch(
+      {
+        label: channel.displayName,
+        avatarUrl: channel.avatarUrl || undefined,
+        channelId: channel.id,
+        platform: channel.platform === "kick" ? "kick" : "twitch",
+        username: channel.username,
+      },
+      activeTab === "streams" ? "streams" : "channels"
+    );
     setIsFocused(false);
-    setSearchQuery(channel.displayName); // Update input with selected name
+    setSearchQuery(channel.displayName);
 
     if (onSelectChannel) {
-      e?.preventDefault(); // Prevent navigation if we're just selecting
+      e?.preventDefault();
       onSelectChannel(channel);
     }
+  };
+
+  const handleHistoryClick = (entry: SearchHistoryEntry) => {
+    const username = (entry.username ?? entry.label).trim().toLowerCase();
+    if ((activeTab === "channels" || activeTab === "streams") && username) {
+      const channelPlatform =
+        entry.platform ??
+        (platform === "kick" ? "kick" : "twitch");
+      const channel = {
+        id: entry.channelId || username,
+        platform: channelPlatform,
+        username,
+        displayName: entry.label,
+        avatarUrl: entry.avatarUrl ?? "",
+        isLive: false,
+        isPartner: false,
+        isVerified: false,
+      } as UnifiedChannel;
+      setIsFocused(false);
+      setSearchQuery(entry.label);
+      addSearch(entry, activeTab === "streams" ? "streams" : "channels");
+      if (onSelectChannel) {
+        onSelectChannel(channel);
+        return;
+      }
+      void navigate({
+        to: "/stream/$platform/$channel",
+        params: { platform: channelPlatform, channel: username },
+      });
+      return;
+    }
+    executeSearch(entry.label);
   };
 
   const handleCategoryClick = (category: UnifiedCategory, e?: React.MouseEvent) => {
@@ -766,26 +806,36 @@ export function UnifiedSearchInput({
           {/* SEARCH HISTORY */}
           {showHistory && (
             <div className="py-2">
-              {filteredHistory.map((term) => (
+              {filteredHistory.map((entry) => (
                 <div
-                  key={term}
+                  key={`${entry.platform ?? "any"}:${entry.channelId ?? entry.label}`}
                   className="group flex h-14 items-center justify-between gap-1 px-2 py-2 transition-colors hover:bg-[var(--color-background-secondary)] lg:px-4"
                 >
                   <button
                     type="button"
-                    onClick={() => executeSearch(term)}
-                    className="flex h-full min-w-0 flex-1 items-center gap-4 rounded px-2 text-left text-white/70 transition-colors group-hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                    onClick={() => handleHistoryClick(entry)}
+                    className="flex h-full min-w-0 flex-1 items-center gap-3 rounded px-2 text-left text-white/70 transition-colors group-hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                   >
-                    <LuHistory size={20} strokeWidth={2.5} className="shrink-0" />
+                    {entry.avatarUrl ? (
+                      <ProxiedImage
+                        src={entry.avatarUrl}
+                        alt=""
+                        className="size-8 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-background-tertiary)] text-sm font-bold text-white">
+                        {entry.label.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
                     <span className="truncate text-base font-semibold text-white group-hover:text-white">
-                      {term}
+                      {entry.label}
                     </span>
                   </button>
                   <button
-                    onClick={() => removeSearch(term)}
+                    onClick={() => removeSearch(entry)}
                     className="flex size-8 shrink-0 items-center justify-center rounded text-white/70 transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
                     title={t("discovery.search.removeHistory")}
-                    aria-label={t("discovery.search.removeTerm", { term })}
+                    aria-label={t("discovery.search.removeTerm", { term: entry.label })}
                     type="button"
                   >
                     <LuX size={20} strokeWidth={2.5} />

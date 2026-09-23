@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addSearchHistory,
+  channelIdentityFromHistory,
   clearSearchHistory,
   emptySearchHistory,
   historyScopeForTab,
@@ -17,11 +18,13 @@ describe("search history", () => {
       history = addSearchHistory(history, "channels", `query-${index}`);
     }
     expect(history.channels).toHaveLength(SEARCH_HISTORY_LIMIT);
-    expect(history.channels[0]).toBe("query-12");
-    expect(history.channels).not.toContain("query-1");
+    expect(history.channels[0]).toEqual({ label: "query-12" });
+    expect(history.channels.some((item) => item.label === "query-1")).toBe(false);
     history = addSearchHistory(history, "channels", "QUERY-11");
-    expect(history.channels[0]).toBe("QUERY-11");
-    expect(history.channels.filter((item) => item.toLowerCase() === "query-11")).toHaveLength(1);
+    expect(history.channels[0]).toEqual({ label: "QUERY-11" });
+    expect(
+      history.channels.filter((item) => item.label.toLowerCase() === "query-11"),
+    ).toHaveLength(1);
   });
 
   it("removes and clears only the requested scope", () => {
@@ -32,22 +35,56 @@ describe("search history", () => {
     );
     expect(removeSearchHistory(history, "streams", "live").streams).toEqual([]);
     expect(removeSearchHistory(history, "streams", "live").categories).toEqual([
-      "fps",
+      { label: "fps" },
     ]);
     expect(clearSearchHistory(history, "categories").categories).toEqual([]);
-    expect(clearSearchHistory(history, "categories").streams).toEqual(["live"]);
+    expect(clearSearchHistory(history, "categories").streams).toEqual([
+      { label: "live" },
+    ]);
   });
 
-  it("parses scoped lists and maps tabs to history scopes", () => {
+  it("parses scoped lists, rich channel entries, and maps tabs to history scopes", () => {
     expect(
       parseSearchHistory({
-        channels: ["  apex  ", "", 1],
+        channels: [
+          "  apex  ",
+          "",
+          1,
+          {
+            label: "Pokimane",
+            avatarUrl: "https://example.com/a.png",
+            channelId: "123",
+            platform: "twitch",
+            username: "pokimane",
+          },
+        ],
         extra: ["no"],
       }),
     ).toEqual({
       categories: [],
-      channels: ["apex"],
+      channels: [
+        { label: "apex" },
+        {
+          label: "Pokimane",
+          avatarUrl: "https://example.com/a.png",
+          channelId: "123",
+          platform: "twitch",
+          username: "pokimane",
+        },
+      ],
       streams: [],
+    });
+    expect(
+      channelIdentityFromHistory({
+        label: "Pokimane",
+        channelId: "123",
+        platform: "twitch",
+        username: "pokimane",
+      }),
+    ).toEqual({
+      id: "123",
+      platform: "twitch",
+      username: "pokimane",
     });
     expect(historyScopeForTab("streams")).toBe("streams");
     expect(historyScopeForTab("categories")).toBe("categories");

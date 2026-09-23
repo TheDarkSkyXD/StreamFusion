@@ -8,7 +8,16 @@ const MAX_HISTORY_ITEMS = 10;
 export const SEARCH_HISTORY_SCOPES = ["channels", "categories", "streams"] as const;
 
 export type SearchHistoryScope = (typeof SEARCH_HISTORY_SCOPES)[number];
-type SearchHistoryByScope = Record<SearchHistoryScope, string[]>;
+
+export type SearchHistoryEntry = {
+  readonly label: string;
+  readonly avatarUrl?: string;
+  readonly channelId?: string;
+  readonly platform?: "twitch" | "kick";
+  readonly username?: string;
+};
+
+type SearchHistoryByScope = Record<SearchHistoryScope, SearchHistoryEntry[]>;
 
 const EMPTY_HISTORY: SearchHistoryByScope = {
   channels: [],
@@ -24,11 +33,55 @@ function createEmptyHistory(): SearchHistoryByScope {
   };
 }
 
+function normalizeEntry(value: unknown): SearchHistoryEntry | null {
+  if (typeof value === "string") {
+    const label = value.trim();
+    return label.length === 0 ? null : { label };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const label =
+    typeof record.label === "string"
+      ? record.label.trim()
+      : typeof record.query === "string"
+        ? record.query.trim()
+        : "";
+  if (!label) return null;
+  const avatarUrl = typeof record.avatarUrl === "string" ? record.avatarUrl.trim() : "";
+  const channelId = typeof record.channelId === "string" ? record.channelId.trim() : "";
+  const username =
+    typeof record.username === "string" ? record.username.trim().toLowerCase() : "";
+  const platform =
+    record.platform === "twitch" || record.platform === "kick" ? record.platform : undefined;
+  return {
+    label,
+    ...(avatarUrl ? { avatarUrl } : {}),
+    ...(channelId ? { channelId } : {}),
+    ...(username ? { username } : {}),
+    ...(platform ? { platform } : {}),
+  };
+}
+
+function sameEntry(left: SearchHistoryEntry, right: SearchHistoryEntry): boolean {
+  if (
+    left.platform &&
+    right.platform &&
+    left.channelId &&
+    right.channelId &&
+    left.platform === right.platform &&
+    left.channelId === right.channelId
+  ) {
+    return true;
+  }
+  return left.label.toLowerCase() === right.label.toLowerCase();
+}
+
 function normalizeStoredHistory(value: unknown): SearchHistoryByScope {
   if (Array.isArray(value)) {
-    const legacyHistory = value.filter((item): item is string => typeof item === "string");
     return {
-      channels: legacyHistory,
+      channels: value
+        .map((item) => normalizeEntry(item))
+        .filter((item): item is SearchHistoryEntry => item !== null),
       categories: [],
       streams: [],
     };
@@ -42,7 +95,9 @@ function normalizeStoredHistory(value: unknown): SearchHistoryByScope {
   return SEARCH_HISTORY_SCOPES.reduce<SearchHistoryByScope>((acc, scope) => {
     const scopedHistory = stored[scope];
     acc[scope] = Array.isArray(scopedHistory)
-      ? scopedHistory.filter((item): item is string => typeof item === "string")
+      ? scopedHistory
+          .map((item) => normalizeEntry(item))
+          .filter((item): item is SearchHistoryEntry => item !== null)
       : [];
     return acc;
   }, createEmptyHistory());
@@ -51,7 +106,6 @@ function normalizeStoredHistory(value: unknown): SearchHistoryByScope {
 export function useSearchHistory(scope: SearchHistoryScope = "channels") {
   const [historyByScope, setHistoryByScope] = useState<SearchHistoryByScope>(EMPTY_HISTORY);
 
-  // Load history from local storage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -73,22 +127,31 @@ export function useSearchHistory(scope: SearchHistoryScope = "channels") {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
   };
 
-  const addSearch = (term: string, targetScope: SearchHistoryScope = scope) => {
-    const trimmed = term.trim();
-    if (!trimmed) return;
+  const addSearch = (
+    term: string | SearchHistoryEntry,
+    targetScope: SearchHistoryScope = scope
+  ) => {
+    const entry = normalizeEntry(term);
+    if (!entry) return;
 
     const scopedHistory = historyByScope[targetScope];
-    // Remove duplicates and keep only recent unique items
     const newScopedHistory = [
-      trimmed,
-      ...scopedHistory.filter((item) => item.toLowerCase() !== trimmed.toLowerCase()),
+      entry,
+      ...scopedHistory.filter((item) => !sameEntry(item, entry)),
     ].slice(0, MAX_HISTORY_ITEMS);
 
     saveHistory({ ...historyByScope, [targetScope]: newScopedHistory });
   };
 
-  const removeSearch = (term: string, targetScope: SearchHistoryScope = scope) => {
-    const newScopedHistory = historyByScope[targetScope].filter((item) => item !== term);
+  const removeSearch = (
+    term: string | SearchHistoryEntry,
+    targetScope: SearchHistoryScope = scope
+  ) => {
+    const entry = normalizeEntry(term);
+    if (!entry) return;
+    const newScopedHistory = historyByScope[targetScope].filter(
+      (item) => !sameEntry(item, entry)
+    );
     saveHistory({ ...historyByScope, [targetScope]: newScopedHistory });
   };
 

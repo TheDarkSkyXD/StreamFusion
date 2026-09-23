@@ -103,6 +103,41 @@ function envelope(body: object) {
 }
 
 describe("createFollowingRuntime", () => {
+  it("persists Guest Follows from known channel identity without relay resolve", async () => {
+    const guestFollows = memoryGuestFollows();
+    let fetchCount = 0;
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      fetch: async () => {
+        fetchCount += 1;
+        throw new Error("relay should not be called for known identity");
+      },
+      guestFollows,
+      installation: async () => ({ kind: "none" }),
+      liveNotifications: memoryNotifications(),
+      network: async () => "offline",
+      now: () => Date.parse("2026-09-11T00:00:00.000Z"),
+      relayBaseUrl: "http://relay.test/",
+    });
+    const followed = await session.mutateFollow({
+      channelId: "71092938",
+      channelLogin: "alice",
+      displayName: "Alice",
+      platform: "twitch",
+    });
+    expect(followed).toMatchObject({
+      kind: "followed",
+      follow: {
+        channelId: "71092938",
+        channelLogin: "alice",
+        displayName: "Alice",
+        platform: "twitch",
+      },
+    });
+    expect(fetchCount).toBe(0);
+    expect(await session.listMembership()).toHaveLength(1);
+  });
+
   it("adds and removes Guest Follows without account mutation success", async () => {
     const guestFollows = memoryGuestFollows();
     const urls: string[] = [];

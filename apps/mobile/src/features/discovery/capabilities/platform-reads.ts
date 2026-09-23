@@ -77,8 +77,16 @@ export type DiscoveryPageKind = "top-streams" | "categories" | "search";
 
 export type SearchHistoryScope = "channels" | "streams" | "categories";
 
+export type SearchHistoryEntry = {
+  readonly label: string;
+  readonly avatarUrl?: string;
+  readonly channelId?: string;
+  readonly platform?: "twitch" | "kick";
+  readonly username?: string;
+};
+
 export type SearchHistoryByScope = Readonly<
-  Record<SearchHistoryScope, readonly string[]>
+  Record<SearchHistoryScope, readonly SearchHistoryEntry[]>
 >;
 
 export type SearchCatalogPage = {

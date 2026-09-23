@@ -34,16 +34,16 @@ describe("useSearchHistory", () => {
       })
     );
     const { result } = renderHook(() => useSearchHistory());
-    expect(result.current.history).toEqual(["foo", "bar"]);
-    expect(result.current.historyByScope.categories).toEqual(["Just Chatting"]);
-    expect(result.current.historyByScope.streams).toEqual(["live now"]);
+    expect(result.current.history).toEqual([{ label: "foo" }, { label: "bar" }]);
+    expect(result.current.historyByScope.categories).toEqual([{ label: "Just Chatting" }]);
+    expect(result.current.historyByScope.streams).toEqual([{ label: "live now" }]);
   });
 
   it("migrates legacy flat history into channels only", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(["foo", "bar"]));
     const { result } = renderHook(() => useSearchHistory("categories"));
     expect(result.current.history).toEqual([]);
-    expect(result.current.historyByScope.channels).toEqual(["foo", "bar"]);
+    expect(result.current.historyByScope.channels).toEqual([{ label: "foo" }, { label: "bar" }]);
     expect(result.current.historyByScope.categories).toEqual([]);
     expect(result.current.historyByScope.streams).toEqual([]);
   });
@@ -51,9 +51,9 @@ describe("useSearchHistory", () => {
   it("addSearch prepends a new term and persists to localStorage", () => {
     const { result } = renderHook(() => useSearchHistory());
     act(() => result.current.addSearch("test"));
-    expect(result.current.history).toEqual(["test"]);
+    expect(result.current.history).toEqual([{ label: "test" }]);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({
-      channels: ["test"],
+      channels: [{ label: "test" }],
       categories: [],
       streams: [],
     });
@@ -63,7 +63,7 @@ describe("useSearchHistory", () => {
     const { result } = renderHook(() => useSearchHistory());
     act(() => result.current.addSearch("Elden Ring", "categories"));
     expect(result.current.history).toEqual([]);
-    expect(result.current.historyByScope.categories).toEqual(["Elden Ring"]);
+    expect(result.current.historyByScope.categories).toEqual([{ label: "Elden Ring" }]);
   });
 
   it("addSearch deduplicates (case-insensitive) and bumps to top", () => {
@@ -71,7 +71,7 @@ describe("useSearchHistory", () => {
     act(() => result.current.addSearch("Foo"));
     act(() => result.current.addSearch("bar"));
     act(() => result.current.addSearch("foo"));
-    expect(result.current.history).toEqual(["foo", "bar"]);
+    expect(result.current.history).toEqual([{ label: "foo" }, { label: "bar" }]);
   });
 
   it("addSearch ignores empty/whitespace-only terms", () => {
@@ -87,7 +87,7 @@ describe("useSearchHistory", () => {
       act(() => result.current.addSearch(`term${i}`));
     }
     expect(result.current.history).toHaveLength(10);
-    expect(result.current.history[0]).toBe("term14");
+    expect(result.current.history[0]).toEqual({ label: "term14" });
   });
 
   it("removeSearch removes an exact match", () => {
@@ -95,7 +95,7 @@ describe("useSearchHistory", () => {
     act(() => result.current.addSearch("a"));
     act(() => result.current.addSearch("b"));
     act(() => result.current.removeSearch("a"));
-    expect(result.current.history).toEqual(["b"]);
+    expect(result.current.history).toEqual([{ label: "b" }]);
   });
 
   it("clearHistory empties the selected tab and persists to localStorage", () => {
@@ -116,7 +116,7 @@ describe("useSearchHistory", () => {
     act(() => result.current.addSearch("channel", "channels"));
     act(() => result.current.clearHistory());
     expect(result.current.historyByScope.streams).toEqual([]);
-    expect(result.current.historyByScope.channels).toEqual(["channel"]);
+    expect(result.current.historyByScope.channels).toEqual([{ label: "channel" }]);
   });
 
   it("handles corrupt localStorage gracefully", () => {

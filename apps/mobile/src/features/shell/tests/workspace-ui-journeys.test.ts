@@ -40,6 +40,21 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, options?: Record<string, unknown>) => {
+    if (options && "name" in options) return `${key}:${String(options.name)}`;
+    return key;
+  },
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+}));
+
+
 vi.mock("lucide-react-native", () => ({
   Bell: "Bell",
   BriefcaseBusiness: "BriefcaseBusiness",
@@ -172,15 +187,13 @@ describe("workspace UI journeys", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-        onStart: () => started.push("watch"),
         playback: { kind: "ready", target: watchTarget },
         tab: "chat",
         target: watchTarget,
       }),
     );
-    press(watch, "watch-start");
     press(watch, "watch-chat-retry");
-    expect(started).toEqual(["watch", "chat"]);
+    expect(started).toEqual(["chat"]);
     expect(
       descendants(WatchEmptyState()).some((node) => node.props.testID === "watch-empty"),
     ).toBe(true);

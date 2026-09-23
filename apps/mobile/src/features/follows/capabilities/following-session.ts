@@ -130,6 +130,7 @@ export interface FollowingSession {
     readonly platform: Platform;
     readonly channelId?: string;
     readonly channelLogin?: string;
+    readonly displayName?: string;
   }): Promise<FollowMutationResult>;
   resolveChannel(input: {
     readonly platform: Platform;

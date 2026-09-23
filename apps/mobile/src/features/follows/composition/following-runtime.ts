@@ -223,6 +223,7 @@ async function mutateGuestFollow(input: {
     readonly platform: Platform;
     readonly channelId?: string;
     readonly channelLogin?: string;
+    readonly displayName?: string;
   };
 }): Promise<FollowMutationResult> {
   const membership = await input.guestFollows.list();
@@ -252,8 +253,15 @@ async function addFollow(input: {
     readonly platform: Platform;
     readonly channelId?: string;
     readonly channelLogin?: string;
+    readonly displayName?: string;
   };
 }): Promise<FollowMutationResult> {
+  // Desktop parity: when channel identity is already known (Channel Detail Follow),
+  // persist locally without a relay resolve. Relay is only required for login-only adds.
+  const known = guestFollowFromKnownIdentity(input.write, input.now);
+  if (known !== null) {
+    return { follow: await input.guestFollows.upsert(known), kind: "followed" };
+  }
   const channel = await resolvedChannel(input.reader, input.write);
   if (channel === null) return { kind: "rejected", reason: "unresolved-channel" };
   const follow = parseGuestFollowWrite({
@@ -265,6 +273,28 @@ async function addFollow(input: {
   });
   if (follow === null) return { kind: "rejected", reason: "invalid" };
   return { follow: await input.guestFollows.upsert(follow), kind: "followed" };
+}
+
+function guestFollowFromKnownIdentity(
+  write: {
+    readonly platform: Platform;
+    readonly channelId?: string;
+    readonly channelLogin?: string;
+    readonly displayName?: string;
+  },
+  now: () => number,
+): GuestFollow | null {
+  const channelId = write.channelId?.trim();
+  const channelLogin = write.channelLogin?.trim().toLowerCase();
+  if (!channelId || !channelLogin) return null;
+  const displayName = (write.displayName?.trim() || channelLogin);
+  return parseGuestFollowWrite({
+    channelId,
+    channelLogin,
+    displayName,
+    followedAt: toSerializedTimestamp(new Date(now()).toISOString()),
+    platform: write.platform,
+  });
 }
 
 async function removeFollow(
