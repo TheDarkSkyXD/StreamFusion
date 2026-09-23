@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
@@ -8,6 +8,7 @@ import {
   type LiveNotificationPreferences,
 } from "@streamfusion/core/follows";
 
+import { MobileButton } from "@mobile/design/button";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
@@ -208,6 +209,21 @@ function ManageRow({
   readonly session: FollowingSession;
 }) {
   const { t } = useTranslation();
+  const toggleLiveAlerts = () => {
+    void session
+      .writeNotifications(
+        setPerChannelLiveNotificationPreference(
+          prefs,
+          {
+            id: follow.channelId,
+            platform: follow.platform,
+            username: follow.channelLogin,
+          },
+          !notify,
+        ),
+      )
+      .then(onRefresh);
+  };
   return (
     <View
       style={styles.card}
@@ -223,11 +239,10 @@ function ManageRow({
         {t("discovery.following.guestFollowNotImported")}
       </Text>
       <View style={styles.row}>
-        <Pressable
+        <MobileButton
           accessibilityLabel={t("discovery.following.unfollowName", {
             name: follow.displayName,
           })}
-          accessibilityRole="button"
           onPress={() => {
             void session
               .mutateFollow({
@@ -236,54 +251,55 @@ function ManageRow({
               })
               .then(onRefresh);
           }}
-          style={styles.action}
           testID={`following-unfollow-${follow.platform}-${follow.channelId}`}
+          variant="destructive"
         >
-          <Text selectable style={styles.actionLabel}>
-            {t("discovery.following.unfollow")}
-          </Text>
-        </Pressable>
-        <SettingsSwitch
-          checked={notify}
-          label="Live alerts"
-          onToggle={() => {
-            void session
-              .writeNotifications(
-                setPerChannelLiveNotificationPreference(
-                  prefs,
-                  {
-                    id: follow.channelId,
-                    platform: follow.platform,
-                    username: follow.channelLogin,
-                  },
-                  !notify,
-                ),
-              )
-              .then(onRefresh);
-          }}
-          testID={`following-notify-${follow.platform}-${follow.channelId}`}
-        />
+          {t("discovery.following.unfollow")}
+        </MobileButton>
         <Pressable
+          accessibilityLabel="Live alerts"
+          accessibilityRole="switch"
+          accessibilityState={{ checked: notify }}
+          onPress={toggleLiveAlerts}
+          style={styles.alertToggle}
+          testID={`following-notify-${follow.platform}-${follow.channelId}`}
+        >
+          <Text selectable style={styles.alertToggleLabel}>
+            Live alerts
+          </Text>
+          <Switch
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            onValueChange={toggleLiveAlerts}
+            pointerEvents="none"
+            thumbColor={
+              notify ? mobileColors.textPrimary : mobileColors.textSecondary
+            }
+            trackColor={{
+              false: mobileColors.border,
+              true: mobileColors.twitchBright,
+            }}
+            value={notify}
+          />
+        </Pressable>
+        <MobileButton
           accessibilityLabel={t("discovery.following.openNameOnPlatform", {
             name: follow.displayName,
             platform: follow.platform,
           })}
-          accessibilityRole="button"
           onPress={() => {
             void session.openProviderPage({
               channelLogin: follow.channelLogin,
               platform: follow.platform,
             });
           }}
-          style={styles.action}
           testID={`following-provider-${follow.platform}-${follow.channelId}`}
+          variant="secondary"
         >
-          <Text selectable style={styles.actionLabel}>
-            {t("discovery.following.openOnPlatform", {
-              platform: follow.platform,
-            })}
-          </Text>
-        </Pressable>
+          {t("discovery.following.openOnPlatform", {
+            platform: follow.platform,
+          })}
+        </MobileButton>
       </View>
     </View>
   );
@@ -316,15 +332,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 22,
   },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  action: {
-    backgroundColor: mobileColors.surfaceRaised,
+  row: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.small,
+  },
+  alertToggle: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: mobileColors.surfaceMuted,
     borderRadius: mobileRadii.medium,
-    justifyContent: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.xSmall,
   },
-  actionLabel: {
+  alertToggleLabel: {
     color: mobileColors.textPrimary,
     fontSize: 14,
     fontWeight: "700",
