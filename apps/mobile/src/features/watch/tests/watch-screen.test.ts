@@ -691,4 +691,155 @@ describe("watch screen", () => {
     expect(route).toContain("discovery.session");
   });
 
+
+  it("stacks channel meta above the player with chat flush underneath", () => {
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        adblockView: {
+          canary: false,
+          detail: "Twitch live playlists strip known ad markers in the player.",
+          enabled: true,
+          kickSupported: false,
+          method: "strip",
+          policyAllowed: true,
+          title: "Twitch ads are filtered",
+          twitchSupported: true,
+        },
+        captions: {
+          busy: false,
+          cueText: "",
+          eligibility: {
+            kind: "eligible",
+            label: "Captions",
+            sessionId: "cap-1",
+          },
+          model: null,
+          onInstall: () => undefined,
+          onRemove: () => undefined,
+          onStart: () => undefined,
+          onStop: () => undefined,
+          session: null,
+        },
+        chat: {
+          detail: "Guest chat is live. Sending stays locked.",
+          kind: "live",
+          messages: [{ displayName: "Ada", id: "msg-1", text: "hello" }],
+        },
+        recording: {
+          busy: false,
+          eligibility: {
+            kind: "eligible",
+            jobId: "rec-1" as never,
+            label: "Record",
+          },
+          job: null,
+          onCommand: () => undefined,
+          onDelete: () => undefined,
+          onExport: () => undefined,
+          onOpenArtifact: () => undefined,
+          onStart: () => undefined,
+        },
+        inspection: null,
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    const ids = nodes
+      .map((node) => node.props.testID)
+      .filter((id): id is string => typeof id === "string");
+    const meta = ids.indexOf("watch-open-channel");
+    const player = ids.indexOf("watch-player-stage");
+    const under = ids.indexOf("watch-under-player");
+    const chat = ids.indexOf("watch-chat");
+    expect(meta).toBeGreaterThanOrEqual(0);
+    expect(player).toBeGreaterThan(meta);
+    expect(under).toBeGreaterThan(player);
+    expect(chat).toBeGreaterThan(under);
+    expect(ids.includes("watch-tools")).toBe(false);
+    expect(ids.includes("watch-adblock-status")).toBe(false);
+    expect(ids.includes("watch-captions-privacy")).toBe(false);
+  });
+
+  it("shows a Twitch-like channel identity card when info is under the player", () => {
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Connecting guest chat.",
+          kind: "connecting",
+        },
+        inspection: {
+          info: {
+            channel: {
+              avatarUrl: "https://cdn.example/avatar.png",
+              displayName: "Ada",
+              id: "1",
+              isLive: true,
+              isPartner: false,
+              isVerified: true,
+              platform: "twitch",
+              username: "ada",
+            },
+            kind: "live",
+            stream: {
+              categoryId: "cat",
+              categoryName: "Just Chatting",
+              channelAvatar: "https://cdn.example/avatar.png",
+              channelDisplayName: "Ada",
+              channelId: "1",
+              channelIsVerified: true,
+              channelName: "ada",
+              id: "s1",
+              isLive: true,
+              language: "en",
+              platform: "twitch",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              tags: ["english"],
+              thumbnailUrl: "https://cdn.example/thumb.png",
+              title: "Building StreamFusion",
+              viewerCount: 42,
+            },
+          },
+          related: { kind: "empty" },
+          target,
+        },
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "info",
+        target,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-info")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-info-avatar")).toBe(
+      true,
+    );
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === "watch-info-display-name" &&
+          String(node.props.children).includes("Ada"),
+      ),
+    ).toBe(true);
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === "watch-info-title" &&
+          String(node.props.children).includes("Building StreamFusion"),
+      ),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-show-chat")).toBe(
+      true,
+    );
+  });
+
+
 });

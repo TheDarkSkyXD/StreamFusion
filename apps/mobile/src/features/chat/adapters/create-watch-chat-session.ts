@@ -52,6 +52,14 @@ export function createWatchChatSession(input: {
     setSnapshot(CONNECTING);
     const onOpen = () => {
       if (current !== generation) return;
+      if (messages.length > 0) {
+        setSnapshot({
+          detail: "Guest chat is live. Sending stays locked.",
+          kind: "live",
+          messages,
+        });
+        return;
+      }
       setSnapshot(EMPTY_LIVE);
     };
     const onMessage = (message: WatchChatMessage) => {

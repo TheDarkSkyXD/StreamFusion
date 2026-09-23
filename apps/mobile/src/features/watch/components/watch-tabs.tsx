@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
 import { MobileButton } from "@mobile/design/button";
@@ -80,12 +80,14 @@ export function WatchTabs({
         />
       ) : null}
       {tab === "info" ? (
-        <>
-          <InfoPane
-            info={info}
-          />
+        <ScrollView
+          contentContainerStyle={styles.infoScrollContent}
+          style={styles.infoScroll}
+          testID="watch-info-scroll"
+        >
+          <InfoPane info={info} />
           <RelatedPane onOpenRelated={onOpenRelated} related={related} />
-        </>
+        </ScrollView>
       ) : null}
     </View>
   );
@@ -124,77 +126,91 @@ function ChatPane({
   const paneTitle = title ?? t("playback.watch.chat");
   if (chat.kind === "connecting") {
     return (
-      <MobileStatusPanel testID={testID} tone="loading">
-        <Text selectable style={mobileType.title}>
-          {paneTitle}
-        </Text>
-        <Text selectable style={mobileType.body}>
-          {chat.detail}
-        </Text>
-      </MobileStatusPanel>
+      <View style={styles.paneFill}>
+        <MobileStatusPanel testID={testID} tone="loading">
+          <Text selectable style={mobileType.title}>
+            {paneTitle}
+          </Text>
+          <Text selectable style={mobileType.body}>
+            {chat.detail}
+          </Text>
+        </MobileStatusPanel>
+      </View>
     );
   }
   if (chat.kind === "failed") {
     return (
-      <MobileStatusPanel testID={testID} tone="error">
-        <Text selectable style={mobileType.title}>
-          {paneTitle}
-        </Text>
-        <Text selectable style={mobileType.body}>
-          {chat.detail}
-        </Text>
-        {onRetry ? (
-          <MobileButton
-            accessibilityLabel={t("playback.watch.retryChat")}
-            onPress={onRetry}
-            testID={`${testID}-retry`}
-            variant="secondary"
-          >
-            {t("playback.retry")}
-          </MobileButton>
-        ) : null}
-      </MobileStatusPanel>
+      <View style={styles.paneFill}>
+        <MobileStatusPanel testID={testID} tone="error">
+          <Text selectable style={mobileType.title}>
+            {paneTitle}
+          </Text>
+          <Text selectable style={mobileType.body}>
+            {chat.detail}
+          </Text>
+          {onRetry ? (
+            <MobileButton
+              accessibilityLabel={t("playback.watch.retryChat")}
+              onPress={onRetry}
+              testID={`${testID}-retry`}
+              variant="secondary"
+            >
+              {t("playback.retry")}
+            </MobileButton>
+          ) : null}
+        </MobileStatusPanel>
+      </View>
     );
   }
   if (chat.kind === "unavailable") {
     return (
-      <MobileStatusPanel testID={testID} tone="info">
-        <Text selectable style={mobileType.title}>
-          {paneTitle}
-        </Text>
-        <Text selectable style={mobileType.body}>
-          {chat.detail}
-        </Text>
-      </MobileStatusPanel>
+      <View style={styles.paneFill}>
+        <MobileStatusPanel testID={testID} tone="info">
+          <Text selectable style={mobileType.title}>
+            {paneTitle}
+          </Text>
+          <Text selectable style={mobileType.body}>
+            {chat.detail}
+          </Text>
+        </MobileStatusPanel>
+      </View>
     );
   }
   if (chat.kind === "empty") {
     return (
-      <MobileStatusPanel testID={testID} tone="empty">
-        <Text selectable style={mobileType.title}>
-          {paneTitle}
-        </Text>
-        <Text selectable style={mobileType.body}>
-          {chat.detail}
-        </Text>
-      </MobileStatusPanel>
+      <View style={styles.paneFill}>
+        <MobileStatusPanel testID={testID} tone="empty">
+          <Text selectable style={mobileType.title}>
+            {paneTitle}
+          </Text>
+          <Text selectable style={mobileType.body}>
+            {chat.detail}
+          </Text>
+        </MobileStatusPanel>
+      </View>
     );
   }
   return (
-    <View style={styles.pane} testID={testID}>
+    <View style={styles.paneFill} testID={testID}>
       <Text selectable style={mobileType.title}>
         {paneTitle}
       </Text>
-      {chat.messages.map((message) => (
-        <Text
-          key={message.id}
-          selectable
-          style={mobileType.body}
-          testID={`watch-chat-message-${message.id}`}
-        >
-          {`${message.displayName}: ${message.text}`}
-        </Text>
-      ))}
+      <ScrollView
+        contentContainerStyle={styles.messageList}
+        style={styles.messageScroll}
+        testID={`${testID}-scroll`}
+      >
+        {chat.messages.map((message) => (
+          <Text
+            key={message.id}
+            selectable
+            style={mobileType.body}
+            testID={`watch-chat-message-${message.id}`}
+          >
+            {`${message.displayName}: ${message.text}`}
+          </Text>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -227,57 +243,91 @@ function InfoPane({
   }
   if (info.kind === "recorded") {
     return (
-      <View style={styles.pane} testID="watch-info">
-        <Text selectable style={mobileType.title}>
-          {info.title}
-        </Text>
-        <Text selectable style={mobileType.body}>
-          {`${info.channel.displayName} · ${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
-        </Text>
+      <View style={styles.infoCard} testID="watch-info">
+        <ChannelAvatar url={info.channel.avatarUrl} />
+        <View style={styles.infoCopy}>
+          <View style={styles.identity}>
+            <Text selectable style={styles.infoName} testID="watch-info-display-name">
+              {info.channel.displayName}
+            </Text>
+            {info.channel.isVerified ? (
+              <MobileVerifiedBadge platform={info.channel.platform} />
+            ) : null}
+          </View>
+          <Text selectable style={styles.infoTitle} testID="watch-info-title">
+            {info.title}
+          </Text>
+          <Text selectable style={mobileType.body}>
+            {`${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
+          </Text>
+        </View>
       </View>
     );
   }
   if (info.kind === "ended") {
     return (
-      <View style={styles.pane} testID="watch-info">
+      <View style={styles.infoCard} testID="watch-info">
+        <ChannelAvatar url={info.channel.avatarUrl} />
+        <View style={styles.infoCopy}>
+          <View style={styles.identity}>
+            <Text selectable style={styles.infoName} testID="watch-info-display-name">
+              {info.channel.displayName}
+            </Text>
+            {info.channel.isVerified ? (
+              <MobileVerifiedBadge platform={info.channel.platform} />
+            ) : null}
+          </View>
+          <Text selectable style={mobileType.body}>
+            {t("playback.watch.channelNotLive")}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.infoCard} testID="watch-info">
+      <ChannelAvatar url={info.channel.avatarUrl} />
+      <View style={styles.infoCopy}>
         <View style={styles.identity}>
-          <Text selectable style={mobileType.title}>
+          <Text selectable style={styles.infoName} testID="watch-info-display-name">
             {info.channel.displayName}
           </Text>
           {info.channel.isVerified ? (
             <MobileVerifiedBadge platform={info.channel.platform} />
           ) : null}
         </View>
-        <Text selectable style={mobileType.body}>
-          {t("playback.watch.channelNotLive")}
+        <Text selectable style={styles.infoTitle} testID="watch-info-title">
+          {info.stream.title}
         </Text>
+        {info.stream.categoryName ? (
+          <Text selectable style={styles.category} testID="watch-info-category">
+            {info.stream.categoryName}
+          </Text>
+        ) : null}
+        <Text selectable style={styles.infoMeta} testID="watch-info-viewers">
+          {`${info.stream.viewerCount} ${t("playback.viewers")}`}
+        </Text>
+        <MobileCatalogTags
+          language={info.stream.language}
+          tags={info.stream.tags}
+          testID="watch-info-tags"
+        />
       </View>
-    );
+    </View>
+  );
+}
+
+function ChannelAvatar({ url }: { readonly url: string }) {
+  if (url === "") {
+    return <View style={styles.infoAvatar} testID="watch-info-avatar-placeholder" />;
   }
   return (
-    <View style={styles.pane} testID="watch-info">
-      <Text selectable style={mobileType.title}>
-        {info.stream.title}
-      </Text>
-      <View style={styles.identity}>
-        <Text selectable style={mobileType.body}>
-          {`${info.channel.displayName} · ${info.stream.viewerCount} ${t("playback.viewers")}`}
-        </Text>
-        {info.channel.isVerified ? (
-          <MobileVerifiedBadge platform={info.channel.platform} />
-        ) : null}
-      </View>
-      {info.stream.categoryName ? (
-        <Text selectable style={styles.category}>
-          {info.stream.categoryName}
-        </Text>
-      ) : null}
-      <MobileCatalogTags
-        language={info.stream.language}
-        tags={info.stream.tags}
-        testID="watch-info-tags"
-      />
-    </View>
+    <Image
+      accessibilityIgnoresInvertColors
+      source={{ uri: url }}
+      style={styles.infoAvatar}
+      testID="watch-info-avatar"
+    />
   );
 }
 
@@ -357,7 +407,24 @@ function RelatedPane({
 
 const styles = StyleSheet.create({
   region: {
+    flex: 1,
     gap: mobileSpacing.small,
+    minHeight: 0,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingTop: mobileSpacing.small,
+  },
+  paneFill: {
+    flex: 1,
+    gap: mobileSpacing.small,
+    minHeight: 0,
+  },
+  messageScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  messageList: {
+    gap: mobileSpacing.small,
+    paddingBottom: mobileSpacing.medium,
   },
   switchRow: {
     ...mobilePressRing.rest,
@@ -376,6 +443,44 @@ const styles = StyleSheet.create({
   },
   pane: {
     gap: mobileSpacing.small,
+  },
+  infoScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  infoScrollContent: {
+    gap: mobileSpacing.small,
+    paddingBottom: mobileSpacing.medium,
+  },
+  infoCard: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: mobileSpacing.medium,
+  },
+  infoAvatar: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.full,
+    height: 64,
+    width: 64,
+  },
+  infoCopy: {
+    flex: 1,
+    gap: mobileSpacing.xSmall,
+    minWidth: 0,
+  },
+  infoName: {
+    ...mobileType.title,
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  infoTitle: {
+    ...mobileType.body,
+    color: mobileColors.textPrimary,
+    fontWeight: "600",
+  },
+  infoMeta: {
+    ...mobileType.caption,
+    color: mobileColors.textSecondary,
   },
   identity: {
     alignItems: "center",

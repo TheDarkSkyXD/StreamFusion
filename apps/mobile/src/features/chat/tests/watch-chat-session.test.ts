@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WatchChatSocket } from "../capabilities/watch-chat";
 import { createWatchChatSession } from "../adapters/create-watch-chat-session";
+import { normalizeTwitchLogin } from "../adapters/twitch-guest-irc";
 
 function memorySocket(): WatchChatSocket {
   return {
@@ -111,4 +112,10 @@ describe("watch chat session", () => {
       messages: [{ displayName: "Ada", id: "k1", text: "yo" }],
     });
   });
+
+  it("normalizes Twitch JOINs to lowercase login without a leading hash", () => {
+    expect(normalizeTwitchLogin(" #CaseOh_ ")).toBe("caseoh_");
+  });
+
+
 });

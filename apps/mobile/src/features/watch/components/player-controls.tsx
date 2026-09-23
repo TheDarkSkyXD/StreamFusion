@@ -26,9 +26,11 @@ import {
 
 import type { PictureInPicturePhase } from "../capabilities/watch";
 
-const CENTER_PLAY_ICON = 40;
-const CENTER_SEEK_ICON = 28;
-const CENTER_PLAY_HIT = 64;
+const CENTER_PLAY_ICON = 48;
+const CENTER_SEEK_ICON = 32;
+const CENTER_PLAY_HIT = 72;
+const RAIL_ICON = 26;
+const RAIL_HIT = 44;
 
 /**
  * Mobile Watch player chrome — center transport + bottom utility rail.
@@ -48,6 +50,7 @@ export function PlayerControls({
   onQualityPress,
   onSeekBack,
   onSeekForward,
+  onSeekTo,
   onSelectQuality,
   onPlayerTap,
   onToggleVisible,
@@ -80,6 +83,7 @@ export function PlayerControls({
   readonly onQualityPress: () => void;
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
+  readonly onSeekTo?: (positionMs: number) => void;
   readonly onSelectQuality?: (quality: string) => void;
   readonly onPlayerTap?: () => void;
   readonly onToggleVisible: () => void;
@@ -117,6 +121,18 @@ export function PlayerControls({
       />
       {visible ? (
         <>
+          {showQuality ? (
+            <View pointerEvents="box-none" style={styles.topRight}>
+              <IconControl
+                Icon={Settings2}
+                accessibilityLabel={t("playback.watch.qualityNamed", {
+                  quality,
+                })}
+                onPress={onQualityPress}
+                testID="player-quality"
+              />
+            </View>
+          ) : null}
           <View
             pointerEvents="box-none"
             style={styles.centerTransport}
@@ -134,14 +150,16 @@ export function PlayerControls({
                 testID="player-seek-back"
               />
             ) : null}
-            <IconControl
-              Icon={paused ? Play : Pause}
-              accessibilityLabel={paused ? t("playback.play") : t("playback.pause")}
-              hitSize={CENTER_PLAY_HIT}
-              iconSize={CENTER_PLAY_ICON}
-              onPress={onPlayPause}
-              testID="player-play-pause"
-            />
+            <View style={styles.centerPlayRing}>
+              <IconControl
+                Icon={paused ? Play : Pause}
+                accessibilityLabel={paused ? t("playback.play") : t("playback.pause")}
+                hitSize={CENTER_PLAY_HIT}
+                iconSize={CENTER_PLAY_ICON}
+                onPress={onPlayPause}
+                testID="player-play-pause"
+              />
+            </View>
             {seekable && onSeekForward ? (
               <IconControl
                 Icon={RotateCw}
@@ -159,19 +177,32 @@ export function PlayerControls({
             <View pointerEvents="none" style={styles.scrim} />
             <View style={styles.rail} testID="player-controls-rail">
               {seekable && progress ? (
-                <Text selectable style={styles.progress} testID="player-progress">
-                  {`${formatClock(progress.positionMs)} / ${formatClock(progress.durationMs)}`}
-                </Text>
+                <ProgressScrubber
+                  durationMs={progress.durationMs}
+                  onSeekTo={onSeekTo}
+                  positionMs={progress.positionMs}
+                />
               ) : null}
               <View style={styles.row}>
                 <View style={styles.left}>
                   {showVolume ? (
-                    <IconControl
-                      Icon={muted ? VolumeX : Volume2}
-                      accessibilityLabel={muted ? t("playback.unmute") : t("playback.mute")}
-                      onPress={onMute}
-                      testID="player-mute"
-                    />
+                    <View style={styles.muteWrap}>
+                      {muted ? (
+                        <View style={styles.muteTip} testID="player-mute-tip">
+                          <Text style={styles.muteTipLabel}>
+                            {t("playback.unmute")}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <IconControl
+                        Icon={muted ? VolumeX : Volume2}
+                        accessibilityLabel={
+                          muted ? t("playback.unmute") : t("playback.mute")
+                        }
+                        onPress={onMute}
+                        testID="player-mute"
+                      />
+                    </View>
                   ) : null}
                   {live ? (
                     <View style={styles.liveBadge} testID="player-live-badge">
@@ -181,16 +212,6 @@ export function PlayerControls({
                   ) : null}
                 </View>
                 <View style={styles.right}>
-                  {showQuality ? (
-                    <IconControl
-                      Icon={Settings2}
-                      accessibilityLabel={t("playback.watch.qualityNamed", {
-                        quality,
-                      })}
-                      onPress={onQualityPress}
-                      testID="player-quality"
-                    />
-                  ) : null}
                   <IconControl
                     Icon={PictureInPicture2}
                     accessibilityLabel={pipAccessibilityLabel(
@@ -301,8 +322,8 @@ function IconControl({
   accessibilityLabel,
   badge,
   disabled = false,
-  hitSize = mobileSizing.minimumTouchTarget,
-  iconSize = mobileSizing.icon,
+  hitSize = RAIL_HIT,
+  iconSize = RAIL_ICON,
   onPress,
   testID,
 }: {
@@ -352,6 +373,60 @@ function IconControl({
   );
 }
 
+
+function ProgressScrubber({
+  durationMs,
+  onSeekTo,
+  positionMs,
+}: {
+  readonly durationMs: number;
+  readonly onSeekTo?: (positionMs: number) => void;
+  readonly positionMs: number;
+}) {
+  const ratio =
+    durationMs > 0 ? Math.min(1, Math.max(0, positionMs / durationMs)) : 0;
+  const widthRef = { current: 0 };
+  return (
+    <View style={styles.scrubberBlock}>
+      <Text selectable style={styles.progress} testID="player-progress">
+        {`${formatClock(positionMs)} / ${formatClock(durationMs)}`}
+      </Text>
+      <Pressable
+        accessibilityLabel="Seek"
+        accessibilityRole="adjustable"
+        disabled={onSeekTo === undefined || durationMs <= 0}
+        onLayout={(event) => {
+          widthRef.current = event.nativeEvent.layout.width;
+        }}
+        onPress={(event) => {
+          if (!onSeekTo || durationMs <= 0 || widthRef.current <= 0) return;
+          const next = Math.min(
+            durationMs,
+            Math.max(
+              0,
+              (event.nativeEvent.locationX / widthRef.current) * durationMs,
+            ),
+          );
+          onSeekTo(next);
+        }}
+        style={styles.scrubberHit}
+        testID="player-scrubber"
+      >
+        <View style={styles.scrubberTrack}>
+          <View style={[styles.scrubberFill, { width: `${ratio * 100}%` }]} />
+        </View>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.scrubberThumb,
+            { marginLeft: -6, left: `${ratio * 100}%` },
+          ]}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
 function formatClock(milliseconds: number): string {
   const total = Math.max(0, Math.floor(milliseconds / 1000));
   const hours = Math.floor(total / 3600);
@@ -395,6 +470,39 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 1,
   },
+  centerPlayRing: {
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderColor: "rgba(255,255,255,0.85)",
+    borderRadius: mobileRadii.full,
+    borderWidth: 2,
+    height: CENTER_PLAY_HIT,
+    justifyContent: "center",
+    width: CENTER_PLAY_HIT,
+  },
+  topRight: {
+    position: "absolute",
+    right: mobileSpacing.small,
+    top: mobileSpacing.small,
+    zIndex: 2,
+  },
+  muteWrap: {
+    alignItems: "flex-start",
+    justifyContent: "flex-end",
+  },
+  muteTip: {
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: mobileRadii.small,
+    marginBottom: 6,
+    paddingHorizontal: mobileSpacing.small,
+    paddingVertical: 4,
+  },
+  muteTipLabel: {
+    color: "#111",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
   railWrap: {
     bottom: 0,
     justifyContent: "flex-end",
@@ -405,7 +513,7 @@ const styles = StyleSheet.create({
   scrim: {
     backgroundColor: "rgba(0,0,0,0.72)",
     bottom: 0,
-    height: 96,
+    height: 120,
     left: 0,
     position: "absolute",
     right: 0,
@@ -460,11 +568,38 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.4,
   },
+  scrubberBlock: {
+    gap: 6,
+    marginBottom: mobileSpacing.xSmall,
+  },
+  scrubberHit: {
+    height: 24,
+    justifyContent: "center",
+    width: "100%",
+  },
+  scrubberTrack: {
+    backgroundColor: "rgba(255,255,255,0.28)",
+    borderRadius: mobileRadii.full,
+    height: 4,
+    overflow: "hidden",
+    width: "100%",
+  },
+  scrubberFill: {
+    backgroundColor: mobileColors.twitchBright,
+    height: "100%",
+  },
+  scrubberThumb: {
+    backgroundColor: mobileColors.textPrimary,
+    borderRadius: mobileRadii.full,
+    height: 12,
+    position: "absolute",
+    top: 6,
+    width: 12,
+  },
   progress: {
     ...mobileType.caption,
     color: mobileColors.textPrimary,
     fontWeight: "700",
-    marginBottom: mobileSpacing.xSmall,
   },
   liveBadge: {
     alignItems: "center",

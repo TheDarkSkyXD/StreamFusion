@@ -17,6 +17,7 @@ import type { WatchCaptionEligibility } from "../domain/watch-captions";
 
 export type WatchCaptionBarProps = {
   readonly busy?: boolean;
+  readonly compact?: boolean;
   readonly eligibility: WatchCaptionEligibility;
   readonly model: CaptionModelState | null;
   readonly onInstall: () => void;
@@ -29,6 +30,7 @@ export type WatchCaptionBarProps = {
 
 export function WatchCaptionBar({
   busy = false,
+  compact = false,
   eligibility,
   model,
   onInstall,
@@ -41,6 +43,7 @@ export function WatchCaptionBar({
   const { t } = useTranslation();
   if (eligibility.kind === "hidden") return null;
   if (eligibility.kind === "unsupported") {
+    if (compact) return null;
     return (
       <MobileStatusPanel testID="watch-captions" tone="info">
         <Text selectable style={mobileType.body} testID="watch-captions-unsupported">
@@ -51,6 +54,32 @@ export function WatchCaptionBar({
   }
   const installed = model?.installed === true;
   const active = session?.state === "active";
+  const actions = captionActions(installed, active, (key) => t(key), {
+    onInstall,
+    onRemove,
+    onStart,
+    onStop,
+  });
+  if (compact) {
+    const statusText =
+      status ??
+      session?.reason ??
+      model?.statusMessage ??
+      LOCAL_CAPTION_NOT_INSTALLED_STATUS;
+    return (
+      <View
+        accessibilityLabel={statusText}
+        style={styles.compact}
+        testID="watch-captions"
+      >
+        <View style={styles.actions}>
+          {actions.map((action) => (
+            <Action busy={busy} key={action.testID} {...action} />
+          ))}
+        </View>
+      </View>
+    );
+  }
   return (
     <MobileStatusPanel testID="watch-captions" tone="info">
       <Text selectable style={mobileType.body} testID="watch-captions-size">
@@ -68,12 +97,7 @@ export function WatchCaptionBar({
         {t("playback.watch.captionsPrivacy")}
       </Text>
       <View style={styles.actions}>
-        {captionActions(installed, active, (key) => t(key), {
-          onInstall,
-          onRemove,
-          onStart,
-          onStop,
-        }).map((action) => (
+        {actions.map((action) => (
           <Action busy={busy} key={action.testID} {...action} />
         ))}
       </View>
@@ -154,4 +178,5 @@ function Action({
 
 const styles = StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
+  compact: { gap: mobileSpacing.xSmall },
 });

@@ -100,6 +100,7 @@ export function WatchScreen({
   onSelectQuality,
   onSeekBack,
   onSeekForward,
+  onSeekTo,
   onToggleFullscreen,
   onToggleControls,
   controlsVisible = true,
@@ -139,6 +140,7 @@ export function WatchScreen({
   readonly onQualityPress?: () => void;
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
+  readonly onSeekTo?: (positionMs: number) => void;
   readonly onToggleControls?: () => void;
   readonly onToggleFullscreen?: () => void;
   readonly peek?: WatchPeek;
@@ -175,6 +177,44 @@ export function WatchScreen({
       style={[styles.screen, pipSurface ? styles.pipScreen : null]}
       testID="screen-watch"
     >
+      {pipSurface ? null : (
+        <Pressable
+          accessibilityHint={t("playback.watch.openChannelHint")}
+          accessibilityLabel={t("playback.watch.openChannel", {
+            name: displayName,
+          })}
+          accessibilityRole="button"
+          disabled={onOpenChannel === undefined}
+          onPress={onOpenChannel}
+          style={({ pressed }) => [
+            styles.meta,
+            pressed ? styles.metaPressed : null,
+          ]}
+          testID="watch-open-channel"
+        >
+          {avatarUrl ? (
+            <Image
+              accessibilityIgnoresInvertColors
+              source={{ uri: avatarUrl }}
+              style={styles.avatar}
+            />
+          ) : (
+            <View style={styles.avatar} testID="watch-channel-avatar-placeholder" />
+          )}
+          <View style={styles.metaCopy}>
+            <Text selectable style={styles.metaName} testID="watch-target">
+              {displayName}
+            </Text>
+            {viewerLine(inspection) ? (
+              <Text selectable style={styles.metaViewers} testID="watch-meta-viewers">
+                {viewerLine(inspection)}
+              </Text>
+            ) : (
+              <MobilePlatformBadge platform={target.platform} />
+            )}
+          </View>
+        </Pressable>
+      )}
       <View
         style={[
           styles.playerStage,
@@ -222,6 +262,7 @@ export function WatchScreen({
             {...(rewindSeconds === undefined ? {} : { rewindSeconds })}
             {...(onSeekBack === undefined ? {} : { onSeekBack })}
             {...(onSeekForward === undefined ? {} : { onSeekForward })}
+            {...(onSeekTo === undefined ? {} : { onSeekTo })}
             {...(onSelectQuality === undefined ? {} : { onSelectQuality })}
             {...(onCloseQualityMenu === undefined ? {} : { onCloseQualityMenu })}
             paused={peek.state.phase === "paused"}
@@ -238,39 +279,6 @@ export function WatchScreen({
       </View>
       {pipSurface ? null : (
         <>
-          <Pressable
-            accessibilityHint={t("playback.watch.openChannelHint")}
-            accessibilityLabel={t("playback.watch.openChannel", {
-              name: displayName,
-            })}
-            accessibilityRole="button"
-            disabled={onOpenChannel === undefined}
-            onPress={onOpenChannel}
-            style={({ pressed }) => [
-              styles.meta,
-              pressed ? styles.metaPressed : null,
-            ]}
-            testID="watch-open-channel"
-          >
-            {avatarUrl ? (
-              <Image
-                accessibilityIgnoresInvertColors
-                source={{ uri: avatarUrl }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={styles.avatar} testID="watch-channel-avatar-placeholder" />
-            )}
-            <View style={styles.metaCopy}>
-              <MobilePlatformBadge platform={target.platform} />
-              <Text selectable style={mobileType.title} testID="watch-target">
-                {displayName}
-              </Text>
-            </View>
-          </Pressable>
-          {adblockView === undefined ? null : (
-            <WatchAdBlockStatus platform={target.platform} view={adblockView} />
-          )}
           {view.primaryAction === "retry" ? (
             <MobileButton
               accessibilityLabel={t("playback.retry")}
@@ -281,9 +289,6 @@ export function WatchScreen({
               {t("playback.retry")}
             </MobileButton>
           ) : null}
-          {download ? <WatchDownloadBar {...download} /> : null}
-          {recording ? <WatchRecordingBar {...recording} /> : null}
-          {captions ? <WatchCaptionBar {...captions} /> : null}
           {showsProvider(playback) ? (
             <MobileButton
               accessibilityLabel={t("playback.watch.openProviderPage")}
@@ -293,6 +298,20 @@ export function WatchScreen({
             >
               {t("playback.watch.openProviderPage")}
             </MobileButton>
+          ) : null}
+          {tab === "info" ? (
+            <View style={styles.toolsRow} testID="watch-tools">
+              {adblockView === undefined ? null : (
+                <WatchAdBlockStatus
+                  compact
+                  platform={target.platform}
+                  view={adblockView}
+                />
+              )}
+              {download ? <WatchDownloadBar {...download} /> : null}
+              {recording ? <WatchRecordingBar {...recording} /> : null}
+              {captions ? <WatchCaptionBar compact {...captions} /> : null}
+            </View>
           ) : null}
           <WatchTabs
             chat={chat}
@@ -310,6 +329,12 @@ export function WatchScreen({
   );
 }
 
+
+function viewerLine(inspection: WatchInspection | null): string | null {
+  const info = inspection?.info;
+  if (!info || info.kind !== "live") return null;
+  return `${info.stream.viewerCount}`;
+}
 
 function channelAvatarUrl(inspection: WatchInspection | null): string | null {
   const info = inspection?.info;
@@ -395,8 +420,9 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   screen: {
     flex: 1,
-    gap: mobileSpacing.medium,
-    padding: mobileSpacing.medium,
+    gap: 0,
+    minHeight: 0,
+    padding: 0,
   },
   pipScreen: {
     gap: 0,
@@ -405,9 +431,19 @@ const styles = StyleSheet.create({
   playerStage: {
     aspectRatio: 16 / 9,
     backgroundColor: mobileColors.background,
-    borderRadius: mobileRadii.large,
+    borderRadius: 0,
+    flexShrink: 0,
     overflow: "hidden",
     width: "100%",
+  },
+  toolsRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    flexWrap: "wrap",
+    gap: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingTop: mobileSpacing.small,
   },
   fullscreenStage: {
     ...StyleSheet.absoluteFill,
@@ -424,22 +460,32 @@ const styles = StyleSheet.create({
   meta: {
     alignItems: "center",
     flexDirection: "row",
+    flexShrink: 0,
     gap: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
   },
   metaPressed: {
     opacity: 0.85,
   },
   metaCopy: {
-    alignItems: "center",
     flex: 1,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.small,
+    gap: 2,
+    minWidth: 0,
+  },
+  metaName: {
+    ...mobileType.title,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  metaViewers: {
+    ...mobileType.caption,
+    color: mobileColors.textSecondary,
   },
   avatar: {
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.full,
-    height: 40,
-    width: 40,
+    height: 36,
+    width: 36,
   },
 });

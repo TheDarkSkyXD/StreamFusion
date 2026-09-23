@@ -273,6 +273,10 @@ function WatchSessionRoute({
         revealControls();
         seekWatchSession(session, peek, forwardMs);
       }}
+      onSeekTo={(positionMs) => {
+        revealControls();
+        seekWatchSessionTo(session, peek, positionMs);
+      }}
       onSelectQuality={(nextQuality) => {
         if (peek.kind === "active") void session.setQuality(nextQuality);
       }}
@@ -356,6 +360,21 @@ function WatchSessionRoute({
   );
 }
 
+
+
+function seekWatchSessionTo(
+  session: FocusedWatchSession,
+  peek: WatchPeek,
+  positionMs: number,
+): void {
+  if (peek.kind !== "active" || !peek.progress.seekable) return;
+  const duration = peek.progress.durationMs;
+  const clamped =
+    duration > 0
+      ? Math.min(duration, Math.max(0, positionMs))
+      : Math.max(0, positionMs);
+  void session.seekTo(clamped);
+}
 
 function seekWatchSession(
   session: FocusedWatchSession,

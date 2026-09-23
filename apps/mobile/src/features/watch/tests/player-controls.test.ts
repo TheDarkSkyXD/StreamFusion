@@ -136,13 +136,14 @@ describe("player controls chrome", () => {
     expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
   });
 
-  it("keeps mute, quality, pip, and fullscreen on the bottom rail", () => {
+  it("keeps mute/pip/fullscreen on the bottom rail and quality top-right", () => {
     const nodes = descendants(PlayerControls(base));
     const rail = findByTestId(nodes, "player-controls-rail");
     expect(rail).toBeTruthy();
     const railDescendants = descendants(rail);
     expect(findByTestId(railDescendants, "player-mute")).toBeTruthy();
-    expect(findByTestId(railDescendants, "player-quality")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-quality")).toBeUndefined();
+    expect(findByTestId(nodes, "player-quality")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-pip")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-fullscreen")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-play-pause")).toBeUndefined();
@@ -197,4 +198,28 @@ describe("player controls chrome", () => {
       ),
     ).toBe(false);
   });
+
+  it("renders a VOD scrubber on the rail with clock and seek target", () => {
+    const nodes = descendants(
+      PlayerControls({
+        ...base,
+        onSeekBack: () => undefined,
+        onSeekForward: () => undefined,
+        onSeekTo: () => undefined,
+        progress: { durationMs: 90_000, positionMs: 12_000 },
+        seekable: true,
+      }),
+    );
+    expect(findByTestId(nodes, "player-scrubber")).toBeTruthy();
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === "player-progress" &&
+          String(node.props.children).includes("0:12 / 1:30"),
+      ),
+    ).toBe(true);
+    expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
+  });
+
+
 });
