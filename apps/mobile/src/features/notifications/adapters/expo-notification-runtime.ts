@@ -2,7 +2,6 @@ import {
   safeNotificationPayloadSchema,
   type SafeNotificationPayload,
 } from "@streamfusion/core/relay";
-import { isRunningInExpoGo } from "expo";
 import { Platform } from "react-native";
 
 import type {
@@ -11,33 +10,23 @@ import type {
   NativePushTokenSource,
   NotificationReceiptSource,
 } from "../capabilities/native-notifications";
+import {
+  isExpoGoHost,
+  loadExpoLocalNotifications,
+  loadExpoRemotePush,
+} from "./expo-local-notifications-module";
 
 /**
- * Never statically import `expo-notifications` on Android Expo Go: its
- * DevicePushTokenAutoRegistration side effect calls addPushTokenListener,
- * which throws (SDK 53+). Stubs keep the app bootable; local push is skipped.
+ * Local live alerts work in Expo Go via deep-imported expo-notifications APIs.
+ * Remote FCM / device push token registration stays disabled in Expo Go — the
+ * package-root import throws on Android SDK 53+ (`addPushTokenListener`).
  */
-const expoGo = isRunningInExpoGo();
-
-type NotificationsModule = typeof import("expo-notifications");
-
-let notificationsModulePromise: Promise<NotificationsModule | null> | undefined;
-
-async function loadNotifications(): Promise<NotificationsModule | null> {
-  if (expoGo) return null;
-  if (!notificationsModulePromise) {
-    notificationsModulePromise = import("expo-notifications")
-      .then((mod) => mod)
-      .catch(() => null);
-  }
-  return notificationsModulePromise;
-}
 
 export function createExpoNotificationChannels(): NativeNotificationChannels {
   return {
     async ensure() {
-      if (expoGo || Platform.OS !== "android") return;
-      const Notifications = await loadNotifications();
+      if (Platform.OS !== "android") return;
+      const Notifications = await loadExpoLocalNotifications();
       if (!Notifications) return;
       const channels = [
         {
@@ -70,8 +59,8 @@ export function createExpoNotificationChannels(): NativeNotificationChannels {
 export function createExpoPushTokenSource(): NativePushTokenSource {
   return {
     async read() {
-      if (expoGo) return null;
-      const Notifications = await loadNotifications();
+      if (isExpoGoHost()) return null;
+      const Notifications = await loadExpoRemotePush();
       if (!Notifications) return null;
       try {
         return nativeTokenData(
@@ -82,16 +71,18 @@ export function createExpoPushTokenSource(): NativePushTokenSource {
       }
     },
     subscribe(listener) {
-      if (expoGo) return () => undefined;
+      if (isExpoGoHost()) return () => undefined;
       let remove = () => undefined;
-      void loadNotifications().then((Notifications) => {
+      void loadExpoRemotePush().then((Notifications) => {
         if (!Notifications) return;
         try {
           const subscription = Notifications.addPushTokenListener((event) => {
             const token = nativeTokenData(event.data);
             if (token) listener(token);
           });
-          remove = () => subscription.remove();
+          remove = () => {
+            subscription.remove();
+          };
         } catch {
           remove = () => undefined;
         }
@@ -104,8 +95,7 @@ export function createExpoPushTokenSource(): NativePushTokenSource {
 export function createExpoNotificationReceiptSource(): NotificationReceiptSource {
   return {
     async initial() {
-      if (expoGo) return null;
-      const Notifications = await loadNotifications();
+      const Notifications = await loadExpoLocalNotifications();
       if (!Notifications) return null;
       try {
         const response = await Notifications.getLastNotificationResponseAsync();
@@ -115,9 +105,8 @@ export function createExpoNotificationReceiptSource(): NotificationReceiptSource
       }
     },
     subscribe(listener) {
-      if (expoGo) return () => undefined;
       let remove = () => undefined;
-      void loadNotifications().then((Notifications) => {
+      void loadExpoLocalNotifications().then((Notifications) => {
         if (!Notifications) return;
         try {
           Notifications.setNotificationHandler({
@@ -160,8 +149,7 @@ export function createExpoNotificationReceiptSource(): NotificationReceiptSource
 export function createExpoLocalNotificationPresenter(): LocalNotificationPresenter {
   return {
     async present(payload, options) {
-      if (expoGo) return;
-      const Notifications = await loadNotifications();
+      const Notifications = await loadExpoLocalNotifications();
       if (!Notifications) return;
       const channelId = payload.channel ?? "live";
       const silent = options?.silent === true;

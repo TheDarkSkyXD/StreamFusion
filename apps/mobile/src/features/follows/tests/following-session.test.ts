@@ -103,6 +103,46 @@ function envelope(body: object) {
 }
 
 describe("createFollowingRuntime", () => {
+  it("persists twitch guest follow for xqc so Activity live alerts can target it", async () => {
+    const guestFollows = memoryGuestFollows();
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      fetch: async () => {
+        throw new Error("relay should not be called for known xqc identity");
+      },
+      guestFollows,
+      installation: async () => ({ kind: "none" }),
+      liveNotifications: memoryNotifications(),
+      network: async () => "offline",
+      now: () => Date.parse("2026-09-23T11:00:00.000Z"),
+      relayBaseUrl: "http://relay.test/",
+    });
+    const followed = await session.mutateFollow({
+      channelId: "71092938",
+      channelLogin: "xqc",
+      displayName: "xQc",
+      platform: "twitch",
+    });
+    expect(followed).toMatchObject({
+      kind: "followed",
+      follow: {
+        channelId: "71092938",
+        channelLogin: "xqc",
+        displayName: "xQc",
+        platform: "twitch",
+      },
+    });
+    const membership = await session.listMembership();
+    expect(membership).toEqual([
+      expect.objectContaining({
+        channelId: "71092938",
+        channelLogin: "xqc",
+        displayName: "xQc",
+        platform: "twitch",
+      }),
+    ]);
+  });
+
   it("persists Guest Follows from known channel identity without relay resolve", async () => {
     const guestFollows = memoryGuestFollows();
     let fetchCount = 0;

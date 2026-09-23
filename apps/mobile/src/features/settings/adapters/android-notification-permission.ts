@@ -1,5 +1,6 @@
-import { isRunningInExpoGo } from "expo";
 import { Linking, Platform } from "react-native";
+
+import { loadExpoLocalNotifications } from "../../notifications/adapters/expo-local-notifications-module";
 
 import type {
   NotificationPermissionPort,
@@ -24,12 +25,13 @@ async function snapshotPermission(
   if (apiLevel < RUNTIME_PERMISSION_API) {
     return { apiLevel, permission: "granted" };
   }
-  // Avoid importing/touching expo-notifications push paths on Expo Go Android.
-  if (isRunningInExpoGo()) {
-    return { apiLevel, permission: "unavailable" };
-  }
+  // Deep-import local permission APIs so Expo Go Android can prompt without
+  // loading DevicePushTokenAutoRegistration (package-root import throws).
   try {
-    const Notifications = await import("expo-notifications");
+    const Notifications = await loadExpoLocalNotifications();
+    if (!Notifications) {
+      return { apiLevel, permission: "unavailable" };
+    }
     const existing = request
       ? await Notifications.requestPermissionsAsync()
       : await Notifications.getPermissionsAsync();
