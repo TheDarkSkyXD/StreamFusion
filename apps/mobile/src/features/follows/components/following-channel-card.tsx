@@ -39,9 +39,6 @@ export function FollowingChannelCard({
         {row.isLive ? t("discovery.live") : t("discovery.offline")} · {row.follow.platform}
       </Text>
       <Text selectable style={styles.meta}>
-        {t("discovery.following.guestFollowNotImported")}
-      </Text>
-      <Text selectable style={styles.meta}>
         {row.eligible
           ? t("discovery.following.liveAlertsEligible")
           : t("discovery.following.liveAlertsNotEligible")}

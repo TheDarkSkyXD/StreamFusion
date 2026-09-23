@@ -235,9 +235,6 @@ function ManageRow({
       <Text selectable style={styles.copy}>
         {follow.platform} · {follow.channelLogin}
       </Text>
-      <Text selectable style={styles.copy}>
-        {t("discovery.following.guestFollowNotImported")}
-      </Text>
       <View style={styles.row}>
         <MobileButton
           accessibilityLabel={t("discovery.following.unfollowName", {
