@@ -19,15 +19,22 @@ import {
 /**
  * Local live alerts work in Expo Go via the static local-notifications shim
  * (extensionless build subpaths — not dynamic `build/*.js` imports).
- * Remote FCM / device push token registration stays disabled in Expo Go — the
- * package-root import pulls ExpoPushTokenManager / auto-registration that
- * break Android Expo Go SDK 53+.
+ * Android notification channels are skipped / soft-failed in Expo Go (null
+ * NotificationsChannelsProvider); scheduleNotificationAsync still presents on
+ * the default channel. Remote FCM / device push token registration stays
+ * disabled in Expo Go — the package-root import pulls ExpoPushTokenManager /
+ * auto-registration that break Android Expo Go SDK 53+.
  */
 
 export function createExpoNotificationChannels(): NativeNotificationChannels {
   return {
     async ensure() {
       if (Platform.OS !== "android") return;
+      // Expo Go Android: ExpoNotificationChannelManager has a null
+      // NotificationsChannelsProvider, so setNotificationChannelAsync NPEs.
+      // Skip custom channels; guest live alerts still present on the default
+      // channel via scheduleNotificationAsync.
+      if (isExpoGoHost()) return;
       const Notifications = await loadExpoLocalNotifications();
       if (!Notifications) return;
       const channels = [
@@ -47,12 +54,17 @@ export function createExpoNotificationChannels(): NativeNotificationChannels {
           importance: Notifications.AndroidImportance.DEFAULT,
         },
       ] as const;
-      for (const channel of channels) {
-        await Notifications.setNotificationChannelAsync(channel.id, {
-          name: channel.name,
-          importance: channel.importance,
-          lightColor: "#0f0f0f",
-        });
+      try {
+        for (const channel of channels) {
+          await Notifications.setNotificationChannelAsync(channel.id, {
+            name: channel.name,
+            importance: channel.importance,
+            lightColor: "#0f0f0f",
+          });
+        }
+      } catch {
+        // Soft-fail: boot / presentProof must not surface uncaught channel NPEs.
+        // Local schedule still works without custom channels (default channel).
       }
     },
   };
@@ -155,6 +167,10 @@ export function createExpoLocalNotificationPresenter(): LocalNotificationPresent
       if (!Notifications) return;
       const channelId = payload.channel ?? "live";
       const silent = options?.silent === true;
+      // Expo Go cannot create custom Android channels (provider NPE). Omit
+      // channelId so the system default channel delivers guest live alerts.
+      const attachAndroidChannel =
+        Platform.OS === "android" && !isExpoGoHost();
       try {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -163,7 +179,7 @@ export function createExpoLocalNotificationPresenter(): LocalNotificationPresent
             data: payload,
             sound: silent ? false : true,
             color: "#0f0f0f",
-            ...(Platform.OS === "android" ? { channelId } : {}),
+            ...(attachAndroidChannel ? { channelId } : {}),
           },
           trigger: null,
         });
