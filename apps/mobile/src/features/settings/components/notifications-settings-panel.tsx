@@ -133,10 +133,9 @@ export function NotificationsSettingsView({
   const prefs = view.preferences;
   return (
     <SettingsSection testID="panel-notifications" title="NOTIFICATIONS">
-      <SettingsCopy testID="notifications-permission" value={view.permissionCopy} />
-      <SettingsCopy testID="notifications-delivery" value={view.deliveryCopy} />
-      <SettingsCopy testID="notifications-lifecycle" value={view.lifecycleCopy} />
-      <SettingsCopy testID="fcm-registration-status" value={view.registrationCopy} />
+      {view.denied ? (
+        <SettingsCopy testID="notifications-permission" value={view.permissionCopy} />
+      ) : null}
       {NOTIFICATION_TOGGLES.map((toggle) => (
         <SettingsSwitch
           checked={prefs[toggle.field]}
@@ -146,10 +145,6 @@ export function NotificationsSettingsView({
           testID={toggle.testID}
         />
       ))}
-      <SettingsCopy
-        testID="favorites-only-effective"
-        value="Favorites only uses per-channel switches on Following."
-      />
       <SettingsSelect
         current={prefs.restartGracePeriodMinutes}
         detail="Suppress repeat alerts when a stream restarts inside the selected cooldown."

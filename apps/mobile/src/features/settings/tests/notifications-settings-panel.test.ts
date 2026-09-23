@@ -108,8 +108,11 @@ describe("notifications settings panel", () => {
     expect(hasTestId(nodes, "favorites-only")).toBe(true);
     expect(hasTestId(nodes, "restart-grace")).toBe(true);
     expect(hasTestId(nodes, "notifications-system-settings")).toBe(true);
-    expect(hasTestId(nodes, "notifications-lifecycle")).toBe(true);
-    expect(hasTestId(nodes, "fcm-registration-status")).toBe(true);
+    expect(hasTestId(nodes, "notifications-permission")).toBe(false);
+    expect(hasTestId(nodes, "notifications-delivery")).toBe(false);
+    expect(hasTestId(nodes, "notifications-lifecycle")).toBe(false);
+    expect(hasTestId(nodes, "fcm-registration-status")).toBe(false);
+    expect(hasTestId(nodes, "favorites-only-effective")).toBe(false);
     expect(hasTestId(nodes, "notifications-retry")).toBe(false);
     nodes
       .find((node) => node.props.testID === "notify-guest" && node.props.onPress)
@@ -123,5 +126,9 @@ describe("notifications settings panel", () => {
       permission: "denied",
     });
     expect(hasTestId(nodes, "notifications-retry")).toBe(true);
+    expect(hasTestId(nodes, "notifications-permission")).toBe(true);
+    expect(hasTestId(nodes, "notifications-delivery")).toBe(false);
+    expect(hasTestId(nodes, "notifications-lifecycle")).toBe(false);
+    expect(hasTestId(nodes, "fcm-registration-status")).toBe(false);
   });
 });

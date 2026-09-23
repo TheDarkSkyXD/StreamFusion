@@ -19,7 +19,6 @@ import {
   FileText,
   Gauge,
   KeyRound,
-  LayoutDashboard,
   MessageSquare,
   MonitorPlay,
   Palette,
@@ -59,7 +58,6 @@ import { useSettingsSession } from "./use-settings-session";
 import {
   AppearanceSettingsPanel,
   BufferSettingsPanel,
-  MultiviewSettingsPanel,
   PlaybackSettingsPanel,
   PlayerControlsSettingsPanel,
 } from "./settings-panels";
@@ -69,7 +67,6 @@ const CATEGORY_ICONS: Readonly<Record<SettingsCategoryIconId, LucideIcon>> = {
   playback: MonitorPlay,
   "player-controls": SlidersHorizontal,
   buffer: Gauge,
-  multiview: LayoutDashboard,
   chat: MessageSquare,
   predictions: Target,
   notifications: Bell,
@@ -87,7 +84,6 @@ const CATEGORY_ICONS: Readonly<Record<SettingsCategoryIconId, LucideIcon>> = {
 const PRODUCT_PANELS = {
   appearance: AppearanceSettingsPanel,
   buffer: BufferSettingsPanel,
-  multiview: MultiviewSettingsPanel,
   playback: PlaybackSettingsPanel,
   "player-controls": PlayerControlsSettingsPanel,
 } as const;

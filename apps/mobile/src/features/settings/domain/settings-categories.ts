@@ -7,7 +7,6 @@ export type SettingsCategoryIconId =
   | "playback"
   | "player-controls"
   | "buffer"
-  | "multiview"
   | "chat"
   | "predictions"
   | "notifications"
@@ -69,13 +68,6 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
     icon: "buffer",
   },
   {
-    id: "multiview",
-    section: "customize",
-    title: "Multiview",
-    description: "Slot cap and background quality",
-    icon: "multiview",
-  },
-  {
     id: "chat",
     section: "customize",
     title: "Chat",
@@ -93,7 +85,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
     id: "notifications",
     section: "connections",
     title: "Notifications",
-    description: "Live alerts on this device",
+    description: "Alerts on this device",
     icon: "notifications",
   },
   {

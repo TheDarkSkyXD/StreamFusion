@@ -22,11 +22,14 @@ export function composeSettingsView(input: {
   readonly streamDeviceId?: string;
 }): SettingsView {
   const query = input.query ?? "";
-  const matches = searchSettingsControls(query);
+  const matches = searchSettingsControls(query).filter(
+    (match) => match.panel !== "multiview",
+  );
+  const panels = settingsPanelsFor(matches).filter((panel) => panel !== "multiview");
   return {
     effective: composeEffectiveCopy(input.preferences),
     matches,
-    panels: settingsPanelsFor(matches),
+    panels,
     preferences: input.preferences,
     query,
     rejected: input.rejected ?? [],

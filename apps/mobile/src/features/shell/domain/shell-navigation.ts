@@ -189,7 +189,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "activity",
     "INBOX",
     "activity-root",
-    "Live alerts from channels you follow.",
+    "Notifications from channels you follow.",
     "Activity",
     "activity",
   ),

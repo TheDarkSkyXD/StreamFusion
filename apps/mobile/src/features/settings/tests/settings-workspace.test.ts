@@ -53,7 +53,6 @@ vi.mock("lucide-react-native", () => {
     FileText: Icon,
     Gauge: Icon,
     KeyRound: Icon,
-    LayoutDashboard: Icon,
     MessageSquare: Icon,
     MonitorPlay: Icon,
     Palette: Icon,
@@ -223,7 +222,8 @@ describe("settings hub navigation", () => {
     const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
     expect(view.query).toBe("");
     const categories = settingsCategoriesForPanels(view.panels);
-    expect(categories.map((category) => category.id)).toEqual(
+    const categoryIds = categories.map((category) => category.id);
+    expect(categoryIds).toEqual(
       expect.arrayContaining([
         "appearance",
         "playback",
@@ -233,6 +233,8 @@ describe("settings hub navigation", () => {
         "notifications",
       ]),
     );
+    expect(categoryIds).not.toContain("multiview");
+    expect(view.panels).not.toContain("multiview");
     expect(categories.length).toBeGreaterThan(8);
 
     const nodes = descendants(
@@ -246,6 +248,7 @@ describe("settings hub navigation", () => {
     expect(hasTestId(nodes, "settings-category-chat")).toBe(true);
     expect(hasTestId(nodes, "settings-category-adblock")).toBe(true);
     expect(hasTestId(nodes, "settings-category-proxy")).toBe(true);
+    expect(hasTestId(nodes, "settings-category-multiview")).toBe(false);
     expect(hasTestId(nodes, "settings-search-matches")).toBe(false);
   });
 
@@ -285,6 +288,17 @@ describe("settings hub navigation", () => {
     expect(hasTestId(clearedNodes, "settings-category-adblock")).toBe(true);
     expect(hasTestId(clearedNodes, "settings-category-proxy")).toBe(true);
     expect(hasTestId(clearedNodes, "settings-search-matches")).toBe(false);
+  });
+
+
+  it("hides Multiview from search matches and panels", () => {
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+      query: "multiview",
+    });
+    expect(view.panels).not.toContain("multiview");
+    expect(view.matches.every((match) => match.panel !== "multiview")).toBe(true);
+    expect(view.panels).toEqual([]);
   });
 
   it("opens a single category detail with only that panel", () => {

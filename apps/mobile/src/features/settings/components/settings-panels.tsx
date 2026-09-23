@@ -264,42 +264,6 @@ export function BufferSettingsPanel({ onChange, view }: SettingsPanelProps) {
   );
 }
 
-export function MultiviewSettingsPanel({ onChange, view }: SettingsPanelProps) {
-  const { t } = useTranslation();
-  const prefs = view.preferences;
-  return (
-    <SettingsSection testID="panel-multiview" title="MULTIVIEW">
-      <SettingsSelect
-        current={prefs.multiviewCap}
-        label="Slot cap"
-        onSelect={(multiviewCap) => onChange({ multiviewCap })}
-        options={[1, 2, 3, 4, 5, 6].map((value) => ({
-          label: String(value),
-          value,
-        }))}
-        testID="multiview-cap"
-      />
-      <SettingsCopy testID="multiview-cap-effective" value={view.effective.multiviewCap} />
-      <SettingsSelect
-        current={prefs.backgroundQuality}
-        detail={t("settings.howNonFocusedStreamsRenderLowerSettingsFreeUpRamAndBandwidthSoTh")}
-        label={t("settings.backgroundStreamQuality")}
-        onSelect={(backgroundQuality) => onChange({ backgroundQuality })}
-        options={VIDEO_QUALITY_OPTIONS.map((value) => ({
-          label: qualityLabel(t, value),
-          value,
-        }))}
-        testID="background-quality"
-      />
-      <SettingsCopy
-        testID="background-quality-effective"
-        value={view.effective.backgroundQuality}
-      />
-    </SettingsSection>
-  );
-}
-
-
 function capitalize(value: string): string {
   if (value.length === 0) return value;
   return value.slice(0, 1).toUpperCase() + value.slice(1);

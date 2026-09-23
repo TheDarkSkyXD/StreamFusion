@@ -93,7 +93,7 @@ export function ActivityScreen({
       ListHeaderComponent={
         <View style={styles.headerContent}>
           <Text selectable style={styles.headerSummary}>
-            Live alerts from channels you follow.
+            Notifications from channels you follow.
           </Text>
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}
