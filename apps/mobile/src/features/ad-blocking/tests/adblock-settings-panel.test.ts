@@ -7,6 +7,7 @@ import { composeAdBlockView } from "../domain/adblock-policy";
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
   StyleSheet: { create: (styles: unknown) => styles },
+  Switch: "Switch",
   Text: "Text",
   View: "View",
 }));

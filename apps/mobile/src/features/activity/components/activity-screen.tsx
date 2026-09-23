@@ -96,7 +96,7 @@ export function ActivityScreen({
       ListHeaderComponent={
         <View style={styles.headerContent}>
           <MobileScreenHeader
-            summary="Followed channels going live show up here."
+            summary="Go-lives from channels you follow."
             title={t("navigation.activity")}
           />
           <DevelopmentActivityProofBanner

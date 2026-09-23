@@ -80,12 +80,14 @@ function SettingsRow({
 export function SettingsSwitch({
   checked,
   detail,
+  disabled = false,
   label,
   onToggle,
   testID,
 }: {
   readonly checked: boolean;
   readonly detail?: string;
+  readonly disabled?: boolean;
   readonly label: string;
   readonly onToggle: () => void;
   readonly testID: string;
@@ -94,7 +96,8 @@ export function SettingsSwitch({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="switch"
-      accessibilityState={{ checked }}
+      accessibilityState={{ checked, disabled }}
+      disabled={disabled}
       onPress={onToggle}
       style={styles.switchRow}
       testID={testID}
@@ -111,6 +114,7 @@ export function SettingsSwitch({
       </View>
       <Switch
         accessibilityElementsHidden
+        disabled={disabled}
         importantForAccessibility="no"
         onValueChange={() => onToggle()}
         pointerEvents="none"

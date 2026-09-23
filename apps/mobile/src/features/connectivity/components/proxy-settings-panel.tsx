@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { SettingsSwitch } from "@mobile/features/settings/components/settings-controls";
+
 import {
   mobileColors,
   mobileRadii,
@@ -78,19 +80,13 @@ export function ProxySettingsView({
         Discovery and Following requests use this proxy. Playback playlists are
         not routed until Watch exists.
       </Text>
-      <Pressable
-        accessibilityLabel={draft.enabled ? "Disable proxy" : "Enable proxy"}
-        accessibilityRole="switch"
-        accessibilityState={{ busy, checked: draft.enabled }}
+      <SettingsSwitch
+        checked={draft.enabled}
         disabled={busy}
-        onPress={() => onChange({ ...draft, enabled: !draft.enabled })}
-        style={styles.switchRow}
+        label="Proxy"
+        onToggle={() => onChange({ ...draft, enabled: !draft.enabled })}
         testID="proxy-enabled"
-      >
-        <Text selectable style={styles.switchLabel}>
-          {draft.enabled ? "Proxy on" : "Proxy off"}
-        </Text>
-      </Pressable>
+      />
       <TextInput
         accessibilityLabel="Proxy host"
         autoCapitalize="none"

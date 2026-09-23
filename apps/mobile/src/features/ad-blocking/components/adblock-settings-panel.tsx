@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { SettingsSwitch } from "@mobile/features/settings/components/settings-controls";
+
 import {
   mobileColors,
   mobileRadii,
@@ -149,19 +151,13 @@ function FilterToggle({
   readonly onSave: (next: SavePreferences) => void;
 }) {
   return (
-    <Pressable
-      accessibilityLabel={enabled ? "Disable ad blocking" : "Enable ad blocking"}
-      accessibilityRole="switch"
-      accessibilityState={{ busy, checked: enabled, disabled: locked }}
-      disabled={locked}
-      onPress={() => onSave({ enabled: !enabled, method })}
-      style={styles.switchRow}
+    <SettingsSwitch
+      checked={enabled}
+      disabled={locked || busy}
+      label="Filtering"
+      onToggle={() => onSave({ enabled: !enabled, method })}
       testID="adblock"
-    >
-      <Text selectable style={styles.switchLabel}>
-        {enabled ? "Filtering on" : "Filtering off"}
-      </Text>
-    </Pressable>
+    />
   );
 }
 

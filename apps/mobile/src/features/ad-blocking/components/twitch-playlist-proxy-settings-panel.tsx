@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, Switch } from "react-native";
 
+import { SettingsSwitch } from "@mobile/features/settings/components/settings-controls";
+
 import {
   mobileColors,
   mobileRadii,
@@ -148,25 +150,15 @@ export function TwitchPlaylistProxySettingsView({
         {view?.detail ??
           "Routes live Twitch playlists through ordered $channel sources when enabled."}
       </Text>
-      <Pressable
-        accessibilityLabel={
-          preferences.enabled
-            ? "Disable Twitch playlist proxy"
-            : "Enable Twitch playlist proxy"
-        }
-        accessibilityRole="switch"
-        accessibilityState={{ busy, checked: preferences.enabled }}
+      <SettingsSwitch
+        checked={preferences.enabled}
         disabled={busy}
-        onPress={() =>
+        label="Playlist proxy"
+        onToggle={() =>
           onSavePreferences({ ...preferences, enabled: !preferences.enabled })
         }
-        style={styles.switchRow}
         testID="twitch-playlist-proxy-enabled"
-      >
-        <Text selectable style={styles.switchLabel}>
-          {preferences.enabled ? "Playlist proxy on" : "Playlist proxy off"}
-        </Text>
-      </Pressable>
+      />
       <Text selectable style={styles.detail}>
         Sources are tried top to bottom. Direct Twitch is the final fallback.
         Custom strip and canary stay paused while this is on.
@@ -407,23 +399,15 @@ function SourceDraftEditor({
           {draftError}
         </Text>
       ) : null}
-      <Pressable
-        accessibilityLabel="Toggle playback query parameters"
-        accessibilityRole="switch"
-        accessibilityState={{ checked: draft.addQueryParams }}
+      <SettingsSwitch
+        checked={draft.addQueryParams}
         disabled={busy}
-        onPress={() =>
+        label="Playback query params"
+        onToggle={() =>
           onChange({ ...draft, addQueryParams: !draft.addQueryParams })
         }
-        style={styles.switchRow}
         testID="twitch-playlist-proxy-add-query-params"
-      >
-        <Text selectable style={styles.switchLabel}>
-          {draft.addQueryParams
-            ? "Playback query params on"
-            : "Playback query params off"}
-        </Text>
-      </Pressable>
+      />
       <Pressable
         accessibilityLabel="Save playlist source"
         accessibilityRole="button"

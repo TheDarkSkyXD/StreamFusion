@@ -93,7 +93,11 @@ describe("twitch playlist proxy settings view", () => {
       }),
     );
     nodes
-      .find((node) => node.props.testID === "twitch-playlist-proxy-enabled")
+      .find(
+        (node) =>
+          node.props.testID === "twitch-playlist-proxy-enabled" &&
+          node.props.onPress,
+      )
       ?.props.onPress?.();
     expect(enabled).toBe(false);
   });

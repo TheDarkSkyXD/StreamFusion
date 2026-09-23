@@ -9,6 +9,7 @@ import { ProxySettingsView } from "../components/proxy-settings-panel";
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
   StyleSheet: { create: (styles: unknown) => styles },
+  Switch: "Switch",
   Text: "Text",
   TextInput: "TextInput",
   View: "View",
