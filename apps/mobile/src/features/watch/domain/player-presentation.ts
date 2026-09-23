@@ -138,7 +138,7 @@ const PIP_STATUS_COPY: Record<PictureInPicturePhase, string | null> = {
 };
 
 export const FULLSCREEN_LIFECYCLE_COPY =
-  "Fullscreen is an in-app overlay. A system orientation lock may keep portrait. Hardware Back restores the previous presentation. Unsupported orientation lock is left unchanged.";
+  "Fullscreen is an in-app overlay that unlocks landscape left and right. Hardware Back restores the previous presentation and portrait. Unsupported orientation lock is left unchanged.";
 
 export function isPictureInPictureSurface(
   state: PlayerPresentationState,

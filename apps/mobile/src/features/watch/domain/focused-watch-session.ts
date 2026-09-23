@@ -31,6 +31,10 @@ import {
   revealInWatch,
   type PlayerPresentationState,
 } from "./player-presentation";
+import {
+  allowFullscreenLandscapeOrientation,
+  restorePortraitOrientation,
+} from "./watch-fullscreen-orientation";
 import { nextNativePlayback } from "./focused-watch-native-events";
 import {
   IDLE_PEEK,
@@ -154,7 +158,11 @@ export function createFocusedWatchSession(input: {
 
   async function resetToReady(target: WatchTarget): Promise<void> {
     generation += 1;
+    const wasFullscreen = presentation.presentation === "fullscreen";
     presentation = INITIAL_PLAYER_PRESENTATION;
+    if (wasFullscreen) {
+      void restorePortraitOrientation();
+    }
     if (current?.kind === "active") {
       const sessionId = current.session.sessionId;
       current.lease.release();
@@ -207,12 +215,20 @@ export function createFocusedWatchSession(input: {
       notify();
     },
     enterFullscreen() {
+      const previous = presentation;
       presentation = toFullscreen(presentation);
       notify();
+      if (previous.presentation !== "fullscreen" && presentation.presentation === "fullscreen") {
+        void allowFullscreenLandscapeOrientation();
+      }
     },
     exitFullscreen() {
+      const previous = presentation;
       presentation = fromFullscreen(presentation);
       notify();
+      if (previous.presentation === "fullscreen" && presentation.presentation !== "fullscreen") {
+        void restorePortraitOrientation();
+      }
     },
     async setPlaying(playing) {
       if (current?.kind !== "active") return;
@@ -343,6 +359,9 @@ export function createFocusedWatchSession(input: {
     },
     async dispose() {
       generation += 1;
+      if (presentation.presentation === "fullscreen") {
+        void restorePortraitOrientation();
+      }
       unsubscribeNative();
       unsubscribeProtection();
       listeners.clear();

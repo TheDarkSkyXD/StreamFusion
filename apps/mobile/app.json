@@ -3,6 +3,7 @@
     "name": "StreamFusion Development",
     "slug": "streamfusion-development",
     "version": "0.1.0",
+    "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "platforms": [
       "android"
@@ -34,6 +35,12 @@
       "backgroundColor": "#1a1a1a"
     },
     "plugins": [
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       "expo-router",
       "./plugins/with-picture-in-picture",
       "./plugins/with-no-draw-over-apps",

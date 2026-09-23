@@ -78,6 +78,8 @@ describe("player presentation", () => {
     expect(pictureInPictureStatusCopy("failed")).toContain("failed");
     expect(pictureInPictureStatusCopy("returned")).toContain("Returned");
     expect(FULLSCREEN_LIFECYCLE_COPY).toContain("Hardware Back");
+    expect(FULLSCREEN_LIFECYCLE_COPY).toContain("landscape left and right");
+    expect(FULLSCREEN_LIFECYCLE_COPY).toContain("portrait");
     expect(isPictureInPictureSurface(requestPictureInPicture(INITIAL_PLAYER_PRESENTATION))).toBe(
       true,
     );
