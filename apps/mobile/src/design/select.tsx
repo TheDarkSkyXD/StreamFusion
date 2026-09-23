@@ -13,7 +13,6 @@ import { selectionHaptic } from "./haptics";
 import {
   mobileColors,
   mobileRadii,
-  mobileSelectSelectedIndicator,
   mobileSizing,
   mobileSpacing,
 } from "./tokens";
@@ -269,9 +268,10 @@ const styles = StyleSheet.create({
   },
   /** Radio-style trailing marker: filled white dot only when selected (not checkmark / not accent). */
   selectedDot: {
-    backgroundColor: mobileSelectSelectedIndicator.color,
+    // Keep module-init styles on direct colors/literals so HMR cannot observe a nested token as undefined.
+    backgroundColor: mobileColors.textPrimary,
     borderRadius: mobileRadii.full,
-    height: mobileSelectSelectedIndicator.diameter,
-    width: mobileSelectSelectedIndicator.diameter,
+    height: 10,
+    width: 10,
   },
 });
