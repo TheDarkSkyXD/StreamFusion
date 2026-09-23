@@ -19,10 +19,23 @@ vi.mock("react-native", () => ({
   Switch: "Switch",
 }));
 
+vi.mock("@react-native-community/slider", () => ({
+  default: "Slider",
+}));
+
+vi.mock("@mobile/design/haptics", () => ({
+  selectionHaptic: vi.fn(async () => undefined),
+}));
+
 type ElementProps = Readonly<{
   children?: unknown;
   onPress?: () => void;
+  onValueChange?: (value: number) => void;
   testID?: string;
+  value?: number;
+  minimumValue?: number;
+  maximumValue?: number;
+  step?: number;
 }>;
 type Element = ReactElement<ElementProps>;
 
@@ -85,5 +98,56 @@ describe("chat settings view", () => {
       .find((node) => node.props.testID === "chat-density-compact")
       ?.props.onPress?.();
     expect(density).toBe("compact");
+  });
+
+  it("renders Frosty-style sliders for desktop RangeRow chat settings", () => {
+    let fontSizePx = DEFAULT_CHAT_DISPLAY_PREFERENCES.fontSizePx;
+    let emoteSizePx = DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx;
+    let messageLimit = DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit;
+    const nodes = descendants(
+      ChatSettingsView({
+        onChange: (patch) => {
+          if (typeof patch.fontSizePx === "number") fontSizePx = patch.fontSizePx;
+          if (typeof patch.emoteSizePx === "number") emoteSizePx = patch.emoteSizePx;
+          if (typeof patch.messageLimit === "number")
+            messageLimit = patch.messageLimit;
+        },
+        view: composeChatDisplaySettingsView(DEFAULT_CHAT_DISPLAY_PREFERENCES),
+      }),
+    );
+
+    for (const testID of [
+      "chat-font-size",
+      "chat-emote-size",
+      "chat-message-limit",
+    ] as const) {
+      expect(nodes.some((node) => node.props.testID === testID)).toBe(true);
+    }
+
+    const fontInput = nodes.find(
+      (node) => node.props.testID === "chat-font-size-input",
+    );
+    expect(fontInput?.props.minimumValue).toBe(10);
+    expect(fontInput?.props.maximumValue).toBe(20);
+    expect(fontInput?.props.step).toBe(1);
+    fontInput?.props.onValueChange?.(18);
+    expect(fontSizePx).toBe(18);
+
+    const emoteInput = nodes.find(
+      (node) => node.props.testID === "chat-emote-size-input",
+    );
+    expect(emoteInput?.props.minimumValue).toBe(16);
+    expect(emoteInput?.props.maximumValue).toBe(56);
+    emoteInput?.props.onValueChange?.(40);
+    expect(emoteSizePx).toBe(40);
+
+    const messageInput = nodes.find(
+      (node) => node.props.testID === "chat-message-limit-input",
+    );
+    expect(messageInput?.props.minimumValue).toBe(100);
+    expect(messageInput?.props.maximumValue).toBe(1000);
+    expect(messageInput?.props.step).toBe(100);
+    messageInput?.props.onValueChange?.(800);
+    expect(messageLimit).toBe(800);
   });
 });

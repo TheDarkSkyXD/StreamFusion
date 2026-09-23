@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import Slider from "@react-native-community/slider";
+
+import { selectionHaptic } from "@mobile/design/haptics";
 
 import {
   DISPLAY_LANGUAGE_REGISTRY,
@@ -221,6 +224,96 @@ export function SettingsField({
 }
 
 
+export function SettingsSlider({
+  detail,
+  disabled = false,
+  formatValue = defaultSliderFormat,
+  label,
+  max,
+  min,
+  onValueChange,
+  step = 1,
+  testID,
+  value,
+}: {
+  readonly detail?: string;
+  readonly disabled?: boolean;
+  readonly formatValue?: (value: number) => string;
+  readonly label: string;
+  readonly max: number;
+  readonly min: number;
+  readonly onValueChange: (value: number) => void;
+  readonly step?: number;
+  readonly testID: string;
+  readonly value: number;
+}) {
+  const snapped = snapSliderValue(value, min, max, step);
+
+  const handleChange = (raw: number) => {
+    const next = snapSliderValue(raw, min, max, step);
+    if (next !== snapped) {
+      void selectionHaptic();
+    }
+    onValueChange(next);
+  };
+
+  return (
+    <View
+      accessibilityLabel={`${label} ${formatValue(snapped)}`}
+      style={styles.sliderBlock}
+      testID={testID}
+    >
+      <View style={styles.sliderHeader} accessible={false}>
+        <Text selectable style={[styles.rowLabel, styles.sliderTitle]}>
+          {label}
+        </Text>
+        <Text selectable style={styles.sliderValue}>
+          {formatValue(snapped)}
+        </Text>
+      </View>
+      {detail ? (
+        <Text selectable style={styles.detail}>
+          {detail}
+        </Text>
+      ) : null}
+      <Slider
+        accessibilityLabel={label}
+        disabled={disabled}
+        maximumTrackTintColor={mobileColors.border}
+        maximumValue={max}
+        minimumTrackTintColor={mobileColors.textPrimary}
+        minimumValue={min}
+        onValueChange={handleChange}
+        step={step}
+        style={styles.slider}
+        tapToSeek
+        testID={`${testID}-input`}
+        thumbTintColor={mobileColors.textPrimary}
+        value={snapped}
+      />
+    </View>
+  );
+}
+
+function defaultSliderFormat(value: number): string {
+  return String(value);
+}
+
+function snapSliderValue(
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+): number {
+  if (!Number.isFinite(value)) return min;
+  const clamped = Math.min(max, Math.max(min, value));
+  if (!(step > 0)) return clamped;
+  return Math.min(
+    max,
+    Math.max(min, min + Math.round((clamped - min) / step) * step),
+  );
+}
+
 export function SettingsLanguagePicker({
   current,
   label = "Language",
@@ -363,5 +456,34 @@ const styles = StyleSheet.create({
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
+  },
+  sliderBlock: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    gap: mobileSpacing.xSmall,
+    paddingBottom: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingTop: mobileSpacing.small,
+  },
+  sliderHeader: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    minHeight: 22,
+  },
+  sliderTitle: {
+    flex: 1,
+  },
+  sliderValue: {
+    color: mobileColors.textSecondary,
+    fontSize: 14,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  slider: {
+    height: 40,
+    marginHorizontal: -mobileSpacing.xSmall,
+    width: "100%",
   },
 });

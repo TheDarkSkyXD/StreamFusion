@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-native-community/slider": "5.2.0",
     "@streamfusion/core": "0.0.0",
     "@tanstack/react-query": "5.101.4",
     "expo": "57.0.17",

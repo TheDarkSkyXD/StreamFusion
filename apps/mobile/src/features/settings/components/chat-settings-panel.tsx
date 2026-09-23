@@ -13,17 +13,12 @@ import type {
   ModerationHighlightStyle,
   TimestampFormat,
 } from "../capabilities/chat-display-settings";
-import {
-  CHAT_EMOTE_SIZE_OPTIONS,
-  CHAT_FONT_SIZE_OPTIONS,
-  CHAT_MESSAGE_LIMIT_OPTIONS,
-  CHAT_RECENT_LIMIT_OPTIONS,
-  defaultChatDisplaySettingsView,
-} from "../domain/chat-display-preferences";
+import { defaultChatDisplaySettingsView } from "../domain/chat-display-preferences";
 import {
   SettingsChoiceRow,
   SettingsCopy,
   SettingsSection,
+  SettingsSlider,
   SettingsSwitch,
 } from "./settings-controls";
 
@@ -208,19 +203,25 @@ function AppearanceRows({
         options={TIMESTAMP_OPTIONS}
         testID="chat-timestamp-format"
       />
-      <SettingsChoiceRow
-        current={prefs.fontSizePx}
+      <SettingsSlider
+        formatValue={(fontSizePx) => `${fontSizePx}px`}
         label="Font size"
-        onSelect={(fontSizePx) => onChange({ fontSizePx })}
-        options={CHAT_FONT_SIZE_OPTIONS}
+        max={20}
+        min={10}
+        onValueChange={(fontSizePx) => onChange({ fontSizePx })}
+        step={1}
         testID="chat-font-size"
+        value={prefs.fontSizePx}
       />
-      <SettingsChoiceRow
-        current={prefs.emoteSizePx}
+      <SettingsSlider
+        formatValue={(emoteSizePx) => `${emoteSizePx}px`}
         label="Emote size"
-        onSelect={(emoteSizePx) => onChange({ emoteSizePx })}
-        options={CHAT_EMOTE_SIZE_OPTIONS}
+        max={56}
+        min={16}
+        onValueChange={(emoteSizePx) => onChange({ emoteSizePx })}
+        step={1}
         testID="chat-emote-size"
+        value={prefs.emoteSizePx}
       />
       <SettingsChoiceRow
         current={prefs.density}
@@ -274,12 +275,16 @@ function EventRows({
       <Text selectable style={styles.group}>
         Messages and events
       </Text>
-      <SettingsChoiceRow
-        current={prefs.messageLimit}
+      <SettingsSlider
+        detail="Higher values keep more history in memory."
+        formatValue={(messageLimit) => String(messageLimit)}
         label="Message limit"
-        onSelect={(messageLimit) => onChange({ messageLimit })}
-        options={CHAT_MESSAGE_LIMIT_OPTIONS}
+        max={1000}
+        min={100}
+        onValueChange={(messageLimit) => onChange({ messageLimit })}
+        step={100}
         testID="chat-message-limit"
+        value={prefs.messageLimit}
       />
       {EVENT_TOGGLES.map((row) => (
         <SettingsSwitch
@@ -291,12 +296,17 @@ function EventRows({
         />
       ))}
       {prefs.recentMessagesOnJoin ? (
-        <SettingsChoiceRow
-          current={prefs.recentMessagesLimit}
+        <SettingsSlider
+          formatValue={(recentMessagesLimit) => String(recentMessagesLimit)}
           label="Recent messages to load"
-          onSelect={(recentMessagesLimit) => onChange({ recentMessagesLimit })}
-          options={CHAT_RECENT_LIMIT_OPTIONS}
+          max={800}
+          min={100}
+          onValueChange={(recentMessagesLimit) =>
+            onChange({ recentMessagesLimit })
+          }
+          step={100}
           testID="chat-recent-limit"
+          value={prefs.recentMessagesLimit}
         />
       ) : null}
       <SettingsChoiceRow

@@ -1,6 +1,9 @@
 import { useTranslation } from "react-i18next";
 
 import {
+  CAROUSEL_INTERVAL_MAX_SEC,
+  CAROUSEL_INTERVAL_MIN_SEC,
+  CAROUSEL_INTERVAL_STEP_SEC,
   DENSITY_OPTIONS,
   SEEK_INTERVAL_OPTIONS,
   VIDEO_QUALITY_OPTIONS,
@@ -13,6 +16,7 @@ import {
   SettingsCopy,
   SettingsLanguagePicker,
   SettingsSection,
+  SettingsSlider,
   SettingsSwitch,
 } from "./settings-controls";
 
@@ -106,12 +110,16 @@ function PlaybackQualityRows({ onChange, view }: SettingsPanelProps) {
         options={VIDEO_QUALITY_OPTIONS}
         testID="quality"
       />
-      <SettingsChoiceRow
-        current={prefs.carouselSeconds}
-        label="Carousel seconds"
-        onSelect={(carouselSeconds) => onChange({ carouselSeconds })}
-        options={[15, 30, 60, 120]}
+      <SettingsSlider
+        detail="How long each home featured stream stays active before rotating."
+        formatValue={(seconds) => `${seconds}s`}
+        label="Featured carousel timing"
+        max={CAROUSEL_INTERVAL_MAX_SEC}
+        min={CAROUSEL_INTERVAL_MIN_SEC}
+        onValueChange={(carouselSeconds) => onChange({ carouselSeconds })}
+        step={CAROUSEL_INTERVAL_STEP_SEC}
         testID="carousel"
+        value={prefs.carouselSeconds}
       />
       <SettingsCopy testID="carousel-effective" value={view.effective.carousel} />
       <PreferenceSwitch
@@ -194,26 +202,40 @@ export function BufferSettingsPanel({ onChange, view }: SettingsPanelProps) {
         onToggle={() => onChange({ lowLatencyMode: !prefs.lowLatencyMode })}
         testID="low-latency"
       />
-      <SettingsChoiceRow
-        current={prefs.liveSyncDurationCount}
-        label="Target live segments"
-        onSelect={(liveSyncDurationCount) => onChange({ liveSyncDurationCount })}
-        options={[2, 3, 4, 6, 8]}
+      <SettingsSlider
+        detail="Segments from the live edge. Lower stays closer to live but is less stable."
+        formatValue={(count) => `${count} seg`}
+        label="Target live latency"
+        max={10}
+        min={1}
+        onValueChange={(liveSyncDurationCount) =>
+          onChange({ liveSyncDurationCount })
+        }
+        step={1}
         testID="target-latency"
+        value={prefs.liveSyncDurationCount}
       />
-      <SettingsChoiceRow
-        current={prefs.forwardBufferSec}
-        label="Forward buffer seconds"
-        onSelect={(forwardBufferSec) => onChange({ forwardBufferSec })}
-        options={[8, 15, 30, 45]}
+      <SettingsSlider
+        detail="Seconds of video buffered ahead. Higher resists stalls but adds latency."
+        formatValue={(seconds) => `${seconds} s`}
+        label="Forward buffer"
+        max={60}
+        min={5}
+        onValueChange={(forwardBufferSec) => onChange({ forwardBufferSec })}
+        step={1}
         testID="forward-buffer"
+        value={prefs.forwardBufferSec}
       />
-      <SettingsChoiceRow
-        current={prefs.maxBufferSec}
-        label="Max buffer seconds"
-        onSelect={(maxBufferSec) => onChange({ maxBufferSec })}
-        options={[15, 30, 45, 60]}
+      <SettingsSlider
+        detail="Hard cap on buffered seconds. The byte budget scales with this value."
+        formatValue={(seconds) => `${seconds} s`}
+        label="Max buffer"
+        max={120}
+        min={10}
+        onValueChange={(maxBufferSec) => onChange({ maxBufferSec })}
+        step={5}
         testID="max-buffer"
+        value={prefs.maxBufferSec}
       />
       <SettingsCopy testID="buffer-effective" value={view.effective.buffer} />
     </SettingsSection>
