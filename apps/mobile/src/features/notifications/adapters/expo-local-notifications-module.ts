@@ -1,12 +1,17 @@
 /**
  * Expo Go on Android (SDK 53+) throws if the `expo-notifications` package root
- * is imported: `DevicePushTokenAutoRegistration.fx` calls `addPushTokenListener`,
- * and `warnOfExpoGoPushUsage` throws there.
+ * is imported: `DevicePushTokenAutoRegistration.fx` / `TokenEmitter` pull
+ * `ExpoPushTokenManager` and Expo Go push guards.
  *
  * Local presentation, channels, permissions, and receipt listeners do not need
- * that side effect. Load those APIs via deep imports so Expo Go can still show
- * guest live alerts. Remote push token APIs stay on the package root and are
- * only loaded outside Expo Go.
+ * that path. Load them via `./expo-local-notifications-api` (static deep imports
+ * without `.js`), which Metro resolves into the app graph. Avoid
+ * `import("expo-notifications/build/*.js")` — those dynamic package deep imports
+ * redbox with "Requiring unknown module" in Expo Go.
+ *
+ * Guest go-live alerts (follow → poller → reconciler → present) depend on this
+ * loader succeeding in Expo Go. Remote push token APIs stay on the package root
+ * and are only loaded outside Expo Go.
  */
 
 import { isRunningInExpoGo } from "expo";
@@ -82,8 +87,8 @@ export async function loadExpoLocalNotifications(): Promise<ExpoLocalNotificatio
 }
 
 export async function loadExpoRemotePush(): Promise<ExpoRemotePushModule | null> {
-  // Package-root import evaluates DevicePushTokenAutoRegistration.fx, which
-  // throws on Android Expo Go. Never load it there.
+  // Package-root import evaluates DevicePushTokenAutoRegistration.fx / TokenEmitter,
+  // which are unsafe on Android Expo Go. Never load it there.
   if (isRunningInExpoGo()) return null;
   if (!remoteModulePromise) {
     remoteModulePromise = import("expo-notifications")
@@ -94,32 +99,19 @@ export async function loadExpoRemotePush(): Promise<ExpoRemotePushModule | null>
 }
 
 async function importLocalModule(): Promise<ExpoLocalNotificationsModule> {
-  const [
-    channels,
-    channelTypes,
-    permissions,
-    scheduler,
-    emitter,
-    handler,
-  ] = await Promise.all([
-    import("expo-notifications/build/setNotificationChannelAsync.js"),
-    import("expo-notifications/build/NotificationChannelManager.types.js"),
-    import("expo-notifications/build/NotificationPermissions.js"),
-    import("expo-notifications/build/scheduleNotificationAsync.js"),
-    import("expo-notifications/build/NotificationsEmitter.js"),
-    import("expo-notifications/build/NotificationsHandler.js"),
-  ]);
-
+  // Relative import of our shim — Metro-stable. The shim statically pulls
+  // extensionless build subpaths (schedule, channels, permissions, emitters).
+  const api = await import("./expo-local-notifications-api");
   return {
-    AndroidImportance: channelTypes.AndroidImportance,
-    addNotificationReceivedListener: emitter.addNotificationReceivedListener,
+    AndroidImportance: api.AndroidImportance,
+    addNotificationReceivedListener: api.addNotificationReceivedListener,
     addNotificationResponseReceivedListener:
-      emitter.addNotificationResponseReceivedListener,
-    getLastNotificationResponseAsync: emitter.getLastNotificationResponseAsync,
-    getPermissionsAsync: permissions.getPermissionsAsync,
-    requestPermissionsAsync: permissions.requestPermissionsAsync,
-    scheduleNotificationAsync: scheduler.scheduleNotificationAsync,
-    setNotificationChannelAsync: channels.setNotificationChannelAsync,
-    setNotificationHandler: handler.setNotificationHandler,
+      api.addNotificationResponseReceivedListener,
+    getLastNotificationResponseAsync: api.getLastNotificationResponseAsync,
+    getPermissionsAsync: api.getPermissionsAsync,
+    requestPermissionsAsync: api.requestPermissionsAsync,
+    scheduleNotificationAsync: api.scheduleNotificationAsync,
+    setNotificationChannelAsync: api.setNotificationChannelAsync,
+    setNotificationHandler: api.setNotificationHandler,
   } as ExpoLocalNotificationsModule;
 }

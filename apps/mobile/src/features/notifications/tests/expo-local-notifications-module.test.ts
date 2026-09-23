@@ -7,6 +7,8 @@ vi.mock("expo", () => ({
 describe("expo local notifications module", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock("../adapters/expo-local-notifications-api");
+    vi.doUnmock("expo-notifications");
   });
 
   it("refuses package-root remote push loading while Expo Go is active", async () => {
@@ -17,40 +19,29 @@ describe("expo local notifications module", () => {
     await expect(loadExpoRemotePush()).resolves.toBeNull();
   });
 
-  it("loads local presentation APIs without importing the package root", async () => {
+  it("loads local presentation APIs via the static shim for guest go-live alerts", async () => {
     const scheduleNotificationAsync = vi.fn(async () => "id-1");
     const setNotificationChannelAsync = vi.fn(async () => null);
     const getPermissionsAsync = vi.fn(async () => ({ status: "granted" }));
     const requestPermissionsAsync = vi.fn(async () => ({ status: "granted" }));
     const getLastNotificationResponseAsync = vi.fn(async () => null);
-    const addNotificationReceivedListener = vi.fn(() => ({ remove: () => undefined }));
+    const addNotificationReceivedListener = vi.fn(() => ({
+      remove: () => undefined,
+    }));
     const addNotificationResponseReceivedListener = vi.fn(() => ({
       remove: () => undefined,
     }));
     const setNotificationHandler = vi.fn();
 
-    vi.doMock("expo-notifications/build/setNotificationChannelAsync.js", () => ({
-      setNotificationChannelAsync,
-    }));
-    vi.doMock(
-      "expo-notifications/build/NotificationChannelManager.types.js",
-      () => ({
-        AndroidImportance: { DEFAULT: 5, MAX: 7 },
-      }),
-    );
-    vi.doMock("expo-notifications/build/NotificationPermissions.js", () => ({
-      getPermissionsAsync,
-      requestPermissionsAsync,
-    }));
-    vi.doMock("expo-notifications/build/scheduleNotificationAsync.js", () => ({
-      scheduleNotificationAsync,
-    }));
-    vi.doMock("expo-notifications/build/NotificationsEmitter.js", () => ({
+    vi.doMock("../adapters/expo-local-notifications-api", () => ({
+      AndroidImportance: { DEFAULT: 5, MAX: 7 },
       addNotificationReceivedListener,
       addNotificationResponseReceivedListener,
       getLastNotificationResponseAsync,
-    }));
-    vi.doMock("expo-notifications/build/NotificationsHandler.js", () => ({
+      getPermissionsAsync,
+      requestPermissionsAsync,
+      scheduleNotificationAsync,
+      setNotificationChannelAsync,
       setNotificationHandler,
     }));
 
@@ -65,5 +56,34 @@ describe("expo local notifications module", () => {
       trigger: null,
     });
     expect(scheduleNotificationAsync).toHaveBeenCalledOnce();
+    await local?.requestPermissionsAsync();
+    expect(requestPermissionsAsync).toHaveBeenCalledOnce();
+    await local?.setNotificationChannelAsync("live", {
+      name: "Live alerts",
+      importance: 7,
+    });
+    expect(setNotificationChannelAsync).toHaveBeenCalledOnce();
+  });
+
+  it("loads remote push outside Expo Go via package root only", async () => {
+    const { isRunningInExpoGo } = await import("expo");
+    vi.mocked(isRunningInExpoGo).mockReturnValue(false);
+
+    const getDevicePushTokenAsync = vi.fn(async () => ({
+      data: "dK3kExampleFcmTokenValue:APA91bProofTokenWithoutSecrets0123456789",
+    }));
+    const addPushTokenListener = vi.fn(() => ({ remove: () => undefined }));
+    vi.doMock("expo-notifications", () => ({
+      getDevicePushTokenAsync,
+      addPushTokenListener,
+    }));
+
+    const { loadExpoRemotePush } = await import(
+      "../adapters/expo-local-notifications-module"
+    );
+    const remote = await loadExpoRemotePush();
+    expect(remote).not.toBeNull();
+    await remote?.getDevicePushTokenAsync();
+    expect(getDevicePushTokenAsync).toHaveBeenCalledOnce();
   });
 });

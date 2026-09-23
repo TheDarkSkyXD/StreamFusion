@@ -17,9 +17,11 @@ import {
 } from "./expo-local-notifications-module";
 
 /**
- * Local live alerts work in Expo Go via deep-imported expo-notifications APIs.
+ * Local live alerts work in Expo Go via the static local-notifications shim
+ * (extensionless build subpaths — not dynamic `build/*.js` imports).
  * Remote FCM / device push token registration stays disabled in Expo Go — the
- * package-root import throws on Android SDK 53+ (`addPushTokenListener`).
+ * package-root import pulls ExpoPushTokenManager / auto-registration that
+ * break Android Expo Go SDK 53+.
  */
 
 export function createExpoNotificationChannels(): NativeNotificationChannels {
