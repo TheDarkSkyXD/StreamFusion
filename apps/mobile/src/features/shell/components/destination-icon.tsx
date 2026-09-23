@@ -5,7 +5,6 @@ import {
   Download,
   Heart,
   History,
-  LayoutDashboard,
   LayoutGrid,
   Menu,
   Play,
@@ -31,7 +30,6 @@ const destinationIcons: Readonly<Record<ShellDestinationId, LucideIcon>> = {
 
 /** Electron sidebar / settings iconography mirrored for the More hub cards. */
 export const moreRouteIcons = {
-  "more/multistream": LayoutDashboard,
   "more/categories": LayoutGrid,
   "more/history": History,
   "more/downloads": Download,

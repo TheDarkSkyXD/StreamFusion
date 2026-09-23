@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createWatchChatSession } from "../adapters/create-watch-chat-session";
 import { CONNECTING_WATCH_CHAT_SNAPSHOT } from "../components/use-watch-chat";
 
-// Guards: null-session getSnapshot must be referentially stable (Multistream empty mount).
+// Guards: null-session getSnapshot must be referentially stable.
 describe("useWatchChat getSnapshot stability", () => {
   it("exports a cached connecting snapshot for useSyncExternalStore fallbacks", () => {
     const first = CONNECTING_WATCH_CHAT_SNAPSHOT;

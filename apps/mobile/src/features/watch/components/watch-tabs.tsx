@@ -32,7 +32,6 @@ import type {
 export function WatchTabs({
   chat,
   info,
-  onAddToMultistream,
   onChatRetry,
   onOpenRelated,
   onSelect,
@@ -42,7 +41,6 @@ export function WatchTabs({
 }: {
   readonly chat: WatchChatAvailability;
   readonly info: WatchInfo | null;
-  readonly onAddToMultistream?: () => void;
   readonly onChatRetry?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onSelect: (tab: WatchTab) => void;
@@ -85,7 +83,6 @@ export function WatchTabs({
         <>
           <InfoPane
             info={info}
-            {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
           />
           <RelatedPane onOpenRelated={onOpenRelated} related={related} />
         </>
@@ -204,10 +201,8 @@ function ChatPane({
 
 function InfoPane({
   info,
-  onAddToMultistream,
 }: {
   readonly info: WatchInfo | null;
-  readonly onAddToMultistream?: () => void;
 }) {
   const { t } = useTranslation();
   if (!info) {
@@ -238,9 +233,6 @@ function InfoPane({
         </Text>
         <Text selectable style={mobileType.body}>
           {`${info.channel.displayName} · ${info.mediaKind} · ${Math.max(0, Math.floor(info.durationSeconds))}s`}
-        </Text>
-        <Text selectable style={mobileType.body}>
-          {t("playback.watch.multistreamLiveOnly")}
         </Text>
       </View>
     );
@@ -285,17 +277,6 @@ function InfoPane({
         tags={info.stream.tags}
         testID="watch-info-tags"
       />
-      {onAddToMultistream ? (
-        <MobileButton
-          accessibilityHint={t("playback.watch.addToMultistreamHint")}
-          accessibilityLabel={t("playback.watch.addToMultistream")}
-          onPress={onAddToMultistream}
-          testID="watch-add-multistream"
-          variant="secondary"
-        >
-          {t("playback.watch.addToMultistream")}
-        </MobileButton>
-      ) : null}
     </View>
   );
 }

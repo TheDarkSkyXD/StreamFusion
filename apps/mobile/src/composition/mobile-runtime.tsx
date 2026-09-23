@@ -85,7 +85,6 @@ import { createSupportSettingsSession } from "@mobile/features/settings/composit
 import { createSupportPreferenceStore } from "@mobile/features/settings/data/support-settings-store";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
-import { createGuestMultistreamScreen } from "@mobile/features/multistream/composition/guest-multistream-screen";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -520,20 +519,7 @@ export function MobileRuntime() {
       }),
     [homeDiscovery],
   );
-  const multistream = useMemo(
-    () =>
-      createGuestMultistreamScreen({
-        fetch: connectivitySession.fetch,
-        filtering: adblockSession,
-        playback: androidCapabilityRuntime.contracts.playback,
-        playbackSettings: settingsSession,
-        policyStore: installationPolicyRuntime.policyStore,
-        repository: persistenceRuntime.productState.multistream,
-      }),
-    [],
-  );
   useEffect(() => () => void watch.runtime.session.dispose(), [watch]);
-  useEffect(() => () => void multistream.playback.dispose(), [multistream]);
   useEffect(() => {
     liveAlertPoller.setForeground(AppState.currentState === "active");
     const subscription = AppState.addEventListener("change", (state) => {
@@ -657,7 +643,6 @@ export function MobileRuntime() {
       settingsSession={settingsSession}
       supportSession={supportSession}
       watch={watch}
-      multistream={multistream}
     />
     </DisplayLanguageSync>
     </I18nextProvider>

@@ -340,7 +340,7 @@ function transition(
       consumerStatus: state.stage >= 1
         ? [
             "Diagnostics sampling now uses the reduced foreground cadence.",
-            "Multistream applies the measured active-video limit and ordered decoder degradation.",
+            "Active video uses the measured limit and ordered decoder degradation.",
             "Captions, recording, and downloads remain unexercised until their typed Android modules are implemented.",
           ]
         : ["Diagnostics sampling uses the normal foreground cadence."],

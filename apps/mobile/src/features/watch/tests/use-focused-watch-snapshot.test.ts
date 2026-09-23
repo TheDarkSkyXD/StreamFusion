@@ -2,10 +2,9 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from "vitest";
-import { act, createElement, useSyncExternalStore } from "react";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
-import { createMultistreamPlayback } from "@mobile/features/multistream/domain/multistream-playback";
 import { createFocusedWatchSession } from "../domain/focused-watch-session";
 import {
   useFocusedWatchSession,
@@ -129,40 +128,3 @@ describe("useFocusedWatchSession getSnapshot stability", () => {
   });
 });
 
-describe("MultistreamPlayback useSyncExternalStore stability", () => {
-  it("does not warn when snapshot is cached across renders", async () => {
-    const playback = createMultistreamPlayback({
-      playback: playbackPort(),
-      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
-      sources: sources(),
-    });
-    const errors: string[] = [];
-    const orig = console.error;
-    console.error = (...args: unknown[]) => {
-      errors.push(args.map(String).join(" "));
-      orig(...args);
-    };
-    const host = document.createElement("div");
-    const root = createRoot(host);
-    function Probe({ n }: { readonly n: number }) {
-      useSyncExternalStore(
-        playback.subscribe,
-        playback.snapshot,
-        playback.snapshot,
-      );
-      return createElement("span", null, String(n));
-    }
-    await act(async () => {
-      root.render(createElement(Probe, { n: 1 }));
-    });
-    await act(async () => {
-      root.render(createElement(Probe, { n: 2 }));
-    });
-    console.error = orig;
-    const msgs = errors.join("\n");
-    expect(msgs).not.toMatch(/getSnapshot should be cached/);
-    expect(msgs).not.toMatch(/Maximum update depth/);
-    root.unmount();
-    await playback.dispose();
-  });
-});

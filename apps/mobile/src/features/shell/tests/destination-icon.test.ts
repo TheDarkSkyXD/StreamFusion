@@ -22,7 +22,6 @@ vi.mock("lucide-react-native", () => ({
   Download: "Download",
   Heart: "Heart",
   History: "History",
-  LayoutDashboard: "LayoutDashboard",
   LayoutGrid: "LayoutGrid",
   Menu: "Menu",
   Play: "Play",
@@ -108,7 +107,6 @@ describe("More hub route icons", () => {
   });
 
   it("uses Electron-aligned icon names for the hub", () => {
-    expect(moreRouteIcons["more/multistream"]).toBe("LayoutDashboard");
     expect(moreRouteIcons["more/categories"]).toBe("LayoutGrid");
     expect(moreRouteIcons["more/history"]).toBe("History");
     expect(moreRouteIcons["more/downloads"]).toBe("Download");

@@ -138,7 +138,7 @@ async function startAuthorizedSession(
       return { kind: "cancelled" };
     }
     // External playlist proxies own ad removal. Keep local strip/canary for the
-    // direct usher URI (proxy→direct fallback and Multistream, which has no
+    // direct usher URI (proxy→direct fallback, which has no
     // proxy routing) so the commercial-break slate cannot paint.
     const isProxyAttempt = attempt.sourceUri !== resolved.sourceUri;
     const attemptFiltering =

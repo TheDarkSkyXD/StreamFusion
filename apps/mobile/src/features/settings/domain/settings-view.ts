@@ -56,7 +56,7 @@ export function composeEffectiveCopy(
   // Prefer the self-named / native label so Appearance clearly shows the active language.
   const languageLabel = language.nativeLabel;
   return {
-    backgroundQuality: `Unfocused Multistream slots request ${preferences.backgroundQuality} when thermal or decoder pressure lowers quality.`,
+    backgroundQuality: `Background playback requests ${preferences.backgroundQuality} when thermal or decoder pressure lowers quality.`,
     buffer:
       "Android maps these knobs to ExoPlayer LoadControl and live target offset. HLS.js buffer counts stay desktop-only.",
     captions: enabledCopy(
@@ -79,7 +79,7 @@ export function composeEffectiveCopy(
       "Speed, theater, and video stats stay unavailable until those capabilities ship. Hidden controls stay off Watch chrome.",
     restoreSession: enabledCopy(
       preferences.restoreSession,
-      "Prior More, Watch, and Multistream routes restore after relaunch. Watch still waits for Start watching.",
+      "Prior More and Watch routes restore after relaunch. Watch still waits for Start watching.",
       "Startup opens Home. Saved routes stay unused until restore is on.",
     ),
     resumePlayback:

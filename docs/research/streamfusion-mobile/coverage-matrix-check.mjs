@@ -177,13 +177,6 @@ const implemented = new Set([
   "shell-route:more/history",
   "action:history-clear",
   "action:history-remove",
-  "screen:multi",
-  "shell-route:more/multistream",
-  "action:multistream-add",
-  "action:multistream-edit",
-  "action:audio-owner",
-  "action:restore-slot",
-  "action:cool-device",
   "screen:settings",
   "panel:appearance",
   "panel:playback",
@@ -272,7 +265,6 @@ const owners = {
   "tab:watch:chat": [152, 156],
   "tab:watch:info": [152, 154],
   "tab:watch:related": [152, 154],
-  "screen:multi": [143, 160, 167],
   "screen:history": [155],
   "screen:activity": [141, 151, 163, 172, 173, 174],
   "tab:activity:jobs": [141, 163],
@@ -348,12 +340,6 @@ const owners = {
   "shell-route:more/history": [155],
   "action:history-clear": [155],
   "action:history-remove": [155],
-  "shell-route:more/multistream": [160],
-  "action:multistream-add": [160],
-  "action:multistream-edit": [160],
-  "action:audio-owner": [160],
-  "action:restore-slot": [160],
-  "action:cool-device": [160],
 };
 
 const paths = {
@@ -684,28 +670,6 @@ const paths = {
   "action:history-remove": [
     "apps/mobile/src/features/media-library/components/history-row.tsx",
   ],
-  "screen:multi": [
-    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
-  ],
-  "shell-route:more/multistream": [
-    "apps/mobile/src/features/shell/components/app-shell.tsx",
-    "apps/mobile/src/features/multistream/components/multistream-screen.tsx",
-  ],
-  "action:multistream-add": [
-    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
-  ],
-  "action:multistream-edit": [
-    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
-  ],
-  "action:audio-owner": [
-    "apps/mobile/src/features/multistream/components/multistream-slot.tsx",
-  ],
-  "action:restore-slot": [
-    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
-  ],
-  "action:cool-device": [
-    "apps/mobile/src/features/multistream/components/multistream-view.tsx",
-  ],
 };
 
 const classified = new Set([...implemented, ...partial, ...placeholder]);
@@ -764,7 +728,7 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
+      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
     owners: [147, 148, 149, 150, 152, 159, 167],
   },
   {

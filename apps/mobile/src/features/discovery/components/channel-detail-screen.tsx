@@ -28,13 +28,11 @@ import { useChannelFollow } from "./use-channel-follow";
 export function ChannelDetailScreen({
   channel,
   following,
-  onAddToMultistream,
   onWatch,
   session,
 }: {
   readonly channel: ChannelIdentity;
   readonly following: FollowingSession;
-  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly session: DiscoverySession;
 }) {
@@ -61,14 +59,12 @@ export function ChannelDetailScreen({
       tab={tab}
       view={{ ...live.view, follow: follow.follow }}
       {...watchProp(onWatch)}
-      {...addProp(onAddToMultistream)}
     />
   );
 }
 
 export function ChannelDetailView({
   channel,
-  onAddToMultistream,
   onFollow,
   onOpenProviderPage,
   onRetry,
@@ -80,7 +76,6 @@ export function ChannelDetailView({
   view,
 }: {
   readonly channel: ChannelIdentity;
-  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onFollow: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
@@ -101,7 +96,6 @@ export function ChannelDetailView({
       tab={tab}
       view={view}
       {...watchProp(onWatch)}
-      {...addProp(onAddToMultistream)}
       {...(onSelectProofMode === undefined
         ? {}
         : { onSelectProofMode, proofMode })}
@@ -111,7 +105,6 @@ export function ChannelDetailView({
 
 export function ChannelDetailBody({
   channel,
-  onAddToMultistream,
   onFollow,
   onOpenProviderPage,
   onRetry,
@@ -123,7 +116,6 @@ export function ChannelDetailBody({
   view,
 }: {
   readonly channel: ChannelIdentity;
-  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onFollow: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
@@ -166,14 +158,6 @@ export function ChannelDetailBody({
             onWatch?.(view.watch.target);
           }}
           watch={view.watch}
-          {...(onAddToMultistream === undefined
-            ? {}
-            : {
-                onAddToMultistream: () => {
-                  if (view.watch.kind !== "available") return;
-                  onAddToMultistream(view.watch.target);
-                },
-              })}
         />
       ) : null}
       {view.phase === "failed" || view.phase === "empty" ? (
@@ -220,13 +204,6 @@ function watchProp(
   return onWatch === undefined ? {} : { onWatch };
 }
 
-function addProp(
-  onAddToMultistream?: (target: WatchTarget) => void,
-):
-  | { readonly onAddToMultistream: (target: WatchTarget) => void }
-  | Record<string, never> {
-  return onAddToMultistream === undefined ? {} : { onAddToMultistream };
-}
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },

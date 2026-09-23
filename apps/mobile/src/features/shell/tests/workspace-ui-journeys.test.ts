@@ -14,11 +14,6 @@ import { guestFollow, liveOutcome } from "@mobile/features/follows/domain/follow
 import { HistoryView } from "@mobile/features/media-library/components/history-view";
 import { composeWatchHistoryView } from "@mobile/features/media-library/domain/watch-history-view";
 import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
-import { MultistreamView } from "@mobile/features/multistream/components/multistream-view";
-import { emptyMultistreamLayout } from "@mobile/features/multistream/capabilities/multistream";
-import { addMultistreamSlot, slotFromWatchTarget } from "@mobile/features/multistream/domain/multistream-layout";
-import { qualifyMultistream } from "@mobile/features/multistream/domain/multistream-admission";
-import { composeMultistreamView } from "@mobile/features/multistream/domain/multistream-view";
 import { AppearanceSettingsPanel } from "@mobile/features/settings/components/settings-panels";
 import { composeSettingsView } from "@mobile/features/settings/domain/settings-view";
 import {
@@ -138,7 +133,6 @@ describe("workspace UI journeys", () => {
       "more",
     ]);
     expect(MORE_ROUTE_IDS).toEqual([
-      "more/multistream",
       "more/categories",
       "more/history",
       "more/downloads",
@@ -200,43 +194,8 @@ describe("workspace UI journeys", () => {
     ).toBe(true);
   });
 
-  it("adds a Multistream slot, retries Activity, and resumes History", () => {
-    const added: string[] = [];
+  it("retries Activity and resumes History", () => {
     const resumed: string[] = [];
-    const slot = slotFromWatchTarget(watchTarget);
-    const applied = addMultistreamSlot(emptyMultistreamLayout(), slot, 1);
-    expect(applied.kind).toBe("applied");
-    if (applied.kind !== "applied") return;
-    const multi = descendants(
-      MultistreamView({
-        PlayerSurface: () => null,
-        onAdd: () => added.push("add"),
-        onAudioOwner: () => undefined,
-        onCancel: () => undefined,
-        onClear: () => undefined,
-        onCloseEdit: () => undefined,
-        onConfirm: () => undefined,
-        onCoolDevice: () => undefined,
-        onEdit: () => undefined,
-        onFocus: () => undefined,
-        onMode: () => undefined,
-        onPip: () => undefined,
-        onRemove: () => undefined,
-        onReorder: () => undefined,
-        onRestore: () => undefined,
-        view: composeMultistreamView({
-          qualified: qualifyMultistream({
-            admission: { limit: 2, reason: "Measured two software decoders." },
-            layout: applied.layout,
-            stage: 0,
-          }),
-          windowWidth: 411,
-        }),
-        windowWidth: 411,
-      }),
-    );
-    press(multi, "multistream-add");
-    expect(added).toEqual(["add"]);
     const retriedActivity: string[] = [];
     const activityRoot = ActivityScreen({
       model: {

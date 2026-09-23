@@ -85,7 +85,6 @@ export function WatchScreen({
   download,
   recording,
   inspection,
-  onAddToMultistream,
   onChatRetry,
   onOpenChannel,
   onOpenProviderPage,
@@ -125,7 +124,6 @@ export function WatchScreen({
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
-  readonly onAddToMultistream?: () => void;
   readonly onChatRetry?: () => void;
   readonly onCloseQualityMenu?: () => void;
   readonly onOpenChannel?: () => void;
@@ -304,9 +302,6 @@ export function WatchScreen({
             recorded={Boolean(target.media)}
             related={inspection?.related ?? null}
             tab={tab}
-            {...(onAddToMultistream === undefined
-              ? {}
-              : { onAddToMultistream })}
             {...(onChatRetry === undefined ? {} : { onChatRetry })}
           />
         </>

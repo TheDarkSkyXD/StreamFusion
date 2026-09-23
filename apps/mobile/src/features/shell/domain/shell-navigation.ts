@@ -17,7 +17,6 @@ export type ShellRouteId =
   | "activity/job-preview"
   | "more/channel"
   | "more/categories"
-  | "more/multistream"
   | "more/history"
   | "more/downloads"
   | "more/moderation"
@@ -120,7 +119,6 @@ export const SHELL_DESTINATIONS = [
 const SHELL_DESTINATION_IDS = SHELL_DESTINATIONS.map(({ id }) => id);
 
 export const MORE_ROUTE_IDS = [
-  "more/multistream",
   "more/categories",
   "more/history",
   "more/downloads",
@@ -175,7 +173,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "watch",
     "NOW PLAYING",
     "watch-root",
-    "Live streams, videos, clips, chat, and Multistream share one focused workspace.",
+    "Live streams, videos, clips, and chat share one focused workspace.",
     "Watch",
     "watch",
   ),
@@ -233,14 +231,6 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more-categories",
     "Browse categories and open a selected category without changing the shell.",
     "Categories",
-    "more",
-  ),
-  "more/multistream": route(
-    "more/multistream",
-    "MORE",
-    "more-multistream",
-    "Keep a measured Multistream room here with retained slots, one audio owner, and ordered decoder degradation.",
-    "Multistream",
     "more",
   ),
   "more/history": route(

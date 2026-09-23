@@ -8,7 +8,7 @@ import type {
 } from "../capabilities/watch-chat";
 import { RECORDED_COMMENTS } from "../capabilities/watch-chat";
 
-/** Cached for useSyncExternalStore — a fresh object each call loops Multistream. */
+/** Cached for useSyncExternalStore — a fresh object each call can loop subscribers. */
 export const CONNECTING_WATCH_CHAT_SNAPSHOT: WatchChatAvailability = {
   detail: "Connecting guest chat.",
   kind: "connecting",

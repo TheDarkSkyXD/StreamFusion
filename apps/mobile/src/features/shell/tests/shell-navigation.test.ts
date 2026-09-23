@@ -409,7 +409,6 @@ describe("adaptive app shell", () => {
 
   it("keeps Categories on More cards while Accounts stay last without a Home entry", () => {
     expect(MORE_ROUTE_IDS).toEqual([
-      "more/multistream",
       "more/categories",
       "more/history",
       "more/downloads",

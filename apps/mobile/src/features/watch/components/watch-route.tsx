@@ -75,7 +75,6 @@ export function WatchRoute({
   download,
   recording,
   discovery,
-  onAddToMultistream,
   onOpenChannel,
   onOpenRelated,
   onOpenSearch,
@@ -90,7 +89,6 @@ export function WatchRoute({
     readonly onOpenAccounts: () => void;
     readonly session: DiscoverySession;
   };
-  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onOpenSearch?: () => void;
@@ -125,7 +123,6 @@ export function WatchRoute({
       {...(captions === undefined ? {} : { captions })}
       {...(download === undefined ? {} : { download })}
       {...(recording === undefined ? {} : { recording })}
-      {...(onAddToMultistream === undefined ? {} : { onAddToMultistream })}
       {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(playerPrefs === undefined ? {} : { playerPrefs })}
     />
@@ -136,7 +133,6 @@ function WatchSessionRoute({
   captions,
   download,
   recording,
-  onAddToMultistream,
   onOpenChannel,
   onOpenRelated,
   playerPrefs,
@@ -146,7 +142,6 @@ function WatchSessionRoute({
   readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
-  readonly onAddToMultistream?: (target: WatchTarget) => void;
   readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly playerPrefs?: ProductPreferences;
@@ -357,9 +352,6 @@ function WatchSessionRoute({
         : {
             captions: captionControls(captions, captionEligibility),
           })}
-      {...(onAddToMultistream === undefined || target.media
-        ? {}
-        : { onAddToMultistream: () => onAddToMultistream(target) })}
     />
   );
 }

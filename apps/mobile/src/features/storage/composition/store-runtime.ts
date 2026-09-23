@@ -24,7 +24,6 @@ import {
 } from "../data/migrations";
 import { createProductMediaJobStore } from "@mobile/features/media-jobs/data/product-media-jobs-store";
 import { createProductWatchHistoryStore } from "@mobile/features/media-library/data/product-watch-history-store";
-import { createProductMultistreamStore } from "@mobile/features/multistream/data/product-multistream-store";
 import { GuestFollowStore } from "../data/guest-follow-store";
 import { LiveNotificationStore } from "../data/live-notification-store";
 import { ProductStore } from "../data/product-store";
@@ -705,18 +704,6 @@ export function createMobileStoreRuntime(
           await requireProductStore();
           return createProductMediaJobStore(stores!.productDatabase).remove(
             jobId,
-          );
-        },
-      },
-      multistream: {
-        async read() {
-          await requireProductStore();
-          return createProductMultistreamStore(stores!.productDatabase).read();
-        },
-        async write(layout) {
-          await requireProductStore();
-          return createProductMultistreamStore(stores!.productDatabase).write(
-            layout,
           );
         },
       },

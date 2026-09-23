@@ -9,11 +9,11 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 117 |
+| Implemented | 110 |
 | Partial | 11 |
 | Placeholder | 4 |
-| Missing | 53 |
-| Discovered | 185 |
+| Missing | 59 |
+| Discovered | 184 |
 
 Implemented means the current candidate has a working control or screen for that row.
 Placeholder means the shell can open a saved-place route.
@@ -41,7 +41,7 @@ Missing means no route or control exists yet.
 | `screen:channel` | implemented | #130, #132, #133, #147, #148, #151 | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `screen:watch` | implemented | #152, #153, #156, #157, #167 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:video` | implemented | #133, #153, #154 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
-| `screen:multi` | implemented | #143, #160, #167 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
+| `screen:multi` | missing | — | — | missing |
 | `screen:history` | implemented | #155 | apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `screen:activity` | implemented | #141, #151, #163, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `screen:moderation-home` | placeholder | #159, #168 | — | missing |
@@ -153,17 +153,17 @@ Missing means no route or control exists yet.
 | `action:chat-context` | missing | — | — | missing |
 | `action:chat-send` | missing | — | — | missing |
 | `action:channel-follow` | implemented | #151 | apps/mobile/src/features/discovery/components/channel-header.tsx | tests |
-| `action:multistream-add` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
+| `action:multistream-add` | missing | — | — | missing |
 | `action:job-record` | missing | — | — | missing |
 | `action:job-download` | missing | — | — | missing |
 | `action:job-details` | missing | — | — | missing |
 | `action:watch-tab` | missing | — | — | missing |
 | `action:video-tab` | missing | — | — | missing |
-| `action:audio-owner` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-slot.tsx | tests |
-| `action:multistream-edit` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
+| `action:audio-owner` | missing | — | — | missing |
+| `action:multistream-edit` | missing | — | — | missing |
 | `action:multi-chat-mode` | missing | — | — | missing |
-| `action:restore-slot` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
-| `action:cool-device` | implemented | #160 | apps/mobile/src/features/multistream/components/multistream-view.tsx | tests |
+| `action:restore-slot` | missing | — | — | missing |
+| `action:cool-device` | missing | — | — | missing |
 | `action:multi-chat-channel` | missing | — | — | missing |
 | `action:history-remove` | implemented | #155 | apps/mobile/src/features/media-library/components/history-row.tsx | tests |
 | `action:history-clear` | implemented | #155 | apps/mobile/src/features/media-library/components/history-view.tsx | tests |
@@ -210,7 +210,6 @@ Missing means no route or control exists yet.
 | `shell-route:more` | implemented | — | — | tests |
 | `shell-route:more/channel` | implemented | — | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `shell-route:more/categories` | implemented | — | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |
-| `shell-route:more/multistream` | implemented | #160 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/multistream/components/multistream-screen.tsx | tests |
 | `shell-route:more/history` | implemented | #155 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `shell-route:more/downloads` | missing | — | — | missing |
 | `shell-route:more/moderation` | placeholder | — | — | missing |
@@ -224,7 +223,7 @@ Missing means no route or control exists yet.
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation. | #147, #148, #149, #150, #152, #159, #167 |
+| `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation. | #147, #148, #149, #150, #152, #159, #167 |
 | `GAP-195-03` | owned-elsewhere | Chat, Predictions, Integrations, and API tokens Settings panels ship on this build. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03. | #143, #168, #169, #170, #171, #172, #173, #174 |
 | `GAP-195-04` | owned-elsewhere | Guest notification preferences, Android permission, native FCM registration, in-app banners, ended-stream routing, topic/direct fanout, and 100k dispatch proof live on this build. Activity stays a local inbox plus relay receipts. | #151, #169, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |

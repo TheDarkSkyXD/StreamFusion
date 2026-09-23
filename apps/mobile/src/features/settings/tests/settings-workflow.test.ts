@@ -110,7 +110,7 @@ describe("settings workflow", () => {
     expect(cleared.panels.length).toBeGreaterThan(8);
   });
 
-  it("maps playback policy for Watch and Multistream", () => {
+  it("maps playback policy for Watch", () => {
     const policy = playbackSessionPolicy({
       ...DEFAULT_PRODUCT_PREFERENCES,
       allowHevc: false,

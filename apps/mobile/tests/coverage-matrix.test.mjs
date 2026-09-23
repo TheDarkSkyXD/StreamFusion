@@ -43,11 +43,11 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   const ledger = JSON.parse(ledgerBefore.toString("utf8"));
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
-  assert.equal(ledger.totals.discovered, 185);
-  assert.equal(ledger.totals.implemented, 117);
+  assert.equal(ledger.totals.discovered, 184);
+  assert.equal(ledger.totals.implemented, 110);
   assert.equal(ledger.totals.partial, 11);
   assert.equal(ledger.totals.placeholder, 4);
-  assert.equal(ledger.totals.missing, 53);
+  assert.equal(ledger.totals.missing, 59);
   assert.equal(ledger.gaps.length, 5);
   assert.ok(ledger.gaps.some((gap) => gap.id === "GAP-195-01"));
   assert.ok(
@@ -147,13 +147,6 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
     "shell-route:more/history",
     "action:history-clear",
     "action:history-remove",
-    "screen:multi",
-    "shell-route:more/multistream",
-    "action:multistream-add",
-    "action:multistream-edit",
-    "action:audio-owner",
-    "action:restore-slot",
-    "action:cool-device",
   ]) {
     assert.ok(
       ledger.entries.some(

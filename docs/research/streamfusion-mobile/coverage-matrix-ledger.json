@@ -7,11 +7,11 @@
     "docs/research/streamfusion-mobile/android-navigation-and-interaction-model.md"
   ],
   "totals": {
-    "discovered": 185,
-    "implemented": 117,
+    "discovered": 184,
+    "implemented": 110,
     "partial": 11,
     "placeholder": 4,
-    "missing": 53
+    "missing": 59
   },
   "entries": [
     {
@@ -167,16 +167,10 @@
       "id": "screen:multi",
       "kind": "screen",
       "name": "multi",
-      "status": "implemented",
-      "owners": [
-        143,
-        160,
-        167
-      ],
-      "implementation": [
-        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
-      ],
-      "verification": "tests",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1794,14 +1788,10 @@
       "id": "action:multistream-add",
       "kind": "action",
       "name": "multistream-add",
-      "status": "implemented",
-      "owners": [
-        160
-      ],
-      "implementation": [
-        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
-      ],
-      "verification": "tests",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1864,14 +1854,10 @@
       "id": "action:audio-owner",
       "kind": "action",
       "name": "audio-owner",
-      "status": "implemented",
-      "owners": [
-        160
-      ],
-      "implementation": [
-        "apps/mobile/src/features/multistream/components/multistream-slot.tsx"
-      ],
-      "verification": "tests",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1879,14 +1865,10 @@
       "id": "action:multistream-edit",
       "kind": "action",
       "name": "multistream-edit",
-      "status": "implemented",
-      "owners": [
-        160
-      ],
-      "implementation": [
-        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
-      ],
-      "verification": "tests",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1905,14 +1887,10 @@
       "id": "action:restore-slot",
       "kind": "action",
       "name": "restore-slot",
-      "status": "implemented",
-      "owners": [
-        160
-      ],
-      "implementation": [
-        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
-      ],
-      "verification": "tests",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -1920,14 +1898,10 @@
       "id": "action:cool-device",
       "kind": "action",
       "name": "cool-device",
-      "status": "implemented",
-      "owners": [
-        160
-      ],
-      "implementation": [
-        "apps/mobile/src/features/multistream/components/multistream-view.tsx"
-      ],
-      "verification": "tests",
+      "status": "missing",
+      "owners": [],
+      "implementation": [],
+      "verification": "missing",
       "evidence": [],
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
@@ -2496,22 +2470,6 @@
       "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
     },
     {
-      "id": "shell-route:more/multistream",
-      "kind": "shell-route",
-      "name": "more/multistream",
-      "status": "implemented",
-      "owners": [
-        160
-      ],
-      "implementation": [
-        "apps/mobile/src/features/shell/components/app-shell.tsx",
-        "apps/mobile/src/features/multistream/components/multistream-screen.tsx"
-      ],
-      "verification": "tests",
-      "evidence": [],
-      "designRef": "docs/research/streamfusion-mobile/mobile-screen-and-control-contract.md"
-    },
-    {
       "id": "shell-route:more/history",
       "kind": "shell-route",
       "name": "more/history",
@@ -2623,7 +2581,7 @@
     {
       "id": "GAP-195-02",
       "status": "owned-elsewhere",
-      "finding": "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch and Multistream. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
+      "finding": "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
       "owners": [
         147,
         148,
