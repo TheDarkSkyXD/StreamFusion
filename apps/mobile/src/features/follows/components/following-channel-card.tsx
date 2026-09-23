@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
@@ -10,6 +10,7 @@ import {
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 
 import type { FollowingChannelRow } from "../capabilities/following-session";
 
@@ -24,20 +25,51 @@ export function FollowingChannelCard({
   readonly row: FollowingChannelRow;
 }) {
   const { t } = useTranslation();
+  const avatarUrl = row.stream?.channelAvatar;
+  const verified = row.stream?.channelIsVerified === true;
   return (
     <View
       style={styles.card}
       testID={`following-channel-${row.follow.platform}-${row.follow.channelId}`}
     >
       <View style={styles.heading}>
-        <Text selectable style={styles.title}>
-          {row.follow.displayName}
-        </Text>
+        {avatarUrl ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            source={{ uri: avatarUrl }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={styles.avatar} />
+        )}
+        <View style={styles.copy}>
+          <View style={styles.nameRow}>
+            <Text selectable style={styles.title}>
+              {row.follow.displayName}
+            </Text>
+            {verified ? (
+              <MobileVerifiedBadge platform={row.follow.platform} />
+            ) : null}
+          </View>
+          <View style={styles.statusRow}>
+            {row.isLive ? (
+              <View style={styles.livePill}>
+                <Text selectable style={styles.liveLabel}>
+                  {t("discovery.live")}
+                </Text>
+              </View>
+            ) : (
+              <Text selectable style={styles.meta}>
+                {t("discovery.offline")}
+              </Text>
+            )}
+            <Text selectable style={styles.meta}>
+              · {row.follow.platform}
+            </Text>
+          </View>
+        </View>
         <MobilePlatformBadge platform={row.follow.platform} />
       </View>
-      <Text selectable style={styles.meta}>
-        {row.isLive ? t("discovery.live") : t("discovery.offline")} · {row.follow.platform}
-      </Text>
       <Text selectable style={styles.meta}>
         {row.eligible
           ? t("discovery.following.liveAlertsEligible")
@@ -76,11 +108,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.small,
-    justifyContent: "space-between",
+  },
+  avatar: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.full,
+    height: 48,
+    width: 48,
+  },
+  copy: {
+    flex: 1,
+    gap: mobileSpacing.xSmall,
+  },
+  nameRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
+  },
+  statusRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
   },
   title: {
     ...mobileType.title,
-    flex: 1,
+  },
+  livePill: {
+    backgroundColor: mobileColors.live,
+    borderRadius: mobileRadii.small,
+    paddingHorizontal: mobileSpacing.small,
+    paddingVertical: mobileSpacing.xSmall,
+  },
+  liveLabel: {
+    color: mobileColors.textPrimary,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 14,
+    textTransform: "uppercase",
   },
   meta: {
     color: mobileColors.textSecondary,

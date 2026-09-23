@@ -4,31 +4,46 @@ import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
+import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import {
-  mobileColors,
-  mobileRadii,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+  watchTargetFromClip,
+  watchTargetFromVideo,
+} from "@mobile/features/discovery/domain/channel-watch-target";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import type {
   FollowingChannelRow,
   FollowingView,
   TabItems,
 } from "../capabilities/following-session";
+import { FollowingCategoryCard } from "./following-category-card";
 import { FollowingChannelCard } from "./following-channel-card";
+import { FollowingMediaCard } from "./following-media-card";
 import { FollowingStreamCard } from "./following-stream-card";
 import { tabItemsCopy } from "./following-tab-copy";
 
+export type FollowingCategoryTarget = {
+  readonly id: string;
+  readonly name: string;
+  readonly platform: Platform;
+  readonly boxArtUrl: string;
+  readonly otherId?: string;
+};
+
 export function FollowingTabBody({
+  onOpenCategory,
   onOpenProvider,
   onRetry,
+  onWatch,
   view,
 }: {
+  readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
   readonly onOpenProvider: (target: {
     readonly platform: Platform;
     readonly channelLogin: string;
   }) => void;
   readonly onRetry: (platform: Platform) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly view: FollowingView;
 }) {
   const { t } = useTranslation();
@@ -53,9 +68,11 @@ export function FollowingTabBody({
           ))
         : null}
       {view.tab === "channels" ? channelRows(items, onOpenProvider) : null}
-      {view.tab === "categories" ? categoryRows(items, translate) : null}
-      {view.tab === "videos" ? videoRows(items) : null}
-      {view.tab === "clips" ? clipRows(items) : null}
+      {view.tab === "categories"
+        ? categoryRows(items, translate, onOpenCategory)
+        : null}
+      {view.tab === "videos" ? videoRows(items, onWatch) : null}
+      {view.tab === "clips" ? clipRows(items, onWatch) : null}
     </View>
   );
 }
@@ -112,54 +129,63 @@ function channelRows(
 function categoryRows(
   items: TabItems<unknown>,
   t: (key: string, values?: Record<string, unknown>) => string,
+  onOpenCategory?: (category: FollowingCategoryTarget) => void,
 ) {
   if (items.kind === "loading" || items.kind === "empty") return null;
   return (items.items as readonly Category[]).map((category) => (
-    <View
+    <FollowingCategoryCard
       key={`${category.platform}:${category.id}`}
-      style={styles.card}
-      testID={`following-category-${category.platform}-${category.id}`}
-    >
-      <Text selectable style={styles.title}>
-        {category.name}
-      </Text>
-      <Text selectable style={styles.meta}>
-        {t("discovery.following.viewersMeta", {
-          count: category.viewerCount ?? 0,
-          platform: category.platform,
-        })}
-      </Text>
-    </View>
+      category={category}
+      viewersLabel={t("discovery.following.viewersMeta", {
+        count: category.viewerCount ?? 0,
+        platform: category.platform,
+      })}
+      {...(onOpenCategory === undefined
+        ? {}
+        : {
+            onPress: () =>
+              onOpenCategory({
+                boxArtUrl: category.boxArtUrl,
+                id: category.id,
+                name: category.name,
+                platform: category.platform,
+              }),
+          })}
+    />
   ));
 }
 
-function videoRows(items: TabItems<unknown>) {
+function videoRows(
+  items: TabItems<unknown>,
+  onWatch?: (target: WatchTarget) => void,
+) {
   if (items.kind === "loading" || items.kind === "empty") return null;
   return (items.items as readonly Video[]).map((video) => (
-    <View
+    <FollowingMediaCard
       key={`${video.platform}:${video.id}`}
-      style={styles.card}
+      item={video}
       testID={`following-video-${video.platform}-${video.id}`}
-    >
-      <Text selectable style={styles.title}>
-        {video.title}
-      </Text>
-    </View>
+      {...(onWatch === undefined
+        ? {}
+        : { onPress: () => onWatch(watchTargetFromVideo(video)) })}
+    />
   ));
 }
 
-function clipRows(items: TabItems<unknown>) {
+function clipRows(
+  items: TabItems<unknown>,
+  onWatch?: (target: WatchTarget) => void,
+) {
   if (items.kind === "loading" || items.kind === "empty") return null;
   return (items.items as readonly Clip[]).map((clip) => (
-    <View
+    <FollowingMediaCard
       key={`${clip.platform}:${clip.id}`}
-      style={styles.card}
+      item={clip}
       testID={`following-clip-${clip.platform}-${clip.id}`}
-    >
-      <Text selectable style={styles.title}>
-        {clip.title}
-      </Text>
-    </View>
+      {...(onWatch === undefined
+        ? {}
+        : { onPress: () => onWatch(watchTargetFromClip(clip)) })}
+    />
   ));
 }
 
@@ -172,23 +198,4 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
-  card: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    padding: mobileSpacing.medium,
-  },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  meta: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
 });

@@ -1,5 +1,5 @@
 import { toSerializedTimestamp } from "@streamfusion/core/content";
-import type { Channel, Stream, Video } from "@streamfusion/core/content";
+import type { Channel, Clip, Stream, Video } from "@streamfusion/core/content";
 import {
   parseGuestFollowWrite,
   type GuestFollow,
@@ -133,5 +133,29 @@ export function recordedOutcome(input: {
     platform: input.platform,
     stale: false,
     supported: input.supported ?? true,
+  };
+}
+
+export function followedClip(input: {
+  readonly platform?: Platform;
+  readonly channelId?: string;
+  readonly id?: string;
+  readonly title?: string;
+} = {}): Clip {
+  const platform = input.platform ?? "twitch";
+  return {
+    channelAvatar: "https://example.com/a.png",
+    channelDisplayName: "Alice",
+    channelId: input.channelId ?? `${platform}-1`,
+    channelName: `${platform}live`,
+    clipUrl: "https://example.test/clips/clip-1",
+    createdAt: toSerializedTimestamp("2026-08-30T12:00:00.000Z"),
+    creatorName: "Clipper",
+    duration: 30,
+    id: input.id ?? `${platform}-clip`,
+    platform,
+    thumbnailUrl: "https://example.com/clip.jpg",
+    title: input.title ?? "Funny moment",
+    viewCount: 44,
   };
 }

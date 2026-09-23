@@ -1036,6 +1036,12 @@ function ShellScreen({
         }
       >
         <FollowingWorkspace
+          onOpenCategory={(category) =>
+            dispatch({
+              type: "navigate",
+              location: { category, route: "more/category-detail" },
+            })
+          }
           onOpenManage={() =>
             dispatch({
               type: "navigate",
@@ -1045,6 +1051,7 @@ function ShellScreen({
           onOpenSearch={() =>
             dispatch({ type: "select", destination: "search" })
           }
+          onWatch={openWatch}
           route={location.route}
           session={followingSession}
         />

@@ -58,6 +58,15 @@ export function FollowingStreamCard({
         </View>
       </View>
       <View style={styles.meta}>
+        {stream.channelAvatar ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            source={{ uri: stream.channelAvatar }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={styles.avatar} />
+        )}
         <View style={styles.copy}>
           <Text selectable style={styles.title}>
             {stream.title}
@@ -70,7 +79,15 @@ export function FollowingStreamCard({
               <MobileVerifiedBadge platform={stream.platform} />
             ) : null}
           </View>
-          <MobileCatalogTags language={stream.language} tags={stream.tags} />
+          {stream.categoryName ? (
+            <Text selectable style={styles.category}>
+              {stream.categoryName}
+            </Text>
+          ) : null}
+          <MobileCatalogTags
+            language={stream.language}
+            tags={stream.tags.slice(0, 2)}
+          />
         </View>
         <MobilePlatformBadge platform={stream.platform} />
       </View>
@@ -109,7 +126,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 14,
   },
-    viewerBadge: {
+  viewerBadge: {
     backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.small,
     bottom: mobileSpacing.small,
@@ -130,6 +147,12 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
   },
+  avatar: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.full,
+    height: 40,
+    width: 40,
+  },
   copy: { flex: 1, gap: mobileSpacing.xSmall },
   channelRow: {
     alignItems: "center",
@@ -145,5 +168,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
+  },
+  category: {
+    color: mobileColors.textCategory,
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 18,
   },
 });

@@ -7,6 +7,8 @@ import type {
   FollowedRecordedSort,
 } from "@streamfusion/core/relay";
 
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -19,16 +21,23 @@ import type {
   FollowingTab,
 } from "../capabilities/following-session";
 import { FollowingControls } from "./following-controls";
-import { FollowingTabBody } from "./following-tab-body";
+import {
+  FollowingTabBody,
+  type FollowingCategoryTarget,
+} from "./following-tab-body";
 import { useFollowingView } from "./use-following-view";
 
 export function FollowingScreen({
+  onOpenCategory,
   onOpenManage,
   onOpenSearch,
+  onWatch,
   session,
 }: {
+  readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
   readonly onOpenManage: () => void;
   readonly onOpenSearch?: () => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly session: FollowingSession;
 }) {
   const [tab, setTab] = useState<FollowingTab>("live");
@@ -48,11 +57,13 @@ export function FollowingScreen({
     <FollowingScreenBody
       chip={chip}
       onChip={setChip}
+      {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
       onOpenManage={onOpenManage}
       onOpenProvider={(target) => {
         void session.openProviderPage(target);
       }}
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
+      {...(onWatch === undefined ? {} : { onWatch })}
       onPeriod={setPeriod}
       onQuery={setQuery}
       onRefresh={() => live.refresh()}
@@ -72,6 +83,7 @@ export function FollowingScreen({
 function FollowingScreenBody({
   chip,
   onChip,
+  onOpenCategory,
   onOpenManage,
   onOpenProvider,
   onOpenSearch,
@@ -81,6 +93,7 @@ function FollowingScreenBody({
   onRetry,
   onSort,
   onTab,
+  onWatch,
   period,
   query,
   refreshing,
@@ -90,6 +103,7 @@ function FollowingScreenBody({
 }: {
   readonly chip: FollowingChip;
   readonly onChip: (chip: FollowingChip) => void;
+  readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
   readonly onOpenManage: () => void;
   readonly onOpenProvider: (target: {
     readonly platform: Platform;
@@ -102,6 +116,7 @@ function FollowingScreenBody({
   readonly onRetry: () => void;
   readonly onSort: (sort: FollowedRecordedSort) => void;
   readonly onTab: (tab: FollowingTab) => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly period: FollowedClipPeriod;
   readonly query: string;
   readonly refreshing: boolean;
@@ -146,8 +161,10 @@ function FollowingScreenBody({
         />
       ) : null}
       <FollowingTabBody
+        {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
         onOpenProvider={onOpenProvider}
         onRetry={onRetry}
+        {...(onWatch === undefined ? {} : { onWatch })}
         view={view}
       />
       {onOpenSearch &&

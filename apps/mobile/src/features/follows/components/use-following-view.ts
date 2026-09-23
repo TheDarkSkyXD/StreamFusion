@@ -5,7 +5,11 @@ import type {
   FollowedRecordedSort,
 } from "@streamfusion/core/relay";
 
+import type { Stream } from "@streamfusion/core/content";
+import type { Platform } from "@streamfusion/core/platform";
+
 import type {
+  FollowedReadOutcome,
   FollowingChip,
   FollowingSession,
   FollowingTab,
@@ -49,7 +53,7 @@ export function useFollowingView(input: {
         queries.notifications.data ?? DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       query: input.query,
       tab: input.tab,
-      ...(queries.live.data === undefined ? {} : queries.live.data),
+      ...liveOutcomes(queries.live),
       ...(queries.recorded.data === undefined
         ? {}
         : { recorded: queries.recorded.data }),
@@ -105,4 +109,33 @@ function useFollowingQueries(input: {
     retry: false,
   });
   return { live, membership, notifications, recorded, recordedEnabled };
+}
+
+function liveOutcomes(live: {
+  readonly data:
+    | Readonly<Record<Platform, FollowedReadOutcome<Stream>>>
+    | undefined;
+  readonly isError: boolean;
+}): Partial<Record<Platform, FollowedReadOutcome<Stream>>> {
+  if (live.data !== undefined) return live.data;
+  if (!live.isError) return {};
+  return {
+    kick: failedLiveOutcome("kick"),
+    twitch: failedLiveOutcome("twitch"),
+  };
+}
+
+function failedLiveOutcome(
+  platform: Platform,
+): FollowedReadOutcome<Stream> {
+  return {
+    error: "live-query-failed",
+    items: [],
+    missing: [],
+    offline: false,
+    platform,
+    retryable: true,
+    stale: false,
+    status: "failed",
+  };
 }

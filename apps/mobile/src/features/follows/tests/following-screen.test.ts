@@ -6,7 +6,9 @@ import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follow
 import { composeFollowingView } from "../domain/compose-following-view";
 import { FollowingTabBody } from "../components/following-tab-body";
 import {
+  followedClip,
   followedStream,
+  followedVideo,
   guestFollow,
   liveOutcome,
   recordedOutcome,
@@ -82,6 +84,13 @@ describe("Following screen", () => {
 
 
   it("renders live Guest Follow cards", () => {
+    const stream = followedStream({
+      categoryId: "509658",
+      categoryName: "Just Chatting",
+      channelId: twitchFollow.channelId,
+      channelName: twitchFollow.channelLogin,
+      platform: "twitch",
+    });
     const view = composeFollowingView({
       chip: "all",
       loadingLive: false,
@@ -90,7 +99,7 @@ describe("Following screen", () => {
       notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       query: "",
       tab: "live",
-      twitch: liveOutcome("twitch", "complete", [liveStream]),
+      twitch: liveOutcome("twitch", "complete", [stream]),
     });
     const nodes = descendants(
       FollowingTabBody({
@@ -106,6 +115,9 @@ describe("Following screen", () => {
       ),
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
+    expect(nodes.some((node) => node.props.children === "Just Chatting")).toBe(
+      true,
+    );
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Live Guest Follows/);
   });
@@ -180,6 +192,140 @@ describe("Following screen", () => {
     );
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Kick does not offer videos/);
+  });
+
+
+  it("opens Watch from rich Following video cards", () => {
+    const watched: string[] = [];
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      recorded: [
+        recordedOutcome({
+          items: [followedVideo({ title: "VOD one" })],
+          platform: "twitch",
+        }),
+      ],
+      tab: "videos",
+    });
+    const nodes = descendants(
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        onWatch: (target) => watched.push(target.media?.id ?? "missing"),
+        view,
+      }),
+    );
+    expect(
+      nodes.some(
+        (node) => node.props.testID === "following-video-twitch-twitch-video",
+      ),
+    ).toBe(true);
+    nodes
+      .find((node) => node.props.testID === "following-video-twitch-twitch-video")
+      ?.props.onPress?.();
+    expect(watched).toEqual(["twitch-video"]);
+  });
+
+  it("opens Watch from rich Following clip cards", () => {
+    const watched: string[] = [];
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      recorded: [
+        {
+          channelId: "twitch-1",
+          failed: false,
+          items: [followedClip({ title: "Clip one" })],
+          offline: false,
+          platform: "twitch",
+          stale: false,
+          supported: true,
+        },
+      ],
+      tab: "clips",
+    });
+    const nodes = descendants(
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        onWatch: (target) => watched.push(target.media?.id ?? "missing"),
+        view,
+      }),
+    );
+    nodes
+      .find((node) => node.props.testID === "following-clip-twitch-twitch-clip")
+      ?.props.onPress?.();
+    expect(watched).toEqual(["twitch-clip"]);
+  });
+
+  it("opens category detail from Following category cards", () => {
+    const opened: string[] = [];
+    const stream = followedStream({
+      categoryId: "509658",
+      categoryName: "Just Chatting",
+      channelId: twitchFollow.channelId,
+      channelName: twitchFollow.channelLogin,
+      platform: "twitch",
+      viewerCount: 20,
+    });
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      tab: "categories",
+      twitch: liveOutcome("twitch", "complete", [stream]),
+    });
+    const nodes = descendants(
+      FollowingTabBody({
+        onOpenCategory: (category) => opened.push(category.id),
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        view,
+      }),
+    );
+    nodes
+      .find((node) => node.props.testID === "following-category-twitch-509658")
+      ?.props.onPress?.();
+    expect(opened).toEqual(["509658"]);
+  });
+
+  it("renders a stronger live pill on Following channel cards", () => {
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: false,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      tab: "channels",
+      twitch: liveOutcome("twitch", "complete", [liveStream]),
+    });
+    const nodes = descendants(
+      FollowingTabBody({
+        onOpenProvider: () => undefined,
+        onRetry: () => undefined,
+        view,
+      }),
+    );
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === "following-channel-twitch-twitch-1",
+      ),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.children === "Live")).toBe(true);
   });
 
   it("keeps a Search CTA for empty guest membership in the Following screen", () => {
