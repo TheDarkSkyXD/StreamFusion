@@ -24,7 +24,6 @@ import { SettingsSwitch } from "@mobile/features/settings/components/settings-co
 
 import type { FollowingSession } from "../capabilities/following-session";
 import { resolveGuestLiveAlertTruthKeys } from "../domain/guest-live-alert-status";
-import { FollowingAddForm } from "./following-add-form";
 import { followingQueryKey } from "./use-following-view";
 
 export function FollowingManageScreen({
@@ -87,11 +86,6 @@ export function FollowingManageScreen({
         permission={permissionSnapshot.data?.permission ?? "not-requested"}
         prefs={prefs}
         remotePushAvailable={remotePushAvailable}
-      />
-      <FollowingAddForm
-        membership={membership.data ?? []}
-        onAdded={refresh}
-        session={session}
       />
       {(membership.data ?? []).map((follow) => (
         <ManageRow
@@ -279,24 +273,6 @@ function ManageRow({
             value={notify}
           />
         </Pressable>
-        <MobileButton
-          accessibilityLabel={t("discovery.following.openNameOnPlatform", {
-            name: follow.displayName,
-            platform: follow.platform,
-          })}
-          onPress={() => {
-            void session.openProviderPage({
-              channelLogin: follow.channelLogin,
-              platform: follow.platform,
-            });
-          }}
-          testID={`following-provider-${follow.platform}-${follow.channelId}`}
-          variant="secondary"
-        >
-          {t("discovery.following.openOnPlatform", {
-            platform: follow.platform,
-          })}
-        </MobileButton>
       </View>
     </View>
   );
