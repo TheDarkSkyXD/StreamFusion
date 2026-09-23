@@ -68,7 +68,6 @@ import { createConnectivityRuntime } from "@mobile/features/connectivity/composi
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
-import { isExpoGoHost } from "@mobile/features/notifications/adapters/expo-local-notifications-module";
 import { createExpoLocalNotificationPresenter } from "@mobile/features/notifications/adapters/expo-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
@@ -384,7 +383,6 @@ const liveAlertPoller = createGuestLiveAlertPoller({
   hydrateLive: () => followingSession.hydrateLive(),
 });
 const androidNotificationPermission = createAndroidNotificationPermissionPort();
-const remotePushAvailable = !isExpoGoHost();
 
 const nativeNotifications = createNativeNotificationRuntimeForApp({
   activityRepository: persistenceRuntime.productState.activity,
@@ -652,9 +650,7 @@ export function MobileRuntime() {
       connectivitySession={connectivitySession}
       adblockSession={adblockSession}
       twitchPlaylistProxySession={twitchPlaylistProxySession}
-      notificationPermission={androidNotificationPermission}
       notificationSession={notificationSession}
-      remotePushAvailable={remotePushAvailable}
       chatDisplaySession={chatDisplaySession}
       predictionSession={predictionSession}
       nativeNotifications={nativeNotifications}

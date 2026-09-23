@@ -113,10 +113,7 @@ import { TwitchPlaylistProxySettingsPanel } from "@mobile/features/ad-blocking/c
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { ChatDisplaySettingsSession } from "@mobile/features/settings/capabilities/chat-display-settings";
-import type {
-  NotificationPermissionPort,
-  NotificationSettingsSession,
-} from "@mobile/features/settings/capabilities/notification-settings";
+import type { NotificationSettingsSession } from "@mobile/features/settings/capabilities/notification-settings";
 import type { PredictionSettingsSession } from "@mobile/features/settings/capabilities/prediction-settings";
 import type { SettingsSession } from "@mobile/features/settings/capabilities/settings";
 import type { SupportSettingsSession } from "@mobile/features/settings/capabilities/support-settings";
@@ -268,9 +265,7 @@ export function AppShell({
   connectivitySession,
   adblockSession,
   twitchPlaylistProxySession,
-  notificationPermission,
   notificationSession,
-  remotePushAvailable = false,
   chatDisplaySession,
   predictionSession,
   nativeNotifications,
@@ -322,9 +317,7 @@ export function AppShell({
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
   readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
-  readonly notificationPermission: NotificationPermissionPort;
   readonly notificationSession: NotificationSettingsSession;
-  readonly remotePushAvailable?: boolean;
   readonly chatDisplaySession: ChatDisplaySettingsSession;
   readonly predictionSession: PredictionSettingsSession;
   readonly nativeNotifications: NativeNotificationRuntime;
@@ -562,9 +555,7 @@ export function AppShell({
               connectivitySession={connectivitySession}
               adblockSession={adblockSession}
               twitchPlaylistProxySession={twitchPlaylistProxySession}
-              notificationPermission={notificationPermission}
               notificationSession={notificationSession}
-              remotePushAvailable={remotePushAvailable}
               chatDisplaySession={chatDisplaySession}
               predictionSession={predictionSession}
               onPresentNotificationProof={() =>
@@ -783,9 +774,7 @@ function ShellScreen({
   connectivitySession,
   adblockSession,
   twitchPlaylistProxySession,
-  notificationPermission,
   notificationSession,
-  remotePushAvailable = false,
   chatDisplaySession,
   predictionSession,
   onPresentNotificationProof,
@@ -840,9 +829,7 @@ function ShellScreen({
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
   readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
-  readonly notificationPermission: NotificationPermissionPort;
   readonly notificationSession: NotificationSettingsSession;
-  readonly remotePushAvailable?: boolean;
   readonly chatDisplaySession: ChatDisplaySettingsSession;
   readonly predictionSession: PredictionSettingsSession;
   readonly onPresentNotificationProof: () => Promise<void>;
@@ -1058,8 +1045,6 @@ function ShellScreen({
           onOpenSearch={() =>
             dispatch({ type: "select", destination: "search" })
           }
-          permission={notificationPermission}
-          remotePushAvailable={remotePushAvailable}
           route={location.route}
           session={followingSession}
         />

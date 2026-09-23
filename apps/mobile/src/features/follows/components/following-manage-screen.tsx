@@ -16,23 +16,13 @@ import {
   mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
-import type {
-  NotificationPermissionPort,
-  NotificationPermissionStatus,
-} from "@mobile/features/settings/capabilities/notification-settings";
-import { SettingsSwitch } from "@mobile/features/settings/components/settings-controls";
 
 import type { FollowingSession } from "../capabilities/following-session";
-import { resolveGuestLiveAlertTruthKeys } from "../domain/guest-live-alert-status";
 import { followingQueryKey } from "./use-following-view";
 
 export function FollowingManageScreen({
-  permission,
-  remotePushAvailable = false,
   session,
 }: {
-  readonly permission: NotificationPermissionPort;
-  readonly remotePushAvailable?: boolean;
   readonly session: FollowingSession;
 }) {
   const { t } = useTranslation();
@@ -47,11 +37,6 @@ export function FollowingManageScreen({
     queryKey: followingQueryKey("notifications"),
     retry: false,
   });
-  const permissionSnapshot = useQuery({
-    queryFn: () => permission.read(),
-    queryKey: followingQueryKey("notification-permission"),
-    retry: false,
-  });
   const prefs = notifications.data ?? DEFAULT_LIVE_NOTIFICATION_PREFERENCES;
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["follows"] });
@@ -64,29 +49,7 @@ export function FollowingManageScreen({
       testID="following-manage-screen"
     >
       <MobileScreenHeader title={t("discovery.following.manageTitle")} />
-      <ManageNotices
-        onToggleGuest={() => {
-          const next = !prefs.guestFollows;
-          void (async () => {
-            if (next) {
-              await permission.request();
-            }
-            await session.writeNotifications({
-              ...prefs,
-              guestFollows: next,
-            });
-            refresh();
-          })();
-        }}
-        permission={permissionSnapshot.data?.permission ?? "not-requested"}
-        prefs={prefs}
-        remotePushAvailable={remotePushAvailable}
-      />
-      <NotificationTruths
-        permission={permissionSnapshot.data?.permission ?? "not-requested"}
-        prefs={prefs}
-        remotePushAvailable={remotePushAvailable}
-      />
+      <ManageNotices />
       {(membership.data ?? []).map((follow) => (
         <ManageRow
           follow={follow}
@@ -105,23 +68,8 @@ export function FollowingManageScreen({
   );
 }
 
-function ManageNotices({
-  onToggleGuest,
-  permission,
-  prefs,
-  remotePushAvailable,
-}: {
-  readonly onToggleGuest: () => void;
-  readonly permission: NotificationPermissionStatus;
-  readonly prefs: LiveNotificationPreferences;
-  readonly remotePushAvailable: boolean;
-}) {
+function ManageNotices() {
   const { t } = useTranslation();
-  const truths = resolveGuestLiveAlertTruthKeys({
-    permission,
-    preferences: prefs,
-    remotePushAvailable,
-  });
   return (
     <>
       <Text selectable style={styles.copy}>
@@ -135,57 +83,7 @@ function ManageNotices({
           {t("discovery.following.importDisabled")}
         </Text>
       </View>
-      <View style={styles.card} testID="following-push-stub">
-        <Text selectable style={styles.cardTitle}>
-          {t("discovery.following.systemNotifications")}
-        </Text>
-        <Text selectable style={styles.copy}>
-          {t(`discovery.following.${truths.systemNotificationsKey}`)}
-        </Text>
-        <SettingsSwitch
-          checked={prefs.guestFollows}
-          label={t("settings.guestFollowNotifications")}
-          onToggle={onToggleGuest}
-          testID="following-notify-guest"
-        />
-      </View>
     </>
-  );
-}
-
-function NotificationTruths({
-  permission,
-  prefs,
-  remotePushAvailable,
-}: {
-  readonly permission: NotificationPermissionStatus;
-  readonly prefs: LiveNotificationPreferences;
-  readonly remotePushAvailable: boolean;
-}) {
-  const { t } = useTranslation();
-  const truths = resolveGuestLiveAlertTruthKeys({
-    permission,
-    preferences: prefs,
-    remotePushAvailable,
-  });
-  return (
-    <View style={styles.card} testID="following-notification-truths">
-      <Text selectable style={styles.cardTitle}>
-        {t("discovery.following.liveAlertStatus")}
-      </Text>
-      <Text selectable style={styles.copy}>
-        {t(`discovery.following.${truths.eligibilityKey}`)}
-      </Text>
-      <Text selectable style={styles.copy}>
-        {t(`discovery.following.${truths.permissionKey}`)}
-      </Text>
-      <Text selectable style={styles.copy}>
-        {t(`discovery.following.${truths.registrationKey}`)}
-      </Text>
-      <Text selectable style={styles.copy}>
-        {t(`discovery.following.${truths.deliveryKey}`)}
-      </Text>
-    </View>
   );
 }
 
