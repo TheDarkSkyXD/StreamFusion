@@ -7,7 +7,7 @@ import { MobilePlatformBadge } from "../platform-badge";
 import { MobileScreenHeader } from "../screen-header";
 import { MobileStatusPanel } from "../status-panel";
 import { MobileCatalogTags, catalogTagLabels } from "../tag";
-import { mobileColors, mobileRadii, mobileShadows, mobileType } from "../tokens";
+import { mobileColors, mobileRadii, mobileShadows, mobileSizing, mobileType } from "../tokens";
 import { MobileUnderlineTabs } from "../underline-tabs";
 import { MobileVerifiedBadge } from "../verified-badge";
 
@@ -86,6 +86,7 @@ describe("mobile design tokens", () => {
     expect(mobileType.display.fontSize).toBe(24);
     expect(mobileType.display.fontWeight).toBe("700");
     expect(mobileType.body.fontSize).toBe(16);
+    expect(mobileSizing.selectSheetMaxHeight).toBe("50%");
   });
 });
 

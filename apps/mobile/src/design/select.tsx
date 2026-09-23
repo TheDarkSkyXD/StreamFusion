@@ -17,6 +17,9 @@ import {
   mobileSpacing,
 } from "./tokens";
 
+/** Shared bottom-sheet cap for MobileSelect / SettingsSelect (half screen). */
+export const mobileSelectSheetMaxHeight = mobileSizing.selectSheetMaxHeight;
+
 export type MobileSelectOption<T extends string> = {
   readonly label: string;
   readonly value: T;
@@ -214,7 +217,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: mobileRadii.large,
     borderTopRightRadius: mobileRadii.large,
     borderTopWidth: 1,
-    maxHeight: "70%",
+    maxHeight: mobileSelectSheetMaxHeight,
     paddingBottom: mobileSpacing.large,
     paddingTop: mobileSpacing.small,
   },

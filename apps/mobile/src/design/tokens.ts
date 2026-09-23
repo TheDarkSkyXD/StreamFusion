@@ -65,6 +65,8 @@ export const mobileSizing = {
   navigationRailWidth: 104,
   compactWindowMaximum: 599,
   readableContentMaximum: 760,
+  /** MobileSelect / SettingsSelect bottom sheet — half screen with internal scroll. */
+  selectSheetMaxHeight: "50%",
 } as const;
 
 export const mobileMotion = {
