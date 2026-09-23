@@ -60,10 +60,10 @@ describe("shell layout", () => {
   });
 
   it("hides compact bottom navigation while the keyboard is open", () => {
-    expect(source).toContain("const keyboardInset = useKeyboardInset()");
+    expect(source).toContain("const keyboard = useKeyboardInset()");
     expect(source).toContain("safeFrameBottomInset({");
     expect(source).toContain(
-      "placement === \"bottom\" &&\n        !pictureInPictureSurface &&\n        keyboardInset === 0",
+      "placement === \"bottom\" &&\n        !pictureInPictureSurface &&\n        !keyboard.open",
     );
   });
 

@@ -661,5 +661,7 @@ export function getShellNavigationPlacement(width: number): "bottom" | "rail" {
 }
 
 export function bottomNavigationSafeInset(insetBottom: number): number {
-  return Math.max(insetBottom, 48);
+  // Trust the system inset once. A previous Math.max(..., 48) floor inflated
+  // gesture-bar insets (~16–24) and left an empty band above Android nav.
+  return Math.max(0, insetBottom);
 }

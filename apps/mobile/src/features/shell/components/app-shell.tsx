@@ -394,7 +394,8 @@ export function AppShell({
   const captionsController = useLocalCaptionsController({ port: captions });
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardInset();
+  const keyboard = useKeyboardInset();
+  const keyboardInset = keyboard.inset;
   const readNetwork = useCallback(
     () => connectivitySession.readNetwork(),
     [connectivitySession],
@@ -581,7 +582,7 @@ export function AppShell({
         </View>
         {placement === "bottom" &&
         !pictureInPictureSurface &&
-        keyboardInset === 0 ? (
+        !keyboard.open ? (
           <View
             style={{
               flexShrink: 0,

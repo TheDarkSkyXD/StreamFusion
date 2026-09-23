@@ -28,9 +28,10 @@ describe("adaptive app shell", () => {
     ]);
   });
 
-  it("keeps bottom navigation above a missing system inset", () => {
-    expect(bottomNavigationSafeInset(0)).toBe(mobileSizing.minimumTouchTarget);
-    expect(bottomNavigationSafeInset(24)).toBe(mobileSizing.minimumTouchTarget);
+  it("uses the system bottom inset without inventing extra padding", () => {
+    expect(bottomNavigationSafeInset(0)).toBe(0);
+    expect(bottomNavigationSafeInset(24)).toBe(24);
+    expect(bottomNavigationSafeInset(48)).toBe(48);
     expect(bottomNavigationSafeInset(64)).toBe(64);
   });
 
