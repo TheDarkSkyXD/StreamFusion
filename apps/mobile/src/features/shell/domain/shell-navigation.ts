@@ -121,6 +121,7 @@ const SHELL_DESTINATION_IDS = SHELL_DESTINATIONS.map(({ id }) => id);
 
 export const MORE_ROUTE_IDS = [
   "more/multistream",
+  "more/categories",
   "more/history",
   "more/downloads",
   "more/moderation",

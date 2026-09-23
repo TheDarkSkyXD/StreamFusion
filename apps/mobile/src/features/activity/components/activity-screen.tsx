@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import type { ActivityItem } from "@streamfusion/core/activity";
 import {
   Bell,
@@ -18,7 +17,6 @@ import {
 } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
@@ -69,7 +67,6 @@ export function ActivityScreen({
   readonly onRefresh: () => Promise<void>;
   readonly scrollRequest?: number;
 }) {
-  const { t } = useTranslation();
   const listRef = useRef<FlatListView<ActivityItem>>(null);
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
@@ -95,10 +92,9 @@ export function ActivityScreen({
       }
       ListHeaderComponent={
         <View style={styles.headerContent}>
-          <MobileScreenHeader
-            summary="Go-lives from channels you follow."
-            title={t("navigation.activity")}
-          />
+          <Text selectable style={styles.headerSummary}>
+            Go-lives from channels you follow.
+          </Text>
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}
             {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
@@ -451,12 +447,12 @@ function ActivityEmptyState({
           ? "Loading…"
           : status === "unavailable"
             ? "Couldn't load Activity"
-            : "No followed go-lives"}
+            : "No go-lives yet"}
       </Text>
       <Text selectable style={styles.itemBody}>
         {status === "unavailable"
           ? "Try again in a moment."
-          : "Follow channels to see go-live alerts."}
+          : "Follow channels for alerts."}
       </Text>
       {status === "unavailable" ? (
         <MobileButton
@@ -715,6 +711,12 @@ const styles = StyleSheet.create({
   headerContent: {
     gap: mobileSpacing.medium,
     paddingBottom: mobileSpacing.small,
+  },
+  headerSummary: {
+    color: mobileColors.textSecondary,
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
   },
   unreadRow: {
     alignItems: "center",

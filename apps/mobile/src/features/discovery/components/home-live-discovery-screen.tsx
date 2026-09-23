@@ -33,6 +33,7 @@ export function HomeLiveDiscoveryScreen({
   onOpenChannel,
   onSelectStream,
   session,
+  showTitle = true,
   title = "Home",
   topShelf,
 }: {
@@ -41,6 +42,7 @@ export function HomeLiveDiscoveryScreen({
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onSelectStream?: (stream: Stream) => void;
   readonly session: DiscoverySession;
+  readonly showTitle?: boolean;
   readonly title?: string;
   readonly topShelf?: ReactNode;
 }) {
@@ -82,6 +84,7 @@ export function HomeLiveDiscoveryScreen({
       {...(footer === undefined ? {} : { footer })}
       {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(onSelectStream === undefined ? {} : { onSelectStream })}
+      showTitle={showTitle}
       {...(title === undefined ? {} : { title })}
       {...(topShelf === undefined ? {} : { topShelf })}
     />
@@ -100,6 +103,7 @@ export function HomeLiveDiscoveryView({
   onSelectStream,
   proofMode,
   refreshing = false,
+  showTitle = true,
   title = "Home",
   topShelf,
   view,
@@ -115,6 +119,7 @@ export function HomeLiveDiscoveryView({
   readonly onSelectStream?: (stream: Stream) => void;
   readonly proofMode?: DiscoveryFixtureMode;
   readonly refreshing?: boolean;
+  readonly showTitle?: boolean;
   readonly title?: string;
   readonly topShelf?: ReactNode;
   readonly view: HomeLiveDiscoveryModel;
@@ -142,7 +147,7 @@ export function HomeLiveDiscoveryView({
       style={styles.scroll}
       testID="home-live-discovery"
     >
-      <MobileScreenHeader title={title} />
+      {showTitle ? <MobileScreenHeader title={title} /> : null}
       {topShelf ?? null}
       {featured.length > 0 ? (
         <HomeFeaturedCarouselView
@@ -153,7 +158,7 @@ export function HomeLiveDiscoveryView({
         />
       ) : null}
       <Text selectable style={mobileType.title}>
-        Recommended live
+        Live Channels
       </Text>
       {view.phase === "empty" || view.phase === "failed" ? (
         <MobileStatusPanel tone={view.phase === "failed" ? "error" : "empty"}>
@@ -193,15 +198,15 @@ export function HomeLiveDiscoveryView({
 function phaseCopy(view: HomeLiveDiscoveryModel): string {
   switch (view.phase) {
     case "loading":
-      return "Loading live recommendations from Twitch and Kick.";
+      return "Loading live channels…";
     case "ready":
-      return "Live recommendations from Twitch and Kick.";
+      return "Live across Twitch and Kick.";
     case "offline-cache":
-      return "Showing cached recommendations while a live read is unavailable.";
+      return "Cached live channels — connection limited.";
     case "empty":
-      return "No live recommendations are available right now.";
+      return "No live channels right now.";
     case "failed":
-      return "Live recommendations could not be loaded.";
+      return "Couldn’t load live channels.";
   }
 }
 

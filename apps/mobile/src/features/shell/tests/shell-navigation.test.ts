@@ -407,9 +407,10 @@ describe("adaptive app shell", () => {
     ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
-  it("keeps Categories off More cards while Accounts stay last without a Home entry", () => {
+  it("keeps Categories on More cards while Accounts stay last without a Home entry", () => {
     expect(MORE_ROUTE_IDS).toEqual([
       "more/multistream",
+      "more/categories",
       "more/history",
       "more/downloads",
       "more/moderation",
@@ -417,7 +418,7 @@ describe("adaptive app shell", () => {
       "more/diagnostics",
       "more/accounts",
     ]);
-    expect(MORE_ROUTE_IDS.includes("more/categories" as never)).toBe(false);
+    expect(MORE_ROUTE_IDS.includes("more/categories")).toBe(true);
     expect(MORE_ROUTE_IDS.includes("more/home" as never)).toBe(false);
   });
 });

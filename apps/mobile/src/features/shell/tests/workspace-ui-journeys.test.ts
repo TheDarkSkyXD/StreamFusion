@@ -63,7 +63,7 @@ vi.mock("lucide-react-native", () => ({
 }));
 
 vi.mock("react", async () => {
-  const actual = await vi.importActual<typeof import("react")>("react");
+  const actual = await vi.importActual("react");
   return {
     ...actual,
     useEffect: vi.fn(),
@@ -139,6 +139,7 @@ describe("workspace UI journeys", () => {
     ]);
     expect(MORE_ROUTE_IDS).toEqual([
       "more/multistream",
+      "more/categories",
       "more/history",
       "more/downloads",
       "more/moderation",
@@ -146,7 +147,7 @@ describe("workspace UI journeys", () => {
       "more/diagnostics",
       "more/accounts",
     ]);
-    expect(MORE_ROUTE_IDS.includes("more/categories" as never)).toBe(false);
+    expect(MORE_ROUTE_IDS.includes("more/categories")).toBe(true);
     expect(SHELL_ROUTES.watch.id).toBe("watch");
     expect(SHELL_ROUTES["following/manage"].id).toBe("following/manage");
     expect(SHELL_ROUTES["activity/job-preview"].id).toBe("activity/job-preview");
@@ -156,7 +157,7 @@ describe("workspace UI journeys", () => {
     const retried: string[] = [];
     const following = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         onRetry: (platform) => retried.push(platform),
         view: composeFollowingView({
           chip: "all",

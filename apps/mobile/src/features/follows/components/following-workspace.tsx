@@ -1,3 +1,4 @@
+import type { ChannelIdentity } from "@streamfusion/core/platform";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import type { FollowingSession } from "../capabilities/following-session";
@@ -7,6 +8,7 @@ import type { FollowingCategoryTarget } from "./following-tab-body";
 
 export function FollowingWorkspace({
   onOpenCategory,
+  onOpenChannel,
   onOpenManage,
   onOpenSearch,
   onWatch,
@@ -14,6 +16,7 @@ export function FollowingWorkspace({
   session,
 }: {
   readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onOpenManage: () => void;
   readonly onOpenSearch?: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
@@ -27,6 +30,7 @@ export function FollowingWorkspace({
     <FollowingScreen
       onOpenManage={onOpenManage}
       {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
+      {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       {...(onWatch === undefined ? {} : { onWatch })}
       session={session}

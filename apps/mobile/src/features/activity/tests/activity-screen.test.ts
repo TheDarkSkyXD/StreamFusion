@@ -243,14 +243,14 @@ describe("Activity screen", () => {
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children === "No followed go-lives",
+          node.props.children === "No go-lives yet",
       ),
     ).toBe(true);
     expect(
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children.includes("Follow channels to see go-live alerts."),
+          node.props.children.includes("Follow channels for alerts."),
       ),
     ).toBe(true);
   });

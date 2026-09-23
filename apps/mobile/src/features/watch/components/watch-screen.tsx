@@ -368,6 +368,7 @@ export function WatchEmptyState({
           onOpenAccounts={discovery.onOpenAccounts}
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
+          showTitle={false}
           title={t("navigation.watch")}
         />
       </View>

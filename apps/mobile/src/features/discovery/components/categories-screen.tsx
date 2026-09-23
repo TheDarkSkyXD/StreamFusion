@@ -4,7 +4,6 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileSelect } from "@mobile/design/select";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
 import type {
@@ -92,7 +91,6 @@ export function CategoriesView({
       style={styles.scroll}
       testID="categories-screen"
     >
-      {embedded ? null : <MobileScreenHeader title="Categories" />}
       <Text selectable style={mobileType.body} testID="categories-phase">
         {phaseCopy(view.phase)}
       </Text>
@@ -160,15 +158,15 @@ function LanguageRow({
 function phaseCopy(phase: ReturnType<typeof composeCategoryCatalog>["phase"]): string {
   switch (phase) {
     case "loading":
-      return "Loading categories from Twitch and Kick.";
+      return "Loading categories…";
     case "ready":
-      return "Browse categories across Twitch and Kick.";
+      return "Browse Twitch and Kick categories.";
     case "offline-cache":
-      return "Showing cached categories while a live read is unavailable.";
+      return "Cached categories — connection limited.";
     case "empty":
-      return "No categories match this search.";
+      return "No matching categories.";
     case "failed":
-      return "Categories could not be loaded.";
+      return "Couldn't load categories.";
   }
 }
 

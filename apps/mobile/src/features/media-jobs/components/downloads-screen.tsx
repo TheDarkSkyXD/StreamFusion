@@ -3,7 +3,6 @@ import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
@@ -33,44 +32,69 @@ export function DownloadsScreen({
       style={styles.scroll}
       testID="screen-downloads"
     >
-      <MobileScreenHeader
-        summary="Downloads and recordings you start from Watch appear here. Nothing autoplays."
-        title="Downloads"
-      />
       {jobs.length === 0 ? (
         <MobileStatusPanel testID="downloads-empty" tone="empty">
           <Text selectable style={mobileType.title}>
             No downloads yet
           </Text>
           <Text selectable style={mobileType.body}>
-            Start a download or recording from a Watch session. Jobs also show
-            under Activity.
+            Start one from Watch.
           </Text>
         </MobileStatusPanel>
       ) : (
         <View style={styles.stack}>
           {jobs.map((job) => {
             const jobId = job.intent.jobId;
+            const progress = progressRatio(job);
             return (
               <View
                 key={jobId}
                 style={styles.card}
                 testID={`downloads-job-${jobId}`}
               >
-                <Text selectable style={styles.title}>
-                  {job.intent.kind}
-                </Text>
-                <Text selectable style={styles.meta}>
-                  {mediaJobPhaseLabel(job.phase)}
-                </Text>
-                <MobileButton
-                  accessibilityLabel={`Open media job ${jobId}`}
-                  onPress={() => onOpenJob(jobId)}
-                  testID={`downloads-open-${jobId}`}
-                  variant="secondary"
-                >
-                  Open
-                </MobileButton>
+                <View style={styles.thumbWrap}>
+                  <View style={styles.thumb}>
+                    <Text selectable style={styles.kindBadge}>
+                      {job.intent.kind.toUpperCase()}
+                    </Text>
+                  </View>
+                  {progress === null ? null : (
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${progress * 100}%` },
+                        ]}
+                      />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.meta}>
+                  <View style={styles.copy}>
+                    <Text selectable style={styles.title}>
+                      {jobTitle(job)}
+                    </Text>
+                    <Text selectable style={styles.status}>
+                      {mediaJobPhaseLabel(job.phase)}
+                      {job.statusMessage ? ` · ${job.statusMessage}` : ""}
+                    </Text>
+                    {progress === null ? null : (
+                      <Text selectable style={styles.progressLabel}>
+                        {`${Math.round(progress * 100)}%`}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.actions}>
+                  <MobileButton
+                    accessibilityLabel={`Open media job ${jobId}`}
+                    onPress={() => onOpenJob(jobId)}
+                    testID={`downloads-open-${jobId}`}
+                    variant="secondary"
+                  >
+                    {job.phase === "completed" ? "Open" : "Details"}
+                  </MobileButton>
+                </View>
               </View>
             );
           })}
@@ -78,6 +102,24 @@ export function DownloadsScreen({
       )}
     </MobileRefreshableScroll>
   );
+}
+
+function jobTitle(job: MediaJobSnapshot): string {
+  const uri = job.intent.sourceUri;
+  if (!uri) return job.intent.kind;
+  try {
+    const path = uri.split("?")[0] ?? uri;
+    const leaf = path.split("/").filter(Boolean).at(-1);
+    return leaf && leaf.length > 0 ? decodeURIComponent(leaf) : job.intent.kind;
+  } catch {
+    return job.intent.kind;
+  }
+}
+
+function progressRatio(job: MediaJobSnapshot): number | null {
+  const total = job.progress.totalBytes;
+  if (total === null || total <= 0) return null;
+  return Math.min(1, Math.max(0, job.progress.transferredBytes / total));
 }
 
 const styles = StyleSheet.create({
@@ -93,20 +135,68 @@ const styles = StyleSheet.create({
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
     borderWidth: 1,
-    gap: mobileSpacing.small,
+    overflow: "hidden",
+  },
+  thumbWrap: {
+    aspectRatio: 16 / 9,
+    backgroundColor: mobileColors.surfaceMuted,
+    width: "100%",
+  },
+  thumb: {
+    alignItems: "flex-start",
+    flex: 1,
+    justifyContent: "flex-start",
+    padding: mobileSpacing.small,
+  },
+  kindBadge: {
+    backgroundColor: mobileColors.overlay,
+    borderRadius: mobileRadii.small,
+    color: mobileColors.textPrimary,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 14,
+    overflow: "hidden",
+    paddingHorizontal: mobileSpacing.small,
+    paddingVertical: mobileSpacing.xSmall,
+  },
+  progressTrack: {
+    backgroundColor: "rgba(255,255,255,0.24)",
+    bottom: 0,
+    height: 4,
+    left: 0,
+    position: "absolute",
+    right: 0,
+  },
+  progressFill: {
+    backgroundColor: mobileColors.textPrimary,
+    height: 4,
+  },
+  meta: {
     padding: mobileSpacing.medium,
   },
+  copy: { gap: mobileSpacing.xSmall },
   title: {
     color: mobileColors.textPrimary,
     fontSize: 16,
     fontWeight: "700",
     lineHeight: 22,
-    textTransform: "capitalize",
   },
-  meta: {
+  status: {
     color: mobileColors.textSecondary,
     fontSize: 14,
     fontWeight: "500",
     lineHeight: 20,
+  },
+  progressLabel: {
+    color: mobileColors.textCategory,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    paddingBottom: mobileSpacing.medium,
+    paddingHorizontal: mobileSpacing.medium,
   },
 });

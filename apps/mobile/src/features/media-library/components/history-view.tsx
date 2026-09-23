@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from "react-native";
 import { MobileButton } from "@mobile/design/button";
 import { warningHaptic } from "@mobile/design/haptics";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
@@ -58,26 +57,20 @@ export function HistoryView({
       style={styles.screen}
       testID="screen-history"
     >
-      <MobileScreenHeader
-        action={
-          showClear ? (
-            <MobileButton
-              accessibilityHint="Asks before removing only Watch History"
-              accessibilityLabel="Clear history"
-              onPress={() => {
-                void warningHaptic();
-                onClear();
-              }}
-              testID="history-clear"
-              variant="ghost"
-            >
-              Clear
-            </MobileButton>
-          ) : undefined
-        }
-        summary="Streams, videos, and clips stay on this device. Reopening never autoplays."
-        title="History"
-      />
+      {showClear ? (
+        <MobileButton
+          accessibilityHint="Asks before removing only Watch History"
+          accessibilityLabel="Clear history"
+          onPress={() => {
+            void warningHaptic();
+            onClear();
+          }}
+          testID="history-clear"
+          variant="ghost"
+        >
+          Clear
+        </MobileButton>
+      ) : null}
       <DiscoverySearchDock
         onChangeQuery={onChangeQuery}
         placeholder="Search history"
@@ -175,7 +168,7 @@ function HistoryStatusNotice({
     return (
       <MobileStatusPanel testID="history-empty" tone="empty">
         <Text selectable style={styles.summary}>
-          Watched streams, videos, and clips appear here.
+          Nothing watched yet.
         </Text>
       </MobileStatusPanel>
     );

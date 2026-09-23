@@ -1,7 +1,6 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
-import { MobileButton } from "@mobile/design/button";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
@@ -115,14 +114,6 @@ export function HomeFeaturedCarouselView({
               ) : null}
             </View>
           </View>
-          <MobileButton
-            accessibilityLabel={watchLabel}
-            onPress={() => onWatch(active)}
-            testID="home-featured-watch"
-            variant={active.platform}
-          >
-            Watch now
-          </MobileButton>
           {hasMultiple ? (
             <View style={styles.controls}>
               <View style={styles.dots}>

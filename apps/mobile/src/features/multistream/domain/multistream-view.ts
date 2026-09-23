@@ -27,11 +27,18 @@ export type MultistreamConfirm =
   | { readonly kind: "remove"; readonly slotId: string }
   | { readonly kind: "clear" };
 
+export type MultistreamChatMessage = {
+  readonly displayName: string;
+  readonly id: string;
+  readonly text: string;
+};
+
 export type MultistreamView = {
   readonly activeCount: number;
   readonly captionDetail: string;
   readonly cells: readonly MultistreamCell[];
   readonly chatDetail: string;
+  readonly chatMessages: readonly MultistreamChatMessage[];
   readonly configuredCount: number;
   readonly confirm: MultistreamConfirm;
   readonly editing: boolean;
@@ -48,6 +55,7 @@ export const MULTISTREAM_CAPTION_DETAIL =
 
 export function composeMultistreamView(input: {
   readonly chatDetail?: string;
+  readonly chatMessages?: readonly MultistreamChatMessage[];
   readonly captionDetail?: string;
   readonly confirm?: MultistreamConfirm;
   readonly editing?: boolean;
@@ -80,6 +88,7 @@ export function composeMultistreamView(input: {
     captionDetail: input.captionDetail ?? MULTISTREAM_CAPTION_DETAIL,
     cells,
     chatDetail: input.chatDetail ?? MULTISTREAM_CHAT_DETAIL,
+    chatMessages: input.chatMessages ?? [],
     configuredCount: layout.slots.length,
     confirm: input.confirm ?? { kind: "idle" },
     editing: input.editing === true,

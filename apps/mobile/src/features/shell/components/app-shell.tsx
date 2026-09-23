@@ -1042,6 +1042,12 @@ function ShellScreen({
               location: { category, route: "more/category-detail" },
             })
           }
+          onOpenChannel={(channel) =>
+            dispatch({
+              type: "navigate",
+              location: { channel, route: "more/channel" },
+            })
+          }
           onOpenManage={() =>
             dispatch({
               type: "navigate",

@@ -97,12 +97,14 @@ export function useMultistream(input: {
     () =>
       composeMultistreamView({
         chatDetail: focused ? chat.detail : MULTISTREAM_CHAT_DETAIL,
+        chatMessages:
+          focused && chat.kind === "live" ? chat.messages : [],
         confirm,
         editing,
         qualified: snapshot.qualified,
         windowWidth: input.windowWidth,
       }),
-    [chat.detail, confirm, editing, focused, input.windowWidth, snapshot.qualified],
+    [chat, confirm, editing, focused, input.windowWidth, snapshot.qualified],
   );
 
   async function persist(next: MultistreamLayout): Promise<void> {

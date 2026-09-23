@@ -1,6 +1,14 @@
-import type { Clip, Video } from "@streamfusion/core/content";
+import type { Clip, Stream, Video } from "@streamfusion/core/content";
 
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+
+export function watchTargetFromStream(stream: Stream): WatchTarget {
+  return {
+    channelId: stream.channelId,
+    channelName: stream.channelName,
+    platform: stream.platform,
+  };
+}
 
 export function watchTargetFromVideo(video: Video): WatchTarget {
   return {

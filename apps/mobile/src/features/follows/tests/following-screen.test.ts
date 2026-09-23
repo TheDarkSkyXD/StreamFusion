@@ -103,7 +103,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         view,
       }),
     );
@@ -133,7 +133,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         view,
       }),
     );
@@ -154,7 +154,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         view,
       }),
     );
@@ -188,7 +188,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         view,
       }),
     );
@@ -216,7 +216,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         onWatch: (target) => watched.push(target.media?.id ?? "missing"),
         view,
       }),
@@ -256,7 +256,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         onWatch: (target) => watched.push(target.media?.id ?? "missing"),
         view,
       }),
@@ -290,7 +290,7 @@ describe("Following screen", () => {
     const nodes = descendants(
       FollowingTabBody({
         onOpenCategory: (category) => opened.push(category.id),
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         view,
       }),
     );
@@ -313,7 +313,7 @@ describe("Following screen", () => {
     });
     const nodes = descendants(
       FollowingTabBody({
-        onOpenProvider: () => undefined,
+        onOpenChannel: () => undefined,
         view,
       }),
     );

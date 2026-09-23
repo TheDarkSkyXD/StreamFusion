@@ -1,7 +1,14 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Clip, Video } from "@streamfusion/core/content";
 
-import { mobileColors, mobileRadii, mobileSpacing } from "@mobile/design/tokens";
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import {
+  mobileColors,
+  mobilePressRing,
+  mobileRadii,
+  mobileSpacing,
+  mobileType,
+} from "@mobile/design/tokens";
 
 export function ChannelMediaRow({
   item,
@@ -11,10 +18,12 @@ export function ChannelMediaRow({
   readonly onPress?: () => void;
 }) {
   const body = <MediaBody item={item} />;
+  const label = `Watch ${item.title} by ${item.channelDisplayName} on ${item.platform}`;
   if (!onPress) {
     return (
       <View
-        style={styles.row}
+        accessibilityLabel={label}
+        style={styles.card}
         testID={`channel-media-${item.platform}-${item.id}`}
       >
         {body}
@@ -23,10 +32,10 @@ export function ChannelMediaRow({
   }
   return (
     <Pressable
-      accessibilityLabel={`Watch ${item.title}`}
+      accessibilityLabel={label}
       accessibilityRole="button"
       onPress={onPress}
-      style={styles.row}
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
       testID={`channel-media-${item.platform}-${item.id}`}
     >
       {body}
@@ -35,72 +44,123 @@ export function ChannelMediaRow({
 }
 
 function MediaBody({ item }: { readonly item: Clip | Video }) {
-  const views = `${item.viewCount} views`;
-  const duration = formatDuration(item.duration);
   return (
     <>
-      {item.thumbnailUrl ? (
-        <Image
-          accessibilityIgnoresInvertColors
-          source={{ uri: item.thumbnailUrl }}
-          style={styles.thumb}
-        />
-      ) : (
-        <View style={styles.thumb} />
-      )}
-      <View style={styles.copy}>
-        <Text selectable style={styles.title}>
-          {item.title}
-        </Text>
-        <Text selectable style={styles.meta}>
-          {`${duration} · ${views}`}
-        </Text>
+      <View style={styles.thumbWrap}>
+        {item.thumbnailUrl ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            source={{ uri: item.thumbnailUrl }}
+            style={styles.thumb}
+          />
+        ) : (
+          <View style={styles.thumb} />
+        )}
+        <View style={styles.durationBadge}>
+          <Text selectable style={styles.badgeLabel}>
+            {formatDuration(item.duration)}
+          </Text>
+        </View>
+        {item.viewCount > 0 ? (
+          <View style={styles.viewsBadge}>
+            <Text selectable style={styles.badgeLabel}>
+              {`${item.viewCount} views`}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.meta}>
+        {item.channelAvatar ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            source={{ uri: item.channelAvatar }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={styles.avatar} />
+        )}
+        <View style={styles.copy}>
+          <Text numberOfLines={2} selectable style={styles.title}>
+            {item.title}
+          </Text>
+          <Text numberOfLines={1} selectable style={styles.channel}>
+            {item.channelDisplayName}
+          </Text>
+        </View>
+        <MobilePlatformBadge platform={item.platform} />
       </View>
     </>
   );
 }
 
 function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = Math.floor(seconds % 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${rest}s`;
-  return `${rest}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.floor(seconds % 60);
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    return `${hours}:${String(minutes % 60).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
 const styles = StyleSheet.create({
-  row: {
+  card: {
+    ...mobilePressRing.rest,
     backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: mobileSpacing.small,
     overflow: "hidden",
   },
-  thumb: {
+  pressed: {
+    ...mobilePressRing.pressed,
+  },
+  thumbWrap: {
     aspectRatio: 16 / 9,
     backgroundColor: mobileColors.surfaceMuted,
-    width: 128,
+    width: "100%",
   },
-  copy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-    justifyContent: "center",
-    paddingRight: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
+  thumb: { height: "100%", width: "100%" },
+  durationBadge: {
+    backgroundColor: mobileColors.overlay,
+    borderRadius: mobileRadii.small,
+    bottom: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.small,
+    paddingVertical: mobileSpacing.xSmall,
+    position: "absolute",
+    right: mobileSpacing.small,
   },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 20,
+  viewsBadge: {
+    backgroundColor: mobileColors.overlay,
+    borderRadius: mobileRadii.small,
+    bottom: mobileSpacing.small,
+    left: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.small,
+    paddingVertical: mobileSpacing.xSmall,
+    position: "absolute",
+  },
+  badgeLabel: {
+    ...mobileType.caption,
+    fontWeight: "600",
   },
   meta: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    padding: mobileSpacing.medium,
+  },
+  avatar: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.full,
+    height: 40,
+    width: 40,
+  },
+  copy: { flex: 1, gap: mobileSpacing.xSmall },
+  title: {
+    ...mobileType.title,
+  },
+  channel: {
     color: mobileColors.textSecondary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "500",
-    lineHeight: 18,
+    lineHeight: 20,
   },
 });

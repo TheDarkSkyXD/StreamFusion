@@ -1,11 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { Image, StyleSheet, Text, View } from "react-native";
-import type { Platform } from "@streamfusion/core/platform";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { MobileButton } from "@mobile/design/button";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
+  mobilePressRing,
   mobileRadii,
   mobileSpacing,
   mobileType,
@@ -15,21 +14,27 @@ import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import type { FollowingChannelRow } from "../capabilities/following-session";
 
 export function FollowingChannelCard({
-  onOpenProvider,
+  onOpen,
   row,
 }: {
-  readonly onOpenProvider: (target: {
-    readonly platform: Platform;
-    readonly channelLogin: string;
-  }) => void;
+  readonly onOpen: () => void;
   readonly row: FollowingChannelRow;
 }) {
   const { t } = useTranslation();
   const avatarUrl = row.stream?.channelAvatar;
   const verified = row.stream?.channelIsVerified === true;
+  const label = row.isLive
+    ? `${row.follow.displayName} live on ${row.follow.platform}`
+    : `${row.follow.displayName} on ${row.follow.platform}`;
   return (
-    <View
-      style={styles.card}
+    <Pressable
+      accessibilityHint={
+        row.isLive ? "Opens this live channel in Watch" : "Opens channel details"
+      }
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onOpen}
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
       testID={`following-channel-${row.follow.platform}-${row.follow.channelId}`}
     >
       <View style={styles.heading}>
@@ -70,39 +75,22 @@ export function FollowingChannelCard({
         </View>
         <MobilePlatformBadge platform={row.follow.platform} />
       </View>
-      <Text selectable style={styles.meta}>
-        {row.eligible
-          ? t("discovery.following.liveAlertsEligible")
-          : t("discovery.following.liveAlertsNotEligible")}
-      </Text>
-      <MobileButton
-        accessibilityLabel={t("discovery.following.openNameOnPlatform", {
-          name: row.follow.displayName,
-          platform: row.follow.platform,
-        })}
-        onPress={() =>
-          onOpenProvider({
-            channelLogin: row.follow.channelLogin,
-            platform: row.follow.platform,
-          })
-        }
-        testID={`following-channel-provider-${row.follow.platform}-${row.follow.channelId}`}
-        variant={row.follow.platform}
-      >
-        {t("discovery.following.openOnPlatform", { platform: row.follow.platform })}
-      </MobileButton>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    ...mobilePressRing.rest,
     backgroundColor: mobileColors.surface,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
     borderWidth: 1,
     gap: mobileSpacing.small,
     padding: mobileSpacing.medium,
+  },
+  pressed: {
+    ...mobilePressRing.pressed,
   },
   heading: {
     alignItems: "center",

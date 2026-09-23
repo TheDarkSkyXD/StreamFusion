@@ -1,6 +1,5 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
-import type { Platform } from "@streamfusion/core/platform";
 
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileCatalogTags } from "@mobile/design/tag";
@@ -14,25 +13,18 @@ import {
 import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 
 export function FollowingStreamCard({
-  onOpenProvider,
+  onOpen,
   stream,
 }: {
-  readonly onOpenProvider: (target: {
-    readonly platform: Platform;
-    readonly channelLogin: string;
-  }) => void;
+  readonly onOpen: () => void;
   readonly stream: Stream;
 }) {
   return (
     <Pressable
+      accessibilityHint="Opens this live stream in Watch"
       accessibilityLabel={`${stream.channelDisplayName} live on ${stream.platform}`}
       accessibilityRole="button"
-      onPress={() =>
-        onOpenProvider({
-          channelLogin: stream.channelName,
-          platform: stream.platform,
-        })
-      }
+      onPress={onOpen}
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
       testID={`following-stream-${stream.platform}-${stream.id}`}
     >

@@ -1,11 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
-import type { Platform } from "@streamfusion/core/platform";
+import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import {
   watchTargetFromClip,
+  watchTargetFromStream,
   watchTargetFromVideo,
 } from "@mobile/features/discovery/domain/channel-watch-target";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
@@ -31,15 +32,12 @@ export type FollowingCategoryTarget = {
 
 export function FollowingTabBody({
   onOpenCategory,
-  onOpenProvider,
+  onOpenChannel,
   onWatch,
   view,
 }: {
   readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
-  readonly onOpenProvider: (target: {
-    readonly platform: Platform;
-    readonly channelLogin: string;
-  }) => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly view: FollowingView;
 }) {
@@ -56,12 +54,17 @@ export function FollowingTabBody({
         ? (items.items as readonly Stream[]).map((stream) => (
             <FollowingStreamCard
               key={`${stream.platform}:${stream.id}`}
-              onOpenProvider={onOpenProvider}
+              onOpen={() => onWatch?.(watchTargetFromStream(stream))}
               stream={stream}
             />
           ))
         : null}
-      {view.tab === "channels" ? channelRows(items, onOpenProvider) : null}
+      {view.tab === "channels"
+        ? channelRows(items, {
+            ...(onOpenChannel === undefined ? {} : { onOpenChannel }),
+            ...(onWatch === undefined ? {} : { onWatch }),
+          })
+        : null}
       {view.tab === "categories"
         ? categoryRows(items, translate, onOpenCategory)
         : null}
@@ -81,19 +84,37 @@ function itemsFor(view: FollowingView): TabItems<unknown> {
 
 function channelRows(
   items: TabItems<unknown>,
-  onOpenProvider: (target: {
-    readonly platform: Platform;
-    readonly channelLogin: string;
-  }) => void,
+  handlers: {
+    readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+    readonly onWatch?: (target: WatchTarget) => void;
+  },
 ) {
   if (items.kind === "loading" || items.kind === "empty") return null;
   return (items.items as readonly FollowingChannelRow[]).map((row) => (
     <FollowingChannelCard
       key={`${row.follow.platform}:${row.follow.channelId}`}
-      onOpenProvider={onOpenProvider}
+      onOpen={() => openChannelRow(row, handlers)}
       row={row}
     />
   ));
+}
+
+function openChannelRow(
+  row: FollowingChannelRow,
+  handlers: {
+    readonly onOpenChannel?: (channel: ChannelIdentity) => void;
+    readonly onWatch?: (target: WatchTarget) => void;
+  },
+): void {
+  if (row.isLive && row.stream && handlers.onWatch) {
+    handlers.onWatch(watchTargetFromStream(row.stream));
+    return;
+  }
+  handlers.onOpenChannel?.({
+    id: row.follow.channelId,
+    platform: row.follow.platform,
+    username: row.follow.channelLogin,
+  });
 }
 
 function categoryRows(

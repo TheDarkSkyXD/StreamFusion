@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import type { Platform } from "@streamfusion/core/platform";
+import type { ChannelIdentity } from "@streamfusion/core/platform";
 import type {
   FollowedClipPeriod,
   FollowedRecordedSort,
@@ -12,7 +12,6 @@ import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { mobileSpacing } from "@mobile/design/tokens";
 
 import type {
@@ -29,12 +28,14 @@ import { useFollowingView } from "./use-following-view";
 
 export function FollowingScreen({
   onOpenCategory,
+  onOpenChannel,
   onOpenManage,
   onOpenSearch,
   onWatch,
   session,
 }: {
   readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onOpenManage: () => void;
   readonly onOpenSearch?: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
@@ -58,10 +59,8 @@ export function FollowingScreen({
       chip={chip}
       onChip={setChip}
       {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
+      {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       onOpenManage={onOpenManage}
-      onOpenProvider={(target) => {
-        void session.openProviderPage(target);
-      }}
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       {...(onWatch === undefined ? {} : { onWatch })}
       onPeriod={setPeriod}
@@ -83,8 +82,8 @@ function FollowingScreenBody({
   chip,
   onChip,
   onOpenCategory,
+  onOpenChannel,
   onOpenManage,
-  onOpenProvider,
   onOpenSearch,
   onPeriod,
   onQuery,
@@ -102,11 +101,8 @@ function FollowingScreenBody({
   readonly chip: FollowingChip;
   readonly onChip: (chip: FollowingChip) => void;
   readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
+  readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onOpenManage: () => void;
-  readonly onOpenProvider: (target: {
-    readonly platform: Platform;
-    readonly channelLogin: string;
-  }) => void;
   readonly onOpenSearch?: () => void;
   readonly onPeriod: (period: FollowedClipPeriod) => void;
   readonly onQuery: (query: string) => void;
@@ -131,7 +127,6 @@ function FollowingScreenBody({
       style={styles.scroll}
       testID="following-screen"
     >
-      <MobileScreenHeader title={t("discovery.following.title")} />
       <MobileButton
         accessibilityLabel={t("discovery.following.manageTitle")}
         onPress={onOpenManage}
@@ -159,7 +154,7 @@ function FollowingScreenBody({
       ) : null}
       <FollowingTabBody
         {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
-        onOpenProvider={onOpenProvider}
+        {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
         {...(onWatch === undefined ? {} : { onWatch })}
         view={view}
       />

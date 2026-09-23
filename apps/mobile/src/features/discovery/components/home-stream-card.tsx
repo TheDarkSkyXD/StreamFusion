@@ -90,7 +90,7 @@ export function HomeStreamCard({
   }
   return (
     <Pressable
-      accessibilityHint="Opens channel details"
+      accessibilityHint="Starts watching this live stream"
       accessibilityLabel={label}
       accessibilityRole="button"
       android_ripple={{ color: mobileColors.surfaceRaised }}

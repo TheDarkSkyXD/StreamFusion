@@ -2,7 +2,6 @@ import { StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 
 import { MobileButton } from "@mobile/design/button";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
@@ -63,7 +62,9 @@ export function MultistreamView({
   const restoreId = configured.at(-1)?.id;
   return (
     <View style={styles.screen} testID="screen-multi">
-      <MobileScreenHeader title={view.title} />
+      <Text selectable style={mobileType.label} testID="multistream-room-meta">
+        {view.title}
+      </Text>
       {view.notice ? (
         <MobileStatusPanel testID="multistream-notice" tone="info">
           <Text selectable style={mobileType.body}>
@@ -111,6 +112,7 @@ export function MultistreamView({
             cell={cell}
             columns={columns}
             key={cell.kind === "empty" ? `empty-${cell.index}` : cell.slot.id}
+            onAdd={onAdd}
             onAudioOwner={onAudioOwner}
             onFocus={onFocus}
             onRemove={onRemove}
@@ -118,11 +120,29 @@ export function MultistreamView({
           />
         ))}
       </View>
-      <MobileStatusPanel testID="multistream-chat" tone="info">
-        <Text selectable style={mobileType.body}>
-          {view.chatDetail}
+      <View style={styles.chatPane} testID="multistream-chat">
+        <Text selectable style={mobileType.title}>
+          MultiChat
         </Text>
-      </MobileStatusPanel>
+        {view.chatMessages.length > 0 ? (
+          <View style={styles.chatMessages}>
+            {view.chatMessages.slice(-12).map((message) => (
+              <Text
+                key={message.id}
+                selectable
+                style={mobileType.body}
+                testID={`multistream-chat-line-${message.id}`}
+              >
+                {`${message.displayName}: ${message.text}`}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text selectable style={mobileType.body}>
+            {view.chatDetail}
+          </Text>
+        )}
+      </View>
       <MobileStatusPanel testID="multistream-captions" tone="info">
         <Text selectable style={mobileType.body}>
           {view.captionDetail}
@@ -288,6 +308,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: mobileSpacing.small,
+  },
+  chatPane: {
+    backgroundColor: mobileColors.surface,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.large,
+    borderWidth: 1,
+    gap: mobileSpacing.small,
+    padding: mobileSpacing.medium,
+  },
+  chatMessages: {
+    gap: mobileSpacing.xSmall,
   },
   grid: {
     flexDirection: "row",

@@ -16,6 +16,7 @@ import type { MultistreamCell } from "../domain/multistream-view";
 export function MultistreamSlotCard({
   cell,
   columns,
+  onAdd,
   onAudioOwner,
   onFocus,
   onRemove,
@@ -23,6 +24,7 @@ export function MultistreamSlotCard({
 }: {
   readonly cell: MultistreamCell;
   readonly columns: 1 | 2 | 3;
+  readonly onAdd?: () => void;
   readonly onAudioOwner: (slotId: string) => void;
   readonly onFocus: (slotId: string) => void;
   readonly onRemove: (slotId: string) => void;
@@ -30,6 +32,22 @@ export function MultistreamSlotCard({
 }) {
   const widthPercent = cellWidth(columns);
   if (cell.kind === "empty") {
+    if (onAdd) {
+      return (
+        <Pressable
+          accessibilityHint="Opens Search to add a Multistream slot"
+          accessibilityLabel="Add slot"
+          accessibilityRole="button"
+          onPress={onAdd}
+          style={[styles.cell, styles.empty, { width: widthPercent }]}
+          testID={`multistream-slot-empty-${cell.index}`}
+        >
+          <Text selectable style={mobileType.label}>
+            Add slot
+          </Text>
+        </Pressable>
+      );
+    }
     return (
       <View
         style={[styles.cell, styles.empty, { width: widthPercent }]}
@@ -114,13 +132,13 @@ function cellWidth(columns: 1 | 2 | 3): "100%" | "50%" | "33.33%" {
 function phaseLabel(phase: MultistreamSlotPhase): string {
   switch (phase) {
     case "active":
-      return "Active";
+      return "Live";
     case "thumbnail":
-      return "Thumbnail";
+      return "Offline preview";
     case "paused":
       return "Paused";
     default:
-      return "Retained";
+      return "Offline";
   }
 }
 

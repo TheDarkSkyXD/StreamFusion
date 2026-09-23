@@ -94,7 +94,7 @@ describe("Home live discovery screen", () => {
     expect(nodes.some((node) => node.props.testID === "home-featured-carousel")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "home-featured-watch")).toBe(
+    expect(nodes.some((node) => node.props.testID === "home-featured-stage")).toBe(
       true,
     );
     expect(
@@ -148,7 +148,7 @@ describe("Home live discovery screen", () => {
       nodes.some((node) => node.props.children === "issue-148-d05-60c4"),
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.children === "Recommended live"),
+      nodes.some((node) => node.props.children === "Live Channels"),
     ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "home-categories")).toBe(
       false,
@@ -175,7 +175,7 @@ describe("Home live discovery screen", () => {
     );
     nodes.find((node) => node.props.testID === "home-featured-next")?.props.onPress?.();
     expect(indexes).toEqual([1]);
-    nodes.find((node) => node.props.testID === "home-featured-watch")?.props.onPress?.();
+    nodes.find((node) => node.props.testID === "home-featured-stage")?.props.onPress?.();
     expect(selected).toEqual(["twitch:twitch-ready"]);
   });
 
@@ -240,7 +240,7 @@ describe("Home live discovery screen", () => {
     const phase = relayDown.nodes.find(
       (node) => node.props.testID === "home-phase",
     );
-    expect(phase?.props.children).toMatch(/could not be loaded/);
+    expect(phase?.props.children).toMatch(/Couldn.t load live channels/);
   });
 
   it("supports Watch empty reuse via title and onSelectStream", () => {
