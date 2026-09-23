@@ -93,7 +93,7 @@ export function ActivityScreen({
       ListHeaderComponent={
         <View style={styles.headerContent}>
           <Text selectable style={styles.headerSummary}>
-            Go-lives from channels you follow.
+            Live alerts from channels you follow.
           </Text>
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}
@@ -447,12 +447,12 @@ function ActivityEmptyState({
           ? "Loading…"
           : status === "unavailable"
             ? "Couldn't load Activity"
-            : "No go-lives yet"}
+            : "Quiet for now"}
       </Text>
       <Text selectable style={styles.itemBody}>
         {status === "unavailable"
           ? "Try again in a moment."
-          : "Follow channels for alerts."}
+          : "When someone you follow goes live, it shows up here."}
       </Text>
       {status === "unavailable" ? (
         <MobileButton
