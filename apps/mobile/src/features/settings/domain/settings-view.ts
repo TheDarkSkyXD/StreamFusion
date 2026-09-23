@@ -53,10 +53,8 @@ export function composeEffectiveCopy(
   preferences: ProductPreferences,
 ): SettingsEffectiveCopy {
   const language = getDisplayLanguage(resolveDisplayLanguage(preferences.language));
-  const languageLabel =
-    language.nativeLabel === language.englishLabel
-      ? language.nativeLabel
-      : `${language.nativeLabel} (${language.englishLabel})`;
+  // Prefer the self-named / native label so Appearance clearly shows the active language.
+  const languageLabel = language.nativeLabel;
   return {
     backgroundQuality: `Unfocused Multistream slots request ${preferences.backgroundQuality} when thermal or decoder pressure lowers quality.`,
     buffer:

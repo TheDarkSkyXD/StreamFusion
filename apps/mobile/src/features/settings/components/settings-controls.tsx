@@ -138,6 +138,8 @@ export function SettingsSwitch({
 export type SettingsSelectOption<T extends string | number> = {
   readonly label: string;
   readonly value: T;
+  /** Closed-row trailing label; defaults to `label` (native names for languages). */
+  readonly valueLabel?: string;
 };
 
 /**
@@ -165,6 +167,7 @@ export function SettingsSelect<T extends string | number>({
     (option) => ({
       label: option.label,
       value: String(option.value),
+      ...(option.valueLabel ? { valueLabel: option.valueLabel } : {}),
     }),
   );
   return (
@@ -184,19 +187,18 @@ export function SettingsSelect<T extends string | number>({
           </Text>
         ) : null}
       </View>
-      <View style={styles.selectControl}>
-        <MobileSelect
-          accessibilityLabel={label}
-          disabled={disabled}
-          onChange={(next) => {
-            const match = options.find((option) => String(option.value) === next);
-            if (match) onSelect(match.value);
-          }}
-          options={stringOptions}
-          testID={`${testID}-picker`}
-          value={String(current)}
-        />
-      </View>
+      <MobileSelect
+        accessibilityLabel={label}
+        appearance="inline"
+        disabled={disabled}
+        onChange={(next) => {
+          const match = options.find((option) => String(option.value) === next);
+          if (match) onSelect(match.value);
+        }}
+        options={stringOptions}
+        testID={`${testID}-picker`}
+        value={String(current)}
+      />
     </View>
   );
 }
@@ -243,11 +245,13 @@ export function SettingsLanguagePicker({
       label={label}
       onSelect={onSelect}
       options={DISPLAY_LANGUAGE_REGISTRY.map((language) => ({
+        // Sheet keeps English in parentheses for discoverability; row shows native only.
         label:
           language.nativeLabel === language.englishLabel
             ? language.nativeLabel
             : `${language.nativeLabel} (${language.englishLabel})`,
         value: language.code,
+        valueLabel: language.nativeLabel,
       }))}
       testID={testID}
     />
@@ -525,9 +529,12 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   selectBlock: {
+    alignItems: "center",
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.medium,
-    gap: mobileSpacing.small,
+    flexDirection: "row",
+    gap: mobileSpacing.medium,
+    minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
   },
@@ -535,9 +542,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   selectCopy: {
+    flex: 1,
     gap: mobileSpacing.xSmall,
-  },
-  selectControl: {
-    alignSelf: "stretch",
   },
 });

@@ -36,6 +36,7 @@ vi.mock("react-native", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  Check: "Check",
   ChevronDown: "ChevronDown",
 }));
 

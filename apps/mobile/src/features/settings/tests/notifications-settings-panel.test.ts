@@ -22,6 +22,7 @@ vi.mock("@react-native-community/slider", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  Check: "Check",
   ChevronDown: "ChevronDown",
 }));
 

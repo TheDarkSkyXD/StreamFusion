@@ -42,6 +42,7 @@ vi.mock("@react-native-community/slider", () => ({
 vi.mock("lucide-react-native", () => {
   const Icon = () => null;
   return {
+    Check: Icon,
     ChevronDown: Icon,
     Activity: Icon,
     ArrowLeft: Icon,
@@ -144,6 +145,7 @@ describe("settings panels", () => {
     expect(hasTestId(nodes, "theme")).toBe(true);
     expect(hasTestId(nodes, "theme-light")).toBe(false);
     expect(hasTestId(nodes, "language")).toBe(true);
+    expect(hasTestId(nodes, "language-picker")).toBe(true);
     expect(hasTestId(nodes, "density")).toBe(true);
     expect(hasTestId(nodes, "restore-session")).toBe(true);
     const densityRow = nodes.find((node) => node.props.testID === "density");
@@ -152,6 +154,31 @@ describe("settings panels", () => {
     const languageRow = nodes.find((node) => node.props.testID === "language");
     languageRow?.props.onSelect?.("fr");
     expect(language).toBe("fr");
+  });
+
+  it("shows the selected language with its native self-name on Appearance", () => {
+    const french = composeSettingsView({
+      preferences: { ...DEFAULT_PRODUCT_PREFERENCES, language: "fr" },
+    });
+    expect(french.effective.language).toBe("Interface language: Français.");
+    const spanish = composeSettingsView({
+      preferences: { ...DEFAULT_PRODUCT_PREFERENCES, language: "es" },
+    });
+    expect(spanish.effective.language).toBe("Interface language: Español.");
+    const nodes = descendants(
+      AppearanceSettingsPanel({
+        onChange: () => undefined,
+        view: french,
+      }),
+    );
+    expect(hasTestId(nodes, "language-effective")).toBe(true);
+    const effective = nodes.find((node) => node.props.testID === "language-effective");
+    const copy = String(
+      (effective?.props as { readonly value?: string }).value ??
+        effective?.props.children ??
+        "",
+    );
+    expect(copy).toContain("Français");
   });
 });
 

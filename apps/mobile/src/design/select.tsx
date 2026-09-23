@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { ChevronDown } from "lucide-react-native";
+import { Check, ChevronDown } from "lucide-react-native";
 
 import { selectionHaptic } from "./haptics";
 import {
@@ -20,10 +20,13 @@ import {
 export type MobileSelectOption<T extends string> = {
   readonly label: string;
   readonly value: T;
+  /** Closed-trigger label; defaults to `label` (use for native language names). */
+  readonly valueLabel?: string;
 };
 
 export function MobileSelect<T extends string>({
   accessibilityLabel,
+  appearance = "field",
   disabled = false,
   onChange,
   options,
@@ -31,6 +34,8 @@ export function MobileSelect<T extends string>({
   value,
 }: {
   readonly accessibilityLabel: string;
+  /** `field` = bordered standalone control; `inline` = trailing value+chevron for settings rows. */
+  readonly appearance?: "field" | "inline";
   readonly disabled?: boolean;
   readonly onChange: (value: T) => void;
   readonly options: readonly MobileSelectOption<T>[];
@@ -39,27 +44,36 @@ export function MobileSelect<T extends string>({
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((option) => option.value === value);
-  const selectedLabel = selected?.label ?? value;
+  const selectedLabel = selected?.valueLabel ?? selected?.label ?? value;
+  const inline = appearance === "inline";
 
   return (
-    <View style={styles.wrap} testID={testID}>
+    <View style={inline ? styles.wrapInline : styles.wrap} testID={testID}>
       <Pressable
-        accessibilityLabel={accessibilityLabel}
+        accessibilityLabel={`${accessibilityLabel}, ${selectedLabel}`}
         accessibilityRole="button"
         accessibilityState={{ disabled, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
-          styles.trigger,
+          inline ? styles.triggerInline : styles.trigger,
           disabled ? styles.triggerDisabled : null,
-          pressed && !disabled ? styles.triggerPressed : null,
+          pressed && !disabled
+            ? inline
+              ? styles.triggerInlinePressed
+              : styles.triggerPressed
+            : null,
         ]}
         testID={`${testID}-trigger`}
       >
-        <Text selectable style={styles.triggerLabel} numberOfLines={1}>
+        <Text
+          selectable
+          style={inline ? styles.triggerLabelInline : styles.triggerLabel}
+          numberOfLines={1}
+        >
           {selectedLabel}
         </Text>
-        <ChevronDown color={mobileColors.textSecondary} size={18} />
+        <ChevronDown color={mobileColors.textSecondary} size={inline ? 16 : 18} />
       </Pressable>
       <Modal
         animationType="slide"
@@ -119,9 +133,11 @@ export function MobileSelect<T extends string>({
                       {option.label}
                     </Text>
                     {active ? (
-                      <Text selectable style={styles.optionCheck}>
-                        Selected
-                      </Text>
+                      <Check
+                        accessibilityLabel="Selected"
+                        color={mobileColors.twitchBright}
+                        size={18}
+                      />
                     ) : null}
                   </Pressable>
                 );
@@ -138,6 +154,10 @@ const styles = StyleSheet.create({
   wrap: {
     alignSelf: "stretch",
   },
+  wrapInline: {
+    flexShrink: 1,
+    maxWidth: "55%",
+  },
   trigger: {
     alignItems: "center",
     backgroundColor: mobileColors.surface,
@@ -151,11 +171,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
     paddingVertical: mobileSpacing.small,
   },
+  triggerInline: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.xSmall,
+    justifyContent: "flex-end",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingLeft: mobileSpacing.small,
+  },
   triggerDisabled: {
     opacity: 0.45,
   },
   triggerPressed: {
     backgroundColor: mobileColors.surfaceMuted,
+  },
+  triggerInlinePressed: {
+    opacity: 0.7,
   },
   triggerLabel: {
     color: mobileColors.textPrimary,
@@ -163,6 +194,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
+  },
+  triggerLabelInline: {
+    color: mobileColors.textSecondary,
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 20,
+    textAlign: "right",
   },
   backdrop: {
     backgroundColor: mobileColors.overlay,
@@ -224,11 +263,5 @@ const styles = StyleSheet.create({
   optionLabelActive: {
     color: mobileColors.textPrimary,
     fontWeight: "700",
-  },
-  optionCheck: {
-    color: mobileColors.twitchBright,
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 16,
   },
 });
