@@ -31,17 +31,37 @@
 
 ## Tech Stack
 
-StreamFusion uses one root npm workspace and lockfile:
+StreamFusion is an npm workspace monorepo (`apps/*`, `packages/*`) on **Node.js ≥ 22.14** and **npm 11.19**.
 
-- **Core Framework**: [Electron](https://www.electronjs.org/) & [React](https://reactjs.org/)
-- **Build Tooling**: [Vite](https://vitejs.dev/) & [Electron-Vite](https://electron-vite.org/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
-- **Data Fetching**: [TanStack Query](https://tanstack.com/query/latest)
-- **Routing**: [TanStack Router](https://tanstack.com/router/latest)
-- **Database**: [Better-SQLite3](https://github.com/WiseLibs/better-sqlite3) (local persistence)
-- **APIs**: Twitch (`tmi.js`), Kick (Pusher-js), and typed Electron IPC through the preload bridge
+### Desktop (`apps/desktop`)
+
+- **Shell**: [Electron](https://www.electronjs.org/) 43 with [electron-vite](https://electron-vite.org/) and [Vite](https://vitejs.dev/) 7
+- **UI**: [React](https://react.dev/) 19 + [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) 4, [Radix UI](https://www.radix-ui.com/), [lucide-react](https://lucide.dev/)
+- **State & data**: [Zustand](https://github.com/pmndrs/zustand) 5, [TanStack Query](https://tanstack.com/query) 5, [TanStack Router](https://tanstack.com/router)
+- **Playback & media**: [hls.js](https://github.com/video-dev/hls.js/), [ffmpeg-static](https://github.com/eugeneware/ffmpeg-static)
+- **Chat & live APIs**: [tmi.js](https://github.com/tmijs/tmi.js) (Twitch), [pusher-js](https://github.com/pusher/pusher-js) (Kick), typed Electron IPC via preload
+- **Local data**: [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), [electron-store](https://github.com/sindresorhus/electron-store)
+- **i18n & validation**: [i18next](https://www.i18next.com/) / [react-i18next](https://react.i18next.com/), [Zod](https://zod.dev/)
+- **Packaging**: [electron-builder](https://www.electron.build/) (Windows NSIS, macOS DMG/zip, Linux AppImage)
+
+### Mobile (`apps/mobile`)
+
+- **Runtime**: [Expo](https://expo.dev/) 57 + [React Native](https://reactnative.dev/) 0.86
+- **Navigation**: [expo-router](https://docs.expo.dev/router/introduction/)
+- **Shared UI/data**: React 19, TanStack Query, i18next
+- **Device**: expo-video, expo-sqlite, expo-secure-store, and other Expo modules for Android
+
+### Shared & services
+
+- **`@streamfusion/core`**: shared platform, content, discovery, follows, auth, chat, and reliability modules
+- **Worker** (`apps/worker`) and **integration-relay** (`apps/integration-relay`): supporting Node services in the same workspace
+
+### Tooling
+
+- **Tests**: [Vitest](https://vitest.dev/) (desktop/mobile), Node test runner for scripts and gates
+- **Quality**: ESLint 9, Prettier, Storybook 10 (desktop)
+- **Install policy**: root lockfile with lifecycle-script allowlist, release-age checks, and registry signature audits
 
 ## Project Structure
 
