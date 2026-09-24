@@ -20,6 +20,8 @@ When signing secrets are **absent** or incomplete, the workflow does **not** fai
 
 Do not commit certificates or Apple credentials to the repository.
 
+The Publish job downloads package bundles into `packaged-artifacts/` (not the tracked `artifacts/` screenshot folder) before `merge_artifacts.js` validates filenames and updater metadata.
+
 ## Release process
 
 1. Update `apps/desktop/package.json` to the intended version and merge that change into `main`.

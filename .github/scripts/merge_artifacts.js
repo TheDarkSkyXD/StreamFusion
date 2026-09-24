@@ -4,12 +4,12 @@ const { createHash } = require("node:crypto");
 const { isDeepStrictEqual } = require("node:util");
 const yaml = require("js-yaml");
 
-const artifactsDirectory = "artifacts";
 const outputDirectory = "release-assets";
 const version = process.argv[2];
+const artifactsDirectory = process.argv[3] || "packaged-artifacts";
 
 if (!version) {
-  throw new Error("usage: node .github/scripts/merge_artifacts.js <version>");
+  throw new Error("usage: node .github/scripts/merge_artifacts.js <version> [artifactsDirectory]");
 }
 
 const expectedBundles = {
@@ -30,10 +30,23 @@ const expectedBundles = {
   ],
 };
 
+if (!fs.existsSync(artifactsDirectory)) {
+  throw new Error(`artifacts directory missing: ${artifactsDirectory}`);
+}
 const bundleEntries = fs.readdirSync(artifactsDirectory, { withFileTypes: true });
 for (const entry of bundleEntries) {
-  if (!entry.isDirectory() || !Object.hasOwn(expectedBundles, entry.name)) {
+  // Ignore non-directories (e.g. tracked screenshots if download path collides with repo artifacts/).
+  if (!entry.isDirectory()) {
+    continue;
+  }
+  if (!Object.hasOwn(expectedBundles, entry.name)) {
     throw new Error(`unexpected artifact bundle: ${entry.name}`);
+  }
+}
+for (const bundleName of Object.keys(expectedBundles)) {
+  const bundleDirectory = path.join(artifactsDirectory, bundleName);
+  if (!fs.existsSync(bundleDirectory) || !fs.statSync(bundleDirectory).isDirectory()) {
+    throw new Error(`missing artifact bundle: ${bundleName}`);
   }
 }
 
