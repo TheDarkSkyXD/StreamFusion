@@ -20,6 +20,7 @@ const publicSubpaths = [
   "relay",
   "media-jobs",
   "local-captions",
+  "display-language",
   "settings",
 ];
 const coreElements = [
