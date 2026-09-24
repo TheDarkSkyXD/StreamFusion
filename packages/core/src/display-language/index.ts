@@ -413,7 +413,7 @@ export function resolveDisplayLanguage(value: unknown): DisplayLanguage {
     return "zh-TW";
   if (normalized.startsWith("zh-hans-")) return "zh-CN";
 
-  const base = normalized.split("-")[0];
+  const base = normalized.split("-")[0] ?? "";
   return (
     DISPLAY_LANGUAGE_BY_NORMALIZED_CODE.get(base)?.code ??
     DEFAULT_DISPLAY_LANGUAGE
