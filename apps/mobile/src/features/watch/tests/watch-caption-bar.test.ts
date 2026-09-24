@@ -57,8 +57,8 @@ describe("Watch caption chrome", () => {
       i18n.t(key, options as never);
   });
 
-  it("shows Coming soon and never offers Install English model", () => {
-    const nodes = descendants(
+  it("hides player CC chrome entirely (no Coming soon / Install model)", () => {
+    expect(
       WatchCaptionBar({
         eligibility: {
           kind: "eligible",
@@ -66,17 +66,8 @@ describe("Watch caption chrome", () => {
           sessionId: "cap-twitch-twitch-1",
         },
       }),
-    );
-    expect(byTestId(nodes, "watch-captions-coming-soon")?.props.children).toMatch(
-      /Coming soon/i,
-    );
-    expect(byTestId(nodes, "watch-captions-install")).toBeUndefined();
-    expect(byTestId(nodes, "watch-captions-start")).toBeUndefined();
-    expect(byTestId(nodes, "watch-captions-remove")).toBeUndefined();
-  });
-
-  it("shows compact Coming soon without install actions", () => {
-    const nodes = descendants(
+    ).toBeNull();
+    expect(
       WatchCaptionBar({
         compact: true,
         eligibility: {
@@ -85,14 +76,7 @@ describe("Watch caption chrome", () => {
           sessionId: "cap-twitch-twitch-1",
         },
       }),
-    );
-    expect(byTestId(nodes, "watch-captions")).toBeTruthy();
-    expect(byTestId(nodes, "watch-captions-coming-soon")?.props.children).toMatch(
-      /Coming soon/i,
-    );
-  });
-
-  it("hides the bar when captions are not offered", () => {
+    ).toBeNull();
     expect(WatchCaptionBar({ eligibility: { kind: "hidden" } })).toBeNull();
   });
 

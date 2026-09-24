@@ -22,15 +22,10 @@ const video: WatchTarget = {
   },
 };
 
-// Guards: live Watch offers local captions with a stable session id; Videos and Clips hide captions
 describe("Watch caption eligibility", () => {
-  it("offers a stable live caption session id without OAuth", () => {
-    expect(watchCaptionEligibility(live)).toEqual({
-      kind: "eligible",
-      label: "Captions",
-      sessionId: "cap-twitch-twitch-1",
-    });
-    expect(watchCaptionSessionId(live)).toBe("cap-twitch-twitch-1");
+  it("hides player CC chrome for live streams until track-based CC ships", () => {
+    expect(watchCaptionEligibility(live)).toEqual({ kind: "hidden" });
+    expect(watchCaptionSessionId(live)).toBeNull();
   });
 
   it("hides captions on Videos and Clips", () => {
@@ -38,7 +33,7 @@ describe("Watch caption eligibility", () => {
     expect(watchCaptionSessionId(video)).toBeNull();
   });
 
-  it("hides live captions when Settings turns them off", () => {
+  it("stays hidden when Settings turns captions off", () => {
     expect(watchCaptionEligibility(live, false)).toEqual({ kind: "hidden" });
   });
 });

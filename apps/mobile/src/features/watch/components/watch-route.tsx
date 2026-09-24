@@ -394,7 +394,7 @@ function WatchSessionRoute({
               recordingError,
             ),
           })}
-      {...(captions === undefined
+      {...(captions === undefined || captionEligibility.kind === "hidden"
         ? {}
         : {
             captions: captionControls(captions, captionEligibility),

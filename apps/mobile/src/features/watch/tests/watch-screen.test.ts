@@ -504,7 +504,7 @@ describe("watch screen", () => {
     ).toBe(false);
   });
 
-  it("shows local caption overlay and live controls", () => {
+  it("shows local caption overlay and hides player CC chrome", () => {
     const nodes = descendants(
       WatchScreen({
         PlayerSurface: () => null,
@@ -561,7 +561,7 @@ describe("watch screen", () => {
     expect(nodes.some((node) => node.props.testID === "watch-caption-overlay")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(false);
   });
 
   it("renders the empty Watch page with display title and empty panel", () => {

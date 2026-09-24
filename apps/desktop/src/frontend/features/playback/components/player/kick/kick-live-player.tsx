@@ -466,7 +466,6 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
             playbackRate={playbackRate}
             onPlaybackRateChange={handlePlaybackRateChange}
             timedTextTracks={timedText.tracks}
-            localTimedTextTrack={LOCAL_LIVE_CAPTION_TRACK}
             currentTimedTextTrackKey={currentTimedTextTrackKey}
             onTimedTextTrackChange={handleTimedTextTrackChange}
             localCaptionModel={localCaptions.modelState}

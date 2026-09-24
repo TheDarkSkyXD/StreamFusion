@@ -131,10 +131,11 @@ export function SettingsMenu({
     qualities.find((q) => q.id === currentQualityId) !== undefined
       ? getQualityLabel(qualities.find((q) => q.id === currentQualityId)!)
       : t("playback.auto");
-  const captionTracks = useMemo(
-    () => (localTimedTextTrack ? [...timedTextTracks, localTimedTextTrack] : timedTextTracks),
-    [localTimedTextTrack, timedTextTracks]
-  );
+  // Player CC chrome hidden until track-based CC ships with an explicit go-ahead.
+  // Keep timed-text parsing elsewhere; do not surface Subtitles/CC / Coming soon here.
+  const captionTracks = useMemo((): TimedTextTrack[] => [], []);
+  void timedTextTracks;
+  void localTimedTextTrack;
   const selectedCaptionTrack = captionTracks.find(
     (track) => track.key === currentTimedTextTrackKey
   );
@@ -404,17 +405,6 @@ export function SettingsMenu({
                   </button>
                 </div>
 
-                                {localTimedTextTrack && (
-                  <div
-                    className="border-t border-[#ffffff1a] px-4 py-3 text-[13px] text-[#d4d4d4]"
-                    data-testid="local-captions-coming-soon"
-                  >
-                    <p className="font-semibold text-white">
-                      {t("playback.localCaptionsComingSoon")}
-                    </p>
-                    <p className="mt-1">{t("playback.localCaptionsComingSoonDetail")}</p>
-                  </div>
-                )}
               </div>
             )}
 

@@ -153,31 +153,7 @@ describe("caption foundation", () => {
     expect(hls.subtitleTrack).toBe(-1);
   });
 
-  it("keeps Subtitles/CC enabled with Off and Local live captions when no platform track exists", () => {
-    const { unmount } = render(
-      <TooltipProvider>
-        <SettingsMenu
-          {...baseProps}
-          timedTextTracks={[]}
-          localTimedTextTrack={{
-            key: "local-live:en",
-            hlsTrackId: null,
-            cueTrack: "local-live",
-            kind: "captions",
-            label: "Local live captions (English)",
-            language: "en",
-          }}
-        />
-      </TooltipProvider>
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    const captions = screen.getByRole("button", { name: /Subtitles\/CC.*Off/ });
-    expect(captions).toBeEnabled();
-    fireEvent.click(captions);
-    expect(screen.getByRole("radio", { name: "Off" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: "Local live captions (English)" })).toBeVisible();
-    unmount();
-
+  it("hides Subtitles/CC player chrome regardless of timed-text or local tracks", () => {
     openSettings({
       ...baseProps,
       timedTextTracks: [
@@ -190,111 +166,17 @@ describe("caption foundation", () => {
           language: "en",
         },
       ],
-    });
-    expect(screen.getByRole("button", { name: /Subtitles\/CC.*Off/ })).toBeEnabled();
-  });
-
-  it("does not report Off when captions are enabled but the preferred language is unavailable", () => {
-    useAuthStore.setState({
-      preferences: {
-        ...DEFAULT_USER_PREFERENCES,
-        captions: {
-          ...DEFAULT_USER_PREFERENCES.captions,
-          enabled: true,
-          preferredLanguage: "en",
-        },
+      localTimedTextTrack: {
+        key: "local-live:en",
+        hlsTrackId: null,
+        cueTrack: "local-live",
+        kind: "captions",
+        label: "Local live captions (English)",
+        language: "en",
       },
     });
-    openSettings({
-      ...baseProps,
-      timedTextTracks: [
-        {
-          key: "subtitles:es",
-          hlsTrackId: 0,
-          cueTrack: "subtitles0",
-          kind: "subtitles",
-          label: "Español",
-          language: "es",
-        },
-      ],
-    });
-
-    expect(screen.getByRole("button", { name: /Subtitles\/CC.*Choose language/ })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: /Subtitles\/CC.*Off/ })).not.toBeInTheDocument();
-  });
-
-  it("lists Off and every timed text language and reflects the selected track", () => {
-    const onTimedTextTrackChange = vi.fn();
-    openSettings({
-      ...baseProps,
-      timedTextTracks: [
-        {
-          key: "subtitles:en",
-          hlsTrackId: 0,
-          cueTrack: "subtitles0",
-          kind: "subtitles",
-          label: "English",
-          language: "en",
-        },
-        {
-          key: "subtitles:es",
-          hlsTrackId: 1,
-          cueTrack: "subtitles1",
-          kind: "subtitles",
-          label: "Español",
-          language: "es",
-        },
-      ],
-      currentTimedTextTrackKey: "subtitles:es",
-      onTimedTextTrackChange,
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC/ }));
-    expect(screen.getByRole("radio", { name: /Off/ })).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByRole("radio", { name: /English/ })).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByRole("radio", { name: /Español/ })).toHaveAttribute("aria-checked", "true");
-
-    fireEvent.click(screen.getByRole("radio", { name: /English/ }));
-    expect(onTimedTextTrackChange).toHaveBeenCalledWith("subtitles:en");
-  });
-
-  it("exposes a labelled radiogroup with roving arrow-key selection", () => {
-    const onTimedTextTrackChange = vi.fn();
-    openSettings({
-      ...baseProps,
-      timedTextTracks: [
-        {
-          key: "subtitles:en",
-          hlsTrackId: 0,
-          cueTrack: "subtitles0",
-          kind: "subtitles",
-          label: "English",
-          language: "en",
-        },
-        {
-          key: "subtitles:es",
-          hlsTrackId: 1,
-          cueTrack: "subtitles1",
-          kind: "subtitles",
-          label: "Español",
-          language: "es",
-        },
-      ],
-      currentTimedTextTrackKey: null,
-      onTimedTextTrackChange,
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC/ }));
-
-    const group = screen.getByRole("radiogroup", { name: "Subtitles/CC" });
-    const off = screen.getByRole("radio", { name: "Off" });
-    const english = screen.getByRole("radio", { name: "English" });
-    expect(group).toContainElement(off);
-    expect(off).toHaveAttribute("type", "button");
-    expect(off).toHaveFocus();
-
-    fireEvent.keyDown(off, { key: "ArrowDown" });
-    expect(onTimedTextTrackChange).toHaveBeenLastCalledWith("subtitles:en");
-    expect(english).toHaveFocus();
+    expect(screen.queryByRole("button", { name: /Subtitles\/CC/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("local-captions-coming-soon")).not.toBeInTheDocument();
   });
 
   it("renders active HLS cues in a custom overlay after selecting a track", () => {
@@ -498,25 +380,17 @@ describe("caption foundation", () => {
     expect(addCue).toHaveBeenCalledWith(expect.objectContaining({ text: "Reloaded Cue 0" }));
   });
 
-  it("exposes timed text selection through both live and VOD control paths", () => {
+  it("hides Subtitles/CC through both live and VOD control paths", () => {
     const playerProps = {
-      isPlaying: false,
-      volume: 100,
-      muted: false,
       qualities: [],
       currentQualityId: "auto",
-      isFullscreen: false,
-      onTogglePlay: vi.fn(),
-      onVolumeChange: vi.fn(),
-      onToggleMute: vi.fn(),
       onQualityChange: vi.fn(),
-      onToggleFullscreen: vi.fn(),
       timedTextTracks: [
         {
           key: "subtitles:en",
           hlsTrackId: 0,
           cueTrack: "subtitles0",
-          kind: "subtitles" as const,
+          kind: "subtitles",
           label: "English",
           language: "en",
         },
@@ -531,7 +405,7 @@ describe("caption foundation", () => {
       </TooltipProvider>
     );
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByText("Subtitles/CC")).toBeInTheDocument();
+    expect(screen.queryByText("Subtitles/CC")).not.toBeInTheDocument();
     live.unmount();
 
     render(
@@ -540,6 +414,6 @@ describe("caption foundation", () => {
       </TooltipProvider>
     );
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByText("Subtitles/CC")).toBeInTheDocument();
+    expect(screen.queryByText("Subtitles/CC")).not.toBeInTheDocument();
   });
 });

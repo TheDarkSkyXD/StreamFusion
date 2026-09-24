@@ -29,6 +29,16 @@ function renderMenu() {
         qualities={[]}
         currentQualityId="auto"
         onQualityChange={vi.fn()}
+        timedTextTracks={[
+          {
+            key: "subtitles:en",
+            hlsTrackId: 0,
+            cueTrack: "subtitles0",
+            kind: "subtitles",
+            label: "English",
+            language: "en",
+          },
+        ]}
         localTimedTextTrack={LOCAL_LIVE_CAPTION_TRACK}
         localCaptionModel={{
           phase: "not-installed",
@@ -52,23 +62,12 @@ function renderMenu() {
 }
 
 describe("local caption settings", () => {
-  it("shows Coming soon and does not download a model mid-stream", () => {
-    const { onTimedTextTrackChange, onDownload } = renderMenu();
+  it("hides Subtitles/CC player chrome even when tracks or local captions exist", () => {
+    const { onDownload } = renderMenu();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC.*Off/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "Local live captions (English)" }));
-    expect(onTimedTextTrackChange).not.toHaveBeenCalled();
-    expect(screen.getByText("Coming soon")).toBeVisible();
-    expect(screen.getByText(/without a mid-stream model download/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Subtitles\/CC/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("local-captions-coming-soon")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Download local caption model" })).not.toBeInTheDocument();
     expect(onDownload).not.toHaveBeenCalled();
-  });
-
-  it("keeps Off selected when local live captions remain Coming soon", () => {
-    renderMenu();
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC.*Off/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "Local live captions (English)" }));
-    expect(screen.getByRole("radio", { name: "Off" })).toHaveAttribute("aria-checked", "true");
   });
 });

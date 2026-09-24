@@ -730,7 +730,6 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             onSeek={() => {}} // Dummy seek handler for visual progress bar
             onRefresh={onRefresh}
             timedTextTracks={timedText.tracks}
-            localTimedTextTrack={LOCAL_LIVE_CAPTION_TRACK}
             currentTimedTextTrackKey={currentTimedTextTrackKey}
             onTimedTextTrackChange={handleTimedTextTrackChange}
             localCaptionModel={localCaptions.modelState}

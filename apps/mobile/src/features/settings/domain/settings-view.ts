@@ -64,8 +64,8 @@ export function composeEffectiveCopy(
       "Android maps these knobs to ExoPlayer LoadControl and live target offset. HLS.js buffer counts stay desktop-only.",
     captions: enabledCopy(
       preferences.captionsEnabled,
-      "Watch closed captions are Coming soon (no model download on Watch).",
-      "Caption preference is saved for when no-download Watch CC ships.",
+      "Watch player does not show a closed-captions control yet.",
+      "Caption preference is saved; player CC chrome stays hidden until track-based CC ships.",
     ),
     carousel:
       "Home carousel is not on this build. The interval is saved for when it ships.",
