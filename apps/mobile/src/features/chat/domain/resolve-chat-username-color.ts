@@ -18,7 +18,7 @@ function hexLuminance(hex: string): number {
   const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!match) return 1;
 
-  const value = Number.parseInt(match[1], 16);
+  const value = Number.parseInt(match[1] ?? "000000", 16);
   const channel = (component: number) => {
     const normalized = component / 255;
     return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
@@ -35,7 +35,7 @@ function liftForDarkTheme(hex: string): string {
   const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!match || hexLuminance(hex) >= 0.18) return hex;
 
-  const value = Number.parseInt(match[1], 16);
+  const value = Number.parseInt(match[1] ?? "000000", 16);
   const mixWithWhite = (component: number) => Math.round(component + (255 - component) * 0.5);
   const red = mixWithWhite((value >> 16) & 0xff);
   const green = mixWithWhite((value >> 8) & 0xff);

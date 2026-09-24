@@ -113,7 +113,7 @@ export function normalizeHexColor(raw: string): string | undefined {
   if (!trimmed) return undefined;
   const match = /^#?([0-9a-f]{6})$/i.exec(trimmed);
   if (!match) return undefined;
-  return `#${match[1].toLowerCase()}`;
+  return `#${(match[1] ?? "").toLowerCase()}`;
 }
 
 function tagValue(line: string, key: string): string {

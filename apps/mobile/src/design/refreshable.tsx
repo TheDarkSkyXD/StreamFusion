@@ -1,9 +1,10 @@
-import { useCallback, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
 import {
   FlatList,
   RefreshControl,
   ScrollView,
   type FlatListProps,
+  type RefreshControlProps,
   type ScrollViewProps,
 } from "react-native";
 
@@ -15,7 +16,7 @@ export type MobileRefreshHandler = () => void | Promise<void>;
 function refreshControlNode(input: {
   readonly onRefresh: MobileRefreshHandler;
   readonly refreshing: boolean;
-}): ReactNode {
+}): ReactElement<RefreshControlProps> {
   return (
     <RefreshControl
       colors={[mobileColors.textPrimary]}
@@ -43,6 +44,7 @@ export function MobileRefreshableScroll({
   onRefresh,
   refreshing = false,
   testID,
+  refreshControl: _ignoredRefreshControl,
   ...rest
 }: ScrollViewProps & {
   readonly children: ReactNode;

@@ -102,6 +102,9 @@ export const playbackEs = {
     decoderStalled: "El decodificador de vídeo dejó de avanzar.",
     liveDataStalled: "El vídeo en directo dejó de recibir datos reproducibles.",
     decodedAudioCaptureFailed: "Falló la captura de audio decodificado",
+    localCaptionsComingSoon: "Próximamente",
+    localCaptionsComingSoonDetail:
+      "Los subtítulos al ver se publicarán sin descargar un modelo de voz en esta pantalla.",
     localCaptionsStartFailed: "No se pudieron iniciar los subtítulos locales",
     captionModelDownloadFailed: "Falló la descarga del modelo de subtítulos",
     captionModelRemovalFailed: "Falló la eliminación del modelo de subtítulos",
@@ -292,6 +295,9 @@ export const playbackEs = {
       paused: "En pausa",
       enterPip: "Entrar en imagen en imagen",
       moveToRegion: "Mover a {{region}}",
+      captionsComingSoon: "Próximamente",
+      captionsComingSoonDetail:
+        "Los subtítulos al ver se publicarán sin descargar un modelo de voz en esta pantalla.",
       installEnglishModel: "Instalar modelo en inglés",
       startCaptions: "Iniciar subtítulos",
       stopCaptions: "Detener subtítulos",

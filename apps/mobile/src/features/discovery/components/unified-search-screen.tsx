@@ -132,14 +132,13 @@ export function UnifiedSearchScreen({
         ? {}
         : {
             onOpenChannel: (channel) => {
+              const avatarUrl = channelAvatar(channel);
               live.record({
                 label: channel.username,
                 channelId: channel.id,
                 platform: channel.platform,
                 username: channel.username,
-                ...(channelAvatar(channel) === undefined
-                  ? {}
-                  : { avatarUrl: channelAvatar(channel) }),
+                ...(avatarUrl === undefined ? {} : { avatarUrl }),
               });
               onOpenChannel(channel);
             },

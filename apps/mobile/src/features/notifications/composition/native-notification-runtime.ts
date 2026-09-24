@@ -30,7 +30,10 @@ export function createNativeNotificationRuntimeForApp(input: {
     channels: createExpoNotificationChannels(),
     follows: input.followingSession,
     identityReady: async () => (await readCredential(input.identityStore)) !== null,
-    permission: async () => (await input.permission.read()).permission,
+    permission: async () => {
+      const status = (await input.permission.read()).permission;
+      return status === "not-requested" ? "unavailable" : status;
+    },
     presenter: createExpoLocalNotificationPresenter(),
     receipts: createExpoNotificationReceiptSource(),
     tokens: createExpoPushTokenSource(),

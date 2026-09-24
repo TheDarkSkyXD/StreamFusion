@@ -185,8 +185,8 @@ export function PlayerControls({
               {seekable && progress ? (
                 <ProgressScrubber
                   durationMs={progress.durationMs}
-                  onSeekTo={onSeekTo}
                   positionMs={progress.positionMs}
+                  {...(onSeekTo === undefined ? {} : { onSeekTo })}
                 />
               ) : null}
               <View style={styles.row}>

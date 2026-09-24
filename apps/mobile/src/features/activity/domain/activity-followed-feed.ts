@@ -9,7 +9,9 @@ import {
  * Go-live titles look like "X is live"; ended proof/relay rows used "ended"
  * in the eventId/title/body.
  */
-export function isGoLiveActivityItem(item: ActivityItem): boolean {
+export function isGoLiveActivityItem(
+  item: ActivityItem,
+): item is Extract<ActivityItem, { kind: "channel" }> {
   if (item.kind !== "channel" || item.event !== "live-alert") return false;
   if (/[:-]ended([:-]|$)/i.test(item.eventId)) return false;
   if (/\bended\b/i.test(item.title) && !/\bis live\b/i.test(item.title)) {

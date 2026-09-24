@@ -237,9 +237,9 @@ export function createExpoLocalNotificationPresenter(): LocalNotificationPresent
               : {}),
             ...(Platform.OS === "android" ? { priority: "max" } : {}),
           },
-          trigger: expoGoAndroid
+          trigger: (expoGoAndroid
             ? { channelId: EXPO_GO_FALLBACK_CHANNEL_ID }
-            : null,
+            : null) as null,
         });
       } catch {
         // Expo Go / permission edges must not crash Settings or proof controls.

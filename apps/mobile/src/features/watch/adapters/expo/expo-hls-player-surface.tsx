@@ -29,14 +29,17 @@ export function ExpoHlsPlayerSurface({
     return <View style={styles.surface} {...testProps} />;
   }
 
+  const androidSurface =
+    Platform.OS === "android" ? { surfaceType: "textureView" as const } : {};
+
   return (
     <VideoView
       contentFit="contain"
       nativeControls={false}
       player={player}
       style={styles.surface}
-      surfaceType={Platform.OS === "android" ? "textureView" : undefined}
       useExoShutter={false}
+      {...androidSurface}
       {...testProps}
     />
   );

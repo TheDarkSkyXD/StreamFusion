@@ -82,7 +82,8 @@ const INERT_FOLLOWING_SESSION = {
   hydrateRecorded: async () => ({ kind: "empty" }),
   readNotifications: async () => ({} as never),
   writeNotifications: async () => ({} as never),
-} as FollowingSession;
+  openProviderPage: async () => {},
+} as unknown as FollowingSession;
 
 export function WatchRoute({
   captions,

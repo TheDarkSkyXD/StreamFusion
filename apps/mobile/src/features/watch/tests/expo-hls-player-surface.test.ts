@@ -11,7 +11,8 @@ describe("ExpoHlsPlayerSurface", () => {
       join(here, "../adapters/expo/expo-hls-player-surface.tsx"),
       "utf8",
     );
-    expect(source).toContain('surfaceType={Platform.OS === "android" ? "textureView" : undefined}');
+    expect(source).toContain('surfaceType: "textureView"');
+    expect(source).toContain('Platform.OS === "android"');
     expect(source).toContain("useExoShutter={false}");
     expect(source).toContain('nativeControls={false}');
     expect(source).toContain('contentFit="contain"');
