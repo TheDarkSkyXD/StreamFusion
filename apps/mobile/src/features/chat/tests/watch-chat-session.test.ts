@@ -44,11 +44,11 @@ describe("watch chat session", () => {
     socket?.onopen?.(undefined as never);
     expect(session.snapshot()).toMatchObject({ kind: "empty" });
     socket?.onmessage?.({
-      data: "@display-name=Ada;id=m1 :ada!ada@ada.tmi.twitch.tv PRIVMSG #alice :hello",
+      data: "@color=#FF7F50;display-name=Ada;id=m1 :ada!ada@ada.tmi.twitch.tv PRIVMSG #alice :hello",
     });
     expect(session.snapshot()).toMatchObject({
       kind: "live",
-      messages: [{ badges: [], displayName: "Ada", id: "m1", text: "hello" }],
+      messages: [{ badges: [], color: "#ff7f50", displayName: "Ada", id: "m1", text: "hello", username: "ada" }],
     });
   });
 
@@ -102,14 +102,14 @@ describe("watch chat session", () => {
         data: JSON.stringify({
           content: "yo",
           id: "k1",
-          sender: { username: "Ada" },
+          sender: { identity: { color: "#53FC18" }, slug: "ada", username: "Ada" },
         }),
         event: "App\\Events\\ChatMessageEvent",
       }),
     });
     expect(kickSession.snapshot()).toMatchObject({
       kind: "live",
-      messages: [{ badges: [], displayName: "Ada", id: "k1", text: "yo" }],
+      messages: [{ badges: [], color: "#53fc18", displayName: "Ada", id: "k1", text: "yo", username: "ada" }],
     });
   });
 

@@ -12,6 +12,10 @@ export type WatchChatMessage = {
   readonly id: string;
   readonly text: string;
   readonly badges: readonly WatchChatBadge[];
+  /** Platform name color (`#rrggbb`) from IRC `color` / Kick `identity.color`. */
+  readonly color?: string;
+  /** Login/slug for deterministic uncolored fallback hashing. */
+  readonly username?: string;
 };
 
 export type WatchChatAvailability =

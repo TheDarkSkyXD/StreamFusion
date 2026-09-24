@@ -142,9 +142,11 @@ describe("watch screen", () => {
                 version: "1",
               },
             ],
+            color: "#FF7F50",
             displayName: "Ada",
             id: "msg-1",
             text: "hello",
+            username: "ada",
           }],
         },
         inspection: null,
@@ -174,6 +176,21 @@ describe("watch screen", () => {
       alignItems: "center",
       flexDirection: "row",
     });
+    const username = liveNodes.find(
+      (node) => node.props.testID === "watch-chat-username-msg-1",
+    );
+    expect(username?.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontSize: 13,
+          fontWeight: "700",
+          includeFontPadding: false,
+          lineHeight: 18,
+          transform: [{ translateY: -1 }],
+        }),
+        { color: "#FF7F50" },
+      ]),
+    );
     const row = liveNodes.find(
       (node) => node.props.testID === "watch-chat-message-msg-1",
     );
@@ -790,6 +807,8 @@ describe("watch screen", () => {
     expect(source).toContain("includeFontPadding: false");
     expect(source).toContain("fontSize: 13");
     expect(source).toContain("height: 18");
+    expect(source).toContain("translateY: -1");
+    expect(source).toContain("resolveChatUsernameColor");
     expect(source).not.toMatch(/chatBadge:[\s\S]*?marginTop/);
   });
 

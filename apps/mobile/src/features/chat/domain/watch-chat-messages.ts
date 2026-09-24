@@ -27,13 +27,20 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
   const text = trimmed.split(" :").at(-1) ?? "";
   if (text === "") return null;
   const id = tagValue(trimmed, "id") || `twitch:${text}:${trimmed.length}`;
-  const displayName =
-    tagValue(trimmed, "display-name") ||
-    /:([a-zA-Z0-9_]+)!/.exec(trimmed)?.[1] ||
-    "chat";
+  const username =
+    /:([a-zA-Z0-9_]+)!/.exec(trimmed)?.[1]?.toLowerCase() || "chat";
+  const displayName = tagValue(trimmed, "display-name") || username;
+  const color = normalizeHexColor(tagValue(trimmed, "color"));
   const badgeRefs = parseIrcBadgesTag(tagValue(trimmed, "badges"));
   const badges = resolveTwitchBadges(badgeRefs);
-  return { badges, displayName, id, text };
+  return {
+    badges,
+    ...(color === undefined ? {} : { color }),
+    displayName,
+    id,
+    text,
+    username,
+  };
 }
 
 export function parseKickChatFrame(
@@ -45,6 +52,10 @@ export function parseKickChatFrame(
     typeof record.sender === "object" && record.sender !== null
       ? (record.sender as Record<string, unknown>)
       : {};
+  const identity =
+    typeof sender.identity === "object" && sender.identity !== null
+      ? (sender.identity as Record<string, unknown>)
+      : {};
   const text = typeof record.content === "string" ? record.content : "";
   if (text === "") return null;
   const id =
@@ -53,11 +64,24 @@ export function parseKickChatFrame(
       : typeof record.id === "number"
         ? `${record.id}`
         : `kick:${text}`;
+  const username =
+    (typeof sender.slug === "string" && sender.slug) ||
+    (typeof sender.username === "string" && sender.username) ||
+    "chat";
   const displayName =
     (typeof sender.username === "string" && sender.username) ||
-    (typeof sender.slug === "string" && sender.slug) ||
-    "chat";
-  return { badges: [], displayName, id, text };
+    username;
+  const color = normalizeHexColor(
+    typeof identity.color === "string" ? identity.color : "",
+  );
+  return {
+    badges: [],
+    ...(color === undefined ? {} : { color }),
+    displayName,
+    id,
+    text,
+    username,
+  };
 }
 
 export function parseIrcBadgesTag(raw: string): readonly {
@@ -81,6 +105,15 @@ export function parseIrcBadgesTag(raw: string): readonly {
     const rightPriority = PRIORITY_BADGE_SET_IDS.has(right.setId) ? 0 : 1;
     return leftPriority - rightPriority;
   });
+}
+
+/** Twitch IRC / Kick identity colors are `#rrggbb`; empty means uncolored. */
+export function normalizeHexColor(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const match = /^#?([0-9a-f]{6})$/i.exec(trimmed);
+  if (!match) return undefined;
+  return `#${match[1].toLowerCase()}`;
 }
 
 function tagValue(line: string, key: string): string {

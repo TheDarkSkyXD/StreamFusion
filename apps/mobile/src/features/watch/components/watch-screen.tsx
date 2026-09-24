@@ -371,6 +371,7 @@ export function WatchScreen({
             info={inspection?.info ?? null}
             onOpenRelated={onOpenRelated}
             onSelect={onSelectTab}
+            platform={target.platform}
             recorded={Boolean(target.media)}
             related={inspection?.related ?? null}
             tab={tab}

@@ -21,6 +21,9 @@ import type {
   WatchRelated,
   WatchTab,
 } from "../capabilities/watch";
+import type { Platform } from "@streamfusion/core/platform";
+import { resolveChatUsernameColor } from "@mobile/features/chat/domain/resolve-chat-username-color";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/domain/chat-display-preferences";
 import { formatWatchViewerCount } from "../domain/watch-live-meta";
 
 /**
@@ -36,6 +39,7 @@ export function WatchTabs({
   onChatRetry,
   onOpenRelated,
   onSelect,
+  platform,
   recorded = false,
   related,
   tab,
@@ -45,6 +49,7 @@ export function WatchTabs({
   readonly onChatRetry?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onSelect: (tab: WatchTab) => void;
+  readonly platform: Platform;
   readonly recorded?: boolean;
   readonly related: WatchRelated | null;
   readonly tab: WatchTab;
@@ -72,11 +77,12 @@ export function WatchTabs({
         </Pressable>
       ) : null}
       {tab === "chat" ? (
-        <ChatPane chat={chat} {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })} />
+        <ChatPane chat={chat} platform={platform} {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })} />
       ) : null}
       {tab === "comments" ? (
         <CommentsPane
           chat={chat}
+          platform={platform}
           {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })}
         />
       ) : null}
@@ -97,14 +103,17 @@ export function WatchTabs({
 function CommentsPane({
   chat,
   onRetry,
+  platform,
 }: {
   readonly chat: WatchChatAvailability;
   readonly onRetry?: () => void;
+  readonly platform: Platform;
 }) {
   const { t } = useTranslation();
   return (
     <ChatPane
       chat={chat}
+      platform={platform}
       testID="watch-comments"
       title={t("playback.watch.comments")}
       {...(onRetry === undefined ? {} : { onRetry })}
@@ -115,11 +124,13 @@ function CommentsPane({
 function ChatPane({
   chat,
   onRetry,
+  platform,
   testID = "watch-chat",
   title,
 }: {
   readonly chat: WatchChatAvailability;
   readonly onRetry?: () => void;
+  readonly platform: Platform;
   readonly testID?: string;
   readonly title?: string;
 }) {
@@ -222,7 +233,26 @@ function ChatPane({
                 ) : null,
               )}
               <View style={styles.messageNameSlot}>
-                <Text selectable style={styles.messageName}>
+                <Text
+                  selectable
+                  style={[
+                    styles.messageName,
+                    {
+                      color: resolveChatUsernameColor({
+                        ...(message.color === undefined
+                          ? {}
+                          : { color: message.color }),
+                        platform,
+                        readableColorForUncolored:
+                          DEFAULT_CHAT_DISPLAY_PREFERENCES.readableColorForUncolored,
+                        themeAdaptUsernameColor:
+                          DEFAULT_CHAT_DISPLAY_PREFERENCES.themeAdaptUsernameColor,
+                        username: message.username || message.displayName,
+                      }),
+                    },
+                  ]}
+                  testID={`watch-chat-username-${message.id}`}
+                >
                   {message.displayName}
                 </Text>
               </View>
@@ -478,7 +508,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   messageName: {
-    color: mobileColors.textSecondary,
     fontSize: 13,
     fontWeight: "700",
     includeFontPadding: false,
