@@ -374,7 +374,10 @@ describe("caption preferences and layout", () => {
 
   it("updates caption size and opacity and resets the fixed accessible style defaults", () => {
     installPreferences();
-    render(
+    const updatePreferences = vi.fn().mockResolvedValue(undefined);
+    useAuthStore.setState({ updatePreferences });
+
+    const { rerender } = render(
       <TooltipProvider>
         <SettingsMenu
           qualities={[]}
@@ -396,13 +399,24 @@ describe("caption preferences and layout", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC/ }));
-    fireEvent.change(screen.getByRole("slider", { name: "Caption text size" }), {
-      target: { value: "150" },
+    // Player CC chrome stays hidden until track-based CC ships.
+    expect(screen.queryByRole("button", { name: /Subtitles\/CC/ })).not.toBeInTheDocument();
+
+    useAuthStore.setState({
+      preferences: {
+        ...useAuthStore.getState().preferences!,
+        captions: {
+          ...useAuthStore.getState().preferences!.captions!,
+          textSizePercent: 150,
+          backgroundOpacityPercent: 40,
+        },
+      },
     });
-    fireEvent.change(screen.getByRole("slider", { name: "Caption background opacity" }), {
-      target: { value: "40" },
-    });
+    rerender(
+      <TooltipProvider>
+        <CaptionOverlay cues={[{ text: "Readable caption", startTime: 0, endTime: 2 }]} />
+      </TooltipProvider>
+    );
 
     const caption = screen.getByText("Readable caption");
     expect(caption.style.color).toBe("rgb(255, 255, 255)");
@@ -410,7 +424,21 @@ describe("caption preferences and layout", () => {
     expect(caption.style.fontSize).toBe("1.875rem");
     expect(caption.style.backgroundColor).toBe("rgba(0, 0, 0, 0.4)");
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset caption appearance" }));
+    useAuthStore.setState({
+      preferences: {
+        ...useAuthStore.getState().preferences!,
+        captions: {
+          ...useAuthStore.getState().preferences!.captions!,
+          textSizePercent: 100,
+          backgroundOpacityPercent: 80,
+        },
+      },
+    });
+    rerender(
+      <TooltipProvider>
+        <CaptionOverlay cues={[{ text: "Readable caption", startTime: 0, endTime: 2 }]} />
+      </TooltipProvider>
+    );
     expect(caption.style.fontSize).toBe("1.25rem");
     expect(caption.style.backgroundColor).toBe("rgba(0, 0, 0, 0.8)");
   });

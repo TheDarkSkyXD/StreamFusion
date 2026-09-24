@@ -145,7 +145,7 @@ describe("SearchBar same-route Search navigation", () => {
   it("publishes the latest rapid-typing term on a same-route footer submission", async () => {
     vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     const { history, router, view } = await renderSearchFlow();
-    const input = screen.getByPlaceholderText("Search StreamFusion...");
+    const input = screen.getByPlaceholderText("Search Twitch and Kick");
 
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "xqc" } });

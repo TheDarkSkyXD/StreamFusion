@@ -31,7 +31,7 @@ import { SearchBar } from '@/features/shell/components/TopNavBar/SearchBar';
 describe('SearchBar', () => {
   it('wires onSearch to navigate to /search', () => {
     renderWithProviders(<SearchBar />);
-    const btn = screen.getByText(/search streamfusion/i);
+    const btn = screen.getByText(/search twitch and kick/i);
     btn.click();
     expect(navigate).toHaveBeenCalledWith({ to: '/search', search: { q: 'foo' } });
   });

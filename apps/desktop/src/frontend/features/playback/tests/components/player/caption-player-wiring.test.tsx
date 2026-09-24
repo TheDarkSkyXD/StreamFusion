@@ -234,9 +234,8 @@ const playerCases: Array<{
   },
 ];
 
-// Guards: every routed live and VOD player wires HLS timed text into the real settings menu and overlay.
-// Guards: Twitch and Kick live players always expose Off and Local live captions without platform tracks.
-// Guards: Twitch live captions use Twitch's accessible purple accent instead of the generic local-caption color.
+// Guards: routed players keep Subtitles/CC chrome hidden until track-based CC ships.
+// Guards: Twitch live captions use Twitch purple for local-caption highlights when overlays render.
 describe("caption player wiring", () => {
   it("uses Twitch's current purple for local live caption highlights", async () => {
     const view = render(
@@ -256,7 +255,7 @@ describe("caption player wiring", () => {
 
   it.each(
     playerCases.filter(({ name }) => name.endsWith("live"))
-  )("offers local captions through the $name path before HLS exposes tracks", async ({
+  )("hides Subtitles/CC chrome on the $name path before HLS exposes tracks", async ({
     src,
     renderPlayer,
   }) => {
@@ -264,16 +263,13 @@ describe("caption player wiring", () => {
     await waitFor(() => expect(hlsHarness.engines.has(src)).toBe(true));
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    const captions = screen.getByRole("button", { name: /Subtitles\/CC.*Off/ });
-    expect(captions).toBeEnabled();
-    fireEvent.click(captions);
-    expect(screen.getByRole("radio", { name: "Off" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: "Local live captions (English)" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Subtitles\/CC/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("local-captions-coming-soon")).not.toBeInTheDocument();
 
     view.unmount();
   });
 
-  it.each(playerCases)("renders selected cues through the $name path", async ({
+  it.each(playerCases)("keeps Subtitles/CC chrome hidden after the $name path exposes timed text", async ({
     src,
     renderPlayer,
   }) => {
@@ -292,17 +288,7 @@ describe("caption player wiring", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "English CC" }));
-    act(() => {
-      emit(src, "hlsCuesParsed", {
-        type: "captions",
-        track: "textTrack1",
-        cues: [{ text: `${src} caption`, startTime: 1, endTime: 4 }],
-      });
-    });
-
-    expect(screen.getByRole("status", { name: "Captions" })).toHaveTextContent(`${src} caption`);
+    expect(screen.queryByRole("button", { name: /Subtitles\/CC/ })).not.toBeInTheDocument();
 
     view.unmount();
     expect([...engine.listeners.values()].every((listeners) => listeners.size === 0)).toBe(true);

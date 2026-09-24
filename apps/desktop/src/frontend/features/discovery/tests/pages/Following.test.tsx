@@ -727,7 +727,7 @@ describe("FollowingPage", () => {
 
   it("shows search-specific empty message when filter has no hits", () => {
     renderWithProviders(<FollowingPage />);
-    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search guest follows/i), {
       target: { value: "no-such-channel" },
     });
     expect(screen.getByText(/no matches for "no-such-channel"/i)).toBeInTheDocument();
@@ -766,7 +766,7 @@ describe("FollowingPage", () => {
 
     renderWithProviders(<FollowingPage />);
     fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
-    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search guest follows/i), {
       target: { value: "hennytingzz" },
     });
 
@@ -805,7 +805,7 @@ describe("FollowingPage", () => {
 
     renderWithProviders(<FollowingPage />);
     fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
-    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search guest follows/i), {
       target: { value: "henny" },
     });
 
@@ -1385,7 +1385,7 @@ describe("FollowingPage", () => {
     fireEvent(window, new Event("resize"));
     expect(screen.getAllByText("Channel 671")).not.toHaveLength(0);
 
-    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search guest follows/i), {
       target: { value: "Channel 0" },
     });
     expect(screen.getAllByText("Channel 0")).not.toHaveLength(0);
