@@ -159,10 +159,10 @@ describe("native notification runtime", () => {
     await denied.runtime.presentProof(payload);
     expect(denied.activity[0]?.eventId).toBe(payload.eventId);
     expect(denied.runtime.peekBanner()?.location).toEqual({
-      kind: "channel",
+      kind: "watch",
       platform: "twitch",
-      id: "proof-channel",
-      username: "proofstreamer",
+      channelId: "71092938",
+      channelLogin: "xqc",
     });
   });
 
@@ -212,13 +212,23 @@ describe("native notification runtime", () => {
     });
     harness.emitReceipt({
       foreground: false,
-      payload: proofLivePayload("2026-09-15T12:00:01.000Z"),
+      payload: {
+        ...proofLivePayload("2026-09-15T12:00:01.000Z"),
+        eventId: "live:twitch:chan-1:ended",
+        destination: {
+          kind: "watch-channel" as const,
+          platform: "twitch" as const,
+          channelId: "chan-1",
+          channelLogin: "proofstreamer",
+          streamState: "ended" as const,
+        },
+      },
     });
     await vi.waitFor(() => {
       expect(harness.opened[1]).toEqual({
         kind: "channel",
         platform: "twitch",
-        id: "proof-channel",
+        id: "chan-1",
         username: "proofstreamer",
       });
     });

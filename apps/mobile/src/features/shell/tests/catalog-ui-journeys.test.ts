@@ -40,6 +40,20 @@ vi.mock("lucide-react-native", () => ({
   ChevronDown: "ChevronDown",
 }));
 
+const i18nTest = vi.hoisted(() => ({
+  t: (key: string, options?: Record<string, unknown>) => {
+    if (options && "name" in options) return `${key}:${String(options.name)}`;
+    return key;
+  },
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
+}));
+
 type ElementProps = Readonly<{
   children?: unknown;
   onPress?: () => void;
@@ -224,7 +238,7 @@ describe("catalog UI journeys", () => {
         onConfirmClear: () => undefined,
         onOpenAccounts: () => undefined,
         onRemoveHistory: () => undefined,
-        onRepeatHistory: (query) => repeated.push(query),
+        onRepeatHistory: (entry) => repeated.push(typeof entry === "string" ? entry : entry.label),
         onRequestClear: () => undefined,
         onRetry: () => undefined,
         onSelectMode: () => undefined,

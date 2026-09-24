@@ -6,15 +6,6 @@ import { composeConnectivityView } from "../domain/compose-connectivity-view";
 import { ConnectivityDiagnosticsView } from "../components/connectivity-diagnostics-panel";
 import { ProxySettingsView } from "../components/proxy-settings-panel";
 
-vi.mock("react-native", () => ({
-  Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
-  Switch: "Switch",
-  Text: "Text",
-  TextInput: "TextInput",
-  View: "View",
-}));
-
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
   children?: unknown;

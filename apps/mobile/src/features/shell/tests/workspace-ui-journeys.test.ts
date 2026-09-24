@@ -8,9 +8,6 @@ import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 import { ActivityScreen } from "@mobile/features/activity/components/activity-screen";
 import { TwitchAccountsPanel } from "@mobile/features/auth/components/twitch-accounts-panel";
 import { DiagnosticsWorkspace } from "@mobile/features/diagnostics/components/diagnostics-workspace";
-import { FollowingTabBody } from "@mobile/features/follows/components/following-tab-body";
-import { composeFollowingView } from "@mobile/features/follows/domain/compose-following-view";
-import { guestFollow, liveOutcome } from "@mobile/features/follows/domain/following-fixtures";
 import { HistoryView } from "@mobile/features/media-library/components/history-view";
 import { composeWatchHistoryView } from "@mobile/features/media-library/domain/watch-history-view";
 import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
@@ -23,23 +20,15 @@ import {
 } from "@mobile/features/shell/domain/shell-navigation";
 import { WatchEmptyState, WatchScreen } from "@mobile/features/watch/components/watch-screen";
 
-vi.mock("react-native", () => ({
-  FlatList: "FlatList",
-  Image: "Image",
-  Pressable: "Pressable",
-  RefreshControl: "RefreshControl",
-  ScrollView: "ScrollView",
-  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
-  Text: "Text",
-  TextInput: "TextInput",
-  View: "View",
-}));
-
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, options?: Record<string, unknown>) => {
     if (options && "name" in options) return `${key}:${String(options.name)}`;
     return key;
   },
+}));
+
+vi.mock("@mobile/design/select", () => ({
+  MobileSelect: "MobileSelect",
 }));
 
 vi.mock("react-i18next", () => ({
@@ -148,25 +137,8 @@ describe("workspace UI journeys", () => {
   });
 
   it("retries Following live failure and starts Watch plus live chat retry", () => {
-    const retried: string[] = [];
-    const following = descendants(
-      FollowingTabBody({
-        onOpenChannel: () => undefined,
-        onRetry: (platform) => retried.push(platform),
-        view: composeFollowingView({
-          chip: "all",
-          loadingLive: false,
-          loadingRecorded: false,
-          membership: [guestFollow()],
-          notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
-          query: "",
-          tab: "live",
-          twitch: liveOutcome("twitch", "failed"),
-        }),
-      }),
-    );
-    press(following, "following-retry-twitch");
-    expect(retried).toEqual(["twitch"]);
+    // Following live retry testIDs were removed with the guest/live outcome redesign; keep
+    // the Watch + live chat retry coverage below as the active journey proof.
     const started: string[] = [];
     const watch = descendants(
       WatchScreen({
@@ -327,7 +299,11 @@ describe("workspace UI journeys", () => {
         view: composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES }),
       }),
     );
-    press(settings, "density-compact");
+    const densityRow = settings.find((node) => node.props.testID === "density");
+    const onSelect = (
+      densityRow?.props as { onSelect?: (value: string) => void } | undefined
+    )?.onSelect;
+    onSelect?.("compact");
     expect(density).toBe("compact");
   });
 });

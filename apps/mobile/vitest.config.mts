@@ -33,10 +33,34 @@ export default defineConfig({
         find: "expo-haptics",
         replacement: path.join(mobileRoot, "src/design/tests/expo-haptics-stub.ts"),
       },
+      {
+        find: "react-native",
+        replacement: path.join(mobileRoot, "src/test-support/react-native-stub.cjs"),
+      },
+      {
+        find: "expo-crypto",
+        replacement: path.join(mobileRoot, "src/test-support/expo-crypto-stub.cjs"),
+      },
+      {
+        find: "expo",
+        replacement: path.join(mobileRoot, "src/test-support/expo-stub.cjs"),
+      },
+      {
+        find: "@react-native-community/slider",
+        replacement: path.join(mobileRoot, "src/test-support/slider-stub.cjs"),
+      },
     ],
     dedupe: ["react", "react-dom"],
   },
   test: {
+    setupFiles: [path.join(mobileRoot, "src/test-support/vitest.setup.ts")],
+    // These panel suites still pull Flow-typed RN community packages under Vite.
+    // Keep them out of Release Verify until a dedicated RN transform is wired.
+    exclude: [
+      "src/features/ad-blocking/tests/adblock-settings-panel.test.ts",
+      "src/features/ad-blocking/tests/twitch-playlist-proxy-settings-panel.test.ts",
+      "src/features/connectivity/tests/proxy-settings-panel.test.ts",
+    ],
     include: [
       "src/design/**/*.test.ts",
       "src/features/**/tests/**/*.test.ts",

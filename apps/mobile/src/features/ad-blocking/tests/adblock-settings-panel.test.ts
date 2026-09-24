@@ -4,14 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { AdBlockSettingsView } from "../components/adblock-settings-panel";
 import { composeAdBlockView } from "../domain/adblock-policy";
 
-vi.mock("react-native", () => ({
-  Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
-  Switch: "Switch",
-  Text: "Text",
-  View: "View",
-}));
-
 type ElementProps = Readonly<{
   children?: unknown;
   onPress?: () => void;

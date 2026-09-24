@@ -9,15 +9,6 @@ import {
   DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
 } from "../domain/twitch-playlist-proxy-preferences";
 
-vi.mock("react-native", () => ({
-  Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
-  Text: "Text",
-  TextInput: "TextInput",
-  View: "View",
-  Switch: "Switch",
-}));
-
 type ElementProps = Readonly<{
   children?: unknown;
   disabled?: boolean;
