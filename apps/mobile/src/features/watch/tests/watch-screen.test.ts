@@ -106,7 +106,6 @@ describe("watch screen", () => {
         kind: "connecting",
       },
       inspection: null,
-      onOpenProviderPage: () => undefined,
       onOpenRelated: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
@@ -149,7 +148,6 @@ describe("watch screen", () => {
           }],
         },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -207,7 +205,6 @@ describe("watch screen", () => {
         onChatRetry: () => {
           retried.push("chat");
         },
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -238,7 +235,6 @@ describe("watch screen", () => {
       },
       inspection: null,
       onMute: () => undefined,
-      onOpenProviderPage: () => undefined,
       onOpenRelated: () => undefined,
       onPip: () => undefined,
       onPlayPause: () => undefined,
@@ -313,7 +309,6 @@ describe("watch screen", () => {
       },
       inspection: null,
       onMute: () => undefined,
-      onOpenProviderPage: () => undefined,
       onOpenRelated: () => undefined,
       onPip: () => undefined,
       onPlayPause: () => undefined,
@@ -381,7 +376,6 @@ describe("watch screen", () => {
         },
         inspection: null,
         onMute: () => undefined,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onPip: () => undefined,
         onPlayPause: () => undefined,
@@ -459,7 +453,6 @@ describe("watch screen", () => {
           onOpenArtifact: () => undefined,
             },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -495,7 +488,6 @@ describe("watch screen", () => {
           onOpenArtifact: () => undefined,
             },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -541,7 +533,8 @@ describe("watch screen", () => {
           },
           onInstall: () => undefined,
           onRemove: () => undefined,
-              onStop: () => undefined,
+          onStart: () => undefined,
+          onStop: () => undefined,
           session: {
             audioLeftDevice: false,
             audioUploadAttempts: 0,
@@ -557,7 +550,6 @@ describe("watch screen", () => {
           kind: "connecting",
         },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -600,7 +592,6 @@ describe("watch screen", () => {
           messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
         },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -643,7 +634,6 @@ describe("watch screen", () => {
       },
       inspection: null,
       onMute: () => undefined,
-      onOpenProviderPage: () => undefined,
       onOpenRelated: () => undefined,
       onPip: () => undefined,
       onPlayPause: () => undefined,
@@ -686,7 +676,6 @@ describe("watch screen", () => {
           kind: "connecting",
         },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: (tab) => {
@@ -718,7 +707,6 @@ describe("watch screen", () => {
         onOpenChannel: () => {
           opened.push("channel");
         },
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -752,7 +740,6 @@ describe("watch screen", () => {
           kind: "unavailable",
         },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -851,7 +838,6 @@ describe("watch screen", () => {
           onStart: () => undefined,
         },
         inspection: null,
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -919,7 +905,6 @@ describe("watch screen", () => {
           related: { kind: "empty" },
           target,
         },
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -1002,7 +987,6 @@ describe("watch screen", () => {
         onFollow: () => {
           followed.push("follow");
         },
-        onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
@@ -1053,6 +1037,56 @@ describe("watch screen", () => {
     );
     expect(ids.indexOf("watch-player-stage")).toBeLessThan(
       ids.indexOf("watch-under-player"),
+    );
+  });
+
+
+
+  it("does not offer Open provider page on failed or ended Watch chrome", () => {
+    const failed = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: { detail: "Connecting guest chat.", kind: "connecting" },
+        inspection: null,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        playback: {
+          failure: {
+            detail: "Player unavailable.",
+            integration: "twitch-gql-usher",
+            kind: "native-unavailable",
+            lastSuccessfulStage: "source-resolved",
+            platform: "twitch",
+            recovery: ["retry", "open-provider"],
+          },
+          kind: "failed",
+          target,
+        },
+        tab: "chat",
+        target,
+      }),
+    );
+    expect(failed.some((node) => node.props.testID === "watch-open-provider")).toBe(
+      false,
+    );
+    expect(failed.some((node) => node.props.testID === "watch-retry")).toBe(true);
+
+    const ended = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: { detail: "Connecting guest chat.", kind: "connecting" },
+        inspection: null,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        playback: { kind: "ended", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    expect(ended.some((node) => node.props.testID === "watch-open-provider")).toBe(
+      false,
     );
   });
 

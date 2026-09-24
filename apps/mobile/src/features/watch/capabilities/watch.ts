@@ -435,14 +435,6 @@ export interface FocusedWatchSession {
   subscribe(listener: () => void): () => void;
 }
 
-export type WatchProviderFallbackResult =
-  | { readonly kind: "opened" }
-  | { readonly detail: string; readonly kind: "unavailable" };
-
-export interface WatchProviderPagePort {
-  open(target: WatchTarget): Promise<WatchProviderFallbackResult>;
-}
-
 export interface WatchSessionIdSource {
   create(): string;
 }

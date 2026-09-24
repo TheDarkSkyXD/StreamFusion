@@ -1,8 +1,4 @@
 import { useTranslation } from "react-i18next";
-import {
-  LOCAL_CAPTION_DISPLAY_SIZE,
-  LOCAL_CAPTION_NOT_INSTALLED_STATUS,
-} from "@streamfusion/core/local-captions";
 import { StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
@@ -20,21 +16,25 @@ export type WatchCaptionBarProps = {
   readonly compact?: boolean;
   readonly eligibility: WatchCaptionEligibility;
   readonly model: CaptionModelState | null;
-  readonly onInstall: () => void;
-  readonly onRemove: () => void;
+  /** Kept for route wiring; Watch never offers model install (Settings-only later). */
+  readonly onInstall?: () => void;
+  /** Kept for route wiring; Watch never offers model remove. */
+  readonly onRemove?: () => void;
   readonly onStart: () => void;
   readonly onStop: () => void;
   readonly session: CaptionSessionState | null;
   readonly status?: string | null;
 };
 
+/**
+ * Watch caption chrome — start/stop only when a model is already present.
+ * Model install/download prompts do not live on Watch.
+ */
 export function WatchCaptionBar({
   busy = false,
   compact = false,
   eligibility,
   model,
-  onInstall,
-  onRemove,
   onStart,
   onStop,
   session,
@@ -53,25 +53,19 @@ export function WatchCaptionBar({
     );
   }
   const installed = model?.installed === true;
+  // No install / download CTA on Watch — hide until a model already exists.
+  if (!installed) return null;
+
   const active = session?.state === "active";
-  const actions = captionActions(installed, active, (key) => t(key), {
-    onInstall,
-    onRemove,
+  const actions = captionSessionActions(active, (key) => t(key), {
     onStart,
     onStop,
   });
+  if (actions.length === 0) return null;
+
   if (compact) {
-    const statusText =
-      status ??
-      session?.reason ??
-      model?.statusMessage ??
-      LOCAL_CAPTION_NOT_INSTALLED_STATUS;
     return (
-      <View
-        accessibilityLabel={statusText}
-        style={styles.compact}
-        testID="watch-captions"
-      >
+      <View style={styles.compact} testID="watch-captions">
         <View style={styles.actions}>
           {actions.map((action) => (
             <Action busy={busy} key={action.testID} {...action} />
@@ -82,19 +76,8 @@ export function WatchCaptionBar({
   }
   return (
     <MobileStatusPanel testID="watch-captions" tone="info">
-      <Text selectable style={mobileType.body} testID="watch-captions-size">
-        {t("playback.watch.englishModelSize", {
-          size: model?.displaySize ?? LOCAL_CAPTION_DISPLAY_SIZE,
-        })}
-      </Text>
       <Text selectable style={mobileType.body} testID="watch-captions-status">
-        {status ??
-          session?.reason ??
-          model?.statusMessage ??
-          LOCAL_CAPTION_NOT_INSTALLED_STATUS}
-      </Text>
-      <Text selectable style={mobileType.label} testID="watch-captions-privacy">
-        {t("playback.watch.captionsPrivacy")}
+        {status ?? session?.reason ?? model?.statusMessage ?? ""}
       </Text>
       <View style={styles.actions}>
         {actions.map((action) => (
@@ -105,51 +88,30 @@ export function WatchCaptionBar({
   );
 }
 
-function captionActions(
-  installed: boolean,
+function captionSessionActions(
   active: boolean,
   t: (key: string) => string,
   handlers: {
-    readonly onInstall: () => void;
-    readonly onRemove: () => void;
     readonly onStart: () => void;
     readonly onStop: () => void;
   },
 ) {
-  const actions: {
-    readonly label: string;
-    readonly onPress: () => void;
-    readonly testID: string;
-  }[] = [];
-  if (!installed) {
-    actions.push({
-      label: t("playback.watch.installEnglishModel"),
-      onPress: handlers.onInstall,
-      testID: "watch-captions-install",
-    });
+  if (active) {
+    return [
+      {
+        label: t("playback.watch.stopCaptions"),
+        onPress: handlers.onStop,
+        testID: "watch-captions-stop",
+      },
+    ];
   }
-  if (installed && !active) {
-    actions.push({
+  return [
+    {
       label: t("playback.watch.startCaptions"),
       onPress: handlers.onStart,
       testID: "watch-captions-start",
-    });
-  }
-  if (active) {
-    actions.push({
-      label: t("playback.watch.stopCaptions"),
-      onPress: handlers.onStop,
-      testID: "watch-captions-stop",
-    });
-  }
-  if (installed) {
-    actions.push({
-      label: t("playback.removeModel"),
-      onPress: handlers.onRemove,
-      testID: "watch-captions-remove",
-    });
-  }
-  return actions;
+    },
+  ];
 }
 
 function Action({
@@ -169,7 +131,7 @@ function Action({
       busy={busy}
       onPress={onPress}
       testID={testID}
-      variant={testID === "watch-captions-remove" ? "destructive" : "secondary"}
+      variant="secondary"
     >
       {label}
     </MobileButton>

@@ -18,7 +18,6 @@ import { createPlaybackCompatibilityPolicy } from "../adapters/playback-compatib
 import { createTwitchClipPlaybackSource } from "../adapters/twitch/twitch-clip-playback-source";
 import { createTwitchLivePlaybackSource } from "../adapters/twitch/twitch-live-playback-source";
 import { createTwitchVodPlaybackSource } from "../adapters/twitch/twitch-vod-playback-source";
-import { createExpoWatchProviderFallback } from "../adapters/expo-watch-provider-fallback";
 import { createWatchChatSession } from "@mobile/features/chat/adapters/create-watch-chat-session";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
@@ -44,7 +43,6 @@ export function createGuestWatchScreen(input: {
     ...(playlistProxy === undefined ? {} : { playlistProxy }),
     chat: createWatchChatSession({ fetch: input.fetch }),
     history: input.history,
-    openProviderPage: createExpoWatchProviderFallback(),
     PlayerSurface: AndroidMedia3PlayerSurface,
     runtime: createWatchRuntime({
       ...(filtering === undefined ? {} : { filtering }),

@@ -41,8 +41,6 @@ function press(nodes: readonly Element[], testID: string): void {
   byTestId(nodes, testID)?.props.onPress?.();
 }
 
-// Guards: live captions install/start locally; overlay shows cue text; Videos stay hidden
-
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, _options?: Record<string, unknown>) => key as string,
 }));
@@ -55,8 +53,6 @@ vi.mock("react-i18next", () => ({
   initReactI18next: { type: "3rdParty", init: () => undefined },
 }));
 
-
-
 describe("Watch caption chrome", () => {
   beforeAll(async () => {
     const { bootstrapMobileI18n, i18n } = await import("@mobile/i18n");
@@ -65,10 +61,8 @@ describe("Watch caption chrome", () => {
       i18n.t(key, options as never);
   });
 
-
-  it("installs the English model and starts one focused session", () => {
-    const actions: string[] = [];
-    const nodes = descendants(
+  it("hides Watch caption chrome when the English model is not installed", () => {
+    expect(
       WatchCaptionBar({
         eligibility: {
           kind: "eligible",
@@ -90,21 +84,58 @@ describe("Watch caption chrome", () => {
           statusMessage:
             "Install the 43.11 MiB English model to caption this Stream locally.",
         },
-        onInstall: () => actions.push("install"),
-        onRemove: () => actions.push("remove"),
-        onStart: () => actions.push("start"),
-        onStop: () => actions.push("stop"),
+        onInstall: () => undefined,
+        onRemove: () => undefined,
+        onStart: () => undefined,
+        onStop: () => undefined,
         session: null,
       }),
-    );
-    expect(byTestId(nodes, "watch-captions-size")?.props.children).toContain(
-      "43.11 MiB",
-    );
-    press(nodes, "watch-captions-install");
-    expect(actions).toEqual(["install"]);
+    ).toBeNull();
   });
 
-  it("starts and stops captions after the model is installed", () => {
+  it("never offers Install English model or Remove model on Watch", () => {
+    const nodes = descendants(
+      WatchCaptionBar({
+        eligibility: {
+          kind: "eligible",
+          label: "Captions",
+          sessionId: "cap-twitch-twitch-1",
+        },
+        model: {
+          audioUploadAttempts: 0,
+          displaySize: "43.11 MiB",
+          downloadedBytes: 45_202_074,
+          expectedBytes: 45_202_074,
+          installed: true,
+          languageLabel: "English",
+          license: "Apache-2.0",
+          modelId: "english-v1",
+          pack: "fixture",
+          phase: "ready",
+          sha256Verified: true,
+          statusMessage: "English model ready offline.",
+        },
+        onInstall: () => undefined,
+        onRemove: () => undefined,
+        onStart: () => undefined,
+        onStop: () => undefined,
+        session: {
+          audioLeftDevice: false,
+          audioUploadAttempts: 0,
+          cueText: "",
+          microphonePermissionRequested: false,
+          pcmBytesProcessed: 0,
+          sessionId: "cap-twitch-twitch-1",
+          state: "stopped",
+        },
+      }),
+    );
+    expect(byTestId(nodes, "watch-captions-install")).toBeUndefined();
+    expect(byTestId(nodes, "watch-captions-remove")).toBeUndefined();
+    expect(byTestId(nodes, "watch-captions-start")).toBeTruthy();
+  });
+
+  it("starts and stops captions after the model is already installed", () => {
     const actions: string[] = [];
     const installed = WatchCaptionBar({
       eligibility: {
@@ -126,8 +157,6 @@ describe("Watch caption chrome", () => {
         sha256Verified: true,
         statusMessage: "English model ready offline. 43.11 MiB. Audio stays on this device.",
       },
-      onInstall: () => actions.push("install"),
-      onRemove: () => actions.push("remove"),
       onStart: () => actions.push("start"),
       onStop: () => actions.push("stop"),
       session: {
@@ -161,8 +190,6 @@ describe("Watch caption chrome", () => {
         sha256Verified: true,
         statusMessage: "English model ready offline. 43.11 MiB. Audio stays on this device.",
       },
-      onInstall: () => actions.push("install"),
-      onRemove: () => actions.push("remove"),
       onStart: () => actions.push("start"),
       onStop: () => actions.push("stop"),
       session: {
@@ -184,8 +211,6 @@ describe("Watch caption chrome", () => {
       WatchCaptionBar({
         eligibility: { kind: "hidden" },
         model: null,
-        onInstall: () => undefined,
-        onRemove: () => undefined,
         onStart: () => undefined,
         onStop: () => undefined,
         session: null,

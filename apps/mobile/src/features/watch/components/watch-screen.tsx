@@ -61,9 +61,6 @@ export type WatchScreenRuntime = {
   readonly playlistProxy?: TwitchPlaylistProxySession;
   readonly chat: WatchChatSession;
   readonly history: WatchHistoryRepository;
-  readonly openProviderPage: {
-    open(target: WatchTarget): Promise<unknown>;
-  };
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly runtime: WatchRuntime;
 };
@@ -100,7 +97,6 @@ export function WatchScreen({
   onBack,
   onFollow,
   onOpenChannel,
-  onOpenProviderPage,
   onOpenRelated,
   onPlayerTap,
   onRetry,
@@ -146,7 +142,6 @@ export function WatchScreen({
   readonly onCloseQualityMenu?: () => void;
   readonly onFollow?: () => void;
   readonly onOpenChannel?: () => void;
-  readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onPlayerTap?: () => void;
   readonly onRetry: () => void;
@@ -364,16 +359,6 @@ export function WatchScreen({
               {t("playback.retry")}
             </MobileButton>
           ) : null}
-          {showsProvider(playback) ? (
-            <MobileButton
-              accessibilityLabel={t("playback.watch.openProviderPage")}
-              onPress={onOpenProviderPage}
-              testID="watch-open-provider"
-              variant={target.platform}
-            >
-              {t("playback.watch.openProviderPage")}
-            </MobileButton>
-          ) : null}
           {tab === "info" && (download || recording || captions) ? (
             <View style={styles.toolsRow} testID="watch-tools">
               {download ? <WatchDownloadBar {...download} /> : null}
@@ -489,12 +474,6 @@ function channelDisplayName(
   const info = inspection?.info;
   if (!info || info.kind === "unavailable") return fallback;
   return info.channel.displayName;
-}
-
-function showsProvider(playback: FocusedWatchState): boolean {
-  if (playback.kind === "ended") return true;
-  if (playback.kind !== "failed") return false;
-  return playback.failure.recovery.includes("open-provider");
 }
 
 export function WatchEmptyState({

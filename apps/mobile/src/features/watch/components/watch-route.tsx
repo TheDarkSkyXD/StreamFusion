@@ -77,7 +77,6 @@ export type WatchCaptionSession = {
 const INERT_FOLLOWING_SESSION = {
   listMembership: async () => [],
   mutateFollow: async () => ({ kind: "rejected" as const, reason: "invalid" as const }),
-  openProviderPage: async () => undefined,
   resolveChannel: async () => null,
   hydrateLive: async () => ({ kick: { kind: "empty" }, twitch: { kind: "empty" } }),
   hydrateRecorded: async () => ({ kind: "empty" }),
@@ -284,9 +283,6 @@ function WatchSessionRoute({
       onMute={() => {
         revealControls();
         if (peek.kind === "active") void session.setMuted(!peek.muted);
-      }}
-      onOpenProviderPage={() => {
-        void screen.openProviderPage.open(target);
       }}
       {...(onOpenChannel === undefined
         ? {}
