@@ -8,7 +8,6 @@ import type {
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
-import { WatchAdBlockStatus } from "@mobile/features/ad-blocking/components/watch-adblock-status";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -308,6 +307,7 @@ export function WatchScreen({
         ) : null}
         {showControls && peek.kind === "active" ? (
           <PlayerControls
+            adblockActive={adblockFilteringActive(adblockView, target.platform)}
             fullscreen={fullscreen}
             muted={peek.muted}
             onFullscreen={onToggleFullscreen}
@@ -362,15 +362,8 @@ export function WatchScreen({
               {t("playback.watch.openProviderPage")}
             </MobileButton>
           ) : null}
-          {tab === "info" ? (
+          {tab === "info" && (download || recording || captions) ? (
             <View style={styles.toolsRow} testID="watch-tools">
-              {adblockView === undefined ? null : (
-                <WatchAdBlockStatus
-                  compact
-                  platform={target.platform}
-                  view={adblockView}
-                />
-              )}
               {download ? <WatchDownloadBar {...download} /> : null}
               {recording ? <WatchRecordingBar {...recording} /> : null}
               {captions ? <WatchCaptionBar compact {...captions} /> : null}
@@ -392,6 +385,14 @@ export function WatchScreen({
   );
 }
 
+
+function adblockFilteringActive(
+  view: AdBlockView | null | undefined,
+  platform: WatchTarget["platform"],
+): boolean {
+  if (!view || platform !== "twitch") return false;
+  return view.enabled && view.policyAllowed;
+}
 
 function channelIsVerified(inspection: WatchInspection | null): boolean {
   const info = inspection?.info;

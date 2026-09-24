@@ -8,6 +8,7 @@ import {
   RotateCcw,
   RotateCw,
   Settings2,
+  ShieldCheck,
   Volume2,
   VolumeX,
   type LucideIcon,
@@ -40,6 +41,7 @@ const RAIL_HIT = 44;
  * for now. Mute toggles audio; quality opens a compact sheet.
  */
 export function PlayerControls({
+  adblockActive = false,
   chrome,
   fullscreen,
   muted,
@@ -67,6 +69,7 @@ export function PlayerControls({
   seekable,
   visible = true,
 }: {
+  readonly adblockActive?: boolean;
   readonly chrome?: {
     readonly showFullscreen: boolean;
     readonly showQuality: boolean;
@@ -201,6 +204,21 @@ export function PlayerControls({
                         }
                         onPress={onMute}
                         testID="player-mute"
+                      />
+                    </View>
+                  ) : null}
+                  {adblockActive ? (
+                    <View
+                      accessibilityLabel="Ad filtering active"
+                      accessibilityRole="image"
+                      style={styles.adblockShield}
+                      testID="player-adblock-shield"
+                    >
+                      <ShieldCheck
+                        accessibilityElementsHidden
+                        color="#4ade80"
+                        size={RAIL_ICON}
+                        strokeWidth={2.25}
                       />
                     </View>
                   ) : null}
@@ -600,6 +618,12 @@ const styles = StyleSheet.create({
     ...mobileType.caption,
     color: mobileColors.textPrimary,
     fontWeight: "700",
+  },
+  adblockShield: {
+    alignItems: "center",
+    height: RAIL_HIT,
+    justifyContent: "center",
+    width: RAIL_HIT,
   },
   liveBadge: {
     alignItems: "center",

@@ -27,6 +27,7 @@ vi.mock("lucide-react-native", () => ({
   RotateCcw: "RotateCcw",
   RotateCw: "RotateCw",
   Settings2: "Settings2",
+  ShieldCheck: "ShieldCheck",
   Volume2: "Volume2",
   VolumeX: "VolumeX",
 }));
@@ -300,7 +301,16 @@ describe("watch screen", () => {
     );
   });
 
-  it("discloses playback filtering on Watch", () => {
+  it("shows an on-player adblock shield instead of an under-player status card", () => {
+    const playback = {
+      integration: "twitch-gql-usher" as const,
+      kind: "active" as const,
+      phase: "playing" as const,
+      policySequence: 1,
+      protection: { kind: "normal" as const },
+      session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      target,
+    };
     const nodes = descendants(
       WatchScreen({
         PlayerSurface: () => null,
@@ -319,18 +329,42 @@ describe("watch screen", () => {
           kind: "connecting",
         },
         inspection: null,
+        onMute: () => undefined,
         onOpenProviderPage: () => undefined,
         onOpenRelated: () => undefined,
+        onPip: () => undefined,
+        onPlayPause: () => undefined,
+        onQualityPress: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
-        tab: "info",
+        onToggleControls: () => undefined,
+        onToggleFullscreen: () => undefined,
+        peek: {
+          kind: "active",
+          muted: false,
+          presentation: {
+            pip: "unavailable",
+            presentation: "watch",
+            previous: null,
+            snapRegion: "bottom-end",
+          },
+          quality: "auto",
+          qualities: ["auto"],
+          progress: { durationMs: 0, positionMs: 0, seekable: false },
+          state: playback,
+          volume: 1,
+        },
+        playback,
+        tab: "chat",
         target,
       }),
     );
     expect(
-      nodes.some((node) => node.props.testID === "watch-adblock-status"),
+      nodes.some((node) => node.props.testID === "player-adblock-shield"),
     ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-adblock-status"),
+    ).toBe(false);
   });
 
   it("shows a Video download control and hides download on live", () => {

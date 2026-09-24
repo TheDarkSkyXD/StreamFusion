@@ -21,6 +21,7 @@ vi.mock("lucide-react-native", () => ({
   RotateCcw: "RotateCcw",
   RotateCw: "RotateCw",
   Settings2: "Settings2",
+  ShieldCheck: "ShieldCheck",
   Volume2: "Volume2",
   VolumeX: "VolumeX",
 }));
@@ -219,6 +220,16 @@ describe("player controls chrome", () => {
       ),
     ).toBe(true);
     expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
+  });
+
+
+
+  it("shows an adblock shield on the rail when filtering is active", () => {
+    const nodes = descendants(PlayerControls({ ...base, adblockActive: true }));
+    expect(findByTestId(nodes, "player-adblock-shield")).toBeTruthy();
+    expect(
+      findByTestId(descendants(PlayerControls(base)), "player-adblock-shield"),
+    ).toBeUndefined();
   });
 
 
