@@ -207,20 +207,24 @@ function ChatPane({
             style={styles.messageRow}
             testID={`watch-chat-message-${message.id}`}
           >
-            {message.badges.map((badge) =>
-              badge.imageUrl ? (
-                <Image
-                  key={`${badge.setId}-${badge.version}`}
-                  accessibilityIgnoresInvertColors
-                  accessibilityLabel={badge.title}
-                  source={{ uri: badge.imageUrl }}
-                  style={styles.chatBadge}
-                  testID={`watch-chat-badge-${message.id}-${badge.setId}`}
-                />
-              ) : null,
-            )}
+            <View style={styles.messageChrome} testID={`watch-chat-chrome-${message.id}`}>
+              {message.badges.map((badge) =>
+                badge.imageUrl ? (
+                  <Image
+                    key={`${badge.setId}-${badge.version}`}
+                    accessibilityIgnoresInvertColors
+                    accessibilityLabel={badge.title}
+                    source={{ uri: badge.imageUrl }}
+                    style={styles.chatBadge}
+                    testID={`watch-chat-badge-${message.id}-${badge.setId}`}
+                  />
+                ) : null,
+              )}
+              <Text selectable style={styles.messageName}>
+                {message.displayName}
+              </Text>
+            </View>
             <Text selectable style={[mobileType.body, styles.messageText]}>
-              <Text style={styles.messageName}>{message.displayName}</Text>
               {`: ${message.text}`}
             </Text>
           </View>
@@ -442,21 +446,30 @@ const styles = StyleSheet.create({
     paddingBottom: mobileSpacing.medium,
   },
   messageRow: {
-    alignItems: "flex-start",
+    alignItems: "center",
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
   },
+  messageChrome: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    gap: 4,
+  },
   chatBadge: {
     height: 16,
-    marginTop: 2,
     width: 16,
   },
   messageText: {
     flexShrink: 1,
   },
   messageName: {
+    ...mobileType.body,
     fontWeight: "700",
+    includeFontPadding: false,
+    lineHeight: 16,
+    textAlignVertical: "center",
   },
   switchRow: {
     ...mobilePressRing.rest,

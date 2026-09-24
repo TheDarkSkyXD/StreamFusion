@@ -134,7 +134,19 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
+          messages: [{
+            badges: [
+              {
+                imageUrl: "https://example.test/mod.png",
+                setId: "moderator",
+                title: "Moderator",
+                version: "1",
+              },
+            ],
+            displayName: "Ada",
+            id: "msg-1",
+            text: "hello",
+          }],
         },
         inspection: null,
         onOpenProviderPage: () => undefined,
@@ -149,6 +161,28 @@ describe("watch screen", () => {
     expect(
       liveNodes.some((node) => node.props.testID === "watch-chat-message-msg-1"),
     ).toBe(true);
+    expect(
+      liveNodes.some((node) => node.props.testID === "watch-chat-chrome-msg-1"),
+    ).toBe(true);
+    expect(
+      liveNodes.some(
+        (node) => node.props.testID === "watch-chat-badge-msg-1-moderator",
+      ),
+    ).toBe(true);
+    const chrome = liveNodes.find(
+      (node) => node.props.testID === "watch-chat-chrome-msg-1",
+    );
+    expect(chrome?.props.style).toMatchObject({
+      alignItems: "center",
+      flexDirection: "row",
+    });
+    const row = liveNodes.find(
+      (node) => node.props.testID === "watch-chat-message-msg-1",
+    );
+    expect(row?.props.style).toMatchObject({
+      alignItems: "center",
+      flexDirection: "row",
+    });
     expect(
       liveNodes.some(
         (node) =>
@@ -754,6 +788,19 @@ describe("watch screen", () => {
     expect(route).toContain("discovery.session");
   });
 
+
+  
+  it("keeps Watch chat badges vertically centered with the username", () => {
+    const source = readFileSync(
+      new URL("../components/watch-tabs.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("messageChrome");
+    expect(source).toContain('alignItems: "center"');
+    expect(source).toContain("watch-chat-chrome-");
+    expect(source).toContain("includeFontPadding: false");
+    expect(source).not.toMatch(/chatBadge:[\s\S]*?marginTop/);
+  });
 
   it("stacks channel meta above the player with chat flush underneath", () => {
     const nodes = descendants(
