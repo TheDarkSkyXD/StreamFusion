@@ -1,0 +1,11 @@
+﻿node_modules/
+.expo/
+android/
+pc-smoke-evidence/
+dist/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.log
+coverage/

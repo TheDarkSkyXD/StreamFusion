@@ -1,0 +1,43 @@
+﻿# EAS Build archive ignores (monorepo root). Keep upload lean for apps/mobile.
+
+# Dependencies — reinstalled on EAS
+**/node_modules/
+
+# VCS / local scratch
+.git/
+.scratch/
+**/.expo/
+**/.turbo/
+**/.cache/
+
+# Generated native project + local Android build outputs (CNG/prebuild on EAS)
+apps/mobile/android/
+**/android/.gradle/
+**/android/build/
+**/android/app/build/
+**/android/app/.cxx/
+**/android/.kotlin/
+
+# Desktop / unrelated packages (npm workspaces still resolve via package-lock)
+apps/desktop/
+apps/desktop/**
+
+# Evidence, artifacts, releases, local smoke
+pc-smoke-evidence/
+**/pc-smoke-evidence/
+artifacts/
+**/dist/
+**/release/
+**/*.apk
+**/*.aab
+**/*.jks
+**/*.keystore
+
+# Tests / docs not needed for native build
+**/coverage/
+**/.vitest/
+
+# Large media / IDE
+**/.idea/
+**/.vscode/
+**/*.log
