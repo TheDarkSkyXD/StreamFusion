@@ -1,23 +1,25 @@
 /**
- * Runs on EAS before "Install dependencies".
- * Local engines require exact npm 11.19.0 (scripts/require-npm.mjs).
+ * EAS Build pre-install hook.
+ * Ensure exact npm 11.19.0 before dependency install (scripts/require-npm.mjs).
  */
-import { spawnSync } from "node:child_process";
+import { execSync } from "node:child_process";
 
-function run(command, args) {
-  const result = spawnSync(command, args, { stdio: "inherit", shell: process.platform === "win32" });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
+function run(cmd) {
+  console.log(`EAS pre-install: ${cmd}`);
+  execSync(cmd, { stdio: "inherit" });
 }
 
-run("corepack", ["enable"]);
-run("corepack", ["prepare", "npm@11.19.0", "--activate"]);
+try {
+  run("npm install --global npm@11.19.0");
+} catch (error) {
+  console.error("EAS pre-install: global npm install failed, trying corepack");
+  run("corepack enable");
+  run("corepack prepare npm@11.19.0 --activate");
+}
 
-const version = spawnSync("npm", ["-v"], { encoding: "utf8", shell: process.platform === "win32" });
-const npmVersion = (version.stdout || "").trim();
+const npmVersion = execSync("npm -v", { encoding: "utf8" }).trim();
+console.log(`EAS pre-install: npm ${npmVersion}`);
 if (npmVersion !== "11.19.0") {
-  console.error(`EAS pre-install: expected npm 11.19.0, got ${npmVersion || "unknown"}`);
+  console.error(`EAS pre-install: expected npm 11.19.0, got ${npmVersion}`);
   process.exit(1);
 }
-console.log(`EAS pre-install: npm ${npmVersion} ready`);
