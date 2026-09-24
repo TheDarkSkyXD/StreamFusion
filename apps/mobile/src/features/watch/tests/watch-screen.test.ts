@@ -989,7 +989,7 @@ describe("watch screen", () => {
     );
     expect(metaViewers).toBeTruthy();
     const metaText = String(metaViewers?.props.children ?? "");
-    expect(metaText.includes("50,443")).toBe(true);
+    expect(metaText.includes("50.4K")).toBe(true);
     expect(metaText.includes(" · ")).toBe(true);
     expect(/\d+:\d{2}:\d{2}/u.test(metaText)).toBe(true);
     expect(ids.indexOf("watch-channel-chrome")).toBeLessThan(

@@ -7,8 +7,11 @@ import {
 } from "../domain/watch-live-meta";
 
 describe("watch live meta formatting", () => {
-  it("formats viewer counts with locale grouping", () => {
-    expect(formatWatchViewerCount(50_443, "en")).toBe("50,443");
+  it("formats viewer counts with desktop compact K/M style", () => {
+    expect(formatWatchViewerCount(50_443, "en")).toBe("50.4K");
+    expect(formatWatchViewerCount(25_000, "en")).toBe("25K");
+    expect(formatWatchViewerCount(1_200, "en")).toBe("1.2K");
+    expect(formatWatchViewerCount(999, "en")).toBe("999");
     expect(formatWatchViewerCount(42, "en")).toBe("42");
     expect(formatWatchViewerCount(0, "en")).toBe("0");
     expect(formatWatchViewerCount(undefined, "en")).toBe("0");
@@ -31,8 +34,8 @@ describe("watch live meta formatting", () => {
     const startedAt = "2026-09-23T12:00:00.000Z";
     const nowMs = Date.parse("2026-09-23T12:05:09.000Z");
     expect(formatWatchViewerLine(50_443, startedAt, nowMs, "en")).toBe(
-      "50,443 · 0:05:09",
+      "50.4K · 0:05:09",
     );
-    expect(formatWatchViewerLine(50_443, null, nowMs, "en")).toBe("50,443");
+    expect(formatWatchViewerLine(50_443, null, nowMs, "en")).toBe("50.4K");
   });
 });

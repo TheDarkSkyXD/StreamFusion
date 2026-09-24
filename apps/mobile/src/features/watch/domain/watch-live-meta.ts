@@ -2,23 +2,27 @@
  * Live Watch top-chrome meta helpers.
  *
  * Mirrors desktop stream-info formatting:
- * - viewer counts use locale grouping (e.g. 50,443), matching
- *   desktop `toLocaleString` / `formatLocalizedNumber` (not compact K/M)
+ * - viewer counts use desktop `formatViewerCount` / `formatCompactNumber`
+ *   (compact K/M, e.g. 50.4K) — not locale-grouping commas
  * - uptime uses desktop `formatUptime` shape: H:MM:SS
  */
 
-const numberFormatters = new Map<string, Intl.NumberFormat>();
+const compactNumberFormatters = new Map<string, Intl.NumberFormat>();
 
+/** Same logic as desktop `formatCompactNumber` / `formatViewerCount`. */
 export function formatWatchViewerCount(
   count: number | undefined | null,
   locale = "en",
 ): string {
   const safe = typeof count === "number" && Number.isFinite(count) ? count : 0;
   const formatterLocale = locale || "en";
-  let formatter = numberFormatters.get(formatterLocale);
+  let formatter = compactNumberFormatters.get(formatterLocale);
   if (!formatter) {
-    formatter = new Intl.NumberFormat(formatterLocale);
-    numberFormatters.set(formatterLocale, formatter);
+    formatter = new Intl.NumberFormat(formatterLocale, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    });
+    compactNumberFormatters.set(formatterLocale, formatter);
   }
   return formatter.format(safe);
 }
@@ -50,7 +54,7 @@ export function formatLiveUptime(
     .padStart(2, "0")}`;
 }
 
-/** Top subline: `50,443` or `50,443 · 1:15:33` when uptime is available. */
+/** Top subline: `50.4K` or `50.4K · 1:15:33` when uptime is available. */
 export function formatWatchViewerLine(
   viewerCount: number,
   startedAt: string | null | undefined,
