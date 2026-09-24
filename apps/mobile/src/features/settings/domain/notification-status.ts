@@ -15,7 +15,7 @@ const RUNTIME_PERMISSION_API = 33;
 const DENIED_PERMISSION_COPY =
   "Android blocked notification posting. Activity history stays on. Retry the permission or open system settings.";
 const NOTIFICATION_LIFECYCLE_COPY =
-  "Relay accepts 100,000 Live recipients on one topic event within 30 seconds. That is StreamFusion dispatch, not device receipt. Two simultaneous events stay separate. Rate limits retry after Retry-After. Relay FCM credentials can rotate without dropping Activity. Reinstall retires the old token. Force-stop does not delete Activity. An ended stream opens the channel page.";
+  "Relay accepts 100,000 Live recipients on one topic event within 30 seconds. That is StreamFusion dispatch, not device receipt. Two simultaneous events stay separate. Rate limits retry after Retry-After. Relay FCM credentials can rotate without dropping Activity. Reinstall retires the old token. Force-stop does not delete Activity. StreamFusion sends go-live alerts only; tapping a stale go-live opens the channel page if the stream already ended.";
 
 export function notificationLifecycleCopy(): string {
   return NOTIFICATION_LIFECYCLE_COPY;

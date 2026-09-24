@@ -110,6 +110,8 @@ export function activityItemFromPayload(
 ): ActivityItem | null {
   const destination = payload.destination;
   if (destination.kind === "watch-channel") {
+    // Go-live only: stream-ended payloads must not enter Activity.
+    if (destination.streamState !== "live") return null;
     return liveAlertItem(payload, destination);
   }
   if (destination.kind === "media-job") {
@@ -129,17 +131,17 @@ export function activityItemFromPayload(
 export function proofLivePayload(nowIso: string): SafeNotificationPayload {
   return {
     schemaVersion: 1,
-    eventId: "proof:live-alert:ended:v1",
+    eventId: "proof:live-alert:started:v1",
     sourceId: "device:notification-proof:v1",
     channel: "live",
-    title: "ProofStreamer ended",
-    body: "Open the channel page instead of a broken player.",
+    title: "xQc is live",
+    body: "xQc went live on Twitch.",
     destination: {
       kind: "watch-channel",
       platform: "twitch",
-      channelId: "proof-channel",
-      channelLogin: "proofstreamer",
-      streamState: "ended",
+      channelId: "71092938",
+      channelLogin: "xqc",
+      streamState: "live",
     },
     occurredAt: nowIso,
   };

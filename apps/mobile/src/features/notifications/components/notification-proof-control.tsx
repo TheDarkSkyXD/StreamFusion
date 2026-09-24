@@ -29,7 +29,7 @@ export function NotificationProofControl({
         dispatch, not device receipt. Two simultaneous events stay separate.
         Rate limits retry after Retry-After. Relay FCM credentials can rotate
         without dropping Activity. Reinstall retires the old token. Force-stop
-        does not delete Activity. An ended stream opens the channel page.
+        does not delete Activity. Alerts are go-live only.
       </Text>
       <Text selectable style={styles.body} testID="notification-lifecycle-status">
         Relay accepts 100,000 Live recipients on one topic event within 30

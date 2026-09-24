@@ -14,17 +14,64 @@ import {
   isExpoGoHost,
   loadExpoLocalNotifications,
   loadExpoRemotePush,
+  type ExpoLocalNotificationsModule,
 } from "./expo-local-notifications-module";
 
 /**
  * Local live alerts work in Expo Go via the static local-notifications shim
- * (extensionless build subpaths — not dynamic `build/*.js` imports).
+ * (extensionless build subpaths — not dynamic build/*.js imports).
  * Android notification channels are skipped / soft-failed in Expo Go (null
  * NotificationsChannelsProvider); scheduleNotificationAsync still presents on
  * the default channel. Remote FCM / device push token registration stays
  * disabled in Expo Go — the package-root import pulls ExpoPushTokenManager /
  * auto-registration that break Android Expo Go SDK 53+.
+ *
+ * Guest go-live only polls while AppState is active, so every production
+ * present() is a foreground present. Expo discards shade notifications unless
+ * setNotificationHandler is installed first — do that in present() itself, not
+ * only inside the async receipts subscribe().
  */
+
+/** Built-in Expo Android channel when custom channels are unavailable (Expo Go). */
+const EXPO_GO_FALLBACK_CHANNEL_ID =
+  "expo_notifications_fallback_notification_channel";
+
+// Banner + list map to shouldPresentAlert on current Expo Go bridges and keep
+// the tray. Do not set deprecated shouldShowAlert (client warning).
+const FOREGROUND_PRESENTATION = {
+  shouldPlaySound: true,
+  shouldSetBadge: false,
+  shouldShowBanner: true,
+  shouldShowList: true,
+} as const;
+
+let foregroundHandlerInstalled = false;
+
+function ensureForegroundPresentationHandler(
+  Notifications: ExpoLocalNotificationsModule,
+): void {
+  if (foregroundHandlerInstalled) return;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ ...FOREGROUND_PRESENTATION }),
+  });
+  foregroundHandlerInstalled = true;
+}
+
+async function ensureNotificationPermission(
+  Notifications: ExpoLocalNotificationsModule,
+): Promise<boolean> {
+  // Android 12L and below do not use POST_NOTIFICATIONS; Expo may still
+  // report undetermined. Never block tray presentation on those API levels.
+  if (Platform.OS === "android" && Number(Platform.Version) < 33) return true;
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    if (existing.status === "granted") return true;
+    const requested = await Notifications.requestPermissionsAsync();
+    return requested.status === "granted";
+  } catch {
+    return false;
+  }
+}
 
 export function createExpoNotificationChannels(): NativeNotificationChannels {
   return {
@@ -123,14 +170,7 @@ export function createExpoNotificationReceiptSource(): NotificationReceiptSource
       void loadExpoLocalNotifications().then((Notifications) => {
         if (!Notifications) return;
         try {
-          Notifications.setNotificationHandler({
-            handleNotification: async () => ({
-              shouldPlaySound: true,
-              shouldSetBadge: false,
-              shouldShowBanner: true,
-              shouldShowList: true,
-            }),
-          });
+          ensureForegroundPresentationHandler(Notifications);
           const received = Notifications.addNotificationReceivedListener(
             (notification) => {
               const payload = payloadFromData(
@@ -165,11 +205,23 @@ export function createExpoLocalNotificationPresenter(): LocalNotificationPresent
     async present(payload, options) {
       const Notifications = await loadExpoLocalNotifications();
       if (!Notifications) return;
+      // Go-live only: never schedule end-of-stream watch alerts into the tray.
+      if (
+        payload.destination.kind === "watch-channel" &&
+        payload.destination.streamState !== "live"
+      ) {
+        return;
+      }
+      ensureForegroundPresentationHandler(Notifications);
+      const allowed = await ensureNotificationPermission(Notifications);
+      if (!allowed) return;
       const channelId = payload.channel ?? "live";
       const silent = options?.silent === true;
-      // Expo Go cannot create custom Android channels (provider NPE). Omit
-      // channelId so the system default channel delivers guest live alerts.
-      const attachAndroidChannel =
+      // Expo Go cannot create custom Android channels (provider NPE). Use the
+      // built-in fallback channel via a channel-aware trigger so native code
+      // does not log "Couldn't get channel - trigger is null".
+      const expoGoAndroid = Platform.OS === "android" && isExpoGoHost();
+      const attachCustomAndroidChannel =
         Platform.OS === "android" && !isExpoGoHost();
       try {
         await Notifications.scheduleNotificationAsync({
@@ -179,9 +231,15 @@ export function createExpoLocalNotificationPresenter(): LocalNotificationPresent
             data: payload,
             sound: silent ? false : true,
             color: "#0f0f0f",
-            ...(attachAndroidChannel ? { channelId } : {}),
+            ...(attachCustomAndroidChannel ? { channelId } : {}),
+            ...(expoGoAndroid
+              ? { channelId: EXPO_GO_FALLBACK_CHANNEL_ID }
+              : {}),
+            ...(Platform.OS === "android" ? { priority: "max" } : {}),
           },
-          trigger: null,
+          trigger: expoGoAndroid
+            ? { channelId: EXPO_GO_FALLBACK_CHANNEL_ID }
+            : null,
         });
       } catch {
         // Expo Go / permission edges must not crash Settings or proof controls.
