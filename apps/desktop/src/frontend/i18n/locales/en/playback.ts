@@ -64,6 +64,9 @@ export const playbackEn = {
     readyOffline: "Ready offline",
     startingLocalRecognizer: "Starting local recognizer…",
     removeModel: "Remove model",
+    localCaptionsComingSoon: "Coming soon",
+    localCaptionsComingSoonDetail:
+      "Local live captions will return without a mid-stream model download. Advanced models may move to Settings later.",
     retryLocalCaptions: "Retry local captions",
     blockingAds: "Blocking ads",
     adBlockActive: "Ad-block active",
@@ -281,6 +284,9 @@ export const playbackEn = {
       paused: "Paused",
       enterPip: "Enter Picture-in-Picture",
       moveToRegion: "Move to {{region}}",
+      captionsComingSoon: "Coming soon",
+      captionsComingSoonDetail:
+        "Closed captions while watching will ship without downloading a speech model on this screen.",
       installEnglishModel: "Install English model",
       startCaptions: "Start captions",
       stopCaptions: "Stop captions",

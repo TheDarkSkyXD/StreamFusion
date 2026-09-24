@@ -76,13 +76,13 @@ export function SettingsMenu({
   localTimedTextTrack,
   currentTimedTextTrackKey = null,
   onTimedTextTrackChange,
-  localCaptionModel,
-  localCaptionPhase,
-  localCaptionError,
-  onLocalCaptionModelDownload,
-  onLocalCaptionModelCancel,
-  onLocalCaptionModelRemove,
-  onLocalCaptionRetry,
+  localCaptionModel: _localCaptionModel,
+  localCaptionPhase: _localCaptionPhase,
+  localCaptionError: _localCaptionError,
+  onLocalCaptionModelDownload: _onLocalCaptionModelDownload,
+  onLocalCaptionModelCancel: _onLocalCaptionModelCancel,
+  onLocalCaptionModelRemove: _onLocalCaptionModelRemove,
+  onLocalCaptionRetry: _onLocalCaptionRetry,
 }: SettingsMenuProps) {
   const { t } = useTranslation();
   const controls =
@@ -158,7 +158,7 @@ export function SettingsMenu({
   };
 
   const selectCaptionOption = (track: TimedTextTrack | null) => {
-    if (track?.key === localTimedTextTrack?.key && localCaptionModel?.phase !== "ready") return;
+    if (track?.key === localTimedTextTrack?.key) return; // Coming soon: no mid-stream local CC
     onTimedTextTrackChange?.(track?.key ?? null);
   };
 
@@ -404,132 +404,15 @@ export function SettingsMenu({
                   </button>
                 </div>
 
-                {localTimedTextTrack && localCaptionModel && (
-                  <div className="border-t border-[#ffffff1a] px-4 py-3 text-[13px] text-[#d4d4d4]">
-                    <p>
-                      {t("playback.captionModelInfo", {
-                        language: localCaptionModel.languageLabel,
-                        size: localCaptionModel.downloadBytes.toLocaleString("en-US"),
-                        displaySize: localCaptionModel.displaySize,
-                      })}
+                                {localTimedTextTrack && (
+                  <div
+                    className="border-t border-[#ffffff1a] px-4 py-3 text-[13px] text-[#d4d4d4]"
+                    data-testid="local-captions-coming-soon"
+                  >
+                    <p className="font-semibold text-white">
+                      {t("playback.localCaptionsComingSoon")}
                     </p>
-                    <p>
-                      {t("playback.captionModelLicense", {
-                        license: localCaptionModel.license,
-                      })}{" "}
-                      <a
-                        className="text-white underline underline-offset-2"
-                        href={localCaptionModel.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {localCaptionModel.sourceName}
-                      </a>
-                    </p>
-
-                    {localCaptionModel.phase === "not-installed" && onLocalCaptionModelDownload && (
-                      <button
-                        type="button"
-                        className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
-                        onClick={() => void onLocalCaptionModelDownload()}
-                      >
-                        {t("playback.downloadLocalCaptionModel")}
-                      </button>
-                    )}
-
-                    {localCaptionModel.phase === "downloading" && (
-                      <div className="mt-3">
-                        {(() => {
-                          const progress = Math.min(
-                            100,
-                            Math.max(
-                              0,
-                              Math.round(
-                                ((localCaptionModel.downloadedBytes ?? 0) /
-                                  localCaptionModel.downloadBytes) *
-                                  100
-                              )
-                            )
-                          );
-                          return (
-                            <>
-                              <p>
-                                {t("playback.downloadingCaptionModel", {
-                                  language: localCaptionModel.languageLabel,
-                                  progress,
-                                })}
-                              </p>
-                              <progress
-                                aria-label={t("playback.localCaptionModelDownload")}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-valuenow={progress}
-                                value={progress}
-                                max={100}
-                                className="mt-2 w-full"
-                              />
-                            </>
-                          );
-                        })()}
-                        {onLocalCaptionModelCancel && (
-                          <button
-                            type="button"
-                            className="mt-3 rounded-md bg-[#252525] px-3 py-2 font-semibold text-white hover:bg-[#2d2d2d]"
-                            onClick={() => void onLocalCaptionModelCancel()}
-                          >
-                            {t("playback.cancelDownload")}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {localCaptionModel.phase === "integrity-error" && (
-                      <div className="mt-3">
-                        <p role="alert">{localCaptionModel.error}</p>
-                        {onLocalCaptionModelDownload && (
-                          <button
-                            type="button"
-                            className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
-                            onClick={() => void onLocalCaptionModelDownload()}
-                          >
-                            {t("playback.retryDownload")}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {localCaptionModel.phase === "ready" && (
-                      <div className="mt-3">
-                        <p>{t("playback.readyOffline")}</p>
-                        {localCaptionPhase === "starting" && (
-                          <p>{t("playback.startingLocalRecognizer")}</p>
-                        )}
-                        {onLocalCaptionModelRemove && (
-                          <button
-                            type="button"
-                            className="mt-3 rounded-md bg-[#252525] px-3 py-2 font-semibold text-white hover:bg-[#2d2d2d]"
-                            onClick={() => void onLocalCaptionModelRemove()}
-                          >
-                            {t("playback.removeModel")}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {localCaptionError && (
-                      <div role="alert" className="mt-3">
-                        <p>{localCaptionError}</p>
-                        {onLocalCaptionRetry && (
-                          <button
-                            type="button"
-                            className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
-                            onClick={() => void onLocalCaptionRetry()}
-                          >
-                            {t("playback.retryLocalCaptions")}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <p className="mt-1">{t("playback.localCaptionsComingSoonDetail")}</p>
                   </div>
                 )}
               </div>

@@ -914,7 +914,30 @@ describe("FollowingPage", () => {
     expect(screen.getAllByText("LocalPending").length).toBeGreaterThan(0);
   });
 
-  it("error: keeps an initial query failure distinct from the empty state and retries", async () => {
+    it("live-stream failure with no follows: shows empty membership, not connection error", () => {
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("network unavailable"),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText(/no followed channels found/i)).toBeInTheDocument();
+    expect(screen.queryByText(/check your connection and try again/i)).not.toBeInTheDocument();
+  });
+
+                        it("error: keeps an initial query failure distinct from the empty state and retries", async () => {
+    storeState.localFollows = [
+      fixtures.channel({
+        id: "retry-channel",
+        platform: "twitch",
+        username: "retrychannel",
+        displayName: "RetryChannel",
+      }),
+    ];
     const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
     useFollowedStreamsMock.mockReturnValue({
       data: undefined,
@@ -931,6 +954,18 @@ describe("FollowingPage", () => {
     await waitFor(() => expect(refetchFollowedStreams).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
   });
+
+
+
+
+
+
+
+
+
+
+
+
 
   it("error: offers Retry when a visible local follow has no initial live-status data", () => {
     storeState.localFollows = [
@@ -981,7 +1016,15 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
   });
 
-  it("error: live-stream failure renders retry instead of the empty state", () => {
+                          it("error: live-stream failure renders retry instead of the empty state", () => {
+    storeState.localFollows = [
+      fixtures.channel({
+        id: "live-fail-channel",
+        platform: "twitch",
+        username: "livefail",
+        displayName: "LiveFail",
+      }),
+    ];
     useFollowedStreamsMock.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -993,6 +1036,18 @@ describe("FollowingPage", () => {
       screen.getByRole("button", { name: /retry loading followed content/i })
     ).toBeInTheDocument();
   });
+
+
+
+
+
+
+
+
+
+
+
+
 
   it("ignores live streams for channels absent from the SQLite Follow list", () => {
     storeState.kickConnected = true;

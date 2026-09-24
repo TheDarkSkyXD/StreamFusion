@@ -123,6 +123,7 @@ export function useFollowedStreams(
   const snapshotIdentityKey = options.snapshotIdentity
     ? JSON.stringify(options.snapshotIdentity)
     : undefined;
+  const knownEmptyFollowMembership = options.snapshotIdentity?.follows.length === 0;
   const successfulResultRef = useRef<
     | {
         data: UnifiedStream[];
@@ -146,6 +147,10 @@ export function useFollowedStreams(
       }
       const complete = hasCompleteDiscoveryCoverage(response.providers, platform);
       if (!complete && response.data.length === 0) {
+        // Known empty membership must not surface as a connection failure.
+        if (knownEmptyFollowMembership) {
+          return [];
+        }
         throw new Error(i18n.t("discovery.followedStreamProvidersUnavailable"));
       }
       const streams = dedupeStreamsByChannelIdentity(response.data as UnifiedStream[]);

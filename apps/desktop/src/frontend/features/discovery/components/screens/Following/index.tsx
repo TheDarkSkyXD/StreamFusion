@@ -881,8 +881,13 @@ export function FollowingPage() {
   );
 
   const hasNoFollowedChannels = !hasVisibleFollowedChannels;
+  // Empty membership is not a live-status failure. Only blame the live fetch when
+  // the user actually has followed channels that should have resolved.
   const hasInitialLiveError =
-    activeTab === "live" && liveChannels.length === 0 && Boolean(liveStreamsError);
+    activeTab === "live" &&
+    liveChannels.length === 0 &&
+    Boolean(liveStreamsError) &&
+    localFollows.length > 0;
   const noMatchMessage = searchQuery
     ? t("discovery.following.noMatches", { query: searchQuery })
     : t("discovery.following.empty");

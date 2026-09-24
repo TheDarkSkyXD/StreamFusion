@@ -380,7 +380,7 @@ describe("SidebarFollows", () => {
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
     expect(screen.queryByText("KickLocalOnly")).not.toBeInTheDocument();
-    expect(screen.getByText(/couldn't load follows/i)).toBeInTheDocument();
+    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
   });
 
   it("signed-in Kick startup cache: renders cached account follows before Kick queries resolve", () => {
@@ -526,17 +526,18 @@ describe("SidebarFollows", () => {
     expect(useFollowedStreamsMock).toHaveBeenCalledWith(undefined, { enabled: true });
   });
 
-  it("error: shows retryable failure copy instead of the empty-follow invitation", () => {
-    useFollowedChannelsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
-      typeof useFollowedChannels
-    >);
-    // React Query surfaces an error as { data: undefined, isLoading: false, error }
-    // — the sidebar reads only data, so the error path renders the empty card.
-    useFollowedStreamsMock.mockReturnValue({
+                          it("error: shows retryable failure copy instead of the empty-follow invitation", () => {
+    useFollowedChannelsMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
       error: new Error("helix 503"),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useFollowedStreams>);
     renderWithProviders(<SidebarFollows collapsed={false} />);
@@ -544,7 +545,20 @@ describe("SidebarFollows", () => {
     expect(screen.getByText(/couldn't load follows/i)).toBeInTheDocument();
     expect(screen.getByText(/check your connection and try again/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
   });
+
+
+
+
+
+
+
+
+
+
+
+
 
   it("hydration: keeps the loading skeleton until local follows are hydrated", () => {
     storeState.isHydrated = false;
@@ -560,7 +574,25 @@ describe("SidebarFollows", () => {
     expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
   });
 
-  it("empty: renders the empty card when both lists resolve to empty arrays", () => {
+    it("stream error with no membership: shows empty invitation, not connection failure", () => {
+    useFollowedChannelsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useFollowedChannels
+    >);
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("providers incomplete"),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+    expect(screen.getByTestId("sidebar-follows-empty")).toBeInTheDocument();
+    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar-follows-load-error")).not.toBeInTheDocument();
+    expect(screen.queryByText(/check your connection and try again/i)).not.toBeInTheDocument();
+  });
+
+                        it("empty: renders the empty card when both lists resolve to empty arrays", () => {
     useFollowedChannelsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
       typeof useFollowedChannels
     >);
@@ -569,10 +601,22 @@ describe("SidebarFollows", () => {
     >);
     renderWithProviders(<SidebarFollows collapsed={false} />);
     expect(screen.getByTestId("sidebar-follows-empty")).toBeInTheDocument();
-    expect(screen.getByText(/couldn't load follows/i)).toBeInTheDocument();
-    expect(screen.getByText(/check your connection and try again/i)).toBeInTheDocument();
+    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+    expect(screen.queryByText(/check your connection and try again/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
+
+
+
+
+
+
+
+
+
+
+
+
 
   it("empty + collapsed: keeps only the compact sync affordance when connected", () => {
     useFollowedChannelsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<

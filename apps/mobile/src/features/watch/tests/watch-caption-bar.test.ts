@@ -37,10 +37,6 @@ function byTestId(nodes: readonly Element[], testID: string): Element | undefine
   return nodes.find((node) => node.props.testID === testID);
 }
 
-function press(nodes: readonly Element[], testID: string): void {
-  byTestId(nodes, testID)?.props.onPress?.();
-}
-
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, _options?: Record<string, unknown>) => key as string,
 }));
@@ -61,39 +57,7 @@ describe("Watch caption chrome", () => {
       i18n.t(key, options as never);
   });
 
-  it("hides Watch caption chrome when the English model is not installed", () => {
-    expect(
-      WatchCaptionBar({
-        eligibility: {
-          kind: "eligible",
-          label: "Captions",
-          sessionId: "cap-twitch-twitch-1",
-        },
-        model: {
-          audioUploadAttempts: 0,
-          displaySize: "43.11 MiB",
-          downloadedBytes: 0,
-          expectedBytes: 45_202_074,
-          installed: false,
-          languageLabel: "English",
-          license: "Apache-2.0",
-          modelId: "english-v1",
-          pack: "none",
-          phase: "not-installed",
-          sha256Verified: false,
-          statusMessage:
-            "Install the 43.11 MiB English model to caption this Stream locally.",
-        },
-        onInstall: () => undefined,
-        onRemove: () => undefined,
-        onStart: () => undefined,
-        onStop: () => undefined,
-        session: null,
-      }),
-    ).toBeNull();
-  });
-
-  it("never offers Install English model or Remove model on Watch", () => {
+  it("shows Coming soon and never offers Install English model", () => {
     const nodes = descendants(
       WatchCaptionBar({
         eligibility: {
@@ -101,129 +65,41 @@ describe("Watch caption chrome", () => {
           label: "Captions",
           sessionId: "cap-twitch-twitch-1",
         },
-        model: {
-          audioUploadAttempts: 0,
-          displaySize: "43.11 MiB",
-          downloadedBytes: 45_202_074,
-          expectedBytes: 45_202_074,
-          installed: true,
-          languageLabel: "English",
-          license: "Apache-2.0",
-          modelId: "english-v1",
-          pack: "fixture",
-          phase: "ready",
-          sha256Verified: true,
-          statusMessage: "English model ready offline.",
-        },
-        onInstall: () => undefined,
-        onRemove: () => undefined,
-        onStart: () => undefined,
-        onStop: () => undefined,
-        session: {
-          audioLeftDevice: false,
-          audioUploadAttempts: 0,
-          cueText: "",
-          microphonePermissionRequested: false,
-          pcmBytesProcessed: 0,
+      }),
+    );
+    expect(byTestId(nodes, "watch-captions-coming-soon")?.props.children).toMatch(
+      /Coming soon/i,
+    );
+    expect(byTestId(nodes, "watch-captions-install")).toBeUndefined();
+    expect(byTestId(nodes, "watch-captions-start")).toBeUndefined();
+    expect(byTestId(nodes, "watch-captions-remove")).toBeUndefined();
+  });
+
+  it("shows compact Coming soon without install actions", () => {
+    const nodes = descendants(
+      WatchCaptionBar({
+        compact: true,
+        eligibility: {
+          kind: "eligible",
+          label: "Captions",
           sessionId: "cap-twitch-twitch-1",
-          state: "stopped",
         },
       }),
     );
-    expect(byTestId(nodes, "watch-captions-install")).toBeUndefined();
-    expect(byTestId(nodes, "watch-captions-remove")).toBeUndefined();
-    expect(byTestId(nodes, "watch-captions-start")).toBeTruthy();
-  });
-
-  it("starts and stops captions after the model is already installed", () => {
-    const actions: string[] = [];
-    const installed = WatchCaptionBar({
-      eligibility: {
-        kind: "eligible",
-        label: "Captions",
-        sessionId: "cap-twitch-twitch-1",
-      },
-      model: {
-        audioUploadAttempts: 0,
-        displaySize: "43.11 MiB",
-        downloadedBytes: 45_202_074,
-        expectedBytes: 45_202_074,
-        installed: true,
-        languageLabel: "English",
-        license: "Apache-2.0",
-        modelId: "english-v1",
-        pack: "fixture",
-        phase: "ready",
-        sha256Verified: true,
-        statusMessage: "English model ready offline. 43.11 MiB. Audio stays on this device.",
-      },
-      onStart: () => actions.push("start"),
-      onStop: () => actions.push("stop"),
-      session: {
-        audioLeftDevice: false,
-        audioUploadAttempts: 0,
-        cueText: "",
-        microphonePermissionRequested: false,
-        pcmBytesProcessed: 0,
-        sessionId: "cap-twitch-twitch-1",
-        state: "stopped",
-      },
-    });
-    press(descendants(installed), "watch-captions-start");
-    const active = WatchCaptionBar({
-      eligibility: {
-        kind: "eligible",
-        label: "Captions",
-        sessionId: "cap-twitch-twitch-1",
-      },
-      model: {
-        audioUploadAttempts: 0,
-        displaySize: "43.11 MiB",
-        downloadedBytes: 45_202_074,
-        expectedBytes: 45_202_074,
-        installed: true,
-        languageLabel: "English",
-        license: "Apache-2.0",
-        modelId: "english-v1",
-        pack: "fixture",
-        phase: "ready",
-        sha256Verified: true,
-        statusMessage: "English model ready offline. 43.11 MiB. Audio stays on this device.",
-      },
-      onStart: () => actions.push("start"),
-      onStop: () => actions.push("stop"),
-      session: {
-        audioLeftDevice: false,
-        audioUploadAttempts: 0,
-        cueText: "Local captions are running on this device.",
-        microphonePermissionRequested: false,
-        pcmBytesProcessed: 640,
-        sessionId: "cap-twitch-twitch-1",
-        state: "active",
-      },
-    });
-    press(descendants(active), "watch-captions-stop");
-    expect(actions).toEqual(["start", "stop"]);
+    expect(byTestId(nodes, "watch-captions")).toBeTruthy();
+    expect(byTestId(nodes, "watch-captions-coming-soon")?.props.children).toMatch(
+      /Coming soon/i,
+    );
   });
 
   it("hides the bar when captions are not offered", () => {
-    expect(
-      WatchCaptionBar({
-        eligibility: { kind: "hidden" },
-        model: null,
-        onStart: () => undefined,
-        onStop: () => undefined,
-        session: null,
-      }),
-    ).toBeNull();
+    expect(WatchCaptionBar({ eligibility: { kind: "hidden" } })).toBeNull();
   });
 
   it("renders overlay cue text and stays empty without a cue", () => {
     expect(WatchCaptionOverlay({ text: "" })).toBeNull();
     const nodes = descendants(
-      WatchCaptionOverlay({
-        text: "Decoded program audio stays on this phone.",
-      }),
+      WatchCaptionOverlay({ text: "Decoded program audio stays on this phone." }),
     );
     expect(byTestId(nodes, "watch-caption-cue")?.props.children).toBe(
       "Decoded program audio stays on this phone.",

@@ -179,6 +179,28 @@ describe("useFollowedStreams", () => {
     expect(result.current.data).toHaveLength(1);
   });
 
+  it("treats incomplete providers with known empty follow membership as empty success", async () => {
+    api.streams.getFollowed = vi.fn(async () => ({
+      success: true as const,
+      providers: { twitch: "failed" as const, kick: "complete" as const },
+      data: [],
+      cursor: undefined,
+    }));
+    const identity = {
+      platform: "all" as const,
+      twitchUserId: "guest",
+      kickUserId: "guest",
+      follows: [],
+    };
+    const { result } = renderHook(
+      () => useFollowedStreams(undefined, { enabled: true, snapshotIdentity: identity }),
+      { wrapper: makeWrapper() }
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+    expect(result.current.isError).toBe(false);
+  });
+
   it("returns an error when the followed-stream IPC request fails", async () => {
     api.streams.getFollowed = vi.fn(async () => ({
       success: false as const,

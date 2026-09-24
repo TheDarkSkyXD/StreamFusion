@@ -1,7 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LuRefreshCw } from "react-icons/lu";
+import { LuHeart, LuRefreshCw } from "react-icons/lu";
 import { toast } from "sonner";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
@@ -161,9 +161,19 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     twitchFollowsQuery.isLoading ||
     kickFollowsQuery.isLoading ||
     followedStreamsQuery.isLoading;
-  const failedQueries = [twitchFollowsQuery, kickFollowsQuery, followedStreamsQuery].filter(
+  const failedMembershipQueries = [twitchFollowsQuery, kickFollowsQuery].filter(
     (query) => query.isError
   );
+  const streamStatusFailed = followedStreamsQuery.isError;
+  const hasFollowMembership =
+    localFollows.length > 0 ||
+    (twitchFollows?.length ?? 0) > 0 ||
+    (kickFollows?.length ?? 0) > 0;
+  // Stream-status failures with zero membership are empty success, not connection errors.
+  const failedQueries = [
+    ...failedMembershipQueries,
+    ...(streamStatusFailed && hasFollowMembership ? [followedStreamsQuery] : []),
+  ];
   const hasLoadError = failedQueries.length > 0;
   const retryFailedQueries = (): void => {
     void Promise.all(failedQueries.map((query) => query.refetch()));
@@ -410,13 +420,11 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
         <div
           role="status"
           aria-live="polite"
-          className="m-2 rounded-md border border-white/10 bg-white/5 p-3 text-xs text-[var(--color-foreground)]"
+          className="p-4 text-center text-[var(--color-foreground-muted)] text-xs"
           data-testid="sidebar-follows-empty"
         >
-          <p className="font-semibold text-white">{t("shell.sidebar.loadError")}</p>
-          <p className="mt-1 text-[var(--color-foreground-muted)]">
-            {t("shell.sidebar.checkConnection")}
-          </p>
+          <LuHeart className="w-8 h-8 mx-auto mb-2 opacity-20" />
+          <p>{t("shell.sidebar.empty")}</p>
         </div>
       </div>
     );
