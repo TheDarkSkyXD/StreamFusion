@@ -12,6 +12,7 @@ const publicSubpaths = [
   "platform",
   "content",
   "discovery",
+  "display-language",
   "follows",
   "auth",
   "chat",
