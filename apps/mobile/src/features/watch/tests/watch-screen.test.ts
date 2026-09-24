@@ -783,9 +783,13 @@ describe("watch screen", () => {
       "utf8",
     );
     expect(source).toContain("messageChrome");
+    expect(source).toContain("messageNameSlot");
     expect(source).toContain('alignItems: "center"');
+    expect(source).toContain('justifyContent: "center"');
     expect(source).toContain("watch-chat-chrome-");
     expect(source).toContain("includeFontPadding: false");
+    expect(source).toContain("fontSize: 13");
+    expect(source).toContain("height: 18");
     expect(source).not.toMatch(/chatBadge:[\s\S]*?marginTop/);
   });
 

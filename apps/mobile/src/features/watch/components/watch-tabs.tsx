@@ -214,17 +214,20 @@ function ChatPane({
                     key={`${badge.setId}-${badge.version}`}
                     accessibilityIgnoresInvertColors
                     accessibilityLabel={badge.title}
+                    resizeMode="contain"
                     source={{ uri: badge.imageUrl }}
                     style={styles.chatBadge}
                     testID={`watch-chat-badge-${message.id}-${badge.setId}`}
                   />
                 ) : null,
               )}
-              <Text selectable style={styles.messageName}>
-                {message.displayName}
-              </Text>
+              <View style={styles.messageNameSlot}>
+                <Text selectable style={styles.messageName}>
+                  {message.displayName}
+                </Text>
+              </View>
             </View>
-            <Text selectable style={[mobileType.body, styles.messageText]}>
+            <Text selectable style={styles.messageText}>
               {`: ${message.text}`}
             </Text>
           </View>
@@ -456,19 +459,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexShrink: 0,
     gap: 4,
+    height: 18,
   },
   chatBadge: {
-    height: 16,
-    width: 16,
+    height: 18,
+    width: 18,
+  },
+  messageNameSlot: {
+    height: 18,
+    justifyContent: "center",
   },
   messageText: {
+    color: mobileColors.textSecondary,
     flexShrink: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    includeFontPadding: false,
+    lineHeight: 18,
   },
   messageName: {
-    ...mobileType.body,
+    color: mobileColors.textSecondary,
+    fontSize: 13,
     fontWeight: "700",
     includeFontPadding: false,
-    lineHeight: 16,
+    lineHeight: 18,
     textAlignVertical: "center",
   },
   switchRow: {
