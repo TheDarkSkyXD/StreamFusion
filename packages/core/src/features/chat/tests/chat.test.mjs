@@ -255,7 +255,6 @@ test("account-age eligibility is exact and fail-closed only when evidence proves
   );
 });
 
-
 test("lead_moderator badge counts as Twitch moderator status", () => {
   assert.equal(isTwitchModeratorBadge("lead_moderator"), true);
   assert.equal(isTwitchModeratorBadge("Lead_Moderator"), true);

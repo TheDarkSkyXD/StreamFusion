@@ -300,7 +300,13 @@ export const DISPLAY_LANGUAGE_REGISTRY = [
     direction: "ltr",
     streamLanguage: "te",
   },
-  { code: "th", nativeLabel: "ไทย", englishLabel: "Thai", direction: "ltr", streamLanguage: "th" },
+  {
+    code: "th",
+    nativeLabel: "ไทย",
+    englishLabel: "Thai",
+    direction: "ltr",
+    streamLanguage: "th",
+  },
   {
     code: "tr",
     nativeLabel: "Türkçe",
@@ -315,7 +321,13 @@ export const DISPLAY_LANGUAGE_REGISTRY = [
     direction: "ltr",
     streamLanguage: "uk",
   },
-  { code: "ur", nativeLabel: "اردو", englishLabel: "Urdu", direction: "rtl", streamLanguage: "ur" },
+  {
+    code: "ur",
+    nativeLabel: "اردو",
+    englishLabel: "Urdu",
+    direction: "rtl",
+    streamLanguage: "ur",
+  },
   {
     code: "vi",
     nativeLabel: "Tiếng Việt",
@@ -339,17 +351,25 @@ export const DISPLAY_LANGUAGE_REGISTRY = [
   },
 ] as const;
 
-export type DisplayLanguage = (typeof DISPLAY_LANGUAGE_REGISTRY)[number]["code"];
-export type DisplayLanguageDefinition = (typeof DISPLAY_LANGUAGE_REGISTRY)[number];
+export type DisplayLanguage =
+  (typeof DISPLAY_LANGUAGE_REGISTRY)[number]["code"];
+export type DisplayLanguageDefinition =
+  (typeof DISPLAY_LANGUAGE_REGISTRY)[number];
 export type StreamLanguage = DisplayLanguageDefinition["streamLanguage"];
 
 export const DEFAULT_DISPLAY_LANGUAGE: DisplayLanguage = "en";
 const DEFAULT_DISPLAY_LANGUAGE_DEFINITION = DISPLAY_LANGUAGE_REGISTRY.find(
-  ({ code }) => code === DEFAULT_DISPLAY_LANGUAGE
+  ({ code }) => code === DEFAULT_DISPLAY_LANGUAGE,
 )!;
 
-const DISPLAY_LANGUAGE_BY_NORMALIZED_CODE = new Map<string, DisplayLanguageDefinition>(
-  DISPLAY_LANGUAGE_REGISTRY.map((definition) => [definition.code.toLowerCase(), definition])
+const DISPLAY_LANGUAGE_BY_NORMALIZED_CODE = new Map<
+  string,
+  DisplayLanguageDefinition
+>(
+  DISPLAY_LANGUAGE_REGISTRY.map((definition) => [
+    definition.code.toLowerCase(),
+    definition,
+  ]),
 );
 
 const DISPLAY_LANGUAGE_ALIASES = new Map<string, DisplayLanguage>([
@@ -360,7 +380,6 @@ const DISPLAY_LANGUAGE_ALIASES = new Map<string, DisplayLanguage>([
   ["zh-hk", "zh-TW"],
   ["no", "nb"],
 ]);
-
 
 export function isSupportedDisplayLanguageInput(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -390,14 +409,20 @@ export function resolveDisplayLanguage(value: unknown): DisplayLanguage {
   const alias = DISPLAY_LANGUAGE_ALIASES.get(normalized);
   if (alias) return alias;
 
-  if (normalized.startsWith("zh-hant-") || normalized.startsWith("zh-hk-")) return "zh-TW";
+  if (normalized.startsWith("zh-hant-") || normalized.startsWith("zh-hk-"))
+    return "zh-TW";
   if (normalized.startsWith("zh-hans-")) return "zh-CN";
 
   const base = normalized.split("-")[0];
-  return DISPLAY_LANGUAGE_BY_NORMALIZED_CODE.get(base)?.code ?? DEFAULT_DISPLAY_LANGUAGE;
+  return (
+    DISPLAY_LANGUAGE_BY_NORMALIZED_CODE.get(base)?.code ??
+    DEFAULT_DISPLAY_LANGUAGE
+  );
 }
 
-export function getDisplayLanguage(value: DisplayLanguage): DisplayLanguageDefinition {
+export function getDisplayLanguage(
+  value: DisplayLanguage,
+): DisplayLanguageDefinition {
   return (
     DISPLAY_LANGUAGE_BY_NORMALIZED_CODE.get(value.toLowerCase()) ??
     DEFAULT_DISPLAY_LANGUAGE_DEFINITION
@@ -406,18 +431,34 @@ export function getDisplayLanguage(value: DisplayLanguage): DisplayLanguageDefin
 
 const STREAM_LANGUAGE_BY_NORMALIZED_LABEL = new Map<string, StreamLanguage>();
 
-function rememberStreamLanguageLabel(label: string, streamLanguage: StreamLanguage): void {
+function rememberStreamLanguageLabel(
+  label: string,
+  streamLanguage: StreamLanguage,
+): void {
   const normalized = label.trim().toLowerCase();
-  if (!normalized || STREAM_LANGUAGE_BY_NORMALIZED_LABEL.has(normalized)) return;
+  if (!normalized || STREAM_LANGUAGE_BY_NORMALIZED_LABEL.has(normalized))
+    return;
   STREAM_LANGUAGE_BY_NORMALIZED_LABEL.set(normalized, streamLanguage);
 }
 
 for (const definition of DISPLAY_LANGUAGE_REGISTRY) {
-  rememberStreamLanguageLabel(definition.streamLanguage, definition.streamLanguage);
+  rememberStreamLanguageLabel(
+    definition.streamLanguage,
+    definition.streamLanguage,
+  );
   rememberStreamLanguageLabel(definition.code, definition.streamLanguage);
-  rememberStreamLanguageLabel(definition.englishLabel, definition.streamLanguage);
-  rememberStreamLanguageLabel(definition.nativeLabel, definition.streamLanguage);
-  rememberStreamLanguageLabel(definition.englishLabel.split(/[\s(/]/)[0] ?? "", definition.streamLanguage);
+  rememberStreamLanguageLabel(
+    definition.englishLabel,
+    definition.streamLanguage,
+  );
+  rememberStreamLanguageLabel(
+    definition.nativeLabel,
+    definition.streamLanguage,
+  );
+  rememberStreamLanguageLabel(
+    definition.englishLabel.split(/[\s(/]/)[0] ?? "",
+    definition.streamLanguage,
+  );
 }
 
 export function resolveStreamLanguage(value: unknown): StreamLanguage | "" {
