@@ -484,6 +484,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     lineHeight: 18,
     textAlignVertical: "center",
+    // Optical nudge: Android glyphs sit ~1dp low vs badge art in 18px chrome.
+    transform: [{ translateY: -1 }],
   },
   switchRow: {
     ...mobilePressRing.rest,
