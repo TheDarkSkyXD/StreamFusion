@@ -984,14 +984,23 @@ describe("watch screen", () => {
     const ids = nodes
       .map((node) => node.props.testID)
       .filter((id): id is string => typeof id === "string");
-    const metaViewers = nodes.find(
-      (node) => node.props.testID === "watch-meta-viewers",
+    expect(nodes.some((node) => node.props.testID === "watch-meta-viewers")).toBe(
+      true,
     );
-    expect(metaViewers).toBeTruthy();
-    const metaText = String(metaViewers?.props.children ?? "");
-    expect(metaText.includes("50.4K")).toBe(true);
-    expect(metaText.includes(" · ")).toBe(true);
-    expect(/\d+:\d{2}:\d{2}/u.test(metaText)).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-meta-live-dot")).toBe(
+      true,
+    );
+    const uptimeNode = nodes.find(
+      (node) => node.props.testID === "watch-meta-uptime",
+    );
+    expect(uptimeNode).toBeTruthy();
+    expect(/\d+:\d{2}:\d{2}/u.test(String(uptimeNode?.props.children ?? ""))).toBe(
+      true,
+    );
+    const metaTexts = nodes
+      .filter((node) => typeof node.props.children === "string")
+      .map((node) => String(node.props.children));
+    expect(metaTexts.some((text) => text.includes("50.4K"))).toBe(true);
     expect(ids.indexOf("watch-channel-chrome")).toBeLessThan(
       ids.indexOf("watch-player-stage"),
     );

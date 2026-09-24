@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatLiveUptime,
+  formatWatchLiveMetaParts,
   formatWatchViewerCount,
   formatWatchViewerLine,
 } from "../domain/watch-live-meta";
@@ -37,5 +38,18 @@ describe("watch live meta formatting", () => {
       "50.4K · 0:05:09",
     );
     expect(formatWatchViewerLine(50_443, null, nowMs, "en")).toBe("50.4K");
+  });
+
+  it("exposes structured parts so UI can place the live dot before uptime", () => {
+    const startedAt = "2026-09-23T12:00:00.000Z";
+    const nowMs = Date.parse("2026-09-23T12:05:09.000Z");
+    expect(formatWatchLiveMetaParts(50_443, startedAt, nowMs, "en")).toEqual({
+      uptime: "0:05:09",
+      viewers: "50.4K",
+    });
+    expect(formatWatchLiveMetaParts(50_443, null, nowMs, "en")).toEqual({
+      uptime: null,
+      viewers: "50.4K",
+    });
   });
 });

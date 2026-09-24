@@ -35,7 +35,10 @@ import type {
 } from "../capabilities/watch";
 import { composeWatchView, resolveWatchCopy } from "../domain/watch-view";
 import { watchAdBlockStatus } from "../domain/adblock-playback-status";
-import { formatWatchViewerLine } from "../domain/watch-live-meta";
+import {
+  formatLiveUptime,
+  formatWatchViewerCount,
+} from "../domain/watch-live-meta";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
@@ -422,7 +425,7 @@ function liveMetaStream(
 
 /**
  * Isolated ticking viewers · uptime line (desktop UptimeCounter pattern).
- * Updates every second so uptime does not freeze at open.
+ * Twitch-style red live dot sits immediately before uptime when present.
  */
 function WatchMetaViewers({
   startedAt,
@@ -433,28 +436,43 @@ function WatchMetaViewers({
 }) {
   const { i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
-  const [label, setLabel] = useState(() =>
-    formatWatchViewerLine(viewerCount, startedAt, Date.now(), locale),
+  const [uptime, setUptime] = useState(() =>
+    formatLiveUptime(startedAt, Date.now()),
   );
+  const viewers = formatWatchViewerCount(viewerCount, locale);
 
   useEffect(() => {
     const tick = () => {
-      setLabel(formatWatchViewerLine(viewerCount, startedAt, Date.now(), locale));
+      setUptime(formatLiveUptime(startedAt, Date.now()));
     };
     tick();
     if (!startedAt) return;
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [locale, startedAt, viewerCount]);
+  }, [startedAt]);
 
   return (
-    <Text
-      selectable
-      style={styles.metaViewers}
-      testID="watch-meta-viewers"
-    >
-      {label}
-    </Text>
+    <View style={styles.metaViewersRow} testID="watch-meta-viewers">
+      <Text selectable style={styles.metaViewers}>
+        {viewers}
+      </Text>
+      {uptime === null ? null : (
+        <>
+          <Text selectable style={styles.metaViewers}>
+            {" · "}
+          </Text>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            style={styles.metaLiveDot}
+            testID="watch-meta-live-dot"
+          />
+          <Text selectable style={styles.metaViewers} testID="watch-meta-uptime">
+            {uptime}
+          </Text>
+        </>
+      )}
+    </View>
   );
 }
 
@@ -619,9 +637,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
   },
+  metaViewersRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
   metaViewers: {
     ...mobileType.caption,
     color: mobileColors.textSecondary,
+  },
+  metaLiveDot: {
+    backgroundColor: mobileColors.live,
+    borderRadius: mobileRadii.full,
+    height: 6,
+    width: 6,
   },
   avatar: {
     backgroundColor: mobileColors.surfaceRaised,

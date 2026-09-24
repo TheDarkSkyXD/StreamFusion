@@ -54,6 +54,24 @@ export function formatLiveUptime(
     .padStart(2, "0")}`;
 }
 
+export type WatchLiveMetaParts = {
+  readonly uptime: string | null;
+  readonly viewers: string;
+};
+
+/** Structured top-subline parts so UI can insert the Twitch live dot before uptime. */
+export function formatWatchLiveMetaParts(
+  viewerCount: number,
+  startedAt: string | null | undefined,
+  nowMs: number = Date.now(),
+  locale = "en",
+): WatchLiveMetaParts {
+  return {
+    uptime: formatLiveUptime(startedAt, nowMs),
+    viewers: formatWatchViewerCount(viewerCount, locale),
+  };
+}
+
 /** Top subline: `50.4K` or `50.4K · 1:15:33` when uptime is available. */
 export function formatWatchViewerLine(
   viewerCount: number,
@@ -61,7 +79,8 @@ export function formatWatchViewerLine(
   nowMs: number = Date.now(),
   locale = "en",
 ): string {
-  const viewers = formatWatchViewerCount(viewerCount, locale);
-  const uptime = formatLiveUptime(startedAt, nowMs);
-  return uptime === null ? viewers : `${viewers} · ${uptime}`;
+  const parts = formatWatchLiveMetaParts(viewerCount, startedAt, nowMs, locale);
+  return parts.uptime === null
+    ? parts.viewers
+    : `${parts.viewers} · ${parts.uptime}`;
 }
