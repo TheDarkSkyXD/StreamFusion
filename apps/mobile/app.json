@@ -91,6 +91,17 @@
     "androidNavigationBar": {
       "backgroundColor": "#1a1a1a",
       "barStyle": "light-content"
-    }
+    },
+    "extra": {
+      "router": {},
+      "expo-navigation-bar": {
+        "enforceContrast": false,
+        "style": "light"
+      },
+      "eas": {
+        "projectId": "4b49d763-ecef-42dc-ba28-e855a17b1704"
+      }
+    },
+    "owner": "aiistheworld"
   }
 }
