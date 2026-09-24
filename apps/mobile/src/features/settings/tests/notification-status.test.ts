@@ -58,7 +58,7 @@ describe("notification settings status", () => {
     );
   });
 
-  it("names 100k dispatch, retries, rotation, reinstall, force-stop, and ended streams", () => {
+  it("names 100k dispatch, retries, rotation, reinstall, force-stop, and go-live-only routing", () => {
     const copy = notificationLifecycleCopy();
     expect(copy).toMatch(/100,000 Live recipients/);
     expect(copy).toMatch(/Two simultaneous events/);
@@ -66,7 +66,7 @@ describe("notification settings status", () => {
     expect(copy).toMatch(/credentials can rotate/);
     expect(copy).toMatch(/Reinstall retires the old token/);
     expect(copy).toMatch(/Force-stop does not delete Activity/);
-    expect(copy).toMatch(/ended stream opens the channel page/);
+    expect(copy).toMatch(/go-live alerts only/);
     expect(
       composeNotificationSettingsView({
         apiLevel: 30,

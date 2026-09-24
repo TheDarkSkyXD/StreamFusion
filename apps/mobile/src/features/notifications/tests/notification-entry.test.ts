@@ -5,9 +5,10 @@ import { toSerializedTimestamp } from "@streamfusion/core/activity";
 import {
   activityItemFromPayload,
   notificationOpenLocation,
+  proofLivePayload,
 } from "../domain/notification-entry";
 
-const livePayload = {
+const endedPayload = {
   schemaVersion: 1 as const,
   eventId: "live:twitch:chan-1:ended",
   sourceId: "relay:live-alert:v1",
@@ -24,10 +25,9 @@ const livePayload = {
   occurredAt: "2026-09-15T12:00:00.000Z",
 };
 
-// Guards: ended live-alert notifications open the channel page, not a live player
 describe("notification entry routing", () => {
   it("routes ended streams to the channel page and live streams to Watch", () => {
-    expect(notificationOpenLocation(livePayload)).toEqual({
+    expect(notificationOpenLocation(endedPayload)).toEqual({
       kind: "channel",
       platform: "twitch",
       id: "chan-1",
@@ -35,8 +35,8 @@ describe("notification entry routing", () => {
     });
     expect(
       notificationOpenLocation({
-        ...livePayload,
-        destination: { ...livePayload.destination, streamState: "live" },
+        ...endedPayload,
+        destination: { ...endedPayload.destination, streamState: "live" },
       }),
     ).toEqual({
       kind: "watch",
@@ -46,13 +46,19 @@ describe("notification entry routing", () => {
     });
   });
 
-  it("reconciles a live-alert into Activity without playable URLs", () => {
-    const item = activityItemFromPayload(livePayload);
+  it("does not reconcile ended watch payloads into Activity", () => {
+    expect(activityItemFromPayload(endedPayload)).toBeNull();
+  });
+
+  it("reconciles a go-live alert into Activity without playable URLs", () => {
+    const payload = proofLivePayload("2026-09-15T12:00:00.000Z");
+    const item = activityItemFromPayload(payload);
     expect(item).toMatchObject({
-      eventId: livePayload.eventId,
+      eventId: payload.eventId,
       kind: "channel",
       event: "live-alert",
-      occurredAt: toSerializedTimestamp(livePayload.occurredAt),
+      occurredAt: toSerializedTimestamp(payload.occurredAt),
+      title: payload.title,
     });
     expect(JSON.stringify(item)).not.toMatch(/https?:\/\//);
   });
