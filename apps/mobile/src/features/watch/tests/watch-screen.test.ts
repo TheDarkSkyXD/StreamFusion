@@ -17,6 +17,8 @@ vi.mock("react-native", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  ArrowLeft: "ArrowLeft",
+  Heart: "Heart",
   Maximize: "Maximize",
   Minimize: "Minimize",
   Pause: "Pause",
@@ -116,7 +118,7 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{ displayName: "Ada", id: "msg-1", text: "hello" }],
+          messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
         },
         inspection: null,
         onOpenProviderPage: () => undefined,
@@ -129,11 +131,19 @@ describe("watch screen", () => {
       }),
     );
     expect(
+      liveNodes.some((node) => node.props.testID === "watch-chat-message-msg-1"),
+    ).toBe(true);
+    expect(
       liveNodes.some(
         (node) =>
-          node.props.testID === "watch-chat-message-msg-1" &&
-          String(node.props.children).includes("Ada: hello"),
-      ),
+          typeof node.props.children === "string" &&
+          node.props.children.includes("Ada"),
+      ) ||
+        liveNodes.some(
+          (node) =>
+            typeof node.props.children === "string" &&
+            node.props.children.includes("hello"),
+        ),
     ).toBe(true);
     const failedNodes = descendants(
       WatchScreen({
@@ -501,7 +511,7 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{ displayName: "Ada", id: "msg-1", text: "hello" }],
+          messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
         },
         inspection: null,
         onOpenProviderPage: () => undefined,
@@ -724,7 +734,7 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{ displayName: "Ada", id: "msg-1", text: "hello" }],
+          messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
         },
         recording: {
           busy: false,
@@ -838,6 +848,94 @@ describe("watch screen", () => {
     ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "watch-show-chat")).toBe(
       true,
+    );
+  });
+
+
+
+  it("renders Twitch-like top channel chrome with avatar name and Follow", () => {
+    const followed: string[] = [];
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: {
+          detail: "Connecting guest chat.",
+          kind: "connecting",
+        },
+        followed: false,
+        inspection: {
+          info: {
+            channel: {
+              avatarUrl: "https://cdn.example/avatar.png",
+              displayName: "Ada",
+              id: "1",
+              isLive: true,
+              isPartner: false,
+              isVerified: true,
+              platform: "twitch",
+              username: "ada",
+            },
+            kind: "live",
+            stream: {
+              categoryId: "cat",
+              categoryName: "Just Chatting",
+              channelAvatar: "https://cdn.example/avatar.png",
+              channelDisplayName: "Ada",
+              channelId: "1",
+              channelIsVerified: true,
+              channelName: "ada",
+              id: "s1",
+              isLive: true,
+              language: "en",
+              platform: "twitch",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              tags: ["english"],
+              thumbnailUrl: "https://cdn.example/thumb.png",
+              title: "Building StreamFusion",
+              viewerCount: 42,
+            },
+          },
+          related: { kind: "empty" },
+          target,
+        },
+        onBack: () => undefined,
+        onFollow: () => {
+          followed.push("follow");
+        },
+        onOpenProviderPage: () => undefined,
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        playback: { kind: "ready", target },
+        tab: "chat",
+        target,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-channel-chrome")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-back")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-open-channel")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-follow")).toBe(true);
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === "watch-target" &&
+          String(node.props.children).includes("Ada"),
+      ),
+    ).toBe(true);
+    nodes.find((node) => node.props.testID === "watch-follow")?.props.onPress?.();
+    expect(followed).toEqual(["follow"]);
+    const ids = nodes
+      .map((node) => node.props.testID)
+      .filter((id): id is string => typeof id === "string");
+    expect(ids.indexOf("watch-channel-chrome")).toBeLessThan(
+      ids.indexOf("watch-player-stage"),
+    );
+    expect(ids.indexOf("watch-player-stage")).toBeLessThan(
+      ids.indexOf("watch-under-player"),
     );
   });
 

@@ -338,6 +338,9 @@ export function AppShell({
   const location = getActiveShellLocation(navigation);
   const watchingWatch =
     location.route === "watch" || location.route === "watch/session-preview";
+  const watchOwnsChrome =
+    location.route === "watch/session-preview" &&
+    location.target.kind === "channel";
   const watchPeek = useWatchPeek(watch.runtime.session);
   const pictureInPictureSurface =
     watchPeek.kind === "active" &&
@@ -456,7 +459,7 @@ export function AppShell({
             ? navigationView()
             : null}
           <View style={styles.workspace}>
-            {pictureInPictureSurface ? null : (
+            {pictureInPictureSurface || watchOwnsChrome ? null : (
               <ShellHeader dispatch={dispatch} state={navigation} />
             )}
             <RestorationNotice
@@ -854,7 +857,9 @@ function ShellScreen({
             session: homeDiscovery,
           }}
           download={mediaJobSession}
+          following={followingSession}
           recording={mediaJobSession}
+          onBack={() => dispatch({ type: "back" })}
           onOpenChannel={(watchTarget) =>
             dispatch({
               type: "navigate",

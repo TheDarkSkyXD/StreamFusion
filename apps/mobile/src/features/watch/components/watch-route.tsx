@@ -20,6 +20,8 @@ import type {
   WatchTarget,
 } from "../capabilities/watch";
 import { useWatchChat } from "@mobile/features/chat/components/use-watch-chat";
+import { useChannelFollow } from "@mobile/features/discovery/components/use-channel-follow";
+import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import {
   useFocusedWatchSession,
   useWatchPeek,
@@ -70,11 +72,25 @@ export type WatchCaptionSession = {
   readonly status: string | null;
 };
 
+
+const INERT_FOLLOWING_SESSION = {
+  listMembership: async () => [],
+  mutateFollow: async () => ({ kind: "rejected" as const, reason: "invalid" as const }),
+  openProviderPage: async () => undefined,
+  resolveChannel: async () => null,
+  hydrateLive: async () => ({ kick: { kind: "empty" }, twitch: { kind: "empty" } }),
+  hydrateRecorded: async () => ({ kind: "empty" }),
+  readNotifications: async () => ({} as never),
+  writeNotifications: async () => ({} as never),
+} as FollowingSession;
+
 export function WatchRoute({
   captions,
   download,
   recording,
   discovery,
+  following,
+  onBack,
   onOpenChannel,
   onOpenRelated,
   onOpenSearch,
@@ -89,6 +105,8 @@ export function WatchRoute({
     readonly onOpenAccounts: () => void;
     readonly session: DiscoverySession;
   };
+  readonly following?: FollowingSession;
+  readonly onBack?: () => void;
   readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onOpenSearch?: () => void;
@@ -122,7 +140,9 @@ export function WatchRoute({
       target={resolved}
       {...(captions === undefined ? {} : { captions })}
       {...(download === undefined ? {} : { download })}
+      {...(following === undefined ? {} : { following })}
       {...(recording === undefined ? {} : { recording })}
+      {...(onBack === undefined ? {} : { onBack })}
       {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(playerPrefs === undefined ? {} : { playerPrefs })}
     />
@@ -133,6 +153,8 @@ function WatchSessionRoute({
   captions,
   download,
   recording,
+  following,
+  onBack,
   onOpenChannel,
   onOpenRelated,
   playerPrefs,
@@ -142,6 +164,8 @@ function WatchSessionRoute({
   readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
+  readonly following?: FollowingSession;
+  readonly onBack?: () => void;
   readonly onOpenChannel?: (target: WatchTarget) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly playerPrefs?: ProductPreferences;
@@ -164,6 +188,16 @@ function WatchSessionRoute({
   const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
   const chat = useWatchChat(screen.chat, target);
+  const channelFollow = useChannelFollow({
+    channel: {
+      id: target.channelId,
+      platform: target.platform,
+      username: target.channelName,
+    },
+    displayName: target.channelName,
+    enabled: following !== undefined,
+    following: following ?? INERT_FOLLOWING_SESSION,
+  });
   const playback = useFocusedWatchSession(session, target);
   const peek = useWatchPeek(session);
   useEffect(() => {
@@ -230,10 +264,16 @@ function WatchSessionRoute({
       PlayerSurface={screen.PlayerSurface}
       adblockView={adblockView}
       chat={chat}
+      followBusy={channelFollow.follow.kind === "pending"}
+      followed={channelFollow.follow.kind === "guest-present"}
       inspection={inspection.data ?? null}
       onChatRetry={() => screen.chat.retry()}
       controlsVisible={showControls}
       onCloseQualityMenu={() => setQualityMenuOpen(false)}
+      {...(onBack === undefined ? {} : { onBack })}
+      {...(following === undefined
+        ? {}
+        : { onFollow: () => channelFollow.toggle() })}
       onMute={() => {
         revealControls();
         if (peek.kind === "active") void session.setMuted(!peek.muted);

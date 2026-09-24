@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { ArrowLeft, Heart } from "lucide-react-native";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
@@ -12,6 +13,7 @@ import { WatchAdBlockStatus } from "@mobile/features/ad-blocking/components/watc
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
@@ -86,6 +88,10 @@ export function WatchScreen({
   recording,
   inspection,
   onChatRetry,
+  followBusy = false,
+  followed = false,
+  onBack,
+  onFollow,
   onOpenChannel,
   onOpenProviderPage,
   onOpenRelated,
@@ -125,8 +131,12 @@ export function WatchScreen({
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
+  readonly followBusy?: boolean;
+  readonly followed?: boolean;
+  readonly onBack?: () => void;
   readonly onChatRetry?: () => void;
   readonly onCloseQualityMenu?: () => void;
+  readonly onFollow?: () => void;
   readonly onOpenChannel?: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
@@ -178,42 +188,95 @@ export function WatchScreen({
       testID="screen-watch"
     >
       {pipSurface ? null : (
-        <Pressable
-          accessibilityHint={t("playback.watch.openChannelHint")}
-          accessibilityLabel={t("playback.watch.openChannel", {
-            name: displayName,
-          })}
-          accessibilityRole="button"
-          disabled={onOpenChannel === undefined}
-          onPress={onOpenChannel}
-          style={({ pressed }) => [
-            styles.meta,
-            pressed ? styles.metaPressed : null,
-          ]}
-          testID="watch-open-channel"
-        >
-          {avatarUrl ? (
-            <Image
-              accessibilityIgnoresInvertColors
-              source={{ uri: avatarUrl }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={styles.avatar} testID="watch-channel-avatar-placeholder" />
-          )}
-          <View style={styles.metaCopy}>
-            <Text selectable style={styles.metaName} testID="watch-target">
-              {displayName}
-            </Text>
-            {viewerLine(inspection) ? (
-              <Text selectable style={styles.metaViewers} testID="watch-meta-viewers">
-                {viewerLine(inspection)}
-              </Text>
+        <View style={styles.meta} testID="watch-channel-chrome">
+          {onBack ? (
+            <Pressable
+              accessibilityLabel="Back"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onBack}
+              style={styles.metaIconHit}
+              testID="watch-back"
+            >
+              <ArrowLeft
+                accessibilityElementsHidden
+                color={mobileColors.textPrimary}
+                size={22}
+              />
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityHint={t("playback.watch.openChannelHint")}
+            accessibilityLabel={t("playback.watch.openChannel", {
+              name: displayName,
+            })}
+            accessibilityRole="button"
+            disabled={onOpenChannel === undefined}
+            onPress={onOpenChannel}
+            style={({ pressed }) => [
+              styles.metaIdentity,
+              pressed ? styles.metaPressed : null,
+            ]}
+            testID="watch-open-channel"
+          >
+            {avatarUrl ? (
+              <Image
+                accessibilityIgnoresInvertColors
+                source={{ uri: avatarUrl }}
+                style={styles.avatar}
+              />
             ) : (
-              <MobilePlatformBadge platform={target.platform} />
+              <View
+                style={styles.avatar}
+                testID="watch-channel-avatar-placeholder"
+              />
             )}
-          </View>
-        </Pressable>
+            <View style={styles.metaCopy}>
+              <View style={styles.metaNameRow}>
+                <Text selectable style={styles.metaName} testID="watch-target">
+                  {displayName}
+                </Text>
+                {channelIsVerified(inspection) ? (
+                  <MobileVerifiedBadge platform={target.platform} />
+                ) : null}
+              </View>
+              {viewerLine(inspection) ? (
+                <Text
+                  selectable
+                  style={styles.metaViewers}
+                  testID="watch-meta-viewers"
+                >
+                  {viewerLine(inspection)}
+                </Text>
+              ) : (
+                <MobilePlatformBadge platform={target.platform} />
+              )}
+            </View>
+          </Pressable>
+          {onFollow ? (
+            <Pressable
+              accessibilityLabel={followed ? "Unfollow" : "Follow"}
+              accessibilityRole="button"
+              accessibilityState={{ busy: followBusy, selected: followed }}
+              disabled={followBusy}
+              onPress={onFollow}
+              style={({ pressed }) => [
+                styles.followButton,
+                followed ? styles.followButtonActive : null,
+                pressed ? styles.followButtonPressed : null,
+                followBusy ? styles.followButtonBusy : null,
+              ]}
+              testID="watch-follow"
+            >
+              <Heart
+                accessibilityElementsHidden
+                color={mobileColors.textPrimary}
+                fill={followed ? mobileColors.textPrimary : "transparent"}
+                size={18}
+              />
+            </Pressable>
+          ) : null}
+        </View>
       )}
       <View
         style={[
@@ -330,10 +393,34 @@ export function WatchScreen({
 }
 
 
+function channelIsVerified(inspection: WatchInspection | null): boolean {
+  const info = inspection?.info;
+  if (!info || info.kind === "unavailable") return false;
+  return info.channel.isVerified;
+}
+
 function viewerLine(inspection: WatchInspection | null): string | null {
   const info = inspection?.info;
   if (!info || info.kind !== "live") return null;
-  return `${info.stream.viewerCount}`;
+  const viewers = `${info.stream.viewerCount}`;
+  const uptime = liveUptimeLabel(info.stream.startedAt);
+  return uptime === null ? viewers : `${viewers} · ${uptime}`;
+}
+
+function liveUptimeLabel(startedAt: string | null): string | null {
+  if (!startedAt) return null;
+  const started = Date.parse(startedAt);
+  if (!Number.isFinite(started)) return null;
+  const total = Math.max(0, Math.floor((Date.now() - started) / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 function channelAvatarUrl(inspection: WatchInspection | null): string | null {
@@ -462,8 +549,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexShrink: 0,
     gap: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.small,
+    paddingVertical: mobileSpacing.xSmall,
+  },
+  metaIconHit: {
+    alignItems: "center",
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  metaIdentity: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    minWidth: 0,
   },
   metaPressed: {
     opacity: 0.85,
@@ -472,6 +572,12 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
     minWidth: 0,
+  },
+  metaNameRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
   },
   metaName: {
     ...mobileType.title,
@@ -487,5 +593,23 @@ const styles = StyleSheet.create({
     borderRadius: mobileRadii.full,
     height: 36,
     width: 36,
+  },
+  followButton: {
+    alignItems: "center",
+    backgroundColor: mobileColors.twitch,
+    borderRadius: mobileRadii.full,
+    height: 36,
+    justifyContent: "center",
+    minWidth: 56,
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  followButtonActive: {
+    backgroundColor: mobileColors.surfaceRaised,
+  },
+  followButtonPressed: {
+    opacity: 0.9,
+  },
+  followButtonBusy: {
+    opacity: 0.6,
   },
 });
