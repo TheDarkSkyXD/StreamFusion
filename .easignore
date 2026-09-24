@@ -1,6 +1,6 @@
-﻿# EAS Build archive ignores (monorepo root). Keep upload lean for apps/mobile.
+# EAS Build archive ignores (monorepo root). Keep upload lean for apps/mobile.
 
-# Dependencies — reinstalled on EAS
+# Dependencies - reinstalled on EAS
 **/node_modules/
 
 # VCS / local scratch
@@ -18,11 +18,13 @@ apps/mobile/android/
 **/android/app/.cxx/
 **/android/.kotlin/
 
-# Desktop / unrelated packages (npm workspaces still resolve via package-lock)
-apps/desktop/
-apps/desktop/**
+# Desktop build outputs (keep package.json for npm workspaces)
+apps/desktop/out/
+apps/desktop/release/
+apps/desktop/dist/
+apps/desktop/.scratch-icon-package/
 
-# Evidence, artifacts, releases, local smoke
+# Evidence, artifacts, local smoke
 pc-smoke-evidence/
 **/pc-smoke-evidence/
 artifacts/
@@ -32,12 +34,13 @@ artifacts/
 **/*.aab
 **/*.jks
 **/*.keystore
+**/*.exe
+**/*.blockmap
+**/*.zip
 
-# Tests / docs not needed for native build
+# Tests / IDE
 **/coverage/
 **/.vitest/
-
-# Large media / IDE
 **/.idea/
 **/.vscode/
 **/*.log
