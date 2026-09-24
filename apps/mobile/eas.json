@@ -8,6 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "autoIncrement": false,
+      "node": "22.14.0",
       "android": {
         "buildType": "apk"
       }
@@ -16,6 +17,14 @@
       "developmentClient": false,
       "distribution": "internal",
       "autoIncrement": false,
+      "node": "22.14.0",
+      "env": {
+        "npm_config_strict_allow_scripts": "false",
+        "npm_config_allow_git": "all",
+        "npm_config_allow_remote": "all",
+        "npm_config_allow_file": "all",
+        "npm_config_allow_directory": "all"
+      },
       "android": {
         "buildType": "apk"
       }

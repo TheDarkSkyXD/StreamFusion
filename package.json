@@ -71,7 +71,8 @@
     "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
     "typecheck": "npm run --workspace @streamfusion/core typecheck && npm run --workspace @streamfusion/mobile typecheck && npm run --workspace @streamfusion/integration-relay typecheck && npm run --workspace streamfusion typecheck && npm run --workspace streamfusion-worker typecheck",
-    "perf:soak": "npm run --workspace streamfusion perf:soak"
+    "perf:soak": "npm run --workspace streamfusion perf:soak",
+    "eas-build-pre-install": "node ./scripts/eas-build-pre-install.mjs"
   },
   "overrides": {
     "ajv@8.20.0": {

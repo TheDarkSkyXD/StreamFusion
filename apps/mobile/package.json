@@ -21,7 +21,8 @@
     "config:android": "expo config --type public --json",
     "lint": "eslint app/ src/ modules/ scripts/ tests/ vendor/ metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
     "test": "node --test tests/*.test.mjs && vitest run --config vitest.config.mts && node scripts/verify-architecture.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eas-build-pre-install": "node ../../scripts/eas-build-pre-install.mjs"
   },
   "dependencies": {
     "@react-native-community/slider": "5.2.0",
