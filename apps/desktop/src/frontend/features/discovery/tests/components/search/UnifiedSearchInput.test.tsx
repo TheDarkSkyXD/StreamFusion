@@ -25,9 +25,9 @@ const searchMockState = vi.hoisted(() => ({
 
 const historyMockState = vi.hoisted(() => ({
   historyByScope: {
-    channels: [] as string[],
-    categories: [] as string[],
-    streams: [] as string[],
+    channels: [] as Array<{ label: string; avatarUrl?: string; channelId?: string; platform?: "twitch" | "kick"; username?: string }>,
+    categories: [] as Array<{ label: string; avatarUrl?: string }>,
+    streams: [] as Array<{ label: string; avatarUrl?: string; channelId?: string; platform?: "twitch" | "kick"; username?: string }>,
   },
   addSearch: vi.fn(),
   removeSearch: vi.fn(),
@@ -93,6 +93,10 @@ vi.mock("@/features/discovery/components/hooks/queries/useCategories", () => ({
 
 vi.mock("@/features/discovery/routes/search-page", () => ({
   preloadSearchPage: routeMockState.preloadSearchPage,
+}));
+
+vi.mock("@/features/discovery/data/queries/persisted-channel-lru", () => ({
+  getPersistedChannelMetadata: vi.fn(() => undefined),
 }));
 
 vi.mock("@/features/discovery/components/screens/SearchResults", () => {
@@ -522,9 +526,9 @@ describe("UnifiedSearchInput", () => {
 
   it("shows history for the selected search tab", () => {
     historyMockState.historyByScope = {
-      channels: ["ninja"],
-      categories: ["Just Chatting"],
-      streams: ["speedrun"],
+      channels: [{ label: "ninja" }],
+      categories: [{ label: "Just Chatting" }],
+      streams: [{ label: "speedrun" }],
     };
 
     renderWithProviders(<UnifiedSearchInput />);
@@ -541,7 +545,7 @@ describe("UnifiedSearchInput", () => {
 
   it("renders history rows at Kick-sized scale", () => {
     historyMockState.historyByScope = {
-      channels: ["ninja"],
+      channels: [{ label: "ninja" }],
       categories: [],
       streams: [],
     };
@@ -557,7 +561,66 @@ describe("UnifiedSearchInput", () => {
     expect(removeButton.parentElement).toHaveClass("h-14");
     expect(historyText).toHaveClass("text-base", "font-semibold", "text-white");
     expect(icons?.[0]).toHaveAttribute("width", "20");
-    expect(icons?.[1]).toHaveAttribute("width", "20");
+  });
+
+  it("renders channel avatars on search history rows", () => {
+    historyMockState.historyByScope = {
+      channels: [
+        {
+          label: "Ninja",
+          avatarUrl: "https://static-cdn.jtvnw.net/jtv_user_pictures/ninja.png",
+          channelId: "19571641",
+          platform: "twitch",
+          username: "ninja",
+        },
+      ],
+      categories: [],
+      streams: [],
+    };
+
+    renderWithProviders(<UnifiedSearchInput />);
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    const avatar = document.querySelector('img.size-8.rounded-full, img[class*="size-8"][class*="rounded-full"]');
+    expect(avatar).toBeTruthy();
+    expect(avatar?.getAttribute("src") || "").toMatch(/ninja|jtvnw|twitch-image|proxied/i);
+  });
+
+  it("stores rich channel history when a suggestion is selected", () => {
+    searchMockState.channelsData = {
+      pages: [
+        {
+          data: [
+            {
+              id: "19571641",
+              platform: "twitch",
+              username: "ninja",
+              displayName: "Ninja",
+              avatarUrl: "https://static-cdn.jtvnw.net/jtv_user_pictures/ninja.png",
+              isLive: false,
+              isVerified: false,
+              isPartner: true,
+              followerCount: 1000,
+            },
+          ],
+        },
+      ],
+    };
+
+    renderWithProviders(<UnifiedSearchInput initialValue="ninja" />);
+    fireEvent.focus(screen.getByRole("textbox"));
+    fireEvent.click(screen.getByText("Ninja"));
+
+    expect(historyMockState.addSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Ninja",
+        avatarUrl: "https://static-cdn.jtvnw.net/jtv_user_pictures/ninja.png",
+        channelId: "19571641",
+        platform: "twitch",
+        username: "ninja",
+      }),
+      "channels"
+    );
   });
 
   it("stores submitted terms in the active tab history", () => {

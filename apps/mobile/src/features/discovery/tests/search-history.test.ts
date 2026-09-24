@@ -91,4 +91,22 @@ describe("search history", () => {
     expect(historyScopeForTab("videos")).toBe("channels");
     expect(historyScopeForTab("all")).toBe("channels");
   });
+
+  it("preserves avatarUrl when a plain-string re-add matches a rich channel entry", () => {
+    let history = addSearchHistory(emptySearchHistory(), "channels", {
+      label: "Arcade",
+      avatarUrl: "https://example.com/a.png",
+      channelId: "1",
+      platform: "twitch",
+      username: "arcade",
+    });
+    history = addSearchHistory(history, "channels", "arcade");
+    expect(history.channels[0]).toEqual({
+      label: "arcade",
+      avatarUrl: "https://example.com/a.png",
+      channelId: "1",
+      platform: "twitch",
+      username: "arcade",
+    });
+  });
 });

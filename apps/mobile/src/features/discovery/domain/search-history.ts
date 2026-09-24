@@ -34,6 +34,27 @@ export function parseSearchHistory(value: unknown): SearchHistoryByScope {
   };
 }
 
+export function mergeSearchHistoryEntry(
+  incoming: SearchHistoryEntry,
+  existing: SearchHistoryEntry | undefined,
+): SearchHistoryEntry {
+  if (!existing) return incoming;
+  const avatarUrl = incoming.avatarUrl?.trim() || existing.avatarUrl?.trim() || "";
+  const channelId = incoming.channelId?.trim() || existing.channelId?.trim() || "";
+  const username =
+    incoming.username?.trim().toLowerCase() ||
+    existing.username?.trim().toLowerCase() ||
+    "";
+  const platform = incoming.platform ?? existing.platform;
+  return {
+    label: incoming.label || existing.label,
+    ...(avatarUrl ? { avatarUrl } : {}),
+    ...(channelId ? { channelId } : {}),
+    ...(username ? { username } : {}),
+    ...(platform ? { platform } : {}),
+  };
+}
+
 export function addSearchHistory(
   history: SearchHistoryByScope,
   scope: SearchHistoryScope,
@@ -41,8 +62,10 @@ export function addSearchHistory(
 ): SearchHistoryByScope {
   const entry = normalizeEntry(input);
   if (entry === null) return history;
+  const existing = history[scope].find((item) => sameHistoryEntry(item, entry));
+  const merged = mergeSearchHistoryEntry(entry, existing);
   const next = [
-    entry,
+    merged,
     ...history[scope].filter((item) => !sameHistoryEntry(item, entry)),
   ].slice(0, SEARCH_HISTORY_LIMIT);
   return { ...history, [scope]: next };

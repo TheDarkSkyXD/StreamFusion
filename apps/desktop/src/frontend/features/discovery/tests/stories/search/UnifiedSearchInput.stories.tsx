@@ -150,9 +150,34 @@ export const RecentSearches: Story = {
     localStorage.setItem(
       "streamfusion_search_history",
       JSON.stringify({
-        channels: ["NovaArcade", "RiftRunner", "MiraMakes"],
-        categories: ["Just Chatting"],
-        streams: ["cozy building"],
+        channels: [
+          {
+            label: "NovaArcade",
+            avatarUrl:
+              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=96&h=96&q=85",
+            channelId: "nova-twitch",
+            platform: "twitch",
+            username: "novaarcade",
+          },
+          {
+            label: "NovaBuilds",
+            avatarUrl:
+              "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=96&h=96&q=85",
+            channelId: "nova-kick",
+            platform: "kick",
+            username: "novabuilds",
+          },
+          {
+            label: "MiraMakes",
+            avatarUrl:
+              "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=96&h=96&q=85",
+            channelId: "mira-twitch",
+            platform: "twitch",
+            username: "miramakes",
+          },
+        ],
+        categories: [{ label: "Just Chatting" }],
+        streams: [{ label: "cozy building" }],
       })
     );
     return <UnifiedSearchInput {...args} />;

@@ -124,4 +124,53 @@ describe("useSearchHistory", () => {
     const { result } = renderHook(() => useSearchHistory());
     expect(result.current.history).toEqual([]);
   });
+
+  it("preserves avatar and identity when a plain-string re-add matches a rich entry", () => {
+    const { result } = renderHook(() => useSearchHistory());
+    act(() =>
+      result.current.addSearch({
+        label: "Ninja",
+        avatarUrl: "https://example.com/ninja.png",
+        channelId: "123",
+        platform: "twitch",
+        username: "ninja",
+      })
+    );
+    act(() => result.current.addSearch("ninja"));
+    expect(result.current.history).toEqual([
+      {
+        label: "ninja",
+        avatarUrl: "https://example.com/ninja.png",
+        channelId: "123",
+        platform: "twitch",
+        username: "ninja",
+      },
+    ]);
+  });
+
+  it("loads rich channel entries with avatarUrl from localStorage", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        channels: [
+          {
+            label: "Ninja",
+            avatarUrl: "https://static-cdn.jtvnw.net/jtv_user_pictures/ninja.png",
+            channelId: "19571641",
+            platform: "twitch",
+            username: "ninja",
+          },
+        ],
+        categories: [],
+        streams: [],
+      })
+    );
+    const { result } = renderHook(() => useSearchHistory());
+    expect(result.current.history[0]).toMatchObject({
+      label: "Ninja",
+      avatarUrl: "https://static-cdn.jtvnw.net/jtv_user_pictures/ninja.png",
+      platform: "twitch",
+      username: "ninja",
+    });
+  });
 });

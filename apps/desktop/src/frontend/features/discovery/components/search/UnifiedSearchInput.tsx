@@ -18,6 +18,7 @@ import {
   type SearchHistoryScope,
   useSearchHistory,
 } from "@/features/discovery/components/hooks/useSearchHistory";
+import { getPersistedChannelMetadata } from "@/features/discovery/data/queries/persisted-channel-lru";
 import { cn, formatCompactNumber, normalizeCategoryName, pickWinner } from "@/lib/utils";
 import { isExactChannelSearchMatch, rankSearchChannels } from "@streamfusion/core/discovery";
 import { preloadSearchPage } from "@/features/discovery/routes/search-page";
@@ -99,6 +100,31 @@ function formatFollowerCount(count: number | undefined, t: TFunction): string | 
   return t(count === 1 ? "discovery.search.followers_one" : "discovery.search.followers_other", {
     formattedCount: formatCompactNumber(count),
   });
+}
+
+function historyEntryFromChannel(channel: UnifiedChannel): SearchHistoryEntry {
+  return {
+    label: channel.displayName,
+    ...(channel.avatarUrl ? { avatarUrl: channel.avatarUrl } : {}),
+    channelId: channel.id,
+    platform: channel.platform === "kick" ? "kick" : "twitch",
+    username: channel.username,
+  };
+}
+
+/** Resolve a display avatar for history rows (stored URL, else channel LRU). */
+function resolveHistoryAvatarUrl(entry: SearchHistoryEntry): string | undefined {
+  const stored = entry.avatarUrl?.trim();
+  if (stored) return stored;
+  const username = (entry.username ?? entry.label).trim();
+  if (!username) return undefined;
+  const platforms = entry.platform ? [entry.platform] : ["twitch", "kick"];
+  for (const platform of platforms) {
+    const cached = getPersistedChannelMetadata(username, platform);
+    const url = cached?.avatarUrl?.trim();
+    if (url) return url;
+  }
+  return undefined;
 }
 
 // Helper to render category items. Extracted so each call can invoke
@@ -581,7 +607,17 @@ export function UnifiedSearchInput({
 
   const executeSearch = (term: string) => {
     if (!term.trim()) return;
-    addSearch(term, activeTab);
+    const exactChannel =
+      activeTab === "channels" || activeTab === "streams"
+        ? [...filteredTopMatches, ...filteredOtherMatches].find((channel) =>
+            isExactChannelSearchMatch(channel, term)
+          )
+        : undefined;
+    if (exactChannel) {
+      addSearch(historyEntryFromChannel(exactChannel), activeTab);
+    } else {
+      addSearch(term, activeTab);
+    }
     if (onSearch) {
       onSearch(term);
     }
@@ -603,13 +639,7 @@ export function UnifiedSearchInput({
 
   const handleChannelClick = (channel: UnifiedChannel, e?: React.MouseEvent) => {
     addSearch(
-      {
-        label: channel.displayName,
-        avatarUrl: channel.avatarUrl || undefined,
-        channelId: channel.id,
-        platform: channel.platform === "kick" ? "kick" : "twitch",
-        username: channel.username,
-      },
+      historyEntryFromChannel(channel),
       activeTab === "streams" ? "streams" : "channels"
     );
     setIsFocused(false);
@@ -806,7 +836,14 @@ export function UnifiedSearchInput({
           {/* SEARCH HISTORY */}
           {showHistory && (
             <div className="py-2">
-              {filteredHistory.map((entry) => (
+                            {filteredHistory.map((entry) => {
+                const avatarUrl = resolveHistoryAvatarUrl(entry);
+                const avatarFallback = (
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-background-tertiary)] text-sm font-bold text-white">
+                    {entry.label.slice(0, 1).toUpperCase()}
+                  </span>
+                );
+                return (
                 <div
                   key={`${entry.platform ?? "any"}:${entry.channelId ?? entry.label}`}
                   className="group flex h-14 items-center justify-between gap-1 px-2 py-2 transition-colors hover:bg-[var(--color-background-secondary)] lg:px-4"
@@ -816,16 +853,15 @@ export function UnifiedSearchInput({
                     onClick={() => handleHistoryClick(entry)}
                     className="flex h-full min-w-0 flex-1 items-center gap-3 rounded px-2 text-left text-white/70 transition-colors group-hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                   >
-                    {entry.avatarUrl ? (
+                    {avatarUrl ? (
                       <ProxiedImage
-                        src={entry.avatarUrl}
+                        src={avatarUrl}
                         alt=""
                         className="size-8 shrink-0 rounded-full object-cover"
+                        fallback={avatarFallback}
                       />
                     ) : (
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-background-tertiary)] text-sm font-bold text-white">
-                        {entry.label.slice(0, 1).toUpperCase()}
-                      </span>
+                      avatarFallback
                     )}
                     <span className="truncate text-base font-semibold text-white group-hover:text-white">
                       {entry.label}
@@ -841,7 +877,8 @@ export function UnifiedSearchInput({
                     <LuX size={20} strokeWidth={2.5} />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
