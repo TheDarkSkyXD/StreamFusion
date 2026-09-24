@@ -1,11 +1,13 @@
-﻿node_modules/
+node_modules/
 .expo/
 android/
+android.__eas_skip__/
 pc-smoke-evidence/
 dist/
+coverage/
 *.apk
 *.aab
 *.jks
 *.keystore
 *.log
-coverage/
+.git/
