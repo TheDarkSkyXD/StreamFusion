@@ -2,7 +2,7 @@
   "name": "streamfusion",
   "private": true,
   "productName": "StreamFusion",
-  "version": "1.0.0-beta.1",
+  "version": "2.0.0",
   "description": "A unified desktop app for viewing Twitch and Kick streams",
   "author": "StreamFusion",
   "repository": {

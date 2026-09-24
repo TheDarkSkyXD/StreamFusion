@@ -27,7 +27,7 @@ test("the development client is Android-only and distinct from production", () =
     appManifest.expo.android.package,
     "com.thedarkskyxd.streamfusion",
   );
-  assert.equal(appManifest.expo.android.versionCode, 1);
+  assert.equal(appManifest.expo.android.versionCode, 2);
   assert.equal(existsSync("ios"), false);
 });
 
@@ -50,6 +50,10 @@ test("the Android build supports API 30 and custom development clients", () => {
   assert.equal(easManifest.build.development.distribution, "internal");
   assert.equal(easManifest.build.development.android.buildType, "apk");
   assert.equal(easManifest.build.development.autoIncrement, false);
+  assert.equal(easManifest.build.alpha.developmentClient, false);
+  assert.equal(easManifest.build.alpha.distribution, "internal");
+  assert.equal(easManifest.build.alpha.android.buildType, "apk");
+  assert.equal(easManifest.build.alpha.autoIncrement, false);
 });
 
 test("the Android build enables SQLCipher and excludes all app data from backup", () => {

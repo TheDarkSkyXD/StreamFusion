@@ -10,6 +10,14 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "alpha": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "autoIncrement": false,
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }

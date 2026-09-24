@@ -2,7 +2,7 @@
 
 Production releases are created only by `.github/workflows/release.yml`. The workflow accepts a pushed `v*` tag or an existing tag selected through **Run workflow**. It rejects any tag that is not exactly `v` plus the version in `apps/desktop/package.json`.
 
-The current application version is `1.0.0-beta.1`, so its matching release tag is `v1.0.0-beta.1`. Supported prerelease suffixes are `alpha.N`, `beta.N`, and `rc.N`. A stable release uses only `X.Y.Z`.
+The current application version is `2.0.0`, so its matching release tag is `v2.0.0`. Supported prerelease suffixes are `alpha.N`, `beta.N`, and `rc.N`. A stable release uses only `X.Y.Z`.
 
 ## GitHub setup
 
