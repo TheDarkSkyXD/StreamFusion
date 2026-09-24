@@ -161,18 +161,17 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     twitchFollowsQuery.isLoading ||
     kickFollowsQuery.isLoading ||
     followedStreamsQuery.isLoading;
-  const failedMembershipQueries = [twitchFollowsQuery, kickFollowsQuery].filter(
-    (query) => query.isError
-  );
-  const streamStatusFailed = followedStreamsQuery.isError;
+  // True empty (successful load, zero membership) must never show connection-error copy.
+  // Membership fetch errors only count when that platform is connected; stream-status
+  // errors only count when we actually have channels to refresh live status for.
   const hasFollowMembership =
     localFollows.length > 0 ||
     (twitchFollows?.length ?? 0) > 0 ||
     (kickFollows?.length ?? 0) > 0;
-  // Stream-status failures with zero membership are empty success, not connection errors.
   const failedQueries = [
-    ...failedMembershipQueries,
-    ...(streamStatusFailed && hasFollowMembership ? [followedStreamsQuery] : []),
+    ...(twitchConnected && twitchFollowsQuery.isError ? [twitchFollowsQuery] : []),
+    ...(kickConnected && kickFollowsQuery.isError ? [kickFollowsQuery] : []),
+    ...(followedStreamsQuery.isError && hasFollowMembership ? [followedStreamsQuery] : []),
   ];
   const hasLoadError = failedQueries.length > 0;
   const retryFailedQueries = (): void => {

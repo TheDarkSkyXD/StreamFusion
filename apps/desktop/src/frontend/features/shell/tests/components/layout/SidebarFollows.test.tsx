@@ -574,7 +574,32 @@ describe("SidebarFollows", () => {
     expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
   });
 
-    it("stream error with no membership: shows empty invitation, not connection failure", () => {
+    it("disconnected membership error with zero follows: shows empty invitation, not connection failure", () => {
+    storeState.twitchConnected = false;
+    storeState.kickConnected = false;
+    useFollowedChannelsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("stale cache"),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("stale cache"),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+    expect(screen.getByTestId("sidebar-follows-empty")).toBeInTheDocument();
+    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar-follows-load-error")).not.toBeInTheDocument();
+    expect(screen.queryByText(/couldn't load follows/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/check your connection and try again/i)).not.toBeInTheDocument();
+  });
+
+  it("stream error with no membership: shows empty invitation, not connection failure", () => {
     useFollowedChannelsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
       typeof useFollowedChannels
     >);
