@@ -20,6 +20,12 @@ export {
   resolveAccountAgeRequirement,
   resolveChatSendEligibility,
 } from "./chat-send-policy.ts";
+export {
+  TWITCH_MODERATOR_BADGE_SET_IDS,
+  badgesIncludeTwitchModerator,
+  isTwitchModeratorBadge,
+} from "./twitch-moderator-badge.ts";
+export type { TwitchModeratorBadgeSetId } from "./twitch-moderator-badge.ts";
 export type {
   ChatSendEligibility,
   ViewerRequirementState,

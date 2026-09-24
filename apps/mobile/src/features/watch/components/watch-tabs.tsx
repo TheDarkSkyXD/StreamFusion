@@ -201,14 +201,28 @@ function ChatPane({
         testID={`${testID}-scroll`}
       >
         {chat.messages.map((message) => (
-          <Text
+          <View
             key={message.id}
-            selectable
-            style={mobileType.body}
+            style={styles.messageRow}
             testID={`watch-chat-message-${message.id}`}
           >
-            {`${message.displayName}: ${message.text}`}
-          </Text>
+            {message.badges.map((badge) =>
+              badge.imageUrl ? (
+                <Image
+                  key={`${badge.setId}-${badge.version}`}
+                  accessibilityIgnoresInvertColors
+                  accessibilityLabel={badge.title}
+                  source={{ uri: badge.imageUrl }}
+                  style={styles.chatBadge}
+                  testID={`watch-chat-badge-${message.id}-${badge.setId}`}
+                />
+              ) : null,
+            )}
+            <Text selectable style={[mobileType.body, styles.messageText]}>
+              <Text style={styles.messageName}>{message.displayName}</Text>
+              {`: ${message.text}`}
+            </Text>
+          </View>
         ))}
       </ScrollView>
     </View>
@@ -425,6 +439,23 @@ const styles = StyleSheet.create({
   messageList: {
     gap: mobileSpacing.small,
     paddingBottom: mobileSpacing.medium,
+  },
+  messageRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  chatBadge: {
+    height: 16,
+    marginTop: 2,
+    width: 16,
+  },
+  messageText: {
+    flexShrink: 1,
+  },
+  messageName: {
+    fontWeight: "700",
   },
   switchRow: {
     ...mobilePressRing.rest,

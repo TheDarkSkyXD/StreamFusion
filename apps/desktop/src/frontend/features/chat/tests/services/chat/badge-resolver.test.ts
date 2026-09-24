@@ -642,3 +642,61 @@ describe("BadgeResolver.resolveBadges", () => {
     ).toBe("https://static-cdn.jtvnw.net/badges/v1/helix-sub/3");
   });
 });
+
+// Guards: lead_moderator resolves like other global sets and counts as moderator.
+describe("BadgeResolver lead_moderator", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("resolves lead_moderator from the global catalog and treats it as moderator", async () => {
+    const resolver = new BadgeResolver();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = typeof init?.body === "string" ? init.body : "";
+        if (body.includes("operationName") || body.includes('"Badges"') || body.includes("Badges")) {
+          return {
+            ok: true,
+            json: async () => ({
+              data: {
+                badges: [
+                  {
+                    setID: "lead_moderator",
+                    version: "1",
+                    imageURL: "https://static-cdn.jtvnw.net/badges/v1/lead-mod/3",
+                    title: "Lead Moderator",
+                  },
+                  {
+                    setID: "moderator",
+                    version: "1",
+                    imageURL: "https://static-cdn.jtvnw.net/badges/v1/mod/3",
+                    title: "Moderator",
+                  },
+                ],
+              },
+            }),
+          };
+        }
+        return { ok: false, status: 404, json: async () => ({}) };
+      })
+    );
+
+    await expect(resolver.loadGlobalBadges()).resolves.toBe(true);
+    const resolved = resolver.resolveBadges([
+      { setId: "lead_moderator", version: "1", imageUrl: "", title: "" },
+    ]);
+    expect(resolved[0]).toMatchObject({
+      setId: "lead_moderator",
+      version: "1",
+      imageUrl: "https://static-cdn.jtvnw.net/badges/v1/lead-mod/3",
+      title: "Lead Moderator",
+    });
+    expect(resolver.isModerator(resolved)).toBe(true);
+    expect(
+      resolver.isModerator([
+        { setId: "lead_moderator", version: "1", imageUrl: "", title: "" },
+      ])
+    ).toBe(true);
+  });
+});

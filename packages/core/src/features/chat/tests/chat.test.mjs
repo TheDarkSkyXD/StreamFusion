@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   CHAT_DISABLED_REASON,
   CHAT_RECONNECTING_REASON,
+  badgesIncludeTwitchModerator,
   chatEventSchema,
   chatMessageSchema,
+  isTwitchModeratorBadge,
   resolveAccountAgeRequirement,
   resolveChatSendEligibility,
   toSerializedTimestamp,
@@ -250,5 +252,19 @@ test("account-age eligibility is exact and fail-closed only when evidence proves
       nowMs,
     }),
     "unknown",
+  );
+});
+
+
+test("lead_moderator badge counts as Twitch moderator status", () => {
+  assert.equal(isTwitchModeratorBadge("lead_moderator"), true);
+  assert.equal(isTwitchModeratorBadge("Lead_Moderator"), true);
+  assert.equal(isTwitchModeratorBadge("moderator"), true);
+  assert.equal(isTwitchModeratorBadge("vip"), false);
+  assert.equal(
+    badgesIncludeTwitchModerator([
+      { setId: "lead_moderator", version: "1", imageUrl: "", title: "" },
+    ]),
+    true,
   );
 });

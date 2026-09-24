@@ -48,7 +48,7 @@ describe("watch chat session", () => {
     });
     expect(session.snapshot()).toMatchObject({
       kind: "live",
-      messages: [{ displayName: "Ada", id: "m1", text: "hello" }],
+      messages: [{ badges: [], displayName: "Ada", id: "m1", text: "hello" }],
     });
   });
 
@@ -109,7 +109,7 @@ describe("watch chat session", () => {
     });
     expect(kickSession.snapshot()).toMatchObject({
       kind: "live",
-      messages: [{ displayName: "Ada", id: "k1", text: "yo" }],
+      messages: [{ badges: [], displayName: "Ada", id: "k1", text: "yo" }],
     });
   });
 

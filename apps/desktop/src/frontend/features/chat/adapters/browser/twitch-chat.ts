@@ -22,7 +22,11 @@ import type {
   ModeratorStateEvent,
   UserNotice,
 } from "@shared/chat-types";
-import { ChatBadge, ContentFragment } from "@streamfusion/core/chat";
+import {
+  ChatBadge,
+  ContentFragment,
+  isTwitchModeratorBadge,
+} from "@streamfusion/core/chat";
 import { badgeResolver } from "@shared/../frontend/features/chat/adapters/browser/badge-resolver";
 import {
   getDefaultColor,
@@ -903,9 +907,18 @@ export class TwitchChatService
     if (!this.client || !this.user) return;
     const client = this.client as tmi.Client & {
       isMod?: (channel: string, username: string) => boolean;
+      userstate?: Record<string, Record<string, unknown> | undefined>;
     };
-    const isModerator = client.isMod?.(channel, this.user.login) ?? false;
-    this.setOwnModeratorState(channel, isModerator, { emitUnchanged: true });
+    const tmiIsMod = client.isMod?.(channel, this.user.login) ?? false;
+    const tmiChannelKey = channel.startsWith("#") ? channel : `#${channel}`;
+    const badges = client.userstate?.[tmiChannelKey]?.badges as
+      | Record<string, string>
+      | undefined;
+    const badgeSaysMod = Boolean(
+      badges &&
+        Object.keys(badges).some((setId) => isTwitchModeratorBadge(setId))
+    );
+    this.setOwnModeratorState(channel, tmiIsMod || badgeSaysMod, { emitUnchanged: true });
   }
 
   private setOwnModeratorState(
@@ -936,9 +949,14 @@ export class TwitchChatService
     badgesTag: Record<string, string> | undefined
   ): Record<string, string> | undefined {
     const isModerator = this.isModerator.get(this.normalizeChannel(channel)) ?? false;
+    const hasLeadModerator = Boolean(badgesTag?.lead_moderator);
+    // Prefer the lead_moderator set when Twitch already sent it — it replaces
+    // the regular moderator badge for users who opted into the lead badge.
     if (isModerator) {
+      if (hasLeadModerator) return { ...(badgesTag ?? {}) };
       return { ...(badgesTag ?? {}), moderator: "1" };
     }
+    if (hasLeadModerator) return badgesTag;
     if (!badgesTag?.moderator) return badgesTag;
     const next = { ...badgesTag };
     delete next.moderator;

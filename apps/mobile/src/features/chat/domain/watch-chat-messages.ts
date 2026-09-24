@@ -1,6 +1,17 @@
-import type { WatchChatMessage } from "../capabilities/watch-chat";
+import type { WatchChatBadge, WatchChatMessage } from "../capabilities/watch-chat";
+import { resolveTwitchBadges } from "./twitch-global-badge-catalog";
 
 const MAX_MESSAGES = 100;
+
+/** Role / status badge sets we always surface when present on IRC tags. */
+const PRIORITY_BADGE_SET_IDS = new Set([
+  "broadcaster",
+  "moderator",
+  "lead_moderator",
+  "vip",
+  "subscriber",
+  "founder",
+]);
 
 export function appendWatchChatMessage(
   messages: readonly WatchChatMessage[],
@@ -20,7 +31,9 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
     tagValue(trimmed, "display-name") ||
     /:([a-zA-Z0-9_]+)!/.exec(trimmed)?.[1] ||
     "chat";
-  return { displayName, id, text };
+  const badgeRefs = parseIrcBadgesTag(tagValue(trimmed, "badges"));
+  const badges = resolveTwitchBadges(badgeRefs);
+  return { badges, displayName, id, text };
 }
 
 export function parseKickChatFrame(
@@ -44,10 +57,35 @@ export function parseKickChatFrame(
     (typeof sender.username === "string" && sender.username) ||
     (typeof sender.slug === "string" && sender.slug) ||
     "chat";
-  return { displayName, id, text };
+  return { badges: [], displayName, id, text };
+}
+
+export function parseIrcBadgesTag(raw: string): readonly {
+  readonly setId: string;
+  readonly version: string;
+}[] {
+  if (!raw) return [];
+  const badges: Array<{ setId: string; version: string }> = [];
+  for (const part of raw.split(",")) {
+    if (!part) continue;
+    const slash = part.indexOf("/");
+    if (slash <= 0) continue;
+    const setId = part.slice(0, slash);
+    const version = part.slice(slash + 1);
+    if (!setId || !version) continue;
+    badges.push({ setId, version });
+  }
+  // Prefer role badges first so compact rows still show lead_moderator/mod.
+  return badges.sort((left, right) => {
+    const leftPriority = PRIORITY_BADGE_SET_IDS.has(left.setId) ? 0 : 1;
+    const rightPriority = PRIORITY_BADGE_SET_IDS.has(right.setId) ? 0 : 1;
+    return leftPriority - rightPriority;
+  });
 }
 
 function tagValue(line: string, key: string): string {
   const match = new RegExp(`(?:^@|;)${key}=([^; ]*)`).exec(line);
   return match?.[1] ?? "";
 }
+
+export type { WatchChatBadge };

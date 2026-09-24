@@ -53,6 +53,13 @@ describe("parseBadgeTags", () => {
 });
 
 // Guards: Twitch tag parsing preserves distinct highlight kinds for first-time chat, paid highlighted messages, and bits cheers
+
+  it("parses lead_moderator badge tags", () => {
+    const badges = parseBadgeTags({ lead_moderator: "1", subscriber: "3" });
+    expect(badges.map((b) => b.setId)).toEqual(["lead_moderator", "subscriber"]);
+    expect(badges[0]).toMatchObject({ setId: "lead_moderator", version: "1" });
+  });
+
 describe("parseTwitchMessage", () => {
   function makeTags(overrides: Partial<TwitchTags> = {}): TwitchTags {
     return {

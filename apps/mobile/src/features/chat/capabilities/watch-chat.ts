@@ -1,9 +1,17 @@
 import type { Platform } from "@streamfusion/core/platform";
 
+export type WatchChatBadge = {
+  readonly setId: string;
+  readonly version: string;
+  readonly imageUrl: string;
+  readonly title: string;
+};
+
 export type WatchChatMessage = {
   readonly displayName: string;
   readonly id: string;
   readonly text: string;
+  readonly badges: readonly WatchChatBadge[];
 };
 
 export type WatchChatAvailability =

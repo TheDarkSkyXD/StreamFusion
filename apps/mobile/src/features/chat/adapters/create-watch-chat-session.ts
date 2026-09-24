@@ -6,6 +6,10 @@ import type {
   WatchChatSocketFactory,
 } from "../capabilities/watch-chat";
 import { appendWatchChatMessage } from "../domain/watch-chat-messages";
+import {
+  ensureTwitchGlobalBadgeCatalog,
+  resolveTwitchBadges,
+} from "../domain/twitch-global-badge-catalog";
 import { connectKickGuestChat } from "./kick-guest-pusher";
 import { connectTwitchGuestIrc } from "./twitch-guest-irc";
 
@@ -64,7 +68,19 @@ export function createWatchChatSession(input: {
     };
     const onMessage = (message: WatchChatMessage) => {
       if (current !== generation) return;
-      messages = appendWatchChatMessage(messages, message);
+      const resolved =
+        message.badges.length === 0
+          ? message
+          : {
+              ...message,
+              badges: resolveTwitchBadges(
+                message.badges.map((badge) => ({
+                  setId: badge.setId,
+                  version: badge.version,
+                })),
+              ),
+            };
+      messages = appendWatchChatMessage(messages, resolved);
       setSnapshot({
         detail: "Guest chat is live. Sending stays locked.",
         kind: "live",
@@ -76,6 +92,7 @@ export function createWatchChatSession(input: {
       setSnapshot({ detail, kind: "failed", retry: "manual" });
     };
     if (target.platform === "twitch") {
+      void ensureTwitchGlobalBadgeCatalog(input.fetch).catch(() => undefined);
       disposeConnection = connectTwitchGuestIrc({
         onClose: () => undefined,
         onError,

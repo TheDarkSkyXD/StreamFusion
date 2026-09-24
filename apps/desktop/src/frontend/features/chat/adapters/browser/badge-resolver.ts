@@ -17,7 +17,7 @@ import type {
   TwitchBadgeCatalogSource,
 } from "@shared/chat-types";
 import { isValidTwitchBadgeImageUrl } from "@shared/twitch-badge-catalog";
-import { ChatBadge } from "@streamfusion/core/chat";
+import { ChatBadge, badgesIncludeTwitchModerator } from "@streamfusion/core/chat";
 
 // ========== Types ==========
 
@@ -338,7 +338,7 @@ export class BadgeResolver {
    * Check if a user is a moderator based on badges
    */
   isModerator(badges: ChatBadge[]): boolean {
-    return this.hasBadge(badges, "moderator") || this.hasBadge(badges, "broadcaster");
+    return badgesIncludeTwitchModerator(badges) || this.hasBadge(badges, "broadcaster");
   }
 
   /**

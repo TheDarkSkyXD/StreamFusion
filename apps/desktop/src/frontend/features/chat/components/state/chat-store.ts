@@ -9,7 +9,7 @@ import type {
   ChatMessage,
   ChatUserPresentation,
 } from "../../../../../shared/chat-types";
-import { ChatBadge } from "@streamfusion/core/chat";
+import { ChatBadge, isTwitchModeratorBadge } from "@streamfusion/core/chat";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from "../../../auth/components/state/auth-store";
 
@@ -145,7 +145,10 @@ const USER_AUTHORED_CHAT_MESSAGE_TYPES = new Set<ChatMessage["type"]>([
 
 function inferKnownUserRole(badges: ChatBadge[]): ChatKnownUserRole {
   const badgeIds = new Set(badges.map((badge) => badge.setId.toLowerCase()));
-  return CHATTER_ROLE_PRIORITY.find((role) => badgeIds.has(role)) ?? "viewer";
+  if (badgeIds.has("broadcaster")) return "broadcaster";
+  if ([...badgeIds].some((id) => isTwitchModeratorBadge(id))) return "moderator";
+  if (badgeIds.has("subscriber") || badgeIds.has("founder")) return "subscriber";
+  return "viewer";
 }
 
 function messageToKnownUser(message: ChatMessage): ChatKnownUser | null {

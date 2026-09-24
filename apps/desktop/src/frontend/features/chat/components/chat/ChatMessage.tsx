@@ -15,7 +15,11 @@ import type {
   ChatCosmeticBadge,
   ChatMessage as ChatMessageType,
 } from "../../../../../shared/chat-types";
-import { ChatHighlightKind, ContentFragment } from "@streamfusion/core/chat";
+import {
+  ChatHighlightKind,
+  ContentFragment,
+  isTwitchModeratorBadge,
+} from "@streamfusion/core/chat";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from "../../../auth/components/state/auth-store";
 import { useChatCosmeticsStore } from "../state/chat-cosmetics-store";
@@ -81,6 +85,7 @@ interface ChatMessageProps {
 const PROTECTED_BADGE_SET_IDS = new Set([
   "broadcaster",
   "moderator",
+  "lead_moderator",
   "staff",
   "admin",
   "global_mod",
@@ -517,14 +522,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       if (message.platform !== "twitch" || !cd.enableFfzBadges) return official;
       return official.map((badge) => {
         const assignedReplacement = assignedCosmeticBadges.find(
-          (cosmetic) => cosmetic.provider === "ffz" && cosmetic.replaces === badge.setId
+          (cosmetic) =>
+            cosmetic.provider === "ffz" &&
+            (cosmetic.replaces === badge.setId ||
+              (cosmetic.replaces === "moderator" && isTwitchModeratorBadge(badge.setId)))
         );
-        const roomReplacement =
-          badge.setId === "moderator"
-            ? ffzRoleBadges?.moderator
-            : badge.setId === "vip"
-              ? ffzRoleBadges?.vip
-              : undefined;
+        const roomReplacement = isTwitchModeratorBadge(badge.setId)
+          ? ffzRoleBadges?.moderator
+          : badge.setId === "vip"
+            ? ffzRoleBadges?.vip
+            : undefined;
         const replacement = assignedReplacement ?? roomReplacement;
         return replacement
           ? { ...badge, imageUrl: replacement.imageUrl, backgroundColor: replacement.color }
@@ -548,7 +555,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
         })
         .filter(
           (badge) =>
-            !badge.replaces || !message.badges.some((official) => official.setId === badge.replaces)
+            !badge.replaces ||
+            !message.badges.some(
+              (official) =>
+                official.setId === badge.replaces ||
+                (badge.replaces === "moderator" && isTwitchModeratorBadge(official.setId))
+            )
         )
         .sort((left, right) => {
           if (left.provider === "ffz" && right.provider === "ffz") {
@@ -822,7 +834,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
         message.type === "message" &&
         cd.firstMsgHighlight);
     const showModeratorHighlight =
-      message.type === "message" && displayBadges.some((badge) => badge.setId === "moderator");
+      message.type === "message" &&
+      displayBadges.some((badge) => isTwitchModeratorBadge(badge.setId));
     const framedEventHighlightKind: Exclude<ChatHighlightKind, "first-time-chat"> | undefined =
       eventHighlightKind && eventHighlightKind !== "first-time-chat"
         ? eventHighlightKind

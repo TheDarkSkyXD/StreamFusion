@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { BsChevronDown, BsPeople, BsSearch, BsShieldFill, BsX } from "react-icons/bs";
 
 import type { ChatKnownUser, ChatKnownUserRole } from "../../../../../shared/chat-types";
+import { isTwitchModeratorBadge } from "@streamfusion/core/chat";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
 import { resolveChatUsernameColor } from "../presentation/chat-visuals";
 import { useAuthStore } from "../../../auth/components/state/auth-store";
@@ -155,8 +156,8 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
   const moderatorBadge = useMemo(() => {
     for (const chatter of Object.values(chatters)) {
       if (groupIdForRole(chatter.role ?? "viewer") !== "moderators") continue;
-      const badge = (chatter.badges ?? []).find(
-        (candidate) => candidate.setId.toLowerCase() === "moderator"
+      const badge = (chatter.badges ?? []).find((candidate) =>
+        isTwitchModeratorBadge(candidate.setId)
       );
       if (badge) return badge;
     }
