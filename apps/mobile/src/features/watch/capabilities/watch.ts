@@ -212,6 +212,7 @@ export type NativePlaybackEvent =
       readonly sessionId: string;
     }
   | {
+      readonly adsDetected?: boolean;
       readonly diagnostic: string;
       readonly kind: "filtering";
       readonly sessionId: string;
@@ -401,6 +402,7 @@ export type WatchStartResult =
 export type WatchPeek =
   | { readonly kind: "idle" }
   | {
+      readonly adsDetected: boolean;
       readonly kind: "active";
       readonly muted: boolean;
       readonly presentation: PlayerPresentationState;

@@ -41,6 +41,7 @@ export function createGuestWatchScreen(input: {
   const playlistProxy = input.playlistProxy;
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
+    ...(playlistProxy === undefined ? {} : { playlistProxy }),
     chat: createWatchChatSession({ fetch: input.fetch }),
     history: input.history,
     openProviderPage: createExpoWatchProviderFallback(),

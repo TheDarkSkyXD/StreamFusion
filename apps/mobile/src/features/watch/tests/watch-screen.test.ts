@@ -199,7 +199,8 @@ describe("watch screen", () => {
       onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
-        kind: "active",
+        adsDetected: false,
+          kind: "active",
         muted: false,
         presentation: {
           pip: "unavailable",
@@ -273,7 +274,8 @@ describe("watch screen", () => {
       onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
-        kind: "active",
+        adsDetected: false,
+          kind: "active",
         muted: false,
         presentation: {
           pip: "active",
@@ -340,6 +342,7 @@ describe("watch screen", () => {
         onToggleControls: () => undefined,
         onToggleFullscreen: () => undefined,
         peek: {
+          adsDetected: false,
           kind: "active",
           muted: false,
           presentation: {
@@ -604,7 +607,8 @@ describe("watch screen", () => {
       onToggleControls: () => undefined,
       onToggleFullscreen: () => undefined,
       peek: {
-        kind: "active",
+        adsDetected: false,
+          kind: "active",
         muted: false,
         presentation: {
           pip: "unavailable",

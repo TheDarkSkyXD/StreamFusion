@@ -41,7 +41,7 @@ const RAIL_HIT = 44;
  * for now. Mute toggles audio; quality opens a compact sheet.
  */
 export function PlayerControls({
-  adblockActive = false,
+  adBlockStatus = null,
   chrome,
   fullscreen,
   muted,
@@ -69,7 +69,10 @@ export function PlayerControls({
   seekable,
   visible = true,
 }: {
-  readonly adblockActive?: boolean;
+  readonly adBlockStatus?: {
+    readonly isActive: boolean;
+    readonly isShowingAd: boolean;
+  } | null;
   readonly chrome?: {
     readonly showFullscreen: boolean;
     readonly showQuality: boolean;
@@ -207,16 +210,29 @@ export function PlayerControls({
                       />
                     </View>
                   ) : null}
-                  {adblockActive ? (
+                  {adBlockStatus?.isActive ? (
                     <View
-                      accessibilityLabel="Ad filtering active"
+                      accessibilityLabel={
+                        adBlockStatus.isShowingAd
+                          ? t("playback.blockingAds")
+                          : t("playback.adBlockActive")
+                      }
+                      accessibilityHint={
+                        adBlockStatus.isShowingAd
+                          ? t("playback.blockingAds2")
+                          : t("playback.adBlockActive2")
+                      }
                       accessibilityRole="image"
                       style={styles.adblockShield}
                       testID="player-adblock-shield"
                     >
                       <ShieldCheck
                         accessibilityElementsHidden
-                        color="#4ade80"
+                        color={
+                          adBlockStatus.isShowingAd
+                            ? "#22c55e"
+                            : "rgba(255,255,255,0.7)"
+                        }
                         size={RAIL_ICON}
                         strokeWidth={2.25}
                       />

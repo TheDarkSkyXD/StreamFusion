@@ -80,6 +80,7 @@ const target: WatchTarget = {
 };
 
 const peek: Extract<WatchPeek, { kind: "active" }> = {
+  adsDetected: false,
   kind: "active",
   muted: false,
   presentation: {

@@ -118,6 +118,7 @@ export type NativePlaybackEvent =
       readonly sessionId: string;
     }
   | {
+      readonly adsDetected?: boolean;
       readonly diagnostic: string;
       readonly kind: "filtering";
       readonly sessionId: string;

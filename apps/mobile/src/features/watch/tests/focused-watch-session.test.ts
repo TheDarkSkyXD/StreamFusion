@@ -416,7 +416,41 @@ describe("focused watch session", () => {
     });
   });
 
-  it("marks Picture-in-Picture unavailable without ending the session", async () => {
+  it("tracks playlist-filter adsDetected for the player adblock shield", async () => {
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const playback = playbackPort({
+      subscribe: (listener) => {
+        emit = listener;
+        return () => {
+          emit = undefined;
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    expect(session.peek()).toMatchObject({ adsDetected: false, kind: "active" });
+    emit?.({
+      diagnostic: "Ads detected; held without media (desktop unsafe-hold, no backup).",
+      kind: "filtering",
+      sessionId: "watch:1",
+    });
+    expect(session.peek()).toMatchObject({ adsDetected: true, kind: "active" });
+    emit?.({
+      adsDetected: false,
+      diagnostic: "No Twitch ad markers in this playlist.",
+      kind: "filtering",
+      sessionId: "watch:1",
+    });
+    expect(session.peek()).toMatchObject({ adsDetected: false, kind: "active" });
+  });
+
+    it("marks Picture-in-Picture unavailable without ending the session", async () => {
     const playback = playbackPort();
     const session = createFocusedWatchSession({
       playback,

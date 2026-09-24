@@ -225,8 +225,24 @@ describe("player controls chrome", () => {
 
 
   it("shows an adblock shield on the rail when filtering is active", () => {
-    const nodes = descendants(PlayerControls({ ...base, adblockActive: true }));
-    expect(findByTestId(nodes, "player-adblock-shield")).toBeTruthy();
+    const active = descendants(
+      PlayerControls({
+        ...base,
+        adBlockStatus: { isActive: true, isShowingAd: false },
+      }),
+    );
+    const blocking = descendants(
+      PlayerControls({
+        ...base,
+        adBlockStatus: { isActive: true, isShowingAd: true },
+      }),
+    );
+    const shield = findByTestId(active, "player-adblock-shield");
+    expect(shield).toBeTruthy();
+    expect(shield?.props.accessibilityLabel).toBe("Ad-block active");
+    expect(findByTestId(blocking, "player-adblock-shield")?.props.accessibilityLabel).toBe(
+      "Blocking ads",
+    );
     expect(
       findByTestId(descendants(PlayerControls(base)), "player-adblock-shield"),
     ).toBeUndefined();

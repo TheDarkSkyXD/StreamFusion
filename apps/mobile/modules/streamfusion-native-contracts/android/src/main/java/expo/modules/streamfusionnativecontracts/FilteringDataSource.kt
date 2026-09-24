@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets
 class FilteringDataSource(
   private val upstream: DataSource,
   private val mode: String,
-  private val onDiagnostic: (String) -> Unit,
+  private val onDiagnostic: (String, Boolean) -> Unit,
 ) : DataSource {
   private var delegate: DataSource = upstream
   private var openedUpstream = false
@@ -73,16 +73,16 @@ class FilteringDataSource(
     val text = String(original, StandardCharsets.UTF_8)
     return try {
       val rewritten = PlaybackPlaylistFilter.rewrite(text, mode)
-      onDiagnostic(rewritten.diagnostic)
+      onDiagnostic(rewritten.diagnostic, rewritten.adsDetected)
       rewritten.playlist.toByteArray(StandardCharsets.UTF_8)
     } catch (_: Throwable) {
       // Desktop fail-closed: known-unsafe media must not reach the player.
       if (mode == "strip" && PlaybackPlaylistFilter.hasAds(text)) {
-        onDiagnostic("Filter failed; held unsafe media (fail-closed).")
+        onDiagnostic("Filter failed; held unsafe media (fail-closed).", true)
         PlaybackPlaylistFilter.holdUnsafeMediaPlaylist(text)
           .toByteArray(StandardCharsets.UTF_8)
       } else {
-        onDiagnostic("Filter failed. Original playlist kept.")
+        onDiagnostic("Filter failed. Original playlist kept.", false)
         original
       }
     }
@@ -117,7 +117,7 @@ class FilteringDataSource(
   class Factory(
     private val upstreamFactory: DataSource.Factory,
     private val mode: String,
-    private val onDiagnostic: (String) -> Unit,
+    private val onDiagnostic: (String, Boolean) -> Unit,
   ) : DataSource.Factory {
     override fun createDataSource(): DataSource {
       return FilteringDataSource(upstreamFactory.createDataSource(), mode, onDiagnostic)

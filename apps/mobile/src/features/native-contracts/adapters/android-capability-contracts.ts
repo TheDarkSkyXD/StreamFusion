@@ -305,9 +305,15 @@ function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
   }
   if (event.kind === "filtering") {
     const diagnostic = nonEmptyString(event.diagnostic);
-    return diagnostic
-      ? { diagnostic, kind: "filtering", sessionId }
-      : undefined;
+    if (!diagnostic) return undefined;
+    return {
+      diagnostic,
+      kind: "filtering",
+      sessionId,
+      ...(typeof event.adsDetected === "boolean"
+        ? { adsDetected: event.adsDetected }
+        : {}),
+    };
   }
   if (
     event.kind === "paused" &&

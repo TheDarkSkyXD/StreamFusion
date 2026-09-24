@@ -81,6 +81,7 @@ export function createFocusedWatchSession(input: {
   let quality = "auto";
   let qualities: readonly string[] = ["auto"];
   let progress: PlaybackProgress = IDLE_PROGRESS;
+  let adsDetected = false;
   let cachedPeek: WatchPeek = IDLE_PEEK;
   let cachedSnapshot: FocusedWatchState | null = null;
   let cachedSnapshotTarget: WatchTarget | null = null;
@@ -92,6 +93,7 @@ export function createFocusedWatchSession(input: {
       return;
     }
     cachedPeek = {
+      adsDetected,
       kind: "active",
       muted,
       presentation,
@@ -135,6 +137,7 @@ export function createFocusedWatchSession(input: {
   function applyNativeEvent(event: NativePlaybackEvent): void {
     if (!current) return;
     const next = nextNativePlayback({
+      adsDetected,
       current,
       event,
       presentation,
@@ -147,6 +150,7 @@ export function createFocusedWatchSession(input: {
     current = next.current;
     presentation = next.presentation;
     progress = next.progress;
+    adsDetected = next.adsDetected;
     notify();
     if (next.refreshQualities) void refreshQualities();
   }
@@ -160,6 +164,8 @@ export function createFocusedWatchSession(input: {
     generation += 1;
     const wasFullscreen = presentation.presentation === "fullscreen";
     presentation = INITIAL_PLAYER_PRESENTATION;
+    adsDetected = false;
+    progress = IDLE_PROGRESS;
     if (wasFullscreen) {
       void restorePortraitOrientation();
     }
@@ -346,6 +352,7 @@ export function createFocusedWatchSession(input: {
       quality = "auto";
       qualities = ["auto"];
       progress = IDLE_PROGRESS;
+      adsDetected = false;
       notify();
       return startResultFrom(outcome);
     },

@@ -8,6 +8,7 @@ import type {
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -33,6 +34,7 @@ import type {
   WatchTarget,
 } from "../capabilities/watch";
 import { composeWatchView, resolveWatchCopy } from "../domain/watch-view";
+import { watchAdBlockStatus } from "../domain/adblock-playback-status";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
@@ -52,6 +54,7 @@ export type PlayerSurfaceProps = {
 
 export type WatchScreenRuntime = {
   readonly adblock?: AdBlockSession;
+  readonly playlistProxy?: TwitchPlaylistProxySession;
   readonly chat: WatchChatSession;
   readonly history: WatchHistoryRepository;
   readonly openProviderPage: {
@@ -80,6 +83,7 @@ export type WatchMediaJobControls<Eligibility> = {
 export function WatchScreen({
   PlayerSurface,
   adblockView,
+  playlistProxyActive = false,
   captions,
   chat,
   chrome,
@@ -119,6 +123,7 @@ export function WatchScreen({
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly adblockView?: AdBlockView | null;
+  readonly playlistProxyActive?: boolean;
   readonly captions?: WatchCaptionControls;
   readonly chat: WatchChatAvailability;
   readonly chrome?: {
@@ -307,7 +312,12 @@ export function WatchScreen({
         ) : null}
         {showControls && peek.kind === "active" ? (
           <PlayerControls
-            adblockActive={adblockFilteringActive(adblockView, target.platform)}
+            adBlockStatus={watchAdBlockStatus({
+              adsDetected: peek.adsDetected,
+              filteringActive: adblockFilteringActive(adblockView, target.platform),
+              playlistProxyActive:
+                playlistProxyActive && target.platform === "twitch",
+            })}
             fullscreen={fullscreen}
             muted={peek.muted}
             onFullscreen={onToggleFullscreen}

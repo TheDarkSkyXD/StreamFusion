@@ -71,12 +71,13 @@ object FocusedPlaybackSessionOwner {
       if (filterMode == "passthrough") {
         httpFactory
       } else {
-        FilteringDataSource.Factory(httpFactory, filterMode) { diagnostic ->
+        FilteringDataSource.Factory(httpFactory, filterMode) { diagnostic, adsDetected ->
           publish(
             mapOf(
               "kind" to "filtering",
               "sessionId" to sessionId,
               "diagnostic" to diagnostic,
+              "adsDetected" to adsDetected,
             ),
           )
         }
