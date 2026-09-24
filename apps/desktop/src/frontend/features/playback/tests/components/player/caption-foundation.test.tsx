@@ -161,7 +161,7 @@ describe("caption foundation", () => {
           key: "subtitles:en",
           hlsTrackId: 0,
           cueTrack: "subtitles0",
-          kind: "subtitles",
+          kind: "subtitles" as const,
           label: "English",
           language: "en",
         },
@@ -382,6 +382,14 @@ describe("caption foundation", () => {
 
   it("hides Subtitles/CC through both live and VOD control paths", () => {
     const playerProps = {
+      isPlaying: false,
+      volume: 1,
+      muted: false,
+      isFullscreen: false,
+      onTogglePlay: vi.fn(),
+      onVolumeChange: vi.fn(),
+      onToggleMute: vi.fn(),
+      onToggleFullscreen: vi.fn(),
       qualities: [],
       currentQualityId: "auto",
       onQualityChange: vi.fn(),
@@ -390,7 +398,7 @@ describe("caption foundation", () => {
           key: "subtitles:en",
           hlsTrackId: 0,
           cueTrack: "subtitles0",
-          kind: "subtitles",
+          kind: "subtitles" as const,
           label: "English",
           language: "en",
         },

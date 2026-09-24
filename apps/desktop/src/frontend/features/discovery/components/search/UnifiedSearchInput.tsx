@@ -118,7 +118,7 @@ function resolveHistoryAvatarUrl(entry: SearchHistoryEntry): string | undefined 
   if (stored) return stored;
   const username = (entry.username ?? entry.label).trim();
   if (!username) return undefined;
-  const platforms = entry.platform ? [entry.platform] : ["twitch", "kick"];
+  const platforms: Platform[] = entry.platform ? [entry.platform] : ["twitch", "kick"];
   for (const platform of platforms) {
     const cached = getPersistedChannelMetadata(username, platform);
     const url = cached?.avatarUrl?.trim();
