@@ -126,7 +126,8 @@ jobs:
           npm audit signatures
           npm run rebuild:dependencies
 
-      - name: Require signing and notarization credentials
+      - name: Detect signing and notarization credentials
+        id: signing
         shell: bash
         env:
           CSC_LINK: ${{ matrix.platform == 'windows' && secrets.WIN_CSC_LINK || secrets.MAC_CSC_LINK }}
@@ -135,12 +136,25 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          test -n "$CSC_LINK" || { echo "Missing code-signing certificate" >&2; exit 1; }
-          test -n "$CSC_KEY_PASSWORD" || { echo "Missing code-signing certificate password" >&2; exit 1; }
-          if [[ "${{ matrix.platform }}" == "macos" ]]; then
-            test -n "$APPLE_ID" || { echo "Missing APPLE_ID" >&2; exit 1; }
-            test -n "$APPLE_APP_SPECIFIC_PASSWORD" || { echo "Missing APPLE_APP_SPECIFIC_PASSWORD" >&2; exit 1; }
-            test -n "$APPLE_TEAM_ID" || { echo "Missing APPLE_TEAM_ID" >&2; exit 1; }
+          mode=unsigned
+          if [[ -n "$CSC_LINK" && -n "$CSC_KEY_PASSWORD" ]]; then
+            if [[ "${{ matrix.platform }}" == "macos" ]]; then
+              if [[ -n "$APPLE_ID" && -n "$APPLE_APP_SPECIFIC_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; then
+                mode=signed
+              else
+                echo "::warning::macOS Apple notarization secrets incomplete; packaging UNSIGNED"
+              fi
+            else
+              mode=signed
+            fi
+          else
+            echo "::warning::Code-signing secrets absent for ${{ matrix.platform }}/${{ matrix.arch }}; packaging UNSIGNED"
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          if [[ "$mode" == "unsigned" ]]; then
+            echo "Release packaging mode: UNSIGNED (SmartScreen / Gatekeeper warnings expected)"
+          else
+            echo "Release packaging mode: signed"
           fi
 
       - name: Rebuild native dependencies
@@ -157,14 +171,20 @@ jobs:
         run: npm --prefix apps/desktop run build
 
       - name: Package signed Windows application
-        if: matrix.platform == 'windows'
+        if: matrix.platform == 'windows' && steps.signing.outputs.mode == 'signed'
         env:
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm --prefix apps/desktop run package:${{ matrix.platform }}:${{ matrix.arch }}:signed
 
+      - name: Package unsigned Windows application
+        if: matrix.platform == 'windows' && steps.signing.outputs.mode == 'unsigned'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm --prefix apps/desktop run package:${{ matrix.platform }}:${{ matrix.arch }}
+
       - name: Verify Windows Authenticode signature
-        if: matrix.platform == 'windows'
+        if: matrix.platform == 'windows' && steps.signing.outputs.mode == 'signed'
         shell: pwsh
         run: |
           $installer = Get-ChildItem -LiteralPath apps/desktop/release -Filter 'StreamFusion-*-Setup.exe' | Select-Object -First 1
@@ -174,8 +194,16 @@ jobs:
             throw "Invalid Authenticode signature: $($signature.Status) $($signature.StatusMessage)"
           }
 
+      - name: Confirm unsigned Windows installer
+        if: matrix.platform == 'windows' && steps.signing.outputs.mode == 'unsigned'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath apps/desktop/release -Filter 'StreamFusion-*-Setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Unsigned Windows installer was not produced' }
+          Write-Host "UNSIGNED Windows installer ready: $($installer.Name)"
+
       - name: Package signed and notarized macOS application
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -184,8 +212,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm --prefix apps/desktop run package:${{ matrix.platform }}:${{ matrix.arch }}:signed
 
+      - name: Package unsigned macOS application
+        if: matrix.platform == 'macos' && steps.signing.outputs.mode == 'unsigned'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm --prefix apps/desktop run package:${{ matrix.platform }}:${{ matrix.arch }}
+
       - name: Verify macOS signature, Gatekeeper, and notarization ticket
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'
         shell: bash
         run: |
           APP_PATH="$(find apps/desktop/release -type d -name 'StreamFusion.app' -print -quit)"
@@ -193,6 +227,20 @@ jobs:
           codesign --verify --deep --strict "$APP_PATH"
           spctl --assess --type exec "$APP_PATH"
           xcrun stapler validate "$APP_PATH"
+
+      - name: Confirm unsigned macOS artifacts
+        if: matrix.platform == 'macos' && steps.signing.outputs.mode == 'unsigned'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          dmgs=(apps/desktop/release/StreamFusion-*-${{ matrix.arch }}.dmg)
+          zips=(apps/desktop/release/StreamFusion-*-${{ matrix.arch }}.zip)
+          if [[ ${#dmgs[@]} -eq 0 || ${#zips[@]} -eq 0 ]]; then
+            echo "Unsigned macOS dmg/zip artifacts were not produced for ${{ matrix.arch }}" >&2
+            ls -la apps/desktop/release || true
+            exit 1
+          fi
+          echo "UNSIGNED macOS artifacts ready: ${dmgs[*]} ${zips[*]}"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
