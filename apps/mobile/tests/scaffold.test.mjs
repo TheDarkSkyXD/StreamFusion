@@ -98,7 +98,11 @@ test("local Android commands stay owned by the Mobile workspace", () => {
     "utf8",
   );
 
-  assert.equal(packageManifest.scripts.start, "expo start --dev-client");
+  assert.equal(packageManifest.scripts.start, "expo start");
+  assert.equal(
+    packageManifest.scripts["start:dev-client"],
+    "expo start --dev-client",
+  );
   assert.equal(
     packageManifest.scripts.android,
     "node scripts/start-development-client.mjs",
@@ -183,16 +187,17 @@ test("draw-over-apps stays off main so Search does not leave the app", () => {
     appManifest.expo.plugins.includes("./plugins/with-no-draw-over-apps"),
     "prebuild must strip SYSTEM_ALERT_WINDOW from main via with-no-draw-over-apps",
   );
-  const main = readFileSync("android/app/src/main/AndroidManifest.xml", "utf8");
-  const debug = readFileSync("android/app/src/debug/AndroidManifest.xml", "utf8");
-  assert.doesNotMatch(
-    main,
-    /android\.permission\.SYSTEM_ALERT_WINDOW/u,
-    "release/main must not request SYSTEM_ALERT_WINDOW; Search stays in-app",
-  );
-  assert.match(
-    debug,
-    /android\.permission\.SYSTEM_ALERT_WINDOW/u,
-    "debug may keep SYSTEM_ALERT_WINDOW for the RN Dev Menu / FPS overlay",
-  );
+
+  // android/ is gitignored; assert the config plugin's strip behavior instead of
+  // generated manifests so CI (without a local prebuild) still enforces the gate.
+  const plugin = require("../plugins/with-no-draw-over-apps.js");
+  const stripped = plugin.stripSystemAlertWindowPermission({
+    "uses-permission": [
+      { $: { "android:name": "android.permission.INTERNET" } },
+      { $: { "android:name": plugin.OVERLAY_PERMISSION } },
+    ],
+  });
+  assert.deepEqual(stripped["uses-permission"], [
+    { $: { "android:name": "android.permission.INTERNET" } },
+  ]);
 });
