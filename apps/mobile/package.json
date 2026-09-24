@@ -46,6 +46,7 @@
     "expo-sqlite": "57.0.2",
     "expo-status-bar": "57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-video": "~57.0.4",
     "i18next": "26.4.0",
     "lucide-react-native": "1.35.0",
     "query-string": "9.5.0",

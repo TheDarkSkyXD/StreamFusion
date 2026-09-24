@@ -74,6 +74,7 @@
         }
       ],
       "expo-system-ui",
+      "expo-video",
       [
         "expo-navigation-bar",
         {

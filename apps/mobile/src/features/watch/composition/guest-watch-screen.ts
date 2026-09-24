@@ -10,6 +10,8 @@ import type { AndroidPlaybackContractPort } from "@mobile/features/native-contra
 
 import { createAndroidFocusedPlaybackPort } from "../adapters/android/android-focused-playback";
 import { AndroidMedia3PlayerSurface } from "../adapters/android/android-media3-player-surface";
+import { createExpoHlsFocusedPlaybackPort } from "../adapters/expo/expo-hls-focused-playback";
+import { ExpoHlsPlayerSurface } from "../adapters/expo/expo-hls-player-surface";
 import { createDiscoveryWatchInspectionReader } from "../adapters/discovery-watch-inspection-reader";
 import { createMemoryPlaybackProtection } from "../adapters/focused-playback-protection";
 import { createKickLivePlaybackSource } from "../adapters/kick/kick-live-playback-source";
@@ -38,12 +40,19 @@ export function createGuestWatchScreen(input: {
   const filtering = input.filtering;
   const playbackSettings = input.playbackSettings;
   const playlistProxy = input.playlistProxy;
+  const useNativeMedia3 = input.playback.readiness().kind === "ready";
+  const focusedPlayback = useNativeMedia3
+    ? createAndroidFocusedPlaybackPort(input.playback)
+    : createExpoHlsFocusedPlaybackPort();
+  const PlayerSurface = useNativeMedia3
+    ? AndroidMedia3PlayerSurface
+    : ExpoHlsPlayerSurface;
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     ...(playlistProxy === undefined ? {} : { playlistProxy }),
     chat: createWatchChatSession({ fetch: input.fetch }),
     history: input.history,
-    PlayerSurface: AndroidMedia3PlayerSurface,
+    PlayerSurface,
     runtime: createWatchRuntime({
       ...(filtering === undefined ? {} : { filtering }),
       ...(playbackSettings === undefined
@@ -55,7 +64,7 @@ export function createGuestWatchScreen(input: {
           }),
       ...(playlistProxy === undefined ? {} : { playlistProxy }),
       inspection: createDiscoveryWatchInspectionReader(input.discovery),
-      playback: createAndroidFocusedPlaybackPort(input.playback),
+      playback: focusedPlayback,
       policy: createPlaybackCompatibilityPolicy(
         createEffectiveCapabilityPolicyReader({
           nowEpochMs: input.nowEpochMs ?? Date.now,
