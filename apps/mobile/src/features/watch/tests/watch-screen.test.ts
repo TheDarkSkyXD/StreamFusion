@@ -45,6 +45,21 @@ vi.mock("react-i18next", () => ({
 }));
 
 
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useEffect: () => undefined,
+    useState: <S,>(initial: S | (() => S)) => {
+      const value =
+        typeof initial === "function" ? (initial as () => S)() : initial;
+      return [value, () => undefined] as const;
+    },
+  };
+});
+
+
+
 
 type ElementProps = Readonly<{
   children?: unknown;
@@ -930,7 +945,7 @@ describe("watch screen", () => {
               tags: ["english"],
               thumbnailUrl: "https://cdn.example/thumb.png",
               title: "Building StreamFusion",
-              viewerCount: 42,
+              viewerCount: 50_443,
             },
           },
           related: { kind: "empty" },
@@ -969,6 +984,14 @@ describe("watch screen", () => {
     const ids = nodes
       .map((node) => node.props.testID)
       .filter((id): id is string => typeof id === "string");
+    const metaViewers = nodes.find(
+      (node) => node.props.testID === "watch-meta-viewers",
+    );
+    expect(metaViewers).toBeTruthy();
+    const metaText = String(metaViewers?.props.children ?? "");
+    expect(metaText.includes("50,443")).toBe(true);
+    expect(metaText.includes(" · ")).toBe(true);
+    expect(/\d+:\d{2}:\d{2}/u.test(metaText)).toBe(true);
     expect(ids.indexOf("watch-channel-chrome")).toBeLessThan(
       ids.indexOf("watch-player-stage"),
     );

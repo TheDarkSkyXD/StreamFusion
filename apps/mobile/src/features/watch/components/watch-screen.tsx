@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Heart } from "lucide-react-native";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
 import type {
   MediaJobCommandName,
@@ -35,6 +35,7 @@ import type {
 } from "../capabilities/watch";
 import { composeWatchView, resolveWatchCopy } from "../domain/watch-view";
 import { watchAdBlockStatus } from "../domain/adblock-playback-status";
+import { formatWatchViewerLine } from "../domain/watch-live-meta";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
@@ -186,6 +187,7 @@ export function WatchScreen({
     onToggleControls;
   const avatarUrl = channelAvatarUrl(inspection);
   const displayName = channelDisplayName(inspection, target.channelName);
+  const liveMeta = liveMetaStream(inspection);
   return (
     <View
       style={[styles.screen, pipSurface ? styles.pipScreen : null]}
@@ -244,14 +246,11 @@ export function WatchScreen({
                   <MobileVerifiedBadge platform={target.platform} />
                 ) : null}
               </View>
-              {viewerLine(inspection) ? (
-                <Text
-                  selectable
-                  style={styles.metaViewers}
-                  testID="watch-meta-viewers"
-                >
-                  {viewerLine(inspection)}
-                </Text>
+              {liveMeta ? (
+                <WatchMetaViewers
+                  startedAt={liveMeta.startedAt}
+                  viewerCount={liveMeta.viewerCount}
+                />
               ) : (
                 <MobilePlatformBadge platform={target.platform} />
               )}
@@ -410,28 +409,53 @@ function channelIsVerified(inspection: WatchInspection | null): boolean {
   return info.channel.isVerified;
 }
 
-function viewerLine(inspection: WatchInspection | null): string | null {
+function liveMetaStream(
+  inspection: WatchInspection | null,
+): { readonly startedAt: string | null; readonly viewerCount: number } | null {
   const info = inspection?.info;
   if (!info || info.kind !== "live") return null;
-  const viewers = `${info.stream.viewerCount}`;
-  const uptime = liveUptimeLabel(info.stream.startedAt);
-  return uptime === null ? viewers : `${viewers} · ${uptime}`;
+  return {
+    startedAt: info.stream.startedAt,
+    viewerCount: info.stream.viewerCount,
+  };
 }
 
-function liveUptimeLabel(startedAt: string | null): string | null {
-  if (!startedAt) return null;
-  const started = Date.parse(startedAt);
-  if (!Number.isFinite(started)) return null;
-  const total = Math.max(0, Math.floor((Date.now() - started) / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`;
-  }
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+/**
+ * Isolated ticking viewers · uptime line (desktop UptimeCounter pattern).
+ * Updates every second so uptime does not freeze at open.
+ */
+function WatchMetaViewers({
+  startedAt,
+  viewerCount,
+}: {
+  readonly startedAt: string | null;
+  readonly viewerCount: number;
+}) {
+  const { i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
+  const [label, setLabel] = useState(() =>
+    formatWatchViewerLine(viewerCount, startedAt, Date.now(), locale),
+  );
+
+  useEffect(() => {
+    const tick = () => {
+      setLabel(formatWatchViewerLine(viewerCount, startedAt, Date.now(), locale));
+    };
+    tick();
+    if (!startedAt) return;
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [locale, startedAt, viewerCount]);
+
+  return (
+    <Text
+      selectable
+      style={styles.metaViewers}
+      testID="watch-meta-viewers"
+    >
+      {label}
+    </Text>
+  );
 }
 
 function channelAvatarUrl(inspection: WatchInspection | null): string | null {

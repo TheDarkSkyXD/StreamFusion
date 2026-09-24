@@ -11,11 +11,12 @@ import {
   gqlBroadcasterVerified,
   gqlTags,
 } from "../../utils/catalog-fields";
+import { canonicalTimestamp } from "../../utils/helix-media";
 import { requestInit } from "../../utils/optional";
 
 const GQL = "https://gql.twitch.tv/gql";
 const CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
-const STREAM_FIELDS = `id title viewersCount previewImageURL(width: 440, height: 248) freeformTags { name } broadcaster { id login displayName profileImageURL(width: 70) roles { isPartner isAffiliate } } game { id name slug }`;
+const STREAM_FIELDS = `id title viewersCount createdAt previewImageURL(width: 440, height: 248) freeformTags { name } broadcaster { id login displayName profileImageURL(width: 70) roles { isPartner isAffiliate } } game { id name slug }`;
 
 export function createTwitchGqlGuestReader(input: {
   readonly fetch: typeof globalThis.fetch;
@@ -283,7 +284,7 @@ function streamFromNode(
     isLive: true,
     language: "",
     platform: "twitch",
-    startedAt: null,
+    startedAt: canonicalTimestamp(stringField(node, "createdAt")) ?? null,
     tags: gqlTags(node),
     thumbnailUrl: stringField(node, "previewImageURL"),
     title: stringField(node, "title"),

@@ -21,6 +21,7 @@ import type {
   WatchRelated,
   WatchTab,
 } from "../capabilities/watch";
+import { formatWatchViewerCount } from "../domain/watch-live-meta";
 
 /**
  * Under-player surface while watching.
@@ -234,7 +235,7 @@ function InfoPane({
 }: {
   readonly info: WatchInfo | null;
 }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   if (!info) {
     return (
       <MobileStatusPanel testID="watch-info" tone="loading">
@@ -319,7 +320,7 @@ function InfoPane({
           </Text>
         ) : null}
         <Text selectable style={styles.infoMeta} testID="watch-info-viewers">
-          {`${info.stream.viewerCount} ${t("playback.viewers")}`}
+          {`${formatWatchViewerCount(info.stream.viewerCount, i18n.resolvedLanguage ?? i18n.language ?? "en")} ${t("playback.viewers")}`}
         </Text>
         <MobileCatalogTags
           language={info.stream.language}
