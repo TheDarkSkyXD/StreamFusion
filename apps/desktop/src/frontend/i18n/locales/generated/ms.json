@@ -2741,6 +2741,7 @@
       "retry": "Cuba lagi",
       "retryTitle": "Tidak dapat memuatkan berikut. Cuba lagi",
       "loadError": "Tidak dapat memuatkan berikut",
+      "checkConnection": "Semak sambungan anda dan cuba lagi.",
       "following": "Mengikuti",
       "empty": "Ikuti saluran untuk melihatnya di sini",
       "stale": "Beberapa ikutan mungkin sudah lapuk.",

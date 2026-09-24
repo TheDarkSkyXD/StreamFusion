@@ -2741,6 +2741,7 @@
       "retry": "Próbáld újra",
       "retryTitle": "Nem sikerült betölteni a következőt. Próbáld újra",
       "loadError": "Nem sikerült betölteni a következőt",
+      "checkConnection": "Ellenőrizze a kapcsolatot, és próbálja újra.",
       "following": "Követve",
       "empty": "Kövesd a csatornákat, ha itt szeretnéd látni őket",
       "stale": "Előfordulhat, hogy néhány következő elavult.",

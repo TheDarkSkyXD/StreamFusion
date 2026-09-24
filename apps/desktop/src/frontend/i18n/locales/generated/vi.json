@@ -2741,6 +2741,7 @@
       "retry": "Thử lại",
       "retryTitle": "Không thể tải lượt theo dõi. Thử lại",
       "loadError": "Không thể tải lượt theo dõi",
+      "checkConnection": "Hãy kiểm tra kết nối của bạn và thử lại.",
       "following": "Đang theo dõi",
       "empty": "Theo dõi các kênh để xem tại đây",
       "stale": "Một số nội dung sau đây có thể đã lỗi thời.",

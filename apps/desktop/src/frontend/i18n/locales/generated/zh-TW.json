@@ -2741,6 +2741,7 @@
       "retry": "再試一次",
       "retryTitle": "無法載入以下內容。再試一次",
       "loadError": "無法載入以下內容",
+      "checkConnection": "檢查您的連線並重試。",
       "following": "正在關注",
       "empty": "關注頻道即可在此處查看它們",
       "stale": "以下一些內容可能已經過時。",

@@ -2741,6 +2741,7 @@
       "retry": "Versuchen Sie es erneut",
       "retryTitle": "Die Follower konnten nicht geladen werden. Versuchen Sie es erneut",
       "loadError": "Die Follower konnten nicht geladen werden",
+      "checkConnection": "Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "following": "Nachfolgend",
       "empty": "Folgen Sie den Kanälen, um sie hier zu sehen",
       "stale": "Einige Follower sind möglicherweise veraltet.",

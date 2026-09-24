@@ -2741,6 +2741,7 @@
       "retry": "Coba lagi",
       "retryTitle": "Tidak dapat memuat pengikut. Coba lagi",
       "loadError": "Tidak dapat memuat pengikut",
+      "checkConnection": "Periksa koneksi Anda dan coba lagi.",
       "following": "Mengikuti",
       "empty": "Ikuti saluran untuk melihatnya di sini",
       "stale": "Beberapa hal berikut mungkin sudah ketinggalan zaman.",

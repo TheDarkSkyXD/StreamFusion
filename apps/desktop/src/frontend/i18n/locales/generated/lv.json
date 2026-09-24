@@ -2741,6 +2741,7 @@
       "retry": "Mēģiniet vēlreiz",
       "retryTitle": "Nevarēja ielādēt sekojošo. Mēģiniet vēlreiz",
       "loadError": "Nevarēja ielādēt sekojošo",
+      "checkConnection": "Pārbaudiet savienojumu un mēģiniet vēlreiz.",
       "following": "Sekošana",
       "empty": "Sekojiet kanāliem, lai tos skatītu šeit",
       "stale": "Dažas tālāk norādītās iespējas var būt novecojušas.",

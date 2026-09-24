@@ -2741,6 +2741,7 @@
       "retry": "Bandykite dar kartą",
       "retryTitle": "Nepavyko įkelti sekimų. Bandykite dar kartą",
       "loadError": "Nepavyko įkelti sekimų",
+      "checkConnection": "Patikrinkite ryšį ir bandykite dar kartą.",
       "following": "Sekant",
       "empty": "Sekite kanalus, kad pamatytumėte juos čia",
       "stale": "Kai kurie toliau nurodyti dalykai gali būti pasenę.",

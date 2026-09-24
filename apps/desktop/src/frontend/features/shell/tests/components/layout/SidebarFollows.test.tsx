@@ -29,8 +29,8 @@ const routerState = vi.hoisted(() => ({
 // Guards: signed-out Kick cache state — cached local Kick follows render while followed-streams is still loading, so guest Kick rows are not blocked by the slower live-status scan
 // Guards: signed-in Kick account state — local app-only Kick follows are hidden from the sidebar; only verified account follows may render
 // Guards: platform split — Twitch and Kick followed-streams load through separate queries so Kick's slower live scan cannot block Twitch/sidebar paint
-// Guards: error state — followed-streams Helix call fails: sidebar degrades to the "follow channels to see them here" empty card rather than blanking. The whole point of a sidebar is to not vanish on a transient API error
-// Guards: empty state — distinct from error; "no follows + no streams" renders the empty card with the heart icon and the "Follow channels…" hint copy
+// Guards: error state — followed-streams Helix call fails: sidebar shows retryable "Couldn't load follows" copy rather than blanking. The whole point of a sidebar is to not vanish on a transient API error
+// Guards: empty state — distinct from error; "no follows + no streams" renders the empty card with the Couldn't load follows / Check your connection copy (no Retry)
 
 // Guards: signed-in Kick startup cache state - cached account-confirmed Kick follows render before the slow Kick account/live scan resolves
 // Guards: live/offline state comes from followed-stream API results, not stale localStorage status cache
@@ -380,7 +380,7 @@ describe("SidebarFollows", () => {
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
     expect(screen.queryByText("KickLocalOnly")).not.toBeInTheDocument();
-    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load follows/i)).toBeInTheDocument();
   });
 
   it("signed-in Kick startup cache: renders cached account follows before Kick queries resolve", () => {
@@ -540,9 +540,10 @@ describe("SidebarFollows", () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useFollowedStreams>);
     renderWithProviders(<SidebarFollows collapsed={false} />);
-    expect(screen.getByText(/couldn’t load follows/i)).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-follows-load-error")).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load follows/i)).toBeInTheDocument();
+    expect(screen.getByText(/check your connection and try again/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
-    expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
   });
 
   it("hydration: keeps the loading skeleton until local follows are hydrated", () => {
@@ -567,7 +568,10 @@ describe("SidebarFollows", () => {
       typeof useFollowedStreams
     >);
     renderWithProviders(<SidebarFollows collapsed={false} />);
-    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-follows-empty")).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load follows/i)).toBeInTheDocument();
+    expect(screen.getByText(/check your connection and try again/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
 
   it("empty + collapsed: keeps only the compact sync affordance when connected", () => {
@@ -579,7 +583,7 @@ describe("SidebarFollows", () => {
     >);
     const { container } = renderWithProviders(<SidebarFollows collapsed={true} />);
     expect(screen.getByRole("button", { name: /sync follows/i })).toHaveClass("w-8", "h-8");
-    expect(container).not.toHaveTextContent(/follow channels to see them here/i);
+    expect(container).not.toHaveTextContent(/couldn't load follows/i);
   });
 
   it("renders live channel avatars when followed-streams returns data", () => {

@@ -2741,6 +2741,7 @@
       "retry": "Prøv igjen",
       "retryTitle": "Kunne ikke laste inn følger. Prøv igjen",
       "loadError": "Kunne ikke laste inn følger",
+      "checkConnection": "Sjekk tilkoblingen og prøv igjen.",
       "following": "Følger",
       "empty": "Følg kanaler for å se dem her",
       "stale": "Noen følger kan være utdaterte.",

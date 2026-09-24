@@ -2741,6 +2741,7 @@
       "retry": "poskusi ponovno",
       "retryTitle": "Sledi ni bilo mogoče naložiti. poskusi ponovno",
       "loadError": "Sledi ni bilo mogoče naložiti",
+      "checkConnection": "Preverite povezavo in poskusite znova.",
       "following": "Sledim",
       "empty": "Sledite kanalom, da jih vidite tukaj",
       "stale": "Nekatere sledi so morda zastarele.",

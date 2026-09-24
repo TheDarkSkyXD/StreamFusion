@@ -2741,6 +2741,7 @@
       "retry": "Skúste to znova",
       "retryTitle": "Couldn’t load follows. Skúste to znova",
       "loadError": "Sledovania sa nepodarilo načítať",
+      "checkConnection": "Skontrolujte pripojenie a skúste to znova.",
       "following": "Sledovanie",
       "empty": "Sledujte kanály, aby ste ich videli tu",
       "stale": "Niektoré nasledujúce položky môžu byť zastarané.",

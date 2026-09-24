@@ -1,7 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LuHeart, LuRefreshCw } from "react-icons/lu";
+import { LuRefreshCw } from "react-icons/lu";
 import { toast } from "sonner";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
@@ -363,11 +363,12 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
           <div
             role="status"
             aria-live="polite"
+            data-testid="sidebar-follows-load-error"
             className="m-2 rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-[var(--color-foreground)]"
           >
             <p className="font-semibold text-white">{t("shell.sidebar.loadError")}</p>
             <p className="mt-1 text-[var(--color-foreground-muted)]">
-              {t("discovery.following.checkConnection")}
+              {t("shell.sidebar.checkConnection")}
             </p>
             <button
               type="button"
@@ -406,9 +407,16 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
             </span>
           </div>
         </div>
-        <div className="p-4 text-center text-[var(--color-foreground-muted)] text-xs">
-          <LuHeart className="w-8 h-8 mx-auto mb-2 opacity-20" />
-          <p>{t("shell.sidebar.empty")}</p>
+        <div
+          role="status"
+          aria-live="polite"
+          className="m-2 rounded-md border border-white/10 bg-white/5 p-3 text-xs text-[var(--color-foreground)]"
+          data-testid="sidebar-follows-empty"
+        >
+          <p className="font-semibold text-white">{t("shell.sidebar.loadError")}</p>
+          <p className="mt-1 text-[var(--color-foreground-muted)]">
+            {t("shell.sidebar.checkConnection")}
+          </p>
         </div>
       </div>
     );

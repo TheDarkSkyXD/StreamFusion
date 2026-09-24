@@ -57,6 +57,7 @@ export const shellEs = {
       retry: "Intentar de nuevo",
       retryTitle: "No se pudieron cargar los seguimientos. Inténtalo de nuevo",
       loadError: "No se pudieron cargar los seguimientos",
+      checkConnection: "Comprueba tu conexión e inténtalo de nuevo.",
       following: "Siguiendo",
       empty: "Sigue canales para verlos aquí",
       stale: "Algunos seguimientos pueden estar desactualizados.",

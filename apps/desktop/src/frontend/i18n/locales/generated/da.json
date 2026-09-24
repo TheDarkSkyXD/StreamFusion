@@ -2741,6 +2741,7 @@
       "retry": "Prøv igen",
       "retryTitle": "Følgerne kunne ikke indlæses. Prøv igen",
       "loadError": "Følgerne kunne ikke indlæses",
+      "checkConnection": "Tjek din forbindelse, og prøv igen.",
       "following": "Følger",
       "empty": "Følg kanaler for at se dem her",
       "stale": "Nogle følger kan være forældede.",

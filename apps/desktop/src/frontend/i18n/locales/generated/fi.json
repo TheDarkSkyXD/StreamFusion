@@ -2741,6 +2741,7 @@
       "retry": "Yritä uudelleen",
       "retryTitle": "Seurauksia ei voitu ladata. Yritä uudelleen",
       "loadError": "Seurauksia ei voitu ladata",
+      "checkConnection": "Tarkista yhteys ja yritä uudelleen.",
       "following": "Seurataan",
       "empty": "Seuraa kanavia nähdäksesi ne täällä",
       "stale": "Jotkut seuraavista saattavat olla vanhentuneita.",

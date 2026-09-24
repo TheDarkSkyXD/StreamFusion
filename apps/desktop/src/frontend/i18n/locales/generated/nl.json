@@ -2741,6 +2741,7 @@
       "retry": "Probeer het opnieuw",
       "retryTitle": "Kan volgen niet laden. Probeer het opnieuw",
       "loadError": "Kan volgen niet laden",
+      "checkConnection": "Controleer uw verbinding en probeer het opnieuw.",
       "following": "Volgende",
       "empty": "Volg kanalen om ze hier te zien",
       "stale": "Sommige volgende artikelen zijn mogelijk verouderd.",

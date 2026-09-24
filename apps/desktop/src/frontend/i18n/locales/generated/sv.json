@@ -2741,6 +2741,7 @@
       "retry": "Försök igen",
       "retryTitle": "Det gick inte att ladda följer. Försök igen",
       "loadError": "Det gick inte att ladda följer",
+      "checkConnection": "Kontrollera din anslutning och försök igen.",
       "following": "Följer",
       "empty": "Följ kanalerna för att se dem här",
       "stale": "Vissa av följande kan vara inaktuella.",

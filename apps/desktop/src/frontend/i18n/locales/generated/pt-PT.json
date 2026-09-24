@@ -2741,6 +2741,7 @@
       "retry": "Tente novamente",
       "retryTitle": "Não foi possível carregar o seguinte. Tente novamente",
       "loadError": "Não foi possível carregar o que se segue",
+      "checkConnection": "Verifique a sua ligação e tente novamente.",
       "following": "Seguindo",
       "empty": "Siga os canais para os ver aqui",
       "stale": "Alguns itens seguintes podem estar desatualizados.",

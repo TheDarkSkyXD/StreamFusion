@@ -2741,6 +2741,7 @@
       "retry": "Riprova",
       "retryTitle": "Impossibile caricare i follower. Riprova",
       "loadError": "Impossibile caricare i follower",
+      "checkConnection": "Controlla la connessione e riprova.",
       "following": "Segue",
       "empty": "Segui i canali per vederli qui",
       "stale": "Alcuni di quelli che seguono potrebbero non essere aggiornati.",

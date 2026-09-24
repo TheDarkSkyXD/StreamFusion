@@ -2741,6 +2741,7 @@
       "retry": "Zkuste to znovu",
       "retryTitle": "Sledování se nepodařilo načíst. Zkuste to znovu",
       "loadError": "Sledování se nepodařilo načíst",
+      "checkConnection": "Zkontrolujte připojení a zkuste to znovu.",
       "following": "Sledování",
       "empty": "Sledujte kanály a uvidíte je zde",
       "stale": "Některé následující mohou být zastaralé.",

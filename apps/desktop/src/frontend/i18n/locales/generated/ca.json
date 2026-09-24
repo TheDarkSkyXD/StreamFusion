@@ -2741,6 +2741,7 @@
       "retry": "Torna-ho a provar",
       "retryTitle": "No s'han pogut carregar els següents. Torna-ho a provar",
       "loadError": "No s'han pogut carregar els següents",
+      "checkConnection": "Comprova la teva connexió i torna-ho a provar.",
       "following": "Seguint",
       "empty": "Seguiu els canals per veure'ls aquí",
       "stale": "Alguns dels següents poden estar obsolets.",

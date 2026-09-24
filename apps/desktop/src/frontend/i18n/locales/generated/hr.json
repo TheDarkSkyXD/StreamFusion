@@ -2741,6 +2741,7 @@
       "retry": "Pokušajte ponovno",
       "retryTitle": "Nije moguće učitati praćenja. Pokušajte ponovno",
       "loadError": "Nije moguće učitati praćenja",
+      "checkConnection": "Provjerite vezu i pokušajte ponovno.",
       "following": "Praćenje",
       "empty": "Pratite kanale da biste ih vidjeli ovdje",
       "stale": "Neke stavke koje slijede mogu biti zastarjele.",

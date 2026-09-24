@@ -2741,6 +2741,7 @@
       "retry": "Tekrar dene",
       "retryTitle": "Takipler yüklenemedi. Tekrar dene",
       "loadError": "Takip edilenler yüklenemedi",
+      "checkConnection": "Bağlantınızı kontrol edip tekrar deneyin.",
       "following": "Takip ediliyor",
       "empty": "Burada görmek için kanalları takip edin",
       "stale": "Takip edilenlerden bazıları güncelliğini kaybetmiş olabilir.",

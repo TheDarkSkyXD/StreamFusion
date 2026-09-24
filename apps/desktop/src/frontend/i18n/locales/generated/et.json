@@ -2741,6 +2741,7 @@
       "retry": "Proovi uuesti",
       "retryTitle": "Järgmisi ei saanud laadida. Proovi uuesti",
       "loadError": "Järgmisi ei saanud laadida",
+      "checkConnection": "Kontrollige ühendust ja proovige uuesti.",
       "following": "Jälgides",
       "empty": "Järgige kanaleid, et neid siin näha",
       "stale": "Mõned järgmised võivad olla aegunud.",

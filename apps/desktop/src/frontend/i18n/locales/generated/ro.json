@@ -2741,6 +2741,7 @@
       "retry": "Încercați din nou",
       "retryTitle": "Următoarele nu au putut fi încărcate. Încercați din nou",
       "loadError": "Următoarele nu au putut fi încărcate",
+      "checkConnection": "Verificați conexiunea și încercați din nou.",
       "following": "Urmând",
       "empty": "Urmăriți canalele pentru a le vedea aici",
       "stale": "Unele următoarele pot fi depășite.",

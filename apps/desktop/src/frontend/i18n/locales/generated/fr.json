@@ -2741,6 +2741,7 @@
       "retry": "Réessayez",
       "retryTitle": "Impossible de charger le suivi. Réessayez",
       "loadError": "Impossible de charger les suivis",
+      "checkConnection": "Vérifiez votre connexion et réessayez.",
       "following": "Suite",
       "empty": "Suivez les chaînes pour les voir ici",
       "stale": "Certains suivis peuvent être obsolètes.",

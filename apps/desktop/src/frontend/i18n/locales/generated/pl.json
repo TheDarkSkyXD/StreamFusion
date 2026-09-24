@@ -2741,6 +2741,7 @@
       "retry": "Spróbuj ponownie",
       "retryTitle": "Nie udało się wczytać obserwowanych. Spróbuj ponownie",
       "loadError": "Nie udało się wczytać obserwowanych",
+      "checkConnection": "Sprawdź połączenie i spróbuj ponownie.",
       "following": "Śledzenie",
       "empty": "Śledź kanały, aby zobaczyć je tutaj",
       "stale": "Niektóre z poniższych mogą być nieaktualne.",
