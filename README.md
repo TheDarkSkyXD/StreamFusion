@@ -18,16 +18,16 @@
 
 ## Features
 
-- **Twitch + Kick in one place** — Browse and watch both platforms without switching sites or juggling browser tabs.
-- **Unified dashboard** — Discover live content and move between streamers quickly from a single home.
-- **Chat for both platforms** — Interact with Twitch and Kick chat inside the app.
-- **Follows & quick access** — Keep followed streamers reachable without bouncing between websites.
-- **Multistream layouts** — Watch more than one stream at a time with layouts built for power viewers.
-- **Enhanced player** — HLS playback aimed at low latency and reliable quality, with auto-retry when a stream drops.
-- **Cleaner Twitch viewing** — Built-in ad-blocking for Twitch streams.
-- **Keyboard-friendly** — Shortcuts for fast switching and control without reaching for the mouse.
-- **Desktop-first performance** — Lower resource use than a pile of browser tabs; builds for Windows, macOS (Intel & Apple Silicon), and Linux (AppImage).
-- **Mobile workspace** — Android development client under `apps/mobile` for the same product direction on phone.
+- **Twitch + Kick in one place**: Browse and watch both platforms without switching sites or juggling browser tabs.
+- **Unified dashboard**: Discover live content and move between streamers quickly from a single home.
+- **Chat for both platforms**: Interact with Twitch and Kick chat inside the app.
+- **Follows & quick access**: Keep followed streamers reachable without bouncing between websites.
+- **Multistream layouts**: Watch more than one stream at a time with layouts built for power viewers.
+- **Enhanced player**: HLS playback aimed at low latency and reliable quality, with auto-retry when a stream drops.
+- **Cleaner Twitch viewing**: Built-in ad-blocking for Twitch streams.
+- **Keyboard-friendly**: Shortcuts for fast switching and control without reaching for the mouse.
+- **Desktop-first performance**: Lower resource use than a pile of browser tabs; builds for Windows, macOS (Intel & Apple Silicon), and Linux (AppImage).
+- **Mobile workspace**: Android development client under `apps/mobile` for the same product direction on phone.
 
 ## Tech Stack
 
