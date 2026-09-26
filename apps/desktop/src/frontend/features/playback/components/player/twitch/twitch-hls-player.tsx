@@ -30,6 +30,7 @@ import { useTranslation } from "react-i18next";
 
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { rewriteDevBrowserPlaybackUrl } from "@/lib/dev-browser-media-url";
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@shared/adblock-types";
 import { DEFAULT_BUFFER_PREFERENCES } from "@shared/auth-types";
@@ -141,10 +142,13 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       playlistProxyEnabled && activePlaylistProxyCursor < playlistProxySources.length
         ? playlistProxySources[activePlaylistProxyCursor]
         : null;
-    const activeSource =
+    const selectedSource =
       playlistProxySource === null
         ? src
         : (resolveTwitchPlaylistProxyUrl(playlistProxySource, channelName) ?? src);
+    const activeSource = globalThis.window?.__STREAMFUSION_BROWSER_DEV_CLIENT__
+      ? rewriteDevBrowserPlaybackUrl(selectedSource)
+      : selectedSource;
     const isPlaylistProxyMode = playlistProxyEnabled;
     const isPlaylistProxyAttempt = playlistProxySource !== null && activeSource !== src;
     const effectiveEnableAdBlock = enableAdBlock && !isPlaylistProxyMode;

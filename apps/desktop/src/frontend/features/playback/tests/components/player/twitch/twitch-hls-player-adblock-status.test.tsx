@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { act } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdBlockStatus } from "@shared/adblock-types";
 import { DEFAULT_USER_PREFERENCES, type TwitchPlaylistProxyPreferences } from "@shared/auth-types";
@@ -201,11 +201,16 @@ import { TwitchHlsPlayer } from "@/features/playback/components/player/twitch/tw
 // Guards: a stalled ad hold retries HLS locally and never requests an external refresh/remount.
 // Guards: changing explicit playback intent never rebuilds HLS, and late autoplay work respects a deliberate pause.
 // Guards: playlist-proxy mode never initializes custom adblock loaders and advances only after terminal playlist HTTP failures.
+// Guards: browser development routes every selected playlist source through the media relay and preserves an already-relayed fallback.
 // Guards: Twitch manifest 403 is a refreshable token failure and never pauses media itself.
 // Guards: verified clean presentation restores the exact user mute preference after internal ad-audio suppression.
 // Guards: repeated ad-start recovery signals never stop/restart a verified clean HLS feed or disturb media progression.
 // Guards: rapid clean-to-unsafe re-entry invalidates a pending clean-frame callback before it can uncover unsafe media.
 describe("TwitchHlsPlayer adblock status", () => {
+  afterEach(() => {
+    delete window.__STREAMFUSION_BROWSER_DEV_CLIENT__;
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     hlsConstructorConfigs.length = 0;
@@ -317,6 +322,59 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(hlsInstances[1].loadSource).toHaveBeenCalledWith(
       "https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
     );
+  });
+
+  it("keeps browser playlist source selection and fallback on the authenticated media relay", () => {
+    window.__STREAMFUSION_BROWSER_DEV_CLIENT__ = true;
+    useAuthStore.setState({
+      preferences: {
+        ...DEFAULT_USER_PREFERENCES,
+        twitchPlaylistProxy: {
+          enabled: true,
+          sources: [
+            {
+              id: "first",
+              url: "https://eu.luminous.dev/live/$channel",
+              enabled: true,
+              addQueryParams: false,
+            },
+            {
+              id: "second",
+              url: "https://eu2.luminous.dev/live/$channel",
+              enabled: true,
+              addQueryParams: false,
+            },
+          ],
+        },
+      },
+    });
+    const fallback =
+      "/__streamfusion-dev/media?u=https%3A%2F%2Fusher.ttvnw.net%2Fapi%2Fchannel%2Fhls%2Fsodapoppin.m3u8&kind=media";
+    render(<TwitchHlsPlayer src={fallback} channelName="sodapoppin" enableAdBlock />);
+
+    expect(hlsInstances[0].loadSource).toHaveBeenCalledWith(
+      "/__streamfusion-dev/media?u=https%3A%2F%2Feu.luminous.dev%2Flive%2Fsodapoppin&kind=media"
+    );
+    act(() => {
+      hlsInstances[0].emit("hlsError", {
+        type: "networkError",
+        details: "manifestLoadError",
+        fatal: true,
+        response: { code: 403 },
+      });
+    });
+    expect(hlsInstances[1].loadSource).toHaveBeenCalledWith(
+      "/__streamfusion-dev/media?u=https%3A%2F%2Feu2.luminous.dev%2Flive%2Fsodapoppin&kind=media"
+    );
+    act(() => {
+      hlsInstances[1].emit("hlsError", {
+        type: "networkError",
+        details: "manifestLoadError",
+        fatal: true,
+        response: { code: 403 },
+      });
+    });
+    expect(hlsInstances[2].loadSource).toHaveBeenCalledWith(fallback);
   });
 
   it("shields an unsafe ad status that is already active when the player mounts", () => {

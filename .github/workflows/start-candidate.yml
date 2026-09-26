@@ -57,7 +57,7 @@ jobs:
           npm run --workspace streamfusion build:start
 
       - name: Package unsigned candidate without publishing
-        run: npm run --workspace streamfusion package:start -- --mac --${{ matrix.arch }} --publish never
+        run: npm run --workspace streamfusion package:start -- --mac --${{ matrix.arch }}
 
       - name: Verify unchanged packaged application through native accessibility
         env:
