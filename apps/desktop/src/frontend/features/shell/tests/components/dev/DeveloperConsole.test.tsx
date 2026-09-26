@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeveloperConsole } from "@/components/dev/DeveloperConsole";
+import { createBrowserElectronApi } from "@/dev-relay/browser-electron-api";
 
 vi.mock("@/components/dev/ChatSimTool", () => ({
   ChatSimTool: () => <div>Chat sim tool</div>,
@@ -21,6 +22,7 @@ function readStoredLayout(): unknown {
 // Guards: the development console must reopen in its minimized state at the last dragged position.
 // Guards: durable console layout survives a renderer-origin change without flashing at the default position.
 // Guards: dragging updates the local cache continuously but writes only the final minimized position durably on mouseup.
+// Guards: a delayed browser relay read cannot reset the console to its old position while it is being dragged.
 describe("DeveloperConsole", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -128,6 +130,40 @@ describe("DeveloperConsole", () => {
     render(<DeveloperConsole />);
 
     expect(screen.getByTitle(/^Click to expand/)).toHaveStyle({ left: "65px", top: "85px" });
+  });
+
+  it("keeps the dragged position when an older browser relay read completes", async () => {
+    const durableState = {
+      activeId: "chat-sim",
+      position: { x: 40, y: 50 },
+      visibility: "collapsed",
+    };
+    const pendingReads: Array<(value: unknown) => void> = [];
+    let readCount = 0;
+    const api = createBrowserElectronApi({
+      call: (path) => {
+        if (path.join(".") !== "store.get") return Promise.resolve(undefined);
+        readCount += 1;
+        if (readCount === 1) return Promise.resolve(durableState);
+        return new Promise((resolve) => pendingReads.push(resolve));
+      },
+      subscribe: () => () => undefined,
+    });
+    Object.defineProperty(window, "electronAPI", { configurable: true, value: api });
+
+    render(<DeveloperConsole />);
+    const minimizedConsole = await screen.findByTitle(/^Click to expand/);
+    expect(minimizedConsole).toHaveStyle({ left: "40px", top: "50px" });
+
+    fireEvent.mouseDown(minimizedConsole, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(document, { clientX: 35, clientY: 45 });
+    expect(minimizedConsole).toHaveStyle({ left: "65px", top: "85px" });
+
+    await act(async () => {
+      pendingReads.at(-1)?.(durableState);
+    });
+
+    expect(minimizedConsole).toHaveStyle({ left: "65px", top: "85px" });
   });
 
   it("restores minimized layout from the durable store after the renderer origin changes", async () => {

@@ -31,10 +31,14 @@ function createMethodProxy(
   path: readonly string[],
   fixtureSearch: string
 ): unknown {
+  const children = new Map<PropertyKey, unknown>();
   return new Proxy(NOOP, {
     get(_target, property) {
       if (property === "then") return undefined;
-      return createMethodProxy(client, [...path, String(property)], fixtureSearch);
+      if (!children.has(property)) {
+        children.set(property, createMethodProxy(client, [...path, String(property)], fixtureSearch));
+      }
+      return children.get(property);
     },
     apply(_target, _thisArg, rawArgs: unknown[]) {
       const method = path.at(-1) ?? "";
