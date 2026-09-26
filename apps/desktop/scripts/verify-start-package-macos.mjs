@@ -21,6 +21,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
+const nativeAccessibilitySource = path.join(
+  import.meta.dirname,
+  "verify-start-package-macos-ax.swift"
+);
 const requiredTables = [
   "key_value",
   "local_follows",
@@ -33,6 +37,7 @@ const checkNames = [
   "preconditions",
   "artifact",
   "ffmpeg",
+  "nativeAccessibility",
   "launch",
   "shell",
   "settings",
@@ -85,7 +90,7 @@ async function sha256(file) {
     .digest("hex");
 }
 
-// System Events uses native accessibility, not an injected renderer or debugging port.
+// System Events establishes the owned native window and a repeatable verification size.
 const accessibilityScript = String.raw`
 on attributeText(elementRef, attributeName)
   tell application "System Events"
@@ -110,33 +115,10 @@ on rowText(roleText, nameText, descriptionText, valueText, placeholderText)
   return roleText & tab & nameText & tab & descriptionText & tab & valueText & tab & placeholderText
 end rowText
 
-on labelRow(elementRef, roleText, targetLabel, attributeNames)
-  set nameText to ""
-  set descriptionText to ""
-  set valueText to ""
-  set placeholderText to ""
-  repeat with attributeNameRef in attributeNames
-    set attributeName to attributeNameRef as text
-    set attributeValue to my attributeText(elementRef, attributeName)
-    if attributeName is "AXTitle" then
-      set nameText to attributeValue
-    else if attributeName is "AXDescription" then
-      set descriptionText to attributeValue
-    else if attributeName is "AXValue" then
-      set valueText to attributeValue
-    else if attributeName is "AXPlaceholderValue" then
-      set placeholderText to attributeValue
-    end if
-    if attributeValue contains targetLabel then
-      return my rowText(roleText, nameText, descriptionText, valueText, placeholderText)
-    end if
-  end repeat
-  return ""
-end labelRow
-
 on run argv
   set ownedPid to item 1 of argv as integer
   set requestedAction to item 2 of argv
+  if requestedAction is not "probe" then error "Unknown System Events action: " & requestedAction
   tell application "System Events"
     if not (exists (first application process whose unix id is ownedPid)) then error "Owned process is not accessible"
     set ownedProcess to first application process whose unix id is ownedPid
@@ -155,86 +137,6 @@ on run argv
       set sizeText to (item 1 of actualSize as text) & "x" & (item 2 of actualSize as text)
       return my rowText("AXProbe", "System Events", "", accessibilityEnabled as text, "") & linefeed & windowRow & linefeed & my rowText("AXWindowSize", "", "", sizeText, "")
     end if
-
-    set pendingElements to {ownedWindow}
-    set pendingDepths to {0}
-    set cursor to 1
-    set visitedCount to 0
-    set enqueuedCount to 1
-    set maximumElements to 1500
-    set maximumDepth to 32
-    set webAreaRow to ""
-    set settingsRow to ""
-    set searchRow to ""
-    set settingsDescriptionRow to ""
-
-    repeat while cursor is less than or equal to (count of pendingElements)
-      if visitedCount is greater than or equal to maximumElements then error "Accessibility traversal exceeded 1500 elements"
-      set elementRef to item cursor of pendingElements
-      set elementDepth to item cursor of pendingDepths as integer
-      set cursor to cursor + 1
-      set visitedCount to visitedCount + 1
-      set roleText to my attributeText(elementRef, "AXRole")
-
-      if requestedAction is "shellSnapshot" then
-        if webAreaRow is "" and roleText is "AXWebArea" then
-          set webAreaRow to my rowText(roleText, my attributeText(elementRef, "AXTitle"), "", "", "")
-        else if settingsRow is "" and (roleText is "AXLink" or roleText is "AXButton") then
-          set settingsRow to my labelRow(elementRef, roleText, "Settings", {"AXTitle", "AXDescription", "AXValue"})
-        else if searchRow is "" and (roleText is "AXTextField" or roleText is "AXTextArea") then
-          set searchRow to my labelRow(elementRef, roleText, "Search Twitch and Kick", {"AXPlaceholderValue", "AXTitle", "AXDescription", "AXValue"})
-        end if
-        if webAreaRow is not "" and settingsRow is not "" and searchRow is not "" then
-          return windowRow & linefeed & webAreaRow & linefeed & settingsRow & linefeed & searchRow
-        end if
-      else if requestedAction is "settings" then
-        if roleText is "AXLink" or roleText is "AXButton" then
-          set settingsRow to my labelRow(elementRef, roleText, "Settings", {"AXTitle", "AXDescription", "AXValue"})
-          if settingsRow is not "" then
-            perform action "AXPress" of elementRef
-            return "Settings pressed"
-          end if
-        end if
-      else if requestedAction is "settingsSnapshot" then
-        if settingsDescriptionRow is "" and (roleText is "AXStaticText" or roleText is "AXHeading") then
-          set settingsDescriptionRow to my labelRow(elementRef, roleText, "Personalize your StreamFusion experience", {"AXValue", "AXTitle", "AXDescription"})
-        else if searchRow is "" and (roleText is "AXTextField" or roleText is "AXTextArea") then
-          set searchRow to my labelRow(elementRef, roleText, "Search settings", {"AXPlaceholderValue", "AXTitle", "AXDescription", "AXValue"})
-        end if
-        if settingsDescriptionRow is not "" and searchRow is not "" then
-          return windowRow & linefeed & settingsDescriptionRow & linefeed & searchRow
-        end if
-      else
-        error "Unknown accessibility action: " & requestedAction
-      end if
-
-      if elementDepth is less than maximumDepth then
-        try
-          set childElements to UI elements of elementRef
-          if enqueuedCount is less than maximumElements then
-            repeat with childElement in childElements
-              if enqueuedCount is greater than or equal to maximumElements then exit repeat
-              set end of pendingElements to contents of childElement
-              set end of pendingDepths to elementDepth + 1
-              set enqueuedCount to enqueuedCount + 1
-            end repeat
-          end if
-        end try
-      end if
-    end repeat
-    if requestedAction is "shellSnapshot" then
-      set outputRows to windowRow
-      if webAreaRow is not "" then set outputRows to outputRows & linefeed & webAreaRow
-      if settingsRow is not "" then set outputRows to outputRows & linefeed & settingsRow
-      if searchRow is not "" then set outputRows to outputRows & linefeed & searchRow
-      return outputRows
-    else if requestedAction is "settingsSnapshot" then
-      set outputRows to windowRow
-      if settingsDescriptionRow is not "" then set outputRows to outputRows & linefeed & settingsDescriptionRow
-      if searchRow is not "" then set outputRows to outputRows & linefeed & searchRow
-      return outputRows
-    end if
-    error "Required accessibility target not found after " & visitedCount & " elements for " & requestedAction
   end tell
 end run
 `;
@@ -317,6 +219,7 @@ export async function verifyPackage(options) {
   let stderrFd;
   let launchFailure;
   let launchedAt;
+  let nativeAccessibilityHelper;
   let interruption;
   const onSignal = (signal) => {
     interruption ??= new Error(`Verification interrupted by ${signal}`);
@@ -342,13 +245,19 @@ export async function verifyPackage(options) {
       "Refusing to operate on a changed process identity"
     );
   };
-  const ui = (action, timeout = 30_000) => {
+  const windowUi = (action, timeout = 30_000) => {
     throwIfInterrupted();
     requireOwned();
     return command("/usr/bin/osascript", ["-", String(child.pid), action], {
       input: accessibilityScript,
       timeout,
     });
+  };
+  const nativeUi = (action) => {
+    throwIfInterrupted();
+    requireOwned();
+    assert(nativeAccessibilityHelper, "Native accessibility adapter is not compiled");
+    return command(nativeAccessibilityHelper, [String(child.pid), action], { timeout: 10_000 });
   };
   const waitForUi = async (action, predicate, filename, deadline = Date.now() + 90_000) => {
     let rows = [];
@@ -357,7 +266,7 @@ export async function verifyPackage(options) {
       throwIfInterrupted();
       requireOwned();
       try {
-        rows = parseAccessibilitySnapshot(ui(action));
+        rows = parseAccessibilitySnapshot(nativeUi(action));
         if (predicate(rows)) {
           await writeFile(path.join(options.evidence, filename), JSON.stringify(rows, null, 2));
           return rows;
@@ -365,7 +274,9 @@ export async function verifyPackage(options) {
       } catch (error) {
         lastError = error;
         if (
-          /not allowed|not authorized|assistive access|privilege|authorization/i.test(error.message)
+          /not allowed|not authorized|assistive access|privilege|authorization|AXIsProcessTrusted|accessibility permission/i.test(
+            error.message
+          )
         )
           throw error;
       }
@@ -509,6 +420,19 @@ export async function verifyPackage(options) {
       await writeFile(path.join(options.evidence, "ffmpeg.txt"), output);
       return { sha256: await sha256(file), output: "ffmpeg.txt" };
     });
+    await check("nativeAccessibility", async () => {
+      const swiftCompiler = command("/usr/bin/xcrun", ["--find", "swiftc"]);
+      nativeAccessibilityHelper = path.join(runDir, "streamfusion-native-ax-verifier");
+      command(swiftCompiler, [nativeAccessibilitySource, "-O", "-o", nativeAccessibilityHelper], {
+        timeout: 90_000,
+      });
+      return {
+        compiler: swiftCompiler,
+        source: path.relative(repoRoot, nativeAccessibilitySource),
+        sourceSha256: await sha256(nativeAccessibilitySource),
+        executableSha256: await sha256(nativeAccessibilityHelper),
+      };
+    });
     await check("launch", async () => {
       stdoutFd = openSync(path.join(options.evidence, "stdout.txt"), "wx");
       stderrFd = openSync(path.join(options.evidence, "stderr.txt"), "wx");
@@ -557,7 +481,7 @@ export async function verifyPackage(options) {
         while (Date.now() < deadline) {
           const attemptStartedAt = Date.now();
           try {
-            const rows = parseAccessibilitySnapshot(ui("probe", 5_000));
+            const rows = parseAccessibilitySnapshot(windowUi("probe", 5_000));
             probeRows = rows;
             assert(
               rows.some((row) => row.role === "AXProbe" && row.value === "true"),
@@ -632,7 +556,7 @@ export async function verifyPackage(options) {
       };
     });
     await check("settings", async () => {
-      const action = ui("settings");
+      const action = nativeUi("settings");
       assert.equal(action, "Settings pressed");
       await writeFile(
         path.join(options.evidence, "actions.json"),
