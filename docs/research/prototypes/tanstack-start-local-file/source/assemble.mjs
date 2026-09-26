@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const root = import.meta.dirname;
+const appDir = path.join(root, 'probe-app');
+const client = path.join(root, 'dist/client');
+const variants = ['emitted', 'relative-diagnostic', 'csp-diagnostic', 'external-scripts-diagnostic'];
+for (const variant of variants) fs.cpSync(client, path.join(appDir, variant), { recursive: true });
+const source = fs.readFileSync(path.join(client, 'index.html'), 'utf8');
+const relative = source.replaceAll('/./assets/', './assets/');
+fs.writeFileSync(path.join(appDir, variants[1], 'index.html'), relative);
+const productionHtml = fs.readFileSync(path.resolve(root, '../../apps/desktop/index.html'), 'utf8');
+const csp = productionHtml.match(/<meta http-equiv="Content-Security-Policy"\s+content="[^"]+"\s*\/>/)?.[0];
+if (!csp) throw new Error('Production CSP missing');
+const protectedHtml = relative.replace('<head>', '<head>' + csp);
+fs.writeFileSync(path.join(appDir, variants[2], 'index.html'), protectedHtml);
+let index = 0;
+const externalHtml = protectedHtml.replace(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g, (_match, _attrs, body) => {
+  const name = 'bootstrap-' + (++index) + '.js';
+  fs.writeFileSync(path.join(appDir, variants[3], name), body);
+  return '<script src="./' + name + '"></script>';
+});
+fs.writeFileSync(path.join(appDir, variants[3], 'index.html'), externalHtml);
+console.log('Assembled four diagnostic variants; production CSP unchanged.');

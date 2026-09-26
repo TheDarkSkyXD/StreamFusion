@@ -1,0 +1,156 @@
+{
+  "packaged": true,
+  "electron": "43.4.1",
+  "chromium": "150.0.7871.224",
+  "diagnosticOnly": true,
+  "streamfusionBackendIntegrated": false,
+  "results": [
+    {
+      "variant": "emitted",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/emitted/index.html",
+        "hydrated": false,
+        "text": " Start local-file prototype\n\nHydration: pending\n\nHome | Details",
+        "scripts": [
+          {
+            "src": "file:///F:/assets/index-vSd8B1Sp.js",
+            "inline": false
+          }
+        ],
+        "links": [
+          {
+            "text": "Home",
+            "href": "file:///F:/"
+          },
+          {
+            "text": "Details",
+            "href": "file:///F:/details?tab=saved"
+          }
+        ]
+      },
+      "messages": [],
+      "failures": [
+        {
+          "url": "file:///F:/assets/index-vSd8B1Sp.js",
+          "error": "net::ERR_FILE_NOT_FOUND",
+          "resourceType": "script"
+        },
+        {
+          "url": "file:///F:/assets/index-WMw91GCc.js",
+          "error": "net::ERR_FILE_NOT_FOUND",
+          "resourceType": "script"
+        }
+      ]
+    },
+    {
+      "variant": "relative-diagnostic",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/index.html",
+        "hydrated": true,
+        "text": " Start local-file prototype\n\nHydration: ready\n\nHome | Details\nHome\nCount 0",
+        "scripts": [
+          {
+            "src": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/assets/index-vSd8B1Sp.js",
+            "inline": false
+          }
+        ],
+        "links": [
+          {
+            "text": "Home",
+            "href": "file:///F:/"
+          },
+          {
+            "text": "Details",
+            "href": "file:///F:/details?tab=saved"
+          }
+        ]
+      },
+      "messages": [
+        {
+          "level": 3,
+          "message": "Uncaught Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+          "line": 8,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/assets/index-vSd8B1Sp.js"
+        }
+      ],
+      "failures": []
+    },
+    {
+      "variant": "csp-diagnostic",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/index.html",
+        "hydrated": false,
+        "text": "",
+        "scripts": [
+          {
+            "src": "",
+            "inline": true
+          },
+          {
+            "src": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/assets/index-vSd8B1Sp.js",
+            "inline": false
+          },
+          {
+            "src": "",
+            "inline": true
+          }
+        ],
+        "links": []
+      },
+      "messages": [
+        {
+          "level": 3,
+          "message": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-tjOp/W0M9Dwq8SE6JcI4+/Gws04kiIEsl9AOSRNvRtk='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.",
+          "line": 2,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/index.html"
+        },
+        {
+          "level": 3,
+          "message": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-REkTQ3mZNdOnZ0xWxlKdqBEAWdIVpJdIT6tm57gvq8Y='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.",
+          "line": 2,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/index.html"
+        },
+        {
+          "level": 3,
+          "message": "Uncaught TypeError: Cannot set properties of undefined (setting 't')",
+          "line": 10,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/assets/index-vSd8B1Sp.js"
+        }
+      ],
+      "failures": []
+    },
+    {
+      "variant": "external-scripts-diagnostic",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/index.html",
+        "hydrated": true,
+        "text": " Start local-file prototype\n\nHydration: ready\n\nHome | Details\nHome\nCount 0",
+        "scripts": [
+          {
+            "src": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/assets/index-vSd8B1Sp.js",
+            "inline": false
+          }
+        ],
+        "links": [
+          {
+            "text": "Home",
+            "href": "file:///F:/"
+          },
+          {
+            "text": "Details",
+            "href": "file:///F:/details?tab=saved"
+          }
+        ]
+      },
+      "messages": [
+        {
+          "level": 3,
+          "message": "Uncaught Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+          "line": 8,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/assets/index-vSd8B1Sp.js"
+        }
+      ],
+      "failures": []
+    }
+  ]
+}
