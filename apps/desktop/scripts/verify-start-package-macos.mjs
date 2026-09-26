@@ -106,6 +106,34 @@ on attributeText(elementRef, attributeName)
   end tell
 end attributeText
 
+on rowText(roleText, nameText, descriptionText, valueText, placeholderText)
+  return roleText & tab & nameText & tab & descriptionText & tab & valueText & tab & placeholderText
+end rowText
+
+on labelRow(elementRef, roleText, targetLabel, attributeNames)
+  set nameText to ""
+  set descriptionText to ""
+  set valueText to ""
+  set placeholderText to ""
+  repeat with attributeNameRef in attributeNames
+    set attributeName to attributeNameRef as text
+    set attributeValue to my attributeText(elementRef, attributeName)
+    if attributeName is "AXTitle" then
+      set nameText to attributeValue
+    else if attributeName is "AXDescription" then
+      set descriptionText to attributeValue
+    else if attributeName is "AXValue" then
+      set valueText to attributeValue
+    else if attributeName is "AXPlaceholderValue" then
+      set placeholderText to attributeValue
+    end if
+    if attributeValue contains targetLabel then
+      return my rowText(roleText, nameText, descriptionText, valueText, placeholderText)
+    end if
+  end repeat
+  return ""
+end labelRow
+
 on run argv
   set ownedPid to item 1 of argv as integer
   set requestedAction to item 2 of argv
@@ -115,23 +143,91 @@ on run argv
     set frontmost of ownedProcess to true
     if (count of windows of ownedProcess) is 0 then error "Owned application has no window"
     set ownedWindow to first window of ownedProcess
-    set resultText to "AXWindow" & tab & (my attributeText(ownedWindow, "AXTitle")) & tab & "" & tab & "" & linefeed
-    set elements to entire contents of ownedWindow
-    if (count of elements) > 5000 then error "Accessibility tree exceeds verification limit"
-    repeat with elementRef in elements
+    set windowRow to my rowText("AXWindow", my attributeText(ownedWindow, "AXTitle"), "", "", "")
+    if requestedAction is "probe" then
+      set accessibilityEnabled to UI elements enabled
+      return my rowText("AXProbe", "System Events", "", accessibilityEnabled as text, "") & linefeed & windowRow
+    end if
+
+    set pendingElements to {ownedWindow}
+    set pendingDepths to {0}
+    set cursor to 1
+    set visitedCount to 0
+    set enqueuedCount to 1
+    set maximumElements to 1500
+    set maximumDepth to 32
+    set webAreaRow to ""
+    set settingsRow to ""
+    set searchRow to ""
+    set settingsDescriptionRow to ""
+
+    repeat while cursor is less than or equal to (count of pendingElements)
+      if visitedCount is greater than or equal to maximumElements then error "Accessibility traversal exceeded 1500 elements"
+      set elementRef to item cursor of pendingElements
+      set elementDepth to item cursor of pendingDepths as integer
+      set cursor to cursor + 1
+      set visitedCount to visitedCount + 1
       set roleText to my attributeText(elementRef, "AXRole")
-      set nameText to my attributeText(elementRef, "AXTitle")
-      set descriptionText to my attributeText(elementRef, "AXDescription")
-      set valueText to my attributeText(elementRef, "AXValue")
-      set placeholderText to my attributeText(elementRef, "AXPlaceholderValue")
-      if requestedAction is "settings" and (roleText is "AXLink" or roleText is "AXButton") and (nameText is "Settings" or descriptionText is "Settings" or valueText is "Settings") then
-        perform action "AXPress" of elementRef
-        return "Settings pressed"
+
+      if requestedAction is "shellSnapshot" then
+        if webAreaRow is "" and roleText is "AXWebArea" then
+          set webAreaRow to my rowText(roleText, my attributeText(elementRef, "AXTitle"), "", "", "")
+        else if settingsRow is "" and (roleText is "AXLink" or roleText is "AXButton") then
+          set settingsRow to my labelRow(elementRef, roleText, "Settings", {"AXTitle", "AXDescription", "AXValue"})
+        else if searchRow is "" and (roleText is "AXTextField" or roleText is "AXTextArea") then
+          set searchRow to my labelRow(elementRef, roleText, "Search Twitch and Kick", {"AXPlaceholderValue", "AXTitle", "AXDescription", "AXValue"})
+        end if
+        if webAreaRow is not "" and settingsRow is not "" and searchRow is not "" then
+          return windowRow & linefeed & webAreaRow & linefeed & settingsRow & linefeed & searchRow
+        end if
+      else if requestedAction is "settings" then
+        if roleText is "AXLink" or roleText is "AXButton" then
+          set settingsRow to my labelRow(elementRef, roleText, "Settings", {"AXTitle", "AXDescription", "AXValue"})
+          if settingsRow is not "" then
+            perform action "AXPress" of elementRef
+            return "Settings pressed"
+          end if
+        end if
+      else if requestedAction is "settingsSnapshot" then
+        if settingsDescriptionRow is "" and (roleText is "AXStaticText" or roleText is "AXHeading") then
+          set settingsDescriptionRow to my labelRow(elementRef, roleText, "Personalize your StreamFusion experience", {"AXValue", "AXTitle", "AXDescription"})
+        else if searchRow is "" and (roleText is "AXTextField" or roleText is "AXTextArea") then
+          set searchRow to my labelRow(elementRef, roleText, "Search settings", {"AXPlaceholderValue", "AXTitle", "AXDescription", "AXValue"})
+        end if
+        if settingsDescriptionRow is not "" and searchRow is not "" then
+          return windowRow & linefeed & settingsDescriptionRow & linefeed & searchRow
+        end if
+      else
+        error "Unknown accessibility action: " & requestedAction
       end if
-      set resultText to resultText & roleText & tab & nameText & tab & descriptionText & tab & valueText & tab & placeholderText & linefeed
+
+      if elementDepth is less than maximumDepth then
+        try
+          set childElements to UI elements of elementRef
+          if enqueuedCount is less than maximumElements then
+            repeat with childElement in childElements
+              if enqueuedCount is greater than or equal to maximumElements then exit repeat
+              set end of pendingElements to contents of childElement
+              set end of pendingDepths to elementDepth + 1
+              set enqueuedCount to enqueuedCount + 1
+            end repeat
+          end if
+        end try
+      end if
     end repeat
-    if requestedAction is "settings" then error "Settings navigation control not found"
-    return resultText
+    if requestedAction is "shellSnapshot" then
+      set outputRows to windowRow
+      if webAreaRow is not "" then set outputRows to outputRows & linefeed & webAreaRow
+      if settingsRow is not "" then set outputRows to outputRows & linefeed & settingsRow
+      if searchRow is not "" then set outputRows to outputRows & linefeed & searchRow
+      return outputRows
+    else if requestedAction is "settingsSnapshot" then
+      set outputRows to windowRow
+      if settingsDescriptionRow is not "" then set outputRows to outputRows & linefeed & settingsDescriptionRow
+      if searchRow is not "" then set outputRows to outputRows & linefeed & searchRow
+      return outputRows
+    end if
+    error "Required accessibility target not found after " & visitedCount & " elements for " & requestedAction
   end tell
 end run
 `;
@@ -238,22 +334,22 @@ export async function verifyPackage(options) {
       "Refusing to operate on a changed process identity"
     );
   };
-  const ui = (action) => {
+  const ui = (action, timeout = 30_000) => {
     throwIfInterrupted();
     requireOwned();
     return command("/usr/bin/osascript", ["-", String(child.pid), action], {
       input: accessibilityScript,
+      timeout,
     });
   };
-  const waitForUi = async (predicate, filename) => {
-    const deadline = Date.now() + 90_000;
+  const waitForUi = async (action, predicate, filename, deadline = Date.now() + 90_000) => {
     let rows = [];
     let lastError;
     while (Date.now() < deadline) {
       throwIfInterrupted();
       requireOwned();
       try {
-        rows = parseAccessibilitySnapshot(ui("snapshot"));
+        rows = parseAccessibilitySnapshot(ui(action));
         if (predicate(rows)) {
           await writeFile(path.join(options.evidence, filename), JSON.stringify(rows, null, 2));
           return rows;
@@ -442,14 +538,86 @@ export async function verifyPackage(options) {
       return { ...identity, profile, command: executable };
     });
     await check("shell", async () => {
+      const deadline = Date.now() + 90_000;
+      const probeStartedAt = Date.now();
+      const probeAttempts = [];
+      let probeRows = [];
+      let probeStatus = "running";
+      let probeError;
+      try {
+        let lastError;
+        while (Date.now() < deadline) {
+          const attemptStartedAt = Date.now();
+          try {
+            const rows = parseAccessibilitySnapshot(ui("probe", 5_000));
+            assert(
+              rows.some((row) => row.role === "AXProbe" && row.value === "true"),
+              "System Events accessibility probe did not report UI access"
+            );
+            assert(
+              rows.some((row) => row.role === "AXWindow"),
+              "System Events accessibility probe did not find the application window"
+            );
+            probeAttempts.push({
+              status: "passed",
+              startedAt: new Date(attemptStartedAt).toISOString(),
+              durationMs: Date.now() - attemptStartedAt,
+            });
+            probeStatus = "passed";
+            probeRows = rows;
+            break;
+          } catch (error) {
+            lastError = error;
+            probeAttempts.push({
+              status: "failed",
+              startedAt: new Date(attemptStartedAt).toISOString(),
+              durationMs: Date.now() - attemptStartedAt,
+              error: error.message,
+            });
+            if (!/Owned application has no window/.test(error.message)) throw error;
+            await delay(Math.min(500, Math.max(0, deadline - Date.now())));
+          }
+        }
+        if (probeStatus !== "passed") {
+          throw new Error(
+            `Accessibility probe did not find the application window${lastError ? `: ${lastError.message}` : ""}`
+          );
+        }
+      } catch (error) {
+        probeStatus = "failed";
+        probeError = error.message;
+        throw error;
+      } finally {
+        await writeFile(
+          path.join(options.evidence, "accessibility-probe.json"),
+          JSON.stringify(
+            {
+              status: probeStatus,
+              startedAt: new Date(probeStartedAt).toISOString(),
+              durationMs: Date.now() - probeStartedAt,
+              attempts: probeAttempts,
+              ...(probeRows.length > 0 ? { rows: probeRows } : {}),
+              ...(probeError ? { error: probeError } : {}),
+            },
+            null,
+            2
+          )
+        );
+      }
       await waitForUi(
+        "shellSnapshot",
         (rows) =>
           rows.some((row) => row.role === "AXWebArea") &&
           hasLabel(rows, "Settings") &&
           hasLabel(rows, "Search Twitch and Kick"),
-        "shell-accessibility.json"
+        "shell-accessibility.json",
+        deadline
       );
-      return { snapshot: "shell-accessibility.json", screenshot: await screenshot("shell.png") };
+      return {
+        probe: "accessibility-probe.json",
+        snapshot: "shell-accessibility.json",
+        screenshot: await screenshot("shell.png"),
+      };
     });
     await check("settings", async () => {
       const action = ui("settings");
@@ -463,6 +631,7 @@ export async function verifyPackage(options) {
         )
       );
       await waitForUi(
+        "settingsSnapshot",
         (rows) =>
           hasLabel(rows, "Personalize your StreamFusion experience") &&
           hasLabel(rows, "Search settings"),
@@ -510,9 +679,25 @@ export async function verifyPackage(options) {
     });
     await check("logs", collectLogs);
   } catch (error) {
-    report.checks[activeCheck ?? "preconditions"] = { status: "failed", error: error.message };
+    const failedCheck = activeCheck ?? "preconditions";
+    const failure = { status: "failed", error: error.message };
+    if (running()) {
+      try {
+        failure.screenshot = await screenshot("failure.png");
+      } catch (screenshotError) {
+        failure.screenshotError = screenshotError.message;
+      }
+    }
+    report.checks[failedCheck] = failure;
   } finally {
     try {
+      if (launchedAt !== undefined && report.checks.logs.status === "not_run") {
+        try {
+          report.checks.logs = { status: "passed", evidence: await collectLogs() };
+        } catch (error) {
+          report.checks.logs = { status: "failed", error: error.message };
+        }
+      }
       for (const fd of [stdoutFd, stderrFd]) if (fd !== undefined) closeSync(fd);
       if (running()) {
         requireOwned();
@@ -542,13 +727,6 @@ export async function verifyPackage(options) {
       report.checks.cleanup = { status: "passed" };
     } catch (error) {
       report.checks.cleanup = { status: "failed", error: error.message };
-    }
-    if (launchedAt !== undefined && report.checks.logs.status === "not_run") {
-      try {
-        report.checks.logs = { status: "passed", evidence: await collectLogs() };
-      } catch (error) {
-        report.checks.logs = { status: "failed", error: error.message };
-      }
     }
     process.removeListener("SIGINT", onSignal);
     process.removeListener("SIGTERM", onSignal);
