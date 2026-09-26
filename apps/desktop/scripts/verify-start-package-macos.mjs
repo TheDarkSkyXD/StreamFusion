@@ -585,7 +585,8 @@ export async function verifyPackage(options) {
         "settingsSnapshot",
         (rows) =>
           hasLabel(rows, "Personalize your StreamFusion experience") &&
-          hasLabel(rows, "Search settings"),
+          hasLabel(rows, "Search settings") &&
+          hasLabel(rows, "Default Quality"),
         "settings-accessibility.json"
       );
       return {

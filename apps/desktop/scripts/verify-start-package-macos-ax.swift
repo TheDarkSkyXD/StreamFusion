@@ -112,6 +112,7 @@ var webAreaRow: SnapshotRow?
 var settingsRow: SnapshotRow?
 var searchRow: SnapshotRow?
 var settingsDescriptionRow: SnapshotRow?
+var settingsContentRow: SnapshotRow?
 
 while cursor < pending.count, cursor < maximumElements {
     let current = pending[cursor]
@@ -155,11 +156,17 @@ while cursor < pending.count, cursor < maximumElements {
             print("Settings pressed")
             exit(0)
         }
-    } else if settingsDescriptionRow == nil, ["AXStaticText", "AXHeading"].contains(role) {
-        settingsDescriptionRow = matchingRow(
+    } else if ["AXStaticText", "AXHeading"].contains(role) {
+        settingsDescriptionRow = settingsDescriptionRow ?? matchingRow(
             current.element,
             role: role,
             label: "Personalize your StreamFusion experience",
+            attributes: ["AXValue", "AXTitle", "AXDescription"]
+        )
+        settingsContentRow = settingsContentRow ?? matchingRow(
+            current.element,
+            role: role,
+            label: "Default Quality",
             attributes: ["AXValue", "AXTitle", "AXDescription"]
         )
     } else if searchRow == nil, ["AXTextField", "AXTextArea"].contains(role) {
@@ -171,8 +178,8 @@ while cursor < pending.count, cursor < maximumElements {
         )
     }
 
-    if action == "settingsSnapshot", let settingsDescriptionRow, let searchRow {
-        emit([windowRow, settingsDescriptionRow, searchRow])
+    if action == "settingsSnapshot", let settingsDescriptionRow, let searchRow, let settingsContentRow {
+        emit([windowRow, settingsDescriptionRow, searchRow, settingsContentRow])
         exit(0)
     }
 
@@ -189,7 +196,7 @@ while cursor < pending.count, cursor < maximumElements {
 if action == "shellSnapshot" {
     emit([windowRow, webAreaRow, settingsRow, searchRow].compactMap { $0 })
 } else if action == "settingsSnapshot" {
-    emit([windowRow, settingsDescriptionRow, searchRow].compactMap { $0 })
+    emit([windowRow, settingsDescriptionRow, searchRow, settingsContentRow].compactMap { $0 })
 } else {
     fail("Required Settings accessibility target not found after \(cursor) elements")
 }
