@@ -271,7 +271,7 @@ function routeChannel(overrides: Partial<import("@shared/platform-types").Unifie
 // Guards: previous-route placeholder channel and stream records never reach StreamInfo or RelatedContent.
 // Guards: fresh channel identity redirects stale renamed-channel routes to the canonical platform username.
 // Guards: stream pages prefer provider-cased display names over lowercase login fallbacks.
-// Guards: the main Stream chat rail immediately applies each saved appearance width as its border-box outer width.
+// Guards: the main Stream chat rail immediately applies each saved appearance width without remounting playback or chat.
 // Guards: successful non-placeholder Twitch stream data for another route cannot falsely confirm the current channel offline
 // Guards: changing Twitch routes clears the previous player's fatal error so the new channel can show its loading state
 // Guards: playable live Stream pages start direct-to-file recording with the provider's stable live Stream identity
@@ -476,35 +476,41 @@ describe("StreamPage", () => {
     expect(screen.queryByTestId("twitch-live-player")).toBeNull();
   });
 
-  it("immediately sizes the outer chat rail to each saved width preset", () => {
+  it("immediately sizes the outer chat rail to each saved width preset", async () => {
     useChannelMock.mockReturnValue({ data: routeChannel(), isLoading: false } as ReturnType<
       typeof useChannelByUsername
     >);
     useStreamMock.mockReturnValue({
-      data: fixtures.stream({ title: "Going live" }),
+      data: fixtures.stream({ channelName: "ninja", title: "Going live", isLive: true }),
       isLoading: false,
+      isSuccess: true,
+      isPlaceholderData: false,
     } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
     useAuthStore.setState({ preferences: null });
     const { container } = renderWithProviders(<StreamPage />);
     const chatRail = screen.getByTestId("stream-chat-rail");
+    const player = await screen.findByTestId("twitch-live-player");
+    const chatPanel = await screen.findByTestId("chat-panel");
 
     expect(chatRail).toHaveStyle({
-      width: "340px",
-      minWidth: "340px",
-      maxWidth: "340px",
+      "--chat-width": "340px",
       boxSizing: "border-box",
     });
+    expect(chatRail).toHaveClass("w-full", "lg:w-[var(--chat-width)]");
 
     for (const outerWidth of [280, 340, 420] as const) {
       act(() => setChatWidthPx(outerWidth));
 
       expect(chatRail).toHaveStyle({
-        width: `${outerWidth}px`,
-        minWidth: `${outerWidth}px`,
-        maxWidth: `${outerWidth}px`,
+        "--chat-width": `${outerWidth}px`,
         boxSizing: "border-box",
       });
     }
+
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(screen.getByTestId("twitch-live-player")).toBe(player);
+    expect(screen.getByTestId("chat-panel")).toBe(chatPanel);
 
     expect(container.querySelector(".cursor-ew-resize")).toBeNull();
   });
@@ -577,10 +583,11 @@ describe("StreamPage", () => {
     } as ReturnType<typeof useStreamByChannel>);
     mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
     setChatPosition("hidden");
-    renderWithProviders(<StreamPage />);
+    const { container } = renderWithProviders(<StreamPage />);
     // Player still renders; the chat panel (and the chat service it mounts) does not.
     expect(await screen.findByTestId("twitch-live-player")).toBeInTheDocument();
     expect(screen.queryByTestId("chat-panel")).toBeNull();
+    expect(container.firstElementChild?.firstElementChild).toHaveClass("h-full");
   });
 
   it("does not mount Twitch chat while channel data still belongs to the previous route", async () => {

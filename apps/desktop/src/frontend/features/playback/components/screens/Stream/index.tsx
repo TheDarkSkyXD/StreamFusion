@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  type CSSProperties,
   lazy,
   Suspense,
   useCallback,
@@ -252,6 +253,10 @@ export function StreamPage() {
   // websocket-connecting-state learning. The toggle that SETS this lives in U6.
   const isChatHidden = useAuthStore((s) => s.preferences?.chat?.position === "hidden");
   const { cd: chatDisplay } = useChatDisplay();
+  const chatRailStyle: CSSProperties & { "--chat-width": string } = {
+    "--chat-width": `${chatDisplay.chatWidthPx}px`,
+    boxSizing: "border-box",
+  };
   const canMountChatPanel =
     routePlatform === "kick"
       ? Boolean(
@@ -814,9 +819,11 @@ export function StreamPage() {
   ]);
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden lg:flex-row">
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+      <div
+        className={`relative flex min-h-0 min-w-0 flex-none flex-col overflow-hidden lg:h-auto lg:flex-1 ${isChatHidden ? "h-full" : "h-[45%]"}`}
+      >
         <div
           className={`flex-1 no-scrollbar ${isTheater ? "flex flex-col items-center justify-center overflow-hidden py-[5px]" : "overflow-y-auto"}`}
         >
@@ -930,7 +937,7 @@ export function StreamPage() {
             {raidHandoff.popup && <RaidHandoffPopup model={raidHandoff.popup} />}
           </div>
 
-          <div className={`${isTheater ? "hidden" : "block"} p-6 space-y-6`}>
+          <div className={`${isTheater ? "hidden" : "block"} space-y-6 p-4 sm:p-6`}>
             <StreamInfo
               channel={displayChannelData}
               stream={detailStreamData}
@@ -969,13 +976,8 @@ export function StreamPage() {
       {!isChatHidden && (
         <div
           data-testid="stream-chat-rail"
-          style={{
-            width: chatDisplay.chatWidthPx,
-            minWidth: chatDisplay.chatWidthPx,
-            maxWidth: chatDisplay.chatWidthPx,
-            boxSizing: "border-box",
-          }}
-          className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
+          style={chatRailStyle}
+          className="relative flex h-[55%] min-h-0 w-full flex-none flex-col border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] lg:h-auto lg:w-[var(--chat-width)] lg:min-w-[var(--chat-width)] lg:max-w-[var(--chat-width)] lg:shrink-0 lg:border-l lg:border-t-0"
         >
           {canMountHeavyContent && canMountChatPanel && (
             <Suspense fallback={null}>

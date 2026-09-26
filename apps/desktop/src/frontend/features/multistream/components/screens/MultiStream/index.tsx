@@ -1,5 +1,12 @@
 import { getSlotController } from "@/features/multistream/composition/slot-controller";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
@@ -44,6 +51,10 @@ export function MultiStreamPage() {
   const playbackBudget = useMultiStreamStore((state) => state.playbackBudget);
   const { cd: chatDisplay } = useChatDisplay();
   const chatRailWidthPx = chatDisplay.chatWidthPx;
+  const chatRailStyle: CSSProperties & { "--chat-width": string } = {
+    "--chat-width": `${chatRailWidthPx}px`,
+    boxSizing: "border-box",
+  };
   const streamIdsRef = useRef(streamIds);
   const chatTabs = useMemo(
     () =>
@@ -105,8 +116,10 @@ export function MultiStreamPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* MultiStream Header / Toolbar */}
-      <div className="h-14 border-b border-[var(--color-border)] flex items-center px-4 shrink-0 bg-[var(--color-background)] gap-4">
-        <h1 className="font-semibold text-lg mr-auto">{t("multistream.multiStream")}</h1>
+      <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 sm:gap-4 sm:px-4">
+        <h1 className="mr-auto min-w-0 font-semibold text-lg max-sm:basis-full">
+          {t("multistream.multiStream")}
+        </h1>
 
         <div className="flex items-center gap-2">
           <Button
@@ -114,6 +127,8 @@ export function MultiStreamPage() {
             size="sm"
             onClick={() => setLayout("grid")}
             title={t("multistream.gridLayout")}
+            aria-label={t("multistream.gridLayout")}
+            className="max-sm:h-11 max-sm:w-11"
           >
             <LuLayoutGrid className="h-4 w-4" />
           </Button>
@@ -123,31 +138,34 @@ export function MultiStreamPage() {
             onClick={() => setLayout("focus")}
             disabled={streamIds.length === 0}
             title={t("multistream.focusLayout")}
+            aria-label={t("multistream.focusLayout")}
+            className="max-sm:h-11 max-sm:w-11"
           >
             <LuMaximize className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="h-6 w-px bg-[var(--color-border)] mx-2" />
+        <div className="mx-2 hidden h-6 w-px bg-[var(--color-border)] sm:block" />
 
         <AddStreamDialog />
 
-        <div className="h-6 w-px bg-[var(--color-border)] mx-2" />
+        <div className="mx-2 hidden h-6 w-px bg-[var(--color-border)] sm:block" />
 
         <Button
           variant={isChatOpen ? "secondary" : "ghost"}
           size="sm"
           onClick={toggleChat}
           disabled={streamIds.length === 0}
+          className="max-sm:min-h-11"
         >
-          <LuMessageSquare className="h-4 w-4 mr-2" />
+          <LuMessageSquare className="mr-2 h-4 w-4" />
           {t("multistream.chat")}
         </Button>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex min-h-0 overflow-hidden relative">
-        <div className="flex-1 min-w-0 bg-[var(--color-background-tertiary)] p-1">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <div className="min-h-0 min-w-0 flex-[1_1_55%] bg-[var(--color-background-tertiary)] p-1 lg:flex-1">
           <MultiStreamGrid />
         </div>
 
@@ -155,13 +173,8 @@ export function MultiStreamPage() {
         {isChatOpen && streamIds.length > 0 && (
           <div
             data-testid="multistream-chat-rail"
-            style={{
-              width: chatRailWidthPx,
-              minWidth: chatRailWidthPx,
-              maxWidth: chatRailWidthPx,
-              boxSizing: "border-box",
-            }}
-            className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
+            style={chatRailStyle}
+            className="relative flex min-h-0 w-full flex-[1_1_45%] flex-col border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] lg:w-[var(--chat-width)] lg:min-w-[var(--chat-width)] lg:max-w-[var(--chat-width)] lg:flex-none lg:shrink-0 lg:border-l lg:border-t-0"
           >
             <div className="border-b border-[var(--color-border)] px-2 pt-2">
               <div className="flex items-center justify-between gap-2 px-1 pb-2">

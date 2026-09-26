@@ -27,6 +27,7 @@ vi.mock('@/lib/utils', () => ({
     cn: (...args: unknown[]) => args.join(' ')
 }));
 
+// Guards: a touch on hidden controls reveals them without pausing playback or losing them to compatibility mouse events.
 describe('PlayerControls', () => {
     const defaultProps = {
         isPlaying: false,
@@ -75,6 +76,33 @@ describe('PlayerControls', () => {
 
         expect(onTogglePlay).not.toHaveBeenCalled();
         vi.useRealTimers();
+    });
+
+    it('reveals hidden controls on touch without changing playback and keeps them visible long enough to act', () => {
+        vi.useFakeTimers();
+        try {
+            const onTogglePlay = vi.fn();
+            const { container } = renderControls({ ...defaultProps, isPlaying: true, onTogglePlay });
+            const overlay = container.firstElementChild as HTMLElement;
+            const controls = overlay.firstElementChild as HTMLElement;
+
+            act(() => vi.advanceTimersByTime(1000));
+            expect(controls).toHaveClass('opacity-0');
+
+            fireEvent.pointerDown(overlay, { pointerType: 'touch' });
+            fireEvent.mouseEnter(overlay);
+            fireEvent.mouseMove(overlay);
+            fireEvent.mouseLeave(overlay);
+            expect(controls).toHaveClass('opacity-100');
+            expect(onTogglePlay).not.toHaveBeenCalled();
+
+            act(() => vi.advanceTimersByTime(3000));
+            expect(controls).toHaveClass('opacity-100');
+            act(() => vi.advanceTimersByTime(1000));
+            expect(controls).toHaveClass('opacity-0');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('does not toggle Twitch playback when the blank player surface is clicked', () => {

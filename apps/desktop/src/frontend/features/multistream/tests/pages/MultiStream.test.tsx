@@ -254,14 +254,13 @@ describe("MultiStreamPage", () => {
 
     const expectOuterWidth = (width: 280 | 340 | 420) => {
       expect(chatRail).toHaveStyle({
-        width: `${width}px`,
-        minWidth: `${width}px`,
-        maxWidth: `${width}px`,
+        "--chat-width": `${width}px`,
         boxSizing: "border-box",
       });
     };
 
     expectOuterWidth(340);
+    expect(chatRail).toHaveClass("w-full", "lg:w-[var(--chat-width)]");
     expect(container.querySelector(".cursor-ew-resize")).toBeNull();
 
     for (const width of [280, 340, 420] as const) {
@@ -303,9 +302,7 @@ describe("MultiStreamPage", () => {
 
       expect(useAuthStore.getState().preferences).toBeNull();
       expect(screen.getByTestId("multistream-chat-rail")).toHaveStyle({
-        width: "280px",
-        minWidth: "280px",
-        maxWidth: "280px",
+        "--chat-width": "280px",
         boxSizing: "border-box",
       });
     } finally {

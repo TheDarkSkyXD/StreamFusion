@@ -6,6 +6,7 @@ import path from "path";
 const systemTestPattern = "**/*.system.test.{ts,tsx}";
 const deterministicWorkers = Math.min(8, availableParallelism());
 const nodeOnlyTests = [
+  "tests/build/start-package-macos.test.ts",
   "tests/helpers/better-sqlite3-shim.test.ts",
   "src/frontend/features/chat/tests/services/emotes/twitch-user-emotes.integration.test.ts",
   "src/frontend/features/chat/tests/services/emotes/twitch-emotes.test.ts",

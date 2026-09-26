@@ -165,6 +165,7 @@ export function PlayerControls(props: PlayerControlsProps) {
   const [isVisible, setIsVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const isPointerInsideRef = useRef(false);
+  const lastInputWasTouchRef = useRef(false);
   const isHoveringControlsRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isLive = !duration || duration === Infinity;
@@ -173,12 +174,14 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   // Start idle timeout
   const startIdleTimeout = useCallback(() => {
-    if (!isLive && isPointerInsideRef.current) {
+    if (!isLive && isPointerInsideRef.current && !lastInputWasTouchRef.current) {
       hideTimer.clear();
       return;
     }
     if (isPlaying && !isSettingsOpen) {
-      hideTimer.start(isHoveringControlsRef.current ? 3000 : 1000);
+      hideTimer.start(
+        lastInputWasTouchRef.current ? 4000 : isHoveringControlsRef.current ? 3000 : 1000
+      );
     } else {
       hideTimer.clear();
     }
@@ -192,6 +195,7 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   // Handle mouse leaving the player area (200ms quick hide)
   const handleMouseLeave = useCallback(() => {
+    if (lastInputWasTouchRef.current) return;
     isPointerInsideRef.current = false;
     if (isPlaying && !isSettingsOpen) {
       hideTimer.start(200);
@@ -253,12 +257,21 @@ export function PlayerControls(props: PlayerControlsProps) {
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onPointerDown={(event) => {
+        lastInputWasTouchRef.current = event.pointerType === "touch";
+        if (!lastInputWasTouchRef.current) return;
+        setIsVisible(true);
+        startIdleTimeout();
+      }}
+      onPointerMove={(event) => {
+        if (event.pointerType === "mouse") lastInputWasTouchRef.current = false;
+      }}
       onDoubleClick={handleOverlayDoubleClick}
     >
       {/* Controls bar at the bottom */}
       <div
         className={`
-                w-full bg-gradient-to-t from-black/90 to-transparent pt-20 pb-4 px-4
+                w-full bg-gradient-to-t from-black/90 to-transparent px-2 pb-2 pt-8 sm:px-4 sm:pb-4 sm:pt-20
                 transition-opacity duration-200 ease-in-out pointer-events-none z-40
                 ${isVisible || !isPlaying ? "opacity-100" : "opacity-0"}
             `}
@@ -268,7 +281,7 @@ export function PlayerControls(props: PlayerControlsProps) {
         {/* VOD Progress Bar */}
         {(progressBar || (!isLive && onSeek)) && (
           <div
-            className="w-full px-4 mb-2 pointer-events-auto"
+            className="mb-1 w-full px-1 pointer-events-auto sm:mb-2 sm:px-4"
             onMouseEnter={handleControlsEnter}
             onMouseLeave={handleControlsLeave}
           >
@@ -286,18 +299,18 @@ export function PlayerControls(props: PlayerControlsProps) {
         )}
 
         <div
-          className={`flex items-center justify-between w-full pointer-events-auto ${isFullscreen ? "" : "max-w-screen-2xl mx-auto"}`}
+          className={`flex w-full flex-wrap items-center justify-between gap-y-1 pointer-events-auto sm:flex-nowrap ${isFullscreen ? "" : "max-w-screen-2xl mx-auto"}`}
           onMouseEnter={handleControlsEnter}
           onMouseLeave={handleControlsLeave}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             {onSeekBackward && isValidSeekInterval(seekBackwardSeconds) && (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 aria-label={t("playback.rewindSeconds", { seconds: seekBackwardSeconds })}
-                className="relative rounded-full text-white hover:bg-white/20 cursor-pointer"
+                className="relative cursor-pointer rounded-full text-white hover:bg-white/20 max-lg:min-h-11 max-lg:min-w-11"
                 onClick={onSeekBackward}
                 disabled={seekBackwardDisabled}
               >
@@ -308,7 +321,12 @@ export function PlayerControls(props: PlayerControlsProps) {
               </Button>
             )}
 
-            <PlayPauseButton isPlaying={isPlaying} isLoading={isLoading} onToggle={onTogglePlay} />
+            <PlayPauseButton
+              isPlaying={isPlaying}
+              isLoading={isLoading}
+              onToggle={onTogglePlay}
+              className="max-lg:min-h-11 max-lg:min-w-11"
+            />
 
             {onSeekForward && isValidSeekInterval(seekForwardSeconds) && (
               <Button
@@ -316,7 +334,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                 variant="ghost"
                 size="icon"
                 aria-label={t("playback.fastForwardSeconds", { seconds: seekForwardSeconds })}
-                className="relative rounded-full text-white hover:bg-white/20 cursor-pointer"
+                className="relative cursor-pointer rounded-full text-white hover:bg-white/20 max-lg:min-h-11 max-lg:min-w-11"
                 onClick={onSeekForward}
                 disabled={seekForwardDisabled}
               >
@@ -327,12 +345,14 @@ export function PlayerControls(props: PlayerControlsProps) {
               </Button>
             )}
 
-            <VolumeControl
-              volume={volume}
-              muted={muted}
-              onVolumeChange={onVolumeChange}
-              onMuteToggle={onToggleMute}
-            />
+            <div className="max-lg:[&_button]:min-h-11 max-lg:[&_button]:min-w-11">
+              <VolumeControl
+                volume={volume}
+                muted={muted}
+                onVolumeChange={onVolumeChange}
+                onMuteToggle={onToggleMute}
+              />
+            </div>
 
             {/* Live Badge or Timestamp */}
             {isLive ? (
@@ -343,7 +363,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                 </div>
               ))
             ) : (
-              <div className="text-white text-2xl font-bold ml-2 select-none">
+              <div className="ml-1 select-none whitespace-nowrap text-xs font-bold text-white sm:ml-2 sm:text-2xl">
                 {formatDuration(currentTime)} / {formatDuration(duration)}
               </div>
             )}
@@ -351,34 +371,36 @@ export function PlayerControls(props: PlayerControlsProps) {
             {leftAddon}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {rightAddon}
 
-            <SettingsMenu
-              qualities={qualities}
-              currentQualityId={currentQualityId}
-              onQualityChange={onQualityChange}
-              onTogglePip={onTogglePip}
-              onToggleTheater={onToggleTheater}
-              isTheater={isTheater}
-              playbackRate={playbackRate}
-              onPlaybackRateChange={isLive ? undefined : onPlaybackRateChange}
-              onOpenChange={handleSettingsOpenChange}
-              showVideoStats={showVideoStats}
-              onToggleVideoStats={onToggleVideoStats}
-              container={containerRef.current}
-              timedTextTracks={props.timedTextTracks}
-              localTimedTextTrack={props.localTimedTextTrack}
-              currentTimedTextTrackKey={props.currentTimedTextTrackKey}
-              onTimedTextTrackChange={props.onTimedTextTrackChange}
-              localCaptionModel={props.localCaptionModel}
-              localCaptionPhase={props.localCaptionPhase}
-              localCaptionError={props.localCaptionError}
-              onLocalCaptionModelDownload={props.onLocalCaptionModelDownload}
-              onLocalCaptionModelCancel={props.onLocalCaptionModelCancel}
-              onLocalCaptionModelRemove={props.onLocalCaptionModelRemove}
-              onLocalCaptionRetry={props.onLocalCaptionRetry}
-            />
+            <div className="max-lg:[&_button]:min-h-11 max-lg:[&_button]:min-w-11">
+              <SettingsMenu
+                qualities={qualities}
+                currentQualityId={currentQualityId}
+                onQualityChange={onQualityChange}
+                onTogglePip={onTogglePip}
+                onToggleTheater={onToggleTheater}
+                isTheater={isTheater}
+                playbackRate={playbackRate}
+                onPlaybackRateChange={isLive ? undefined : onPlaybackRateChange}
+                onOpenChange={handleSettingsOpenChange}
+                showVideoStats={showVideoStats}
+                onToggleVideoStats={onToggleVideoStats}
+                container={containerRef.current}
+                timedTextTracks={props.timedTextTracks}
+                localTimedTextTrack={props.localTimedTextTrack}
+                currentTimedTextTrackKey={props.currentTimedTextTrackKey}
+                onTimedTextTrackChange={props.onTimedTextTrackChange}
+                localCaptionModel={props.localCaptionModel}
+                localCaptionPhase={props.localCaptionPhase}
+                localCaptionError={props.localCaptionError}
+                onLocalCaptionModelDownload={props.onLocalCaptionModelDownload}
+                onLocalCaptionModelCancel={props.onLocalCaptionModelCancel}
+                onLocalCaptionModelRemove={props.onLocalCaptionModelRemove}
+                onLocalCaptionRetry={props.onLocalCaptionRetry}
+              />
+            </div>
 
             {controls.showTheater && onToggleTheater && !isFullscreen && (
               <Tooltip delayDuration={0}>
@@ -386,7 +408,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/20 cursor-pointer"
+                    className="cursor-pointer text-white hover:bg-white/20 max-lg:min-h-11 max-lg:min-w-11"
                     onClick={onToggleTheater}
                     aria-label={
                       isTheater ? t("playback.exitTheaterModeT") : t("playback.theaterModeT")
@@ -414,7 +436,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/20 cursor-pointer"
+                    className="cursor-pointer text-white hover:bg-white/20 max-lg:min-h-11 max-lg:min-w-11"
                     onClick={onToggleFullscreen}
                     aria-label={
                       isFullscreen ? t("playback.exitFullscreenF") : t("playback.fullscreenF")

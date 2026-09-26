@@ -76,9 +76,9 @@ export function FeaturedStream({
 
   if (isLoading) {
     return (
-      <div className="relative h-[560px] w-full overflow-hidden rounded-lg bg-[var(--color-background-secondary)]">
-        <Skeleton className="w-full h-full" />
-        <div className="absolute inset-x-4 bottom-4 rounded-lg border border-white/10 bg-black/65 p-4 backdrop-blur-md">
+      <div className="relative w-full overflow-hidden rounded-lg bg-[var(--color-background-secondary)] lg:h-[560px]">
+        <Skeleton className="aspect-video w-full lg:h-full lg:aspect-auto" />
+        <div className="relative border-t border-white/10 bg-[var(--color-background-secondary)] p-4 lg:absolute lg:inset-x-4 lg:bottom-4 lg:rounded-lg lg:border lg:bg-black/65 lg:backdrop-blur-md">
           <div className="flex items-center gap-4">
             <Skeleton className="h-14 w-14 rounded-full" />
             <div className="min-w-0 flex-1 space-y-2">
@@ -147,18 +147,18 @@ export function FeaturedStream({
   };
 
   return (
-    <div className="group relative h-[560px] w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black">
+    <div className="group relative w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black lg:h-[560px]">
       <Link
         to="/stream/$platform/$channel"
         params={{ platform: activeStream.platform, channel: activeStream.channelName }}
         search={{ tab: "home" }}
-        className="absolute inset-0"
+        className="relative block aspect-video w-full lg:absolute lg:inset-0 lg:aspect-auto"
         aria-label={t("home.watch", { channel: activeStream.channelDisplayName })}
       >
         <ProxiedImage
           src={activeStream.thumbnailUrl.replace("{width}", "1920").replace("{height}", "1080")}
           alt={activeStream.title}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.015] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.015] motion-reduce:transition-none motion-reduce:group-hover:scale-100 lg:object-cover"
           loading="eager"
           width={1920}
           height={1080}
@@ -191,7 +191,7 @@ export function FeaturedStream({
         </button>
       )}
 
-      <div className="absolute inset-x-4 bottom-4 rounded-lg border border-white/10 bg-black/65 p-4 text-white backdrop-blur-md">
+      <div className="relative border-t border-white/10 bg-[var(--color-background-secondary)] p-4 text-white lg:absolute lg:inset-x-4 lg:bottom-4 lg:rounded-lg lg:border lg:bg-black/65 lg:backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-[var(--color-background-tertiary)]">
             <ProxiedImage
@@ -222,7 +222,7 @@ export function FeaturedStream({
               </span>
             </div>
             <div className="mt-2 flex min-w-0 items-center gap-2">
-              <p className="min-w-0 truncate text-sm font-extrabold uppercase leading-tight text-white">
+              <p className="min-w-0 line-clamp-2 text-sm font-extrabold uppercase leading-tight text-white lg:truncate">
                 {activeStream.title}
               </p>
               <div className="hidden shrink-0 items-center gap-1 md:flex">
@@ -297,7 +297,7 @@ export function FeaturedStream({
             params={{ platform: activeStream.platform, channel: activeStream.channelName }}
             search={{ tab: "home" }}
             className={cn(
-              "inline-flex h-9 items-center rounded-md px-4 text-sm font-extrabold",
+              "inline-flex min-h-11 items-center rounded-md px-4 text-sm font-extrabold lg:min-h-9",
               watchNowClassName
             )}
           >
@@ -355,7 +355,7 @@ function FeaturedStreamPreviewPlayer({
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const previewClassName = cn(
-    "absolute inset-0 size-full object-cover transition-opacity duration-300 motion-reduce:transition-none",
+    "absolute inset-0 size-full object-contain transition-opacity duration-300 motion-reduce:transition-none lg:object-cover",
     isPreviewReady ? "opacity-100" : "opacity-0"
   );
 

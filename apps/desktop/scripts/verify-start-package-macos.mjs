@@ -382,7 +382,7 @@ export async function verifyPackage(options) {
       const metadata = JSON.parse(extractFile(archive, "package.json").toString());
       const sqliteBinding = path.join(
         copiedApp,
-        "Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+        `Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/prebuilds/darwin-${options.arch}.node`
       );
       assert((await stat(sqliteBinding)).isFile(), "Packaged native SQLite binding is missing");
       return {

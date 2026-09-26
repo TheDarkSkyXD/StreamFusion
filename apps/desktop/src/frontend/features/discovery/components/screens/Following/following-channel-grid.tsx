@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 const CARD_HEIGHT = 180;
 const GRID_GAP = 16;
@@ -19,23 +11,11 @@ export interface FollowingChannelGridProps<T> {
 }
 
 function getItemsPerRow(width: number): number {
-  if (width < 768) return 3;
-  if (width < 1024) return 5;
-  if (width < 1280) return 6;
+  if (width < 480) return 2;
+  if (width < 720) return 3;
+  if (width < 960) return 5;
+  if (width < 1120) return 6;
   return 8;
-}
-
-function subscribeToViewport(onStoreChange: () => void): () => void {
-  window.addEventListener("resize", onStoreChange);
-  return () => window.removeEventListener("resize", onStoreChange);
-}
-
-function getViewportItemsPerRow(): number {
-  return getItemsPerRow(window.innerWidth);
-}
-
-function getServerItemsPerRow(): number {
-  return 6;
 }
 
 export function FollowingChannelGrid<T>({
@@ -44,15 +24,27 @@ export function FollowingChannelGrid<T>({
   renderItem,
 }: FollowingChannelGridProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const itemsPerRow = useSyncExternalStore(
-    subscribeToViewport,
-    getViewportItemsPerRow,
-    getServerItemsPerRow
-  );
+  const [containerWidth, setContainerWidth] = useState(0);
+  const itemsPerRow = getItemsPerRow(containerWidth);
   const [visibleRange, setVisibleRange] = useState({
     start: 0,
     end: Math.min(items.length, INITIAL_VISIBLE_CARD_COUNT),
   });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const updateWidth = (width: number) => {
+      setContainerWidth((current) => (current === width ? current : width));
+    };
+    updateWidth(container.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width !== undefined) updateWidth(Math.floor(width));
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const updateVisibleRange = useCallback(() => {
     const container = containerRef.current;
@@ -113,8 +105,11 @@ export function FollowingChannelGrid<T>({
     >
       <div style={{ height: totalRows * rowHeight, position: "relative" }}>
         <div
-          className="absolute left-0 right-0 grid grid-cols-3 gap-4 pt-2 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8"
-          style={{ top: startRow * rowHeight }}
+          className="absolute left-0 right-0 grid gap-4 pt-2"
+          style={{
+            top: startRow * rowHeight,
+            gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
+          }}
         >
           {visibleItems.map((item, index) => (
             <div

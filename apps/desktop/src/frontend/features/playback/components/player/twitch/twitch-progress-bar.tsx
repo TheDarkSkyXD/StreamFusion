@@ -49,7 +49,7 @@ export function TwitchProgressBar({
 
   return (
     <div
-      className={`group relative w-full h-4 cursor-pointer flex items-center select-none touch-none ${className}`}
+      className={`group relative w-full h-4 cursor-pointer flex items-center select-none touch-none max-lg:h-11 ${className}`}
       ref={containerRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -91,10 +91,8 @@ export function TwitchProgressBar({
           style={{ width: `${progress}%`, backgroundColor: twitchPurple }}
         />
       </div>
-
-      {/* Thumb (only visible on hover/group-hover) - White */}
       <div
-        className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full scale-0 group-hover:scale-100 transition-transform duration-100 shadow-xl pointer-events-none"
+        className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full scale-0 group-hover:scale-100 max-lg:scale-100 transition-transform duration-100 shadow-xl pointer-events-none"
         style={{
           left: `${progress}%`,
           marginLeft: `-${(progress / 100) * 12}px`,

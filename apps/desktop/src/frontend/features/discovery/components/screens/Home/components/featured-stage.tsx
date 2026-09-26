@@ -222,9 +222,9 @@ function FeaturedStageSkeleton({ showChat }: { showChat: boolean }) {
       data-testid="featured-stage-skeleton"
       className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_clamp(320px,24vw,385px)]"
     >
-      <div className="relative h-[560px] overflow-hidden rounded-lg bg-[var(--color-background-secondary)]">
-        <Skeleton className="h-full w-full" />
-        <div className="absolute inset-x-4 bottom-4 rounded-lg border border-white/10 bg-black/65 p-4">
+      <div className="relative overflow-hidden rounded-lg bg-[var(--color-background-secondary)] lg:h-[560px]">
+        <Skeleton className="aspect-video w-full lg:h-full lg:aspect-auto" />
+        <div className="relative border-t border-white/10 bg-[var(--color-background-secondary)] p-4 lg:absolute lg:inset-x-4 lg:bottom-4 lg:rounded-lg lg:border lg:bg-black/65">
           <div className="flex items-center gap-4">
             <Skeleton className="h-14 w-14 rounded-full" />
             <div className="min-w-0 flex-1 space-y-2">

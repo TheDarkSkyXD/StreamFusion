@@ -135,7 +135,7 @@ export function AddStreamDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-2 font-bold">
+        <Button size="sm" className="gap-2 font-bold max-sm:min-h-11">
           <LuPlus className="h-4 w-4" />
           {t("multistream.addStream")}
         </Button>

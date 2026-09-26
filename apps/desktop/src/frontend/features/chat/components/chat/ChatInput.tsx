@@ -86,7 +86,10 @@ import {
   type CommandSuggestion,
   type TextRange,
 } from "../commands/chat-command-registry";
-import type { ChatCommandOutcome, ChatCommandResult } from "../../domain/commands/chat-command-outcome";
+import type {
+  ChatCommandOutcome,
+  ChatCommandResult,
+} from "../../domain/commands/chat-command-outcome";
 
 // ========== Types ==========
 
@@ -2556,14 +2559,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           {!quickSettingsBelongsToEmoteRow ? quickSettingsOverlay : null}
           <div
             data-testid="chat-input-text-row"
-            className="relative flex items-end gap-2 overflow-hidden rounded-md border-2 bg-[#191919] px-3 py-2 transition-colors duration-150"
+            className="relative flex min-w-0 items-end gap-1 overflow-hidden rounded-md border-2 bg-[#191919] px-2 py-2 transition-colors duration-150 sm:gap-2 sm:px-3"
             style={{ borderColor: isEditorFocused ? "#ffffff" : "var(--color-border)" }}
           >
             {/* Rich editor: inserted emotes are real inline nodes, so Chromium
             places the caret after the image instead of over a hidden placeholder. */}
-            <div className="relative flex flex-1 self-stretch items-center">
+            <div className="relative flex min-w-0 flex-1 self-stretch items-center">
               {!message && viewerIsAuthenticated && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-start text-left text-sm font-bold leading-[1.5] text-neutral-300">
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-start overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm font-bold leading-[1.5] text-neutral-300">
                   {placeholder}
                 </div>
               )}
@@ -2573,7 +2576,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   type="button"
                   aria-label={authCopy.message}
                   onClick={handleAuthRequired}
-                  className="absolute inset-0 z-10 flex cursor-pointer items-center justify-start bg-[#191919] text-left text-sm font-bold leading-[1.5] text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-inset"
+                  className="absolute inset-0 z-10 flex cursor-pointer items-center justify-start overflow-hidden text-ellipsis whitespace-nowrap bg-[#191919] text-left text-sm font-bold leading-[1.5] text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-inset"
                 >
                   {authCopy.message}
                 </button>
@@ -2620,7 +2623,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             {/* Emote buttons (native + third-party). The wrapper keeps them in
               the input row while preserving the KickTalk action divider. */}
             <div
-              className="flex items-center gap-2 pl-3 ml-1 -mr-1 border-l animate-slide-and-fade-in"
+              className="-mr-1 ml-1 flex shrink-0 items-center gap-1 border-l pl-1 animate-slide-and-fade-in sm:gap-2 sm:pl-3"
               style={{ borderLeftColor: "rgba(255,255,255,0.16)" }}
             >
               {/* Inline `borderColor` overrides the unlayered `* { border-color: var(--color-border) }`
@@ -2629,7 +2632,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 surface; the surrounding input box stays on KickTalk's darker
                 --bg-input. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
               <div
-                className="flex items-center h-[38px] rounded-[4px] overflow-hidden border bg-white/5 transition-colors duration-150"
+                className="flex h-[38px] items-center overflow-hidden rounded-[4px] border bg-white/5 transition-colors duration-150 max-sm:h-11 max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11"
                 style={{
                   borderColor:
                     activeDialog !== null ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.05)",
@@ -2717,7 +2720,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           {/* Footer actions. The second row is only chat settings + submit. */}
           <div
             data-testid="chat-input-action-row"
-            className={`relative flex items-center gap-2 animate-slide-and-fade-in ${
+            className={`relative flex flex-wrap items-center gap-2 animate-slide-and-fade-in ${
               showChatSettings ? "z-20" : ""
             } ${showSlowModeCountdown ? "justify-between" : "justify-end"}`}
           >
@@ -2740,7 +2743,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                       params={{ channel }}
                       data-testid="chat-mod-view-link"
                       aria-label={t("chat.openChannelModerationPage")}
-                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] ${
+                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] max-sm:h-11 max-sm:w-11 ${
                         platform === "twitch"
                           ? "border-[#9146FF]/40 bg-[#9146FF]/15 text-[#a970ff] hover:bg-[#9146FF]/25"
                           : "border-[#53FC18]/40 bg-[#53FC18]/15 text-[#53FC18] hover:bg-[#53FC18]/25"
@@ -2766,7 +2769,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     onClick={() => setShowChatSettings((v) => !v)}
                     aria-label={t("chat.chatSettings")}
                     aria-expanded={showChatSettings}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors duration-150 hover:bg-[#232629] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919]"
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors duration-150 hover:bg-[#232629] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] max-sm:h-11 max-sm:w-11"
                   >
                     <BsGear size={18} style={{ stroke: "currentColor", strokeWidth: 0.45 }} />
                   </button>
@@ -2784,7 +2787,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onClick={handleSend}
                 disabled={submitDisabled}
                 aria-disabled={!canSubmit}
-                className={`h-[38px] flex-shrink-0 cursor-pointer rounded-[4px] bg-white px-4 text-sm font-bold text-[#0f0f0f] transition-opacity duration-150 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#191919] disabled:cursor-not-allowed ${
+                className={`h-[38px] flex-shrink-0 cursor-pointer rounded-[4px] bg-white px-4 text-sm font-bold text-[#0f0f0f] transition-opacity duration-150 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#191919] disabled:cursor-not-allowed max-sm:min-h-11 ${
                   shouldDimSubmit ? "opacity-40" : ""
                 }`}
               >

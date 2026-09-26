@@ -181,6 +181,7 @@ function getRequestedSearch(call: unknown): Record<string, unknown> | undefined 
 // Guards: selecting a destination writes the tab choice to the URL so refresh and sharing preserve context.
 // Guards: a `?tab=` deep-link selects both the requested content and its matching navigation item.
 // Guards: a later URL history change overrides any optimistic in-flight selection immediately.
+// Guards: compact category selection uses the same URL and content state as desktop navigation.
 // Guards: Settings mocks include every persisted preference group when the schema grows.
 describe("SettingsPage navigation", () => {
   beforeEach(() => {
@@ -249,6 +250,24 @@ describe("SettingsPage navigation", () => {
     expect(screen.getByText("Appearance")).toBeInTheDocument();
     expect(screen.getByText("Emotes & badges")).toBeInTheDocument();
     expect(screen.getByText("Behavior")).toBeInTheDocument();
+  });
+
+  it("selects a compact category through the shared settings route and panel", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+    await settleEnvironmentProbe();
+
+    const searchInput = screen.getByRole("textbox", { name: "Search settings" });
+    const category = screen.getByRole("combobox", { name: "Settings navigation" });
+    await user.click(category);
+    await user.click(screen.getByRole("option", { name: "Chat" }));
+
+    expect(routerState.navigate).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/settings", search: { tab: "chat" } })
+    );
+    expect(screen.getByText("Emotes & badges")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Chat settings" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search settings" })).toBe(searchInput);
   });
 
   it("lets a later URL history change override an optimistic selection", async () => {

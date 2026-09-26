@@ -110,7 +110,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
 
   if (isLoading || !channel) {
     return (
-      <div className="flex justify-between items-start gap-4 animate-pulse">
+      <div className="flex flex-wrap items-start justify-between gap-4 animate-pulse sm:flex-nowrap">
         <Skeleton className="w-16 h-16 rounded-full shrink-0" />
         <div className="flex-1 space-y-2">
           <Skeleton className="h-8 w-64" />
@@ -126,7 +126,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
   }
 
   return (
-    <div className="flex justify-between items-start gap-4">
+    <div className="flex flex-wrap items-start justify-between gap-4 sm:flex-nowrap">
       <PlatformAvatar
         src={channel.avatarUrl}
         alt={channel.displayName}
@@ -139,7 +139,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
         liveStatusType={channel.platform === "kick" ? "badge" : "dot"}
         disablePlatformBorder={true}
       />
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1 basis-[calc(100%_-_5rem)] sm:basis-auto">
         <h1 className="text-2xl font-bold flex items-center gap-2 truncate">
           <span className="truncate">{channel.displayName}</span>
           {(stream?.channelIsVerified || channel.isVerified || channel.isPartner) && (
@@ -230,7 +230,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
       </div>
 
       {/* Right side: Follow button and live stats */}
-      <div className="flex flex-col items-end gap-3">
+      <div className="ml-auto flex flex-col items-end gap-3 sm:ml-0">
         {(recordingAction || !isOwnerView) && (
           <div className="flex items-center gap-2">
             {recordingAction}

@@ -2,6 +2,7 @@ import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, routerMock, screen } from "../../../../../../../tests/test-utils";
+import { Dialog } from "@/components/ui/dialog";
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
@@ -35,6 +36,7 @@ import { TopNavBar } from "@/features/shell/components/TopNavBar";
 // Guards: the global menu sends explicit collapse intent instead of toggling against stale state.
 // Guards: moderation stays inside channel-scoped routes rather than leaking into global navigation.
 // Guards: the top-nav action track sizes to content and never asks the profile control to shrink.
+// Guards: changing viewport navigation keeps the existing search field mounted.
 describe("TopNavBar", () => {
   beforeEach(() => {
     setSidebarCollapsed.mockClear();
@@ -54,6 +56,29 @@ describe("TopNavBar", () => {
   it("reserves an intrinsic-width action track", () => {
     const { container } = renderWithProviders(<TopNavBar />);
 
-    expect(container.firstElementChild).toHaveClass("grid-cols-[250px_minmax(0,1fr)_max-content]");
+    expect(container.firstElementChild).toHaveClass(
+      "lg:grid-cols-[250px_minmax(0,1fr)_max-content]"
+    );
+    expect(container.firstElementChild?.children[0]).toHaveClass("col-start-1", "row-start-1");
+    expect(container.firstElementChild?.children[1]).toHaveClass("lg:col-start-2");
+    expect(screen.getAllByTestId("search-bar")).toHaveLength(1);
+  });
+
+  it("keeps one search field when compact navigation becomes available", () => {
+    const { rerender } = renderWithProviders(
+      <Dialog>
+        <TopNavBar />
+      </Dialog>
+    );
+    const search = screen.getByTestId("search-bar");
+
+    rerender(
+      <Dialog>
+        <TopNavBar mobileMenu />
+      </Dialog>
+    );
+
+    expect(screen.getByTestId("search-bar")).toBe(search);
+    expect(screen.getByRole("link", { name: "StreamFusion" })).toBeInTheDocument();
   });
 });

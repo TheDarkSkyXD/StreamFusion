@@ -69,7 +69,7 @@ export function SettingRow({
   icon?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3">
+    <div className="flex flex-col items-start justify-between gap-2 py-3 sm:flex-row sm:gap-4">
       <div className="min-w-0 flex-1 flex items-start gap-3">
         {icon && (
           <span className="mt-0.5 flex-shrink-0 text-zinc-500" aria-hidden>
@@ -82,7 +82,9 @@ export function SettingRow({
           {note && <p className="text-xs text-zinc-600 mt-1 italic">{note}</p>}
         </div>
       </div>
-      <div className="flex-shrink-0 flex items-center min-h-[1.5rem]">{control}</div>
+      <div className="flex min-h-11 w-full flex-shrink-0 items-center sm:min-h-[1.5rem] sm:w-auto">
+        {control}
+      </div>
     </div>
   );
 }
@@ -304,7 +306,7 @@ function SelectRow<T extends string>({
         <Select value={value} onValueChange={(v) => onChange(v as T)}>
           <SelectTrigger
             aria-label={label}
-            className="w-[160px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
+            className="h-11 w-full border-[#27272a] bg-[#18181b] text-zinc-200 focus:ring-yellow-500/20 sm:h-10 sm:w-[160px]"
           >
             <SelectValue />
           </SelectTrigger>
@@ -326,10 +328,10 @@ function SelectRow<T extends string>({
 function GroupCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+      <div className="flex items-center justify-between border-b border-[#27272a] px-4 py-4 sm:px-6">
         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{title}</h3>
       </div>
-      <div className="px-6 py-2 divide-y divide-[#27272a]/60">{children}</div>
+      <div className="divide-y divide-[#27272a]/60 px-4 py-2 sm:px-6">{children}</div>
     </div>
   );
 }
@@ -935,7 +937,7 @@ function HighlightStyleRow({
       label={translateSettings({ key: "settings.moderationHighlightStyle" })}
       description={translateSettings({ key: "settings.moderationHighlightStyleDescription" })}
       control={
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap justify-start gap-2 sm:justify-end">
           <HighlightStylePreview
             active={value === "compact"}
             label={translateSettings({ key: "settings.compact" })}

@@ -57,7 +57,9 @@ import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -155,7 +157,7 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
   const selectedValue = isCustom ? "custom" : String(value);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Select
         value={selectedValue}
         onValueChange={(nextValue) => {
@@ -174,7 +176,7 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
               ? translateSettings({ key: "settings.rewind" })
               : translateSettings({ key: "settings.fastForward" })
           }
-          className="h-10 w-32"
+          className="h-11 w-full sm:h-10 sm:w-32"
           id={id}
         >
           <SelectValue />
@@ -1057,6 +1059,16 @@ export function SettingsPage() {
   const hasVisibleTabMatches =
     !searchMatches.active ||
     SETTINGS_TABS.some((tab) => searchMatches.tabs?.has(tab) && (!DEV_ONLY_TABS.has(tab) || isDev));
+  const visibleSettingsGroups = settingsGroups
+    .map((group) => ({
+      label: group.label,
+      tabs: group.tabs.filter(
+        (tab) =>
+          (!DEV_ONLY_TABS.has(tab) || isDev) &&
+          (!searchMatches.active || searchMatches.tabs?.has(tab))
+      ),
+    }))
+    .filter((group) => group.tabs.length > 0);
 
   // Get auth state
   const { error, clearError } = useAuthError();
@@ -1367,10 +1379,10 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)] lg:flex-row">
       {/* Sidebar Navigation */}
-      <aside className="flex w-[232px] flex-shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-background-secondary)]">
-        <div className="px-5 pb-2 pt-5">
+      <aside className="flex w-full shrink-0 flex-col border-b border-[var(--color-border)] bg-[var(--color-background-secondary)] lg:w-[232px] lg:border-b-0 lg:border-r">
+        <div className="px-4 pb-1 pt-4 lg:px-5 lg:pb-2 lg:pt-5">
           <h1 className="flex items-center gap-2 text-xl font-bold">
             <IoMdSettings
               className="h-5 w-5 text-[var(--color-foreground-secondary)]"
@@ -1385,7 +1397,7 @@ export function SettingsPage() {
 
         {/* Search bar — filters sidebar to tabs containing matches and hides
             non-matching rows within the active tab. */}
-        <div className="px-4 pb-2 pt-3">
+        <div className="px-4 pb-2 pt-2 lg:pt-3">
           <div className="relative">
             <LuSearch
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-foreground-muted)]"
@@ -1399,7 +1411,7 @@ export function SettingsPage() {
               aria-label={translateSettings({ key: "settings.searchSettings" })}
               autoComplete="off"
               spellCheck={false}
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] py-2 pl-9 pr-9 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+              className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] py-2 pl-9 pr-9 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] lg:min-h-0"
             />
             {searchQuery && (
               <button
@@ -1414,16 +1426,42 @@ export function SettingsPage() {
           </div>
         </div>
 
+        <div className="px-4 pb-4 lg:hidden">
+          <Select
+            disabled={!hasVisibleTabMatches}
+            value={activeTab}
+            onValueChange={(value) => {
+              const nextTab = SETTINGS_TABS.find((tab) => tab === value);
+              if (nextTab) navigateToTab(nextTab, false, true);
+            }}
+          >
+            <SelectTrigger
+              aria-label={translateSettings({ key: "settings.settingsNavigation" })}
+              className="h-11 w-full border-[var(--color-border)] bg-[var(--color-background-tertiary)] text-[var(--color-foreground)]"
+            >
+              <SelectValue>{tabMeta[activeTab].label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="max-h-[min(60vh,28rem)] border-[var(--color-border)] bg-[var(--color-background-secondary)] text-[var(--color-foreground)]">
+              {visibleSettingsGroups.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.tabs.map((tab) => (
+                    <SelectItem key={tab} value={tab} className="min-h-11">
+                      {tabMeta[tab].label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <nav
           aria-label={translateSettings({ key: "settings.settingsNavigation" })}
-          className="flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-2"
+          className="hidden flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-2 lg:block"
         >
-          {settingsGroups.map((group) => {
-            const visibleTabs = group.tabs.filter(
-              (tab) =>
-                (!DEV_ONLY_TABS.has(tab) || isDev) &&
-                (!searchMatches.active || searchMatches.tabs?.has(tab))
-            );
+          {visibleSettingsGroups.map((group) => {
+            const visibleTabs = group.tabs;
             const [firstVisibleTab] = visibleTabs;
             if (!firstVisibleTab) return null;
 
@@ -1514,11 +1552,11 @@ export function SettingsPage() {
             value1: tabMeta[activeTab].label,
           },
         })}
-        className="flex-1 overflow-y-auto bg-[var(--color-background)]"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--color-background)]"
       >
         <div
           className={cn(
-            "mx-auto w-full px-6 py-8 lg:px-10 lg:py-10",
+            "mx-auto w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-10",
             activeTab === "diagnostics" ? "max-w-[1440px]" : "max-w-5xl"
           )}
         >
@@ -1568,9 +1606,9 @@ export function SettingsPage() {
                     <h2 className="text-2xl font-bold mb-1">{t("settings.general")}</h2>
                     <p className="text-zinc-400">{t("settings.generalDescription")}</p>
                   </div>
-                  <div className="rounded-xl border border-[#27272a] bg-[#121214] p-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
+                  <div className="rounded-xl border border-[#27272a] bg-[#121214] p-4 sm:p-6">
+                    <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
                         <label
                           htmlFor="settings-display-language"
                           className="font-medium text-zinc-200"
@@ -1606,9 +1644,9 @@ export function SettingsPage() {
 
                   {isRowVisible("Default Quality") && (
                     <div className="p-1 rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
-                      <div className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
+                      <div className="p-4 sm:p-6">
+                        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+                          <div className="min-w-0">
                             <p className="font-medium text-zinc-200">
                               {translateSettings({ key: "settings.defaultQuality" })}
                             </p>
@@ -1618,7 +1656,7 @@ export function SettingsPage() {
                               })}
                             </p>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex w-full items-center gap-3 sm:w-auto">
                             <Select
                               value={
                                 preferences?.playback?.defaultQuality === "2k"
@@ -1629,7 +1667,7 @@ export function SettingsPage() {
                             >
                               <SelectTrigger
                                 aria-label={translateSettings({ key: "settings.defaultQuality" })}
-                                className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
+                                className="h-11 w-full border-[#27272a] bg-[#18181b] text-zinc-200 focus:ring-yellow-500/20 sm:h-10 sm:w-[180px]"
                               >
                                 <SelectValue
                                   placeholder={translateSettings({ key: "settings.selectQuality" })}
@@ -1749,7 +1787,7 @@ export function SettingsPage() {
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                         {/* Player type */}
                         {isRowVisible("Access-token player type") && (
-                          <div className="flex flex-wrap items-center justify-between gap-4 py-3">
+                          <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-200">
                                 {translateSettings({ key: "settings.accessTokenPlayerType" })}
@@ -1773,7 +1811,7 @@ export function SettingsPage() {
                                 aria-label={translateSettings({
                                   key: "settings.accessTokenPlayerType",
                                 })}
-                                className="w-auto min-w-[200px] max-w-full flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-amber-500/20"
+                                className="h-11 w-full border-[#27272a] bg-[#18181b] text-zinc-200 focus:ring-amber-500/20 sm:h-10 sm:w-auto sm:min-w-[200px]"
                               >
                                 <SelectValue
                                   placeholder={translateSettings({
@@ -1794,7 +1832,7 @@ export function SettingsPage() {
 
                         {/* Allow HEVC */}
                         {isRowVisible("Allow HEVC (H.265)") && (
-                          <div className="flex items-center justify-between gap-4 py-3">
+                          <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-200">
                                 {translateSettings({ key: "settings.allowHevcH265" })}
@@ -1815,7 +1853,7 @@ export function SettingsPage() {
 
                         {/* Device-id randomize */}
                         {isRowVisible("Stream device ID") && (
-                          <div className="flex items-center justify-between gap-4 py-3">
+                          <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-200">
                                 {translateSettings({ key: "settings.streamDeviceId" })}
@@ -1890,7 +1928,7 @@ export function SettingsPage() {
                           {visibleToggles.map(({ field, label, description }) => (
                             <div
                               key={field}
-                              className="flex items-center justify-between gap-4 py-3"
+                              className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4"
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-zinc-200">{label}</p>
@@ -1905,7 +1943,7 @@ export function SettingsPage() {
                           ))}
 
                           {showRestartGrace && (
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-zinc-200">
                                   {translateSettings({ key: "settings.restartGrace" })}
@@ -1929,7 +1967,7 @@ export function SettingsPage() {
                               >
                                 <SelectTrigger
                                   aria-label={translateSettings({ key: "settings.restartGrace" })}
-                                  className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
+                                  className="h-11 w-full border-[#27272a] bg-[#18181b] text-zinc-200 focus:ring-zinc-500/30 sm:h-10 sm:w-[180px]"
                                 >
                                   <SelectValue
                                     placeholder={translateSettings({
@@ -2172,7 +2210,7 @@ export function SettingsPage() {
                           {visibleToggles.map(({ field, label, description }) => (
                             <div
                               key={field}
-                              className="flex items-center justify-between gap-4 py-3"
+                              className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4"
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-zinc-200">{label}</p>
@@ -2206,7 +2244,7 @@ export function SettingsPage() {
                       </div>
                       <div className="divide-y divide-[var(--color-border)] px-6 py-2">
                         {isRowVisible("Rewind") && (
-                          <div className="flex items-center justify-between gap-4 py-3">
+                          <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                             <div className="min-w-0 flex-1">
                               <label
                                 className="font-medium text-[var(--color-foreground)]"
@@ -2236,7 +2274,7 @@ export function SettingsPage() {
                         )}
 
                         {isRowVisible("Fast forward") && (
-                          <div className="flex items-center justify-between gap-4 py-3">
+                          <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                             <div className="min-w-0 flex-1">
                               <label
                                 className="font-medium text-[var(--color-foreground)]"
@@ -2311,7 +2349,7 @@ export function SettingsPage() {
                         <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                           {/* Low-latency mode switch */}
                           {showLowLatency && (
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-zinc-200">
                                   {translateSettings({ key: "settings.lowLatencyMode" })}
@@ -2335,13 +2373,13 @@ export function SettingsPage() {
                             ({ field, label, description, min, max, step, unit }) => (
                               <div
                                 key={field}
-                                className="flex items-center justify-between gap-4 py-3"
+                                className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-4"
                               >
                                 <div className="min-w-0 flex-1">
                                   <p className="font-medium text-zinc-200">{label}</p>
                                   <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
                                 </div>
-                                <div className="flex items-center gap-3 flex-shrink-0">
+                                <div className="flex w-full items-center gap-3 flex-shrink-0 sm:w-auto">
                                   <input
                                     type="range"
                                     min={min}
@@ -2351,7 +2389,7 @@ export function SettingsPage() {
                                     onChange={(e) =>
                                       handleBufferChange(field, Number.parseFloat(e.target.value))
                                     }
-                                    className="w-40 accent-yellow-500"
+                                    className="min-w-0 flex-1 accent-yellow-500 sm:w-40 sm:flex-none"
                                     aria-label={label}
                                   />
                                   <span className="w-16 text-right text-sm tabular-nums text-zinc-300">
@@ -2397,7 +2435,7 @@ export function SettingsPage() {
                       </div>
 
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
-                        <div className="flex items-center justify-between gap-4 py-4">
+                        <div className="flex flex-col items-stretch justify-between gap-3 py-4 sm:flex-row sm:items-center sm:gap-4">
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-200">
                               {translateSettings({ key: "settings.concurrentPlaybackBudget" })}
@@ -2453,7 +2491,7 @@ export function SettingsPage() {
                       </div>
 
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
-                        <div className="flex flex-wrap items-center justify-between gap-4 py-4">
+                        <div className="flex flex-col items-stretch justify-between gap-3 py-4 sm:flex-row sm:items-center sm:gap-4">
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-200">
                               {translateSettings({ key: "settings.backgroundStreamQuality" })}
@@ -2464,7 +2502,7 @@ export function SettingsPage() {
                               })}
                             </p>
                           </div>
-                          <div className="flex max-w-full items-center gap-3 flex-shrink-0">
+                          <div className="flex w-full max-w-full items-center gap-3 flex-shrink-0 sm:w-auto">
                             <Select
                               value={backgroundQuality}
                               onValueChange={(v) =>
@@ -2475,7 +2513,7 @@ export function SettingsPage() {
                                 aria-label={translateSettings({
                                   key: "settings.backgroundStreamQuality",
                                 })}
-                                className="w-auto min-w-[200px] max-w-full bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
+                                className="h-11 w-full max-w-full border-[#27272a] bg-[#18181b] text-zinc-200 focus:ring-zinc-500/30 sm:h-10 sm:w-auto sm:min-w-[200px]"
                               >
                                 <SelectValue
                                   placeholder={translateSettings({ key: "settings.selectQuality" })}
@@ -2859,9 +2897,9 @@ export function SettingsPage() {
 
                   {isRowVisible("Style") && (
                     <div className="p-1 rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
-                      <div className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div className="max-w-md">
+                      <div className="p-4 sm:p-6">
+                        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+                          <div className="min-w-0 max-w-md">
                             <p className="font-medium text-zinc-200">
                               {translateSettings({ key: "settings.style" })}
                             </p>
@@ -2871,14 +2909,14 @@ export function SettingsPage() {
                               })}
                             </p>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex w-full items-center gap-3 sm:w-auto">
                             <Select
                               value={preferences?.predictions?.style ?? "native"}
                               onValueChange={handlePredictionStyleChange}
                             >
                               <SelectTrigger
                                 aria-label={translateSettings({ key: "settings.style" })}
-                                className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
+                                className="h-11 w-full border-[#27272a] bg-[#18181b] text-zinc-200 focus:ring-yellow-500/20 sm:h-10 sm:w-[200px]"
                               >
                                 <SelectValue
                                   placeholder={translateSettings({ key: "settings.selectStyle" })}

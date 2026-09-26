@@ -16,6 +16,8 @@ npm run package:start --workspace streamfusion -- --win --x64 --dir
 
 The browser command also starts Electron. Open the printed `browser.html` URL to use the existing development relay. The responsive browser view keeps Electron as its backend. A standalone website is outside the agreed scope. Desktop visual parity precedes the narrow-screen layout work.
 
+Below 1024 pixels, navigation opens in a keyboard-accessible drawer and search moves to a second header row. Settings uses the existing category registry in a compact selector. Stream and MultiView stack video and chat without replacing their player trees. Home, Following, player controls and chat actions adapt to smaller widths. Desktop sidebar preferences and React Icons remain in use.
+
 `build:start` writes `.cache/start/app` inside `apps/desktop`. `package:start` packages that output into `.cache/start/package`. Build before packaging. The default `dev`, `build`, `preview`, and release commands still use the existing renderer.
 
 For isolated verification, use the [maintained desktop controller](../../.agents/skills/verify-streamfusion/SKILL.md) with `--mode dev:start` or `--mode preview:start`. Run `node apps/desktop/scripts/verify-start-runtime.mjs <run.json>` after the controller's doctor passes to retain local-file reload, CSP and hydration diagnostics.
@@ -47,6 +49,10 @@ The Windows x64 directory package built. The archive contains both renderers, bo
 The manual `start-candidate.yml` workflow builds unsigned macOS x64 and arm64 candidates and checks the copied packages outside the checkout. Its verifier records native accessibility navigation, screenshots, SQLite integrity, FFmpeg execution, logs and artifact hashes. Its runtime result remains unverified until both matrix jobs complete.
 
 The first repository CI run passed the desktop suite but failed pre-existing mobile lint checks. The follow-up repairs mobile architecture boundaries, persistent scrubber measurements and disabled connectivity state. Mobile lint, types, tests, architecture checks and the Android bundle passed locally. Repository CI must confirm the repair.
+
+Subsequent CI passed the mobile checks and exposed two desktop test-environment failures. The native macOS verifier test now runs in Node, and each renderer's deferred chat preload test gets an isolated module gate. The responsive change passed 7,787 tests across 649 files locally, plus type checking, lint and the Start production build. The macOS package verifier now checks the architecture-specific SQLite prebuild path observed in the real arm64 archive. Both native macOS runs still need to pass with this correction.
+
+Live browser checks covered 390, 768 and 1440 pixel widths. Home, Settings, navigation and the Add Stream dialog fit their containers. Twitch video and chat rendered in Stream and MultiView. Resizing preserved the video source and advancing playback time. A final isolated Electron run rendered Home and Settings with native window controls and passed database integrity checks. Evidence is in `.scratch/verify-streamfusion/evidence/responsive-layout-proof`; browser observations are retained in the task transcript. These checks establish observed layout parity, not a pixel-exact image comparison. React Doctor reported no errors and eight complexity warnings in existing large components; those same functions also triggered complexity warnings in the baseline source.
 
 Clean baseline and candidate idle/navigation runs each lasted five minutes, sampled every 15 seconds, and cycled the same six routes every 30 seconds. Both passed the existing limits with 19 samples and no renderer exceptions. No builds overlapped these runs. These are compiled-app measurements, not installed-package or sustained playback measurements.
 

@@ -45,7 +45,7 @@ export function ProgressBar({
 
   return (
     <div
-      className={`group relative w-full h-4 cursor-pointer flex items-center select-none touch-none ${className}`}
+      className={`group relative flex h-4 w-full cursor-pointer touch-none select-none items-center max-lg:h-11 ${className}`}
       ref={containerRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -86,10 +86,8 @@ export function ProgressBar({
           style={{ width: `${progress}%` }}
         />
       </div>
-
-      {/* Thumb (only visible on hover/group-hover) */}
       <div
-        className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full scale-0 group-hover:scale-100 transition-transform duration-100 shadow-xl pointer-events-none`}
+        className={`pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 scale-0 rounded-full bg-white shadow-xl transition-transform duration-100 group-hover:scale-100 max-lg:scale-100`}
         style={{ left: `${progress}%`, marginLeft: `-${(progress / 100) * 12}px` }} // slight visual fix
       />
 

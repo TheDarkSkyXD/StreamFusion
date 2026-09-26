@@ -916,7 +916,7 @@ export function FollowingPage() {
   );
 
   return (
-    <div className="px-6 pt-6 h-full flex flex-col gap-6">
+    <div className="flex h-full min-w-0 flex-col gap-4 px-3 pt-4 sm:gap-6 sm:px-6 sm:pt-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <LuHeart className="fill-red-500 text-red-500" />
@@ -929,8 +929,8 @@ export function FollowingPage() {
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col gap-4 bg-[var(--color-background-secondary)] p-4 rounded-xl border border-[var(--color-border)]">
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
               onClick={() => {
@@ -990,7 +990,7 @@ export function FollowingPage() {
               variant="secondary"
               size="icon"
               className={cn(
-                "h-9 w-9 shrink-0",
+                "h-11 w-11 shrink-0 sm:h-9 sm:w-9",
                 manualRefreshFailed && "border-red-500/40 text-red-200 hover:text-red-100"
               )}
               onClick={() => void refreshFollowingData()}
@@ -1025,7 +1025,7 @@ export function FollowingPage() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "relative inline-flex items-center gap-2 pb-2 text-sm font-medium transition-colors whitespace-nowrap",
+                    "relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap pb-2 text-sm font-medium transition-colors sm:min-h-0",
                     activeTab === tab.id
                       ? "text-white after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-white"
                       : "text-[var(--color-foreground-secondary)] hover:text-white"

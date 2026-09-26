@@ -1,6 +1,13 @@
+import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { renderWithProviders, routerMock, screen } from "../../../../../../../tests/test-utils";
+import { DialogTrigger } from "@/components/ui/dialog";
+import {
+  renderWithProviders,
+  routerMock,
+  screen,
+  userEvent,
+} from "../../../../../../../tests/test-utils";
 
 const mockCheckNow = vi.hoisted(() => vi.fn(async () => true));
 const mockNetworkStatus = vi.hoisted(() => vi.fn());
@@ -8,7 +15,9 @@ const layoutState = vi.hoisted(() => ({
   pathname: "/",
   currentStream: null as null | { platform: "kick"; channelName: string },
   isTheaterModeActive: false,
+  sidebarCollapsed: false,
 }));
+const setSidebarCollapsed = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   ...routerMock(),
@@ -24,8 +33,8 @@ vi.mock("@/features/settings/components/hooks/useNetworkStatus", () => ({
 vi.mock("@/features/shell/components/state/app-store", () => ({
   useAppStore: (selector?: (s: unknown) => unknown) => {
     const state = {
-      sidebarCollapsed: false,
-      setSidebarCollapsed: vi.fn(),
+      sidebarCollapsed: layoutState.sidebarCollapsed,
+      setSidebarCollapsed,
       isTheaterModeActive: layoutState.isTheaterModeActive,
     };
     return selector ? selector(state) : state;
@@ -33,15 +42,32 @@ vi.mock("@/features/shell/components/state/app-store", () => ({
 }));
 
 vi.mock("@/features/shell/components/TopNavBar", () => ({
-  TopNavBar: ({ showPlatformHealth }: { showPlatformHealth?: boolean }) => (
+  TopNavBar: ({
+    showPlatformHealth,
+    mobileMenu,
+  }: {
+    showPlatformHealth?: boolean;
+    mobileMenu?: boolean;
+  }) => (
     <div data-testid="top-nav" data-show-platform-health={showPlatformHealth}>
+      {mobileMenu && (
+        <DialogTrigger asChild>
+          <button type="button">Open navigation</button>
+        </DialogTrigger>
+      )}
       topnav
     </div>
   ),
 }));
 
 vi.mock("@/features/shell/components/layout/SidebarFollows", () => ({
-  SidebarFollows: () => <div data-testid="sidebar-follows">follows</div>,
+  SidebarFollows: () => (
+    <div data-testid="sidebar-follows">
+      <a href="/stream/kick/creator" onClick={(event) => event.preventDefault()}>
+        Followed channel
+      </a>
+    </div>
+  ),
 }));
 
 vi.mock("@/features/settings/components/hooks/useElectron", () => ({
@@ -80,6 +106,8 @@ describe("AppLayout", () => {
     layoutState.pathname = "/";
     layoutState.currentStream = null;
     layoutState.isTheaterModeActive = false;
+    layoutState.sidebarCollapsed = false;
+    setSidebarCollapsed.mockClear();
   });
 
   afterEach(() => {
@@ -132,6 +160,53 @@ describe("AppLayout", () => {
     expect(screen.getAllByText(/home/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/following/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/categories/i).length).toBeGreaterThan(0);
+  });
+
+  it("opens a focused mobile drawer, closes on Escape, and restores the menu focus", async () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(390);
+    const user = userEvent.setup();
+    renderWithProviders(<AppLayout>page-content</AppLayout>);
+
+    expect(screen.queryByTestId("sidebar-follows")).not.toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Open navigation" });
+    await user.click(trigger);
+
+    const drawer = screen.getByRole("dialog", { name: "StreamFusion" });
+    expect(drawer).toContainElement(screen.getByTestId("sidebar-follows"));
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    expect(screen.getAllByTestId("sidebar-follows")).toHaveLength(1);
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(drawer).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    await user.click(screen.getByTestId("mobile-navigation-backdrop"));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "StreamFusion" })).not.toBeInTheDocument()
+    );
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes mobile navigation after choosing a destination without changing desktop collapse", async () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(390);
+    layoutState.sidebarCollapsed = true;
+    const user = userEvent.setup();
+    renderWithProviders(<AppLayout>page-content</AppLayout>);
+
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(screen.getByRole("link", { name: "Settings" }));
+    expect(screen.queryByRole("dialog", { name: "StreamFusion" })).not.toBeInTheDocument();
+    expect(setSidebarCollapsed).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(screen.getByRole("link", { name: "Followed channel" }));
+    expect(screen.queryByRole("dialog", { name: "StreamFusion" })).not.toBeInTheDocument();
+
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1440);
+    fireEvent(window, new Event("resize"));
+    expect(screen.getByRole("link", { name: "Settings" }).closest("aside")).toHaveClass("w-16");
+    expect(screen.getAllByTestId("sidebar-follows")).toHaveLength(1);
   });
 
   it("preloads sidebar destinations from navigation intent", () => {

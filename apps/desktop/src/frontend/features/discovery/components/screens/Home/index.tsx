@@ -34,9 +34,13 @@ export function HomePage() {
   }
 
   return (
-    <div className="p-6 space-y-8 max-w-[1800px] mx-auto">
+    <div className="mx-auto max-w-[1800px] space-y-8 p-3 sm:p-6">
       <section>
-        <FeaturedStage stream={streams?.[0]} streams={streams?.slice(0, 10)} isLoading={isLoading} />
+        <FeaturedStage
+          stream={streams?.[0]}
+          streams={streams?.slice(0, 10)}
+          isLoading={isLoading}
+        />
       </section>
 
       <LiveNowSection
