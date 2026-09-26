@@ -290,7 +290,8 @@ export async function verifyPackage(options) {
   const screenshot = async (filename) => {
     requireOwned();
     const output = path.join(options.evidence, filename);
-    command("/usr/sbin/screencapture", ["-x", output]);
+    // AX updates can precede the compositor frame, especially after native navigation.
+    command("/usr/sbin/screencapture", ["-x", "-T", "1", output]);
     assert((await stat(output)).size > 0, "Native screenshot is empty");
     return filename;
   };
