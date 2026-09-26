@@ -421,13 +421,27 @@ export async function verifyPackage(options) {
       return { sha256: await sha256(file), output: "ffmpeg.txt" };
     });
     await check("nativeAccessibility", async () => {
-      const swiftCompiler = command("/usr/bin/xcrun", ["--find", "swiftc"]);
+      const swiftCompiler = command("/usr/bin/xcrun", ["--sdk", "macosx", "--find", "swiftc"]);
+      const sdk = command("/usr/bin/xcrun", ["--sdk", "macosx", "--show-sdk-path"]);
       nativeAccessibilityHelper = path.join(runDir, "streamfusion-native-ax-verifier");
-      command(swiftCompiler, [nativeAccessibilitySource, "-O", "-o", nativeAccessibilityHelper], {
-        timeout: 90_000,
-      });
+      command(
+        "/usr/bin/xcrun",
+        [
+          "--sdk",
+          "macosx",
+          "swiftc",
+          "-sdk",
+          sdk,
+          nativeAccessibilitySource,
+          "-O",
+          "-o",
+          nativeAccessibilityHelper,
+        ],
+        { timeout: 90_000 }
+      );
       return {
         compiler: swiftCompiler,
+        sdk,
         source: path.relative(repoRoot, nativeAccessibilitySource),
         sourceSha256: await sha256(nativeAccessibilitySource),
         executableSha256: await sha256(nativeAccessibilityHelper),
