@@ -22,9 +22,15 @@ This repo uses a multi-context layout:
     |-- desktop/
     |   |-- CONTEXT.md
     |   `-- docs/adr/          # Desktop-specific decisions, when needed
-    `-- worker/
+    |-- worker/
+    |   |-- CONTEXT.md
+    |   `-- docs/adr/          # Worker-specific decisions, when needed
+    |-- mobile/
+    |   |-- CONTEXT.md
+    |   `-- docs/adr/          # Mobile-specific decisions, when needed
+    `-- integration-relay/
         |-- CONTEXT.md
-        `-- docs/adr/          # Worker-specific decisions, when needed
+        `-- docs/adr/          # Integration Relay decisions, when needed
 ```
 
 ## Use the glossary's vocabulary

@@ -84,4 +84,4 @@ Use the five default SuperDev triage labels. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Use `CONTEXT-MAP.md` to locate the desktop and worker contexts, with shared ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+Use `CONTEXT-MAP.md` to locate the desktop, worker, mobile, and integration relay contexts, with shared ADRs in `docs/adr/`. See `docs/agents/domain.md`.
