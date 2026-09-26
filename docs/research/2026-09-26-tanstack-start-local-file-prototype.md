@@ -4,9 +4,11 @@ Date: 2026-09-26. Ticket: [Validate the selected Start setup in a packaged Elect
 
 The user selected [existing local-file loading with a separate Start renderer build](https://github.com/TheDarkSkyXD/StreamFusion/issues/237#issuecomment-5845574016). This experiment tested its first prerequisite. The unchanged Start output failed to start from a packaged Electron file document. Diagnostic output transformations restored rendering but still produced a hydration error. The full compatibility gate has not passed.
 
+Follow-up: the user requested continued local-file investigation with CSP preserved. The [adapter experiment](2026-09-26-tanstack-start-local-file-adapter.md) fixes the hydration mismatch and passes a packaged integration probe using the existing Electron backend. This report retains the original failing evidence.
+
 ## Reproduce and inspect
 
-Run the [disposable probe](prototypes/tanstack-start-local-file/README.md) with one command. Its committed source, lockfile, [runtime observations](prototypes/tanstack-start-local-file/evidence/results.json), screenshots and [build log](prototypes/tanstack-start-local-file/evidence/build.log) preserve the evidence.
+Run the [disposable probe](prototypes/tanstack-start-local-file/README.md) with one command. Its committed source, lockfile, [runtime observations](prototypes/tanstack-start-local-file/evidence/results.json), screenshots and [build log](prototypes/tanstack-start-local-file/evidence/build.txt) preserve the evidence.
 
 The one-command reproduction independently produced the same four results and exited 1 for the failing candidate. That runner removed its disposable profile. The original scratch profile remains after automatic approval review rejected its cleanup command.
 

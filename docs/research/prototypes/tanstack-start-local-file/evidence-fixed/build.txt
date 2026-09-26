@@ -1,0 +1,33 @@
+
+> build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 159 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/client/assets/details-MCctgXcu.js    0.21 kB │ gzip:   0.18 kB
+dist/client/assets/index-Dg3n1tIS.js      1.50 kB │ gzip:   0.58 kB
+dist/client/assets/index-r6oxE5SI.js    319.61 kB │ gzip: 104.35 kB
+✓ built in 1.28s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 52 modules transformed.
+rendering chunks...
+dist/server/assets/start-HYkvq4Ni.js                        0.06 kB
+dist/server/assets/empty-plugin-adapters-BFgPZ6_d.js        0.13 kB
+dist/server/assets/details-tsN7xfTq.js                      0.47 kB
+dist/server/assets/_tanstack-start-manifest_v-BHpm-gqi.js   0.93 kB
+dist/server/assets/index-DCxOta5E.js                        2.34 kB
+dist/server/assets/router-C5ztoZ4q.js                       2.85 kB
+dist/server/server.js                                      67.00 kB
+✓ built in 264ms
+[prerender] Prerendering pages...
+[prerender] Concurrency: 16
+[prerender] Crawling: /
+[prerender] Prerendered 1 pages:
+[prerender] - /
+"createRequestHandler", "defineHandlerCallback", "transformPipeableStreamWithRouter" and "transformReadableStreamWithRouter" are imported from external module "@tanstack/router-core/ssr/server" but never used in "node_modules/@tanstack/start-server-core/dist/esm/index.js".
+"RawStream" is imported from external module "@tanstack/router-core" but never used in "node_modules/@tanstack/start-client-core/dist/esm/index.js".
+"defaultSerovalDeserializerPlugins", "hydrate" and "json" are imported from external module "@tanstack/router-core/ssr/client" but never used in "node_modules/@tanstack/start-client-core/dist/esm/index.js".

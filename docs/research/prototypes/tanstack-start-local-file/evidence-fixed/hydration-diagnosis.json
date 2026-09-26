@@ -1,0 +1,192 @@
+{
+  "packaged": true,
+  "electron": "43.4.1",
+  "chromium": "150.0.7871.224",
+  "diagnosticOnly": true,
+  "streamfusionBackendIntegrated": false,
+  "results": [
+    {
+      "variant": "emitted",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/emitted/index.html",
+        "hydrated": false,
+        "text": " Start local-file prototype\n\nHydration: pending\n\nHome | Details",
+        "scripts": [
+          {
+            "src": "file:///F:/assets/index-kl-b1hSS.js",
+            "inline": false
+          }
+        ],
+        "links": [
+          {
+            "text": "Home",
+            "href": "file:///F:/"
+          },
+          {
+            "text": "Details",
+            "href": "file:///F:/details?tab=saved"
+          }
+        ]
+      },
+      "messages": [],
+      "failures": [
+        {
+          "url": "file:///F:/assets/index-CLlgx7lz.js",
+          "error": "net::ERR_FILE_NOT_FOUND",
+          "resourceType": "script"
+        },
+        {
+          "url": "file:///F:/assets/index-kl-b1hSS.js",
+          "error": "net::ERR_FILE_NOT_FOUND",
+          "resourceType": "script"
+        }
+      ]
+    },
+    {
+      "variant": "relative-diagnostic",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/index.html",
+        "hydrated": true,
+        "text": " Start local-file prototype\n\nHydration: ready\n\nHome | Details\nHome\nCount 0",
+        "scripts": [
+          {
+            "src": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/assets/index-kl-b1hSS.js",
+            "inline": false
+          }
+        ],
+        "links": [
+          {
+            "text": "Home",
+            "href": "file:///F:/"
+          },
+          {
+            "text": "Details",
+            "href": "file:///F:/details?tab=saved"
+          }
+        ]
+      },
+      "messages": [
+        {
+          "level": 1,
+          "message": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools\nYou might need to use a local HTTP server (instead of file://): https://react.dev/link/react-devtools-faq font-weight:bold",
+          "line": 231,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/assets/index-kl-b1hSS.js"
+        },
+        {
+          "level": 3,
+          "message": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <Od getResetKey={function getResetKey} onCatch={function onCatch}>\n      <oR router={{...}} match={{id:\"__root__/\", ...}}>\n        <Hi>\n          <Hi fallback={null}>\n            <Hi getResetKey={function getResetKey} errorComponent={undefined} onCatch={function onCatch}>\n              <Hi fallback={function fallback}>\n                <ML>\n                  <html lang=\"en\">\n                    <head>\n                    <body style={{...}}>\n                      <h1>\n                      <p>\n                      <nav>\n                        <a\n                          ref={{current:null}}\n                          onClick={function he}\n                          onBlur={function Pt}\n                          onFocus={function}\n                          onMouseEnter={function}\n                          onMouseLeave={function Pt}\n                          onTouchStart={function at}\n                          className=\"active\"\n+                         href=\"/F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop...\"\n-                         href=\"/\"\n                          target={undefined}\n                          data-status=\"active\"\n                          aria-current=\"page\"\n                        >\n+                         Home\n                        <a\n                          ref={{current:null}}\n                          onClick={function he}\n                          onBlur={function Pt}\n                          onFocus={function}\n                          onMouseEnter={function}\n                          onMouseLeave={function Pt}\n                          onTouchStart={function at}\n+                         href=\"/F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop...\"\n-                         href=\"/details?tab=saved\"\n                          target={undefined}\n                        >\n+                         Details\n                      ...\n",
+          "line": 88,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/assets/index-kl-b1hSS.js"
+        },
+        {
+          "level": 3,
+          "message": "Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <html lang=\"en\">\n      <head>\n      <body style={{...}}>\n        <h1>\n        <p>\n        <nav>\n        <Suspense fallback={null}>\n          <oR router={{...}} match={{id:\"//\", ...}}>\n            <Hi>\n              <Hi fallback={null}>\n                <Hi getResetKey={function getResetKey} errorComponent={undefined} onCatch={function onCatch}>\n                  <Hi fallback={function fallback}>\n                    <m>\n                      <r>\n+                       <main>\n-                       <Suspense>\n        ...\n",
+          "line": 78,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/relative-diagnostic/assets/index-kl-b1hSS.js"
+        }
+      ],
+      "failures": []
+    },
+    {
+      "variant": "csp-diagnostic",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/index.html",
+        "hydrated": false,
+        "text": "",
+        "scripts": [
+          {
+            "src": "",
+            "inline": true
+          },
+          {
+            "src": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/assets/index-kl-b1hSS.js",
+            "inline": false
+          },
+          {
+            "src": "",
+            "inline": true
+          }
+        ],
+        "links": []
+      },
+      "messages": [
+        {
+          "level": 3,
+          "message": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-Vyvxxyo9VLu1+XubbJhkmwkTaOc2FNW/B+7Im0IJ89A='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.",
+          "line": 2,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/index.html"
+        },
+        {
+          "level": 3,
+          "message": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-REkTQ3mZNdOnZ0xWxlKdqBEAWdIVpJdIT6tm57gvq8Y='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.",
+          "line": 2,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/index.html"
+        },
+        {
+          "level": 1,
+          "message": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools\nYou might need to use a local HTTP server (instead of file://): https://react.dev/link/react-devtools-faq font-weight:bold",
+          "line": 231,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/assets/index-kl-b1hSS.js"
+        },
+        {
+          "level": 3,
+          "message": "Uncaught Error: Invariant failed: Expected to find bootstrap data on window.$_TSR, but we did not. Please file an issue!",
+          "line": 236,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/assets/index-kl-b1hSS.js"
+        },
+        {
+          "level": 2,
+          "message": "%s\n\n%s\n An error occurred in the <A3> component. Consider adding an error boundary to your tree to customize error handling behavior.\nVisit https://react.dev/link/error-boundaries to learn more about error boundaries.",
+          "line": 120,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/csp-diagnostic/assets/index-kl-b1hSS.js"
+        }
+      ],
+      "failures": []
+    },
+    {
+      "variant": "external-scripts-diagnostic",
+      "state": {
+        "href": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/index.html",
+        "hydrated": true,
+        "text": " Start local-file prototype\n\nHydration: ready\n\nHome | Details\nHome\nCount 0",
+        "scripts": [
+          {
+            "src": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/assets/index-kl-b1hSS.js",
+            "inline": false
+          }
+        ],
+        "links": [
+          {
+            "text": "Home",
+            "href": "file:///F:/"
+          },
+          {
+            "text": "Details",
+            "href": "file:///F:/details?tab=saved"
+          }
+        ]
+      },
+      "messages": [
+        {
+          "level": 1,
+          "message": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools\nYou might need to use a local HTTP server (instead of file://): https://react.dev/link/react-devtools-faq font-weight:bold",
+          "line": 231,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/assets/index-kl-b1hSS.js"
+        },
+        {
+          "level": 3,
+          "message": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <Od getResetKey={function getResetKey} onCatch={function onCatch}>\n      <oR router={{...}} match={{id:\"__root__/\", ...}}>\n        <Hi>\n          <Hi fallback={null}>\n            <Hi getResetKey={function getResetKey} errorComponent={undefined} onCatch={function onCatch}>\n              <Hi fallback={function fallback}>\n                <ML>\n                  <html lang=\"en\">\n                    <head>\n                    <body style={{...}}>\n                      <h1>\n                      <p>\n                      <nav>\n                        <a\n                          ref={{current:null}}\n                          onClick={function he}\n                          onBlur={function Pt}\n                          onFocus={function}\n                          onMouseEnter={function}\n                          onMouseLeave={function Pt}\n                          onTouchStart={function at}\n                          className=\"active\"\n+                         href=\"/F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop...\"\n-                         href=\"/\"\n                          target={undefined}\n                          data-status=\"active\"\n                          aria-current=\"page\"\n                        >\n+                         Home\n                        <a\n                          ref={{current:null}}\n                          onClick={function he}\n                          onBlur={function Pt}\n                          onFocus={function}\n                          onMouseEnter={function}\n                          onMouseLeave={function Pt}\n                          onTouchStart={function at}\n+                         href=\"/F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop...\"\n-                         href=\"/details?tab=saved\"\n                          target={undefined}\n                        >\n+                         Details\n                      ...\n",
+          "line": 88,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/assets/index-kl-b1hSS.js"
+        },
+        {
+          "level": 3,
+          "message": "Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <html lang=\"en\">\n      <head>\n      <body style={{...}}>\n        <h1>\n        <p>\n        <nav>\n        <Suspense fallback={null}>\n          <oR router={{...}} match={{id:\"//\", ...}}>\n            <Hi>\n              <Hi fallback={null}>\n                <Hi getResetKey={function getResetKey} errorComponent={undefined} onCatch={function onCatch}>\n                  <Hi fallback={function fallback}>\n                    <m>\n                      <r>\n+                       <main>\n-                       <Suspense>\n        ...\n",
+          "line": 78,
+          "sourceId": "file:///F:/My%20Github%20Repos/Open%20Source%20Repos/StreamFusion-%20kick,%20twitch%20desktop%20app/StreamFusion/.scratch/tanstack-start-local-file/packaged/win-unpacked/resources/app.asar/external-scripts-diagnostic/assets/index-kl-b1hSS.js"
+        }
+      ],
+      "failures": []
+    }
+  ]
+}

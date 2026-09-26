@@ -1,6 +1,24 @@
 # Disposable Start local-file probe
 
-This is a failed compatibility experiment, not a migration implementation. It builds a minimal Start renderer and packages it with Electron 43.4.1. It does not load StreamFusion main, preload, SQLite, FFmpeg, or player services.
+These are disposable compatibility experiments, not a migration implementation. The original probe records the failing baseline. The follow-up adds a client-only route boundary and tests an output adapter against the existing compiled Electron backend, preserving local-file loading and CSP.
+
+## Passing integration probe
+
+From the repository root on Windows, with workspace dependencies installed and the existing app built (`npm run build`):
+
+```powershell
+node docs/research/prototypes/tanstack-start-local-file/run-integration.mjs
+```
+
+This command installs the pinned Start dependencies into a unique scratch directory, overlays `fixed/` on `source/`, builds the renderer, and assembles the external-bootstrap variant. It copies the current compiled desktop main process, preload, player document and native dependencies into a disposable package. It bundles the slot preload into one file inside that copy, then launches twice with an isolated profile and external networking disabled. The summary includes the compiled main's hash so evidence can be tied to the input build.
+
+Exit 0 means the recorded startup, navigation, IPC, native dependency, sandboxed player bridge and storage checks passed. The runner retains evidence in its scratch directory and removes its own profile after completed observations. It leaves production source, workspace manifests, app output and real user data untouched. Root tooling must provide Node's `node:sqlite`, esbuild, electron-builder and Electron 43.4.1.
+
+See the [adapter report](../../2026-09-26-tanstack-start-local-file-adapter.md), [summary](evidence-fixed/summary.json), and [restart screenshot](evidence-fixed/restart.png). `evidence-fixed/initial.*` and `restart.*` come from the complete one-command reproduction. Other named files preserve intermediate diagnostic runs. The output transformations are specific to the pinned Start output; production integration and full feature acceptance remain separate work.
+
+## Original failing probe
+
+The minimal baseline packages Electron without StreamFusion main, preload, SQLite, FFmpeg, or player services.
 
 From the repository root on Windows, with the existing workspace dependencies installed:
 

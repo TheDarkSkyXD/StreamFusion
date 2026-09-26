@@ -1,0 +1,81 @@
+{
+  "quickCheck": [
+    {
+      "quick_check": "ok"
+    }
+  ],
+  "tables": [
+    {
+      "schema": "main",
+      "name": "retention_settings",
+      "type": "table",
+      "ncol": 2,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "mod_log_coverage",
+      "type": "table",
+      "ncol": 7,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "mod_log",
+      "type": "table",
+      "ncol": 16,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "sqlite_schema",
+      "type": "table",
+      "ncol": 5,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "key_value",
+      "type": "table",
+      "ncol": 2,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "local_follows",
+      "type": "table",
+      "ncol": 8,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "sqlite_sequence",
+      "type": "table",
+      "ncol": 2,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "main",
+      "name": "pending_follow_writes",
+      "type": "table",
+      "ncol": 12,
+      "wr": 0,
+      "strict": 0
+    },
+    {
+      "schema": "temp",
+      "name": "sqlite_temp_schema",
+      "type": "table",
+      "ncol": 5,
+      "wr": 0,
+      "strict": 0
+    }
+  ]
+}

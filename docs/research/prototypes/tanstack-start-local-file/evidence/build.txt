@@ -1,0 +1,43 @@
+
+> build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 159 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/client/assets/details-OqcPO2y1.js    0.21 kB │ gzip:   0.18 kB
+dist/client/assets/index-WMw91GCc.js      0.23 kB │ gzip:   0.19 kB
+dist/client/assets/index-vSd8B1Sp.js    319.43 kB │ gzip: 104.31 kB
+✓ built in 1.78s
+vite v7.3.6 building ssr environment for production...
+transforming...
+node.exe : "createRequestHandler", "defineHandlerCallback", "transformPipeableStreamWithRouter" and
+"transformReadableStreamWithRouter" are imported from external module "@tanstack/router-core/ssr/server" but never
+used in "node_modules/@tanstack/start-server-core/dist/esm/index.js".
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\Admin\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ("createRequestH.../esm/index.js".:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+"RawStream" is imported from external module "@tanstack/router-core" but never used in
+"node_modules/@tanstack/start-client-core/dist/esm/index.js".
+"defaultSerovalDeserializerPlugins", "hydrate" and "json" are imported from external module
+"@tanstack/router-core/ssr/client" but never used in "node_modules/@tanstack/start-client-core/dist/esm/index.js".
+✓ 52 modules transformed.
+rendering chunks...
+dist/server/assets/start-HYkvq4Ni.js                        0.06 kB
+dist/server/assets/empty-plugin-adapters-BFgPZ6_d.js        0.13 kB
+dist/server/assets/index-B2lcAzyq.js                        0.41 kB
+dist/server/assets/details-B72an9-6.js                      0.47 kB
+dist/server/assets/_tanstack-start-manifest_v-CBZ54iCz.js   0.88 kB
+dist/server/assets/router-B6V2J9_8.js                       2.88 kB
+dist/server/server.js                                      67.00 kB
+✓ built in 291ms
+[prerender] Prerendering pages...
+[prerender] Concurrency: 16
+[prerender] Crawling: /
+[prerender] Prerendered 1 pages:
+[prerender] - /

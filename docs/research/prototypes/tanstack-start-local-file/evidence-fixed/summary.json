@@ -1,0 +1,60 @@
+{
+  "passed": true,
+  "runRoot": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\tanstack-start-integration-1790421281094",
+  "databaseCheck": [
+    {
+      "quick_check": "ok"
+    }
+  ],
+  "restartRead": {
+    "version": "2.0.0",
+    "theme": "light",
+    "localFollowCount": 0,
+    "browserNote": "kept"
+  },
+  "originalMainSha256": "e7ad698f8eb6bceb2d49c62447ab2c7578c6acc29f3b1a89c827ba9f0e60f5bb",
+  "phases": [
+    {
+      "phase": "initial",
+      "error": null,
+      "preloadErrors": [],
+      "console": [],
+      "ffmpeg": {
+        "exists": true,
+        "status": 0,
+        "version": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers\r"
+      },
+      "slots": [
+        {
+          "video": true,
+          "slotBridge": true,
+          "fullBridge": false,
+          "sandbox": true,
+          "contextIsolation": true,
+          "nodeIntegration": false
+        }
+      ]
+    },
+    {
+      "phase": "restart",
+      "error": null,
+      "preloadErrors": [],
+      "console": [],
+      "ffmpeg": {
+        "exists": true,
+        "status": 0,
+        "version": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers\r"
+      },
+      "slots": [
+        {
+          "video": true,
+          "slotBridge": true,
+          "fullBridge": false,
+          "sandbox": true,
+          "contextIsolation": true,
+          "nodeIntegration": false
+        }
+      ]
+    }
+  ]
+}
