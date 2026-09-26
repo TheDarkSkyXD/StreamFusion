@@ -15,6 +15,10 @@ class FakeRelaySocket implements RelaySocket {
     this.listener = listener;
   }
 
+  removeEventListener(_type: string, listener: (event: { data?: string }) => void): void {
+    if (this.listener === listener) this.listener = undefined;
+  }
+
   receive(message: string): void {
     this.listener?.({ data: message });
   }
@@ -22,6 +26,8 @@ class FakeRelaySocket implements RelaySocket {
 
 // Guards: Electron host executes only the requested public bridge method and returns its result
 // Guards: unsubscribing in the browser releases the corresponding Electron IPC listener
+// Guards: a failing subscription cleanup does not leave other subscriptions or listeners active.
+// Guards: browser reloads that reuse subscription IDs replace their prior IPC listeners.
 describe("development relay host", () => {
   it("dispatches a browser call through the real Electron API surface", async () => {
     const socket = new FakeRelaySocket();
@@ -65,5 +71,59 @@ describe("development relay host", () => {
 
     expect(onQueueChanged).toHaveBeenCalledOnce();
     expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("releases every subscription when one cleanup fails", () => {
+    const socket = new FakeRelaySocket();
+    const active = new Set<string>();
+    const stop = startRelayHost(socket, {
+      events: {
+        subscribe(id: string) {
+          active.add(id);
+          return () => {
+            active.delete(id);
+            if (id === "first") throw new Error("Could not finish first cleanup");
+          };
+        },
+      },
+    });
+    const subscribe = (id: string) =>
+      socket.receive(
+        encodeRelayMessage({ type: "subscribe", id, path: ["events", "subscribe"], args: [id] })
+      );
+    subscribe("first");
+    subscribe("second");
+    expect([...active]).toEqual(["first", "second"]);
+    expect(stop).toThrow("Development relay cleanup failed");
+    subscribe("third");
+    expect([...active]).toEqual([]);
+    stop();
+  });
+
+  it("replaces an existing subscription when a browser reuses its ID", () => {
+    const socket = new FakeRelaySocket();
+    const active = new Set<number>();
+    let generation = 0;
+    const stop = startRelayHost(socket, {
+      events: {
+        subscribe() {
+          const id = ++generation;
+          active.add(id);
+          return () => active.delete(id);
+        },
+      },
+    });
+    const message = encodeRelayMessage({
+      type: "subscribe",
+      id: "subscription-1",
+      path: ["events", "subscribe"],
+      args: [],
+    });
+    socket.receive(message);
+    expect([...active]).toEqual([1]);
+    socket.receive(message);
+    expect([...active]).toEqual([2]);
+    stop();
+    expect([...active]).toEqual([]);
   });
 });

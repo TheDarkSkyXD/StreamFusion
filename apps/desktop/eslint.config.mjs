@@ -10,11 +10,19 @@ import tseslint from "typescript-eslint";
 import { featureArchitecturePlugin } from "./scripts/feature-architecture.mjs";
 
 const sourceFiles = ["src/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
-const testFiles = ["tests/**/*.{js,mjs,cjs,jsx,ts,tsx}", "src/**/features/*/tests/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
-const configFiles = ["*.config.{js,mjs,cjs,jsx,ts,tsx}"];
+const testFiles = [
+  "tests/**/*.{js,mjs,cjs,jsx,ts,tsx}",
+  "src/**/features/*/tests/**/*.{js,mjs,cjs,jsx,ts,tsx}",
+];
+const configFiles = ["*.config.{js,mjs,cjs,jsx,ts,mts,tsx}", "start.routes.mts"];
 const lintFiles = [...sourceFiles, ...testFiles, ...configFiles];
 const typedSourceFiles = ["src/**/*.{ts,tsx}"];
-const typedFiles = [...typedSourceFiles, "tests/**/*.{ts,tsx}", "*.config.{ts,tsx}"];
+const typedFiles = [
+  ...typedSourceFiles,
+  "tests/**/*.{ts,tsx}",
+  "*.config.{ts,mts,tsx}",
+  "start.routes.mts",
+];
 const reactSourceFiles = ["src/**/*.{jsx,tsx}"];
 const reactFiles = [...reactSourceFiles, "tests/**/*.{jsx,tsx}", "*.config.{jsx,tsx}"];
 const nodeRuntimeImportRestrictions = [
@@ -67,6 +75,7 @@ export default tseslint.config(
       "coverage/**",
       ".vite/**",
       "storybook-static/**",
+      "src/frontend/routes/start-routeTree.gen.ts",
     ],
   },
   {

@@ -26,11 +26,16 @@ function resolveBridgeMethod(
   return (...args) => Reflect.apply(method, owner, args);
 }
 
-export function startRelayHost(socket: RelaySocket, electronApi: object): () => void {
-  const subscriptions = new Map<string, () => void>();
+type RelayHostSocket = RelaySocket & {
+  removeEventListener: RelaySocket["addEventListener"];
+};
 
-  socket.addEventListener("message", (event) => {
-    if (typeof event.data !== "string") return;
+export function startRelayHost(socket: RelayHostSocket, electronApi: object): () => void {
+  const subscriptions = new Map<string, () => void>();
+  let stopped = false;
+
+  const onMessage = (event: { data?: string }) => {
+    if (stopped || typeof event.data !== "string") return;
     const message = decodeRelayMessage(event.data);
 
     if (message.type === "unsubscribe") {
@@ -40,8 +45,12 @@ export function startRelayHost(socket: RelaySocket, electronApi: object): () => 
     }
     if (message.type === "subscribe") {
       try {
+        const previous = subscriptions.get(message.id);
+        subscriptions.delete(message.id);
+        previous?.();
         const method = resolveBridgeMethod(electronApi, message.path);
         const cleanup = method(...message.args, (...args: unknown[]) => {
+          if (stopped) return;
           socket.send(encodeRelayMessage({ type: "event", id: message.id, args }));
         });
         if (typeof cleanup !== "function") throw new Error("Relay method is not subscribable");
@@ -61,12 +70,16 @@ export function startRelayHost(socket: RelaySocket, electronApi: object): () => 
     if (message.type !== "call") return;
 
     void Promise.resolve()
-      .then(() => resolveBridgeMethod(electronApi, message.path)(...message.args))
+      .then(() => {
+        if (!stopped) return resolveBridgeMethod(electronApi, message.path)(...message.args);
+      })
       .then(
         (value) => {
+          if (stopped) return;
           socket.send(encodeRelayMessage({ type: "result", id: message.id, ok: true, value }));
         },
         (error) => {
+          if (stopped) return;
           socket.send(
             encodeRelayMessage({
               type: "result",
@@ -77,10 +90,23 @@ export function startRelayHost(socket: RelaySocket, electronApi: object): () => 
           );
         }
       );
-  });
+  };
+  socket.addEventListener("message", onMessage);
 
   return () => {
-    for (const cleanup of subscriptions.values()) cleanup();
+    if (stopped) return;
+    stopped = true;
+    socket.removeEventListener("message", onMessage);
+    const cleanups = [...subscriptions.values()];
     subscriptions.clear();
+    const errors: unknown[] = [];
+    for (const cleanup of cleanups) {
+      try {
+        cleanup();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0) throw new AggregateError(errors, "Development relay cleanup failed");
   };
 }

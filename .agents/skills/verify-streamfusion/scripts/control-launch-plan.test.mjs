@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   createVerificationLaunchPlan,
   isVerificationHealthy,
+  sameRendererDocument,
   runManagedVerificationSession,
   runVerificationSmoke,
   waitForChildExitOrSignal,
@@ -13,6 +14,14 @@ import {
 const request = Object.freeze({
   port: 48123,
   profileDir: "C:\\runs\\preview\\profile",
+});
+
+// Guards: hash navigation remains the same renderer artifact; another origin or entry does not.
+test("renderer identity allows hash navigation", () => {
+  assert.equal(sameRendererDocument("http://127.0.0.1:5173/#/settings?tab=playback", "http://127.0.0.1:5173/"), true);
+  assert.equal(sameRendererDocument("http://127.0.0.1:5174/", "http://127.0.0.1:5173/"), false);
+  assert.equal(sameRendererDocument("file:///app/out/renderer/index.html#/following", "file:///app/out/renderer/index.html"), true);
+  assert.equal(sameRendererDocument("file:///other/index.html", "file:///app/out/renderer/index.html"), false);
 });
 
 test("the missing mode keeps the development launch plan", () => {
@@ -72,6 +81,17 @@ test("preview launches npm run preview without skipBuild", () => {
   ]);
   assert.equal(plan.args.includes("--skipBuild"), false);
   assert.equal(plan.readinessTimeoutMs, 300_000);
+});
+
+// Guards: candidate modes retain the controller-owned profile and debugging port.
+test("Start candidate modes forward isolated Electron arguments", () => {
+  for (const mode of ["dev:start", "preview:start"]) {
+    const plan = createVerificationLaunchPlan({ ...request, mode }, {
+      platform: "linux", execPath: "/usr/bin/node", env: { ELECTRON_RUN_AS_NODE: "1" },
+    });
+    assert.deepEqual(plan.args, ["run", mode, "--", "--", "--remote-debugging-port=48123", "--user-data-dir=C:\\runs\\preview\\profile"]);
+    assert.equal(plan.env.ELECTRON_RUN_AS_NODE, undefined);
+  }
 });
 
 test("Windows uses npm_execpath before the beside-Node fallback", () => {

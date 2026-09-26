@@ -15,6 +15,16 @@ export const VERIFICATION_LAUNCHERS = Object.freeze({
     npmPrefix: Object.freeze(["run", "preview", "--"]),
     readinessTimeoutMs: 300_000,
   }),
+  "dev:start": Object.freeze({
+    launcher: Object.freeze({ mode: "dev:start", command: "npm run dev:start" }),
+    npmPrefix: Object.freeze(["run", "dev:start", "--"]),
+    readinessTimeoutMs: 180_000,
+  }),
+  "preview:start": Object.freeze({
+    launcher: Object.freeze({ mode: "preview:start", command: "npm run preview:start" }),
+    npmPrefix: Object.freeze(["run", "preview:start", "--"]),
+    readinessTimeoutMs: 120_000,
+  }),
 });
 
 function launchMode(mode) {
@@ -159,6 +169,14 @@ export async function runVerificationSmoke(
   } finally {
     if (launched) await cleanup(launched.state);
   }
+}
+
+export function sameRendererDocument(actual, expected) {
+  const actualUrl = new URL(actual);
+  const expectedUrl = new URL(expected);
+  actualUrl.hash = "";
+  expectedUrl.hash = "";
+  return actualUrl.href === expectedUrl.href;
 }
 
 export function isVerificationHealthy({

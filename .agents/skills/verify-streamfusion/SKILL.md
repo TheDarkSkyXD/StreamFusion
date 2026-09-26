@@ -43,6 +43,12 @@ Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `
 
 The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies only preferences, the last active tab, and window bounds from `streamfusion-storage.json`. Credentials, cached account identities, encryption keys, and browser cookies are never copied: rotating a copied refresh token can invalidate the source account's session. Pass `--database <path>` or `--storage <path>` to select another seed source; the same credential exclusion applies. A missing artifact starts fresh. Authenticated verification requires a dedicated test account signed into the disposable instance.
 
+## Start candidate proof
+
+While the frontend migration remains opt-in, use `launch --mode dev:start` for the Start development renderer. For compiled local-file proof, first run `npm run build:start --workspace streamfusion`, then `launch --mode preview:start`. These modes use the same disposable profiles, process ownership checks, doctor, driving commands and cleanup. `preview:start` launches the existing candidate without rebuilding it. Record its build evidence before launch. The default mode remains `dev:electron`.
+
+Run `node apps/desktop/scripts/verify-start-runtime.mjs <run.json>` on a compiled candidate to reload the real window and retain CSP, hydration and preload-bridge diagnostics in `start-reload.json`. This is a compiled-output check, not a development-server check.
+
 ## Doctor
 
 Run doctor before driving the app and whenever a selector, route, or screenshot looks wrong.

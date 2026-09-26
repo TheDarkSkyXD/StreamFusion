@@ -19,6 +19,7 @@ import {
 import {
   createVerificationLaunchPlan,
   isVerificationHealthy,
+  sameRendererDocument,
   runManagedVerificationSession,
   runVerificationSmoke,
 } from "./control-launch-plan.mjs";
@@ -630,7 +631,7 @@ async function doctor(options) {
     healthy: isVerificationHealthy({
       processOwned: ownership.belongsToLaunch,
       artifactMatches:
-        target.url === state.rendererUrl && page.url === state.rendererUrl,
+        sameRendererDocument(target.url, state.rendererUrl) && sameRendererDocument(page.url, state.rendererUrl),
       page,
       accountStorageErrors,
       uncaughtErrors,
@@ -641,7 +642,7 @@ async function doctor(options) {
     port: state.port,
     portOwnership: ownership,
     artifactMatches:
-      target.url === state.rendererUrl && page.url === state.rendererUrl,
+      sameRendererDocument(target.url, state.rendererUrl) && sameRendererDocument(page.url, state.rendererUrl),
     target: { title: target.title, url: target.url },
     page,
     packageVersion: currentVersion,
@@ -975,7 +976,7 @@ function usage() {
   return `StreamFusion verification controller
 
 Commands:
-  launch [--mode dev:electron|preview] [--fresh] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
+  launch [--mode dev:electron|preview|dev:start|preview:start] [--fresh] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
   smoke --mode preview [--fresh] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
   session --mode preview [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
   doctor --run RUN_JSON

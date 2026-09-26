@@ -8,8 +8,37 @@ import {
 } from "@shared/auth-types";
 import type { ChatKnownUser, ChatMessage, NormalizedPinnedMessage } from "@shared/chat-types";
 import type { ChatInputProps } from "@/features/chat/components/chat/ChatInput";
+import type { UserPopoutProviderProps } from "@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider";
 import { getCommandsForAccess } from "@/features/chat/components/commands/chat-command-registry";
-import { installElectronAPIMock, renderWithProviders as render } from "../../../../../../../tests/test-utils";
+import {
+  installElectronAPIMock,
+  renderWithProviders as render,
+} from "../../../../../../../tests/test-utils";
+
+const navigateMock = vi.fn(async () => undefined);
+let userPopoutPublicActions: UserPopoutProviderProps["publicActions"];
+
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => navigateMock,
+}));
+
+vi.mock(
+  "@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider")
+      >();
+    return {
+      ...actual,
+      UserPopoutProvider: (props: UserPopoutProviderProps) => {
+        userPopoutPublicActions = props.publicActions;
+        return <actual.UserPopoutProvider {...props} />;
+      },
+    };
+  }
+);
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
 // toolbar click without rendering the full message virtuoso.
@@ -73,12 +102,6 @@ vi.mock("@/features/chat/components/state/chat-cosmetics-store", () => ({
     }),
   },
 }));
-
-
-
-
-
-
 
 vi.mock("@backend/api/platforms/twitch/twitch-eventsub-client", () => ({
   getTwitchEventSubClient: vi.fn(() => ({
@@ -372,8 +395,28 @@ const fakePrediction = {
 // Guards: viewer block commands compile @usernames into semantic main-process actions instead of falling through to IRC chat.
 // Guards: `/disconnect` parts only the current Channel and closes that Channel's composer until it rejoins.
 // Guards: Twitch slash commands return renderer-local outcomes instead of opening Twitch.
+// Guards: the user popout opens the resolved viewer's channel through the active router, not the legacy singleton.
 describe("TwitchChat", () => {
+  it("opens the resolved popout user channel through the active navigation function", () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    act(() => {
+      userPopoutPublicActions?.onViewChannel("twitch", {
+        id: "viewer-999",
+        username: "viewer-channel",
+        displayName: "Viewer Display",
+      });
+    });
+
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith({
+      to: "/stream/$platform/$channel",
+      params: { platform: "twitch", channel: "viewer-channel" },
+    });
+  });
+
   beforeEach(() => {
+    navigateMock.mockClear();
+    userPopoutPublicActions = undefined;
     sevenTvInstances.length = 0;
     applySevenTvEventMock.mockReset();
     acquireSevenTvChannelMock.mockReset();
@@ -1234,7 +1277,9 @@ describe("TwitchChat", () => {
       await Promise.resolve();
     });
     expect(screen.getByRole("status")).toHaveTextContent("history refreshed");
-    expect(twitchExecuteMock).not.toHaveBeenCalledWith(expect.objectContaining({ operation: "ban-user" }));
+    expect(twitchExecuteMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ operation: "ban-user" })
+    );
   });
 
   it("A missing-scopes result fires promptReconnect with the listed scopes", async () => {

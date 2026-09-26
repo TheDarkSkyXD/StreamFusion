@@ -1,5 +1,5 @@
 import { resolve } from 'path';
-import { defineConfig } from 'electron-vite';
+import { defineConfig, type UserConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import svgr from 'vite-plugin-svgr';
 import viteCompression from 'vite-plugin-compression';
@@ -10,7 +10,7 @@ import { createTwitchAdFrameProofConfig } from './src/frontend/dev-relay/twitch-
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-export default defineConfig(({ command, mode }) => {
+export const createDesktopConfig = ({ command, mode }: { command: "build" | "serve"; mode: string }) => {
     const env = loadEnv(mode, process.cwd(), '');
     const browserDevelopment = createBrowserDevelopmentConfig({
         command,
@@ -266,5 +266,7 @@ export default defineConfig(({ command, mode }) => {
                 },
             },
         },
-    };
-});
+    } satisfies UserConfig;
+};
+
+export default defineConfig(createDesktopConfig);

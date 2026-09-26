@@ -5,4 +5,5 @@ release/
 coverage/
 .vite/
 storybook-static/
+src/frontend/routes/start-routeTree.gen.ts
 src/global.css

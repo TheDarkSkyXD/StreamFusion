@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { withAppRouter } from "../../../../../../../../.storybook/story-router";
 import { TWITCH_CHANNEL } from "../chat-story-fixtures";
 import { installChatOrchestratorStoryMocks } from "../chat-subsystem-story-fixtures";
 import { TwitchChat } from "../../../../components/chat/twitch/TwitchChat";
@@ -6,6 +7,7 @@ import { TwitchChat } from "../../../../components/chat/twitch/TwitchChat";
 const meta = {
   title: "Components/Chat/Platform Shells/Twitch Chat",
   component: TwitchChat,
+  decorators: [withAppRouter],
   parameters: {
     layout: "centered",
     docs: {

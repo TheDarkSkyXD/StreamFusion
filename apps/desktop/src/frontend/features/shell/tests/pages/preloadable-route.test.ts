@@ -69,7 +69,7 @@ describe("preloadable route", () => {
   it("keeps the initial shell independent from page chunks while preserving Stream intent preload", async () => {
     const preload = vi.fn(async () => undefined);
     const Page = Object.assign(() => null, { preload });
-    const { withSuspense } = await import("@/routes/router");
+    const { withSuspense } = await import("@/routes/with-suspense");
 
     expect(withSuspense(Page)).not.toHaveProperty("preload");
     expect(withSuspense(Page, { forwardPreload: true })).toHaveProperty("preload", preload);

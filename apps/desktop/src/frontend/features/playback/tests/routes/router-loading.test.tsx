@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { withSuspense } from "@/routes/router";
+import { withSuspense } from "@/routes/with-suspense";
 
 const neverResolves = new Promise<never>(() => undefined);
 

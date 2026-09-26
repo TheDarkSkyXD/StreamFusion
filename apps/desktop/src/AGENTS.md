@@ -8,7 +8,7 @@ StreamFusion is an Electron application organized into three source roots:
 - `frontend/` owns the renderer entry, React pages, feature UI, routes, browser state, and presentation utilities.
 - `shared/` owns serialization-safe contracts and process-neutral primitives used across the Electron boundary.
 
-The main entry is `backend/main.ts`. The preload entry is `backend/preload/index.ts`. The renderer entry is `frontend/renderer.tsx`, and its React root is `frontend/App.tsx`.
+The main entry is `backend/main.ts`. The preload entry is `backend/preload/index.ts`. The default renderer entry is `frontend/renderer.tsx`, and its React root is `frontend/App.tsx`. The opt-in TanStack Start candidate uses `frontend/renderer/start-client.tsx` and the document route in `frontend/routes/start-root.tsx`. Both renderers share `frontend/providers/app-providers.tsx` and `frontend/renderer/runtime.ts`. Default adoption requires the gates in `docs/implementation/tanstack-start-candidate.md` at the repository root.
 
 ## Intent Layer
 

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { withAppRouter } from "../../../../../../../../.storybook/story-router";
 import { KICK_CHANNEL } from "../chat-story-fixtures";
 import { installChatOrchestratorStoryMocks } from "../chat-subsystem-story-fixtures";
 import { KickChat } from "../../../../components/chat/kick/KickChat";
@@ -6,6 +7,7 @@ import { KickChat } from "../../../../components/chat/kick/KickChat";
 const meta = {
   title: "Components/Chat/Platform Shells/Kick Chat",
   component: KickChat,
+  decorators: [withAppRouter],
   parameters: {
     layout: "centered",
     docs: {

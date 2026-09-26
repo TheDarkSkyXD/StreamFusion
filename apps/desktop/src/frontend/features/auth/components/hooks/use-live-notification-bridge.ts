@@ -5,54 +5,50 @@ import { toast } from "sonner";
 import { LiveNotificationToast } from "@/features/auth/components/LiveNotificationToast";
 import { LIVE_NOTIFICATION_STREAM_ROUTE } from "@/features/auth/routes";
 import { getLiveNotificationPreferences as getNotificationPreferences } from "@streamfusion/core/follows";
-import { router } from "@/routes/router";
+import type { NavigateFn } from "@tanstack/react-router";
 import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import { useNotificationStore } from "@/features/shell/components/state/notification-store";
 import { getLiveNotificationFeed } from "../../composition/live-notification-feed";
 
-export function useLiveNotificationBridge(): void {
+export function useLiveNotificationBridge(navigate: NavigateFn): void {
   const { t } = useTranslation();
   useEffect(() => {
     const feed = getLiveNotificationFeed();
-    const unsubscribeLive = feed?.onLiveNotification(
-      (notification) => {
-        useNotificationStore.getState().addNotification(notification);
-        const preferences = getNotificationPreferences(
-          useAuthStore.getState().preferences?.notifications
-        );
-        if (preferences.toastAlerts) {
-          toast(createElement(LiveNotificationToast, { notification }), {
-            action: {
-              label: t("auth.watch"),
-              onClick: () => {
-                void router.navigate({
-                  to: LIVE_NOTIFICATION_STREAM_ROUTE,
-                  params: {
-                    platform: notification.platform,
-                    channel: notification.channelName,
-                  },
-                });
-              },
+    const unsubscribeLive = feed?.onLiveNotification((notification) => {
+      useNotificationStore.getState().addNotification(notification);
+      const preferences = getNotificationPreferences(
+        useAuthStore.getState().preferences?.notifications
+      );
+      if (preferences.toastAlerts) {
+        toast(createElement(LiveNotificationToast, { notification }), {
+          action: {
+            label: t("auth.watch"),
+            onClick: () => {
+              void navigate({
+                to: LIVE_NOTIFICATION_STREAM_ROUTE,
+                params: {
+                  platform: notification.platform,
+                  channel: notification.channelName,
+                },
+              });
             },
-          });
-        }
-      }
-    );
-    const unsubscribeOpen = feed?.onOpenLiveNotification(
-      (notification) => {
-        void router.navigate({
-          to: LIVE_NOTIFICATION_STREAM_ROUTE,
-          params: {
-            platform: notification.platform,
-            channel: notification.channelName,
           },
         });
       }
-    );
+    });
+    const unsubscribeOpen = feed?.onOpenLiveNotification((notification) => {
+      void navigate({
+        to: LIVE_NOTIFICATION_STREAM_ROUTE,
+        params: {
+          platform: notification.platform,
+          channel: notification.channelName,
+        },
+      });
+    });
 
     return () => {
       unsubscribeLive?.();
       unsubscribeOpen?.();
     };
-  }, [t]);
+  }, [navigate, t]);
 }

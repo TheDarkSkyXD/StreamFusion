@@ -13,13 +13,13 @@ Each feature owns one folder under `features/`. Follow the nine-folder feature a
 - `utils/` owns small, pure, feature-private helpers.
 - `composition/` wires dependencies without business logic.
 - `tests/` owns feature tests. Include these paths in test discovery when migrating.
-- Keep route registration in `frontend/routes/router.tsx`; route-facing modules import the owning feature directly. Do not add a feature-root compatibility barrel.
+- Keep default route registration in `frontend/routes/router.tsx`. The opt-in Start candidate registers feature-owned `routes/start-*.tsx` modules through `apps/desktop/start.routes.mts` and generates `frontend/routes/start-routeTree.gen.ts`. Run `npm run routes:generate` after changing that manifest. Route-facing modules import the owning feature directly. Do not add a feature-root compatibility barrel.
 
 The renderer features are `auth`, `chat`, `discovery`, `media-library`, `moderation`, `multistream`, `playback`, `settings`, and `shell`.
 
 ## Boundaries
 
-- Keep `src/frontend/routes/router.tsx` as the TanStack Router composition root. Route behavior belongs to the owning feature.
+- Keep `src/frontend/routes/router.tsx` as the default TanStack Router composition root and `src/frontend/routes/start-router.tsx` as the candidate composition root. Route behavior belongs to the owning feature. Shared components use the active router context rather than importing either router singleton.
 - Add feature dependencies deliberately. `eslint.config.mjs` contains the enforced dependency graph.
 - Keep main-process, preload, IPC, slot-host, and shared-contract code outside renderer features.
 - Put process-neutral DTOs in `src/shared/`. Do not make a renderer feature depend on a backend type solely for convenience.

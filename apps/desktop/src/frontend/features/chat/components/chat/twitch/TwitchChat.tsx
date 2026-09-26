@@ -13,7 +13,7 @@ import { TwitchHermesClient } from "@/features/chat/adapters/browser/twitch-herm
 import { useStickyDismissedPrediction } from "@/features/chat/components/hooks/useStickyDismissedPrediction";
 import { registerChatMessageRoute } from "@/features/chat/components/hooks/use-chat-message-router";
 import { logger } from "@/renderer/logging/logger";
-import { router } from "@/routes/router";
+import { useNavigate } from "@tanstack/react-router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { UnifiedPrediction } from "@shared/chat-types";
 import type { TwitchChannelModeratePayload } from "@shared/twitch-api-types";
@@ -177,6 +177,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   presentation = "standalone",
 }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   useRenderCount("TwitchChat");
   const queryClient = useQueryClient();
   // Chat store — subscribe only to fields read in render; actions have stable refs.
@@ -1283,12 +1284,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   }, []);
   const handleViewUserChannel = useCallback(
     (platform: "twitch" | "kick", resolved: { username: string }) => {
-      void router.navigate({
+      void navigate({
         to: "/stream/$platform/$channel",
         params: { platform, channel: resolved.username },
       });
     },
-    []
+    [navigate]
   );
   const userPopoutPublicActions = useMemo(
     () => ({

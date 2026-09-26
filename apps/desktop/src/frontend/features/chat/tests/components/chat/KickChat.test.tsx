@@ -6,8 +6,34 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { ChatKnownUser, ChatMessage } from "@shared/chat-types";
 import type { ChatInputProps } from "@/features/chat/components/chat/ChatInput";
+import type { UserPopoutProviderProps } from "@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider";
 import { getCommandsForAccess } from "@/features/chat/components/commands/chat-command-registry";
 import { installElectronAPIMock, renderWithProviders } from "../../../../../../../tests/test-utils";
+
+const navigateMock = vi.fn(async () => undefined);
+let userPopoutPublicActions: UserPopoutProviderProps["publicActions"];
+
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => navigateMock,
+}));
+
+vi.mock(
+  "@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider")
+      >();
+    return {
+      ...actual,
+      UserPopoutProvider: (props: UserPopoutProviderProps) => {
+        userPopoutPublicActions = props.publicActions;
+        return <actual.UserPopoutProvider {...props} />;
+      },
+    };
+  }
+);
 
 // U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
 const lastListProps: {
@@ -281,8 +307,28 @@ function renderKickChat(ui: ReactElement, queryClient?: QueryClient) {
 // Guards: Kick auth changes update composer identity without resetting the public chat socket or its rooms.
 // Guards: viewers still observe ban UI without writing moderator-only history records.
 // Guards: Kick slash commands keep official moderation execution and local-only notices wired through the composer.
+// Guards: the user popout opens the resolved viewer's channel through the active router, not the legacy singleton.
 describe("KickChat", () => {
+  it("opens the resolved popout user channel through the active navigation function", () => {
+    renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
+
+    act(() => {
+      userPopoutPublicActions?.onViewChannel("kick", {
+        id: "viewer-999",
+        username: "viewer-channel",
+        displayName: "Viewer Display",
+      });
+    });
+
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith({
+      to: "/stream/$platform/$channel",
+      params: { platform: "kick", channel: "viewer-channel" },
+    });
+  });
+
   beforeEach(() => {
+    navigateMock.mockClear();
+    userPopoutPublicActions = undefined;
     const api = installElectronAPIMock();
     api.openExternal = openExternalMock;
     api.kickChat.moderateBan = banKickUserMock;

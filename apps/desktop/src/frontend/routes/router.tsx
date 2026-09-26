@@ -1,3 +1,4 @@
+import { withSuspense } from "./with-suspense";
 import {
   createHashHistory,
   createRootRoute,
@@ -5,11 +6,7 @@ import {
   createRouter,
   Outlet,
 } from "@tanstack/react-router";
-import type React from "react";
-import { Suspense } from "react";
-import { useTranslation } from "react-i18next";
 
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   CategoriesPage,
   CategoryDetailPage,
@@ -31,40 +28,6 @@ import {
 import { SettingsPage, validateSettingsSearch } from "@/features/settings/routes";
 import { APP_SHELL_ROUTE_ID } from "@/features/shell/routes";
 import { AppLayout } from "@/features/shell/components/layout/AppLayout";
-import { RecoveryBoundary } from "@/features/shell/components/recovery/RecoveryBoundary";
-
-const PageLoader = () => {
-  const { t } = useTranslation();
-
-  return (
-    <div
-      role="status"
-      aria-label={t("shell.loadingPage")}
-      data-route-page-loader="true"
-      className="flex h-full items-center justify-center"
-    >
-      <LoadingSpinner size="md" className="motion-reduce:animate-none" />
-    </div>
-  );
-};
-
-// Wrap lazy component with Suspense while keeping route chunk loading opt-in.
-export const withSuspense = (
-  Component: React.ComponentType & { preload?: () => Promise<unknown> },
-  { forwardPreload = false }: { forwardPreload?: boolean } = {}
-) => {
-  const SuspenseComponent = () => (
-    <RecoveryBoundary name="This page">
-      <Suspense fallback={<PageLoader />}>
-        <Component />
-      </Suspense>
-    </RecoveryBoundary>
-  );
-
-  return forwardPreload
-    ? Object.assign(SuspenseComponent, { preload: Component.preload })
-    : SuspenseComponent;
-};
 
 // Root layout (wraps everything)
 const rootRoute = createRootRoute({

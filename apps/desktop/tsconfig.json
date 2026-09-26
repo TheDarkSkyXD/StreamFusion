@@ -22,7 +22,7 @@
       "@/*": ["./src/frontend/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "electron.vite.config.ts"],
+  "include": ["src/**/*", "tests/**/*", "*.config.ts", "*.config.mts"],
   "exclude": ["node_modules", "dist", "out", ".vite"],
   "references": [
     {

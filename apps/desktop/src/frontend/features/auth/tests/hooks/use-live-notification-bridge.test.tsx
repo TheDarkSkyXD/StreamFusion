@@ -5,10 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockNavigate = vi.hoisted(() => vi.fn());
 const toastMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/routes/router", () => ({
-  router: { navigate: mockNavigate },
-}));
-
 vi.mock("sonner", () => ({
   toast: toastMock,
 }));
@@ -56,21 +52,21 @@ beforeEach(() => {
   });
   const api = installElectronAPIMock();
   api.notifications = {
-      getCoverageStatus: vi.fn(async (): Promise<LiveNotificationCoverageStatus> => ({
-        desktop: { supported: true, permission: "unknown" },
-        platforms: {
-          twitch: { status: "normal", issues: [] },
-          kick: { status: "normal", issues: [] },
-        },
-      })),
-      onLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
-        liveCallback = callback;
-        return vi.fn();
-      }),
-      onOpenLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
-        openCallback = callback;
-        return vi.fn();
-      }),
+    getCoverageStatus: vi.fn(async (): Promise<LiveNotificationCoverageStatus> => ({
+      desktop: { supported: true, permission: "unknown" },
+      platforms: {
+        twitch: { status: "normal", issues: [] },
+        kick: { status: "normal", issues: [] },
+      },
+    })),
+    onLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
+      liveCallback = callback;
+      return vi.fn();
+    }),
+    onOpenLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
+      openCallback = callback;
+      return vi.fn();
+    }),
   };
 });
 
@@ -82,10 +78,10 @@ afterEach(() => {
 
 // Guards: renderer must persist live-notification pushes from main so the bell history works for desktop, toast, and guest follows.
 // Guards: live toasts must render the supplied Twitch and Kick channel avatars through the platform image proxy.
-// Guards: desktop notification clicks navigate through the app router without requiring hook context above RouterProvider.
+// Guards: desktop notification clicks use the active application navigation passed by the composition root.
 describe("useLiveNotificationBridge", () => {
   it("adds incoming live notifications to the notification store", () => {
-    renderHook(() => useLiveNotificationBridge());
+    renderHook(() => useLiveNotificationBridge(mockNavigate));
 
     liveCallback?.(liveNotification);
 
@@ -95,7 +91,7 @@ describe("useLiveNotificationBridge", () => {
   });
 
   it("shows a toast for incoming live notifications when toast alerts are enabled", () => {
-    renderHook(() => useLiveNotificationBridge());
+    renderHook(() => useLiveNotificationBridge(mockNavigate));
 
     liveCallback?.(liveNotification);
 
@@ -119,7 +115,7 @@ describe("useLiveNotificationBridge", () => {
   ])(
     "renders the supplied $platform channel avatar in the toast",
     ({ platform, channelAvatar }) => {
-      renderHook(() => useLiveNotificationBridge());
+      renderHook(() => useLiveNotificationBridge(mockNavigate));
 
       liveCallback?.({
         ...liveNotification,
@@ -151,7 +147,7 @@ describe("useLiveNotificationBridge", () => {
       },
     });
 
-    renderHook(() => useLiveNotificationBridge());
+    renderHook(() => useLiveNotificationBridge(mockNavigate));
     liveCallback?.(liveNotification);
 
     expect(useNotificationStore.getState().notifications).toEqual([
@@ -165,7 +161,7 @@ describe("useLiveNotificationBridge", () => {
     window.electronAPI!.notifications.onLiveNotification = vi.fn(() => unsubscribe);
     window.electronAPI!.notifications.onOpenLiveNotification = vi.fn(() => vi.fn());
 
-    const { unmount } = renderHook(() => useLiveNotificationBridge());
+    const { unmount } = renderHook(() => useLiveNotificationBridge(mockNavigate));
     unmount();
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
@@ -182,7 +178,7 @@ describe("useLiveNotificationBridge", () => {
       createdAt: 1_000,
     });
 
-    renderHook(() => useLiveNotificationBridge());
+    renderHook(() => useLiveNotificationBridge(mockNavigate));
     openCallback?.({
       id: "kick:200:1000",
       platform: "kick",
