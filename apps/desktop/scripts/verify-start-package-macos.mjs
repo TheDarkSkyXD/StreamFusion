@@ -156,6 +156,7 @@ export async function verifyPackage(options) {
       "Unsigned package: no Gatekeeper, notarization, installer or updater claim",
       "Native shell and Settings checks use a 1024-pixel-wide window with height constrained by macOS; wider layouts and live chat load require separate evidence",
       "Signed-out startup and Settings only; provider, playback and isolated-player runtime parity remain separate gates",
+      "Accessibility assertions do not verify screenshot pixels; retained captures require separate visual review",
     ],
   };
   let activeCheck;
