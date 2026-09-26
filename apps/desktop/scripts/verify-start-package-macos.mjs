@@ -146,8 +146,12 @@ on run argv
     set windowRow to my rowText("AXWindow", my attributeText(ownedWindow, "AXTitle"), "", "", "")
     if requestedAction is "probe" then
       set accessibilityEnabled to UI elements enabled
-      set size of ownedWindow to {1024, 720}
-      set actualSize to size of ownedWindow
+      set size of ownedWindow to {1024, 768}
+      repeat 40 times
+        set actualSize to size of ownedWindow
+        if item 1 of actualSize is 1024 then exit repeat
+        delay 0.05
+      end repeat
       set sizeText to (item 1 of actualSize as text) & "x" & (item 2 of actualSize as text)
       return my rowText("AXProbe", "System Events", "", accessibilityEnabled as text, "") & linefeed & windowRow & linefeed & my rowText("AXWindowSize", "", "", sizeText, "")
     end if
@@ -299,7 +303,7 @@ export async function verifyPackage(options) {
     checks: Object.fromEntries(checkNames.map((name) => [name, { status: "not_run" }])),
     limitations: [
       "Unsigned package: no Gatekeeper, notarization, installer or updater claim",
-      "Native shell and Settings checks use a 1024x720 window; wider layouts and live chat load require separate evidence",
+      "Native shell and Settings checks use a 1024-pixel-wide window with height constrained by macOS; wider layouts and live chat load require separate evidence",
       "Signed-out startup and Settings only; provider, playback and isolated-player runtime parity remain separate gates",
     ],
   };
@@ -554,6 +558,7 @@ export async function verifyPackage(options) {
           const attemptStartedAt = Date.now();
           try {
             const rows = parseAccessibilitySnapshot(ui("probe", 5_000));
+            probeRows = rows;
             assert(
               rows.some((row) => row.role === "AXProbe" && row.value === "true"),
               "System Events accessibility probe did not report UI access"
@@ -563,8 +568,8 @@ export async function verifyPackage(options) {
               "System Events accessibility probe did not find the application window"
             );
             assert(
-              rows.some((row) => row.role === "AXWindowSize" && row.value === "1024x720"),
-              "Native verification window did not reach 1024x720"
+              rows.some((row) => row.role === "AXWindowSize" && /^1024x\d+$/.test(row.value)),
+              `Native verification window did not reach width 1024: ${rows.find((row) => row.role === "AXWindowSize")?.value}`
             );
             probeAttempts.push({
               status: "passed",
@@ -572,7 +577,6 @@ export async function verifyPackage(options) {
               durationMs: Date.now() - attemptStartedAt,
             });
             probeStatus = "passed";
-            probeRows = rows;
             break;
           } catch (error) {
             lastError = error;
