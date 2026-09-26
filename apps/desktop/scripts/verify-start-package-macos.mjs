@@ -146,7 +146,10 @@ on run argv
     set windowRow to my rowText("AXWindow", my attributeText(ownedWindow, "AXTitle"), "", "", "")
     if requestedAction is "probe" then
       set accessibilityEnabled to UI elements enabled
-      return my rowText("AXProbe", "System Events", "", accessibilityEnabled as text, "") & linefeed & windowRow
+      set size of ownedWindow to {1024, 720}
+      set actualSize to size of ownedWindow
+      set sizeText to (item 1 of actualSize as text) & "x" & (item 2 of actualSize as text)
+      return my rowText("AXProbe", "System Events", "", accessibilityEnabled as text, "") & linefeed & windowRow & linefeed & my rowText("AXWindowSize", "", "", sizeText, "")
     end if
 
     set pendingElements to {ownedWindow}
@@ -296,6 +299,7 @@ export async function verifyPackage(options) {
     checks: Object.fromEntries(checkNames.map((name) => [name, { status: "not_run" }])),
     limitations: [
       "Unsigned package: no Gatekeeper, notarization, installer or updater claim",
+      "Native shell and Settings checks use a 1024x720 window; wider layouts and live chat load require separate evidence",
       "Signed-out startup and Settings only; provider, playback and isolated-player runtime parity remain separate gates",
     ],
   };
@@ -557,6 +561,10 @@ export async function verifyPackage(options) {
             assert(
               rows.some((row) => row.role === "AXWindow"),
               "System Events accessibility probe did not find the application window"
+            );
+            assert(
+              rows.some((row) => row.role === "AXWindowSize" && row.value === "1024x720"),
+              "Native verification window did not reach 1024x720"
             );
             probeAttempts.push({
               status: "passed",
