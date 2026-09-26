@@ -1,4 +1,6 @@
 import ApplicationServices
+import AppKit
+import CoreGraphics
 import Darwin
 import Foundation
 
@@ -45,6 +47,39 @@ func elementArrayAttribute(_ element: AXUIElement, _ name: String) -> [AXUIEleme
     copyAttribute(element, name) as? [AXUIElement] ?? []
 }
 
+func sizeAttribute(_ element: AXUIElement) -> CGSize? {
+    guard let value = copyAttribute(element, "AXSize"), CFGetTypeID(value) == AXValueGetTypeID() else {
+        return nil
+    }
+    var size = CGSize.zero
+    guard AXValueGetValue(value as! AXValue, .cgSize, &size) else { return nil }
+    return size
+}
+
+func ownedWindowIds(pid: pid_t) -> [CGWindowID] {
+    guard let windows = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements],
+        kCGNullWindowID
+    ) as? [[String: Any]] else {
+        return []
+    }
+    return windows
+        .compactMap { window -> CGWindowID? in
+            guard
+                (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
+                (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                let number = window[kCGWindowNumber as String] as? NSNumber,
+                let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                let rectangle = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                rectangle.width > 0,
+                rectangle.height > 0
+            else {
+                return nil
+            }
+            return number.uint32Value
+        }
+}
+
 func titleRow(_ element: AXUIElement, role: String) -> SnapshotRow {
     SnapshotRow(
         role: role,
@@ -78,10 +113,10 @@ func emit(_ rows: [SnapshotRow]) {
 
 let arguments = ProcessInfo.processInfo.arguments
 guard arguments.count == 3, let requestedPid = pid_t(arguments[1]), requestedPid > 0 else {
-    fail("Usage: verify-start-package-macos-ax <pid> <shellSnapshot|settings|settingsSnapshot>")
+    fail("Usage: verify-start-package-macos-ax <pid> <probe|shellSnapshot|settings|settingsSnapshot>")
 }
 let action = arguments[2]
-guard ["shellSnapshot", "settings", "settingsSnapshot"].contains(action) else {
+guard ["probe", "shellSnapshot", "settings", "settingsSnapshot"].contains(action) else {
     fail("Unknown native accessibility action: \(action)")
 }
 guard AXIsProcessTrusted() else {
@@ -99,6 +134,45 @@ guard let window = elementArrayAttribute(application, "AXWindows").first else {
     fail("Owned application has no native accessibility window")
 }
 
+if action == "probe" {
+    guard let runningApplication = NSRunningApplication(processIdentifier: requestedPid) else {
+        fail("Owned application is not available for native activation")
+    }
+    guard runningApplication.activate(options: [.activateAllWindows, .activateIgnoringOtherApps]) else {
+        fail("Owned application native activation was rejected")
+    }
+    var requestedSize = CGSize(width: 1_024, height: 768)
+    guard
+        let requestedSizeValue = AXValueCreate(.cgSize, &requestedSize),
+        AXUIElementSetAttributeValue(window, "AXSize" as CFString, requestedSizeValue) == .success
+    else {
+        fail("Owned native window resize was rejected")
+    }
+    var actualSize = sizeAttribute(window)
+    for _ in 0..<40 {
+        if actualSize?.width == 1_024 { break }
+        Thread.sleep(forTimeInterval: 0.05)
+        actualSize = sizeAttribute(window)
+    }
+    guard let actualSize, actualSize.width == 1_024 else {
+        fail("Owned native window resize pending: \(actualSize?.width ?? 0)x\(actualSize?.height ?? 0)")
+    }
+    let windowIds = ownedWindowIds(pid: requestedPid)
+    guard !windowIds.isEmpty else {
+        fail("Owned application window ID is not available")
+    }
+    guard windowIds.count == 1, let windowId = windowIds.first else {
+        fail("Owned application window identity is ambiguous: \(windowIds.count) candidates")
+    }
+    emit([
+        SnapshotRow(role: "AXProbe", name: "ApplicationServices", description: "", value: "true", placeholder: ""),
+        SnapshotRow(role: "AXWindow", name: stringAttribute(window, "AXTitle"), description: "", value: "", placeholder: ""),
+        SnapshotRow(role: "AXWindowSize", name: "", description: "", value: "\(Int(actualSize.width))x\(Int(actualSize.height))", placeholder: ""),
+        SnapshotRow(role: "AXWindowID", name: "", description: "", value: String(windowId), placeholder: ""),
+    ])
+    exit(0)
+}
+
 let windowRow = SnapshotRow(
     role: "AXWindow",
     name: stringAttribute(window, "AXTitle"),
@@ -113,6 +187,7 @@ var settingsRow: SnapshotRow?
 var searchRow: SnapshotRow?
 var settingsDescriptionRow: SnapshotRow?
 var settingsContentRow: SnapshotRow?
+var settingsCurrentRow: SnapshotRow?
 
 while cursor < pending.count, cursor < maximumElements {
     let current = pending[cursor]
@@ -156,30 +231,47 @@ while cursor < pending.count, cursor < maximumElements {
             print("Settings pressed")
             exit(0)
         }
-    } else if ["AXStaticText", "AXHeading"].contains(role) {
-        settingsDescriptionRow = settingsDescriptionRow ?? matchingRow(
-            current.element,
-            role: role,
-            label: "Personalize your StreamFusion experience",
-            attributes: ["AXValue", "AXTitle", "AXDescription"]
-        )
-        settingsContentRow = settingsContentRow ?? matchingRow(
-            current.element,
-            role: role,
-            label: "Default Quality",
-            attributes: ["AXValue", "AXTitle", "AXDescription"]
-        )
-    } else if searchRow == nil, ["AXTextField", "AXTextArea"].contains(role) {
-        searchRow = matchingRow(
-            current.element,
-            role: role,
-            label: "Search settings",
-            attributes: ["AXPlaceholderValue", "AXTitle", "AXDescription", "AXValue"]
-        )
+    } else {
+        if settingsCurrentRow == nil, ["AXLink", "AXButton"].contains(role),
+           let candidate = matchingRow(
+               current.element,
+               role: role,
+               label: "Settings",
+               attributes: ["AXTitle", "AXDescription"]
+           ),
+           stringAttribute(current.element, "AXARIACurrent") == "page" {
+            settingsCurrentRow = SnapshotRow(
+                role: candidate.role,
+                name: candidate.name,
+                description: candidate.description,
+                value: "page",
+                placeholder: ""
+            )
+        } else if ["AXStaticText", "AXHeading"].contains(role) {
+            settingsDescriptionRow = settingsDescriptionRow ?? matchingRow(
+                current.element,
+                role: role,
+                label: "Personalize your StreamFusion experience",
+                attributes: ["AXValue", "AXTitle", "AXDescription"]
+            )
+            settingsContentRow = settingsContentRow ?? matchingRow(
+                current.element,
+                role: role,
+                label: "Default Quality",
+                attributes: ["AXValue", "AXTitle", "AXDescription"]
+            )
+        } else if searchRow == nil, ["AXTextField", "AXTextArea"].contains(role) {
+            searchRow = matchingRow(
+                current.element,
+                role: role,
+                label: "Search settings",
+                attributes: ["AXPlaceholderValue", "AXTitle", "AXDescription", "AXValue"]
+            )
+        }
     }
 
-    if action == "settingsSnapshot", let settingsDescriptionRow, let searchRow, let settingsContentRow {
-        emit([windowRow, settingsDescriptionRow, searchRow, settingsContentRow])
+    if action == "settingsSnapshot", let settingsCurrentRow, let settingsDescriptionRow, let searchRow, let settingsContentRow {
+        emit([windowRow, settingsCurrentRow, settingsDescriptionRow, searchRow, settingsContentRow])
         exit(0)
     }
 
@@ -196,7 +288,7 @@ while cursor < pending.count, cursor < maximumElements {
 if action == "shellSnapshot" {
     emit([windowRow, webAreaRow, settingsRow, searchRow].compactMap { $0 })
 } else if action == "settingsSnapshot" {
-    emit([windowRow, settingsDescriptionRow, searchRow, settingsContentRow].compactMap { $0 })
+    emit([windowRow, settingsCurrentRow, settingsDescriptionRow, searchRow, settingsContentRow].compactMap { $0 })
 } else {
     fail("Required Settings accessibility target not found after \(cursor) elements")
 }

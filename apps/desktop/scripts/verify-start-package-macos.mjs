@@ -90,57 +90,6 @@ async function sha256(file) {
     .digest("hex");
 }
 
-// System Events establishes the owned native window and a repeatable verification size.
-const accessibilityScript = String.raw`
-on attributeText(elementRef, attributeName)
-  tell application "System Events"
-    try
-      set attributeValue to value of attribute attributeName of elementRef
-      if attributeValue is missing value then return ""
-      set attributeValue to attributeValue as text
-      set savedDelimiters to AppleScript's text item delimiters
-      set AppleScript's text item delimiters to {tab, return, linefeed}
-      set parts to text items of attributeValue
-      set AppleScript's text item delimiters to " "
-      set attributeValue to parts as text
-      set AppleScript's text item delimiters to savedDelimiters
-      return attributeValue
-    on error
-      return ""
-    end try
-  end tell
-end attributeText
-
-on rowText(roleText, nameText, descriptionText, valueText, placeholderText)
-  return roleText & tab & nameText & tab & descriptionText & tab & valueText & tab & placeholderText
-end rowText
-
-on run argv
-  set ownedPid to item 1 of argv as integer
-  set requestedAction to item 2 of argv
-  if requestedAction is not "probe" then error "Unknown System Events action: " & requestedAction
-  tell application "System Events"
-    if not (exists (first application process whose unix id is ownedPid)) then error "Owned process is not accessible"
-    set ownedProcess to first application process whose unix id is ownedPid
-    set frontmost of ownedProcess to true
-    if (count of windows of ownedProcess) is 0 then error "Owned application has no window"
-    set ownedWindow to first window of ownedProcess
-    set windowRow to my rowText("AXWindow", my attributeText(ownedWindow, "AXTitle"), "", "", "")
-    if requestedAction is "probe" then
-      set accessibilityEnabled to UI elements enabled
-      set size of ownedWindow to {1024, 768}
-      repeat 40 times
-        set actualSize to size of ownedWindow
-        if item 1 of actualSize is 1024 then exit repeat
-        delay 0.05
-      end repeat
-      set sizeText to (item 1 of actualSize as text) & "x" & (item 2 of actualSize as text)
-      return my rowText("AXProbe", "System Events", "", accessibilityEnabled as text, "") & linefeed & windowRow & linefeed & my rowText("AXWindowSize", "", "", sizeText, "")
-    end if
-  end tell
-end run
-`;
-
 const quitScript = String.raw`
 ObjC.import('AppKit');
 function run(argv) {
@@ -220,6 +169,7 @@ export async function verifyPackage(options) {
   let launchFailure;
   let launchedAt;
   let nativeAccessibilityHelper;
+  let nativeWindowId;
   let interruption;
   const onSignal = (signal) => {
     interruption ??= new Error(`Verification interrupted by ${signal}`);
@@ -245,19 +195,11 @@ export async function verifyPackage(options) {
       "Refusing to operate on a changed process identity"
     );
   };
-  const windowUi = (action, timeout = 30_000) => {
-    throwIfInterrupted();
-    requireOwned();
-    return command("/usr/bin/osascript", ["-", String(child.pid), action], {
-      input: accessibilityScript,
-      timeout,
-    });
-  };
-  const nativeUi = (action) => {
+  const nativeUi = (action, timeout = 10_000) => {
     throwIfInterrupted();
     requireOwned();
     assert(nativeAccessibilityHelper, "Native accessibility adapter is not compiled");
-    return command(nativeAccessibilityHelper, [String(child.pid), action], { timeout: 10_000 });
+    return command(nativeAccessibilityHelper, [String(child.pid), action], { timeout });
   };
   const waitForUi = async (action, predicate, filename, deadline = Date.now() + 90_000) => {
     let rows = [];
@@ -289,9 +231,9 @@ export async function verifyPackage(options) {
   };
   const screenshot = async (filename) => {
     requireOwned();
+    assert(nativeWindowId, "Owned native window ID is not available for capture");
     const output = path.join(options.evidence, filename);
-    // AX updates can precede the compositor frame, especially after native navigation.
-    command("/usr/sbin/screencapture", ["-x", "-T", "1", output]);
+    command("/usr/sbin/screencapture", ["-x", "-T", "1", "-l", nativeWindowId, output]);
     assert((await stat(output)).size > 0, "Native screenshot is empty");
     return filename;
   };
@@ -496,20 +438,26 @@ export async function verifyPackage(options) {
         while (Date.now() < deadline) {
           const attemptStartedAt = Date.now();
           try {
-            const rows = parseAccessibilitySnapshot(windowUi("probe", 5_000));
+            const rows = parseAccessibilitySnapshot(nativeUi("probe", 5_000));
             probeRows = rows;
             assert(
               rows.some((row) => row.role === "AXProbe" && row.value === "true"),
-              "System Events accessibility probe did not report UI access"
+              "Native accessibility probe did not report UI access"
             );
             assert(
               rows.some((row) => row.role === "AXWindow"),
-              "System Events accessibility probe did not find the application window"
+              "Native accessibility probe did not find the application window"
             );
             assert(
               rows.some((row) => row.role === "AXWindowSize" && /^1024x\d+$/.test(row.value)),
               `Native verification window did not reach width 1024: ${rows.find((row) => row.role === "AXWindowSize")?.value}`
             );
+            const windowId = rows.find((row) => row.role === "AXWindowID")?.value;
+            assert(
+              /^\d+$/.test(windowId ?? ""),
+              `Native accessibility probe returned invalid window ID: ${windowId}`
+            );
+            nativeWindowId = windowId;
             probeAttempts.push({
               status: "passed",
               startedAt: new Date(attemptStartedAt).toISOString(),
@@ -525,7 +473,12 @@ export async function verifyPackage(options) {
               durationMs: Date.now() - attemptStartedAt,
               error: error.message,
             });
-            if (!/Owned application has no window/.test(error.message)) throw error;
+            if (
+              !/no native accessibility window|native window resize pending|window ID is not available/i.test(
+                error.message
+              )
+            )
+              throw error;
             await delay(Math.min(500, Math.max(0, deadline - Date.now())));
           }
         }
@@ -584,6 +537,12 @@ export async function verifyPackage(options) {
       await waitForUi(
         "settingsSnapshot",
         (rows) =>
+          rows.some(
+            (row) =>
+              ["AXLink", "AXButton"].includes(row.role) &&
+              hasLabel([row], "Settings") &&
+              row.value === "page"
+          ) &&
           hasLabel(rows, "Personalize your StreamFusion experience") &&
           hasLabel(rows, "Search settings") &&
           hasLabel(rows, "Default Quality"),
