@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { AdBlockSettingsView } from "../components/adblock-settings-panel";
 import { composeAdBlockView } from "../domain/adblock-policy";

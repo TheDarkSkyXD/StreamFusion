@@ -14,7 +14,7 @@ import type {
   ActivityWriteResult,
 } from "@mobile/features/storage/capabilities/persistence";
 
-import type { PayloadSecretBox } from "../adapters/payload-secretbox";
+import type { PayloadSecretBox } from "../capabilities/payload-secretbox";
 import type { StoreDatabase } from "./database-contracts";
 
 export interface ProductSetting {

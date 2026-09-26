@@ -10,7 +10,6 @@ import type { Platform } from "@streamfusion/core/platform";
 import type {
   FollowedClipPeriod,
   FollowedIdentityRef,
-  FollowedRecordedSort,
 } from "@streamfusion/core/relay";
 
 import {
@@ -22,7 +21,6 @@ import { requestInit } from "../../utils/following-query";
 import type {
   FollowedContentReader,
   FollowedReadOutcome,
-  FollowedRecordedOutcome,
 } from "../../capabilities/following-session";
 import { failedRead, failedRecorded } from "../relay/followed-content-parse";
 

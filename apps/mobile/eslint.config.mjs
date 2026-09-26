@@ -24,6 +24,7 @@ export default defineConfig([
         { type: "mobile-runtime-composition", pattern: "src/composition", partialMatch: false },
         { type: "mobile-i18n", pattern: "src/i18n", partialMatch: false },
         { type: "mobile-native-module", pattern: "modules/*/src", partialMatch: false },
+        { type: "mobile-tests", pattern: "src/test-support", partialMatch: false },
         ...["routes", "components", "domain", "capabilities", "adapters", "data", "utils", "composition", "tests"].map((layer) => ({ type: `mobile-${layer === "composition" ? "feature-composition" : layer}`, pattern: `src/features/*/${layer}`, partialMatch: false }))
       ]
     },

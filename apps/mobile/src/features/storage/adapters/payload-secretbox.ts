@@ -1,13 +1,10 @@
 import { getRandomValues } from "expo-crypto";
 import nacl from "tweetnacl";
 
+import type { PayloadSecretBox } from "../capabilities/payload-secretbox";
+
 const SEAL_PREFIX = "sf1:";
 const keyPattern = /^[a-f0-9]{64}$/u;
-
-export interface PayloadSecretBox {
-  open(value: string): string;
-  seal(plaintext: string): string;
-}
 
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);

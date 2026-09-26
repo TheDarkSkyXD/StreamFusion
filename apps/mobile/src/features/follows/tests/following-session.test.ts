@@ -13,11 +13,7 @@ import type {
   LiveNotificationPreferenceStore,
 } from "@mobile/features/storage/capabilities/persistence";
 import { createFollowingRuntime } from "../composition/following-runtime";
-import {
-  followedChannel,
-  followedStream,
-  guestFollow,
-} from "../domain/following-fixtures";
+import { guestFollow } from "../domain/following-fixtures";
 
 vi.mock("expo-linking", () => ({
   openURL: vi.fn(async () => undefined),
@@ -94,7 +90,6 @@ function memoryNotifications(): LiveNotificationPreferenceStore {
     },
   };
 }
-
 
 function gqlUser(input: {
   readonly id: string;
@@ -273,7 +268,11 @@ describe("createFollowingRuntime", () => {
                 },
                 createdAt: "2026-09-11T00:00:00.000Z",
                 freeformTags: [],
-                game: { displayName: "Just Chatting", id: "509658", name: "Just Chatting" },
+                game: {
+                  displayName: "Just Chatting",
+                  id: "509658",
+                  name: "Just Chatting",
+                },
                 id: "stream-1",
                 previewImageURL: "https://example.test/thumb.png",
                 title: "live",
@@ -306,8 +305,7 @@ describe("createFollowingRuntime", () => {
   it("rejects unresolved Guest Follows instead of inventing account success", async () => {
     const session = createFollowingRuntime({
       cache: memoryCache(),
-      fetch: async () =>
-        new Response(JSON.stringify({ data: { user: null } })),
+      fetch: async () => new Response(JSON.stringify({ data: { user: null } })),
       guestFollows: memoryGuestFollows(),
       installation: async () => ({
         credential: "install",

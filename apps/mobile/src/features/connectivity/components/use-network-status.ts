@@ -35,10 +35,7 @@ export function useNetworkStatus(input: {
   }, [enabled, readNetwork]);
 
   useEffect(() => {
-    if (!enabled) {
-      setStatus("online");
-      return undefined;
-    }
+    if (!enabled) return undefined;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -58,5 +55,5 @@ export function useNetworkStatus(input: {
     };
   }, [enabled, readNetwork]);
 
-  return { refresh, status };
+  return { refresh, status: enabled ? status : "online" };
 }

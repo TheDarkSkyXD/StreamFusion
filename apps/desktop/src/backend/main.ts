@@ -304,9 +304,6 @@ if (process.platform === "linux") {
 // V8 Memory Cage: Additional memory isolation for security and leak prevention
 app.commandLine.appendSwitch("enable-features", "V8MemoryCage");
 
-// Disable accessibility runtime (saves ~10-20MB if not needed)
-app.commandLine.appendSwitch("disable-renderer-accessibility");
-
 // Disable QUIC/HTTP3. Chromium's HTTP/3 transport intermittently fails against
 // the emote CDNs (cdn.7tv.app, fronted by Cloudflare) with
 // ERR_QUIC_PROTOCOL_ERROR, forcing a slow per-image TCP fallback and spamming

@@ -13,6 +13,15 @@ const cases = [
   ["src/features/shell/domain/proof.ts", 'import "../capabilities/proof";\n', true],
   ["src/features/shell/domain/proof-forbidden.ts", 'import "../adapters/proof";\n', false],
   ["src/features/shell/adapters/proof.ts", "export const proof = true;\n", true],
+  ["src/features/storage/capabilities/proof.ts", "export const proof = true;\n", true],
+  ["src/features/storage/adapters/proof.ts", "export const proof = true;\n", true],
+  ["src/features/storage/data/proof-capability.ts", 'import "../capabilities/proof";\n', true],
+  ["src/features/storage/data/proof-adapter.ts", 'import "../adapters/proof";\n', false],
+  ["src/test-support/proof.ts", "export const proof = true;\n", true],
+  ["src/features/shell/components/proof-test-support-alias.ts", 'import "@mobile/test-support/proof";\n', false],
+  ["src/features/shell/components/proof-test-support-relative.ts", 'import "../../../test-support/proof";\n', false],
+  ["src/features/shell/components/proof-test-support-dynamic.ts", 'void import("@mobile/test-support/proof");\n', false],
+  ["src/features/shell/components/proof-test-support-require.ts", 'require("@mobile/test-support/proof");\n', false],
   ["src/features/native-contracts/adapters/proof.ts", 'import "../../../../modules/streamfusion-native-contracts/src/contracts";\n', true],
   ["src/features/native-contracts/domain/proof-native.ts", 'import "../../../../modules/streamfusion-native-contracts/src/contracts";\n', false],
   ["src/features/native-contracts/components/proof-tests.ts", 'import "../tests/android-capability-contracts.test";\n', false],
@@ -30,6 +39,6 @@ const files = cases.map(([file]) => path.join(root, file));
 try {
   for (const [file, source] of cases) { const target = path.join(root, file); await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, source); }
   const eslint = new ESLint({ cwd: root, overrideConfigFile: path.join(root, "eslint.config.mjs") });
-  for (const [file, , allowed, forbiddenRule = "boundaries/dependencies"] of cases) { const [result] = await eslint.lintFiles([path.join(root, file)]); assert.equal(result.messages.some((message) => message.ruleId === forbiddenRule), !allowed, `${file}: incorrect dependency decision`); }
+  for (const [file, , allowed, forbiddenRule = "boundaries/dependencies"] of cases) { const [result] = await eslint.lintFiles([path.join(root, file)]); assert.equal(result.messages.some((message) => message.ruleId === forbiddenRule), !allowed, `${file}: incorrect dependency decision`); assert.equal(result.messages.some((message) => message.ruleId === "boundaries/no-unknown-files"), false, `${file}: unclassified source`); }
   console.log("Feature architecture import proof passed.");
 } finally { await Promise.all(files.map((file) => rm(file, { force: true }))); }

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Maximize,
@@ -419,7 +420,7 @@ function ProgressScrubber({
 }) {
   const ratio =
     durationMs > 0 ? Math.min(1, Math.max(0, positionMs / durationMs)) : 0;
-  const widthRef = { current: 0 };
+  const widthRef = useRef(0);
   return (
     <View style={styles.scrubberBlock}>
       <Text selectable style={styles.progress} testID="player-progress">

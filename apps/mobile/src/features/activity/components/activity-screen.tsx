@@ -107,7 +107,7 @@ export function ActivityScreen({
               testID="activity-write-failure"
             >
               <Text selectable style={styles.itemBody}>
-                Couldn't save. Try again.
+                Couldn&apos;t save. Try again.
               </Text>
             </View>
           ) : null}
@@ -326,7 +326,7 @@ function DismissalStatus({
             selectable
             style={styles.itemBody}
           >
-            Couldn't dismiss. Try again.
+            Couldn&apos;t dismiss. Try again.
           </Text>
         ) : null}
         <View style={styles.confirmationActions}>

@@ -1,12 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
-  Download as LuDownload,
-  Grid3x3 as LuGrid3X3,
-  Heart as LuHeart,
-  History as LuHistory,
-  House as LuHouse,
-  LayoutDashboard as LuLayoutDashboard,
-} from "lucide-react";
+  LuDownload,
+  LuGrid3X3,
+  LuHeart,
+  LuHistory,
+  LuHouse,
+  LuLayoutDashboard,
+} from "react-icons/lu";
 import type React from "react";
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
@@ -78,13 +78,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const isModWorkspace = /^\/mod\/(twitch|kick)\/[^/]+\/?$/.test(location.pathname);
   const shouldRenderPersistentPlayer = Boolean(currentPipStream);
+  const isBrowserDevClient =
+    typeof window !== "undefined" && window.__STREAMFUSION_BROWSER_DEV_CLIENT__;
 
   return (
     <StreamRecordingProvider>
       <PersistentPlayerShell>
         <div className="h-full flex flex-col bg-[var(--color-background)] relative">
           {/* Custom Title Bar (window controls) */}
-          <TitleBar />
+          {!isBrowserDevClient && <TitleBar />}
 
           {/* Top Navigation Bar (search, user info) */}
           {!isTheaterModeActive && !isModWorkspace && <TopNavBar showPlatformHealth={isOnline} />}

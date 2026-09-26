@@ -89,7 +89,7 @@ export function parseIrcBadgesTag(raw: string): readonly {
   readonly version: string;
 }[] {
   if (!raw) return [];
-  const badges: Array<{ setId: string; version: string }> = [];
+  const badges: { setId: string; version: string }[] = [];
   for (const part of raw.split(",")) {
     if (!part) continue;
     const slash = part.indexOf("/");

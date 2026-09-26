@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { serializeProxy } from "../domain/proxy-config";
 import { composeConnectivityView } from "../domain/compose-connectivity-view";

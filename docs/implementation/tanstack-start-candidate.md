@@ -14,7 +14,7 @@ npm run preview:start --workspace streamfusion
 npm run package:start --workspace streamfusion -- --win --x64 --dir
 ```
 
-The browser command also starts Electron. Open the printed `browser.html` URL to use the existing development relay. This is a desktop development tool, not a browser product build.
+The browser command also starts Electron. Open the printed `browser.html` URL to use the existing development relay. The responsive browser view keeps Electron as its backend. A standalone website is outside the agreed scope. Desktop visual parity precedes the narrow-screen layout work.
 
 `build:start` writes `.cache/start/app` inside `apps/desktop`. `package:start` packages that output into `.cache/start/package`. Build before packaging. The default `dev`, `build`, `preview`, and release commands still use the existing renderer.
 
@@ -42,7 +42,11 @@ Development verification observed React hot reload without a new document, succe
 
 The existing integration tests now exercise both real route trees. They verify notification navigation while language initialization is pending, navigation after initialization, listener disposal, and Stream preloading that waits for its nested chat module. Both chat component suites assert that viewing a resolved user channel uses the active router. These tests complement the runtime checks; compiled nested preloading and live authentication readiness still need adoption evidence.
 
-The Windows x64 directory package built. The archive contains both renderers, both preloads and the native SQLite binary, with no Start server packages. Its FFmpeg executable ran successfully. The real packaged executable started with an isolated profile and created its database. Its existing policy disables remote debugging, so the desktop controller could not inspect that packaged window. This is not a packaged UI pass. Native package UI verification requires an available native desktop driver or a manual run, without changing that policy.
+The Windows x64 directory package built. The archive contains both renderers, both preloads and the native SQLite binary, with no Start server packages. Its FFmpeg executable ran successfully. The real packaged executable started with an isolated profile and created its database. Removing the forced renderer accessibility disable allowed native accessibility inspection and navigation from Home to Settings. Both screens rendered in retained screenshots. Packaged remote debugging remains disabled. This exploratory proof lacks a complete artifact identity and action record, so repeatable exact-package verification remains an adoption gate.
+
+The manual `start-candidate.yml` workflow builds unsigned macOS x64 and arm64 candidates and checks the copied packages outside the checkout. Its verifier records native accessibility navigation, screenshots, SQLite integrity, FFmpeg execution, logs and artifact hashes. Its runtime result remains unverified until both matrix jobs complete.
+
+The first repository CI run passed the desktop suite but failed pre-existing mobile lint checks. The follow-up repairs mobile architecture boundaries, persistent scrubber measurements and disabled connectivity state. Mobile lint, types, tests, architecture checks and the Android bundle passed locally. Repository CI must confirm the repair.
 
 Clean baseline and candidate idle/navigation runs each lasted five minutes, sampled every 15 seconds, and cycled the same six routes every 30 seconds. Both passed the existing limits with 19 samples and no renderer exceptions. No builds overlapped these runs. These are compiled-app measurements, not installed-package or sustained playback measurements.
 
@@ -54,12 +58,12 @@ Clean baseline and candidate idle/navigation runs each lasted five minutes, samp
 | Frame time p95         |   16.8 ms |         16.8 ms |
 | Processes              |         5 |               5 |
 
-One matched pair does not establish a performance improvement or repeatable variation. The earlier contaminated baseline remains in the trail as smoke evidence.
+One matched pair does not establish a performance improvement or repeatable variation. These measurements predate the accessibility change. The earlier contaminated baseline remains in the trail as smoke evidence.
 
 ## Remaining adoption gates
 
-- Complete authenticated playback, chat, notifications, moderation, download, account recovery and provider-specific parity with dedicated test accounts.
-- Prove packaged Windows UI, SQLite, FFmpeg and sandboxed isolated-player behavior independently of repository dependencies. Build and boot macOS x64 and arm64 packages. Preserve the Linux target.
+- Authenticated playback, chat, notifications, moderation, download, account recovery and provider-specific parity remain pending. The user requested continued work without accounts. These checks do not block signed-out implementation, but cannot be claimed as passed.
+- Retain reproducible exact-artifact Windows UI, SQLite, FFmpeg and sandboxed isolated-player evidence independently of repository dependencies. Build and boot macOS x64 and arm64 packages. Preserve the Linux target.
 - Exercise a synthetic profile through old app, candidate, restart and rollback. Include preferences, local follows, history and browser storage.
 - Repeat matched measurements to establish baseline variation and exercise sustained playback load.
 - Verify compiled Stream's nested chat preload completes before navigation. Source integration tests pass; inspecting preload functions on all 14 compiled route components does not establish that behavior.

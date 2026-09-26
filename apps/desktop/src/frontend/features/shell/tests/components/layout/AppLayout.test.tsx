@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, routerMock, screen } from "../../../../../../../tests/test-utils";
 
@@ -44,8 +44,13 @@ vi.mock("@/features/shell/components/layout/SidebarFollows", () => ({
   SidebarFollows: () => <div data-testid="sidebar-follows">follows</div>,
 }));
 
-vi.mock("@/features/shell/components/layout/TitleBar", () => ({
-  TitleBar: () => <div data-testid="title-bar">title</div>,
+vi.mock("@/features/settings/components/hooks/useElectron", () => ({
+  useWindowControls: () => ({
+    isMaximized: false,
+    minimize: vi.fn(),
+    maximize: vi.fn(),
+    close: vi.fn(),
+  }),
 }));
 
 vi.mock("@/features/playback/components/player/mini-player", () => ({
@@ -58,8 +63,11 @@ vi.mock("@/features/playback/components/state/pip-store", () => ({
 
 import { AppLayout } from "@/features/shell/components/layout/AppLayout";
 
+// Guards: the browser keeps application navigation and content without inert native window controls, while Electron retains them.
 describe("AppLayout", () => {
   beforeEach(() => {
+    Reflect.deleteProperty(window, "__STREAMFUSION_BROWSER_DEV_CLIENT__");
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
     mockNetworkStatus.mockReturnValue({
       isOnline: true,
       isOffline: false,
@@ -72,6 +80,11 @@ describe("AppLayout", () => {
     layoutState.pathname = "/";
     layoutState.currentStream = null;
     layoutState.isTheaterModeActive = false;
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, "__STREAMFUSION_BROWSER_DEV_CLIENT__");
+    vi.restoreAllMocks();
   });
 
   // Guards: the app shell owns one live-player tree on stream routes so route-to-mini handoff cannot unmount its video or HLS instance.
@@ -88,16 +101,27 @@ describe("AppLayout", () => {
     expect(await screen.findByTestId("persistent-live-player")).toBeInTheDocument();
   });
 
-  it("renders title bar, top nav, and children", () => {
-    renderWithProviders(
-      <AppLayout>
-        <div>page-content</div>
-      </AppLayout>
-    );
-    expect(screen.getByTestId("title-bar")).toBeInTheDocument();
-    expect(screen.getByTestId("top-nav")).toBeInTheDocument();
-    expect(screen.getByText("page-content")).toBeInTheDocument();
-  });
+  it.each(["electron", "browser"] as const)(
+    "keeps application chrome appropriate to %s",
+    (host) => {
+      if (host === "browser") window.__STREAMFUSION_BROWSER_DEV_CLIENT__ = true;
+      renderWithProviders(
+        <AppLayout>
+          <div>page-content</div>
+        </AppLayout>
+      );
+      for (const name of ["Minimize", "Maximize", "Close"]) {
+        const control = screen.queryByRole("button", { name });
+        if (host === "electron") expect(control).toBeInTheDocument();
+        else expect(control).not.toBeInTheDocument();
+      }
+      expect(screen.getByTestId("top-nav")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+      expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+      expect(screen.getByTestId("sidebar-follows")).toBeInTheDocument();
+      expect(screen.getByText("page-content")).toBeInTheDocument();
+    }
+  );
 
   it("renders nav links for each route", () => {
     renderWithProviders(

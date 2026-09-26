@@ -2,7 +2,6 @@ import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { asMediaJobId, createQueuedMediaJobSnapshot } from "@streamfusion/core/media-jobs";
 import { toSerializedTimestamp } from "@streamfusion/core/activity";
-import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
 import { ActivityScreen } from "@mobile/features/activity/components/activity-screen";

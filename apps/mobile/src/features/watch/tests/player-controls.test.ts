@@ -1,30 +1,52 @@
-import { isValidElement, type ReactElement } from "react";
+// @vitest-environment jsdom
+import { act, createElement, isValidElement, type ReactElement } from "react";
+import { createRoot } from "react-dom/client";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PlayerControls } from "../components/player-controls";
 
-vi.mock("react-native", () => ({
-  Modal: "Modal",
-  Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
-  Text: "Text",
-  ScrollView: "ScrollView",
-  View: "View",
-}));
+const pressableProps = vi.hoisted(
+  () => new Map<string, Record<string, unknown>>(),
+);
 
-vi.mock("lucide-react-native", () => ({
-  Maximize: "Maximize",
-  Minimize: "Minimize",
-  Pause: "Pause",
-  PictureInPicture2: "PictureInPicture2",
-  Play: "Play",
-  RotateCcw: "RotateCcw",
-  RotateCw: "RotateCw",
-  Settings2: "Settings2",
-  ShieldCheck: "ShieldCheck",
-  Volume2: "Volume2",
-  VolumeX: "VolumeX",
-}));
+vi.mock("react-native", async () => {
+  const { createElement } = await import("react");
+  const host = (tag: string) => (props: Record<string, unknown>) =>
+    createElement(tag, { "data-testid": props.testID }, props.children);
+  return {
+    Modal: host("div"),
+    Pressable: (props: Record<string, unknown>) => {
+      if (typeof props.testID === "string")
+        pressableProps.set(props.testID, props);
+      return createElement(
+        "button",
+        { "data-testid": props.testID },
+        props.children,
+      );
+    },
+    StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
+    Text: host("span"),
+    ScrollView: host("div"),
+    View: host("div"),
+  };
+});
+
+vi.mock("lucide-react-native", () => {
+  const icon = () => null;
+  return {
+    Maximize: icon,
+    Minimize: icon,
+    Pause: icon,
+    PictureInPicture2: icon,
+    Play: icon,
+    RotateCcw: icon,
+    RotateCw: icon,
+    Settings2: icon,
+    ShieldCheck: icon,
+    Volume2: icon,
+    VolumeX: icon,
+  };
+});
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
@@ -55,6 +77,27 @@ function findByTestId(
   return nodes.find((node) => node.props.testID === testID);
 }
 
+function renderVodControls(options: Parameters<typeof PlayerControls>[0]) {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const render = (props: Parameters<typeof PlayerControls>[0]) => {
+    act(() => root.render(createElement(PlayerControls, props)));
+  };
+  render(options);
+  return {
+    container,
+    render,
+    unmount: () => act(() => root.unmount()),
+  };
+}
+
+function findRendered(container: HTMLElement, testId: string) {
+  return container.querySelector(
+    `[testid="${testId}"], [data-testid="${testId}"]`,
+  );
+}
+
 const base = {
   fullscreen: false,
   muted: false,
@@ -73,20 +116,18 @@ const base = {
   visible: true,
 };
 
-
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, _options?: Record<string, unknown>) => key as string,
 }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
   initReactI18next: { type: "3rdParty", init: () => undefined },
 }));
-
-
 
 describe("player controls chrome", () => {
   beforeAll(async () => {
@@ -95,7 +136,6 @@ describe("player controls chrome", () => {
     i18nTest.t = (key: string, options?: Record<string, unknown>) =>
       i18n.t(key, options as never);
   });
-
 
   it("centers play/pause for live streams without seek chips", () => {
     const nodes = descendants(PlayerControls(base));
@@ -112,29 +152,35 @@ describe("player controls chrome", () => {
   });
 
   it("flanks center play with VOD seek icons and keeps scrub time on the rail", () => {
-    const nodes = descendants(
-      PlayerControls({
-        ...base,
-        onSeekBack: () => undefined,
-        onSeekForward: () => undefined,
-        progress: { durationMs: 90_000, positionMs: 12_000 },
-        seekable: true,
-      }),
-    );
-    const center = findByTestId(nodes, "player-center-transport");
-    expect(center).toBeTruthy();
-    const centerDescendants = descendants(center);
-    expect(findByTestId(centerDescendants, "player-seek-back")).toBeTruthy();
-    expect(findByTestId(centerDescendants, "player-play-pause")).toBeTruthy();
-    expect(findByTestId(centerDescendants, "player-seek-forward")).toBeTruthy();
-    expect(
-      nodes.some(
-        (node) =>
-          node.props.testID === "player-progress" &&
-          String(node.props.children).includes("0:12 / 1:30"),
-      ),
-    ).toBe(true);
-    expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
+    const rendered = renderVodControls({
+      ...base,
+      onSeekBack: () => undefined,
+      onSeekForward: () => undefined,
+      progress: { durationMs: 90_000, positionMs: 12_000 },
+      seekable: true,
+    });
+    try {
+      const center = findRendered(
+        rendered.container,
+        "player-center-transport",
+      );
+      expect(center).toBeTruthy();
+      expect(
+        center?.querySelector('[data-testid="player-seek-back"]'),
+      ).toBeTruthy();
+      expect(
+        center?.querySelector('[data-testid="player-play-pause"]'),
+      ).toBeTruthy();
+      expect(
+        center?.querySelector('[data-testid="player-seek-forward"]'),
+      ).toBeTruthy();
+      expect(
+        findRendered(rendered.container, "player-progress")?.textContent,
+      ).toContain("0:12 / 1:30");
+      expect(findRendered(rendered.container, "player-live-badge")).toBeNull();
+    } finally {
+      rendered.unmount();
+    }
   });
 
   it("keeps mute/pip/fullscreen on the bottom rail and quality top-right", () => {
@@ -178,9 +224,7 @@ describe("player controls chrome", () => {
     expect(findByTestId(nodes, "player-quality-menu")).toBeTruthy();
     const option = findByTestId(nodes, "player-quality-option-720p");
     expect(option).toBeTruthy();
-    (
-      option?.props as { onPress?: () => void } | undefined
-    )?.onPress?.();
+    (option?.props as { onPress?: () => void } | undefined)?.onPress?.();
     expect(selected).toEqual(["720p"]);
   });
 
@@ -201,28 +245,39 @@ describe("player controls chrome", () => {
   });
 
   it("renders a VOD scrubber on the rail with clock and seek target", () => {
-    const nodes = descendants(
-      PlayerControls({
-        ...base,
-        onSeekBack: () => undefined,
-        onSeekForward: () => undefined,
-        onSeekTo: () => undefined,
-        progress: { durationMs: 90_000, positionMs: 12_000 },
-        seekable: true,
-      }),
-    );
-    expect(findByTestId(nodes, "player-scrubber")).toBeTruthy();
-    expect(
-      nodes.some(
-        (node) =>
-          node.props.testID === "player-progress" &&
-          String(node.props.children).includes("0:12 / 1:30"),
-      ),
-    ).toBe(true);
-    expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
+    const seekTargets: number[] = [];
+    const options = {
+      ...base,
+      onSeekBack: () => undefined,
+      onSeekForward: () => undefined,
+      onSeekTo: (positionMs: number) => seekTargets.push(positionMs),
+      progress: { durationMs: 90_000, positionMs: 12_000 },
+      seekable: true,
+    };
+    const rendered = renderVodControls(options);
+    try {
+      expect(findRendered(rendered.container, "player-scrubber")).toBeTruthy();
+      expect(
+        findRendered(rendered.container, "player-progress")?.textContent,
+      ).toContain("0:12 / 1:30");
+      const onLayout = pressableProps.get("player-scrubber")?.onLayout;
+      if (typeof onLayout !== "function")
+        throw new Error("Scrubber layout handler is missing.");
+      onLayout({ nativeEvent: { layout: { width: 300 } } });
+      rendered.render({
+        ...options,
+        progress: { durationMs: 90_000, positionMs: 20_000 },
+      });
+      const onPress = pressableProps.get("player-scrubber")?.onPress;
+      if (typeof onPress !== "function")
+        throw new Error("Scrubber press handler is missing.");
+      onPress({ nativeEvent: { locationX: 75 } });
+      expect(seekTargets).toEqual([22_500]);
+      expect(findRendered(rendered.container, "player-live-badge")).toBeNull();
+    } finally {
+      rendered.unmount();
+    }
   });
-
-
 
   it("shows an adblock shield on the rail when filtering is active", () => {
     const active = descendants(
@@ -240,13 +295,11 @@ describe("player controls chrome", () => {
     const shield = findByTestId(active, "player-adblock-shield");
     expect(shield).toBeTruthy();
     expect(shield?.props.accessibilityLabel).toBe("Ad-block active");
-    expect(findByTestId(blocking, "player-adblock-shield")?.props.accessibilityLabel).toBe(
-      "Blocking ads",
-    );
+    expect(
+      findByTestId(blocking, "player-adblock-shield")?.props.accessibilityLabel,
+    ).toBe("Blocking ads");
     expect(
       findByTestId(descendants(PlayerControls(base)), "player-adblock-shield"),
     ).toBeUndefined();
   });
-
-
 });

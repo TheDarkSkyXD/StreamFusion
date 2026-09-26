@@ -81,12 +81,12 @@ async function loadCatalog(
   }
   const payload = (await response.json()) as {
     data?: {
-      badges?: Array<{
+      badges?: ({
         imageURL?: string | null;
         setID?: string | null;
         title?: string | null;
         version?: string | null;
-      } | null>;
+      } | null)[];
     };
   };
   const next = new Map<string, CatalogEntry>();
