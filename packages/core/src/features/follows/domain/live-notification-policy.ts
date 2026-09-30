@@ -3,6 +3,7 @@ import type { FollowSourceFor } from "./follow-policy.ts";
 export type LiveNotificationRestartGraceMinutes = 0 | 5 | 15 | 30;
 
 export type LiveNotificationPreferences = {
+  readonly doNotDisturb: boolean;
   readonly enabled: boolean;
   readonly liveAlerts: boolean;
   readonly twitch: boolean;
@@ -17,6 +18,7 @@ export type LiveNotificationPreferences = {
 
 export const DEFAULT_LIVE_NOTIFICATION_PREFERENCES: LiveNotificationPreferences =
   {
+    doNotDisturb: false,
     enabled: true,
     liveAlerts: true,
     twitch: true,
@@ -103,6 +105,30 @@ export function isFollowEligibleForLiveNotification<
   );
 }
 
+export type LiveAlertSurfaces = {
+  readonly toast: boolean;
+  readonly systemNotification: { readonly silent: boolean } | null;
+};
+
+// Do Not Disturb is a mute that overrides the interruption flags, not a
+// follow filter: it silences every surface while history keeps recording.
+export function resolveLiveAlertSurfaces(
+  preferences: LiveNotificationPreferences,
+  systemNotificationsSupported = false,
+): LiveAlertSurfaces {
+  if (preferences.doNotDisturb) {
+    return { toast: false, systemNotification: null };
+  }
+
+  return {
+    toast: preferences.toastAlerts,
+    systemNotification:
+      preferences.enabled && systemNotificationsSupported
+        ? { silent: !preferences.sound }
+        : null,
+  };
+}
+
 export type LiveNotificationDecision =
   | {
       readonly kind: "deliver";
@@ -142,9 +168,9 @@ export function resolveLiveNotificationDecision(options: {
   return {
     kind: "deliver",
     inApp: true,
-    systemNotification:
-      options.preferences.enabled && options.systemNotificationsSupported
-        ? { silent: !options.preferences.sound }
-        : null,
+    systemNotification: resolveLiveAlertSurfaces(
+      options.preferences,
+      options.systemNotificationsSupported,
+    ).systemNotification,
   };
 }

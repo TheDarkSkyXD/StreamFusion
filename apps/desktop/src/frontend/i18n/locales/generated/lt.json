@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sek",
     "unknown": "nežinomas",
     "failedToDownloadUpdate": "Nepavyko atsisiųsti naujinimo",
-    "failedToInstallUpdate": "Nepavyko įdiegti naujinimo"
+    "failedToInstallUpdate": "Nepavyko įdiegti naujinimo",
+    "doNotDisturb": "Netrukdyti",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Nutildykite programos reklamjuostes, pranešimų garsus ir sistemos įspėjimus, vis dar įrašydami istoriją."
   },
   "shell": {
     "loadingPage": "Įkeliamas puslapis",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "prieš {{count}} val",
       "hoursAgo_other": "prieš {{count}} valandas",
       "daysAgo_one": "prieš {{count}} dieną",
-      "daysAgo_other": "prieš {{count}} dienas"
+      "daysAgo_other": "prieš {{count}} dienas",
+      "doNotDisturb": "Netrukdyti",
+      "notificationsMuted": "Pranešimai nutildyti"
     },
     "titleBar": {
       "minimize": "Sumažinti",

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} секунд",
     "unknown": "невідомий",
     "failedToDownloadUpdate": "Не вдалося завантажити оновлення",
-    "failedToInstallUpdate": "Не вдалося встановити оновлення"
+    "failedToInstallUpdate": "Не вдалося встановити оновлення",
+    "doNotDisturb": "Не турбувати",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Вимкніть банери в програмі, звуки сповіщень і системні сповіщення, продовжуючи записувати історію."
   },
   "shell": {
     "loadingPage": "Завантаження сторінки",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} годину тому",
       "hoursAgo_other": "{{count}} годин тому",
       "daysAgo_one": "{{count}} день тому",
-      "daysAgo_other": "{{count}} днів тому"
+      "daysAgo_other": "{{count}} днів тому",
+      "doNotDisturb": "Не турбувати",
+      "notificationsMuted": "Сповіщення вимкнено"
     },
     "titleBar": {
       "minimize": "Згорнути",

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} δευτερόλεπτα",
     "unknown": "άγνωστο",
     "failedToDownloadUpdate": "Η λήψη της ενημέρωσης απέτυχε",
-    "failedToInstallUpdate": "Η εγκατάσταση της ενημέρωσης απέτυχε"
+    "failedToInstallUpdate": "Η εγκατάσταση της ενημέρωσης απέτυχε",
+    "doNotDisturb": "Μην ενοχλείτε",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Σίγασε τα banner εντός εφαρμογής, τους ήχους ειδοποιήσεων και τις ειδοποιήσεις συστήματος κατά την εγγραφή του ιστορικού."
   },
   "shell": {
     "loadingPage": "Φόρτωση σελίδας",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "πριν από {{count}} ώρα",
       "hoursAgo_other": "πριν από {{count}} ώρες",
       "daysAgo_one": "πριν από {{count}} ημέρα",
-      "daysAgo_other": "πριν από {{count}} ημέρες"
+      "daysAgo_other": "πριν από {{count}} ημέρες",
+      "doNotDisturb": "Μην ενοχλείτε",
+      "notificationsMuted": "Οι ειδοποιήσεις τέθηκαν σε σίγαση"
     },
     "titleBar": {
       "minimize": "Ελαχιστοποίηση",

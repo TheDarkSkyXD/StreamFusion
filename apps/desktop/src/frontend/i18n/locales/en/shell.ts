@@ -63,6 +63,8 @@ export const shellEn = {
       expandSidebar: "Expand sidebar",
       collapseSidebar: "Collapse sidebar",
       notifications: "Notifications",
+      doNotDisturb: "Do Not Disturb",
+      notificationsMuted: "Notifications muted",
       markAllRead: "Mark all read",
       emptyNotifications: "No new notifications",
       dismiss: "Dismiss",

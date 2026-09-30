@@ -79,6 +79,7 @@ afterEach(() => {
 // Guards: renderer must persist live-notification pushes from main so the bell history works for desktop, toast, and guest follows.
 // Guards: live toasts must render the supplied Twitch and Kick channel avatars through the platform image proxy.
 // Guards: desktop notification clicks use the active application navigation passed by the composition root.
+// Guards: Do Not Disturb silences in-app toasts while the bell history still records every alert.
 describe("useLiveNotificationBridge", () => {
   it("adds incoming live notifications to the notification store", () => {
     renderHook(() => useLiveNotificationBridge(mockNavigate));
@@ -152,6 +153,27 @@ describe("useLiveNotificationBridge", () => {
 
     expect(useNotificationStore.getState().notifications).toEqual([
       expect.objectContaining({ id: "twitch:123:1000" }),
+    ]);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps bell history but suppresses toast when Do Not Disturb is on", () => {
+    useAuthStore.setState({
+      preferences: {
+        ...DEFAULT_USER_PREFERENCES,
+        notifications: {
+          ...DEFAULT_NOTIFICATION_PREFERENCES,
+          doNotDisturb: true,
+          toastAlerts: true,
+        },
+      },
+    });
+
+    renderHook(() => useLiveNotificationBridge(mockNavigate));
+    liveCallback?.(liveNotification);
+
+    expect(useNotificationStore.getState().notifications).toEqual([
+      expect.objectContaining({ id: "twitch:123:1000", title: "Live now" }),
     ]);
     expect(toastMock).not.toHaveBeenCalled();
   });

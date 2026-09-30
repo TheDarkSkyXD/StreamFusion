@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekund",
     "unknown": "neznano",
     "failedToDownloadUpdate": "Prenos posodobitve ni uspel",
-    "failedToInstallUpdate": "Namestitev posodobitve ni uspela"
+    "failedToInstallUpdate": "Namestitev posodobitve ni uspela",
+    "doNotDisturb": "Ne moti",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Utišajte pasice v aplikaciji, zvoke obvestil in sistemska opozorila, medtem ko še vedno beležite zgodovino."
   },
   "shell": {
     "loadingPage": "Nalaganje strani",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "pred {{count}} uro",
       "hoursAgo_other": "pred {{count}} urami",
       "daysAgo_one": "pred {{count}} dnevom",
-      "daysAgo_other": "pred {{count}} dnevi"
+      "daysAgo_other": "pred {{count}} dnevi",
+      "doNotDisturb": "Ne moti",
+      "notificationsMuted": "Obvestila izklopljena"
     },
     "titleBar": {
       "minimize": "Zmanjšaj",

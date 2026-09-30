@@ -19,10 +19,12 @@ export {
   isFollowEligibleForLiveNotification,
   isPerChannelLiveNotificationEnabled,
   liveNotificationChannelKey,
+  resolveLiveAlertSurfaces,
   resolveLiveNotificationDecision,
   setPerChannelLiveNotificationPreference,
 } from "./live-notification-policy.ts";
 export type {
+  LiveAlertSurfaces,
   LiveNotificationChannel,
   LiveNotificationDecision,
   LiveNotificationPreferences,

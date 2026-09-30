@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekundi",
     "unknown": "nepoznato",
     "failedToDownloadUpdate": "Preuzimanje ažuriranja nije uspjelo",
-    "failedToInstallUpdate": "Instalacija ažuriranja nije uspjela"
+    "failedToInstallUpdate": "Instalacija ažuriranja nije uspjela",
+    "doNotDisturb": "Ne uznemiravaj",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Utišajte natpise unutar aplikacije, zvukove obavijesti i upozorenja sustava dok i dalje snimate povijest."
   },
   "shell": {
     "loadingPage": "Učitavanje stranice",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "Prije {{count}} sat",
       "hoursAgo_other": "Prije {{count}} sati",
       "daysAgo_one": "Prije {{count}} dan",
-      "daysAgo_other": "Prije {{count}} dana"
+      "daysAgo_other": "Prije {{count}} dana",
+      "doNotDisturb": "Ne uznemiravaj",
+      "notificationsMuted": "Obavijesti isključene"
     },
     "titleBar": {
       "minimize": "Minimiziraj",

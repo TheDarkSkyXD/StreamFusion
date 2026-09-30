@@ -2,10 +2,13 @@ import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { LuBell, LuCheckCheck, LuX } from "react-icons/lu";
+import { LuBell, LuBellOff, LuCheckCheck, LuX } from "react-icons/lu";
 
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import { useNotificationStore } from "@/features/shell/components/state/notification-store";
+import { cn } from "@/lib/utils";
+import { getLiveNotificationPreferences } from "@streamfusion/core/follows";
 
 function formatRelativeTime(timestamp: number, t: TFunction): string {
   const elapsedMs = Math.max(0, Date.now() - timestamp);
@@ -32,6 +35,19 @@ export function NotificationsDropdown() {
   const dismissNotification = useNotificationStore((state) => state.dismissNotification);
   const clearNotifications = useNotificationStore((state) => state.clearNotifications);
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+  const notificationPreferences = getLiveNotificationPreferences(
+    useAuthStore((state) => state.preferences?.notifications)
+  );
+  const doNotDisturb = notificationPreferences.doNotDisturb;
+
+  const toggleDoNotDisturb = () => {
+    void useAuthStore.getState().updatePreferences({
+      notifications: {
+        ...notificationPreferences,
+        doNotDisturb: !doNotDisturb,
+      },
+    });
+  };
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -77,14 +93,22 @@ export function NotificationsDropdown() {
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        aria-label={t("shell.topNav.notifications")}
+        aria-label={
+          doNotDisturb ? t("shell.topNav.notificationsMuted") : t("shell.topNav.notifications")
+        }
         aria-expanded={isOpen}
         aria-controls="notifications-dropdown"
         className="relative p-2 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
-        title={t("shell.topNav.notifications")}
+        title={
+          doNotDisturb ? t("shell.topNav.notificationsMuted") : t("shell.topNav.notifications")
+        }
       >
-        <LuBell size={24} strokeWidth={3} className="text-white" />
-        {unreadCount > 0 && (
+        <LuBell
+          size={24}
+          strokeWidth={3}
+          className={doNotDisturb ? "text-[var(--color-foreground-muted)]" : "text-white"}
+        />
+        {unreadCount > 0 && !doNotDisturb && (
           <span className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-700 text-sm font-bold text-white ring-2 ring-[var(--color-background)]">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
@@ -94,22 +118,40 @@ export function NotificationsDropdown() {
       {isOpen && (
         <div
           id="notifications-dropdown"
-          className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+          className="absolute right-0 top-full mt-2 w-96 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
         >
           <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex items-center justify-between gap-2 bg-[var(--color-background-elevated)] sticky top-0 z-10">
             <span className="text-sm font-semibold text-white">
               {t("shell.topNav.notifications")}
             </span>
-            {unreadCount > 0 && (
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
-                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--color-foreground-secondary)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
-                onClick={markAllRead}
+                aria-label={t("shell.topNav.doNotDisturb")}
+                aria-pressed={doNotDisturb}
+                title={t("shell.topNav.doNotDisturb")}
+                onClick={toggleDoNotDisturb}
+                className={cn(
+                  "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs font-semibold transition-colors",
+                  doNotDisturb
+                    ? "bg-[var(--color-background-tertiary)] text-white"
+                    : "text-[var(--color-foreground-secondary)] hover:bg-[var(--color-background-tertiary)] hover:text-white"
+                )}
               >
-                <LuCheckCheck size={14} />
-                {t("shell.topNav.markAllRead")}
+                {doNotDisturb ? <LuBellOff size={14} /> : <LuBell size={14} />}
+                {t("shell.topNav.doNotDisturb")}
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  className="inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs font-semibold text-[var(--color-foreground-secondary)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
+                  onClick={markAllRead}
+                >
+                  <LuCheckCheck size={14} />
+                  {t("shell.topNav.markAllRead")}
+                </button>
+              )}
+            </div>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             {notifications.length === 0 ? (

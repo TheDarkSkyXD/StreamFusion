@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} Sekunden",
     "unknown": "unbekannt",
     "failedToDownloadUpdate": "Update konnte nicht heruntergeladen werden",
-    "failedToInstallUpdate": "Update konnte nicht installiert werden"
+    "failedToInstallUpdate": "Update konnte nicht installiert werden",
+    "doNotDisturb": "Bitte nicht stören",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Schalten Sie In-App-Banner, Benachrichtigungstöne und Systemwarnungen stumm, während Sie weiterhin den Verlauf aufzeichnen."
   },
   "shell": {
     "loadingPage": "Seite wird geladen",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "Vor {{count}} Stunde",
       "hoursAgo_other": "Vor {{count}} Stunden",
       "daysAgo_one": "Vor {{count}} Tagen",
-      "daysAgo_other": "Vor {{count}} Tagen"
+      "daysAgo_other": "Vor {{count}} Tagen",
+      "doNotDisturb": "Bitte nicht stören",
+      "notificationsMuted": "Benachrichtigungen stummgeschaltet"
     },
     "titleBar": {
       "minimize": "Minimieren",

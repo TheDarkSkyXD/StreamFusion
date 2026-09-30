@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekúnd",
     "unknown": "neznámy",
     "failedToDownloadUpdate": "Stiahnutie aktualizácie zlyhalo",
-    "failedToInstallUpdate": "Aktualizáciu sa nepodarilo nainštalovať"
+    "failedToInstallUpdate": "Aktualizáciu sa nepodarilo nainštalovať",
+    "doNotDisturb": "Nerušiť",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Stlmte bannery v aplikácii, zvuky upozornení a systémové upozornenia a zároveň stále zaznamenávajte históriu."
   },
   "shell": {
     "loadingPage": "Načítava sa stránka",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "pred {{count}} hodinou",
       "hoursAgo_other": "pred {{count}} hodinami",
       "daysAgo_one": "pred {{count}} dňom",
-      "daysAgo_other": "pred {{count}} dňami"
+      "daysAgo_other": "pred {{count}} dňami",
+      "doNotDisturb": "Nerušiť",
+      "notificationsMuted": "Upozornenia sú stlmené"
     },
     "titleBar": {
       "minimize": "Minimize",

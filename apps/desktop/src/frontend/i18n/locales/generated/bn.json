@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} সেকেন্ড",
     "unknown": "অজানা",
     "failedToDownloadUpdate": "আপডেট ডাউনলোড করতে ব্যর্থ হয়েছে",
-    "failedToInstallUpdate": "আপডেট ইনস্টল করতে ব্যর্থ হয়েছে"
+    "failedToInstallUpdate": "আপডেট ইনস্টল করতে ব্যর্থ হয়েছে",
+    "doNotDisturb": "বিরক্ত করবেন না",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ইতিহাস রেকর্ড করার সময় অ্যাপ-মধ্যস্থ ব্যানার, বিজ্ঞপ্তির শব্দ এবং সিস্টেম সতর্কতা নীরব করুন।"
   },
   "shell": {
     "loadingPage": "পৃষ্ঠা লোড হচ্ছে",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} ঘন্টা আগে",
       "hoursAgo_other": "{{count}} ঘন্টা আগে",
       "daysAgo_one": "{{count}} দিন আগে",
-      "daysAgo_other": "{{count}} দিন আগে"
+      "daysAgo_other": "{{count}} দিন আগে",
+      "doNotDisturb": "বিরক্ত করবেন না",
+      "notificationsMuted": "বিজ্ঞপ্তিগুলি নিঃশব্দ৷"
     },
     "titleBar": {
       "minimize": "ছোট করুন",

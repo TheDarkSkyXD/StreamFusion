@@ -471,6 +471,22 @@ describe("SettingsPage — Notifications tab", () => {
     });
   });
 
+  it("persists the Do Not Disturb master mute alongside the rest of the group", async () => {
+    const user = await openNotificationsTab();
+
+    const row = screen.getByText("Do Not Disturb").closest("div");
+    const toggle = row?.parentElement?.querySelector('[role="switch"]');
+    expect(toggle).toBeTruthy();
+    await user.click(toggle as Element);
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        doNotDisturb: true,
+      },
+    });
+  });
+
   it("persists Guest Follow notification and favorites-only toggles", async () => {
     const user = await openNotificationsTab();
 

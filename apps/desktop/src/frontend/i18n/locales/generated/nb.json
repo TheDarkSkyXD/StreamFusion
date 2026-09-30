@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "ukjent",
     "failedToDownloadUpdate": "Kunne ikke laste ned oppdateringen",
-    "failedToInstallUpdate": "Kunne ikke installere oppdateringen"
+    "failedToInstallUpdate": "Kunne ikke installere oppdateringen",
+    "doNotDisturb": "Ikke forstyrr",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Demp bannere i appen, varslingslyder og systemvarsler mens du fortsatt registrerer historikk."
   },
   "shell": {
     "loadingPage": "Laster siden",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "for {{count}} time siden",
       "hoursAgo_other": "for {{count}} timer siden",
       "daysAgo_one": "for {{count}} dag siden",
-      "daysAgo_other": "for {{count}} dager siden"
+      "daysAgo_other": "for {{count}} dager siden",
+      "doNotDisturb": "Ikke forstyrr",
+      "notificationsMuted": "Varsler er dempet"
     },
     "titleBar": {
       "minimize": "Minimer",

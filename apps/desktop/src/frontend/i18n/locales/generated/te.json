@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} సెకన్లు",
     "unknown": "తెలియని",
     "failedToDownloadUpdate": "నవీకరణను డౌన్‌లోడ్ చేయడంలో విఫలమైంది",
-    "failedToInstallUpdate": "నవీకరణను ఇన్‌స్టాల్ చేయడంలో విఫలమైంది"
+    "failedToInstallUpdate": "నవీకరణను ఇన్‌స్టాల్ చేయడంలో విఫలమైంది",
+    "doNotDisturb": "డిస్టర్బ్ చేయవద్దు",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "చరిత్రను రికార్డ్ చేస్తున్నప్పుడు యాప్‌లో బ్యానర్‌లు, నోటిఫికేషన్ సౌండ్‌లు మరియు సిస్టమ్ హెచ్చరికలను నిశ్శబ్దం చేయండి."
   },
   "shell": {
     "loadingPage": "పేజీ లోడ్ అవుతోంది",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} గంట క్రితం",
       "hoursAgo_other": "{{count}} గంటల క్రితం",
       "daysAgo_one": "{{count}} రోజు క్రితం",
-      "daysAgo_other": "{{count}} రోజుల క్రితం"
+      "daysAgo_other": "{{count}} రోజుల క్రితం",
+      "doNotDisturb": "డిస్టర్బ్ చేయవద్దు",
+      "notificationsMuted": "నోటిఫికేషన్‌లు మ్యూట్ చేయబడ్డాయి"
     },
     "titleBar": {
       "minimize": "కనిష్టీకరించు",

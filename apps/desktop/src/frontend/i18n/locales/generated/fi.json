@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekuntia",
     "unknown": "tuntematon",
     "failedToDownloadUpdate": "Päivityksen lataaminen epäonnistui",
-    "failedToInstallUpdate": "Päivityksen asentaminen epäonnistui"
+    "failedToInstallUpdate": "Päivityksen asentaminen epäonnistui",
+    "doNotDisturb": "Älä häiritse",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Hiljennä sovelluksen sisäiset bannerit, ilmoitusäänet ja järjestelmähälytykset samalla kun tallennat historiaa."
   },
   "shell": {
     "loadingPage": "Ladataan sivua",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} tunti sitten",
       "hoursAgo_other": "{{count}} tuntia sitten",
       "daysAgo_one": "{{count}} päivä sitten",
-      "daysAgo_other": "{{count}} päivää sitten"
+      "daysAgo_other": "{{count}} päivää sitten",
+      "doNotDisturb": "Älä häiritse",
+      "notificationsMuted": "Ilmoitukset mykistetty"
     },
     "titleBar": {
       "minimize": "Minimoi",

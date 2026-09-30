@@ -520,6 +520,41 @@ describe("LiveNotificationService", () => {
     expect(showDesktop).not.toHaveBeenCalled();
   });
 
+  it("records in-app history but skips the desktop alert while Do Not Disturb is on", async () => {
+    const source = vi
+      .fn<LiveNotificationSource>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "stream-1",
+          platform: "twitch",
+          channelId: "123",
+          channelName: "alpha",
+          channelDisplayName: "Alpha",
+          channelAvatar: "https://example.com/alpha.png",
+          title: "Muted by Do Not Disturb",
+          viewerCount: 42,
+          thumbnailUrl: "",
+          isLive: true,
+          startedAt: "2026-07-01T00:00:00.000Z",
+          language: "en",
+          tags: [],
+        },
+      ]);
+    const { service, emitInApp, showDesktop } = createService({
+      source,
+      userPreferences: preferences({ doNotDisturb: true, enabled: true, sound: true }),
+    });
+
+    await service.start();
+    await service.pollOnce();
+
+    expect(emitInApp).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "twitch:123:1000", title: "Muted by Do Not Disturb" })
+    );
+    expect(showDesktop).not.toHaveBeenCalled();
+  });
+
   it("uses a silent desktop notification when sound is disabled", async () => {
     const source = vi
       .fn<LiveNotificationSource>()

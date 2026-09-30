@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} 秒",
     "unknown": "未知",
     "failedToDownloadUpdate": "下载更新失败",
-    "failedToInstallUpdate": "无法安装更新"
+    "failedToInstallUpdate": "无法安装更新",
+    "doNotDisturb": "请勿打扰",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "使应用内横幅、通知声音和系统警报静音，同时仍记录历史记录。"
   },
   "shell": {
     "loadingPage": "加载页面",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} 小时前",
       "hoursAgo_other": "{{count}} 小时前",
       "daysAgo_one": "{{count}} 天前",
-      "daysAgo_other": "{{count}} 天前"
+      "daysAgo_other": "{{count}} 天前",
+      "doNotDisturb": "请勿打扰",
+      "notificationsMuted": "通知已静音"
     },
     "titleBar": {
       "minimize": "最小化",

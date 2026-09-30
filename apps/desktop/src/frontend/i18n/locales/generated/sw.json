@@ -2862,7 +2862,9 @@
     "secondCount_other": "Sekunde {{count}}",
     "unknown": "haijulikani",
     "failedToDownloadUpdate": "Imeshindwa kupakua sasisho",
-    "failedToInstallUpdate": "Imeshindwa kusakinisha sasisho"
+    "failedToInstallUpdate": "Imeshindwa kusakinisha sasisho",
+    "doNotDisturb": "Usinisumbue",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Nyamazisha mabango ya ndani ya programu, sauti za arifa na arifa za mfumo huku ukiendelea kurekodi historia."
   },
   "shell": {
     "loadingPage": "Inapakia ukurasa",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "saa {{count}} iliyopita",
       "hoursAgo_other": "saa {{count}} zilizopita",
       "daysAgo_one": "siku {{count}} iliyopita",
-      "daysAgo_other": "siku {{count}} zilizopita"
+      "daysAgo_other": "siku {{count}} zilizopita",
+      "doNotDisturb": "Usinisumbue",
+      "notificationsMuted": "Arifa zimenyamazishwa"
     },
     "titleBar": {
       "minimize": "Punguza",

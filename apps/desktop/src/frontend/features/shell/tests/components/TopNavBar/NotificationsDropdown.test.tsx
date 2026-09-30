@@ -1,3 +1,4 @@
+import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -8,6 +9,9 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { NotificationsDropdown } from "@/features/shell/components/TopNavBar/NotificationsDropdown";
 import { useNotificationStore } from "@/features/shell/components/state/notification-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 
 import { renderWithProviders, screen, userEvent } from "../../../../../../../tests/test-utils";
 
@@ -16,11 +20,16 @@ beforeEach(() => {
   mockNavigate.mockClear();
   localStorage.clear();
   useNotificationStore.setState({ notifications: [] });
+  useAuthStore.setState({
+    preferences: null,
+    updatePreferences: vi.fn(async () => ({ success: true })),
+  });
 });
 
 // Guards: notification dropdown must render real persisted Live Notifications, never demo mock rows.
 // Guards: Escape closes the dropdown and returns keyboard focus to its trigger.
 // Guards: each notification opens from the keyboard while its dismiss action remains a sibling button.
+// Guards: the Do Not Disturb quick action persists the shared mute flag and hides the red unread badge while muted.
 describe("NotificationsDropdown", () => {
   it("closes on Escape and restores focus to the notification trigger", async () => {
     const user = userEvent.setup();
@@ -194,6 +203,52 @@ describe("NotificationsDropdown", () => {
     expect(screen.getByTitle("Notifications")).not.toHaveTextContent("2");
     expect(screen.getByText("Alpha stream")).toBeInTheDocument();
     expect(screen.getByText("Bravo stream")).toBeInTheDocument();
+  });
+
+  it("persists the Do Not Disturb mute from the dropdown quick action", async () => {
+    renderWithProviders(<NotificationsDropdown />);
+    await userEvent.click(screen.getByTitle("Notifications"));
+
+    const quickAction = screen.getByRole("button", { name: "Do Not Disturb" });
+    expect(quickAction).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(quickAction);
+
+    expect(useAuthStore.getState().updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        doNotDisturb: true,
+      },
+    });
+  });
+
+  it("swaps the red unread badge for a muted bell when Do Not Disturb is on", async () => {
+    useNotificationStore.getState().addNotification({
+      id: "live-1",
+      platform: "twitch",
+      channelId: "100",
+      channelName: "alpha",
+      channelDisplayName: "Alpha",
+      title: "Alpha stream",
+      createdAt: Date.now(),
+    });
+
+    renderWithProviders(<NotificationsDropdown />);
+
+    expect(screen.getByTitle("Notifications")).toHaveTextContent("1");
+
+    act(() => {
+      useAuthStore.setState({
+        preferences: {
+          ...DEFAULT_USER_PREFERENCES,
+          notifications: {
+            ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+            doNotDisturb: true,
+          },
+        },
+      });
+    });
+
+    expect(screen.getByTitle("Notifications muted")).not.toHaveTextContent("1");
   });
 
   it("opens the matching stream page when clicking a notification without removing history", async () => {

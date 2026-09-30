@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} வினாடிகள்",
     "unknown": "தெரியவில்லை",
     "failedToDownloadUpdate": "புதுப்பிப்பைப் பதிவிறக்க முடியவில்லை",
-    "failedToInstallUpdate": "புதுப்பிப்பை நிறுவ முடியவில்லை"
+    "failedToInstallUpdate": "புதுப்பிப்பை நிறுவ முடியவில்லை",
+    "doNotDisturb": "தொந்தரவு செய்யாதே",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "வரலாற்றைப் பதிவுசெய்யும்போது ஆப்ஸ்-இன்-பேனர்கள், அறிவிப்பு ஒலிகள் மற்றும் சிஸ்டம் விழிப்பூட்டல்களை அமைதிப்படுத்தவும்."
   },
   "shell": {
     "loadingPage": "பக்கத்தை ஏற்றுகிறது",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} மணிநேரத்திற்கு முன்பு",
       "hoursAgo_other": "{{count}} மணிநேரத்திற்கு முன்பு",
       "daysAgo_one": "{{count}} நாள் முன்பு",
-      "daysAgo_other": "{{count}} நாட்களுக்கு முன்பு"
+      "daysAgo_other": "{{count}} நாட்களுக்கு முன்பு",
+      "doNotDisturb": "தொந்தரவு செய்யாதே",
+      "notificationsMuted": "அறிவிப்புகள் முடக்கப்பட்டன"
     },
     "titleBar": {
       "minimize": "குறைக்கவும்",

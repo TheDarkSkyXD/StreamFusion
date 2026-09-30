@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} ثانیه",
     "unknown": "ناشناخته",
     "failedToDownloadUpdate": "به روز رسانی دانلود نشد",
-    "failedToInstallUpdate": "به روز رسانی نصب نشد"
+    "failedToInstallUpdate": "به روز رسانی نصب نشد",
+    "doNotDisturb": "مزاحم نشوید",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "بنرهای درون برنامه، صداهای اعلان و هشدارهای سیستم را در حین ضبط تاریخچه خاموش کنید."
   },
   "shell": {
     "loadingPage": "در حال بارگذاری صفحه",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} ساعت قبل",
       "hoursAgo_other": "{{count}} ساعت قبل",
       "daysAgo_one": "{{count}} روز پیش",
-      "daysAgo_other": "{{count}} روز پیش"
+      "daysAgo_other": "{{count}} روز پیش",
+      "doNotDisturb": "مزاحم نشوید",
+      "notificationsMuted": "اعلان‌ها بی‌صدا شدند"
     },
     "titleBar": {
       "minimize": "به حداقل رساندن",

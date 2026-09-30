@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} secunde",
     "unknown": "necunoscut",
     "failedToDownloadUpdate": "Nu s-a putut descărca actualizarea",
-    "failedToInstallUpdate": "Nu s-a instalat actualizarea"
+    "failedToInstallUpdate": "Nu s-a instalat actualizarea",
+    "doNotDisturb": "Nu deranja",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silențiază bannerele din aplicație, sunetele de notificare și alertele de sistem în timp ce încă înregistrezi istoricul."
   },
   "shell": {
     "loadingPage": "Se încarcă pagina",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "acum {{count}} oră",
       "hoursAgo_other": "acum {{count}} ore",
       "daysAgo_one": "acum {{count}} zi",
-      "daysAgo_other": "acum {{count}} zile"
+      "daysAgo_other": "acum {{count}} zile",
+      "doNotDisturb": "Nu deranja",
+      "notificationsMuted": "Notificările sunt dezactivate"
     },
     "titleBar": {
       "minimize": "Minimizați",

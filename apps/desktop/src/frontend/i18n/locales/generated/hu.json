@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} másodperc",
     "unknown": "ismeretlen",
     "failedToDownloadUpdate": "Nem sikerült letölteni a frissítést",
-    "failedToInstallUpdate": "Nem sikerült telepíteni a frissítést"
+    "failedToInstallUpdate": "Nem sikerült telepíteni a frissítést",
+    "doNotDisturb": "Ne zavarjanak",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Elnémíthatja az alkalmazáson belüli szalaghirdetéseket, értesítési hangokat és rendszerriasztásokat, miközben továbbra is rögzíti az előzményeket."
   },
   "shell": {
     "loadingPage": "Oldal betöltése",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} órája",
       "hoursAgo_other": "{{count}} órája",
       "daysAgo_one": "{{count}} napja",
-      "daysAgo_other": "{{count}} napja"
+      "daysAgo_other": "{{count}} napja",
+      "doNotDisturb": "Ne zavarjanak",
+      "notificationsMuted": "Az értesítések elnémítva"
     },
     "titleBar": {
       "minimize": "Minimalizálás",

@@ -70,6 +70,8 @@ export const shellEs = {
       expandSidebar: "Expandir barra lateral",
       collapseSidebar: "Contraer barra lateral",
       notifications: "Notificaciones",
+      doNotDisturb: "No molestar",
+      notificationsMuted: "Notificaciones silenciadas",
       markAllRead: "Marcar todo como leído",
       emptyNotifications: "No hay notificaciones nuevas",
       dismiss: "Descartar",

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "okänt",
     "failedToDownloadUpdate": "Det gick inte att ladda ned uppdateringen",
-    "failedToInstallUpdate": "Det gick inte att installera uppdateringen"
+    "failedToInstallUpdate": "Det gick inte att installera uppdateringen",
+    "doNotDisturb": "Stör ej",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Stäng av banners i appen, aviseringsljud och systemvarningar medan du fortfarande spelar in historik."
   },
   "shell": {
     "loadingPage": "Laddar sida",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "för {{count}} timme sedan",
       "hoursAgo_other": "för {{count}} timmar sedan",
       "daysAgo_one": "{{count}} dag sedan",
-      "daysAgo_other": "för {{count}} dagar sedan"
+      "daysAgo_other": "för {{count}} dagar sedan",
+      "doNotDisturb": "Stör ej",
+      "notificationsMuted": "Aviseringar har tystats"
     },
     "titleBar": {
       "minimize": "Minimera",

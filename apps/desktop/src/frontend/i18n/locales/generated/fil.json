@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} (na) segundo",
     "unknown": "hindi kilala",
     "failedToDownloadUpdate": "Nabigong i-download ang update",
-    "failedToInstallUpdate": "Nabigong i-install ang update"
+    "failedToInstallUpdate": "Nabigong i-install ang update",
+    "doNotDisturb": "Huwag Istorbohin",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Patahimikin ang mga in-app na banner, tunog ng notification, at alerto ng system habang nagre-record pa rin ng history."
   },
   "shell": {
     "loadingPage": "Naglo-load ng page",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} oras ang nakalipas",
       "hoursAgo_other": "{{count}} (na) oras ang nakalipas",
       "daysAgo_one": "{{count}} araw ang nakalipas",
-      "daysAgo_other": "{{count}} araw ang nakalipas"
+      "daysAgo_other": "{{count}} araw ang nakalipas",
+      "doNotDisturb": "Huwag Istorbohin",
+      "notificationsMuted": "Na-mute ang mga notification"
     },
     "titleBar": {
       "minimize": "I-minimize",

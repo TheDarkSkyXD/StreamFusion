@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}}초",
     "unknown": "알 수 없음",
     "failedToDownloadUpdate": "업데이트를 다운로드하지 못했습니다.",
-    "failedToInstallUpdate": "업데이트를 설치하지 못했습니다."
+    "failedToInstallUpdate": "업데이트를 설치하지 못했습니다.",
+    "doNotDisturb": "방해하지 마세요",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "기록을 기록하는 동안 앱 내 배너, 알림 소리, 시스템 알림을 무음으로 설정하세요."
   },
   "shell": {
     "loadingPage": "페이지 로드 중",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}}시간 전",
       "hoursAgo_other": "{{count}}시간 전",
       "daysAgo_one": "{{count}}일 전",
-      "daysAgo_other": "{{count}}일 전"
+      "daysAgo_other": "{{count}}일 전",
+      "doNotDisturb": "방해하지 마세요",
+      "notificationsMuted": "알림이 음소거되었습니다"
     },
     "titleBar": {
       "minimize": "최소화",

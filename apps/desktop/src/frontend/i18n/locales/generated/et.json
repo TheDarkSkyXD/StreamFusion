@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekundit",
     "unknown": "teadmata",
     "failedToDownloadUpdate": "Värskenduse allalaadimine ebaõnnestus",
-    "failedToInstallUpdate": "Värskenduse installimine ebaõnnestus"
+    "failedToInstallUpdate": "Värskenduse installimine ebaõnnestus",
+    "doNotDisturb": "Mitte segada",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Vaigistage rakendusesisesed bännerid, märguandehelid ja süsteemihoiatused, salvestades samal ajal ajalugu."
   },
   "shell": {
     "loadingPage": "Lehe laadimine",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} tund tagasi",
       "hoursAgo_other": "{{count}} tundi tagasi",
       "daysAgo_one": "{{count}} päev tagasi",
-      "daysAgo_other": "{{count}} päeva tagasi"
+      "daysAgo_other": "{{count}} päeva tagasi",
+      "doNotDisturb": "Mitte segada",
+      "notificationsMuted": "Märguanded on vaigistatud"
     },
     "titleBar": {
       "minimize": "Minimeeri",

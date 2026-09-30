@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} секунди",
     "unknown": "неизвестен",
     "failedToDownloadUpdate": "Неуспешно изтегляне на актуализация",
-    "failedToInstallUpdate": "Неуспешно инсталиране на актуализация"
+    "failedToInstallUpdate": "Неуспешно инсталиране на актуализация",
+    "doNotDisturb": "Не безпокойте",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Заглушете банерите в приложението, звуците на известия и системните сигнали, докато все още записвате хронология."
   },
   "shell": {
     "loadingPage": "Страницата се зарежда",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "преди {{count}} час",
       "hoursAgo_other": "преди {{count}} часа",
       "daysAgo_one": "преди {{count}} ден",
-      "daysAgo_other": "преди {{count}} дни"
+      "daysAgo_other": "преди {{count}} дни",
+      "doNotDisturb": "Не безпокойте",
+      "notificationsMuted": "Известията са заглушени"
     },
     "titleBar": {
       "minimize": "Минимизиране",

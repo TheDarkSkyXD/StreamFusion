@@ -43,6 +43,9 @@ export const settingsEs = {
     pictureByPicture: "imagen sobre imagen",
     thunderdome: "thunderdome",
     desktopNotifications: "Notificaciones de escritorio",
+    doNotDisturb: "No molestar",
+    silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory:
+      "Silencia los avisos en la aplicación, los sonidos de notificación y las alertas del sistema, y sigue guardando el historial.",
     showNativeOsNotificationsWhenFollowedStreamsGoLive:
       "Mostrar notificaciones nativas del sistema cuando los canales seguidos inicien una transmisión.",
     liveNotifications: "Notificaciones en directo",

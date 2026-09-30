@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} segundos",
     "unknown": "desconhecido",
     "failedToDownloadUpdate": "Falha ao baixar a atualização",
-    "failedToInstallUpdate": "Falha ao instalar a atualização"
+    "failedToInstallUpdate": "Falha ao instalar a atualização",
+    "doNotDisturb": "Não perturbe",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silencie banners no aplicativo, sons de notificação e alertas do sistema enquanto grava o histórico."
   },
   "shell": {
     "loadingPage": "Carregando página",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} hora atrás",
       "hoursAgo_other": "{{count}} horas atrás",
       "daysAgo_one": "{{count}} dia atrás",
-      "daysAgo_other": "{{count}} dias atrás"
+      "daysAgo_other": "{{count}} dias atrás",
+      "doNotDisturb": "Não perturbe",
+      "notificationsMuted": "Notificações silenciadas"
     },
     "titleBar": {
       "minimize": "Minimizar",

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} секунд",
     "unknown": "неизвестно",
     "failedToDownloadUpdate": "Не удалось загрузить обновление",
-    "failedToInstallUpdate": "Не удалось установить обновление"
+    "failedToInstallUpdate": "Не удалось установить обновление",
+    "doNotDisturb": "Не беспокоить",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Отключите баннеры в приложении, звуки уведомлений и системные оповещения, сохраняя при этом историю."
   },
   "shell": {
     "loadingPage": "Загрузка страницы",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} час назад",
       "hoursAgo_other": "{{count}} часа назад",
       "daysAgo_one": "{{count}} день назад",
-      "daysAgo_other": "{{count}} дней назад"
+      "daysAgo_other": "{{count}} дней назад",
+      "doNotDisturb": "Не беспокоить",
+      "notificationsMuted": "Уведомления отключены"
     },
     "titleBar": {
       "minimize": "Свернуть",

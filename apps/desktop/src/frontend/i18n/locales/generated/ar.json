@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} ثانية",
     "unknown": "غير معروف",
     "failedToDownloadUpdate": "فشل تنزيل التحديث",
-    "failedToInstallUpdate": "فشل تثبيت التحديث"
+    "failedToInstallUpdate": "فشل تثبيت التحديث",
+    "doNotDisturb": "لا تزعج",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "كتم صوت اللافتات داخل التطبيق وأصوات الإشعارات وتنبيهات النظام أثناء تسجيل السجل."
   },
   "shell": {
     "loadingPage": "جارٍ تحميل الصفحة",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} قبل ساعة",
       "hoursAgo_other": "{{count}} منذ ساعات",
       "daysAgo_one": "{{count}} منذ يوم واحد",
-      "daysAgo_other": "{{count}} منذ أيام"
+      "daysAgo_other": "{{count}} منذ أيام",
+      "doNotDisturb": "لا تزعج",
+      "notificationsMuted": "تم كتم صوت الإشعارات"
     },
     "titleBar": {
       "minimize": "تصغير",

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} seconden",
     "unknown": "onbekend",
     "failedToDownloadUpdate": "Kan de update niet downloaden",
-    "failedToInstallUpdate": "Kan update niet installeren"
+    "failedToInstallUpdate": "Kan update niet installeren",
+    "doNotDisturb": "Niet storen",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Schakel in-app-banners, meldingsgeluiden en systeemwaarschuwingen uit terwijl u nog steeds de geschiedenis vastlegt."
   },
   "shell": {
     "loadingPage": "Pagina laden",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} uur geleden",
       "hoursAgo_other": "{{count}} uur geleden",
       "daysAgo_one": "{{count}} dag geleden",
-      "daysAgo_other": "{{count}} dagen geleden"
+      "daysAgo_other": "{{count}} dagen geleden",
+      "doNotDisturb": "Niet storen",
+      "notificationsMuted": "Meldingen gedempt"
     },
     "titleBar": {
       "minimize": "Minimaliseer",

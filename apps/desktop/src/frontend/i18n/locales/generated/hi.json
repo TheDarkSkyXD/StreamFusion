@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} सेकंड",
     "unknown": "अज्ञात",
     "failedToDownloadUpdate": "अद्यतन डाउनलोड करने में विफल",
-    "failedToInstallUpdate": "अद्यतन स्थापित करने में विफल"
+    "failedToInstallUpdate": "अद्यतन स्थापित करने में विफल",
+    "doNotDisturb": "परेशान मत करो",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "इतिहास रिकॉर्ड करते समय इन-ऐप बैनर, अधिसूचना ध्वनियां और सिस्टम अलर्ट को शांत करें।"
   },
   "shell": {
     "loadingPage": "पेज लोड हो रहा है",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} घंटा पहले",
       "hoursAgo_other": "{{count}} घंटे पहले",
       "daysAgo_one": "{{count}} दिन पहले",
-      "daysAgo_other": "{{count}} दिन पहले"
+      "daysAgo_other": "{{count}} दिन पहले",
+      "doNotDisturb": "परेशान मत करो",
+      "notificationsMuted": "सूचनाएं म्यूट कर दी गईं"
     },
     "titleBar": {
       "minimize": "न्यूनतम करें",

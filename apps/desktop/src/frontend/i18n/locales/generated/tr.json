@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} saniye",
     "unknown": "bilinmiyor",
     "failedToDownloadUpdate": "Güncelleme indirilemedi",
-    "failedToInstallUpdate": "Güncelleme yüklenemedi"
+    "failedToInstallUpdate": "Güncelleme yüklenemedi",
+    "doNotDisturb": "Rahatsız Etmeyin",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Geçmişi kaydetmeye devam ederken uygulama içi banner'ları, bildirim seslerini ve sistem uyarılarını sessize alın."
   },
   "shell": {
     "loadingPage": "Sayfa yükleniyor",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} saat önce",
       "hoursAgo_other": "{{count}} saat önce",
       "daysAgo_one": "{{count}} gün önce",
-      "daysAgo_other": "{{count}} gün önce"
+      "daysAgo_other": "{{count}} gün önce",
+      "doNotDisturb": "Rahatsız Etmeyin",
+      "notificationsMuted": "Bildirimler yoksayıldı"
     },
     "titleBar": {
       "minimize": "Küçült",

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} giây",
     "unknown": "không rõ",
     "failedToDownloadUpdate": "Không tải được bản cập nhật xuống",
-    "failedToInstallUpdate": "Không cài đặt được bản cập nhật"
+    "failedToInstallUpdate": "Không cài đặt được bản cập nhật",
+    "doNotDisturb": "Đừng làm phiền",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Tắt tiếng các biểu ngữ trong ứng dụng, âm thanh thông báo và cảnh báo hệ thống trong khi vẫn ghi lại lịch sử."
   },
   "shell": {
     "loadingPage": "Đang tải trang",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} giờ trước",
       "hoursAgo_other": "{{count}} giờ trước",
       "daysAgo_one": "{{count}} ngày trước",
-      "daysAgo_other": "{{count}} ngày trước"
+      "daysAgo_other": "{{count}} ngày trước",
+      "doNotDisturb": "Đừng làm phiền",
+      "notificationsMuted": "Thông báo bị tắt tiếng"
     },
     "titleBar": {
       "minimize": "Giảm thiểu",

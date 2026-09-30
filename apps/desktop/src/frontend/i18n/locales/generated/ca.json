@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} segons",
     "unknown": "desconegut",
     "failedToDownloadUpdate": "No s'ha pogut descarregar l'actualització",
-    "failedToInstallUpdate": "No s'ha pogut instal·lar l'actualització"
+    "failedToInstallUpdate": "No s'ha pogut instal·lar l'actualització",
+    "doNotDisturb": "No Molestis",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silencia els bàners de l'aplicació, els sons de notificació i les alertes del sistema mentre continues enregistrant l'historial."
   },
   "shell": {
     "loadingPage": "S'està carregant la pàgina",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "Fa {{count}} hora",
       "hoursAgo_other": "Fa {{count}} hores",
       "daysAgo_one": "fa {{count}} dia",
-      "daysAgo_other": "Fa {{count}} dies"
+      "daysAgo_other": "Fa {{count}} dies",
+      "doNotDisturb": "No Molestis",
+      "notificationsMuted": "Notificacions silenciades"
     },
     "titleBar": {
       "minimize": "Minimitzar",

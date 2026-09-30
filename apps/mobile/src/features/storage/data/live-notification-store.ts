@@ -75,6 +75,7 @@ function partialPreferences(
   record: Record<string, unknown>,
 ): Partial<LiveNotificationPreferences> | null {
   const flags: (keyof LiveNotificationPreferences)[] = [
+    "doNotDisturb",
     "enabled",
     "liveAlerts",
     "twitch",

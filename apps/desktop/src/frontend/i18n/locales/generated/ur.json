@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} سیکنڈ",
     "unknown": "نامعلوم",
     "failedToDownloadUpdate": "اپ ڈیٹ ڈاؤن لوڈ کرنے میں ناکام",
-    "failedToInstallUpdate": "اپ ڈیٹ انسٹال کرنے میں ناکام"
+    "failedToInstallUpdate": "اپ ڈیٹ انسٹال کرنے میں ناکام",
+    "doNotDisturb": "ڈسٹرب نہ کریں۔",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ہسٹری ریکارڈ کرتے وقت درون ایپ بینرز، اطلاع کی آوازیں اور سسٹم الرٹس کو خاموش کریں۔"
   },
   "shell": {
     "loadingPage": "صفحہ لوڈ ہو رہا ہے۔",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} گھنٹہ پہلے",
       "hoursAgo_other": "{{count}} گھنٹے پہلے",
       "daysAgo_one": "{{count}} دن پہلے",
-      "daysAgo_other": "{{count}} دن پہلے"
+      "daysAgo_other": "{{count}} دن پہلے",
+      "doNotDisturb": "ڈسٹرب نہ کریں۔",
+      "notificationsMuted": "اطلاعات خاموش ہو گئیں۔"
     },
     "titleBar": {
       "minimize": "کم سے کم کرنا",

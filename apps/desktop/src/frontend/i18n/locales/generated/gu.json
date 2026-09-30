@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} સેકન્ડ",
     "unknown": "અજ્ઞાત",
     "failedToDownloadUpdate": "અપડેટ ડાઉનલોડ કરવામાં નિષ્ફળ",
-    "failedToInstallUpdate": "અપડેટ ઇન્સ્ટોલ કરવામાં નિષ્ફળ"
+    "failedToInstallUpdate": "અપડેટ ઇન્સ્ટોલ કરવામાં નિષ્ફળ",
+    "doNotDisturb": "ડુ નોટ ડિસ્ટર્બ",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ઇતિહાસ રેકોર્ડ કરતી વખતે પણ ઇન-એપ્લિકેશન બેનરો, સૂચના અવાજો અને સિસ્ટમ ચેતવણીઓને શાંત કરો."
   },
   "shell": {
     "loadingPage": "પૃષ્ઠ લોડ કરી રહ્યું છે",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} કલાક પહેલાં",
       "hoursAgo_other": "{{count}} કલાક પહેલા",
       "daysAgo_one": "{{count}} દિવસ પહેલા",
-      "daysAgo_other": "{{count}} દિવસ પહેલા"
+      "daysAgo_other": "{{count}} દિવસ પહેલા",
+      "doNotDisturb": "ડુ નોટ ડિસ્ટર્બ",
+      "notificationsMuted": "સૂચનાઓ મ્યૂટ કરી"
     },
     "titleBar": {
       "minimize": "નાનું કરો",

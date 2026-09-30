@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} secondi",
     "unknown": "sconosciuto",
     "failedToDownloadUpdate": "Impossibile scaricare l'aggiornamento",
-    "failedToInstallUpdate": "Impossibile installare l'aggiornamento"
+    "failedToInstallUpdate": "Impossibile installare l'aggiornamento",
+    "doNotDisturb": "Non disturbare",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silenzia i banner in-app, i suoni di notifica e gli avvisi di sistema mentre continui a registrare la cronologia."
   },
   "shell": {
     "loadingPage": "Caricamento pagina",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} ora fa",
       "hoursAgo_other": "{{count}} ore fa",
       "daysAgo_one": "{{count}} giorno fa",
-      "daysAgo_other": "{{count}} giorni fa"
+      "daysAgo_other": "{{count}} giorni fa",
+      "doNotDisturb": "Non disturbare",
+      "notificationsMuted": "Notifiche disattivate"
     },
     "titleBar": {
       "minimize": "Ridurre al minimo",

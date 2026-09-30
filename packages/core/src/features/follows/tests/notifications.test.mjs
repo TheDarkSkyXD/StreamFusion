@@ -6,6 +6,7 @@ import {
   getLiveNotificationPreferences,
   isFollowEligibleForLiveNotification,
   liveNotificationChannelKey,
+  resolveLiveAlertSurfaces,
   resolveLiveNotificationDecision,
 } from "@streamfusion/core/follows";
 
@@ -27,6 +28,7 @@ test("live-notification preferences preserve the Desktop defaults", () => {
   assert.equal(preferences.toastAlerts, true);
   assert.equal(preferences.sound, true);
   assert.equal(preferences.favoriteChannelsOnly, false);
+  assert.equal(preferences.doNotDisturb, false);
   assert.equal(preferences.restartGracePeriodMinutes, 0);
 });
 
@@ -119,6 +121,73 @@ test("notification decisions separate product policy from native presentation", 
   assert.deepEqual(
     resolveLiveNotificationDecision({ ...base, eligible: false }),
     { kind: "ignore", reason: "ineligible-follow" },
+  );
+});
+
+test("Do Not Disturb silences every interrupting surface without changing the follow policy", () => {
+  const everySurfaceOn = {
+    doNotDisturb: true,
+    enabled: true,
+    liveAlerts: true,
+    twitch: true,
+    kick: true,
+    guestFollows: true,
+    toastAlerts: true,
+    sound: true,
+    favoriteChannelsOnly: false,
+    restartGracePeriodMinutes: 0,
+    perChannelNotifications: {},
+  };
+
+  assert.deepEqual(resolveLiveAlertSurfaces(everySurfaceOn, true), {
+    toast: false,
+    systemNotification: null,
+  });
+  assert.deepEqual(
+    resolveLiveAlertSurfaces({
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      toastAlerts: false,
+    }),
+    { toast: false, systemNotification: null },
+  );
+  assert.deepEqual(
+    resolveLiveAlertSurfaces(
+      { ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES, enabled: false },
+      true,
+    ),
+    { toast: true, systemNotification: null },
+  );
+  assert.deepEqual(
+    resolveLiveAlertSurfaces(DEFAULT_LIVE_NOTIFICATION_PREFERENCES, true),
+    {
+      toast: true,
+      systemNotification: { silent: false },
+    },
+  );
+  assert.equal(
+    isFollowEligibleForLiveNotification({
+      preferences: everySurfaceOn,
+      channel: twitchChannel,
+      followSource: "guest",
+    }),
+    true,
+  );
+});
+
+test("notification decisions deliver in-app history only while Do Not Disturb is on", () => {
+  assert.deepEqual(
+    resolveLiveNotificationDecision({
+      preferences: {
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        doNotDisturb: true,
+      },
+      silentSync: false,
+      wasLive: false,
+      eligible: true,
+      systemNotificationsSupported: true,
+      nowMs: 1_000,
+    }),
+    { kind: "deliver", inApp: true, systemNotification: null },
   );
 });
 

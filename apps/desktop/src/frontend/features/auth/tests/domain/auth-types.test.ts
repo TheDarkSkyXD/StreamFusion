@@ -84,6 +84,7 @@ describe("Twitch OAuth scope constants", () => {
 describe("NotificationPreferences defaults", () => {
   it("defaults every live-notification source on except favorites-only and restart grace", () => {
     expect(DEFAULT_NOTIFICATION_PREFERENCES).toEqual({
+      doNotDisturb: false,
       enabled: true,
       liveAlerts: true,
       twitch: true,

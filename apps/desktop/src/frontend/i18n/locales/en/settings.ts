@@ -40,6 +40,9 @@ export const settingsEn = {
     pictureByPicture: "picture-by-picture",
     thunderdome: "thunderdome",
     desktopNotifications: "Desktop notifications",
+    doNotDisturb: "Do Not Disturb",
+    silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory:
+      "Silence in-app banners, notification sounds, and system alerts while still recording history.",
     showNativeOsNotificationsWhenFollowedStreamsGoLive:
       "Show native OS notifications when followed streams go live.",
     liveNotifications: "Live Notifications",

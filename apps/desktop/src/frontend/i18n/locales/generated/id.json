@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} detik",
     "unknown": "tidak diketahui",
     "failedToDownloadUpdate": "Gagal mengunduh pembaruan",
-    "failedToInstallUpdate": "Gagal menginstal pembaruan"
+    "failedToInstallUpdate": "Gagal menginstal pembaruan",
+    "doNotDisturb": "Jangan Ganggu",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Senyapkan spanduk dalam aplikasi, suara notifikasi, dan peringatan sistem sambil tetap mencatat riwayat."
   },
   "shell": {
     "loadingPage": "Memuat halaman",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} jam yang lalu",
       "hoursAgo_other": "{{count}} jam yang lalu",
       "daysAgo_one": "{{count}} hari yang lalu",
-      "daysAgo_other": "{{count}} hari yang lalu"
+      "daysAgo_other": "{{count}} hari yang lalu",
+      "doNotDisturb": "Jangan Ganggu",
+      "notificationsMuted": "Notifikasi dibisukan"
     },
     "titleBar": {
       "minimize": "Minimalkan",

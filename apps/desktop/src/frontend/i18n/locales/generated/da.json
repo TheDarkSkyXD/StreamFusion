@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "ukendt",
     "failedToDownloadUpdate": "Kunne ikke downloade opdatering",
-    "failedToInstallUpdate": "Kunne ikke installere opdateringen"
+    "failedToInstallUpdate": "Kunne ikke installere opdateringen",
+    "doNotDisturb": "Forstyr ikke",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Slå bannere i appen, meddelelseslyde og systemadvarsler til lydløs, mens du stadig optager historik."
   },
   "shell": {
     "loadingPage": "Indlæser side",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "for {{count}} time siden",
       "hoursAgo_other": "{{count}} timer siden",
       "daysAgo_one": "{{count}} dag siden",
-      "daysAgo_other": "{{count}} dage siden"
+      "daysAgo_other": "{{count}} dage siden",
+      "doNotDisturb": "Forstyr ikke",
+      "notificationsMuted": "Underretninger er slået fra"
     },
     "titleBar": {
       "minimize": "Minimer",

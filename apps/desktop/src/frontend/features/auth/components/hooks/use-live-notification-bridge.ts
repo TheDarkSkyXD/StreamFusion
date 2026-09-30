@@ -4,7 +4,10 @@ import { toast } from "sonner";
 
 import { LiveNotificationToast } from "@/features/auth/components/LiveNotificationToast";
 import { LIVE_NOTIFICATION_STREAM_ROUTE } from "@/features/auth/routes";
-import { getLiveNotificationPreferences as getNotificationPreferences } from "@streamfusion/core/follows";
+import {
+  getLiveNotificationPreferences as getNotificationPreferences,
+  resolveLiveAlertSurfaces,
+} from "@streamfusion/core/follows";
 import type { NavigateFn } from "@tanstack/react-router";
 import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import { useNotificationStore } from "@/features/shell/components/state/notification-store";
@@ -19,7 +22,7 @@ export function useLiveNotificationBridge(navigate: NavigateFn): void {
       const preferences = getNotificationPreferences(
         useAuthStore.getState().preferences?.notifications
       );
-      if (preferences.toastAlerts) {
+      if (resolveLiveAlertSurfaces(preferences).toast) {
         toast(createElement(LiveNotificationToast, { notification }), {
           action: {
             label: t("auth.watch"),

@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} שניות",
     "unknown": "לא ידוע",
     "failedToDownloadUpdate": "הורדת העדכון נכשלה",
-    "failedToInstallUpdate": "התקנת העדכון נכשלה"
+    "failedToInstallUpdate": "התקנת העדכון נכשלה",
+    "doNotDisturb": "אל תפריע",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "השתקת באנרים בתוך האפליקציה, צלילי התראות והתראות מערכת תוך כדי הקלטת היסטוריה."
   },
   "shell": {
     "loadingPage": "דף טוען",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "לפני שעה {{count}}",
       "hoursAgo_other": "לפני {{count}} שעות",
       "daysAgo_one": "לפני יום {{count}}",
-      "daysAgo_other": "לפני {{count}} ימים"
+      "daysAgo_other": "לפני {{count}} ימים",
+      "doNotDisturb": "אל תפריע",
+      "notificationsMuted": "ההתראות הושתקו"
     },
     "titleBar": {
       "minimize": "הקטינו",

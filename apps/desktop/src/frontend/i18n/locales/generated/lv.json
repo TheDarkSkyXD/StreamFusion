@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} sekundes",
     "unknown": "nezināms",
     "failedToDownloadUpdate": "Neizdevās lejupielādēt atjauninājumu",
-    "failedToInstallUpdate": "Neizdevās instalēt atjauninājumu"
+    "failedToInstallUpdate": "Neizdevās instalēt atjauninājumu",
+    "doNotDisturb": "Netraucēt",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Apklusiniet lietotnē ietvertos reklāmkarogus, paziņojumu skaņas un sistēmas brīdinājumus, vienlaikus ierakstot vēsturi."
   },
   "shell": {
     "loadingPage": "Notiek lapas ielāde",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "pirms {{count}} stundas",
       "hoursAgo_other": "pirms {{count}} stundām",
       "daysAgo_one": "pirms {{count}} dienas",
-      "daysAgo_other": "pirms {{count}} dienām"
+      "daysAgo_other": "pirms {{count}} dienām",
+      "doNotDisturb": "Netraucēt",
+      "notificationsMuted": "Paziņojumi izslēgti"
     },
     "titleBar": {
       "minimize": "Minimizēt",

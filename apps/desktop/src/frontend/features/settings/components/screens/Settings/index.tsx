@@ -339,6 +339,13 @@ function getNotificationToggles(): {
 }[] {
   return [
     {
+      field: "doNotDisturb",
+      label: translateSettings({ key: "settings.doNotDisturb" }),
+      description: translateSettings({
+        key: "settings.silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory",
+      }),
+    },
+    {
       field: "enabled",
       label: translateSettings({ key: "settings.desktopNotifications" }),
       description: translateSettings({
@@ -589,6 +596,14 @@ function getSettingsIndex(): SettingsIndexEntry[] {
       label: translateSettings({ key: "settings.streamDeviceId" }),
       description: translateSettings({ key: "settings.identifierSentWithTheAdBlockStreamToken" }),
       keywords: ["randomize", "device", "advanced"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings({ key: "settings.doNotDisturb" }),
+      description: translateSettings({
+        key: "settings.silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory",
+      }),
+      keywords: ["mute", "silence", "quiet", "focus"],
     },
     {
       tab: "notifications",

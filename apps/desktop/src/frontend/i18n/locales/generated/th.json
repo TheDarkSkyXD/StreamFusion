@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} วินาที",
     "unknown": "ไม่ทราบ",
     "failedToDownloadUpdate": "ดาวน์โหลดการอัปเดตไม่สำเร็จ",
-    "failedToInstallUpdate": "ไม่สามารถติดตั้งการอัปเดต"
+    "failedToInstallUpdate": "ไม่สามารถติดตั้งการอัปเดต",
+    "doNotDisturb": "ห้ามรบกวน",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ปิดเสียงแบนเนอร์ในแอป เสียงแจ้งเตือน และระบบแจ้งเตือนในขณะที่ยังคงบันทึกประวัติ"
   },
   "shell": {
     "loadingPage": "กำลังโหลดหน้า",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} ชั่วโมงที่แล้ว",
       "hoursAgo_other": "{{count}} ชั่วโมงที่แล้ว",
       "daysAgo_one": "{{count}} วันที่ผ่านมา",
-      "daysAgo_other": "{{count}} วันที่ผ่านมา"
+      "daysAgo_other": "{{count}} วันที่ผ่านมา",
+      "doNotDisturb": "ห้ามรบกวน",
+      "notificationsMuted": "ปิดเสียงการแจ้งเตือน"
     },
     "titleBar": {
       "minimize": "ย่อเล็กสุด",

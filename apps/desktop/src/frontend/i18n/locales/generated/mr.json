@@ -2862,7 +2862,9 @@
     "secondCount_other": "{{count}} सेकंद",
     "unknown": "अज्ञात",
     "failedToDownloadUpdate": "अपडेट डाउनलोड करण्यात अयशस्वी",
-    "failedToInstallUpdate": "अपडेट स्थापित करण्यात अयशस्वी"
+    "failedToInstallUpdate": "अपडेट स्थापित करण्यात अयशस्वी",
+    "doNotDisturb": "डू नॉट डिस्टर्ब",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "इतिहास रेकॉर्ड करत असताना ॲपमधील बॅनर, सूचना ध्वनी आणि सिस्टम अलर्ट शांत करा."
   },
   "shell": {
     "loadingPage": "पृष्ठ लोड करत आहे",
@@ -2936,7 +2938,9 @@
       "hoursAgo_one": "{{count}} तासापूर्वी",
       "hoursAgo_other": "{{count}} तासांपूर्वी",
       "daysAgo_one": "{{count}} दिवसापूर्वी",
-      "daysAgo_other": "{{count}} दिवसांपूर्वी"
+      "daysAgo_other": "{{count}} दिवसांपूर्वी",
+      "doNotDisturb": "डू नॉट डिस्टर्ब",
+      "notificationsMuted": "सूचना निःशब्द"
     },
     "titleBar": {
       "minimize": "कमी करा",
