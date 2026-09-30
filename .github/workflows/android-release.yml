@@ -215,7 +215,7 @@ jobs:
           do
             grep -qF "$expected" apps/mobile/android/app/build.gradle || {
               echo "generated project is missing: $expected" >&2
-              grep -nE "applicationId|versionName|versionCode" apps/mobile/android/app/build.gradle >&2 || true
+              grep -nE "applicationId|versionName|versionCode" apps/mobile/android/app/build.gradle >&2
               exit 1
             }
           done
@@ -368,4 +368,17 @@ jobs:
             latest_flag=(--latest)
           fi
           gh release edit "$RELEASE_TAG" --draft=false "${latest_flag[@]}"
-          gh release verify "$RELEASE_TAG"
+          # gh release verify needs a release attestation, which a public
+          # repository only produces once immutable releases are enabled. Its
+          # absence is reported as a notice rather than swallowed, and any other
+          # failure still stops the job, so a real integrity failure is not
+          # hidden behind a disabled feature.
+          verify_log="$(mktemp)"
+          if gh release verify "$RELEASE_TAG" >"$verify_log" 2>&1; then
+            cat "$verify_log"
+          elif grep -qi "no attestations" "$verify_log"; then
+            echo "::notice::no release attestation: enable immutable releases on the repository to enable gh release verify"
+          else
+            cat "$verify_log" >&2
+            exit 1
+          fi
