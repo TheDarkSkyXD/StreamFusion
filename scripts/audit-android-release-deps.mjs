@@ -9,44 +9,42 @@ const repositoryRoot = path.resolve(path.dirname(scriptPath), "..");
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 
-function resolveNpmCli() {
-  const candidates = [
+function npmInvocation() {
+  // Resolve npm's own entry point and run it with node. A GitHub runner does not
+  // export npm_execpath, and shelling out to a .cmd would need shell:true, which
+  // Node warns is unsafe for interpolated arguments.
+  const entry = [
     process.env.npm_execpath,
-    path.join(
-      process.env.APPDATA ?? path.sep,
-      "npm",
-      "node_modules",
-      "npm",
-      "bin",
-      "npm-cli.js",
-    ),
-    path.join(
-      process.execPath,
-      "..",
-      "..",
-      "node_modules",
-      "npm",
-      "bin",
-      "npm-cli.js",
-    ),
-  ].filter(Boolean);
+    path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
+    process.platform === "win32"
+      ? path.join(
+          process.env.APPDATA ?? path.sep,
+          "npm",
+          "node_modules",
+          "npm",
+          "bin",
+          "npm-cli.js",
+        )
+      : null,
+  ].find((candidate) => candidate && existsSync(candidate));
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+  if (!entry) {
+    throw new Error(
+      "Could not find npm-cli.js next to node or in APPDATA. Set npm_execpath.",
+    );
   }
-  throw new Error(
-    "Could not locate npm-cli.js. Run this through npm so npm_execpath is set.",
-  );
+  return { command: process.execPath, prefix: [entry] };
 }
 
 function audit(workspace) {
   // npm audit exits non-zero whenever it reports any advisory, which is the
   // normal case here, so the report is read from stdout rather than the status.
+  const { command, prefix } = npmInvocation();
   let stdout = "";
   try {
     stdout = execFileSync(
-      process.execPath,
-      [resolveNpmCli(), "audit", "--workspace", workspace, "--omit=dev", "--json"],
+      command,
+      [...prefix, "audit", "--workspace", workspace, "--omit=dev", "--json"],
       { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (error) {
