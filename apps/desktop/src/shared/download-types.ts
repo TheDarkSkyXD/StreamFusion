@@ -12,6 +12,12 @@ export interface DownloadProgress {
   bytesPerSecond?: number | null;
 }
 
+/**
+ * What `progress.transferredBytes` counts. ffmpeg reports muxer output-file bytes, so a VOD row
+ * measures how fast the file is written rather than how fast bytes arrive.
+ */
+export type DownloadByteSource = "network" | "output-file";
+
 export interface ClipDownloadSource {
   clipId: string;
   clipUrl?: string;
@@ -60,6 +66,7 @@ export interface DownloadJob {
   retryable?: boolean;
   statusMessage?: string | null;
   nextRetryAt?: string | null;
+  byteSource?: DownloadByteSource;
   source?: {
     clip?: ClipDownloadSource;
     video?: {

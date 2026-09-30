@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verificat",
     "search": {
       "placeholder": "Cerca Twitch i Kick",
+      "title": "Cerca Twitch + Kick",
+      "history": "Historial de cerques",
+      "historyHint": "Últims 10 per tipus",
+      "submit": "Cerca",
+      "clearField": "Clar",
       "tabs": {
         "channels": "Canals",
         "categories": "Categories",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Elimina {{channel}} dels preferits",
       "live": "EN VIU",
       "followers_one": "{{formattedCount}} seguidor",
-      "followers_other": "{{formattedCount}} seguidors",
-      "title": "Cerca Twitch + Kick",
-      "history": "Historial de cerques",
-      "historyHint": "Últims 10 per tipus",
-      "submit": "Cerca",
-      "clearField": "Clar"
+      "followers_other": "{{formattedCount}} seguidors"
     },
     "category": {
       "backToCategories": "Torna a Categories",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtra per:",
       "sortBy": "Ordena per:",
       "searchPlaceholder": "Cerca els convidats segueixen",
+      "manageTitle": "Gestiona els seguiments dels convidats",
       "retry": "Torna-ho a provar",
       "browseChannels": "Navega pels canals",
       "checkConnection": "Comprova la teva connexió i torna-ho a provar.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "El vostre seguiment Twitch no canvia. Torna-ho a provar.",
       "updateFailed": "No s'ha pogut actualitzar el seguiment",
       "restored": "La teva llista de seguiment s'ha restaurat. Torneu a provar {{channel}}.",
-      "manageTitle": "Gestiona els seguiments dels convidats",
       "liveOnly": "Només en viu",
       "filtersA11y": "Filtres següents",
       "contentA11y": "Contingut següent",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Elimina {{title}} de la llista",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} de {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Taxa de descàrrega",
+    "downloadWriteRateLabel": "Taxa d'escriptura",
+    "downloadRateStalled": "aturat",
+    "downloadRateAverage": "Mitjana {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Preparat fora de línia",
     "startingLocalRecognizer": "S'està iniciant el reconeixement local...",
     "removeModel": "Elimina el model",
+    "localCaptionsComingSoon": "Aviat",
+    "localCaptionsComingSoonDetail": "Els subtítols locals en directe tornaran sense baixar el model de reproducció mitjana. Els models avançats poden passar a Configuració més tard.",
     "retryLocalCaptions": "Torneu a provar els subtítols locals",
     "blockingAds": "Bloqueig d'anuncis",
     "adBlockActive": "Bloc d'anuncis actiu",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Identificador de sessió de Play",
     "servingId": "Identificador de servei",
     "liveStreamAlt": "{{channel}} emissió en directe",
-    "localCaptionsComingSoon": "Aviat",
-    "localCaptionsComingSoonDetail": "Els subtítols locals en directe tornaran sense baixar el model de reproducció mitjana. Els models avançats poden passar a Configuració més tard.",
     "watch": {
       "hideControls": "Amaga els controls del jugador",
       "showControls": "Mostra els controls del jugador",
@@ -2294,6 +2298,7 @@
     "settings": "Configuració",
     "personalizeYourStreamfusionExperience": "Personalitza la teva experiència a StreamFusion",
     "searchSettings": "Configuració de cerca",
+    "hubSearchPlaceholder": "Aspecte de cerca, xat, prediccions, integracions...",
     "clearSearch": "Esborra la cerca",
     "settingsNavigation": "Navegació de configuració",
     "valueSettings": "configuració de {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} segons",
     "unknown": "desconegut",
     "failedToDownloadUpdate": "No s'ha pogut descarregar l'actualització",
-    "failedToInstallUpdate": "No s'ha pogut instal·lar l'actualització",
-    "hubSearchPlaceholder": "Aspecte de cerca, xat, prediccions, integracions..."
+    "failedToInstallUpdate": "No s'ha pogut instal·lar l'actualització"
   },
   "shell": {
     "loadingPage": "S'està carregant la pàgina",

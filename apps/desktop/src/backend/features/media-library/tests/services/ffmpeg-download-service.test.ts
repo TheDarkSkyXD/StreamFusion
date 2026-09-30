@@ -53,6 +53,8 @@ async function captureDownloadProgress({
 // Guards: inferred duration ignores unknown metadata and never replaces a supplied duration.
 // Guards: download percentages stay between zero and 100.
 // Guards: recording shutdown waits for child close even when stdin fails synchronously or asynchronously.
+// Guards: every remux must stay on stream copy, because the Downloads throughput readout treats muxer
+//       output bytes as a stand-in for the network read rate and a transcode would make that a lie.
 describe("ffmpeg download service", () => {
   it("resolves a bundled ffmpeg-static path before PATH fallback", () => {
     expect(
@@ -218,6 +220,32 @@ describe("ffmpeg download service", () => {
       transferredSeconds: 30,
       totalSeconds: 60,
     });
+  });
+
+  it("remuxes with stream copy on both the mp4 attempt and the transport stream fallback", async () => {
+    const spawnProcess = vi
+      .fn()
+      .mockImplementationOnce(() => createProcess({ code: 1, stderr: "muxer failed" }))
+      .mockImplementationOnce(() => createProcess({ code: 0, stderr: "time=00:00:30.00" }));
+
+    await downloadHlsWithFfmpeg({
+      ffmpegPath: "ffmpeg",
+      inputUrl: "https://cdn.example/vod.m3u8",
+      destinationPath: "D:\\Videos\\vod.mp4",
+      durationSeconds: 60,
+      signal: new AbortController().signal,
+      onProgress: vi.fn(),
+      spawnProcess,
+    });
+
+    expect(spawnProcess).toHaveBeenCalledTimes(2);
+    for (const call of spawnProcess.mock.calls) {
+      const args = call[1] ?? [];
+      const codecIndex = args.indexOf("-c");
+      expect(args[codecIndex + 1]).toBe("copy");
+      expect(args).not.toContain("libx264");
+      expect(args).not.toContain("aac");
+    }
   });
 
   it("records crash-tolerant TS staging with no-clobber output semantics", async () => {

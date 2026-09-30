@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verifierad",
     "search": {
       "placeholder": "Sök efter Twitch och Kick",
+      "title": "Sök Twitch + Kick",
+      "history": "Sökhistorik",
+      "historyHint": "Sista 10 per typ",
+      "submit": "Sök",
+      "clearField": "Rensa",
       "tabs": {
         "channels": "Kanaler",
         "categories": "Kategorier",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Ta bort {{channel}} från favoriter",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} följare",
-      "followers_other": "{{formattedCount}} följare",
-      "title": "Sök Twitch + Kick",
-      "history": "Sökhistorik",
-      "historyHint": "Sista 10 per typ",
-      "submit": "Sök",
-      "clearField": "Rensa"
+      "followers_other": "{{formattedCount}} följare"
     },
     "category": {
       "backToCategories": "Tillbaka till kategorier",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrera efter:",
       "sortBy": "Sortera efter:",
       "searchPlaceholder": "Sök Gäst följer",
+      "manageTitle": "Hantera gästföljer",
       "retry": "Försök igen",
       "browseChannels": "Bläddra bland kanaler",
       "checkConnection": "Kontrollera din anslutning och försök igen.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Din Twitch-följning är oförändrad. Försök igen.",
       "updateFailed": "Det gick inte att uppdatera följ",
       "restored": "Din följlista har återställts. Försök {{channel}} igen.",
-      "manageTitle": "Hantera gästföljer",
       "liveOnly": "Bara leva",
       "filtersA11y": "Följande filter",
       "contentA11y": "Följer innehållet",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Ta bort {{title}} från listan",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} av {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Nedladdningshastighet",
+    "downloadWriteRateLabel": "Skrivhastighet",
+    "downloadRateStalled": "Stannade",
+    "downloadRateAverage": "Genomsnittlig {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Klar offline",
     "startingLocalRecognizer": "Startar lokal igenkännare...",
     "removeModel": "Ta bort modellen",
+    "localCaptionsComingSoon": "Kommer snart",
+    "localCaptionsComingSoonDetail": "Lokala livetextningar kommer tillbaka utan en midstream-modellnedladdning. Avancerade modeller kan flyttas till Inställningar senare.",
     "retryLocalCaptions": "Försök med lokala bildtexter igen",
     "blockingAds": "Blockera annonser",
     "adBlockActive": "Annonsblocket aktivt",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Spelsessions-ID",
     "servingId": "Serverings-ID",
     "liveStreamAlt": "{{channel}} livestream",
-    "localCaptionsComingSoon": "Kommer snart",
-    "localCaptionsComingSoonDetail": "Lokala livetextningar kommer tillbaka utan en midstream-modellnedladdning. Avancerade modeller kan flyttas till Inställningar senare.",
     "watch": {
       "hideControls": "Dölj spelarkontroller",
       "showControls": "Visa spelarkontroller",
@@ -2294,6 +2298,7 @@
     "settings": "Inställningar",
     "personalizeYourStreamfusionExperience": "Anpassa din StreamFusion-upplevelse",
     "searchSettings": "Sökinställningar",
+    "hubSearchPlaceholder": "Sökutseende, chatt, förutsägelser, integrationer...",
     "clearSearch": "Rensa sökning",
     "settingsNavigation": "Inställningarnavigering",
     "valueSettings": "{{value1}} inställningar",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "okänt",
     "failedToDownloadUpdate": "Det gick inte att ladda ned uppdateringen",
-    "failedToInstallUpdate": "Det gick inte att installera uppdateringen",
-    "hubSearchPlaceholder": "Sökutseende, chatt, förutsägelser, integrationer..."
+    "failedToInstallUpdate": "Det gick inte att installera uppdateringen"
   },
   "shell": {
     "loadingPage": "Laddar sida",

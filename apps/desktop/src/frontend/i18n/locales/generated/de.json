@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verifiziert",
     "search": {
       "placeholder": "Suchen Sie nach Twitch und Kick",
+      "title": "Suche Twitch + Kick",
+      "history": "Suchverlauf",
+      "historyHint": "Die letzten 10 pro Typ",
+      "submit": "Suchen",
+      "clearField": "Klar",
       "tabs": {
         "channels": "Kanäle",
         "categories": "Kategorien",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Entfernen Sie {{channel}} aus den Favoriten",
       "live": "LEBEN",
       "followers_one": "{{formattedCount}} Follower",
-      "followers_other": "{{formattedCount}} Follower",
-      "title": "Suche Twitch + Kick",
-      "history": "Suchverlauf",
-      "historyHint": "Die letzten 10 pro Typ",
-      "submit": "Suchen",
-      "clearField": "Klar"
+      "followers_other": "{{formattedCount}} Follower"
     },
     "category": {
       "backToCategories": "Zurück zu den Kategorien",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtern nach:",
       "sortBy": "Sortieren nach:",
       "searchPlaceholder": "Suchen Sie nach Gast-Followern",
+      "manageTitle": "Gast-Follower verwalten",
       "retry": "Versuchen Sie es noch einmal",
       "browseChannels": "Durchsuchen Sie Kanäle",
       "checkConnection": "Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Deine Twitch Follower bleiben unverändert. Versuchen Sie es erneut.",
       "updateFailed": "Konnte nicht aktualisiert werden",
       "restored": "Ihre Follow-Liste wurde wiederhergestellt. Versuchen Sie es erneut mit {{channel}}.",
-      "manageTitle": "Gast-Follower verwalten",
       "liveOnly": "Nur leben",
       "filtersA11y": "Folgende Filter",
       "contentA11y": "Folgender Inhalt",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Entfernen Sie {{title}} aus der Liste",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} von {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Downloadrate",
+    "downloadWriteRateLabel": "Schreibrate",
+    "downloadRateStalled": "Ins Stocken geraten",
+    "downloadRateAverage": "Durchschnittlich {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Offline bereit",
     "startingLocalRecognizer": "Lokale Erkennung wird gestartet…",
     "removeModel": "Modell entfernen",
+    "localCaptionsComingSoon": "Kommt bald",
+    "localCaptionsComingSoonDetail": "Lokale Live-Untertitel werden wieder verfügbar sein, ohne dass ein Modell während des Streams heruntergeladen werden muss. Fortgeschrittene Modelle werden möglicherweise später zu den Einstellungen verschoben.",
     "retryLocalCaptions": "Lokale Untertitel erneut versuchen",
     "blockingAds": "Werbung blockieren",
     "adBlockActive": "Werbeblocker aktiv",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Sitzungs-ID abspielen",
     "servingId": "Dienstausweis",
     "liveStreamAlt": "{{channel}} Livestream",
-    "localCaptionsComingSoon": "Kommt bald",
-    "localCaptionsComingSoonDetail": "Lokale Live-Untertitel werden wieder verfügbar sein, ohne dass ein Modell während des Streams heruntergeladen werden muss. Fortgeschrittene Modelle werden möglicherweise später zu den Einstellungen verschoben.",
     "watch": {
       "hideControls": "Spielersteuerung ausblenden",
       "showControls": "Player-Steuerelemente anzeigen",
@@ -2294,6 +2298,7 @@
     "settings": "Einstellungen",
     "personalizeYourStreamfusionExperience": "Personalisieren Sie Ihr StreamFusion-Erlebnis",
     "searchSettings": "Sucheinstellungen",
+    "hubSearchPlaceholder": "Suchdarstellung, Chat, Vorhersagen, Integrationen …",
     "clearSearch": "Suche löschen",
     "settingsNavigation": "Einstellungen-Navigation",
     "valueSettings": "{{value1}} Einstellungen",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} Sekunden",
     "unknown": "unbekannt",
     "failedToDownloadUpdate": "Update konnte nicht heruntergeladen werden",
-    "failedToInstallUpdate": "Update konnte nicht installiert werden",
-    "hubSearchPlaceholder": "Suchdarstellung, Chat, Vorhersagen, Integrationen …"
+    "failedToInstallUpdate": "Update konnte nicht installiert werden"
   },
   "shell": {
     "loadingPage": "Seite wird geladen",

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} सत्यापित",
     "search": {
       "placeholder": "Twitch आणि Kick शोधा",
+      "title": "Twitch + Kick शोधा",
+      "history": "शोध इतिहास",
+      "historyHint": "प्रति प्रकार अंतिम 10",
+      "submit": "शोधा",
+      "clearField": "साफ",
       "tabs": {
         "channels": "चॅनेल",
         "categories": "श्रेण्या",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "आवडीमधून {{channel}} काढा",
       "live": "लाइव्ह",
       "followers_one": "{{formattedCount}} अनुयायी",
-      "followers_other": "{{formattedCount}} अनुयायी",
-      "title": "Twitch + Kick शोधा",
-      "history": "शोध इतिहास",
-      "historyHint": "प्रति प्रकार अंतिम 10",
-      "submit": "शोधा",
-      "clearField": "साफ"
+      "followers_other": "{{formattedCount}} अनुयायी"
     },
     "category": {
       "backToCategories": "श्रेण्यांकडे परत जा",
@@ -1075,6 +1075,7 @@
       "filterBy": "यानुसार फिल्टर करा:",
       "sortBy": "यानुसार क्रमवारी लावा:",
       "searchPlaceholder": "शोध पाहुणे अनुसरण",
+      "manageTitle": "अतिथी फॉलो व्यवस्थापित करा",
       "retry": "पुन्हा प्रयत्न करा",
       "browseChannels": "चॅनेल ब्राउझ करा",
       "checkConnection": "तुमचे कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "तुमचे Twitch फॉलो अपरिवर्तित आहे. पुन्हा प्रयत्न करा.",
       "updateFailed": "फॉलो अपडेट करू शकलो नाही",
       "restored": "तुमची फॉलो लिस्ट रिस्टोअर झाली. {{channel}} पुन्हा प्रयत्न करा.",
-      "manageTitle": "अतिथी फॉलो व्यवस्थापित करा",
       "liveOnly": "फक्त जगा",
       "filtersA11y": "खालील फिल्टर",
       "contentA11y": "खालील सामग्री",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "सूचीमधून {{title}} काढा",
     "transferSpeed": "{{value}}/से",
     "transferOf": "{{total}} पैकी {{transferred}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "डाउनलोड दर",
+    "downloadWriteRateLabel": "दर लिहा",
+    "downloadRateStalled": "रखडले",
+    "downloadRateAverage": "सरासरी {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "ऑफलाइन तयार",
     "startingLocalRecognizer": "स्थानिक ओळखकर्ता सुरू करत आहे...",
     "removeModel": "मॉडेल काढा",
+    "localCaptionsComingSoon": "लवकरच येत आहे",
+    "localCaptionsComingSoonDetail": "मिड-स्ट्रीम मॉडेल डाउनलोड न करता स्थानिक लाइव्ह कॅप्शन परत येतील. प्रगत मॉडेल नंतर सेटिंग्जमध्ये जाऊ शकतात.",
     "retryLocalCaptions": "स्थानिक मथळ्यांचा पुन्हा प्रयत्न करा",
     "blockingAds": "जाहिराती अवरोधित करणे",
     "adBlockActive": "जाहिरात-ब्लॉक सक्रिय",
@@ -2044,8 +2050,6 @@
     "playSessionId": "सत्र आयडी प्ले करा",
     "servingId": "सर्व्हिंग आयडी",
     "liveStreamAlt": "{{channel}} थेट प्रवाह",
-    "localCaptionsComingSoon": "लवकरच येत आहे",
-    "localCaptionsComingSoonDetail": "मिड-स्ट्रीम मॉडेल डाउनलोड न करता स्थानिक लाइव्ह कॅप्शन परत येतील. प्रगत मॉडेल नंतर सेटिंग्जमध्ये जाऊ शकतात.",
     "watch": {
       "hideControls": "प्लेअर नियंत्रणे लपवा",
       "showControls": "प्लेअर नियंत्रणे दाखवा",
@@ -2294,6 +2298,7 @@
     "settings": "सेटिंग्ज",
     "personalizeYourStreamfusionExperience": "तुमचा StreamFusion अनुभव वैयक्तिकृत करा",
     "searchSettings": "शोध सेटिंग्ज",
+    "hubSearchPlaceholder": "शोध देखावा, चॅट, अंदाज, एकत्रीकरण...",
     "clearSearch": "शोध साफ करा",
     "settingsNavigation": "सेटिंग्ज नेव्हिगेशन",
     "valueSettings": "{{value1}} सेटिंग्ज",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} सेकंद",
     "unknown": "अज्ञात",
     "failedToDownloadUpdate": "अपडेट डाउनलोड करण्यात अयशस्वी",
-    "failedToInstallUpdate": "अपडेट स्थापित करण्यात अयशस्वी",
-    "hubSearchPlaceholder": "शोध देखावा, चॅट, अंदाज, एकत्रीकरण..."
+    "failedToInstallUpdate": "अपडेट स्थापित करण्यात अयशस्वी"
   },
   "shell": {
     "loadingPage": "पृष्ठ लोड करत आहे",

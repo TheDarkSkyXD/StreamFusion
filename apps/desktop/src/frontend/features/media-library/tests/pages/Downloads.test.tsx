@@ -1,9 +1,19 @@
 import { act } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DownloadsPage } from "@/features/media-library/components/screens/Downloads";
+import { _resetDownloadThroughputStoreForTests } from "@/features/media-library/components/state/download-throughput-store";
 import type { DownloadJob } from "@shared/download-types";
-import { fireEvent, installElectronAPIMock, renderWithProviders, screen } from "../../../../../../tests/test-utils";
+import {
+  fireEvent,
+  installElectronAPIMock,
+  renderWithProviders,
+  screen,
+} from "../../../../../../tests/test-utils";
+
+const MIB = 1024 * 1024;
+const START_MS = Date.parse("2026-07-31T12:00:00.000Z");
+const WAVE_VIEW_BOX = "0 0 140 28";
 
 function downloadJob(overrides: Partial<DownloadJob> = {}): DownloadJob {
   return {
@@ -28,13 +38,36 @@ function downloadJob(overrides: Partial<DownloadJob> = {}): DownloadJob {
   };
 }
 
+function waveOf(title: string): SVGSVGElement | undefined {
+  const row = screen.getByText(title).closest("article");
+  return Array.from(row?.querySelectorAll("svg") ?? []).find(
+    (node) => node.getAttribute("viewBox") === WAVE_VIEW_BOX
+  );
+}
+
+function readoutOf(title: string, label?: string): string {
+  const row = screen.getByText(title).closest("article");
+  const value = Array.from(row?.querySelectorAll("span[title]") ?? []).find(
+    (node) => label === undefined || node.getAttribute("title") === label
+  );
+  return value?.textContent ?? "";
+}
+
 let downloads: ReturnType<typeof installElectronAPIMock>["downloads"];
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(START_MS);
+  _resetDownloadThroughputStoreForTests();
   const api = installElectronAPIMock();
   downloads = api.downloads;
   downloads.getQueue = vi.fn(async () => ({ jobs: [] }));
   downloads.onQueueChanged = vi.fn(() => vi.fn());
+});
+
+afterEach(() => {
+  _resetDownloadThroughputStoreForTests();
+  vi.useRealTimers();
 });
 
 // Guards: persisted download jobs replace the old placeholder rows after the main-process queue loads
@@ -47,6 +80,10 @@ beforeEach(() => {
 // Guards: completed files expose only the main-process file and list actions supported by the preload contract
 // Guards: interrupted paused and waiting jobs can be removed without advertising unsupported resume or file actions
 // Guards: persisted waiting and failure detail remains visible instead of collapsing to a generic status
+// Guards: an active row shows a live rate and wave, and the wave never carries a live region
+// Guards: a queued row with nothing measured shows a dash and no wave instead of a fabricated zero
+// Guards: a finished row holds its computed average and dims the wave
+// Guards: an ffmpeg row labels its rate as a write rate rather than a network rate
 describe("DownloadsPage", () => {
   it("shows unknown-size download activity and switches to measured live progress", async () => {
     let pushQueue: ((snapshot: { jobs: DownloadJob[] }) => void) | undefined;
@@ -64,11 +101,12 @@ describe("DownloadsPage", () => {
 
     const progress = screen.getByRole("progressbar", { name: "Friday Night Finals" });
     expect(progress).not.toHaveAttribute("aria-valuenow");
-    expect(progress).toHaveAttribute("aria-valuetext", expect.stringContaining("1.0 KB"));
+    expect(progress).toHaveAttribute("aria-valuetext", expect.stringContaining("1.0 KiB"));
     expect(progress.firstElementChild).toHaveClass("animate-download-progress");
     expect(screen.queryByText("Progress unavailable")).not.toBeInTheDocument();
 
-    for (const percent of [20, 65, 100]) {
+    for (const [index, percent] of [20, 65, 100].entries()) {
+      vi.setSystemTime(START_MS + (index + 1) * 500);
       act(() => {
         pushQueue?.({
           jobs: [
@@ -249,5 +287,126 @@ describe("DownloadsPage", () => {
 
     expect(await screen.findByText("Retrying at 12:30 PM")).toBeInTheDocument();
     expect(screen.getByText("Disk is full")).toBeInTheDocument();
+  });
+
+  describe("row throughput readout", () => {
+    let pushQueue: ((snapshot: { jobs: DownloadJob[] }) => void) | undefined;
+
+    beforeEach(() => {
+      vi.mocked(downloads.onQueueChanged).mockImplementation((callback) => {
+        pushQueue = callback;
+        return vi.fn();
+      });
+      pushQueue = undefined;
+    });
+
+    it("shows a live rate and wave on an active row and nothing on a queued row", async () => {
+      vi.mocked(downloads.getQueue).mockResolvedValue({
+        jobs: [
+          downloadJob({ progress: { percent: null, transferredBytes: 0, totalBytes: null } }),
+          downloadJob({ id: "clip-2", kind: "clip", title: "Last-second save", status: "queued" }),
+        ],
+      });
+
+      renderWithProviders(<DownloadsPage />);
+      await screen.findByText("Friday Night Finals");
+
+      for (const [index, bytes] of [2 * MIB, 4 * MIB].entries()) {
+        vi.setSystemTime(START_MS + (index + 1) * 500);
+        act(() => {
+          pushQueue?.({
+            jobs: [
+              downloadJob({
+                progress: { percent: null, transferredBytes: bytes, totalBytes: null },
+              }),
+              downloadJob({
+                id: "clip-2",
+                kind: "clip",
+                title: "Last-second save",
+                status: "queued",
+              }),
+            ],
+          });
+        });
+      }
+
+      const wave = waveOf("Friday Night Finals");
+      expect(wave).toHaveAttribute("aria-hidden", "true");
+      expect(wave?.querySelector("path")?.getAttribute("d")).toContain("M ");
+      expect(readoutOf("Friday Night Finals")).toBe("4.0 MiB/s");
+      expect(document.querySelector("[aria-live]")).toBeNull();
+
+      const queuedWave = waveOf("Last-second save");
+      expect(queuedWave?.querySelector("path")).toBeNull();
+      expect(queuedWave?.querySelector("line")).not.toBeNull();
+      expect(screen.getAllByText("—")).toHaveLength(1);
+    });
+
+    it("holds the computed average and dims the wave on a finished row", async () => {
+      vi.mocked(downloads.getQueue).mockResolvedValue({
+        jobs: [
+          downloadJob({ progress: { percent: null, transferredBytes: 4 * MIB, totalBytes: null } }),
+        ],
+      });
+
+      renderWithProviders(<DownloadsPage />);
+      await screen.findByText("Friday Night Finals");
+
+      vi.setSystemTime(START_MS + 500);
+      act(() => {
+        pushQueue?.({
+          jobs: [
+            downloadJob({
+              progress: { percent: null, transferredBytes: 8 * MIB, totalBytes: null },
+            }),
+          ],
+        });
+      });
+      vi.setSystemTime(START_MS + 1000);
+      act(() => {
+        pushQueue?.({
+          jobs: [
+            downloadJob({
+              status: "completed",
+              progress: { percent: 100, transferredBytes: 8 * MIB, totalBytes: 8 * MIB },
+            }),
+          ],
+        });
+      });
+
+      expect(readoutOf("Friday Night Finals")).toBe("Average 4.0 MiB/s");
+      expect(waveOf("Friday Night Finals")).toHaveClass("opacity-50");
+    });
+
+    it("labels a VOD row by the byte counter ffmpeg actually reports", async () => {
+      vi.mocked(downloads.getQueue).mockResolvedValue({
+        jobs: [
+          downloadJob({
+            byteSource: "output-file",
+            progress: { percent: null, transferredBytes: 4 * MIB, totalBytes: null },
+          }),
+        ],
+      });
+
+      renderWithProviders(<DownloadsPage />);
+      await screen.findByText("Friday Night Finals");
+
+      for (const [index, bytes] of [8 * MIB, 12 * MIB].entries()) {
+        vi.setSystemTime(START_MS + (index + 1) * 500);
+        act(() => {
+          pushQueue?.({
+            jobs: [
+              downloadJob({
+                byteSource: "output-file",
+                progress: { percent: null, transferredBytes: bytes, totalBytes: null },
+              }),
+            ],
+          });
+        });
+      }
+
+      expect(screen.getByText("Write rate")).toBeInTheDocument();
+      expect(readoutOf("Friday Night Finals", "Write rate")).toBe("8.0 MiB/s");
+    });
   });
 });

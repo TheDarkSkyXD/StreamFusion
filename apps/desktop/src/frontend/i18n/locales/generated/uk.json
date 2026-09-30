@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} підтверджено",
     "search": {
       "placeholder": "Пошук Twitch і Kick",
+      "title": "Пошук Twitch + Kick",
+      "history": "Історія пошуку",
+      "historyHint": "Останні 10 на тип",
+      "submit": "Пошук",
+      "clearField": "ясно",
       "tabs": {
         "channels": "Канали",
         "categories": "Категорії",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Видалити {{channel}} з вибраного",
       "live": "НАЖИВО",
       "followers_one": "{{formattedCount}} читач",
-      "followers_other": "{{formattedCount}} читачів",
-      "title": "Пошук Twitch + Kick",
-      "history": "Історія пошуку",
-      "historyHint": "Останні 10 на тип",
-      "submit": "Пошук",
-      "clearField": "ясно"
+      "followers_other": "{{formattedCount}} читачів"
     },
     "category": {
       "backToCategories": "Назад до категорій",
@@ -1075,6 +1075,7 @@
       "filterBy": "Фільтрувати за:",
       "sortBy": "Сортувати за:",
       "searchPlaceholder": "Пошук Гість стежить",
+      "manageTitle": "Керуйте підписками гостей",
       "retry": "Повторіть спробу",
       "browseChannels": "Переглядайте канали",
       "checkConnection": "Перевірте підключення та повторіть спробу.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Ваша Twitch підписка не змінилася. Спробуйте знову.",
       "updateFailed": "Не вдалося оновити підписку",
       "restored": "Ваш список підписок відновлено. Спробуйте {{channel}} знову.",
-      "manageTitle": "Керуйте підписками гостей",
       "liveOnly": "Тільки жити",
       "filtersA11y": "Наступні фільтри",
       "contentA11y": "Наступний вміст",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Видалити {{title}} зі списку",
     "transferSpeed": "{{value}}/с",
     "transferOf": "{{transferred}} з {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Швидкість завантаження",
+    "downloadWriteRateLabel": "Швидкість запису",
+    "downloadRateStalled": "Застопорився",
+    "downloadRateAverage": "Середня {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Готовий офлайн",
     "startingLocalRecognizer": "Запуск локального розпізнавання…",
     "removeModel": "Зняти модель",
+    "localCaptionsComingSoon": "Скоро буде",
+    "localCaptionsComingSoonDetail": "Локальні живі субтитри відновляться без завантаження моделі в середині потоку. Розширені моделі можуть перейти до налаштувань пізніше.",
     "retryLocalCaptions": "Повторіть локальні субтитри",
     "blockingAds": "Блокування реклами",
     "adBlockActive": "Блокування реклами активне",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Ідентифікатор сеансу відтворення",
     "servingId": "Ідентифікатор обслуговування",
     "liveStreamAlt": "{{channel}} пряма трансляція",
-    "localCaptionsComingSoon": "Скоро буде",
-    "localCaptionsComingSoonDetail": "Локальні живі субтитри відновляться без завантаження моделі в середині потоку. Розширені моделі можуть перейти до налаштувань пізніше.",
     "watch": {
       "hideControls": "Приховати елементи керування гравцем",
       "showControls": "Показати елементи керування гравцем",
@@ -2294,6 +2298,7 @@
     "settings": "Налаштування",
     "personalizeYourStreamfusionExperience": "Персоналізуйте роботу з StreamFusion",
     "searchSettings": "Налаштування пошуку",
+    "hubSearchPlaceholder": "Зовнішній вигляд пошуку, чат, передбачення, інтеграція…",
     "clearSearch": "Очистити пошук",
     "settingsNavigation": "Налаштування навігації",
     "valueSettings": "Налаштування {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} секунд",
     "unknown": "невідомий",
     "failedToDownloadUpdate": "Не вдалося завантажити оновлення",
-    "failedToInstallUpdate": "Не вдалося встановити оновлення",
-    "hubSearchPlaceholder": "Зовнішній вигляд пошуку, чат, передбачення, інтеграція…"
+    "failedToInstallUpdate": "Не вдалося встановити оновлення"
   },
   "shell": {
     "loadingPage": "Завантаження сторінки",

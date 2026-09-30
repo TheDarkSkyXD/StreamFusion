@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verificat",
     "search": {
       "placeholder": "Căutați Twitch și Kick",
+      "title": "Căutați Twitch + Kick",
+      "history": "Istoricul căutărilor",
+      "historyHint": "Ultimele 10 pe tip",
+      "submit": "Caută",
+      "clearField": "Clar",
       "tabs": {
         "channels": "Canale",
         "categories": "Categorii",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Eliminați {{channel}} din favorite",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} urmăritor",
-      "followers_other": "{{formattedCount}} persoane interesate",
-      "title": "Căutați Twitch + Kick",
-      "history": "Istoricul căutărilor",
-      "historyHint": "Ultimele 10 pe tip",
-      "submit": "Caută",
-      "clearField": "Clar"
+      "followers_other": "{{formattedCount}} persoane interesate"
     },
     "category": {
       "backToCategories": "Înapoi la Categorii",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrați după:",
       "sortBy": "Sortați după:",
       "searchPlaceholder": "Căutați Urmărește oaspeții",
+      "manageTitle": "Gestionați urmărirea invitaților",
       "retry": "Reîncercați",
       "browseChannels": "Răsfoiți canale",
       "checkConnection": "Verificați conexiunea și încercați din nou.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Urmărirea dvs. Twitch este neschimbată. Încearcă din nou.",
       "updateFailed": "Nu s-a putut actualiza",
       "restored": "Lista dvs. de urmărire a fost restaurată. Încercați din nou {{channel}}.",
-      "manageTitle": "Gestionați urmărirea invitaților",
       "liveOnly": "Doar live",
       "filtersA11y": "Următoarele filtre",
       "contentA11y": "Urmărirea conținutului",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Eliminați {{title}} din listă",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} din {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Rata de descărcare",
+    "downloadWriteRateLabel": "Rata de scriere",
+    "downloadRateStalled": "Blocat",
+    "downloadRateAverage": "Media {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Gata offline",
     "startingLocalRecognizer": "Se pornește recunoașterea locală...",
     "removeModel": "Eliminați modelul",
+    "localCaptionsComingSoon": "În curând",
+    "localCaptionsComingSoonDetail": "Subtitrările live locale vor reveni fără descărcarea modelului la mijlocul fluxului. Modelele avansate pot trece la Setări mai târziu.",
     "retryLocalCaptions": "Reîncercați subtitrările locale",
     "blockingAds": "Blocarea reclamelor",
     "adBlockActive": "Bloc de anunțuri activ",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID-ul sesiunii de redare",
     "servingId": "ID de servire",
     "liveStreamAlt": "{{channel}} stream live",
-    "localCaptionsComingSoon": "În curând",
-    "localCaptionsComingSoonDetail": "Subtitrările live locale vor reveni fără descărcarea modelului la mijlocul fluxului. Modelele avansate pot trece la Setări mai târziu.",
     "watch": {
       "hideControls": "Ascunde comenzile jucătorului",
       "showControls": "Afișează comenzile jucătorului",
@@ -2294,6 +2298,7 @@
     "settings": "Setări",
     "personalizeYourStreamfusionExperience": "Personalizați-vă experiența StreamFusion",
     "searchSettings": "Setări de căutare",
+    "hubSearchPlaceholder": "Aspect de căutare, chat, predicții, integrări...",
     "clearSearch": "Ștergeți căutarea",
     "settingsNavigation": "Navigare cu setări",
     "valueSettings": "{{value1}} setări",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} secunde",
     "unknown": "necunoscut",
     "failedToDownloadUpdate": "Nu s-a putut descărca actualizarea",
-    "failedToInstallUpdate": "Nu s-a instalat actualizarea",
-    "hubSearchPlaceholder": "Aspect de căutare, chat, predicții, integrări..."
+    "failedToInstallUpdate": "Nu s-a instalat actualizarea"
   },
   "shell": {
     "loadingPage": "Se încarcă pagina",

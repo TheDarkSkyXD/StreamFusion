@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} doğrulandı",
     "search": {
       "placeholder": "Twitch ve Kick'i arayın",
+      "title": "Twitch + Kick'i ara",
+      "history": "Arama geçmişi",
+      "historyHint": "Tür başına son 10",
+      "submit": "Ara",
+      "clearField": "Temizle",
       "tabs": {
         "channels": "Kanallar",
         "categories": "Kategoriler",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "{{channel}} adlı kişiyi favorilerden kaldır",
       "live": "CANLI",
       "followers_one": "{{formattedCount}} takipçi",
-      "followers_other": "{{formattedCount}} takipçi",
-      "title": "Twitch + Kick'i ara",
-      "history": "Arama geçmişi",
-      "historyHint": "Tür başına son 10",
-      "submit": "Ara",
-      "clearField": "Temizle"
+      "followers_other": "{{formattedCount}} takipçi"
     },
     "category": {
       "backToCategories": "Kategorilere Geri Dön",
@@ -1075,6 +1075,7 @@
       "filterBy": "Şuna göre filtrele:",
       "sortBy": "Şuna göre sırala:",
       "searchPlaceholder": "Misafir Takiplerini Ara",
+      "manageTitle": "Misafir Takiplerini Yönet",
       "retry": "Yeniden dene",
       "browseChannels": "Kanallara Göz Atın",
       "checkConnection": "Bağlantınızı kontrol edip tekrar deneyin.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Twitch takipçiniz değişmedi. Tekrar deneyin.",
       "updateFailed": "Takip güncellenemedi",
       "restored": "Takip listeniz geri yüklendi. {{channel}}'ı tekrar deneyin.",
-      "manageTitle": "Misafir Takiplerini Yönet",
       "liveOnly": "Yalnızca canlı",
       "filtersA11y": "Takip edilen filtreler",
       "contentA11y": "İçerik takip ediliyor",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "{{title}}'ı listeden kaldır",
     "transferSpeed": "{{value}}/sn",
     "transferOf": "{{transferred}} / {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "İndirme hızı",
+    "downloadWriteRateLabel": "Yazma hızı",
+    "downloadRateStalled": "Durdu",
+    "downloadRateAverage": "Ortalama {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Çevrimdışı hazır",
     "startingLocalRecognizer": "Yerel tanıyıcı başlatılıyor…",
     "removeModel": "Modeli kaldır",
+    "localCaptionsComingSoon": "Yakında",
+    "localCaptionsComingSoonDetail": "Yerel canlı altyazılar, orta yayın modeli indirmesi olmadan geri dönecek. Gelişmiş modeller daha sonra Ayarlar'a geçebilir.",
     "retryLocalCaptions": "Yerel altyazıları yeniden deneyin",
     "blockingAds": "Reklamları engelleme",
     "adBlockActive": "Reklam engelleme etkin",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Oturum Kimliğini Oynat",
     "servingId": "Sunum kimliği",
     "liveStreamAlt": "{{channel}} canlı yayın",
-    "localCaptionsComingSoon": "Yakında",
-    "localCaptionsComingSoonDetail": "Yerel canlı altyazılar, orta yayın modeli indirmesi olmadan geri dönecek. Gelişmiş modeller daha sonra Ayarlar'a geçebilir.",
     "watch": {
       "hideControls": "Oynatıcı kontrollerini gizle",
       "showControls": "Oyuncu kontrollerini göster",
@@ -2294,6 +2298,7 @@
     "settings": "Ayarlar",
     "personalizeYourStreamfusionExperience": "StreamFusion deneyiminizi kişiselleştirin",
     "searchSettings": "Arama ayarları",
+    "hubSearchPlaceholder": "Arama görünümü, sohbet, tahminler, entegrasyonlar…",
     "clearSearch": "Aramayı temizle",
     "settingsNavigation": "Ayarlarda gezinme",
     "valueSettings": "{{value1}} ayarları",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} saniye",
     "unknown": "bilinmiyor",
     "failedToDownloadUpdate": "Güncelleme indirilemedi",
-    "failedToInstallUpdate": "Güncelleme yüklenemedi",
-    "hubSearchPlaceholder": "Arama görünümü, sohbet, tahminler, entegrasyonlar…"
+    "failedToInstallUpdate": "Güncelleme yüklenemedi"
   },
   "shell": {
     "loadingPage": "Sayfa yükleniyor",

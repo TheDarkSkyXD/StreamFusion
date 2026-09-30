@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} проверен",
     "search": {
       "placeholder": "Търсете Twitch и Kick",
+      "title": "Търсене Twitch + Kick",
+      "history": "История на търсенето",
+      "historyHint": "Последни 10 за тип",
+      "submit": "Търсене",
+      "clearField": "ясно",
       "tabs": {
         "channels": "Канали",
         "categories": "Категории",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Премахнете {{channel}} от любимите",
       "live": "НА ЖИВО",
       "followers_one": "{{formattedCount}} последовател",
-      "followers_other": "{{formattedCount}} последователи",
-      "title": "Търсене Twitch + Kick",
-      "history": "История на търсенето",
-      "historyHint": "Последни 10 за тип",
-      "submit": "Търсене",
-      "clearField": "ясно"
+      "followers_other": "{{formattedCount}} последователи"
     },
     "category": {
       "backToCategories": "Обратно към Категории",
@@ -1075,6 +1075,7 @@
       "filterBy": "Филтриране по:",
       "sortBy": "Сортиране по:",
       "searchPlaceholder": "Търсене Гост следва",
+      "manageTitle": "Управление на последователностите на гостите",
       "retry": "Опитайте отново",
       "browseChannels": "Преглед на канали",
       "checkConnection": "Проверете връзката си и опитайте отново.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Вашето следване на Twitch е непроменено. Опитайте отново.",
       "updateFailed": "Следването не можа да се актуализира",
       "restored": "Вашият списък за следване беше възстановен. Опитайте {{channel}} отново.",
-      "manageTitle": "Управление на последователностите на гостите",
       "liveOnly": "Само на живо",
       "filtersA11y": "Следващи филтри",
       "contentA11y": "Следващо съдържание",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Премахнете {{title}} от списъка",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} от {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Скорост на изтегляне",
+    "downloadWriteRateLabel": "Скорост на запис",
+    "downloadRateStalled": "В застой",
+    "downloadRateAverage": "Средно {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Готов офлайн",
     "startingLocalRecognizer": "Стартира се локално разпознаване...",
     "removeModel": "Премахване на модела",
+    "localCaptionsComingSoon": "Очаквайте скоро",
+    "localCaptionsComingSoonDetail": "Локалните надписи на живо ще се върнат без изтегляне на модел по средата на потока. Разширените модели може да се преместят в Настройки по-късно.",
     "retryLocalCaptions": "Опитайте отново с локални надписи",
     "blockingAds": "Блокиране на реклами",
     "adBlockActive": "Блокирането на реклами е активно",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID на сесията на възпроизвеждане",
     "servingId": "ID на обслужване",
     "liveStreamAlt": "{{channel}} поток на живо",
-    "localCaptionsComingSoon": "Очаквайте скоро",
-    "localCaptionsComingSoonDetail": "Локалните надписи на живо ще се върнат без изтегляне на модел по средата на потока. Разширените модели може да се преместят в Настройки по-късно.",
     "watch": {
       "hideControls": "Скриване на контролите на плейъра",
       "showControls": "Показване на контролите на плейъра",
@@ -2294,6 +2298,7 @@
     "settings": "Настройки",
     "personalizeYourStreamfusionExperience": "Персонализирайте вашето StreamFusion изживяване",
     "searchSettings": "Настройки за търсене",
+    "hubSearchPlaceholder": "Външен вид при търсене, чат, прогнози, интеграции...",
     "clearSearch": "Изчистете търсенето",
     "settingsNavigation": "Навигация в настройките",
     "valueSettings": "{{value1}} настройки",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} секунди",
     "unknown": "неизвестен",
     "failedToDownloadUpdate": "Неуспешно изтегляне на актуализация",
-    "failedToInstallUpdate": "Неуспешно инсталиране на актуализация",
-    "hubSearchPlaceholder": "Външен вид при търсене, чат, прогнози, интеграции..."
+    "failedToInstallUpdate": "Неуспешно инсталиране на актуализация"
   },
   "shell": {
     "loadingPage": "Страницата се зарежда",

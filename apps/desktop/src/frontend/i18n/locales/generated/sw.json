@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} imethibitishwa",
     "search": {
       "placeholder": "Tafuta Twitch na Kick",
+      "title": "Tafuta Twitch + Kick",
+      "history": "Historia ya utafutaji",
+      "historyHint": "10 ya mwisho kwa kila aina",
+      "submit": "Tafuta",
+      "clearField": "Wazi",
       "tabs": {
         "channels": "Vituo",
         "categories": "Kategoria",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Ondoa {{channel}} kutoka kwa vipendwa",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} mfuasi",
-      "followers_other": "{{formattedCount}} wafuasi",
-      "title": "Tafuta Twitch + Kick",
-      "history": "Historia ya utafutaji",
-      "historyHint": "10 ya mwisho kwa kila aina",
-      "submit": "Tafuta",
-      "clearField": "Wazi"
+      "followers_other": "{{formattedCount}} wafuasi"
     },
     "category": {
       "backToCategories": "Rudi kwa Vitengo",
@@ -1075,6 +1075,7 @@
       "filterBy": "Chuja kwa:",
       "sortBy": "Panga kwa:",
       "searchPlaceholder": "Tafuta Mgeni Anafuata",
+      "manageTitle": "Dhibiti Wafuasi Wageni",
       "retry": "Jaribu tena",
       "browseChannels": "Vinjari Vituo",
       "checkConnection": "Angalia muunganisho wako na ujaribu tena.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Ufuatiliaji wako wa Twitch haujabadilika. Jaribu tena.",
       "updateFailed": "Haikuweza kusasisha kufuata",
       "restored": "Orodha yako ya ufuatiliaji ilirejeshwa. Jaribu {{channel}} tena.",
-      "manageTitle": "Dhibiti Wafuasi Wageni",
       "liveOnly": "Kuishi tu",
       "filtersA11y": "Kufuatia vichujio",
       "contentA11y": "Kufuatia maudhui",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Ondoa {{title}} kwenye orodha",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} kati ya {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Kiwango cha upakuaji",
+    "downloadWriteRateLabel": "Kiwango cha kuandika",
+    "downloadRateStalled": "Imesitishwa",
+    "downloadRateAverage": "Wastani {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Tayari nje ya mtandao",
     "startingLocalRecognizer": "Inaanzisha kitambuzi cha ndani...",
     "removeModel": "Ondoa mfano",
+    "localCaptionsComingSoon": "Inakuja hivi karibuni",
+    "localCaptionsComingSoonDetail": "Manukuu ya moja kwa moja ya ndani yatarudi bila upakuaji wa muundo wa kati wa mtiririko. Miundo ya hali ya juu inaweza kuhamishwa hadi kwenye Mipangilio baadaye.",
     "retryLocalCaptions": "Jaribu tena manukuu ya ndani",
     "blockingAds": "Kuzuia matangazo",
     "adBlockActive": "Kizuizi cha matangazo kimewashwa",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Kitambulisho cha Kipindi cha Cheza",
     "servingId": "Kitambulisho cha huduma",
     "liveStreamAlt": "{{channel}} mtiririko wa moja kwa moja",
-    "localCaptionsComingSoon": "Inakuja hivi karibuni",
-    "localCaptionsComingSoonDetail": "Manukuu ya moja kwa moja ya ndani yatarudi bila upakuaji wa muundo wa kati wa mtiririko. Miundo ya hali ya juu inaweza kuhamishwa hadi kwenye Mipangilio baadaye.",
     "watch": {
       "hideControls": "Ficha vidhibiti vya wachezaji",
       "showControls": "Onyesha vidhibiti vya wachezaji",
@@ -2294,6 +2298,7 @@
     "settings": "Mipangilio",
     "personalizeYourStreamfusionExperience": "Binafsisha matumizi yako ya StreamFusion",
     "searchSettings": "Mipangilio ya utafutaji",
+    "hubSearchPlaceholder": "Tafuta mwonekano, gumzo, ubashiri, miunganisho...",
     "clearSearch": "Futa utafutaji",
     "settingsNavigation": "Urambazaji wa mipangilio",
     "valueSettings": "{{value1}} mipangilio",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "Sekunde {{count}}",
     "unknown": "haijulikani",
     "failedToDownloadUpdate": "Imeshindwa kupakua sasisho",
-    "failedToInstallUpdate": "Imeshindwa kusakinisha sasisho",
-    "hubSearchPlaceholder": "Tafuta mwonekano, gumzo, ubashiri, miunganisho..."
+    "failedToInstallUpdate": "Imeshindwa kusakinisha sasisho"
   },
   "shell": {
     "loadingPage": "Inapakia ukurasa",

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verificato",
     "search": {
       "placeholder": "Cerca Twitch e Kick",
+      "title": "Cerca Twitch + Kick",
+      "history": "Cronologia delle ricerche",
+      "historyHint": "Ultimi 10 per tipologia",
+      "submit": "Cerca",
+      "clearField": "Chiaro",
       "tabs": {
         "channels": "Canali",
         "categories": "Categorie",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Rimuovi {{channel}} dai preferiti",
       "live": "VIVI",
       "followers_one": "{{formattedCount}} seguace",
-      "followers_other": "{{formattedCount}} follower",
-      "title": "Cerca Twitch + Kick",
-      "history": "Cronologia delle ricerche",
-      "historyHint": "Ultimi 10 per tipologia",
-      "submit": "Cerca",
-      "clearField": "Chiaro"
+      "followers_other": "{{formattedCount}} follower"
     },
     "category": {
       "backToCategories": "Torna alle Categorie",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtra per:",
       "sortBy": "Ordina per:",
       "searchPlaceholder": "Cerca gli ospiti che seguono",
+      "manageTitle": "Gestisci i follower degli ospiti",
       "retry": "Riprova",
       "browseChannels": "Sfoglia canali",
       "checkConnection": "Controlla la connessione e riprova.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Il tuo seguito su Twitch è rimasto invariato. Riprova.",
       "updateFailed": "Impossibile eseguire l'aggiornamento",
       "restored": "L'elenco dei tuoi follower è stato ripristinato. Riprova {{channel}}.",
-      "manageTitle": "Gestisci i follower degli ospiti",
       "liveOnly": "Solo vivere",
       "filtersA11y": "Filtri successivi",
       "contentA11y": "Segue il contenuto",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Rimuovi {{title}} dall'elenco",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} di {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Velocità di download",
+    "downloadWriteRateLabel": "Tasso di scrittura",
+    "downloadRateStalled": "In stallo",
+    "downloadRateAverage": "Media {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Pronto offline",
     "startingLocalRecognizer": "Avvio del riconoscimento locale…",
     "removeModel": "Rimuovi il modello",
+    "localCaptionsComingSoon": "Prossimamente",
+    "localCaptionsComingSoonDetail": "I sottotitoli live locali verranno ripristinati senza il download del modello a metà streaming. I modelli avanzati potrebbero passare alle Impostazioni in un secondo momento.",
     "retryLocalCaptions": "Riprova i sottotitoli locali",
     "blockingAds": "Blocco degli annunci",
     "adBlockActive": "Blocco annunci attivo",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Gioca ID sessione",
     "servingId": "Documento d'identità in servizio",
     "liveStreamAlt": "{{channel}} live streaming",
-    "localCaptionsComingSoon": "Prossimamente",
-    "localCaptionsComingSoonDetail": "I sottotitoli live locali verranno ripristinati senza il download del modello a metà streaming. I modelli avanzati potrebbero passare alle Impostazioni in un secondo momento.",
     "watch": {
       "hideControls": "Nascondi i controlli del lettore",
       "showControls": "Mostra i controlli del lettore",
@@ -2294,6 +2298,7 @@
     "settings": "Impostazioni",
     "personalizeYourStreamfusionExperience": "Personalizza la tua esperienza con StreamFusion",
     "searchSettings": "Impostazioni di ricerca",
+    "hubSearchPlaceholder": "Cerca aspetto, chat, previsioni, integrazioni...",
     "clearSearch": "Cancella ricerca",
     "settingsNavigation": "Navigazione delle impostazioni",
     "valueSettings": "{{value1}} impostazioni",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} secondi",
     "unknown": "sconosciuto",
     "failedToDownloadUpdate": "Impossibile scaricare l'aggiornamento",
-    "failedToInstallUpdate": "Impossibile installare l'aggiornamento",
-    "hubSearchPlaceholder": "Cerca aspetto, chat, previsioni, integrazioni..."
+    "failedToInstallUpdate": "Impossibile installare l'aggiornamento"
   },
   "shell": {
     "loadingPage": "Caricamento pagina",

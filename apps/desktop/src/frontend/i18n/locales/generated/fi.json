@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} vahvistettu",
     "search": {
       "placeholder": "Hae Twitch ja Kick",
+      "title": "Haku Twitch + Kick",
+      "history": "Hakuhistoria",
+      "historyHint": "Viimeiset 10 per tyyppi",
+      "submit": "Etsi",
+      "clearField": "Selkeä",
       "tabs": {
         "channels": "Kanavat",
         "categories": "Luokat",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Poista {{channel}} suosikeista",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} seuraaja",
-      "followers_other": "{{formattedCount}} seuraajaa",
-      "title": "Haku Twitch + Kick",
-      "history": "Hakuhistoria",
-      "historyHint": "Viimeiset 10 per tyyppi",
-      "submit": "Etsi",
-      "clearField": "Selkeä"
+      "followers_other": "{{formattedCount}} seuraajaa"
     },
     "category": {
       "backToCategories": "Takaisin kategorioihin",
@@ -1075,6 +1075,7 @@
       "filterBy": "Suodatusperuste:",
       "sortBy": "Lajitteluperuste:",
       "searchPlaceholder": "Hae Vieras seuraa",
+      "manageTitle": "Hallinnoi vierasseurauksia",
       "retry": "Yritä uudelleen",
       "browseChannels": "Selaa kanavia",
       "checkConnection": "Tarkista yhteys ja yritä uudelleen.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Twitch-seurantasi ei ole muuttunut. Yritä uudelleen.",
       "updateFailed": "Seurauksen päivitys ei onnistunut",
       "restored": "Seurantaluettelosi palautettiin. Yritä {{channel}} uudelleen.",
-      "manageTitle": "Hallinnoi vierasseurauksia",
       "liveOnly": "Vain livenä",
       "filtersA11y": "Seuraavat suodattimet",
       "contentA11y": "Sisältöä seuraa",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Poista {{title}} luettelosta",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}}/{{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Latausnopeus",
+    "downloadWriteRateLabel": "Kirjoitusnopeus",
+    "downloadRateStalled": "pysähtynyt",
+    "downloadRateAverage": "Keskimääräinen {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Valmis offline-tilassa",
     "startingLocalRecognizer": "Käynnistetään paikallista tunnistusta…",
     "removeModel": "Poista malli",
+    "localCaptionsComingSoon": "Tulossa pian",
+    "localCaptionsComingSoonDetail": "Paikalliset livetekstitykset palaavat ilman puolivälissä tapahtuvaa mallin latausta. Edistyneet mallit voivat siirtyä asetuksiin myöhemmin.",
     "retryLocalCaptions": "Yritä uudelleen paikallisia tekstityksiä",
     "blockingAds": "Mainosten estäminen",
     "adBlockActive": "Mainosblokki aktiivinen",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Play-istunnon tunnus",
     "servingId": "Käyttötunnus",
     "liveStreamAlt": "{{channel}} suoratoisto",
-    "localCaptionsComingSoon": "Tulossa pian",
-    "localCaptionsComingSoonDetail": "Paikalliset livetekstitykset palaavat ilman puolivälissä tapahtuvaa mallin latausta. Edistyneet mallit voivat siirtyä asetuksiin myöhemmin.",
     "watch": {
       "hideControls": "Piilota soittimen säätimet",
       "showControls": "Näytä soittimen säätimet",
@@ -2294,6 +2298,7 @@
     "settings": "Asetukset",
     "personalizeYourStreamfusionExperience": "Mukauta StreamFusion-kokemustasi",
     "searchSettings": "Hakuasetukset",
+    "hubSearchPlaceholder": "Haun ulkoasu, chat, ennusteet, integraatiot…",
     "clearSearch": "Tyhjennä haku",
     "settingsNavigation": "Asetusten navigointi",
     "valueSettings": "{{value1}}-asetukset",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekuntia",
     "unknown": "tuntematon",
     "failedToDownloadUpdate": "Päivityksen lataaminen epäonnistui",
-    "failedToInstallUpdate": "Päivityksen asentaminen epäonnistui",
-    "hubSearchPlaceholder": "Haun ulkoasu, chat, ennusteet, integraatiot…"
+    "failedToInstallUpdate": "Päivityksen asentaminen epäonnistui"
   },
   "shell": {
     "loadingPage": "Ladataan sivua",

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} ચકાસાયેલ",
     "search": {
       "placeholder": "Twitch અને Kick શોધો",
+      "title": "Twitch + Kick શોધો",
+      "history": "શોધ ઇતિહાસ",
+      "historyHint": "પ્રકાર દીઠ છેલ્લા 10",
+      "submit": "શોધો",
+      "clearField": "સાફ કરો",
       "tabs": {
         "channels": "ચેનલો",
         "categories": "શ્રેણીઓ",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "મનપસંદમાંથી {{channel}} દૂર કરો",
       "live": "લાઈવ",
       "followers_one": "{{formattedCount}} અનુયાયી",
-      "followers_other": "{{formattedCount}} અનુયાયીઓ",
-      "title": "Twitch + Kick શોધો",
-      "history": "શોધ ઇતિહાસ",
-      "historyHint": "પ્રકાર દીઠ છેલ્લા 10",
-      "submit": "શોધો",
-      "clearField": "સાફ કરો"
+      "followers_other": "{{formattedCount}} અનુયાયીઓ"
     },
     "category": {
       "backToCategories": "શ્રેણીઓ પર પાછા જાઓ",
@@ -1075,6 +1075,7 @@
       "filterBy": "આના દ્વારા ફિલ્ટર કરો:",
       "sortBy": "દ્વારા સૉર્ટ કરો:",
       "searchPlaceholder": "શોધ અતિથિ અનુસરે છે",
+      "manageTitle": "ગેસ્ટ ફોલો મેનેજ કરો",
       "retry": "ફરી પ્રયાસ કરો",
       "browseChannels": "ચેનલો બ્રાઉઝ કરો",
       "checkConnection": "તમારું કનેક્શન તપાસો અને ફરી પ્રયાસ કરો.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "તમારું Twitch અનુસરણ અપરિવર્તિત છે. ફરી પ્રયાસ કરો.",
       "updateFailed": "ફોલો અપડેટ કરી શકાયું નથી",
       "restored": "તમારી ફોલો લિસ્ટ પુનઃસ્થાપિત કરવામાં આવી હતી. {{channel}} ફરી પ્રયાસ કરો.",
-      "manageTitle": "ગેસ્ટ ફોલો મેનેજ કરો",
       "liveOnly": "ફક્ત જીવો",
       "filtersA11y": "નીચેના ફિલ્ટર્સ",
       "contentA11y": "નીચેની સામગ્રી",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "સૂચિમાંથી {{title}} ને દૂર કરો",
     "transferSpeed": "{{value}}/સે",
     "transferOf": "{{total}} માંથી {{transferred}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "ડાઉનલોડ દર",
+    "downloadWriteRateLabel": "દર લખો",
+    "downloadRateStalled": "સ્થગિત",
+    "downloadRateAverage": "સરેરાશ {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "ઑફલાઇન તૈયાર",
     "startingLocalRecognizer": "સ્થાનિક ઓળખકર્તા શરૂ કરી રહ્યાં છીએ...",
     "removeModel": "મોડેલ દૂર કરો",
+    "localCaptionsComingSoon": "ટૂંક સમયમાં આવી રહ્યું છે",
+    "localCaptionsComingSoonDetail": "સ્થાનિક લાઇવ કૅપ્શન્સ મિડ-સ્ટ્રીમ મૉડલ ડાઉનલોડ વિના પરત આવશે. અદ્યતન મોડલ પછીથી સેટિંગ્સમાં જઈ શકે છે.",
     "retryLocalCaptions": "સ્થાનિક કૅપ્શનનો ફરી પ્રયાસ કરો",
     "blockingAds": "જાહેરાતોને અવરોધિત કરવી",
     "adBlockActive": "એડ-બ્લોક સક્રિય",
@@ -2044,8 +2050,6 @@
     "playSessionId": "સત્ર ID ચલાવો",
     "servingId": "સેવા આપતા ID",
     "liveStreamAlt": "{{channel}} લાઇવ સ્ટ્રીમ",
-    "localCaptionsComingSoon": "ટૂંક સમયમાં આવી રહ્યું છે",
-    "localCaptionsComingSoonDetail": "સ્થાનિક લાઇવ કૅપ્શન્સ મિડ-સ્ટ્રીમ મૉડલ ડાઉનલોડ વિના પરત આવશે. અદ્યતન મોડલ પછીથી સેટિંગ્સમાં જઈ શકે છે.",
     "watch": {
       "hideControls": "પ્લેયર નિયંત્રણો છુપાવો",
       "showControls": "પ્લેયર નિયંત્રણો બતાવો",
@@ -2294,6 +2298,7 @@
     "settings": "સેટિંગ્સ",
     "personalizeYourStreamfusionExperience": "તમારા StreamFusion અનુભવને વ્યક્તિગત કરો",
     "searchSettings": "શોધ સેટિંગ્સ",
+    "hubSearchPlaceholder": "દેખાવ, ચેટ, અનુમાનો, સંકલન શોધો...",
     "clearSearch": "શોધ સાફ કરો",
     "settingsNavigation": "સેટિંગ્સ નેવિગેશન",
     "valueSettings": "{{value1}} સેટિંગ્સ",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} સેકન્ડ",
     "unknown": "અજ્ઞાત",
     "failedToDownloadUpdate": "અપડેટ ડાઉનલોડ કરવામાં નિષ્ફળ",
-    "failedToInstallUpdate": "અપડેટ ઇન્સ્ટોલ કરવામાં નિષ્ફળ",
-    "hubSearchPlaceholder": "દેખાવ, ચેટ, અનુમાનો, સંકલન શોધો..."
+    "failedToInstallUpdate": "અપડેટ ઇન્સ્ટોલ કરવામાં નિષ્ફળ"
   },
   "shell": {
     "loadingPage": "પૃષ્ઠ લોડ કરી રહ્યું છે",

@@ -29,6 +29,7 @@ export interface DownloadQueueService {
         | "retryable"
         | "statusMessage"
         | "nextRetryAt"
+        | "byteSource"
       >
     >,
     at?: string

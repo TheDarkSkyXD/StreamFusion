@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} ధృవీకరించబడింది",
     "search": {
       "placeholder": "Twitch మరియు Kick శోధించండి",
+      "title": "శోధన Twitch + Kick",
+      "history": "శోధన చరిత్ర",
+      "historyHint": "రకానికి చివరి 10",
+      "submit": "శోధించండి",
+      "clearField": "క్లియర్",
       "tabs": {
         "channels": "ఛానెల్‌లు",
         "categories": "వర్గాలు",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "ఇష్టమైన వాటి నుండి {{channel}}ని తీసివేయండి",
       "live": "ప్రత్యక్ష ప్రసారం",
       "followers_one": "{{formattedCount}} అనుచరుడు",
-      "followers_other": "{{formattedCount}} అనుచరులు",
-      "title": "శోధన Twitch + Kick",
-      "history": "శోధన చరిత్ర",
-      "historyHint": "రకానికి చివరి 10",
-      "submit": "శోధించండి",
-      "clearField": "క్లియర్"
+      "followers_other": "{{formattedCount}} అనుచరులు"
     },
     "category": {
       "backToCategories": "తిరిగి వర్గాలకు",
@@ -1075,6 +1075,7 @@
       "filterBy": "దీని ద్వారా ఫిల్టర్ చేయండి:",
       "sortBy": "దీని ద్వారా క్రమబద్ధీకరించు:",
       "searchPlaceholder": "శోధన అతిథి అనుసరిస్తుంది",
+      "manageTitle": "అతిథి అనుసరణలను నిర్వహించండి",
       "retry": "మళ్లీ ప్రయత్నించండి",
       "browseChannels": "ఛానెల్‌లను బ్రౌజ్ చేయండి",
       "checkConnection": "మీ కనెక్షన్‌ని తనిఖీ చేసి, మళ్లీ ప్రయత్నించండి.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "మీ Twitch అనుసరణ మారలేదు. మళ్లీ ప్రయత్నించండి.",
       "updateFailed": "అనుసరించడాన్ని అప్‌డేట్ చేయడం సాధ్యపడలేదు",
       "restored": "మీ ఫాలో జాబితా పునరుద్ధరించబడింది. {{channel}}ని మళ్లీ ప్రయత్నించండి.",
-      "manageTitle": "అతిథి అనుసరణలను నిర్వహించండి",
       "liveOnly": "జీవించు మాత్రమే",
       "filtersA11y": "కింది ఫిల్టర్‌లు",
       "contentA11y": "కంటెంట్‌ని అనుసరిస్తోంది",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "జాబితా నుండి {{title}}ని తీసివేయండి",
     "transferSpeed": "{{value}}/సె",
     "transferOf": "{{total}}లో {{transferred}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "డౌన్‌లోడ్ రేటు",
+    "downloadWriteRateLabel": "రేటు వ్రాయండి",
+    "downloadRateStalled": "నిలిచిపోయింది",
+    "downloadRateAverage": "సగటు {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "ఆఫ్‌లైన్‌లో సిద్ధంగా ఉంది",
     "startingLocalRecognizer": "స్థానిక గుర్తింపును ప్రారంభిస్తోంది…",
     "removeModel": "మోడల్‌ను తీసివేయండి",
+    "localCaptionsComingSoon": "త్వరలో వస్తుంది",
+    "localCaptionsComingSoonDetail": "మిడ్-స్ట్రీమ్ మోడల్ డౌన్‌లోడ్ లేకుండానే స్థానిక ప్రత్యక్ష శీర్షికలు తిరిగి వస్తాయి. అధునాతన మోడల్‌లు తర్వాత సెట్టింగ్‌లకు మారవచ్చు.",
     "retryLocalCaptions": "స్థానిక శీర్షికలను మళ్లీ ప్రయత్నించండి",
     "blockingAds": "ప్రకటనలను నిరోధించడం",
     "adBlockActive": "యాడ్-బ్లాక్ సక్రియంగా ఉంది",
@@ -2044,8 +2050,6 @@
     "playSessionId": "సెషన్ IDని ప్లే చేయండి",
     "servingId": "ID అందిస్తోంది",
     "liveStreamAlt": "{{channel}} ప్రత్యక్ష ప్రసారం",
-    "localCaptionsComingSoon": "త్వరలో వస్తుంది",
-    "localCaptionsComingSoonDetail": "మిడ్-స్ట్రీమ్ మోడల్ డౌన్‌లోడ్ లేకుండానే స్థానిక ప్రత్యక్ష శీర్షికలు తిరిగి వస్తాయి. అధునాతన మోడల్‌లు తర్వాత సెట్టింగ్‌లకు మారవచ్చు.",
     "watch": {
       "hideControls": "ప్లేయర్ నియంత్రణలను దాచండి",
       "showControls": "ప్లేయర్ నియంత్రణలను చూపించు",
@@ -2294,6 +2298,7 @@
     "settings": "సెట్టింగ్‌లు",
     "personalizeYourStreamfusionExperience": "మీ StreamFusion అనుభవాన్ని వ్యక్తిగతీకరించండి",
     "searchSettings": "శోధన సెట్టింగ్‌లు",
+    "hubSearchPlaceholder": "శోధన ప్రదర్శన, చాట్, అంచనాలు, ఇంటిగ్రేషన్లు...",
     "clearSearch": "శోధనను క్లియర్ చేయండి",
     "settingsNavigation": "సెట్టింగ్‌ల నావిగేషన్",
     "valueSettings": "{{value1}} సెట్టింగ్‌లు",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} సెకన్లు",
     "unknown": "తెలియని",
     "failedToDownloadUpdate": "నవీకరణను డౌన్‌లోడ్ చేయడంలో విఫలమైంది",
-    "failedToInstallUpdate": "నవీకరణను ఇన్‌స్టాల్ చేయడంలో విఫలమైంది",
-    "hubSearchPlaceholder": "శోధన ప్రదర్శన, చాట్, అంచనాలు, ఇంటిగ్రేషన్లు..."
+    "failedToInstallUpdate": "నవీకరణను ఇన్‌స్టాల్ చేయడంలో విఫలమైంది"
   },
   "shell": {
     "loadingPage": "పేజీ లోడ్ అవుతోంది",

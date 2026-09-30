@@ -1,6 +1,8 @@
-import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getDownloadController } from "@/features/media-library/composition/download-controller";
+import { useSharedThroughputDomain } from "@/features/media-library/components/hooks/use-shared-throughput-domain";
+import { useDownloadThroughputStore } from "@/features/media-library/components/state/download-throughput-store";
 import type { TFunction } from "i18next";
 import type { IconType } from "react-icons";
 import {
@@ -29,7 +31,9 @@ import { Progress } from "@/components/ui/progress";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
-import type { DownloadJob, DownloadQueueSnapshot } from "@shared/download-types";
+import type { DownloadJob } from "@shared/download-types";
+
+import { DownloadThroughputMeter } from "./DownloadThroughputMeter";
 
 type DownloadStatusLabelKey =
   | "mediaLibrary.downloadStatusQueued"
@@ -95,17 +99,24 @@ const DOWNLOAD_SECTIONS: readonly DownloadSectionDefinition[] = [
   },
 ];
 
+const STATUS_TEXT_CLASSES = {
+  queued: "text-[var(--color-foreground-secondary)]",
+  downloading: "text-[var(--color-primary)]",
+  paused: "text-amber-300",
+  waiting: "text-amber-300",
+  failed: "text-red-300",
+  completed: "text-emerald-300",
+  cancelled: "text-[var(--color-foreground-muted)]",
+} as const satisfies Record<DownloadJob["status"], string>;
+
 const STATUS_CHIP_CLASSES: Record<DownloadJob["status"], string> = {
-  queued:
-    "border-[var(--color-border)] bg-[var(--color-background-tertiary)] text-[var(--color-foreground-secondary)]",
-  downloading:
-    "border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 text-[var(--color-primary)]",
-  paused: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  waiting: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  failed: "border-red-400/30 bg-red-400/10 text-red-300",
-  completed: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-  cancelled:
-    "border-[var(--color-border)] bg-[var(--color-background-tertiary)] text-[var(--color-foreground-muted)]",
+  queued: `border-[var(--color-border)] bg-[var(--color-background-tertiary)] ${STATUS_TEXT_CLASSES.queued}`,
+  downloading: `border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 ${STATUS_TEXT_CLASSES.downloading}`,
+  paused: `border-amber-400/30 bg-amber-400/10 ${STATUS_TEXT_CLASSES.paused}`,
+  waiting: `border-amber-400/30 bg-amber-400/10 ${STATUS_TEXT_CLASSES.waiting}`,
+  failed: `border-red-400/30 bg-red-400/10 ${STATUS_TEXT_CLASSES.failed}`,
+  completed: `border-emerald-400/30 bg-emerald-400/10 ${STATUS_TEXT_CLASSES.completed}`,
+  cancelled: `border-[var(--color-border)] bg-[var(--color-background-tertiary)] ${STATUS_TEXT_CLASSES.cancelled}`,
 };
 
 type ImmediateDownloadAction = "openFile" | "showInFolder" | "remove";
@@ -161,7 +172,7 @@ let downloadsPrewarmRequest: Promise<void> | undefined;
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
 
-  const units = ["KB", "MB", "GB", "TB"];
+  const units = ["KiB", "MiB", "GiB", "TiB"];
   let value = bytes / 1024;
   let unitIndex = 0;
   while (value >= 1024 && unitIndex < units.length - 1) {
@@ -217,11 +228,13 @@ export function _resetDownloadsPrewarmForTests(): void {
 
 function DownloadRow({
   job,
+  sharedMaximum,
   onCancel,
   onAction,
   onRequestDelete,
 }: {
   job: DownloadJob;
+  sharedMaximum: number;
   onCancel: (job: DownloadJob) => void;
   onAction: (action: ImmediateDownloadAction, job: DownloadJob) => void;
   onRequestDelete: (job: DownloadJob, opener: HTMLButtonElement) => void;
@@ -278,8 +291,17 @@ function DownloadRow({
           <span className="min-w-0 truncate">
             {job.error ?? job.statusMessage ?? formatTransfer(job, t)}
           </span>
-          <span className="shrink-0 tabular-nums">
-            {progress === undefined ? t(STATUS_LABEL_KEYS[job.status]) : Math.round(progress) + "%"}
+          <span className="ml-auto flex shrink-0 items-center gap-3">
+            <DownloadThroughputMeter
+              job={job}
+              sharedMaximum={sharedMaximum}
+              statusTextClassName={STATUS_TEXT_CLASSES[job.status]}
+            />
+            <span className="shrink-0 tabular-nums">
+              {progress === undefined
+                ? t(STATUS_LABEL_KEYS[job.status])
+                : Math.round(progress) + "%"}
+            </span>
           </span>
         </div>
         {(job.error || job.statusMessage) && job.progress.transferredBytes > 0 ? (
@@ -466,76 +488,49 @@ function DeleteFromDiskDialog({
 
 export function DownloadsPage() {
   const { t } = useTranslation();
-  const [queue, setQueue] = useState<DownloadQueueSnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const queue = useDownloadThroughputStore((state) => state.queue);
+  const loadError = useDownloadThroughputStore((state) => state.loadError);
+  const seriesByJobId = useDownloadThroughputStore((state) => state.seriesByJobId);
+  const subscribeQueue = useDownloadThroughputStore((state) => state.subscribe);
+  const resetThroughput = useDownloadThroughputStore((state) => state.reset);
+  const reloadQueue = useDownloadThroughputStore((state) => state.reload);
   const [deleteDialog, setDeleteDialog] = useState<DeleteFileDialogState>({ phase: "closed" });
   const isMounted = useRef(false);
-  const queuePushVersion = useRef(0);
   const deleteDialogRef = useRef<DeleteFileDialogState>({ phase: "closed" });
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const error =
+    loadError === "unavailable"
+      ? t("mediaLibrary.downloadsUnavailable")
+      : loadError === "failed"
+        ? t("mediaLibrary.couldNotLoadDownloads")
+        : null;
 
   const updateDeleteDialog = (next: DeleteFileDialogState) => {
     deleteDialogRef.current = next;
     setDeleteDialog(next);
   };
 
-  const loadQueue = useCallback(async () => {
-    const api = getDownloadController();
-    if (!api) {
-      if (isMounted.current) setError(t("mediaLibrary.downloadsUnavailable"));
-      return;
-    }
-
-    const versionAtStart = queuePushVersion.current;
-    try {
-      const nextQueue = await api.getQueue();
-      if (isMounted.current && queuePushVersion.current === versionAtStart) {
-        setError(null);
-        setQueue(nextQueue);
-      }
-    } catch {
-      if (isMounted.current && queuePushVersion.current === versionAtStart) {
-        setError(t("mediaLibrary.couldNotLoadDownloads"));
-      }
-    }
-  }, [t]);
-
   useEffect(() => {
     isMounted.current = true;
-    const api = getDownloadController();
-    if (!api) {
-      setError(t("mediaLibrary.downloadsUnavailable"));
-      return () => {
-        isMounted.current = false;
-      };
-    }
-
-    const unsubscribe = api.onQueueChanged((nextQueue) => {
-      queuePushVersion.current += 1;
-      if (isMounted.current) {
-        setError(null);
-        setQueue(nextQueue);
-      }
-    });
-    void loadQueue();
-
     return () => {
       isMounted.current = false;
-      unsubscribe();
     };
-  }, [loadQueue, t]);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeQueue();
+    return () => {
+      unsubscribe();
+      resetThroughput();
+    };
+  }, [resetThroughput, subscribeQueue]);
 
   useEffect(() => {
     if (deleteDialog.phase === "closed" && deleteTriggerRef.current?.isConnected) {
       deleteTriggerRef.current.focus();
     }
   }, [deleteDialog.phase]);
-
-  const retryLoad = () => {
-    setError(null);
-    setQueue(null);
-    void loadQueue();
-  };
 
   const requestFileDeletion = (job: DownloadJob, opener: HTMLButtonElement) => {
     const target = getDeleteFileTarget(job);
@@ -581,6 +576,17 @@ export function DownloadsPage() {
     jobs: queue?.jobs.filter((job) => section.statuses.includes(job.status)) ?? [],
   })).filter((section) => section.jobs.length > 0);
 
+  // Peaks are resolved over the active rows only: a finished row would peg the scale for the rest
+  // of the session, and max-of-current would rescale the page on every spike.
+  const activePeaks = useMemo(
+    () =>
+      (queue?.jobs ?? [])
+        .filter((job) => job.status === "downloading" || job.status === "queued")
+        .map((job) => seriesByJobId[job.id]?.peakBytesPerSecond ?? 0),
+    [queue, seriesByJobId]
+  );
+  const sharedMaximum = useSharedThroughputDomain(activePeaks);
+
   return (
     <div className="mx-auto h-full max-w-6xl space-y-8 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex items-center gap-4 border-b border-[var(--color-border)] pb-6">
@@ -609,7 +615,7 @@ export function DownloadsPage() {
               <p className="mt-1 text-sm text-[var(--color-foreground-secondary)]">{error}</p>
             </div>
           </div>
-          <Button className="min-h-10" variant="outline" onClick={retryLoad}>
+          <Button className="min-h-10" variant="outline" onClick={reloadQueue}>
             {t("mediaLibrary.retry")}
           </Button>
         </div>
@@ -673,6 +679,7 @@ export function DownloadsPage() {
                   <DownloadRow
                     key={job.id}
                     job={job}
+                    sharedMaximum={sharedMaximum}
                     onCancel={cancelDownload}
                     onAction={runDownloadAction}
                     onRequestDelete={requestFileDeletion}

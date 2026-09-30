@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} kinnitatud",
     "search": {
       "placeholder": "Otsi Twitch ja Kick",
+      "title": "Otsing Twitch + Kick",
+      "history": "Otsinguajalugu",
+      "historyHint": "Viimased 10 tüübi kohta",
+      "submit": "Otsi",
+      "clearField": "Selge",
       "tabs": {
         "channels": "Kanalid",
         "categories": "Kategooriad",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Eemalda {{channel}} lemmikutest",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} jälgija",
-      "followers_other": "{{formattedCount}} jälgijat",
-      "title": "Otsing Twitch + Kick",
-      "history": "Otsinguajalugu",
-      "historyHint": "Viimased 10 tüübi kohta",
-      "submit": "Otsi",
-      "clearField": "Selge"
+      "followers_other": "{{formattedCount}} jälgijat"
     },
     "category": {
       "backToCategories": "Tagasi kategooriate juurde",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtreeri:",
       "sortBy": "Sorteeri:",
       "searchPlaceholder": "Otsi Külaline jälgib",
+      "manageTitle": "Külaliste jälgimiste haldamine",
       "retry": "Proovi uuesti",
       "browseChannels": "Sirvige kanaleid",
       "checkConnection": "Kontrollige ühendust ja proovige uuesti.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Teie Twitch jälgimine on muutumatu. Proovi uuesti.",
       "updateFailed": "Jälgimist ei saanud värskendada",
       "restored": "Teie jälgimisloend taastati. Proovige {{channel}} uuesti.",
-      "manageTitle": "Külaliste jälgimiste haldamine",
       "liveOnly": "Ainult elada",
       "filtersA11y": "Järgnevad filtrid",
       "contentA11y": "Sisu jälgimine",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Eemalda {{title}} loendist",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}}/{{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Allalaadimise kiirus",
+    "downloadWriteRateLabel": "Kirjutamismäär",
+    "downloadRateStalled": "Seiskunud",
+    "downloadRateAverage": "Keskmine {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Võrguühenduseta valmis",
     "startingLocalRecognizer": "Kohaliku tuvastaja käivitamine…",
     "removeModel": "Eemalda mudel",
+    "localCaptionsComingSoon": "Varsti tulemas",
+    "localCaptionsComingSoonDetail": "Kohalikud reaalajas subtiitrid naasevad ilma mudeli allalaadimiseta. Täiustatud mudelid võivad hiljem liikuda menüüsse Seaded.",
     "retryLocalCaptions": "Proovige uuesti kohalikke subtiitreid",
     "blockingAds": "Reklaamide blokeerimine",
     "adBlockActive": "Reklaamiplokk aktiivne",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Play seansi ID",
     "servingId": "Esitamise ID",
     "liveStreamAlt": "{{channel}} otseülekanne",
-    "localCaptionsComingSoon": "Varsti tulemas",
-    "localCaptionsComingSoonDetail": "Kohalikud reaalajas subtiitrid naasevad ilma mudeli allalaadimiseta. Täiustatud mudelid võivad hiljem liikuda menüüsse Seaded.",
     "watch": {
       "hideControls": "Peida mängija juhtnupud",
       "showControls": "Näita mängija juhtnuppe",
@@ -2294,6 +2298,7 @@
     "settings": "Seaded",
     "personalizeYourStreamfusionExperience": "Isikupärastage oma StreamFusion kogemust",
     "searchSettings": "Otsinguseaded",
+    "hubSearchPlaceholder": "Otsingu välimus, vestlus, ennustused, integratsioonid…",
     "clearSearch": "Tühjenda otsing",
     "settingsNavigation": "Seadete navigeerimine",
     "valueSettings": "{{value1}} seaded",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekundit",
     "unknown": "teadmata",
     "failedToDownloadUpdate": "Värskenduse allalaadimine ebaõnnestus",
-    "failedToInstallUpdate": "Värskenduse installimine ebaõnnestus",
-    "hubSearchPlaceholder": "Otsingu välimus, vestlus, ennustused, integratsioonid…"
+    "failedToInstallUpdate": "Värskenduse installimine ebaõnnestus"
   },
   "shell": {
     "loadingPage": "Lehe laadimine",

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} na-verify",
     "search": {
       "placeholder": "Hanapin ang Twitch at Kick",
+      "title": "Maghanap Twitch + Kick",
+      "history": "Kasaysayan ng paghahanap",
+      "historyHint": "Huling 10 bawat uri",
+      "submit": "Maghanap",
+      "clearField": "Maaliwalas",
       "tabs": {
         "channels": "Mga channel",
         "categories": "Mga kategorya",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Alisin ang {{channel}} sa mga paborito",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} tagasunod",
-      "followers_other": "{{formattedCount}} mga tagasunod",
-      "title": "Maghanap Twitch + Kick",
-      "history": "Kasaysayan ng paghahanap",
-      "historyHint": "Huling 10 bawat uri",
-      "submit": "Maghanap",
-      "clearField": "Maaliwalas"
+      "followers_other": "{{formattedCount}} mga tagasunod"
     },
     "category": {
       "backToCategories": "Bumalik sa Mga Kategorya",
@@ -1075,6 +1075,7 @@
       "filterBy": "I-filter ayon sa:",
       "sortBy": "Pagbukud-bukurin ayon sa:",
       "searchPlaceholder": "Maghanap ng Sinusubaybayan ng Panauhin",
+      "manageTitle": "Pamahalaan ang Pagsubaybay ng Bisita",
       "retry": "Subukan muli",
       "browseChannels": "Mag-browse ng Mga Channel",
       "checkConnection": "Suriin ang iyong koneksyon at subukang muli.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Ang iyong Twitch follow ay hindi nagbabago. Subukan muli.",
       "updateFailed": "Hindi ma-update ang follow",
       "restored": "Na-restore ang iyong follow list. Subukang muli ang {{channel}}.",
-      "manageTitle": "Pamahalaan ang Pagsubaybay ng Bisita",
       "liveOnly": "Mabuhay lamang",
       "filtersA11y": "Mga sumusunod na filter",
       "contentA11y": "Sumusunod na nilalaman",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Alisin ang {{title}} sa listahan",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} ng {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Rate ng pag-download",
+    "downloadWriteRateLabel": "Isulat ang rate",
+    "downloadRateStalled": "Natigilan",
+    "downloadRateAverage": "Karaniwang {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Handa nang offline",
     "startingLocalRecognizer": "Sinisimulan ang lokal na pagkilala...",
     "removeModel": "Alisin ang modelo",
+    "localCaptionsComingSoon": "Malapit na",
+    "localCaptionsComingSoonDetail": "Magbabalik ang mga lokal na live na caption nang walang mid-stream na pag-download ng modelo. Ang mga advanced na modelo ay maaaring lumipat sa Mga Setting sa ibang pagkakataon.",
     "retryLocalCaptions": "Subukan muli ang mga lokal na caption",
     "blockingAds": "Pag-block ng mga ad",
     "adBlockActive": "Aktibo ang ad-block",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID ng session ng pag-play",
     "servingId": "Serving ID",
     "liveStreamAlt": "{{channel}} live stream",
-    "localCaptionsComingSoon": "Malapit na",
-    "localCaptionsComingSoonDetail": "Magbabalik ang mga lokal na live na caption nang walang mid-stream na pag-download ng modelo. Ang mga advanced na modelo ay maaaring lumipat sa Mga Setting sa ibang pagkakataon.",
     "watch": {
       "hideControls": "Itago ang mga kontrol ng player",
       "showControls": "Ipakita ang mga kontrol ng player",
@@ -2294,6 +2298,7 @@
     "settings": "Mga setting",
     "personalizeYourStreamfusionExperience": "I-personalize ang iyong karanasan sa StreamFusion.",
     "searchSettings": "Mga setting ng paghahanap",
+    "hubSearchPlaceholder": "Paghahanap sa hitsura, chat, hula, pagsasama...",
     "clearSearch": "I-clear ang paghahanap",
     "settingsNavigation": "Pag-navigate sa mga setting",
     "valueSettings": "{{value1}} mga setting",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} (na) segundo",
     "unknown": "hindi kilala",
     "failedToDownloadUpdate": "Nabigong i-download ang update",
-    "failedToInstallUpdate": "Nabigong i-install ang update",
-    "hubSearchPlaceholder": "Paghahanap sa hitsura, chat, hula, pagsasama..."
+    "failedToInstallUpdate": "Nabigong i-install ang update"
   },
   "shell": {
     "loadingPage": "Naglo-load ng page",

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} تصدیق شدہ",
     "search": {
       "placeholder": "تلاش کریں Twitch اور Kick",
+      "title": "تلاش کریں Twitch + Kick",
+      "history": "تلاش کی تاریخ",
+      "historyHint": "آخری 10 فی قسم",
+      "submit": "تلاش کریں۔",
+      "clearField": "صاف",
       "tabs": {
         "channels": "چینلز",
         "categories": "زمرہ جات",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "{{channel}} کو پسندیدہ سے ہٹا دیں۔",
       "live": "لائیو",
       "followers_one": "{{formattedCount}} پیروکار",
-      "followers_other": "{{formattedCount}} پیروکار",
-      "title": "تلاش کریں Twitch + Kick",
-      "history": "تلاش کی تاریخ",
-      "historyHint": "آخری 10 فی قسم",
-      "submit": "تلاش کریں۔",
-      "clearField": "صاف"
+      "followers_other": "{{formattedCount}} پیروکار"
     },
     "category": {
       "backToCategories": "زمرہ جات پر واپس جائیں۔",
@@ -1075,6 +1075,7 @@
       "filterBy": "فلٹر بذریعہ:",
       "sortBy": "ترتیب دیں:",
       "searchPlaceholder": "مہمان کی پیروی کی تلاش کریں۔",
+      "manageTitle": "مہمانوں کی پیروی کا نظم کریں۔",
       "retry": "دوبارہ کوشش کریں۔",
       "browseChannels": "چینلز کو براؤز کریں۔",
       "checkConnection": "اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "آپ کی Twitch پیروی میں کوئی تبدیلی نہیں ہے۔ دوبارہ کوشش کریں۔",
       "updateFailed": "فالو اپ ڈیٹ نہیں کیا جا سکا",
       "restored": "آپ کی پیروی کی فہرست بحال کر دی گئی۔ {{channel}} کو دوبارہ کوشش کریں۔",
-      "manageTitle": "مہمانوں کی پیروی کا نظم کریں۔",
       "liveOnly": "صرف جیو",
       "filtersA11y": "مندرجہ ذیل فلٹرز",
       "contentA11y": "مندرجہ ذیل مواد",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "فہرست سے {{title}} کو ہٹا دیں۔",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} از {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "ڈاؤن لوڈ کی شرح",
+    "downloadWriteRateLabel": "شرح لکھیں۔",
+    "downloadRateStalled": "تعطل کا شکار",
+    "downloadRateAverage": "اوسط {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "آف لائن تیار ہے۔",
     "startingLocalRecognizer": "مقامی شناخت کنندہ شروع ہو رہا ہے…",
     "removeModel": "ماڈل کو ہٹا دیں۔",
+    "localCaptionsComingSoon": "جلد آرہا ہے۔",
+    "localCaptionsComingSoonDetail": "مقامی لائیو کیپشنز مڈ اسٹریم ماڈل ڈاؤن لوڈ کے بغیر واپس آجائیں گے۔ جدید ماڈلز بعد میں ترتیبات میں جا سکتے ہیں۔",
     "retryLocalCaptions": "مقامی سرخیوں کی دوبارہ کوشش کریں۔",
     "blockingAds": "اشتہارات کو مسدود کرنا",
     "adBlockActive": "اشتہاری بلاک فعال",
@@ -2044,8 +2050,6 @@
     "playSessionId": "پلے سیشن آئی ڈی",
     "servingId": "سرونگ آئی ڈی",
     "liveStreamAlt": "{{channel}} لائیو سلسلہ",
-    "localCaptionsComingSoon": "جلد آرہا ہے۔",
-    "localCaptionsComingSoonDetail": "مقامی لائیو کیپشنز مڈ اسٹریم ماڈل ڈاؤن لوڈ کے بغیر واپس آجائیں گے۔ جدید ماڈلز بعد میں ترتیبات میں جا سکتے ہیں۔",
     "watch": {
       "hideControls": "پلیئر کنٹرولز چھپائیں۔",
       "showControls": "پلیئر کنٹرولز دکھائیں۔",
@@ -2294,6 +2298,7 @@
     "settings": "ترتیبات",
     "personalizeYourStreamfusionExperience": "اپنے StreamFusion کے تجربے کو ذاتی بنائیں",
     "searchSettings": "تلاش کی ترتیبات",
+    "hubSearchPlaceholder": "تلاش کی ظاہری شکل، چیٹ، پیشین گوئیاں، انضمام…",
     "clearSearch": "تلاش صاف کریں۔",
     "settingsNavigation": "ترتیبات نیویگیشن",
     "valueSettings": "{{value1}} ترتیبات",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} سیکنڈ",
     "unknown": "نامعلوم",
     "failedToDownloadUpdate": "اپ ڈیٹ ڈاؤن لوڈ کرنے میں ناکام",
-    "failedToInstallUpdate": "اپ ڈیٹ انسٹال کرنے میں ناکام",
-    "hubSearchPlaceholder": "تلاش کی ظاہری شکل، چیٹ، پیشین گوئیاں، انضمام…"
+    "failedToInstallUpdate": "اپ ڈیٹ انسٹال کرنے میں ناکام"
   },
   "shell": {
     "loadingPage": "صفحہ لوڈ ہو رہا ہے۔",

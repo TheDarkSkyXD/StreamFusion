@@ -1011,6 +1011,11 @@
     "verified": "Overené: {{platform}}",
     "search": {
       "placeholder": "Hľadať Twitch a Kick",
+      "title": "Hľadať Twitch + Kick",
+      "history": "História vyhľadávania",
+      "historyHint": "Posledných 10 na typ",
+      "submit": "Hľadať",
+      "clearField": "Jasné",
       "tabs": {
         "channels": "Kanály",
         "categories": "kategórie",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Odstrániť {{channel}} z obľúbených",
       "live": "NAŽIVO",
       "followers_one": "{{formattedCount}} sledovateľ",
-      "followers_other": "Počet sledovateľov: {{formattedCount}}",
-      "title": "Hľadať Twitch + Kick",
-      "history": "História vyhľadávania",
-      "historyHint": "Posledných 10 na typ",
-      "submit": "Hľadať",
-      "clearField": "Jasné"
+      "followers_other": "Počet sledovateľov: {{formattedCount}}"
     },
     "category": {
       "backToCategories": "Späť na kategórie",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrovať podľa:",
       "sortBy": "Zoradiť podľa:",
       "searchPlaceholder": "Hľadať sledovanie hostí",
+      "manageTitle": "Spravovať sledovanie hostí",
       "retry": "Skúste to znova",
       "browseChannels": "Prehľadávať kanály",
       "checkConnection": "Skontrolujte pripojenie a skúste to znova.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Vaše sledovanie (Twitch) je nezmenené. Skúste to znova.",
       "updateFailed": "Sledovanie sa nepodarilo aktualizovať",
       "restored": "Váš zoznam sledovania bol obnovený. Skúste znova {{channel}}.",
-      "manageTitle": "Spravovať sledovanie hostí",
       "liveOnly": "Len naživo",
       "filtersA11y": "Nasledujúce filtre",
       "contentA11y": "Nasledujúci obsah",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Odstrániť {{title}} zo zoznamu",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} z {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Rýchlosť sťahovania",
+    "downloadWriteRateLabel": "Sadzba zápisu",
+    "downloadRateStalled": "Zastavená",
+    "downloadRateAverage": "Priemer {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Pripravené offline",
     "startingLocalRecognizer": "Spúšťa sa miestny rozpoznávač…",
     "removeModel": "Odstráňte model",
+    "localCaptionsComingSoon": "Už čoskoro",
+    "localCaptionsComingSoonDetail": "Miestne živé titulky sa vrátia bez stiahnutia modelu uprostred prúdu. Pokročilé modely sa môžu neskôr presunúť do Nastavenia.",
     "retryLocalCaptions": "Skúste znova miestne titulky",
     "blockingAds": "Blokovanie reklám",
     "adBlockActive": "Blokovanie reklám je aktívne",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Prehrať ID relácie",
     "servingId": "ID zobrazovania",
     "liveStreamAlt": "{{channel}} živé vysielanie",
-    "localCaptionsComingSoon": "Už čoskoro",
-    "localCaptionsComingSoonDetail": "Miestne živé titulky sa vrátia bez stiahnutia modelu uprostred prúdu. Pokročilé modely sa môžu neskôr presunúť do Nastavenia.",
     "watch": {
       "hideControls": "Skryť ovládacie prvky prehrávača",
       "showControls": "Zobraziť ovládacie prvky prehrávača",
@@ -2294,6 +2298,7 @@
     "settings": "Nastavenia",
     "personalizeYourStreamfusionExperience": "Prispôsobte si svoje prostredie StreamFusion",
     "searchSettings": "Nastavenia vyhľadávania",
+    "hubSearchPlaceholder": "Vzhľad vyhľadávania, čet, predpovede, integrácie…",
     "clearSearch": "Vymazať vyhľadávanie",
     "settingsNavigation": "Navigácia v nastaveniach",
     "valueSettings": "{{value1}} nastavenia",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekúnd",
     "unknown": "neznámy",
     "failedToDownloadUpdate": "Stiahnutie aktualizácie zlyhalo",
-    "failedToInstallUpdate": "Aktualizáciu sa nepodarilo nainštalovať",
-    "hubSearchPlaceholder": "Vzhľad vyhľadávania, čet, predpovede, integrácie…"
+    "failedToInstallUpdate": "Aktualizáciu sa nepodarilo nainštalovať"
   },
   "shell": {
     "loadingPage": "Načítava sa stránka",

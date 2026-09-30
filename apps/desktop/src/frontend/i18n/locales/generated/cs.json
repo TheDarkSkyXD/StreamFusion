@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} ověřeno",
     "search": {
       "placeholder": "Hledat Twitch a Kick",
+      "title": "Hledat Twitch + Kick",
+      "history": "Historie vyhledávání",
+      "historyHint": "Posledních 10 od každého typu",
+      "submit": "Hledat",
+      "clearField": "Jasný",
       "tabs": {
         "channels": "Kanály",
         "categories": "Kategorie",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Odebrat {{channel}} z oblíbených",
       "live": "ŽIVĚ",
       "followers_one": "Počet sledujících: {{formattedCount}}",
-      "followers_other": "Počet sledujících: {{formattedCount}}",
-      "title": "Hledat Twitch + Kick",
-      "history": "Historie vyhledávání",
-      "historyHint": "Posledních 10 od každého typu",
-      "submit": "Hledat",
-      "clearField": "Jasný"
+      "followers_other": "Počet sledujících: {{formattedCount}}"
     },
     "category": {
       "backToCategories": "Zpět do kategorií",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrovat podle:",
       "sortBy": "Seřadit podle:",
       "searchPlaceholder": "Hledat sledování hostů",
+      "manageTitle": "Spravovat sledování hostů",
       "retry": "Zkuste to znovu",
       "browseChannels": "Procházet kanály",
       "checkConnection": "Zkontrolujte připojení a zkuste to znovu.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Vaše sledování Twitch se nezměnilo. Zkuste to znovu.",
       "updateFailed": "Sledování se nepodařilo aktualizovat",
       "restored": "Váš seznam sledování byl obnoven. Zkuste {{channel}} znovu.",
-      "manageTitle": "Spravovat sledování hostů",
       "liveOnly": "Pouze žít",
       "filtersA11y": "Následující filtry",
       "contentA11y": "Následující obsah",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Odebrat {{title}} ze seznamu",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} z {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Rychlost stahování",
+    "downloadWriteRateLabel": "Napište sazbu",
+    "downloadRateStalled": "Zastaveno",
+    "downloadRateAverage": "Průměr {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Připraveno offline",
     "startingLocalRecognizer": "Spouštění místního rozpoznávače…",
     "removeModel": "Odebrat model",
+    "localCaptionsComingSoon": "Již brzy",
+    "localCaptionsComingSoonDetail": "Místní živé titulky se vrátí bez stahování modelu uprostřed proudu. Pokročilé modely se mohou později přesunout do Nastavení.",
     "retryLocalCaptions": "Zkuste místní titulky znovu",
     "blockingAds": "Blokování reklam",
     "adBlockActive": "Blokování reklam je aktivní",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Přehrát ID relace",
     "servingId": "ID zobrazování",
     "liveStreamAlt": "Živý přenos {{channel}}",
-    "localCaptionsComingSoon": "Již brzy",
-    "localCaptionsComingSoonDetail": "Místní živé titulky se vrátí bez stahování modelu uprostřed proudu. Pokročilé modely se mohou později přesunout do Nastavení.",
     "watch": {
       "hideControls": "Skrýt ovládací prvky přehrávače",
       "showControls": "Zobrazit ovládací prvky přehrávače",
@@ -2294,6 +2298,7 @@
     "settings": "Nastavení",
     "personalizeYourStreamfusionExperience": "Přizpůsobte si prostředí StreamFusion",
     "searchSettings": "Nastavení vyhledávání",
+    "hubSearchPlaceholder": "Vzhled vyhledávání, chat, předpovědi, integrace…",
     "clearSearch": "Vymazat vyhledávání",
     "settingsNavigation": "Navigace v nastavení",
     "valueSettings": "{{value1}} nastavení",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekund",
     "unknown": "neznámý",
     "failedToDownloadUpdate": "Stažení aktualizace se nezdařilo",
-    "failedToInstallUpdate": "Aktualizaci se nepodařilo nainstalovat",
-    "hubSearchPlaceholder": "Vzhled vyhledávání, chat, předpovědi, integrace…"
+    "failedToInstallUpdate": "Aktualizaci se nepodařilo nainstalovat"
   },
   "shell": {
     "loadingPage": "Načítání stránky",

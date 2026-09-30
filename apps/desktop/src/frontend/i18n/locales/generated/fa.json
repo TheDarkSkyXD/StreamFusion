@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} تأیید شد",
     "search": {
       "placeholder": "جستجوی Twitch و Kick",
+      "title": "جستجوی Twitch + Kick",
+      "history": "تاریخچه جستجو",
+      "historyHint": "آخرین 10 در هر نوع",
+      "submit": "جستجو کنید",
+      "clearField": "پاک کردن",
       "tabs": {
         "channels": "کانال ها",
         "categories": "دسته بندی ها",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "{{channel}} را از موارد دلخواه حذف کنید",
       "live": "زنده",
       "followers_one": "{{formattedCount}} دنبال کننده",
-      "followers_other": "{{formattedCount}} دنبال کننده",
-      "title": "جستجوی Twitch + Kick",
-      "history": "تاریخچه جستجو",
-      "historyHint": "آخرین 10 در هر نوع",
-      "submit": "جستجو کنید",
-      "clearField": "پاک کردن"
+      "followers_other": "{{formattedCount}} دنبال کننده"
     },
     "category": {
       "backToCategories": "بازگشت به دسته ها",
@@ -1075,6 +1075,7 @@
       "filterBy": "فیلتر بر اساس:",
       "sortBy": "مرتب سازی بر اساس:",
       "searchPlaceholder": "جستجوی مهمان دنبال می کند",
+      "manageTitle": "مدیریت فالوهای مهمان",
       "retry": "دوباره امتحان کنید",
       "browseChannels": "کانال ها را مرور کنید",
       "checkConnection": "اتصال خود را بررسی کنید و دوباره امتحان کنید.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "دنبال کردن Twitch شما بدون تغییر است. دوباره امتحان کنید.",
       "updateFailed": "دنبال کردن به‌روزرسانی نشد",
       "restored": "لیست دنبال کردن شما بازیابی شد. دوباره {{channel}} را امتحان کنید.",
-      "manageTitle": "مدیریت فالوهای مهمان",
       "liveOnly": "فقط زندگی کن",
       "filtersA11y": "دنبال کردن فیلترها",
       "contentA11y": "دنبال کردن مطالب",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "{{title}} را از لیست حذف کنید",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} از {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "نرخ دانلود",
+    "downloadWriteRateLabel": "نرخ نوشتن",
+    "downloadRateStalled": "متوقف شده است",
+    "downloadRateAverage": "میانگین {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "آماده آفلاین",
     "startingLocalRecognizer": "شروع شناسایی محلی…",
     "removeModel": "حذف مدل",
+    "localCaptionsComingSoon": "به زودی",
+    "localCaptionsComingSoonDetail": "زیرنویس‌های زنده محلی بدون بارگیری مدل میان جریان بازمی‌گردند. مدل‌های پیشرفته ممکن است بعداً به تنظیمات منتقل شوند.",
     "retryLocalCaptions": "زیرنویس‌های محلی را دوباره امتحان کنید",
     "blockingAds": "مسدود کردن تبلیغات",
     "adBlockActive": "بلوک آگهی فعال است",
@@ -2044,8 +2050,6 @@
     "playSessionId": "شناسه جلسه پخش",
     "servingId": "شناسه خدمت",
     "liveStreamAlt": "{{channel}} جریان مستقیم",
-    "localCaptionsComingSoon": "به زودی",
-    "localCaptionsComingSoonDetail": "زیرنویس‌های زنده محلی بدون بارگیری مدل میان جریان بازمی‌گردند. مدل‌های پیشرفته ممکن است بعداً به تنظیمات منتقل شوند.",
     "watch": {
       "hideControls": "کنترل های پخش کننده را مخفی کنید",
       "showControls": "نمایش کنترل های پخش کننده",
@@ -2294,6 +2298,7 @@
     "settings": "تنظیمات",
     "personalizeYourStreamfusionExperience": "تجربه StreamFusion خود را شخصی کنید",
     "searchSettings": "تنظیمات جستجو",
+    "hubSearchPlaceholder": "جستجوی ظاهر، چت، پیش‌بینی، ادغام…",
     "clearSearch": "جستجو را پاک کنید",
     "settingsNavigation": "ناوبری تنظیمات",
     "valueSettings": "تنظیمات {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} ثانیه",
     "unknown": "ناشناخته",
     "failedToDownloadUpdate": "به روز رسانی دانلود نشد",
-    "failedToInstallUpdate": "به روز رسانی نصب نشد",
-    "hubSearchPlaceholder": "جستجوی ظاهر، چت، پیش‌بینی، ادغام…"
+    "failedToInstallUpdate": "به روز رسانی نصب نشد"
   },
   "shell": {
     "loadingPage": "در حال بارگذاری صفحه",

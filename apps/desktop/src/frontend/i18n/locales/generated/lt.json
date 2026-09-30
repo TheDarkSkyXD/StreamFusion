@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} patvirtinta",
     "search": {
       "placeholder": "Ieškoti Twitch ir Kick",
+      "title": "Ieškoti Twitch + Kick",
+      "history": "Paieškos istorija",
+      "historyHint": "Paskutiniai 10 kiekvieno tipo",
+      "submit": "Ieškoti",
+      "clearField": "Aišku",
       "tabs": {
         "channels": "Kanalai",
         "categories": "Kategorijos",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Pašalinti {{channel}} iš mėgstamiausių",
       "live": "GYVAI",
       "followers_one": "{{formattedCount}} stebėtojas",
-      "followers_other": "{{formattedCount}} sekėjai",
-      "title": "Ieškoti Twitch + Kick",
-      "history": "Paieškos istorija",
-      "historyHint": "Paskutiniai 10 kiekvieno tipo",
-      "submit": "Ieškoti",
-      "clearField": "Aišku"
+      "followers_other": "{{formattedCount}} sekėjai"
     },
     "category": {
       "backToCategories": "Atgal į kategorijas",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtruoti pagal:",
       "sortBy": "Rūšiuoti pagal:",
       "searchPlaceholder": "Ieškoti svečių sekimų",
+      "manageTitle": "Tvarkyti svečių stebėjimus",
       "retry": "Bandykite dar kartą",
       "browseChannels": "Naršyti kanalus",
       "checkConnection": "Patikrinkite ryšį ir bandykite dar kartą.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Jūsų Twitch stebėjimas nepasikeitė. Bandykite dar kartą.",
       "updateFailed": "Nepavyko atnaujinti sekimo",
       "restored": "Jūsų stebėjimo sąrašas buvo atkurtas. Bandykite {{channel}} dar kartą.",
-      "manageTitle": "Tvarkyti svečių stebėjimus",
       "liveOnly": "Tik gyvai",
       "filtersA11y": "Toliau pateikiami filtrai",
       "contentA11y": "Sekant turinį",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Pašalinti {{title}} iš sąrašo",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} iš {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Atsisiuntimo greitis",
+    "downloadWriteRateLabel": "Rašymo norma",
+    "downloadRateStalled": "Sustojo",
+    "downloadRateAverage": "Vidutinis {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Paruošta neprisijungus",
     "startingLocalRecognizer": "Pradedama vietinė atpažinimo priemonė…",
     "removeModel": "Pašalinti modelį",
+    "localCaptionsComingSoon": "Netrukus",
+    "localCaptionsComingSoonDetail": "Vietiniai tiesioginiai subtitrai grįš be vidutinio srauto modelio atsisiuntimo. Išplėstiniai modeliai vėliau gali būti perkelti į nustatymus.",
     "retryLocalCaptions": "Bandykite dar kartą vietinius subtitrus",
     "blockingAds": "Skelbimų blokavimas",
     "adBlockActive": "Aktyvus skelbimų blokas",
@@ -2044,8 +2050,6 @@
     "playSessionId": "„Play“ seanso ID",
     "servingId": "Aptarnavimo ID",
     "liveStreamAlt": "{{channel}} tiesioginis srautas",
-    "localCaptionsComingSoon": "Netrukus",
-    "localCaptionsComingSoonDetail": "Vietiniai tiesioginiai subtitrai grįš be vidutinio srauto modelio atsisiuntimo. Išplėstiniai modeliai vėliau gali būti perkelti į nustatymus.",
     "watch": {
       "hideControls": "Slėpti grotuvo valdiklius",
       "showControls": "Rodyti grotuvo valdiklius",
@@ -2294,6 +2298,7 @@
     "settings": "Nustatymai",
     "personalizeYourStreamfusionExperience": "Suasmeninkite savo StreamFusion patirtį",
     "searchSettings": "Paieškos nustatymai",
+    "hubSearchPlaceholder": "Paieškos išvaizda, pokalbiai, numatymai, integracijos…",
     "clearSearch": "Išvalyti paiešką",
     "settingsNavigation": "Nustatymų navigacija",
     "valueSettings": "{{value1}} nustatymai",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sek",
     "unknown": "nežinomas",
     "failedToDownloadUpdate": "Nepavyko atsisiųsti naujinimo",
-    "failedToInstallUpdate": "Nepavyko įdiegti naujinimo",
-    "hubSearchPlaceholder": "Paieškos išvaizda, pokalbiai, numatymai, integracijos…"
+    "failedToInstallUpdate": "Nepavyko įdiegti naujinimo"
   },
   "shell": {
     "loadingPage": "Įkeliamas puslapis",

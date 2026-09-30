@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} đã xác minh",
     "search": {
       "placeholder": "Tìm kiếm Twitch và Kick",
+      "title": "Tìm kiếm Twitch + Kick",
+      "history": "Lịch sử tìm kiếm",
+      "historyHint": "10 cái cuối cùng mỗi loại",
+      "submit": "Tìm kiếm",
+      "clearField": "Xóa",
       "tabs": {
         "channels": "Kênh",
         "categories": "Danh mục",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Xóa {{channel}} khỏi mục ưa thích",
       "live": "TRỰC TIẾP",
       "followers_one": "{{formattedCount}} người theo dõi",
-      "followers_other": "{{formattedCount}} người theo dõi",
-      "title": "Tìm kiếm Twitch + Kick",
-      "history": "Lịch sử tìm kiếm",
-      "historyHint": "10 cái cuối cùng mỗi loại",
-      "submit": "Tìm kiếm",
-      "clearField": "Xóa"
+      "followers_other": "{{formattedCount}} người theo dõi"
     },
     "category": {
       "backToCategories": "Quay lại danh mục",
@@ -1075,6 +1075,7 @@
       "filterBy": "Lọc theo:",
       "sortBy": "Sắp xếp theo:",
       "searchPlaceholder": "Tìm kiếm lượt theo dõi của khách",
+      "manageTitle": "Quản lý lượt theo dõi của khách",
       "retry": "Thử lại",
       "browseChannels": "Duyệt kênh",
       "checkConnection": "Hãy kiểm tra kết nối của bạn và thử lại.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Twitch lượt theo dõi của bạn không thay đổi. Hãy thử lại.",
       "updateFailed": "Không thể cập nhật theo dõi",
       "restored": "Danh sách theo dõi của bạn đã được khôi phục. Hãy thử lại {{channel}}.",
-      "manageTitle": "Quản lý lượt theo dõi của khách",
       "liveOnly": "Chỉ sống",
       "filtersA11y": "Theo dõi bộ lọc",
       "contentA11y": "Theo dõi nội dung",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Xóa {{title}} khỏi danh sách",
     "transferSpeed": "{{value}}/giây",
     "transferOf": "{{transferred}} trong số {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Tốc độ tải xuống",
+    "downloadWriteRateLabel": "Tốc độ ghi",
+    "downloadRateStalled": "Bị đình trệ",
+    "downloadRateAverage": "Trung bình {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Sẵn sàng ngoại tuyến",
     "startingLocalRecognizer": "Đang khởi động trình nhận dạng cục bộ…",
     "removeModel": "Xóa mô hình",
+    "localCaptionsComingSoon": "Sắp có",
+    "localCaptionsComingSoonDetail": "Phụ đề trực tiếp cục bộ sẽ quay lại mà không cần tải xuống mô hình giữa luồng. Các mẫu nâng cao có thể chuyển sang Cài đặt sau.",
     "retryLocalCaptions": "Thử lại phụ đề địa phương",
     "blockingAds": "Chặn quảng cáo",
     "adBlockActive": "Khối quảng cáo đang hoạt động",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID phiên phát",
     "servingId": "Mã phục vụ",
     "liveStreamAlt": "{{channel}} luồng trực tiếp",
-    "localCaptionsComingSoon": "Sắp có",
-    "localCaptionsComingSoonDetail": "Phụ đề trực tiếp cục bộ sẽ quay lại mà không cần tải xuống mô hình giữa luồng. Các mẫu nâng cao có thể chuyển sang Cài đặt sau.",
     "watch": {
       "hideControls": "Ẩn điều khiển trình phát",
       "showControls": "Hiển thị điều khiển trình phát",
@@ -2294,6 +2298,7 @@
     "settings": "Cài đặt",
     "personalizeYourStreamfusionExperience": "Cá nhân hóa trải nghiệm StreamFusion của bạn",
     "searchSettings": "Cài đặt tìm kiếm",
+    "hubSearchPlaceholder": "Giao diện tìm kiếm, trò chuyện, dự đoán, tích hợp…",
     "clearSearch": "Xóa tìm kiếm",
     "settingsNavigation": "Điều hướng cài đặt",
     "valueSettings": "cài đặt {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} giây",
     "unknown": "không rõ",
     "failedToDownloadUpdate": "Không tải được bản cập nhật xuống",
-    "failedToInstallUpdate": "Không cài đặt được bản cập nhật",
-    "hubSearchPlaceholder": "Giao diện tìm kiếm, trò chuyện, dự đoán, tích hợp…"
+    "failedToInstallUpdate": "Không cài đặt được bản cập nhật"
   },
   "shell": {
     "loadingPage": "Đang tải trang",

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} potvrđeno",
     "search": {
       "placeholder": "Traži Twitch i Kick",
+      "title": "Traži Twitch + Kick",
+      "history": "Povijest pretraživanja",
+      "historyHint": "Zadnjih 10 po vrsti",
+      "submit": "Traži",
+      "clearField": "čisto",
       "tabs": {
         "channels": "Kanali",
         "categories": "kategorije",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Ukloni {{channel}} iz favorita",
       "live": "UŽIVO",
       "followers_one": "{{formattedCount}} sljedbenik",
-      "followers_other": "{{formattedCount}} sljedbenika",
-      "title": "Traži Twitch + Kick",
-      "history": "Povijest pretraživanja",
-      "historyHint": "Zadnjih 10 po vrsti",
-      "submit": "Traži",
-      "clearField": "čisto"
+      "followers_other": "{{formattedCount}} sljedbenika"
     },
     "category": {
       "backToCategories": "Povratak na kategorije",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtriraj prema:",
       "sortBy": "poredaj po:",
       "searchPlaceholder": "Traži Praćenje gostiju",
+      "manageTitle": "Upravljanje praćenjem gostiju",
       "retry": "Pokušaj ponovo",
       "browseChannels": "Pregledajte kanale",
       "checkConnection": "Provjerite vezu i pokušajte ponovno.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Vaše Twitch praćenje je nepromijenjeno. Pokušajte ponovno.",
       "updateFailed": "Nije moguće ažurirati praćenje",
       "restored": "Vaš popis za praćenje je vraćen. Pokušajte ponovno {{channel}}.",
-      "manageTitle": "Upravljanje praćenjem gostiju",
       "liveOnly": "Samo uživo",
       "filtersA11y": "Sljedeći filteri",
       "contentA11y": "Prateći sadržaj",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Ukloni {{title}} s popisa",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} od {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Stopa preuzimanja",
+    "downloadWriteRateLabel": "Stopa pisanja",
+    "downloadRateStalled": "Zaustavljeno",
+    "downloadRateAverage": "Prosječno {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Spremno izvan mreže",
     "startingLocalRecognizer": "Pokretanje lokalnog prepoznavača...",
     "removeModel": "Ukloni model",
+    "localCaptionsComingSoon": "Dolazi uskoro",
+    "localCaptionsComingSoonDetail": "Lokalni titlovi uživo vratit će se bez preuzimanja modela usred streama. Napredni modeli mogu se kasnije premjestiti u Postavke.",
     "retryLocalCaptions": "Pokušajte ponovo s lokalnim titlovima",
     "blockingAds": "Blokiranje oglasa",
     "adBlockActive": "Ad-blok aktivan",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Reproduciraj ID sesije",
     "servingId": "ID posluživanja",
     "liveStreamAlt": "{{channel}} prijenos uživo",
-    "localCaptionsComingSoon": "Dolazi uskoro",
-    "localCaptionsComingSoonDetail": "Lokalni titlovi uživo vratit će se bez preuzimanja modela usred streama. Napredni modeli mogu se kasnije premjestiti u Postavke.",
     "watch": {
       "hideControls": "Sakrij kontrole igrača",
       "showControls": "Prikaži kontrole igrača",
@@ -2294,6 +2298,7 @@
     "settings": "postavke",
     "personalizeYourStreamfusionExperience": "Prilagodite svoje StreamFusion iskustvo",
     "searchSettings": "Postavke pretraživanja",
+    "hubSearchPlaceholder": "Izgled pretraživanja, chat, predviđanja, integracije…",
     "clearSearch": "Očisti pretragu",
     "settingsNavigation": "Navigacija postavkama",
     "valueSettings": "{{value1}} postavke",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekundi",
     "unknown": "nepoznato",
     "failedToDownloadUpdate": "Preuzimanje ažuriranja nije uspjelo",
-    "failedToInstallUpdate": "Instalacija ažuriranja nije uspjela",
-    "hubSearchPlaceholder": "Izgled pretraživanja, chat, predviđanja, integracije…"
+    "failedToInstallUpdate": "Instalacija ažuriranja nije uspjela"
   },
   "shell": {
     "loadingPage": "Učitavanje stranice",

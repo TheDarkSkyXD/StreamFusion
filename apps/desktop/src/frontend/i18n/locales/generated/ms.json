@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} disahkan",
     "search": {
       "placeholder": "Cari Twitch dan Kick",
+      "title": "Cari Twitch + Kick",
+      "history": "Sejarah carian",
+      "historyHint": "10 terakhir setiap jenis",
+      "submit": "Cari",
+      "clearField": "Jelas",
       "tabs": {
         "channels": "Saluran",
         "categories": "Kategori",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Alih keluar {{channel}} daripada kegemaran",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} pengikut",
-      "followers_other": "{{formattedCount}} pengikut",
-      "title": "Cari Twitch + Kick",
-      "history": "Sejarah carian",
-      "historyHint": "10 terakhir setiap jenis",
-      "submit": "Cari",
-      "clearField": "Jelas"
+      "followers_other": "{{formattedCount}} pengikut"
     },
     "category": {
       "backToCategories": "Kembali ke Kategori",
@@ -1075,6 +1075,7 @@
       "filterBy": "Tapis mengikut:",
       "sortBy": "Isih mengikut:",
       "searchPlaceholder": "Cari Ikutan Tetamu",
+      "manageTitle": "Urus Pengikut Tetamu",
       "retry": "Cuba semula",
       "browseChannels": "Semak imbas Saluran",
       "checkConnection": "Semak sambungan anda dan cuba lagi.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Twitch ikutan anda tidak berubah. Cuba lagi.",
       "updateFailed": "Tidak dapat mengemas kini mengikuti",
       "restored": "Senarai ikutan anda telah dipulihkan. Cuba {{channel}} sekali lagi.",
-      "manageTitle": "Urus Pengikut Tetamu",
       "liveOnly": "Hidup sahaja",
       "filtersA11y": "Mengikuti penapis",
       "contentA11y": "Mengikuti kandungan",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Alih keluar {{title}} daripada senarai",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} daripada {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Kadar muat turun",
+    "downloadWriteRateLabel": "Kadar tulis",
+    "downloadRateStalled": "Tergendala",
+    "downloadRateAverage": "Purata {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Sedia di luar talian",
     "startingLocalRecognizer": "Memulakan pengecam tempatan…",
     "removeModel": "Alih keluar model",
+    "localCaptionsComingSoon": "Akan datang",
+    "localCaptionsComingSoonDetail": "Kapsyen langsung tempatan akan kembali tanpa muat turun model pertengahan strim. Model lanjutan boleh beralih ke Tetapan kemudian.",
     "retryLocalCaptions": "Cuba semula kapsyen tempatan",
     "blockingAds": "Menyekat iklan",
     "adBlockActive": "Sekatan iklan aktif",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID Sesi Main",
     "servingId": "ID penyajian",
     "liveStreamAlt": "{{channel}} strim langsung",
-    "localCaptionsComingSoon": "Akan datang",
-    "localCaptionsComingSoonDetail": "Kapsyen langsung tempatan akan kembali tanpa muat turun model pertengahan strim. Model lanjutan boleh beralih ke Tetapan kemudian.",
     "watch": {
       "hideControls": "Sembunyikan kawalan pemain",
       "showControls": "Tunjukkan kawalan pemain",
@@ -2294,6 +2298,7 @@
     "settings": "tetapan",
     "personalizeYourStreamfusionExperience": "Peribadikan pengalaman StreamFusion anda",
     "searchSettings": "Tetapan carian",
+    "hubSearchPlaceholder": "Penampilan carian, sembang, ramalan, penyepaduan…",
     "clearSearch": "Kosongkan carian",
     "settingsNavigation": "Navigasi tetapan",
     "valueSettings": "{{value1}} tetapan",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} saat",
     "unknown": "tidak diketahui",
     "failedToDownloadUpdate": "Gagal memuat turun kemas kini",
-    "failedToInstallUpdate": "Gagal memasang kemas kini",
-    "hubSearchPlaceholder": "Penampilan carian, sembang, ramalan, penyepaduan…"
+    "failedToInstallUpdate": "Gagal memasang kemas kini"
   },
   "shell": {
     "loadingPage": "Memuatkan halaman",

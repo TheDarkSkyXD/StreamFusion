@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} vérifié",
     "search": {
       "placeholder": "Rechercher Twitch et Kick",
+      "title": "Rechercher Twitch + Kick",
+      "history": "Historique de recherche",
+      "historyHint": "10 derniers par type",
+      "submit": "Rechercher",
+      "clearField": "Effacer",
       "tabs": {
         "channels": "Canaux",
         "categories": "Catégories",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Supprimer {{channel}} des favoris",
       "live": "EN DIRECT",
       "followers_one": "{{formattedCount}} abonné",
-      "followers_other": "{{formattedCount}} abonnés",
-      "title": "Rechercher Twitch + Kick",
-      "history": "Historique de recherche",
-      "historyHint": "10 derniers par type",
-      "submit": "Rechercher",
-      "clearField": "Effacer"
+      "followers_other": "{{formattedCount}} abonnés"
     },
     "category": {
       "backToCategories": "Retour aux catégories",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrer par :",
       "sortBy": "Trier par :",
       "searchPlaceholder": "Rechercher des suivis d'invités",
+      "manageTitle": "Gérer les suivis d'invités",
       "retry": "Réessayer",
       "browseChannels": "Parcourir les chaînes",
       "checkConnection": "Vérifiez votre connexion et réessayez.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Votre suivi Twitch reste inchangé. Essayer à nouveau.",
       "updateFailed": "Impossible de mettre à jour le suivi",
       "restored": "Votre liste de suivi a été restaurée. Essayez à nouveau {{channel}}.",
-      "manageTitle": "Gérer les suivis d'invités",
       "liveOnly": "En direct uniquement",
       "filtersA11y": "Filtres suivants",
       "contentA11y": "Contenu suivant",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Supprimer {{title}} de la liste",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} sur {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Taux de téléchargement",
+    "downloadWriteRateLabel": "Taux d'écriture",
+    "downloadRateStalled": "Bloqué",
+    "downloadRateAverage": "Moyenne {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Prêt hors ligne",
     "startingLocalRecognizer": "Démarrage de la reconnaissance locale…",
     "removeModel": "Supprimer le modèle",
+    "localCaptionsComingSoon": "Bientôt disponible",
+    "localCaptionsComingSoonDetail": "Les sous-titres locaux en direct reviendront sans téléchargement de modèle en cours de diffusion. Les modèles avancés peuvent être déplacés vers les paramètres ultérieurement.",
     "retryLocalCaptions": "Réessayez les sous-titres locaux",
     "blockingAds": "Bloquer les publicités",
     "adBlockActive": "Blocage des publicités actif",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID de session de lecture",
     "servingId": "ID de diffusion",
     "liveStreamAlt": "{{channel}} diffusion en direct",
-    "localCaptionsComingSoon": "Bientôt disponible",
-    "localCaptionsComingSoonDetail": "Les sous-titres locaux en direct reviendront sans téléchargement de modèle en cours de diffusion. Les modèles avancés peuvent être déplacés vers les paramètres ultérieurement.",
     "watch": {
       "hideControls": "Masquer les commandes du joueur",
       "showControls": "Afficher les commandes du joueur",
@@ -2294,6 +2298,7 @@
     "settings": "Paramètres",
     "personalizeYourStreamfusionExperience": "Personnalisez votre expérience StreamFusion",
     "searchSettings": "Paramètres de recherche",
+    "hubSearchPlaceholder": "Apparition de recherche, chat, prédictions, intégrations…",
     "clearSearch": "Effacer la recherche",
     "settingsNavigation": "Navigation dans les paramètres",
     "valueSettings": "{{value1}} paramètres",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} secondes",
     "unknown": "inconnu",
     "failedToDownloadUpdate": "Échec du téléchargement de la mise à jour",
-    "failedToInstallUpdate": "Échec de l'installation de la mise à jour",
-    "hubSearchPlaceholder": "Apparition de recherche, chat, prédictions, intégrations…"
+    "failedToInstallUpdate": "Échec de l'installation de la mise à jour"
   },
   "shell": {
     "loadingPage": "Chargement de la page",

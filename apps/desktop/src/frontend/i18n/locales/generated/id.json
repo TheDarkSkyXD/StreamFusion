@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} terverifikasi",
     "search": {
       "placeholder": "Telusuri Twitch dan Kick",
+      "title": "Telusuri Twitch + Kick",
+      "history": "Riwayat pencarian",
+      "historyHint": "10 terakhir per jenis",
+      "submit": "Cari",
+      "clearField": "Jelas",
       "tabs": {
         "channels": "Saluran",
         "categories": "Kategori",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Hapus {{channel}} dari favorit",
       "live": "LANGSUNG",
       "followers_one": "{{formattedCount}} pengikut",
-      "followers_other": "{{formattedCount}} pengikut",
-      "title": "Telusuri Twitch + Kick",
-      "history": "Riwayat pencarian",
-      "historyHint": "10 terakhir per jenis",
-      "submit": "Cari",
-      "clearField": "Jelas"
+      "followers_other": "{{formattedCount}} pengikut"
     },
     "category": {
       "backToCategories": "Kembali ke Kategori",
@@ -1075,6 +1075,7 @@
       "filterBy": "Saring berdasarkan:",
       "sortBy": "Urutkan berdasarkan:",
       "searchPlaceholder": "Cari Ikuti Tamu",
+      "manageTitle": "Kelola Pengikutan Tamu",
       "retry": "Coba lagi",
       "browseChannels": "Jelajahi Saluran",
       "checkConnection": "Periksa koneksi Anda dan coba lagi.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Twitch pengikutan Anda tidak berubah. Coba lagi.",
       "updateFailed": "Tidak dapat memperbarui tindak lanjut",
       "restored": "Daftar pengikut Anda telah dipulihkan. Coba {{channel}} lagi.",
-      "manageTitle": "Kelola Pengikutan Tamu",
       "liveOnly": "Hidup saja",
       "filtersA11y": "Filter berikut",
       "contentA11y": "Konten berikut",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Hapus {{title}} dari daftar",
     "transferSpeed": "{{value}}/dtk",
     "transferOf": "{{transferred}} dari {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Kecepatan pengunduhan",
+    "downloadWriteRateLabel": "Kecepatan tulis",
+    "downloadRateStalled": "Terhenti",
+    "downloadRateAverage": "Rata-rata {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Siap offline",
     "startingLocalRecognizer": "Memulai pengenal lokal…",
     "removeModel": "Hapus modelnya",
+    "localCaptionsComingSoon": "Segera hadir",
+    "localCaptionsComingSoonDetail": "Teks otomatis lokal akan ditampilkan tanpa download model mid-stream. Model tingkat lanjut dapat berpindah ke Pengaturan nanti.",
     "retryLocalCaptions": "Coba lagi teks lokal",
     "blockingAds": "Memblokir iklan",
     "adBlockActive": "Blok iklan aktif",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Mainkan ID Sesi",
     "servingId": "ID Penyajian",
     "liveStreamAlt": "{{channel}} streaming langsung",
-    "localCaptionsComingSoon": "Segera hadir",
-    "localCaptionsComingSoonDetail": "Teks otomatis lokal akan ditampilkan tanpa download model mid-stream. Model tingkat lanjut dapat berpindah ke Pengaturan nanti.",
     "watch": {
       "hideControls": "Sembunyikan kontrol pemain",
       "showControls": "Tampilkan kontrol pemain",
@@ -2294,6 +2298,7 @@
     "settings": "Pengaturan",
     "personalizeYourStreamfusionExperience": "Personalisasikan pengalaman StreamFusion Anda",
     "searchSettings": "Pengaturan pencarian",
+    "hubSearchPlaceholder": "Tampilan pencarian, obrolan, prediksi, integrasi…",
     "clearSearch": "Hapus pencarian",
     "settingsNavigation": "Navigasi pengaturan",
     "valueSettings": "{{value1}} pengaturan",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} detik",
     "unknown": "tidak diketahui",
     "failedToDownloadUpdate": "Gagal mengunduh pembaruan",
-    "failedToInstallUpdate": "Gagal menginstal pembaruan",
-    "hubSearchPlaceholder": "Tampilan pencarian, obrolan, prediksi, integrasi…"
+    "failedToInstallUpdate": "Gagal menginstal pembaruan"
   },
   "shell": {
     "loadingPage": "Memuat halaman",

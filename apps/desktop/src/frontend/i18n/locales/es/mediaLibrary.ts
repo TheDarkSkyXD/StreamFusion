@@ -190,5 +190,9 @@ export const mediaLibraryEs = {
     transferSpeed: "{{value}}/s",
     transferOf: "{{transferred}} de {{total}}",
     transferSummary: "{{summary}}",
+    downloadRateLabel: "Velocidad de descarga",
+    downloadWriteRateLabel: "Velocidad de escritura",
+    downloadRateStalled: "Detenido",
+    downloadRateAverage: "Promedio {{value}}",
   },
 } satisfies TranslationShape<typeof mediaLibraryEn>;

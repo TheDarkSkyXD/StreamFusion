@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verificado",
     "search": {
       "placeholder": "Pesquisar Twitch e Kick",
+      "title": "Pesquisar Twitch + Kick",
+      "history": "Histórico de pesquisa",
+      "historyHint": "Últimos 10 por tipo",
+      "submit": "Pesquisar",
+      "clearField": "Limpar",
       "tabs": {
         "channels": "Canais",
         "categories": "Categorias",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Remover {{channel}} dos favoritos",
       "live": "AO VIVO",
       "followers_one": "{{formattedCount}} seguidor",
-      "followers_other": "{{formattedCount}} seguidores",
-      "title": "Pesquisar Twitch + Kick",
-      "history": "Histórico de pesquisa",
-      "historyHint": "Últimos 10 por tipo",
-      "submit": "Pesquisar",
-      "clearField": "Limpar"
+      "followers_other": "{{formattedCount}} seguidores"
     },
     "category": {
       "backToCategories": "Voltar às categorias",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrar por:",
       "sortBy": "Classificar por:",
       "searchPlaceholder": "Pesquisar seguidores de convidados",
+      "manageTitle": "Gerir seguidores de convidados",
       "retry": "Tentar novamente",
       "browseChannels": "Navegar pelos canais",
       "checkConnection": "Verifique a sua ligação e tente novamente.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "O seu Twitch seguimento permanece inalterado. Tente novamente.",
       "updateFailed": "Não foi possível atualizar o seguimento",
       "restored": "A sua lista a seguir foi restaurada. Tente {{channel}} novamente.",
-      "manageTitle": "Gerir seguidores de convidados",
       "liveOnly": "Somente ao vivo",
       "filtersA11y": "Seguindo filtros",
       "contentA11y": "Seguindo o conteúdo",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Remover {{title}} da lista",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} de {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Taxa de download",
+    "downloadWriteRateLabel": "Taxa de gravação",
+    "downloadRateStalled": "Parado",
+    "downloadRateAverage": "Média {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Pronto off-line",
     "startingLocalRecognizer": "Iniciar o reconhecedor local…",
     "removeModel": "Remover modelo",
+    "localCaptionsComingSoon": "Em breve",
+    "localCaptionsComingSoonDetail": "As legendas locais em direto regressarão sem o download do modelo intermédio. Os modelos avançados podem passar para Definições mais tarde.",
     "retryLocalCaptions": "Tentar novamente legendas locais",
     "blockingAds": "Bloqueio de anúncios",
     "adBlockActive": "Bloco de anúncios ativo",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID da sessão de reprodução",
     "servingId": "ID de veiculação",
     "liveStreamAlt": "{{channel}} transmissão em direto",
-    "localCaptionsComingSoon": "Em breve",
-    "localCaptionsComingSoonDetail": "As legendas locais em direto regressarão sem o download do modelo intermédio. Os modelos avançados podem passar para Definições mais tarde.",
     "watch": {
       "hideControls": "Ocultar os controlos do jogador",
       "showControls": "Mostrar os controlos do jogador",
@@ -2294,6 +2298,7 @@
     "settings": "Configurações",
     "personalizeYourStreamfusionExperience": "Personalize a sua experiência StreamFusion",
     "searchSettings": "Configurações de pesquisa",
+    "hubSearchPlaceholder": "Aspeto da pesquisa, chat, previsões, integrações…",
     "clearSearch": "Limpar pesquisa",
     "settingsNavigation": "Navegação nas definições",
     "valueSettings": "{{value1}} configurações",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} segundos",
     "unknown": "desconhecido",
     "failedToDownloadUpdate": "Falha ao descarregar a atualização",
-    "failedToInstallUpdate": "Falha ao instalar a atualização",
-    "hubSearchPlaceholder": "Aspeto da pesquisa, chat, previsões, integrações…"
+    "failedToInstallUpdate": "Falha ao instalar a atualização"
   },
   "shell": {
     "loadingPage": "Carregando página",

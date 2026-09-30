@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} zweryfikowane",
     "search": {
       "placeholder": "Wyszukaj Twitch i Kick",
+      "title": "Szukaj Twitch + Kick",
+      "history": "Historia wyszukiwania",
+      "historyHint": "Ostatnie 10 każdego typu",
+      "submit": "Szukaj",
+      "clearField": "Jasne",
       "tabs": {
         "channels": "Kanały",
         "categories": "Kategorie",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Usuń {{channel}} z ulubionych",
       "live": "NA ŻYWO",
       "followers_one": "{{formattedCount}} obserwujący",
-      "followers_other": "{{formattedCount}} obserwujących",
-      "title": "Szukaj Twitch + Kick",
-      "history": "Historia wyszukiwania",
-      "historyHint": "Ostatnie 10 każdego typu",
-      "submit": "Szukaj",
-      "clearField": "Jasne"
+      "followers_other": "{{formattedCount}} obserwujących"
     },
     "category": {
       "backToCategories": "Powrót do kategorii",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtruj według:",
       "sortBy": "Sortuj według:",
       "searchPlaceholder": "Szukaj Obserwowanych gości",
+      "manageTitle": "Zarządzaj obserwowanymi gośćmi",
       "retry": "Spróbuj ponownie",
       "browseChannels": "Przeglądaj kanały",
       "checkConnection": "Sprawdź połączenie i spróbuj ponownie.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Liczba Twoich obserwujących Twitch pozostaje niezmieniona. Spróbuj ponownie.",
       "updateFailed": "Nie udało się zaktualizować obserwowania",
       "restored": "Twoja lista obserwowanych została przywrócona. Spróbuj ponownie {{channel}}.",
-      "manageTitle": "Zarządzaj obserwowanymi gośćmi",
       "liveOnly": "Tylko na żywo",
       "filtersA11y": "Następujące filtry",
       "contentA11y": "Śledzenie treści",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Usuń {{title}} z listy",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} z {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Szybkość pobierania",
+    "downloadWriteRateLabel": "Napisz stawkę",
+    "downloadRateStalled": "Zablokowany",
+    "downloadRateAverage": "Średnia {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Gotowe w trybie offline",
     "startingLocalRecognizer": "Uruchamiam lokalny moduł rozpoznawania…",
     "removeModel": "Usuń model",
+    "localCaptionsComingSoon": "Już wkrótce",
+    "localCaptionsComingSoonDetail": "Lokalne napisy na żywo powrócą bez pobierania modelu w trakcie transmisji. Zaawansowane modele mogą później przejść do Ustawień.",
     "retryLocalCaptions": "Spróbuj ponownie włączyć napisy lokalne",
     "blockingAds": "Blokowanie reklam",
     "adBlockActive": "Blok reklam aktywny",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Odtwórz identyfikator sesji",
     "servingId": "Identyfikator serwowania",
     "liveStreamAlt": "{{channel}} transmisja na żywo",
-    "localCaptionsComingSoon": "Już wkrótce",
-    "localCaptionsComingSoonDetail": "Lokalne napisy na żywo powrócą bez pobierania modelu w trakcie transmisji. Zaawansowane modele mogą później przejść do Ustawień.",
     "watch": {
       "hideControls": "Ukryj elementy sterujące odtwarzacza",
       "showControls": "Pokaż elementy sterujące odtwarzacza",
@@ -2294,6 +2298,7 @@
     "settings": "Ustawienia",
     "personalizeYourStreamfusionExperience": "Spersonalizuj swoje doświadczenie z StreamFusion",
     "searchSettings": "Ustawienia wyszukiwania",
+    "hubSearchPlaceholder": "Szukaj wyglądu, czatu, przewidywań, integracji…",
     "clearSearch": "Wyczyść wyszukiwanie",
     "settingsNavigation": "Ustawienia nawigacji",
     "valueSettings": "ustawienia {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekund",
     "unknown": "nieznany",
     "failedToDownloadUpdate": "Nie udało się pobrać aktualizacji",
-    "failedToInstallUpdate": "Nie udało się zainstalować aktualizacji",
-    "hubSearchPlaceholder": "Szukaj wyglądu, czatu, przewidywań, integracji…"
+    "failedToInstallUpdate": "Nie udało się zainstalować aktualizacji"
   },
   "shell": {
     "loadingPage": "Ładowanie strony",

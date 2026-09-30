@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} מאומת",
     "search": {
       "placeholder": "חפש Twitch ו-Kick",
+      "title": "חפש Twitch + Kick",
+      "history": "היסטוריית חיפושים",
+      "historyHint": "10 אחרונים לסוג",
+      "submit": "חפש",
+      "clearField": "ברור",
       "tabs": {
         "channels": "ערוצים",
         "categories": "קטגוריות",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "הסר את {{channel}} מהמועדפים",
       "live": "בשידור חי",
       "followers_one": "עוקב {{formattedCount}}",
-      "followers_other": "{{formattedCount}} עוקבים",
-      "title": "חפש Twitch + Kick",
-      "history": "היסטוריית חיפושים",
-      "historyHint": "10 אחרונים לסוג",
-      "submit": "חפש",
-      "clearField": "ברור"
+      "followers_other": "{{formattedCount}} עוקבים"
     },
     "category": {
       "backToCategories": "חזרה לקטגוריות",
@@ -1075,6 +1075,7 @@
       "filterBy": "סינון לפי:",
       "sortBy": "מיין לפי:",
       "searchPlaceholder": "חפש אורח עוקב",
+      "manageTitle": "נהל מעקב אחר אורחים",
       "retry": "נסה שוב",
       "browseChannels": "עיין בערוצים",
       "checkConnection": "בדוק את החיבור שלך ונסה שוב.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "המעקב שלך ב-Twitch לא השתנה. נסה שוב.",
       "updateFailed": "לא ניתן היה לעדכן את המעקב",
       "restored": "רשימת המעקב שלך שוחזרה. נסה שוב את {{channel}}.",
-      "manageTitle": "נהל מעקב אחר אורחים",
       "liveOnly": "חיה בלבד",
       "filtersA11y": "בעקבות מסננים",
       "contentA11y": "עוקב אחר תוכן",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "הסר את {{title}} מהרשימה",
     "transferSpeed": "{{value}}/שניות",
     "transferOf": "{{transferred}} מתוך {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "קצב הורדות",
+    "downloadWriteRateLabel": "שיעור כתיבה",
+    "downloadRateStalled": "נתקע",
+    "downloadRateAverage": "ממוצע {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "מוכן במצב לא מקוון",
     "startingLocalRecognizer": "מפעיל מזהה מקומי...",
     "removeModel": "הסר את הדגם",
+    "localCaptionsComingSoon": "בקרוב",
+    "localCaptionsComingSoonDetail": "כתוביות חיות מקומיות יחזרו ללא הורדת דגם באמצע הזרם. דגמים מתקדמים עשויים לעבור להגדרות מאוחר יותר.",
     "retryLocalCaptions": "נסה שוב כתוביות מקומיות",
     "blockingAds": "חסימת מודעות",
     "adBlockActive": "חסימת מודעות פעילה",
@@ -2044,8 +2050,6 @@
     "playSessionId": "מזהה סשן משחק",
     "servingId": "תעודה מזהה",
     "liveStreamAlt": "{{channel}} זרם חי",
-    "localCaptionsComingSoon": "בקרוב",
-    "localCaptionsComingSoonDetail": "כתוביות חיות מקומיות יחזרו ללא הורדת דגם באמצע הזרם. דגמים מתקדמים עשויים לעבור להגדרות מאוחר יותר.",
     "watch": {
       "hideControls": "הסתר פקדי שחקן",
       "showControls": "הצג פקדי שחקן",
@@ -2294,6 +2298,7 @@
     "settings": "הגדרות",
     "personalizeYourStreamfusionExperience": "התאם אישית את חוויית StreamFusion שלך",
     "searchSettings": "הגדרות חיפוש",
+    "hubSearchPlaceholder": "הופעת חיפוש, צ'אט, תחזיות, אינטגרציות...",
     "clearSearch": "נקה חיפוש",
     "settingsNavigation": "ניווט בהגדרות",
     "valueSettings": "{{value1}} הגדרות",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} שניות",
     "unknown": "לא ידוע",
     "failedToDownloadUpdate": "הורדת העדכון נכשלה",
-    "failedToInstallUpdate": "התקנת העדכון נכשלה",
-    "hubSearchPlaceholder": "הופעת חיפוש, צ'אט, תחזיות, אינטגרציות..."
+    "failedToInstallUpdate": "התקנת העדכון נכשלה"
   },
   "shell": {
     "loadingPage": "דף טוען",

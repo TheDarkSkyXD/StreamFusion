@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} preverjeno",
     "search": {
       "placeholder": "Iskanje Twitch in Kick",
+      "title": "Iskanje Twitch + Kick",
+      "history": "Zgodovina iskanja",
+      "historyHint": "Zadnjih 10 na vrsto",
+      "submit": "Iskanje",
+      "clearField": "jasno",
       "tabs": {
         "channels": "Kanali",
         "categories": "kategorije",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Odstrani {{channel}} iz priljubljenih",
       "live": "V ŽIVO",
       "followers_one": "{{formattedCount}} spremljevalec",
-      "followers_other": "{{formattedCount}} spremljevalcev",
-      "title": "Iskanje Twitch + Kick",
-      "history": "Zgodovina iskanja",
-      "historyHint": "Zadnjih 10 na vrsto",
-      "submit": "Iskanje",
-      "clearField": "jasno"
+      "followers_other": "{{formattedCount}} spremljevalcev"
     },
     "category": {
       "backToCategories": "Nazaj na kategorije",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtriraj po:",
       "sortBy": "Razvrsti po:",
       "searchPlaceholder": "Iskanje gostov sledi",
+      "manageTitle": "Upravljajte spremljanje gostov",
       "retry": "Poskusite znova",
       "browseChannels": "Brskanje po kanalih",
       "checkConnection": "Preverite povezavo in poskusite znova.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Vaše Twitch spremljanje je nespremenjeno. poskusi ponovno",
       "updateFailed": "Spremljanja ni bilo mogoče posodobiti",
       "restored": "Vaš seznam sledilcev je bil obnovljen. Poskusite znova {{channel}}.",
-      "manageTitle": "Upravljajte spremljanje gostov",
       "liveOnly": "Samo v živo",
       "filtersA11y": "Sledi filtrom",
       "contentA11y": "Sledi vsebini",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Odstrani {{title}} s seznama",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} od {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Stopnja prenosa",
+    "downloadWriteRateLabel": "Stopnja pisanja",
+    "downloadRateStalled": "Zastalo",
+    "downloadRateAverage": "Povprečno {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Pripravljen brez povezave",
     "startingLocalRecognizer": "Zagon lokalnega prepoznavalnika …",
     "removeModel": "Odstrani model",
+    "localCaptionsComingSoon": "Kmalu na voljo",
+    "localCaptionsComingSoonDetail": "Lokalni podnapisi v živo se bodo vrnili brez prenosa modela vmes. Napredni modeli se lahko pozneje premaknejo v nastavitve.",
     "retryLocalCaptions": "Poskusi znova z lokalnimi napisi",
     "blockingAds": "Blokiranje oglasov",
     "adBlockActive": "Blokiranje oglasov je aktivno",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ID seje predvajanja",
     "servingId": "ID storitve",
     "liveStreamAlt": "{{channel}} pretočno predvajanje v živo",
-    "localCaptionsComingSoon": "Kmalu na voljo",
-    "localCaptionsComingSoonDetail": "Lokalni podnapisi v živo se bodo vrnili brez prenosa modela vmes. Napredni modeli se lahko pozneje premaknejo v nastavitve.",
     "watch": {
       "hideControls": "Skrij kontrolnike predvajalnika",
       "showControls": "Prikaži kontrolnike predvajalnika",
@@ -2294,6 +2298,7 @@
     "settings": "nastavitve",
     "personalizeYourStreamfusionExperience": "Prilagodite svojo izkušnjo z StreamFusion",
     "searchSettings": "Nastavitve iskanja",
+    "hubSearchPlaceholder": "Videz pri iskanju, klepet, napovedi, integracije ...",
     "clearSearch": "Počisti iskanje",
     "settingsNavigation": "Navigacija z nastavitvami",
     "valueSettings": "{{value1}} nastavitve",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekund",
     "unknown": "neznano",
     "failedToDownloadUpdate": "Prenos posodobitve ni uspel",
-    "failedToInstallUpdate": "Namestitev posodobitve ni uspela",
-    "hubSearchPlaceholder": "Videz pri iskanju, klepet, napovedi, integracije ..."
+    "failedToInstallUpdate": "Namestitev posodobitve ni uspela"
   },
   "shell": {
     "loadingPage": "Nalaganje strani",

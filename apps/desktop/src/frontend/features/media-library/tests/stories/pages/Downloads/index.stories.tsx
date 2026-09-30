@@ -11,6 +11,7 @@ type DownloadsBridge = ElectronAPI["downloads"];
 type DownloadActions = Partial<
   Pick<DownloadsBridge, "cancel" | "deleteFile" | "openFile" | "remove" | "showInFolder">
 >;
+type QueueSubscriber = Parameters<DownloadsBridge["onQueueChanged"]>[0];
 
 const emptyQueue = { jobs: [] } satisfies DownloadQueueSnapshot;
 
@@ -40,7 +41,8 @@ function downloadJob(overrides: Partial<DownloadJob> = {}): DownloadJob {
 
 function createDownloadsBridge(
   getQueue: DownloadsBridge["getQueue"],
-  actions: DownloadActions = {}
+  actions: DownloadActions = {},
+  onQueueChanged: DownloadsBridge["onQueueChanged"] = () => () => undefined
 ): DownloadsBridge {
   return {
     getQueue,
@@ -54,7 +56,7 @@ function createDownloadsBridge(
     showInFolder: actions.showInFolder ?? (async () => ({ success: true })),
     openFile: actions.openFile ?? (async () => ({ success: true })),
     deleteFile: actions.deleteFile ?? (async () => ({ success: true })),
-    onQueueChanged: () => () => undefined,
+    onQueueChanged,
   };
 }
 
@@ -86,9 +88,10 @@ function DownloadsBridgeProvider({
 
 function withDownloadsBridge(
   getQueue: DownloadsBridge["getQueue"],
-  actions?: DownloadActions
+  actions?: DownloadActions,
+  onQueueChanged?: DownloadsBridge["onQueueChanged"]
 ): Decorator {
-  const downloads = createDownloadsBridge(getQueue, actions);
+  const downloads = createDownloadsBridge(getQueue, actions, onQueueChanged);
 
   return (Story) => (
     <DownloadsBridgeProvider downloads={downloads}>
@@ -97,6 +100,122 @@ function withDownloadsBridge(
       </div>
     </DownloadsBridgeProvider>
   );
+}
+
+const MIB = 1_048_576;
+
+/**
+ * Drives the real ingestion path at a tick rate above the 500ms sample interval, so the story
+ * exercises the same decimation a live download produces rather than a pre-baked curve.
+ */
+function createLiveThroughputBridge(pushIntervalMs = 100): {
+  getQueue: DownloadsBridge["getQueue"];
+  onQueueChanged: DownloadsBridge["onQueueChanged"];
+} {
+  const startedAt = Date.now();
+  let subscribers: QueueSubscriber[] = [];
+  let timer: ReturnType<typeof setInterval> | undefined;
+  // Integrated rather than rate * elapsed: a real byte counter only ever climbs, and a store
+  // that mistakes a dip for a remux restart would reset the curve on every oscillation.
+  let clipBytes = 0;
+  let vodBytes = 0;
+  let lastAt = startedAt;
+
+  const build = (): DownloadQueueSnapshot => {
+    const now = Date.now();
+    const elapsed = (now - startedAt) / 1000;
+    const step = (now - lastAt) / 1000;
+    lastAt = now;
+    clipBytes += (9 + 6 * Math.sin((elapsed / 9) * Math.PI * 2)) * MIB * step;
+    vodBytes += (2.2 + 1.1 * Math.sin((elapsed / 9) * Math.PI * 2)) * MIB * step;
+    const stalledBytes = 40 * MIB;
+
+    return {
+      jobs: [
+        downloadJob({
+          id: "clip-live",
+          kind: "clip",
+          platform: "twitch",
+          sourceId: "clip-live-1",
+          title: "Insane 1v4 clutch at 0 HP",
+          channelName: "shroud",
+          status: "downloading",
+          byteSource: "network",
+          progress: {
+            percent: Math.min(99, (clipBytes / (5400 * MIB)) * 100),
+            transferredBytes: Math.floor(clipBytes),
+            totalBytes: 5400 * MIB,
+          },
+        }),
+        downloadJob({
+          id: "vod-live",
+          sourceId: "2147484200",
+          title: "Road to radiant, day three",
+          channelName: "NovaArcade",
+          status: "downloading",
+          byteSource: "output-file",
+          progress: {
+            percent: Math.min(99, (vodBytes / (14_000 * MIB)) * 100),
+            transferredBytes: Math.floor(vodBytes),
+            totalBytes: null,
+          },
+        }),
+        downloadJob({
+          id: "clip-stalled",
+          kind: "clip",
+          platform: "kick",
+          sourceId: "clip-live-2",
+          title: "Stalled clip waiting on the CDN",
+          channelName: "MiraMakes",
+          status: "downloading",
+          byteSource: "network",
+          progress: { percent: 31, transferredBytes: stalledBytes, totalBytes: 128 * MIB },
+        }),
+        downloadJob({
+          id: "clip-queued-live",
+          kind: "clip",
+          platform: "kick",
+          sourceId: "clip-live-3",
+          title: "Last-second save",
+          channelName: "MiraMakes",
+          status: "queued",
+          byteSource: "network",
+          progress: { percent: 0, transferredBytes: 0, totalBytes: 314_572_800 },
+          statusMessage: "Queued behind the current VOD",
+        }),
+        downloadJob({
+          id: "vod-complete-live",
+          sourceId: "2147484001",
+          title: "Championship VOD",
+          status: "completed",
+          byteSource: "output-file",
+          progress: {
+            percent: 100,
+            transferredBytes: 6_291_456_000,
+            totalBytes: 6_291_456_000,
+          },
+          outputFormat: "mp4",
+        }),
+      ],
+    };
+  };
+
+  return {
+    getQueue: async () => build(),
+    onQueueChanged: (subscriber) => {
+      subscribers = [...subscribers, subscriber];
+      timer ??= setInterval(() => {
+        const snapshot = build();
+        for (const current of subscribers) current(snapshot);
+      }, pushIntervalMs);
+      return () => {
+        subscribers = subscribers.filter((current) => current !== subscriber);
+        if (subscribers.length > 0) return;
+        clearInterval(timer);
+        timer = undefined;
+      };
+    },
+  };
 }
 
 function createRetryingQueue(): DownloadsBridge["getQueue"] {
@@ -179,6 +298,26 @@ export const Populated: Story = {
 
 export const Empty: Story = {
   decorators: [withDownloadsBridge(async () => emptyQueue)],
+};
+
+const liveThroughputBridge = createLiveThroughputBridge();
+
+export const LiveThroughput: Story = {
+  decorators: [
+    withDownloadsBridge(
+      liveThroughputBridge.getQueue,
+      {},
+      liveThroughputBridge.onQueueChanged
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Live transfer rates and throughput sparklines. Rows share one vertical scale, so the two active rows are directly comparable, and the ffmpeg VOD is labelled as a write rate rather than a network rate.",
+      },
+    },
+  },
 };
 
 export const CancelActiveDownload: Story = {

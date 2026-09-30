@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} സ്ഥിരീകരിച്ചു",
     "search": {
       "placeholder": "Twitch, Kick എന്നിവ തിരയുക",
+      "title": "തിരയുക Twitch + Kick",
+      "history": "തിരയൽ ചരിത്രം",
+      "historyHint": "ഓരോ തരത്തിനും അവസാന 10",
+      "submit": "തിരയുക",
+      "clearField": "ക്ലിയർ",
       "tabs": {
         "channels": "ചാനലുകൾ",
         "categories": "വിഭാഗങ്ങൾ",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "പ്രിയപ്പെട്ടവയിൽ നിന്ന് {{channel}} നീക്കം ചെയ്യുക",
       "live": "തത്സമയം",
       "followers_one": "{{formattedCount}} അനുയായി",
-      "followers_other": "{{formattedCount}} അനുയായികൾ",
-      "title": "തിരയുക Twitch + Kick",
-      "history": "തിരയൽ ചരിത്രം",
-      "historyHint": "ഓരോ തരത്തിനും അവസാന 10",
-      "submit": "തിരയുക",
-      "clearField": "ക്ലിയർ"
+      "followers_other": "{{formattedCount}} അനുയായികൾ"
     },
     "category": {
       "backToCategories": "വിഭാഗങ്ങളിലേക്ക് മടങ്ങുക",
@@ -1075,6 +1075,7 @@
       "filterBy": "ഇതനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക:",
       "sortBy": "ഇപ്രകാരം അടുക്കുക:",
       "searchPlaceholder": "തിരയൽ അതിഥി പിന്തുടരുന്നു",
+      "manageTitle": "അതിഥി പിന്തുടരുന്നത് നിയന്ത്രിക്കുക",
       "retry": "വീണ്ടും ശ്രമിക്കുക",
       "browseChannels": "ചാനലുകൾ ബ്രൗസ് ചെയ്യുക",
       "checkConnection": "നിങ്ങളുടെ കണക്ഷൻ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "നിങ്ങളുടെ Twitch പിന്തുടരൽ മാറ്റമില്ല. വീണ്ടും ശ്രമിക്കുക.",
       "updateFailed": "പിന്തുടരുന്നത് അപ്ഡേറ്റ് ചെയ്യാനായില്ല",
       "restored": "നിങ്ങളുടെ ഫോളോ ലിസ്റ്റ് പുനഃസ്ഥാപിച്ചു. {{channel}} വീണ്ടും ശ്രമിക്കുക.",
-      "manageTitle": "അതിഥി പിന്തുടരുന്നത് നിയന്ത്രിക്കുക",
       "liveOnly": "ജീവിക്കുക മാത്രം",
       "filtersA11y": "ഇനിപ്പറയുന്ന ഫിൽട്ടറുകൾ",
       "contentA11y": "ഉള്ളടക്കം പിന്തുടരുന്നു",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "ലിസ്റ്റിൽ നിന്ന് {{title}} നീക്കം ചെയ്യുക",
     "transferSpeed": "{{value}}/സെ",
     "transferOf": "{{transferred}} / {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "ഡൗൺലോഡ് നിരക്ക്",
+    "downloadWriteRateLabel": "റൈറ്റ് റേറ്റ്",
+    "downloadRateStalled": "സ്തംഭിച്ചു",
+    "downloadRateAverage": "ശരാശരി {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "ഓഫ്‌ലൈനിൽ തയ്യാറാണ്",
     "startingLocalRecognizer": "പ്രാദേശിക തിരിച്ചറിയൽ ആരംഭിക്കുന്നു...",
     "removeModel": "മോഡൽ നീക്കം ചെയ്യുക",
+    "localCaptionsComingSoon": "ഉടൻ വരുന്നു",
+    "localCaptionsComingSoonDetail": "മിഡ്-സ്ട്രീം മോഡൽ ഡൗൺലോഡ് ഇല്ലാതെ തന്നെ പ്രാദേശിക തത്സമയ അടിക്കുറിപ്പുകൾ തിരികെ ലഭിക്കും. നൂതന മോഡലുകൾ പിന്നീട് ക്രമീകരണത്തിലേക്ക് നീങ്ങിയേക്കാം.",
     "retryLocalCaptions": "പ്രാദേശിക അടിക്കുറിപ്പുകൾ വീണ്ടും പരീക്ഷിക്കുക",
     "blockingAds": "പരസ്യങ്ങൾ തടയുന്നു",
     "adBlockActive": "പരസ്യ ബ്ലോക്ക് സജീവമാണ്",
@@ -2044,8 +2050,6 @@
     "playSessionId": "പ്ലേ സെഷൻ ഐഡി",
     "servingId": "സെർവിംഗ് ഐഡി",
     "liveStreamAlt": "{{channel}} തത്സമയ സ്ട്രീം",
-    "localCaptionsComingSoon": "ഉടൻ വരുന്നു",
-    "localCaptionsComingSoonDetail": "മിഡ്-സ്ട്രീം മോഡൽ ഡൗൺലോഡ് ഇല്ലാതെ തന്നെ പ്രാദേശിക തത്സമയ അടിക്കുറിപ്പുകൾ തിരികെ ലഭിക്കും. നൂതന മോഡലുകൾ പിന്നീട് ക്രമീകരണത്തിലേക്ക് നീങ്ങിയേക്കാം.",
     "watch": {
       "hideControls": "പ്ലേയർ നിയന്ത്രണങ്ങൾ മറയ്ക്കുക",
       "showControls": "പ്ലേയർ നിയന്ത്രണങ്ങൾ കാണിക്കുക",
@@ -2294,6 +2298,7 @@
     "settings": "ക്രമീകരണങ്ങൾ",
     "personalizeYourStreamfusionExperience": "നിങ്ങളുടെ StreamFusion അനുഭവം വ്യക്തിഗതമാക്കുക",
     "searchSettings": "തിരയൽ ക്രമീകരണങ്ങൾ",
+    "hubSearchPlaceholder": "രൂപം, ചാറ്റ്, പ്രവചനങ്ങൾ, സംയോജനങ്ങൾ എന്നിവ തിരയുക...",
     "clearSearch": "തിരയൽ മായ്‌ക്കുക",
     "settingsNavigation": "ക്രമീകരണ നാവിഗേഷൻ",
     "valueSettings": "{{value1}} ക്രമീകരണങ്ങൾ",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} സെക്കൻഡ്",
     "unknown": "അജ്ഞാതം",
     "failedToDownloadUpdate": "അപ്ഡേറ്റ് ഡൗൺലോഡ് ചെയ്യാനായില്ല",
-    "failedToInstallUpdate": "അപ്ഡേറ്റ് ഇൻസ്റ്റാൾ ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു",
-    "hubSearchPlaceholder": "രൂപം, ചാറ്റ്, പ്രവചനങ്ങൾ, സംയോജനങ്ങൾ എന്നിവ തിരയുക..."
+    "failedToInstallUpdate": "അപ്ഡേറ്റ് ഇൻസ്റ്റാൾ ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു"
   },
   "shell": {
     "loadingPage": "പേജ് ലോഡ് ചെയ്യുന്നു",

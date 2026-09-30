@@ -609,14 +609,18 @@
       ],
       "platformBranches": [],
       "state": [
-        "state-store:store/download-duplicate-confirmation-store"
+        "state-store:store/download-duplicate-confirmation-store",
+        "state-store:store/download-throughput-store"
       ],
       "persistence": [
         "apps/desktop/src/backend/features/media-library/domain/download-queue-service.ts"
       ],
       "verification": [
         "apps/desktop/src/frontend/features/media-library/tests/pages/Downloads.test.tsx",
-        "apps/desktop/src/frontend/features/media-library/tests/pages/Downloads.delete-dialog.test.tsx"
+        "apps/desktop/src/frontend/features/media-library/tests/pages/Downloads.delete-dialog.test.tsx",
+        "apps/desktop/src/frontend/features/media-library/tests/pages/Downloads.throughput.test.tsx",
+        "apps/desktop/src/frontend/features/media-library/tests/components/Downloads/DownloadThroughputMeter.test.tsx",
+        "apps/desktop/src/frontend/features/media-library/tests/store/download-throughput-store.test.ts"
       ]
     },
     {

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} верификовано",
     "search": {
       "placeholder": "Претражи Twitch и Kick",
+      "title": "Претрага Twitch + Kick",
+      "history": "Историја претраге",
+      "historyHint": "Последњих 10 по врсти",
+      "submit": "Тражи",
+      "clearField": "Јасно",
       "tabs": {
         "channels": "Канали",
         "categories": "Категорије",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Уклони {{channel}} из омиљених",
       "live": "ЛИВЕ",
       "followers_one": "{{formattedCount}} пратилац",
-      "followers_other": "{{formattedCount}} пратилаца",
-      "title": "Претрага Twitch + Kick",
-      "history": "Историја претраге",
-      "historyHint": "Последњих 10 по врсти",
-      "submit": "Тражи",
-      "clearField": "Јасно"
+      "followers_other": "{{formattedCount}} пратилаца"
     },
     "category": {
       "backToCategories": "Назад на категорије",
@@ -1075,6 +1075,7 @@
       "filterBy": "Филтрирај према:",
       "sortBy": "Сортирај по:",
       "searchPlaceholder": "Сеарцх Гуест Фолловс",
+      "manageTitle": "Управљајте праћењем гостију",
       "retry": "Покушајте поново",
       "browseChannels": "Прегледајте канале",
       "checkConnection": "Проверите своју везу и покушајте поново.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Ваше Twitch праћење је непромењено. Покушајте поново.",
       "updateFailed": "Није могуће ажурирати праћење",
       "restored": "Ваша листа праћења је враћена. Пробајте поново {{channel}}.",
-      "manageTitle": "Управљајте праћењем гостију",
       "liveOnly": "Само уживо",
       "filtersA11y": "Следећи филтери",
       "contentA11y": "Праћење садржаја",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Уклони {{title}} са листе",
     "transferSpeed": "{{value}}/с",
     "transferOf": "{{transferred}} од {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Довнлоад рате",
+    "downloadWriteRateLabel": "Стопа писања",
+    "downloadRateStalled": "Сталлед",
+    "downloadRateAverage": "Просечно {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Спреман ван мреже",
     "startingLocalRecognizer": "Покретање локалног препознавача…",
     "removeModel": "Уклоните модел",
+    "localCaptionsComingSoon": "Ускоро",
+    "localCaptionsComingSoonDetail": "Локални титлови уживо ће се вратити без преузимања модела средњег стрима. Напредни модели могу касније да пређу у Подешавања.",
     "retryLocalCaptions": "Пробајте поново локалне титлове",
     "blockingAds": "Блокирање огласа",
     "adBlockActive": "Блок огласа активан",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ИД сесије играња",
     "servingId": "ИД послуживања",
     "liveStreamAlt": "{{channel}} стрим уживо",
-    "localCaptionsComingSoon": "Ускоро",
-    "localCaptionsComingSoonDetail": "Локални титлови уживо ће се вратити без преузимања модела средњег стрима. Напредни модели могу касније да пређу у Подешавања.",
     "watch": {
       "hideControls": "Сакриј контроле плејера",
       "showControls": "Прикажи контроле плејера",
@@ -2294,6 +2298,7 @@
     "settings": "Подешавања",
     "personalizeYourStreamfusionExperience": "Персонализујте своје StreamFusion искуство",
     "searchSettings": "Подешавања претраге",
+    "hubSearchPlaceholder": "Изглед претраге, ћаскање, предвиђања, интеграције…",
     "clearSearch": "Обриши претрагу",
     "settingsNavigation": "Навигација у подешавањима",
     "valueSettings": "{{value1}} подешавања",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} секунди",
     "unknown": "непознато",
     "failedToDownloadUpdate": "Преузимање ажурирања није успело",
-    "failedToInstallUpdate": "Инсталирање ажурирања није успело",
-    "hubSearchPlaceholder": "Изглед претраге, ћаскање, предвиђања, интеграције…"
+    "failedToInstallUpdate": "Инсталирање ажурирања није успело"
   },
   "shell": {
     "loadingPage": "Страница се учитава",

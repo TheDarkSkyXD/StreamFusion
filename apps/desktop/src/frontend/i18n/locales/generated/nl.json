@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} geverifieerd",
     "search": {
       "placeholder": "Zoek Twitch en Kick",
+      "title": "Zoek Twitch + Kick",
+      "history": "Zoekgeschiedenis",
+      "historyHint": "Laatste 10 per soort",
+      "submit": "Zoeken",
+      "clearField": "Duidelijk",
       "tabs": {
         "channels": "Kanalen",
         "categories": "Categorieën",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Verwijder {{channel}} uit favorieten",
       "live": "LEEF",
       "followers_one": "{{formattedCount}} volger",
-      "followers_other": "{{formattedCount}} volgers",
-      "title": "Zoek Twitch + Kick",
-      "history": "Zoekgeschiedenis",
-      "historyHint": "Laatste 10 per soort",
-      "submit": "Zoeken",
-      "clearField": "Duidelijk"
+      "followers_other": "{{formattedCount}} volgers"
     },
     "category": {
       "backToCategories": "Terug naar Categorieën",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filteren op:",
       "sortBy": "Sorteer op:",
       "searchPlaceholder": "Zoek gastvolgers",
+      "manageTitle": "Beheer gastvolgers",
       "retry": "Opnieuw proberen",
       "browseChannels": "Blader door kanalen",
       "checkConnection": "Controleer uw verbinding en probeer het opnieuw.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Je Twitch volgers zijn ongewijzigd. Probeer het opnieuw.",
       "updateFailed": "Kan volgen niet updaten",
       "restored": "Je volglijst is hersteld. Probeer {{channel}} opnieuw.",
-      "manageTitle": "Beheer gastvolgers",
       "liveOnly": "Leef alleen",
       "filtersA11y": "Volgende filters",
       "contentA11y": "Volgende inhoud",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Verwijder {{title}} uit de lijst",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} van {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Downloadsnelheid",
+    "downloadWriteRateLabel": "Schrijf tarief",
+    "downloadRateStalled": "Vastgelopen",
+    "downloadRateAverage": "Gemiddeld {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Offline klaar",
     "startingLocalRecognizer": "Lokale herkenner starten...",
     "removeModel": "Model verwijderen",
+    "localCaptionsComingSoon": "Binnenkort beschikbaar",
+    "localCaptionsComingSoonDetail": "Lokale live-ondertiteling keert terug zonder een midstream-modeldownload. Geavanceerde modellen kunnen later naar Instellingen verhuizen.",
     "retryLocalCaptions": "Probeer lokale ondertiteling opnieuw",
     "blockingAds": "Advertenties blokkeren",
     "adBlockActive": "Advertentieblokkering actief",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Speelsessie-ID",
     "servingId": "Serveer-ID",
     "liveStreamAlt": "{{channel}} livestream",
-    "localCaptionsComingSoon": "Binnenkort beschikbaar",
-    "localCaptionsComingSoonDetail": "Lokale live-ondertiteling keert terug zonder een midstream-modeldownload. Geavanceerde modellen kunnen later naar Instellingen verhuizen.",
     "watch": {
       "hideControls": "Spelerbediening verbergen",
       "showControls": "Toon spelerbediening",
@@ -2294,6 +2298,7 @@
     "settings": "Instellingen",
     "personalizeYourStreamfusionExperience": "Personaliseer uw StreamFusion-ervaring",
     "searchSettings": "Zoekinstellingen",
+    "hubSearchPlaceholder": "Zoekweergave, chat, voorspellingen, integraties…",
     "clearSearch": "Duidelijke zoekopdracht",
     "settingsNavigation": "Instellingen navigatie",
     "valueSettings": "{{value1}} instellingen",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} seconden",
     "unknown": "onbekend",
     "failedToDownloadUpdate": "Kan de update niet downloaden",
-    "failedToInstallUpdate": "Kan update niet installeren",
-    "hubSearchPlaceholder": "Zoekweergave, chat, voorspellingen, integraties…"
+    "failedToInstallUpdate": "Kan update niet installeren"
   },
   "shell": {
     "loadingPage": "Pagina laden",

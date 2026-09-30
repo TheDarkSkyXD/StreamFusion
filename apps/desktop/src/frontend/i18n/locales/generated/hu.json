@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} ellenőrizve",
     "search": {
       "placeholder": "Keresés: Twitch és Kick",
+      "title": "Keresés: Twitch + Kick",
+      "history": "Keresési előzmények",
+      "historyHint": "Utolsó 10 típusonként",
+      "submit": "Keresés",
+      "clearField": "Világos",
       "tabs": {
         "channels": "Csatornák",
         "categories": "Kategóriák",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "{{channel}} eltávolítása a kedvencek közül",
       "live": "ÉLŐ",
       "followers_one": "{{formattedCount}} követő",
-      "followers_other": "{{formattedCount}} követő",
-      "title": "Keresés: Twitch + Kick",
-      "history": "Keresési előzmények",
-      "historyHint": "Utolsó 10 típusonként",
-      "submit": "Keresés",
-      "clearField": "Világos"
+      "followers_other": "{{formattedCount}} követő"
     },
     "category": {
       "backToCategories": "Vissza a kategóriákhoz",
@@ -1075,6 +1075,7 @@
       "filterBy": "Szűrés:",
       "sortBy": "Rendezés:",
       "searchPlaceholder": "Vendégkövetések keresése",
+      "manageTitle": "Vendégkövetések kezelése",
       "retry": "Próbálja újra",
       "browseChannels": "Csatornák böngészése",
       "checkConnection": "Ellenőrizze a kapcsolatot, és próbálja újra.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Twitch követése változatlan. Próbáld újra.",
       "updateFailed": "Nem sikerült frissíteni a követést",
       "restored": "A követési listája helyreállt. Próbálja újra a(z) {{channel}} alkalmazást.",
-      "manageTitle": "Vendégkövetések kezelése",
       "liveOnly": "Csak élőben",
       "filtersA11y": "Következő szűrők",
       "contentA11y": "Tartalom követése",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "{{title}} eltávolítása a listáról",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}}/{{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Letöltési sebesség",
+    "downloadWriteRateLabel": "Írási arány",
+    "downloadRateStalled": "Elakadt",
+    "downloadRateAverage": "Átlagos {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Offline állapotban",
     "startingLocalRecognizer": "Helyi felismerő indítása…",
     "removeModel": "Modell eltávolítása",
+    "localCaptionsComingSoon": "Hamarosan",
+    "localCaptionsComingSoonDetail": "A helyi élő feliratok visszatérnek a modell letöltése nélkül. A fejlett modellek később átkerülhetnek a Beállításokba.",
     "retryLocalCaptions": "Próbálja újra a helyi feliratokat",
     "blockingAds": "A hirdetések blokkolása",
     "adBlockActive": "Reklámblokk aktív",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Lejátszási munkamenet azonosítója",
     "servingId": "Kiszolgálási azonosító",
     "liveStreamAlt": "{{channel}} élő közvetítés",
-    "localCaptionsComingSoon": "Hamarosan",
-    "localCaptionsComingSoonDetail": "A helyi élő feliratok visszatérnek a modell letöltése nélkül. A fejlett modellek később átkerülhetnek a Beállításokba.",
     "watch": {
       "hideControls": "A lejátszó vezérlőinek elrejtése",
       "showControls": "A lejátszó vezérlőinek megjelenítése",
@@ -2294,6 +2298,7 @@
     "settings": "Beállítások elemre",
     "personalizeYourStreamfusionExperience": "Tegye személyre StreamFusion élményét",
     "searchSettings": "Keresési beállítások",
+    "hubSearchPlaceholder": "Keresési megjelenés, csevegés, előrejelzések, integrációk…",
     "clearSearch": "Keresés törlése",
     "settingsNavigation": "Beállítások navigáció",
     "valueSettings": "{{value1}} beállításai",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} másodperc",
     "unknown": "ismeretlen",
     "failedToDownloadUpdate": "Nem sikerült letölteni a frissítést",
-    "failedToInstallUpdate": "Nem sikerült telepíteni a frissítést",
-    "hubSearchPlaceholder": "Keresési megjelenés, csevegés, előrejelzések, integrációk…"
+    "failedToInstallUpdate": "Nem sikerült telepíteni a frissítést"
   },
   "shell": {
     "loadingPage": "Oldal betöltése",

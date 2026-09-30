@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} verificēts",
     "search": {
       "placeholder": "Meklēt Twitch un Kick",
+      "title": "Meklēt Twitch+Kick",
+      "history": "Meklēšanas vēsture",
+      "historyHint": "Pēdējie 10 katram veidam",
+      "submit": "Meklēt",
+      "clearField": "Skaidrs",
       "tabs": {
         "channels": "Kanāli",
         "categories": "Kategorijas",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Noņemt {{channel}} no izlases",
       "live": "TIEŠRAIDĒ",
       "followers_one": "{{formattedCount}} sekotājs",
-      "followers_other": "{{formattedCount}} sekotāji",
-      "title": "Meklēt Twitch+Kick",
-      "history": "Meklēšanas vēsture",
-      "historyHint": "Pēdējie 10 katram veidam",
-      "submit": "Meklēt",
-      "clearField": "Skaidrs"
+      "followers_other": "{{formattedCount}} sekotāji"
     },
     "category": {
       "backToCategories": "Atpakaļ uz kategorijām",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrēt pēc:",
       "sortBy": "Kārtot pēc:",
       "searchPlaceholder": "Meklēt Viesi seko",
+      "manageTitle": "Pārvaldīt viesa sekošanu",
       "retry": "Mēģiniet vēlreiz",
       "browseChannels": "Pārlūkojiet kanālus",
       "checkConnection": "Pārbaudiet savienojumu un mēģiniet vēlreiz.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Jūsu Twitch sekošana nav mainīta. Mēģiniet vēlreiz.",
       "updateFailed": "Nevarēja atjaunināt sekošanu",
       "restored": "Jūsu sekošanas saraksts tika atjaunots. Mēģiniet vēlreiz {{channel}}.",
-      "manageTitle": "Pārvaldīt viesa sekošanu",
       "liveOnly": "Tikai tiešraidē",
       "filtersA11y": "Sekojoši filtri",
       "contentA11y": "Seko saturam",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Noņemt {{title}} no saraksta",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} no {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Lejupielādes ātrums",
+    "downloadWriteRateLabel": "Rakstīšanas likme",
+    "downloadRateStalled": "Apstājās",
+    "downloadRateAverage": "Vidēji {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Gatavs bezsaistē",
     "startingLocalRecognizer": "Notiek vietējās atpazīšanas sākšanas…",
     "removeModel": "Noņemt modeli",
+    "localCaptionsComingSoon": "Drīzumā",
+    "localCaptionsComingSoonDetail": "Vietējie tiešraides subtitri tiks atgriezti bez modeļa lejupielādes straumes vidū. Uzlabotie modeļi vēlāk var tikt pārvietoti uz iestatījumiem.",
     "retryLocalCaptions": "Atkārtoti mēģiniet vietējos parakstus",
     "blockingAds": "Reklāmu bloķēšana",
     "adBlockActive": "Reklāmu bloks ir aktīvs",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Play sesijas ID",
     "servingId": "Rādīšanas ID",
     "liveStreamAlt": "{{channel}} tiešraides straume",
-    "localCaptionsComingSoon": "Drīzumā",
-    "localCaptionsComingSoonDetail": "Vietējie tiešraides subtitri tiks atgriezti bez modeļa lejupielādes straumes vidū. Uzlabotie modeļi vēlāk var tikt pārvietoti uz iestatījumiem.",
     "watch": {
       "hideControls": "Paslēpt atskaņotāja vadīklas",
       "showControls": "Rādīt atskaņotāja vadīklas",
@@ -2294,6 +2298,7 @@
     "settings": "Iestatījumi",
     "personalizeYourStreamfusionExperience": "Personalizējiet savu StreamFusion pieredzi",
     "searchSettings": "Meklēšanas iestatījumi",
+    "hubSearchPlaceholder": "Meklēšanas izskats, tērzēšana, prognozes, integrācijas…",
     "clearSearch": "Notīrīt meklēšanu",
     "settingsNavigation": "Iestatījumu navigācija",
     "valueSettings": "{{value1}} iestatījumi",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekundes",
     "unknown": "nezināms",
     "failedToDownloadUpdate": "Neizdevās lejupielādēt atjauninājumu",
-    "failedToInstallUpdate": "Neizdevās instalēt atjauninājumu",
-    "hubSearchPlaceholder": "Meklēšanas izskats, tērzēšana, prognozes, integrācijas…"
+    "failedToInstallUpdate": "Neizdevās instalēt atjauninājumu"
   },
   "shell": {
     "loadingPage": "Notiek lapas ielāde",

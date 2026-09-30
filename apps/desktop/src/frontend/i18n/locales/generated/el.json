@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} επαληθεύτηκε",
     "search": {
       "placeholder": "Αναζήτηση Twitch και Kick",
+      "title": "Αναζήτηση Twitch + Kick",
+      "history": "Ιστορικό αναζήτησης",
+      "historyHint": "Τελευταία 10 ανά τύπο",
+      "submit": "Αναζήτηση",
+      "clearField": "Καθαρό",
       "tabs": {
         "channels": "Κανάλια",
         "categories": "Κατηγορίες",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Καταργήστε το {{channel}} από τα αγαπημένα",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} ακόλουθος",
-      "followers_other": "{{formattedCount}} ακόλουθοι",
-      "title": "Αναζήτηση Twitch + Kick",
-      "history": "Ιστορικό αναζήτησης",
-      "historyHint": "Τελευταία 10 ανά τύπο",
-      "submit": "Αναζήτηση",
-      "clearField": "Καθαρό"
+      "followers_other": "{{formattedCount}} ακόλουθοι"
     },
     "category": {
       "backToCategories": "Επιστροφή στις Κατηγορίες",
@@ -1075,6 +1075,7 @@
       "filterBy": "Φιλτράρισμα κατά:",
       "sortBy": "Ταξινόμηση κατά:",
       "searchPlaceholder": "Αναζήτηση Ακολουθεί επισκέπτη",
+      "manageTitle": "Διαχείριση ακολουθιών επισκεπτών",
       "retry": "Επανάληψη",
       "browseChannels": "Περιήγηση στα κανάλια",
       "checkConnection": "Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Η παρακολούθηση Twitch δεν έχει αλλάξει. Προσπαθήστε ξανά.",
       "updateFailed": "Ακολούθησε η ενημέρωση",
       "restored": "Η λίστα παρακολούθησης αποκαταστάθηκε. Δοκιμάστε ξανά το {{channel}}.",
-      "manageTitle": "Διαχείριση ακολουθιών επισκεπτών",
       "liveOnly": "Ζήστε μόνο",
       "filtersA11y": "Ακολουθούν φίλτρα",
       "contentA11y": "Ακολουθεί περιεχόμενο",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Καταργήστε το {{title}} από τη λίστα",
     "transferSpeed": "{{value}}/δευτ",
     "transferOf": "{{transferred}} από {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Ποσοστό λήψης",
+    "downloadWriteRateLabel": "Ρυθμός εγγραφής",
+    "downloadRateStalled": "Σταματημένο",
+    "downloadRateAverage": "Μέσος όρος {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Έτοιμο εκτός σύνδεσης",
     "startingLocalRecognizer": "Έναρξη τοπικής αναγνώρισης…",
     "removeModel": "Αφαιρέστε το μοντέλο",
+    "localCaptionsComingSoon": "Προσεχώς",
+    "localCaptionsComingSoonDetail": "Οι τοπικοί ζωντανοί υπότιτλοι θα επιστρέψουν χωρίς λήψη μοντέλου στη μέση ροή. Τα προηγμένα μοντέλα ενδέχεται να μετακινηθούν στις Ρυθμίσεις αργότερα.",
     "retryLocalCaptions": "Δοκιμάστε ξανά τοπικούς υπότιτλους",
     "blockingAds": "Αποκλεισμός διαφημίσεων",
     "adBlockActive": "Ο αποκλεισμός διαφημίσεων είναι ενεργός",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Αναγνωριστικό περιόδου σύνδεσης",
     "servingId": "Αναγνωριστικό υπηρεσίας",
     "liveStreamAlt": "Ζωντανή ροή {{channel}}",
-    "localCaptionsComingSoon": "Προσεχώς",
-    "localCaptionsComingSoonDetail": "Οι τοπικοί ζωντανοί υπότιτλοι θα επιστρέψουν χωρίς λήψη μοντέλου στη μέση ροή. Τα προηγμένα μοντέλα ενδέχεται να μετακινηθούν στις Ρυθμίσεις αργότερα.",
     "watch": {
       "hideControls": "Απόκρυψη στοιχείων ελέγχου του προγράμματος αναπαραγωγής",
       "showControls": "Εμφάνιση στοιχείων ελέγχου του προγράμματος αναπαραγωγής",
@@ -2294,6 +2298,7 @@
     "settings": "Ρυθμίσεις",
     "personalizeYourStreamfusionExperience": "Εξατομικεύστε την εμπειρία σας στο StreamFusion",
     "searchSettings": "Ρυθμίσεις αναζήτησης",
+    "hubSearchPlaceholder": "Αναζήτηση εμφάνισης, συνομιλίας, προβλέψεων, ενσωματώσεων…",
     "clearSearch": "Εκκαθάριση αναζήτησης",
     "settingsNavigation": "Ρυθμίσεις πλοήγησης",
     "valueSettings": "ρυθμίσεις {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} δευτερόλεπτα",
     "unknown": "άγνωστο",
     "failedToDownloadUpdate": "Η λήψη της ενημέρωσης απέτυχε",
-    "failedToInstallUpdate": "Η εγκατάσταση της ενημέρωσης απέτυχε",
-    "hubSearchPlaceholder": "Αναζήτηση εμφάνισης, συνομιλίας, προβλέψεων, ενσωματώσεων…"
+    "failedToInstallUpdate": "Η εγκατάσταση της ενημέρωσης απέτυχε"
   },
   "shell": {
     "loadingPage": "Φόρτωση σελίδας",

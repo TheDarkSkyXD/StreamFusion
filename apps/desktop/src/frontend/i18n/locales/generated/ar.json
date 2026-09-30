@@ -1011,6 +1011,11 @@
     "verified": "تم التحقق من {{platform}}",
     "search": {
       "placeholder": "البحث عن Twitch وKick",
+      "title": "بحث Twitch + Kick",
+      "history": "سجل البحث",
+      "historyHint": "آخر 10 لكل نوع",
+      "submit": "بحث",
+      "clearField": "واضح",
       "tabs": {
         "channels": "القنوات",
         "categories": "الفئات",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "قم بإزالة {{channel}} من المفضلة",
       "live": "مباشر",
       "followers_one": "{{formattedCount}} متابع",
-      "followers_other": "{{formattedCount}} متابع",
-      "title": "بحث Twitch + Kick",
-      "history": "سجل البحث",
-      "historyHint": "آخر 10 لكل نوع",
-      "submit": "بحث",
-      "clearField": "واضح"
+      "followers_other": "{{formattedCount}} متابع"
     },
     "category": {
       "backToCategories": "العودة إلى الفئات",
@@ -1075,6 +1075,7 @@
       "filterBy": "التصفية حسب:",
       "sortBy": "الترتيب حسب:",
       "searchPlaceholder": "بحث متابعات الضيف",
+      "manageTitle": "إدارة متابعات الضيف",
       "retry": "أعد المحاولة",
       "browseChannels": "تصفح القنوات",
       "checkConnection": "تحقق من اتصالك وحاول مرة أخرى.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "متابعتك Twitch لم تتغير. حاول ثانية.",
       "updateFailed": "تعذر تحديث المتابعة",
       "restored": "تمت استعادة قائمة المتابعة الخاصة بك. حاول {{channel}} مرة أخرى.",
-      "manageTitle": "إدارة متابعات الضيف",
       "liveOnly": "العيش فقط",
       "filtersA11y": "المرشحات التالية",
       "contentA11y": "متابعة المحتوى",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "قم بإزالة {{title}} من القائمة",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} من {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "معدل التنزيل",
+    "downloadWriteRateLabel": "معدل الكتابة",
+    "downloadRateStalled": "متوقفة",
+    "downloadRateAverage": "المتوسط {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "جاهز حاليا",
     "startingLocalRecognizer": "جارٍ بدء تشغيل أداة التعرف المحلية...",
     "removeModel": "إزالة النموذج",
+    "localCaptionsComingSoon": "قريبا",
+    "localCaptionsComingSoonDetail": "ستعود التسميات التوضيحية المباشرة المحلية دون تنزيل نموذج منتصف البث. قد تنتقل النماذج المتقدمة إلى الإعدادات لاحقًا.",
     "retryLocalCaptions": "أعد محاولة التسميات التوضيحية المحلية",
     "blockingAds": "منع الإعلانات",
     "adBlockActive": "كتلة الإعلانات نشطة",
@@ -2044,8 +2050,6 @@
     "playSessionId": "تشغيل معرف الجلسة",
     "servingId": "معرف التقديم",
     "liveStreamAlt": "{{channel}} بث مباشر",
-    "localCaptionsComingSoon": "قريبا",
-    "localCaptionsComingSoonDetail": "ستعود التسميات التوضيحية المباشرة المحلية دون تنزيل نموذج منتصف البث. قد تنتقل النماذج المتقدمة إلى الإعدادات لاحقًا.",
     "watch": {
       "hideControls": "إخفاء عناصر التحكم في اللاعب",
       "showControls": "إظهار عناصر التحكم في اللاعب",
@@ -2294,6 +2298,7 @@
     "settings": "الإعدادات",
     "personalizeYourStreamfusionExperience": "قم بإضفاء الطابع الشخصي على تجربتك في StreamFusion",
     "searchSettings": "إعدادات البحث",
+    "hubSearchPlaceholder": "مظهر البحث، والدردشة، والتنبؤات، والتكاملات...",
     "clearSearch": "مسح البحث",
     "settingsNavigation": "التنقل في الإعدادات",
     "valueSettings": "إعدادات {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} ثانية",
     "unknown": "غير معروف",
     "failedToDownloadUpdate": "فشل تنزيل التحديث",
-    "failedToInstallUpdate": "فشل تثبيت التحديث",
-    "hubSearchPlaceholder": "مظهر البحث، والدردشة، والتنبؤات، والتكاملات..."
+    "failedToInstallUpdate": "فشل تثبيت التحديث"
   },
   "shell": {
     "loadingPage": "جارٍ تحميل الصفحة",

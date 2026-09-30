@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} bekræftet",
     "search": {
       "placeholder": "Søg på Twitch og Kick",
+      "title": "Søg Twitch + Kick",
+      "history": "Søgehistorik",
+      "historyHint": "Sidste 10 pr. type",
+      "submit": "Søg",
+      "clearField": "Ryd",
       "tabs": {
         "channels": "Kanaler",
         "categories": "Kategorier",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Fjern {{channel}} fra favoritter",
       "live": "LIVE",
       "followers_one": "{{formattedCount}} følger",
-      "followers_other": "{{formattedCount}} følgere",
-      "title": "Søg Twitch + Kick",
-      "history": "Søgehistorik",
-      "historyHint": "Sidste 10 pr. type",
-      "submit": "Søg",
-      "clearField": "Ryd"
+      "followers_other": "{{formattedCount}} følgere"
     },
     "category": {
       "backToCategories": "Tilbage til kategorier",
@@ -1075,6 +1075,7 @@
       "filterBy": "Filtrer efter:",
       "sortBy": "Sorter efter:",
       "searchPlaceholder": "Søg gæst følger",
+      "manageTitle": "Administrer gæstefølger",
       "retry": "Prøv igen",
       "browseChannels": "Gennemse kanaler",
       "checkConnection": "Tjek din forbindelse, og prøv igen.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Din Twitch følger er uændret. Prøv igen.",
       "updateFailed": "Kunne ikke opdatere følg",
       "restored": "Din følgeliste blev gendannet. Prøv {{channel}} igen.",
-      "manageTitle": "Administrer gæstefølger",
       "liveOnly": "Lev kun",
       "filtersA11y": "Følgende filtre",
       "contentA11y": "Følger indhold",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Fjern {{title}} fra listen",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} af {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Downloadhastighed",
+    "downloadWriteRateLabel": "Skrivehastighed",
+    "downloadRateStalled": "Gået i stå",
+    "downloadRateAverage": "Gennemsnitlig {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Klar offline",
     "startingLocalRecognizer": "Starter lokal genkendelse...",
     "removeModel": "Fjern modellen",
+    "localCaptionsComingSoon": "Kommer snart",
+    "localCaptionsComingSoonDetail": "Lokale livetekster vender tilbage uden en midstream-modeldownload. Avancerede modeller kan flytte til Indstillinger senere.",
     "retryLocalCaptions": "Prøv lokale billedtekster igen",
     "blockingAds": "Blokering af annoncer",
     "adBlockActive": "Annonceblok aktiv",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Afspilningssession-id",
     "servingId": "Serverings-id",
     "liveStreamAlt": "{{channel}} livestream",
-    "localCaptionsComingSoon": "Kommer snart",
-    "localCaptionsComingSoonDetail": "Lokale livetekster vender tilbage uden en midstream-modeldownload. Avancerede modeller kan flytte til Indstillinger senere.",
     "watch": {
       "hideControls": "Skjul spillerkontroller",
       "showControls": "Vis spillerkontroller",
@@ -2294,6 +2298,7 @@
     "settings": "Indstillinger",
     "personalizeYourStreamfusionExperience": "Tilpas din StreamFusion-oplevelse",
     "searchSettings": "Søgeindstillinger",
+    "hubSearchPlaceholder": "Søgeudseende, chat, forudsigelser, integrationer...",
     "clearSearch": "Ryd søgning",
     "settingsNavigation": "Indstillinger navigation",
     "valueSettings": "{{value1}} indstillinger",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "ukendt",
     "failedToDownloadUpdate": "Kunne ikke downloade opdatering",
-    "failedToInstallUpdate": "Kunne ikke installere opdateringen",
-    "hubSearchPlaceholder": "Søgeudseende, chat, forudsigelser, integrationer..."
+    "failedToInstallUpdate": "Kunne ikke installere opdateringen"
   },
   "shell": {
     "loadingPage": "Indlæser side",

@@ -187,5 +187,9 @@ export const mediaLibraryEn = {
     transferSpeed: "{{value}}/s",
     transferOf: "{{transferred}} of {{total}}",
     transferSummary: "{{summary}}",
+    downloadRateLabel: "Download rate",
+    downloadWriteRateLabel: "Write rate",
+    downloadRateStalled: "Stalled",
+    downloadRateAverage: "Average {{value}}",
   },
 } as const;

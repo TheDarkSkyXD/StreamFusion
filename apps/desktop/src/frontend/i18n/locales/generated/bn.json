@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} যাচাই করা হয়েছে",
     "search": {
       "placeholder": "Twitch এবং Kick অনুসন্ধান করুন",
+      "title": "Twitch + Kick অনুসন্ধান করুন",
+      "history": "অনুসন্ধান ইতিহাস",
+      "historyHint": "টাইপ প্রতি শেষ 10",
+      "submit": "অনুসন্ধান করুন",
+      "clearField": "পরিষ্কার",
       "tabs": {
         "channels": "চ্যানেল",
         "categories": "ক্যাটাগরি",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "পছন্দসই থেকে {{channel}} সরান",
       "live": "লাইভ",
       "followers_one": "{{formattedCount}} অনুসরণকারী",
-      "followers_other": "{{formattedCount}} জন অনুসরণকারী",
-      "title": "Twitch + Kick অনুসন্ধান করুন",
-      "history": "অনুসন্ধান ইতিহাস",
-      "historyHint": "টাইপ প্রতি শেষ 10",
-      "submit": "অনুসন্ধান করুন",
-      "clearField": "পরিষ্কার"
+      "followers_other": "{{formattedCount}} জন অনুসরণকারী"
     },
     "category": {
       "backToCategories": "বিভাগগুলিতে ফিরে যান",
@@ -1075,6 +1075,7 @@
       "filterBy": "দ্বারা ফিল্টার করুন:",
       "sortBy": "অনুসারে সাজান:",
       "searchPlaceholder": "অনুসন্ধান অতিথি অনুসরণ করে",
+      "manageTitle": "গেস্ট ফলো পরিচালনা করুন",
       "retry": "আবার চেষ্টা করুন",
       "browseChannels": "চ্যানেল ব্রাউজ করুন",
       "checkConnection": "আপনার সংযোগ পরীক্ষা করুন এবং আবার চেষ্টা করুন.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "আপনার Twitch অনুসরণ অপরিবর্তিত। আবার চেষ্টা করুন",
       "updateFailed": "অনুসরণ আপডেট করা যায়নি",
       "restored": "আপনার অনুসরণ তালিকা পুনরুদ্ধার করা হয়েছে. {{channel}} আবার চেষ্টা করুন।",
-      "manageTitle": "গেস্ট ফলো পরিচালনা করুন",
       "liveOnly": "শুধু বাঁচুন",
       "filtersA11y": "ফিল্টার অনুসরণ",
       "contentA11y": "বিষয়বস্তু অনুসরণ",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "তালিকা থেকে {{title}} সরান",
     "transferSpeed": "{{value}}/s",
     "transferOf": "{{transferred}} এর {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "ডাউনলোড রেট",
+    "downloadWriteRateLabel": "হার লিখুন",
+    "downloadRateStalled": "স্থবির",
+    "downloadRateAverage": "গড় {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "অফলাইনে প্রস্তুত",
     "startingLocalRecognizer": "স্থানীয় শনাক্তকারী শুরু হচ্ছে...",
     "removeModel": "মডেল সরান",
+    "localCaptionsComingSoon": "শীঘ্রই আসছে",
+    "localCaptionsComingSoonDetail": "স্থানীয় লাইভ ক্যাপশনগুলি মিড-স্ট্রিম মডেল ডাউনলোড ছাড়াই ফিরে আসবে। উন্নত মডেলগুলি পরে সেটিংসে যেতে পারে৷",
     "retryLocalCaptions": "স্থানীয় ক্যাপশন পুনরায় চেষ্টা করুন",
     "blockingAds": "বিজ্ঞাপন ব্লক করা",
     "adBlockActive": "অ্যাড-ব্লক সক্রিয়",
@@ -2044,8 +2050,6 @@
     "playSessionId": "সেশন আইডি খেলুন",
     "servingId": "আইডি পরিবেশন",
     "liveStreamAlt": "{{channel}} লাইভ স্ট্রিম",
-    "localCaptionsComingSoon": "শীঘ্রই আসছে",
-    "localCaptionsComingSoonDetail": "স্থানীয় লাইভ ক্যাপশনগুলি মিড-স্ট্রিম মডেল ডাউনলোড ছাড়াই ফিরে আসবে। উন্নত মডেলগুলি পরে সেটিংসে যেতে পারে৷",
     "watch": {
       "hideControls": "প্লেয়ার নিয়ন্ত্রণ লুকান",
       "showControls": "প্লেয়ার নিয়ন্ত্রণ দেখান",
@@ -2294,6 +2298,7 @@
     "settings": "সেটিংস",
     "personalizeYourStreamfusionExperience": "আপনার StreamFusion অভিজ্ঞতা ব্যক্তিগতকৃত করুন",
     "searchSettings": "অনুসন্ধান সেটিংস",
+    "hubSearchPlaceholder": "চেহারা, চ্যাট, ভবিষ্যদ্বাণী, ইন্টিগ্রেশন অনুসন্ধান করুন...",
     "clearSearch": "সাফ অনুসন্ধান",
     "settingsNavigation": "সেটিংস নেভিগেশন",
     "valueSettings": "{{value1}} সেটিংস",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} সেকেন্ড",
     "unknown": "অজানা",
     "failedToDownloadUpdate": "আপডেট ডাউনলোড করতে ব্যর্থ হয়েছে",
-    "failedToInstallUpdate": "আপডেট ইনস্টল করতে ব্যর্থ হয়েছে",
-    "hubSearchPlaceholder": "চেহারা, চ্যাট, ভবিষ্যদ্বাণী, ইন্টিগ্রেশন অনুসন্ধান করুন..."
+    "failedToInstallUpdate": "আপডেট ইনস্টল করতে ব্যর্থ হয়েছে"
   },
   "shell": {
     "loadingPage": "পৃষ্ঠা লোড হচ্ছে",

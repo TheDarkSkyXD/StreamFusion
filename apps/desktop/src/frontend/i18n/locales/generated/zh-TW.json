@@ -1011,6 +1011,11 @@
     "verified": "{{platform}}已驗證",
     "search": {
       "placeholder": "搜尋Twitch和Kick",
+      "title": "搜尋 Twitch + Kick",
+      "history": "搜尋紀錄",
+      "historyHint": "每種類型最後 10 條",
+      "submit": "搜尋",
+      "clearField": "清除",
       "tabs": {
         "channels": "頻道",
         "categories": "類別",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "從收藏夾中刪除 {{channel}}",
       "live": "現場直播",
       "followers_one": "{{formattedCount}} 個追蹤者",
-      "followers_other": "{{formattedCount}} 位追蹤者",
-      "title": "搜尋 Twitch + Kick",
-      "history": "搜尋紀錄",
-      "historyHint": "每種類型最後 10 條",
-      "submit": "搜尋",
-      "clearField": "清除"
+      "followers_other": "{{formattedCount}} 位追蹤者"
     },
     "category": {
       "backToCategories": "返回類別",
@@ -1075,6 +1075,7 @@
       "filterBy": "過濾依據：",
       "sortBy": "排序依據：",
       "searchPlaceholder": "搜尋訪客關注",
+      "manageTitle": "管理訪客關注",
       "retry": "重試",
       "browseChannels": "瀏覽頻道",
       "checkConnection": "檢查您的連線並重試。",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "您的 Twitch 關注沒有變化。再試一次。",
       "updateFailed": "無法更新關注",
       "restored": "您的關注清單已恢復。重試{{channel}}。",
-      "manageTitle": "管理訪客關注",
       "liveOnly": "僅直播",
       "filtersA11y": "正在關注過濾器",
       "contentA11y": "以下內容",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "從清單中刪除{{title}}",
     "transferSpeed": "{{value}}/秒",
     "transferOf": "第 {{transferred}} 個（共 {{total}} 個）",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "下載率",
+    "downloadWriteRateLabel": "寫入速率",
+    "downloadRateStalled": "停滯",
+    "downloadRateAverage": "平均{{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "离线就绪",
     "startingLocalRecognizer": "啟動本地識別器...",
     "removeModel": "刪除模型",
+    "localCaptionsComingSoon": "即將推出",
+    "localCaptionsComingSoonDetail": "本地即時字幕將返回，無需中流模型下載。高級型號可能會稍後移至“設定”。",
     "retryLocalCaptions": "重試本地字幕",
     "blockingAds": "攔截廣告",
     "adBlockActive": "廣告攔截活動",
@@ -2044,8 +2050,6 @@
     "playSessionId": "播放會話 ID",
     "servingId": "服務ID",
     "liveStreamAlt": "{{channel}} 直播",
-    "localCaptionsComingSoon": "即將推出",
-    "localCaptionsComingSoonDetail": "本地即時字幕將返回，無需中流模型下載。高級型號可能會稍後移至“設定”。",
     "watch": {
       "hideControls": "隱藏播放器控件",
       "showControls": "顯示播放器控件",
@@ -2294,6 +2298,7 @@
     "settings": "設定",
     "personalizeYourStreamfusionExperience": "個人化您的 StreamFusion 體驗",
     "searchSettings": "搜尋設定",
+    "hubSearchPlaceholder": "搜尋外觀、聊天、預測、整合…",
     "clearSearch": "清除搜尋",
     "settingsNavigation": "設定導航",
     "valueSettings": "{{value1}}設定",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} 秒",
     "unknown": "未知",
     "failedToDownloadUpdate": "下載更新失敗",
-    "failedToInstallUpdate": "無法安裝更新",
-    "hubSearchPlaceholder": "搜尋外觀、聊天、預測、整合…"
+    "failedToInstallUpdate": "無法安裝更新"
   },
   "shell": {
     "loadingPage": "載入頁面",

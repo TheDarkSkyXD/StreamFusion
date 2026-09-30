@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} проверено",
     "search": {
       "placeholder": "Поиск Twitch и Kick",
+      "title": "Поиск Twitch + Kick",
+      "history": "История поиска",
+      "historyHint": "Последние 10 каждого типа",
+      "submit": "Поиск",
+      "clearField": "Очистить",
       "tabs": {
         "channels": "Каналы",
         "categories": "Категории",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "Удалить {{channel}} из избранного",
       "live": "ЖИТЬ",
       "followers_one": "{{formattedCount}} подписчик",
-      "followers_other": "{{formattedCount}} подписчиков",
-      "title": "Поиск Twitch + Kick",
-      "history": "История поиска",
-      "historyHint": "Последние 10 каждого типа",
-      "submit": "Поиск",
-      "clearField": "Очистить"
+      "followers_other": "{{formattedCount}} подписчиков"
     },
     "category": {
       "backToCategories": "Вернуться к категориям",
@@ -1075,6 +1075,7 @@
       "filterBy": "Фильтровать по:",
       "sortBy": "Сортировать по:",
       "searchPlaceholder": "Поиск подписок гостей",
+      "manageTitle": "Управление подписками гостей",
       "retry": "Повторить попытку",
       "browseChannels": "Просмотр каналов",
       "checkConnection": "Проверьте подключение и повторите попытку.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "Ваша подписка на Twitch не изменилась. Попробуйте еще раз.",
       "updateFailed": "Не удалось обновить подписку",
       "restored": "Ваш список подписчиков восстановлен. Попробуйте {{channel}} еще раз.",
-      "manageTitle": "Управление подписками гостей",
       "liveOnly": "Только жить",
       "filtersA11y": "Следующие фильтры",
       "contentA11y": "Следующий контент",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "Удалить {{title}} из списка",
     "transferSpeed": "{{value}}/с",
     "transferOf": "{{transferred}} из {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "Скорость загрузки",
+    "downloadWriteRateLabel": "Скорость записи",
+    "downloadRateStalled": "Застопорился",
+    "downloadRateAverage": "Средний {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "Готово в автономном режиме",
     "startingLocalRecognizer": "Запуск локального распознавателя…",
     "removeModel": "Удалить модель",
+    "localCaptionsComingSoon": "Скоро",
+    "localCaptionsComingSoonDetail": "Локальные субтитры вернутся без загрузки модели в середине трансляции. Расширенные модели могут перейти в настройки позже.",
     "retryLocalCaptions": "Повторить локальные субтитры",
     "blockingAds": "Блокировка рекламы",
     "adBlockActive": "Блокировка рекламы активна",
@@ -2044,8 +2050,6 @@
     "playSessionId": "Идентификатор сеанса воспроизведения",
     "servingId": "Идентификатор обслуживания",
     "liveStreamAlt": "{{channel}} прямая трансляция",
-    "localCaptionsComingSoon": "Скоро",
-    "localCaptionsComingSoonDetail": "Локальные субтитры вернутся без загрузки модели в середине трансляции. Расширенные модели могут перейти в настройки позже.",
     "watch": {
       "hideControls": "Скрыть элементы управления игроком",
       "showControls": "Показать элементы управления проигрывателем",
@@ -2294,6 +2298,7 @@
     "settings": "Настройки",
     "personalizeYourStreamfusionExperience": "Персонализируйте свой опыт работы с StreamFusion",
     "searchSettings": "Настройки поиска",
+    "hubSearchPlaceholder": "Внешний вид поиска, чат, прогнозы, интеграции…",
     "clearSearch": "Очистить поиск",
     "settingsNavigation": "Навигация по настройкам",
     "valueSettings": "{{value1}} настройки",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} секунд",
     "unknown": "неизвестно",
     "failedToDownloadUpdate": "Не удалось загрузить обновление",
-    "failedToInstallUpdate": "Не удалось установить обновление",
-    "hubSearchPlaceholder": "Внешний вид поиска, чат, прогнозы, интеграции…"
+    "failedToInstallUpdate": "Не удалось установить обновление"
   },
   "shell": {
     "loadingPage": "Загрузка страницы",

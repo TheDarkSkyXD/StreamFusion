@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} சரிபார்க்கப்பட்டது",
     "search": {
       "placeholder": "தேடல் Twitch மற்றும் Kick",
+      "title": "தேடல் Twitch + Kick",
+      "history": "தேடல் வரலாறு",
+      "historyHint": "ஒரு வகைக்கு கடைசி 10",
+      "submit": "தேடு",
+      "clearField": "தெளிவு",
       "tabs": {
         "channels": "சேனல்கள்",
         "categories": "வகைகள்",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "பிடித்தவற்றிலிருந்து {{channel}} ஐ அகற்று",
       "live": "நேரலை",
       "followers_one": "{{formattedCount}} பின்தொடர்பவர்",
-      "followers_other": "{{formattedCount}} பின்தொடர்பவர்கள்",
-      "title": "தேடல் Twitch + Kick",
-      "history": "தேடல் வரலாறு",
-      "historyHint": "ஒரு வகைக்கு கடைசி 10",
-      "submit": "தேடு",
-      "clearField": "தெளிவு"
+      "followers_other": "{{formattedCount}} பின்தொடர்பவர்கள்"
     },
     "category": {
       "backToCategories": "வகைகளுக்குத் திரும்பு",
@@ -1075,6 +1075,7 @@
       "filterBy": "இதன்படி வடிகட்டவும்:",
       "sortBy": "இதன்படி வரிசைப்படுத்தவும்:",
       "searchPlaceholder": "தேடல் விருந்தினர் பின்தொடர்கிறார்",
+      "manageTitle": "விருந்தினர் பின்தொடர்வதை நிர்வகி",
       "retry": "மீண்டும் முயற்சிக்கவும்",
       "browseChannels": "சேனல்களை உலாவவும்",
       "checkConnection": "உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "உங்கள் Twitch பின்தொடர்தல் மாறாமல் உள்ளது. மீண்டும் முயற்சிக்கவும்.",
       "updateFailed": "பின்தொடர்வதைப் புதுப்பிக்க முடியவில்லை",
       "restored": "உங்கள் பின்தொடர்தல் பட்டியல் மீட்டெடுக்கப்பட்டது. மீண்டும் {{channel}} முயற்சிக்கவும்.",
-      "manageTitle": "விருந்தினர் பின்தொடர்வதை நிர்வகி",
       "liveOnly": "வாழ மட்டுமே",
       "filtersA11y": "பின்வரும் வடிப்பான்கள்",
       "contentA11y": "பின்வரும் உள்ளடக்கம்",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "பட்டியலிலிருந்து {{title}} ஐ அகற்று",
     "transferSpeed": "{{value}}/வி",
     "transferOf": "{{total}} இல் {{transferred}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "பதிவிறக்க விகிதம்",
+    "downloadWriteRateLabel": "எழுது விகிதம்",
+    "downloadRateStalled": "ஸ்தம்பித்தது",
+    "downloadRateAverage": "சராசரி {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "ஆஃப்லைனில் தயார்",
     "startingLocalRecognizer": "உள்ளூர் அங்கீகாரத்தைத் தொடங்குகிறது…",
     "removeModel": "மாதிரியை அகற்று",
+    "localCaptionsComingSoon": "விரைவில் வரும்",
+    "localCaptionsComingSoonDetail": "மிட்-ஸ்ட்ரீம் மாதிரி பதிவிறக்கம் இல்லாமல் உள்ளூர் நேரலை வசனங்கள் திரும்பும். மேம்பட்ட மாதிரிகள் பின்னர் அமைப்புகளுக்குச் செல்லலாம்.",
     "retryLocalCaptions": "உள்ளூர் தலைப்புகளை மீண்டும் முயற்சிக்கவும்",
     "blockingAds": "விளம்பரங்களைத் தடுப்பது",
     "adBlockActive": "விளம்பரத் தொகுதி செயலில் உள்ளது",
@@ -2044,8 +2050,6 @@
     "playSessionId": "ப்ளே செஷன் ஐடி",
     "servingId": "சேவை ஐடி",
     "liveStreamAlt": "{{channel}} நேரடி ஸ்ட்ரீம்",
-    "localCaptionsComingSoon": "விரைவில் வரும்",
-    "localCaptionsComingSoonDetail": "மிட்-ஸ்ட்ரீம் மாதிரி பதிவிறக்கம் இல்லாமல் உள்ளூர் நேரலை வசனங்கள் திரும்பும். மேம்பட்ட மாதிரிகள் பின்னர் அமைப்புகளுக்குச் செல்லலாம்.",
     "watch": {
       "hideControls": "பிளேயர் கட்டுப்பாடுகளை மறை",
       "showControls": "பிளேயர் கட்டுப்பாடுகளைக் காட்டு",
@@ -2294,6 +2298,7 @@
     "settings": "அமைப்புகள்",
     "personalizeYourStreamfusionExperience": "உங்கள் StreamFusion அனுபவத்தைத் தனிப்பயனாக்குங்கள்",
     "searchSettings": "தேடல் அமைப்புகள்",
+    "hubSearchPlaceholder": "தேடல் தோற்றம், அரட்டை, கணிப்புகள், ஒருங்கிணைப்புகள்...",
     "clearSearch": "தெளிவான தேடல்",
     "settingsNavigation": "அமைப்புகள் வழிசெலுத்தல்",
     "valueSettings": "{{value1}} அமைப்புகள்",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} வினாடிகள்",
     "unknown": "தெரியவில்லை",
     "failedToDownloadUpdate": "புதுப்பிப்பைப் பதிவிறக்க முடியவில்லை",
-    "failedToInstallUpdate": "புதுப்பிப்பை நிறுவ முடியவில்லை",
-    "hubSearchPlaceholder": "தேடல் தோற்றம், அரட்டை, கணிப்புகள், ஒருங்கிணைப்புகள்..."
+    "failedToInstallUpdate": "புதுப்பிப்பை நிறுவ முடியவில்லை"
   },
   "shell": {
     "loadingPage": "பக்கத்தை ஏற்றுகிறது",

@@ -109,6 +109,7 @@ export function createClipDownloadService({
     const url = normalizeMediaUrl?.(selectedQuality?.url ?? playback.url) ??
       selectedQuality?.url ?? playback.url;
     if (playback.format === "mp4") {
+      queue.updateTarget(jobId, { byteSource: "network" });
       await downloadFile({
         url,
         destinationPath,
@@ -122,6 +123,7 @@ export function createClipDownloadService({
     }
 
     if (playback.format === "hls" && resolveFfmpegPath && downloadHls) {
+      queue.updateTarget(jobId, { byteSource: "output-file" });
       const result = await downloadHls({
         ffmpegPath: resolveFfmpegPath(),
         inputUrl: url,

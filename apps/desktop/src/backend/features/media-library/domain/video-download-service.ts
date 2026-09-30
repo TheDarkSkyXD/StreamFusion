@@ -96,6 +96,7 @@ export function createVideoDownloadService({
               throw new Error("Only HLS video downloads are supported");
             }
             queue.start(job.id);
+            queue.updateTarget(job.id, { byteSource: "output-file" });
             const result = await downloadHls({
               ffmpegPath: resolveFfmpegPath(),
               inputUrl: playback.url,

@@ -1011,6 +1011,11 @@
     "verified": "{{platform}} ยืนยันแล้ว",
     "search": {
       "placeholder": "ค้นหา Twitch และ Kick",
+      "title": "ค้นหา Twitch + Kick",
+      "history": "ประวัติการค้นหา",
+      "historyHint": "ประเภทละ 10 ตัวสุดท้าย",
+      "submit": "ค้นหา",
+      "clearField": "ชัดเจน",
       "tabs": {
         "channels": "ช่อง",
         "categories": "หมวดหมู่",
@@ -1025,12 +1030,7 @@
       "removeFavorite": "ลบ {{channel}} ออกจากรายการโปรด",
       "live": "สด",
       "followers_one": "ผู้ติดตาม {{formattedCount}} คน",
-      "followers_other": "ผู้ติดตาม {{formattedCount}} คน",
-      "title": "ค้นหา Twitch + Kick",
-      "history": "ประวัติการค้นหา",
-      "historyHint": "ประเภทละ 10 ตัวสุดท้าย",
-      "submit": "ค้นหา",
-      "clearField": "ชัดเจน"
+      "followers_other": "ผู้ติดตาม {{formattedCount}} คน"
     },
     "category": {
       "backToCategories": "กลับไปที่หมวดหมู่",
@@ -1075,6 +1075,7 @@
       "filterBy": "กรองตาม:",
       "sortBy": "จัดเรียงตาม:",
       "searchPlaceholder": "ค้นหาผู้เยี่ยมชมติดตาม",
+      "manageTitle": "จัดการการติดตามของแขก",
       "retry": "ลองอีกครั้ง",
       "browseChannels": "เรียกดูช่อง",
       "checkConnection": "ตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง",
@@ -1110,7 +1111,6 @@
       "twitchFollowUnchanged": "การติดตาม Twitch ของคุณไม่เปลี่ยนแปลง ลองอีกครั้ง",
       "updateFailed": "ไม่สามารถอัพเดตติดตามได้",
       "restored": "รายการติดตามของคุณได้รับการกู้คืนแล้ว ลอง {{channel}} อีกครั้ง",
-      "manageTitle": "จัดการการติดตามของแขก",
       "liveOnly": "มีชีวิตอยู่เท่านั้น",
       "filtersA11y": "ตัวกรองต่อไปนี้",
       "contentA11y": "เนื้อหาตามนี้.",
@@ -1376,7 +1376,11 @@
     "removeDownloadTitle": "ลบ {{title}} ออกจากรายการ",
     "transferSpeed": "{{value}}/วินาที",
     "transferOf": "{{transferred}} จาก {{total}}",
-    "transferSummary": "{{summary}}"
+    "transferSummary": "{{summary}}",
+    "downloadRateLabel": "อัตราการดาวน์โหลด",
+    "downloadWriteRateLabel": "อัตราการเขียน",
+    "downloadRateStalled": "จนตรอก",
+    "downloadRateAverage": "เฉลี่ย {{value}}"
   },
   "moderation": {
     "workspacePanels": {
@@ -1877,6 +1881,8 @@
     "readyOffline": "พร้อมครับออฟไลน์",
     "startingLocalRecognizer": "กำลังเริ่มโปรแกรมจดจำท้องถิ่น...",
     "removeModel": "ลบโมเดล",
+    "localCaptionsComingSoon": "เร็วๆ นี้",
+    "localCaptionsComingSoonDetail": "คำบรรยายสดในท้องถิ่นจะกลับมาโดยไม่ต้องดาวน์โหลดโมเดลกลางสตรีม โมเดลขั้นสูงอาจย้ายไปที่การตั้งค่าในภายหลัง",
     "retryLocalCaptions": "ลองคำบรรยายท้องถิ่นอีกครั้ง",
     "blockingAds": "การปิดกั้นโฆษณา",
     "adBlockActive": "บล็อกโฆษณาทำงานอยู่",
@@ -2044,8 +2050,6 @@
     "playSessionId": "เล่นรหัสเซสชั่น",
     "servingId": "รหัสการให้บริการ",
     "liveStreamAlt": "{{channel}} สตรีมสด",
-    "localCaptionsComingSoon": "เร็วๆ นี้",
-    "localCaptionsComingSoonDetail": "คำบรรยายสดในท้องถิ่นจะกลับมาโดยไม่ต้องดาวน์โหลดโมเดลกลางสตรีม โมเดลขั้นสูงอาจย้ายไปที่การตั้งค่าในภายหลัง",
     "watch": {
       "hideControls": "ซ่อนการควบคุมผู้เล่น",
       "showControls": "แสดงการควบคุมผู้เล่น",
@@ -2294,6 +2298,7 @@
     "settings": "การตั้งค่า",
     "personalizeYourStreamfusionExperience": "ปรับแต่งประสบการณ์ StreamFusion ของคุณ",
     "searchSettings": "การตั้งค่าการค้นหา",
+    "hubSearchPlaceholder": "ลักษณะการค้นหา การแชท การคาดคะเน การผสานรวม...",
     "clearSearch": "ล้างการค้นหา",
     "settingsNavigation": "การนำทางการตั้งค่า",
     "valueSettings": "การตั้งค่า {{value1}}",
@@ -2854,8 +2859,7 @@
     "secondCount_other": "{{count}} วินาที",
     "unknown": "ไม่ทราบ",
     "failedToDownloadUpdate": "ดาวน์โหลดการอัปเดตไม่สำเร็จ",
-    "failedToInstallUpdate": "ไม่สามารถติดตั้งการอัปเดต",
-    "hubSearchPlaceholder": "ลักษณะการค้นหา การแชท การคาดคะเน การผสานรวม..."
+    "failedToInstallUpdate": "ไม่สามารถติดตั้งการอัปเดต"
   },
   "shell": {
     "loadingPage": "กำลังโหลดหน้า",
