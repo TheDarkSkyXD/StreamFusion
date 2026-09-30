@@ -182,6 +182,67 @@ test("native animation peers match the Expo SDK and resolve without conflicts", 
   assert.equal(peerCheck.status, 0, peerCheck.stderr || peerCheck.stdout);
 });
 
+test("the release build is signed with the production keystore, never the debug key", () => {
+  const { applyReleaseSigning } = require("../plugins/with-production-signing.js");
+  const buildGradle = `android {
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+`;
+
+  const patched = applyReleaseSigning(buildGradle);
+  const releaseBlock = patched.split("release {").at(-1);
+
+  assert.match(releaseBlock, /signingConfig signingConfigs\.release/u);
+  assert.doesNotMatch(releaseBlock, /signingConfigs\.debug/u);
+  assert.match(patched, /STREAMFUSION_UPLOAD_STORE_FILE/u);
+  assert.match(patched, /STREAMFUSION_UPLOAD_KEY_PASSWORD/u);
+  assert.match(
+    patched.slice(0, patched.indexOf("buildTypes")),
+    /androiddebugkey/u,
+    "the debug build type still signs with the debug key",
+  );
+  assert.equal(
+    applyReleaseSigning(patched),
+    patched,
+    "prebuild must be idempotent so re-running does not double-apply",
+  );
+});
+
+test("a build script without a release signing reference is rejected", () => {
+  const { applyReleaseSigning } = require("../plugins/with-production-signing.js");
+
+  assert.throws(
+    () => applyReleaseSigning("android {}\n"),
+    /signingConfigs block/u,
+  );
+  assert.throws(
+    () => applyReleaseSigning("android {\n  signingConfigs {\n  }\n}\n"),
+    /release build type/u,
+  );
+});
+
+test("the production signing plugin is registered for prebuild", () => {
+  assert.ok(
+    appManifest.expo.plugins.includes("./plugins/with-production-signing"),
+    "a release APK signed with the debug key is a different application identity",
+  );
+});
+
 test("draw-over-apps stays off main so Search does not leave the app", () => {
   assert.ok(
     appManifest.expo.plugins.includes("./plugins/with-no-draw-over-apps"),
