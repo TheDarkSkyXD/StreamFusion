@@ -117,8 +117,13 @@ export function verifyApk(apkPath) {
   });
   if (result.error) throw result.error;
   const report = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  // apksigner labels the digest by the scheme it verified, and the two formats
+  // differ: a v3 signature reports "Signer #1 certificate SHA-256 digest:" with
+  // no colon after the name, while a v2-only signature reports "V2 Signer:
+  // certificate SHA-256 digest:". Accept either, and require the full 32-byte
+  // digest so a shorter SHA-1 or MD5 line is never mistaken for it.
   const signerFingerprint = report.match(
-    /Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F:]+)/u,
+    /(?:Signer #1|V2 Signer):?\s*certificate SHA-256 digest:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){31})/u,
   )?.[1];
   if (!signerFingerprint) {
     throw new Error(
