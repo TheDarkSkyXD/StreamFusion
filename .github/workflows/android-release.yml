@@ -119,6 +119,9 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
 
@@ -257,6 +260,9 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts

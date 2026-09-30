@@ -389,6 +389,22 @@ test("the android release publishes a draft before it publishes", () => {
   assert.doesNotMatch(source, /--clobber/u);
 });
 
+test("every job that installs dependencies pins npm first", () => {
+  // npm ci fails on this repository unless npm matches devEngines, and the
+  // runner ships npm 10 while the repository requires npm 11. A job that
+  // installs without pinning fails before it reaches any real work.
+  const workflow = loadWorkflow("android-release.yml");
+  const offenders = [];
+
+  for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
+    const names = (job.steps ?? []).map((step) => step.name);
+    if (!names.includes("Install dependencies without lifecycle scripts")) continue;
+    if (!names.includes("Pin npm")) offenders.push(id);
+  }
+
+  assert.deepEqual(offenders, [], `these jobs install without pinning npm: ${offenders}`);
+});
+
 test("only the android publish job may write to the repository", () => {
   const workflow = loadWorkflow("android-release.yml");
 
