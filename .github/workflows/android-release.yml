@@ -76,7 +76,13 @@ jobs:
         # build-time tooling such as @expo/fingerprint and jsdom. Those
         # advisories never reach a device. This gate covers the dependencies
         # that are actually bundled into the APK, which is the tree a user runs.
-        run: node scripts/audit-android-release-deps.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          NPM_CLI_JS="$(dirname "$(readlink -f "$(command -v npm)")")/../lib/node_modules/npm/bin/npm-cli.js"
+          test -f "$NPM_CLI_JS" || NPM_CLI_JS="$(npm root -g)/npm/bin/npm-cli.js"
+          export NPM_CLI_JS
+          node scripts/audit-android-release-deps.mjs
 
       - name: Require the Android tag namespace and a mobile version
         shell: bash

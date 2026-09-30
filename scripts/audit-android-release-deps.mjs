@@ -10,10 +10,12 @@ const repositoryRoot = path.resolve(path.dirname(scriptPath), "..");
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 
 function npmInvocation() {
-  // Resolve npm's own entry point and run it with node. A GitHub runner does not
-  // export npm_execpath, and shelling out to a .cmd would need shell:true, which
-  // Node warns is unsafe for interpolated arguments.
-  const entry = [
+  // npm's install location differs per platform and per runner image, and a
+  // GitHub runner does not export npm_execpath. NPM_CLI_JS is supplied by the
+  // release workflow, which resolves it with the shell, and the remaining
+  // candidates cover a normal local checkout.
+  const candidates = [
+    process.env.NPM_CLI_JS,
     process.env.npm_execpath,
     path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
     process.platform === "win32"
@@ -25,12 +27,16 @@ function npmInvocation() {
           "bin",
           "npm-cli.js",
         )
-      : null,
-  ].find((candidate) => candidate && existsSync(candidate));
+      : "/usr/local/lib/node_modules/npm/bin/npm-cli.js",
+    process.platform === "win32"
+      ? null
+      : "/usr/lib/node_modules/npm/bin/npm-cli.js",
+  ].filter(Boolean);
 
+  const entry = candidates.find((candidate) => existsSync(candidate));
   if (!entry) {
     throw new Error(
-      "Could not find npm-cli.js next to node or in APPDATA. Set npm_execpath.",
+      "Could not locate npm-cli.js. Set NPM_CLI_JS to its absolute path.",
     );
   }
   return { command: process.execPath, prefix: [entry] };
