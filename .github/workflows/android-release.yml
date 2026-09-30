@@ -106,6 +106,7 @@ jobs:
   signing:
     name: Verify Android signing prerequisites
     needs: verify
+    environment: android-release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tagged source

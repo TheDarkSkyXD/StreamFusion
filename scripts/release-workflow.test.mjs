@@ -389,6 +389,35 @@ test("the android release publishes a draft before it publishes", () => {
   assert.doesNotMatch(source, /--clobber/u);
 });
 
+test("every job reading an environment variable declares the environment", () => {
+  // A job only sees STREAMFUSION_* variables when it declares the environment
+  // that owns them. Reading them from a job that does not silently yields empty
+  // strings, which app.config.js then rejects with a confusing message.
+  const workflow = loadWorkflow("android-release.yml");
+  const required = [
+    "STREAMFUSION_PRODUCTION_EAS_PROJECT_ID",
+    "STREAMFUSION_PRODUCTION_EAS_OWNER",
+    "STREAMFUSION_PRODUCTION_VERSION_CODE",
+  ];
+  const offenders = [];
+
+  for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
+    const readsVariables = (job.steps ?? []).some((step) =>
+      required.some((name) => JSON.stringify(step.env ?? {}).includes(name)),
+    );
+    if (readsVariables && !job.environment) offenders.push(id);
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `these jobs read android-release variables without declaring the environment: ${offenders}`,
+  );
+  assert.equal(workflow.jobs.signing.environment, "android-release");
+  assert.equal(workflow.jobs.build.environment, "android-release");
+  assert.equal(workflow.jobs.release.environment, "android-release");
+});
+
 test("every job that installs dependencies pins npm first", () => {
   // npm ci fails on this repository unless npm matches devEngines, and the
   // runner ships npm 10 while the repository requires npm 11. A job that
