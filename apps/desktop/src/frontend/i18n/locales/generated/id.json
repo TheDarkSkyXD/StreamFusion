@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Kecepatan pengunduhan",
     "downloadWriteRateLabel": "Kecepatan tulis",
     "downloadRateStalled": "Terhenti",
-    "downloadRateAverage": "Rata-rata {{value}}"
+    "downloadRateAverage": "Rata-rata {{value}}",
+    "downloadRatePeak": "Puncak {{value}}/dtk",
+    "downloadRateMean": "Berarti {{value}}/dtk",
+    "downloadRateRemaining": "{{value}} kiri"
   },
   "moderation": {
     "workspacePanels": {

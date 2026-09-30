@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Letöltési sebesség",
     "downloadWriteRateLabel": "Írási arány",
     "downloadRateStalled": "Elakadt",
-    "downloadRateAverage": "Átlagos {{value}}"
+    "downloadRateAverage": "Átlagos {{value}}",
+    "downloadRatePeak": "Csúcs {{value}}/s",
+    "downloadRateMean": "Átlag {{value}}/s",
+    "downloadRateRemaining": "{{value}} maradt"
   },
   "moderation": {
     "workspacePanels": {

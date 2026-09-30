@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "ڈاؤن لوڈ کی شرح",
     "downloadWriteRateLabel": "شرح لکھیں۔",
     "downloadRateStalled": "تعطل کا شکار",
-    "downloadRateAverage": "اوسط {{value}}"
+    "downloadRateAverage": "اوسط {{value}}",
+    "downloadRatePeak": "چوٹی {{value}}/s",
+    "downloadRateMean": "اوسط {{value}}/s",
+    "downloadRateRemaining": "{{value}} باقی ہے۔"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "பதிவிறக்க விகிதம்",
     "downloadWriteRateLabel": "எழுது விகிதம்",
     "downloadRateStalled": "ஸ்தம்பித்தது",
-    "downloadRateAverage": "சராசரி {{value}}"
+    "downloadRateAverage": "சராசரி {{value}}",
+    "downloadRatePeak": "உச்சம் {{value}}/வி",
+    "downloadRateMean": "சராசரி {{value}}/வி",
+    "downloadRateRemaining": "{{value}} மீதமுள்ளது"
   },
   "moderation": {
     "workspacePanels": {

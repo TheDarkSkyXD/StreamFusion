@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "معدل التنزيل",
     "downloadWriteRateLabel": "معدل الكتابة",
     "downloadRateStalled": "متوقفة",
-    "downloadRateAverage": "المتوسط {{value}}"
+    "downloadRateAverage": "المتوسط {{value}}",
+    "downloadRatePeak": "الذروة {{value}}/ثانية",
+    "downloadRateMean": "يعني {{value}}/ثانية",
+    "downloadRateRemaining": "{{value}} يسار"
   },
   "moderation": {
     "workspacePanels": {

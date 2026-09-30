@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "نرخ دانلود",
     "downloadWriteRateLabel": "نرخ نوشتن",
     "downloadRateStalled": "متوقف شده است",
-    "downloadRateAverage": "میانگین {{value}}"
+    "downloadRateAverage": "میانگین {{value}}",
+    "downloadRatePeak": "اوج {{value}}/s",
+    "downloadRateMean": "میانگین {{value}}/s",
+    "downloadRateRemaining": "{{value}} باقی مانده است"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Taux de téléchargement",
     "downloadWriteRateLabel": "Taux d'écriture",
     "downloadRateStalled": "Bloqué",
-    "downloadRateAverage": "Moyenne {{value}}"
+    "downloadRateAverage": "Moyenne {{value}}",
+    "downloadRatePeak": "Pic {{value}}/s",
+    "downloadRateMean": "Moyenne {{value}}/s",
+    "downloadRateRemaining": "{{value}} restant"
   },
   "moderation": {
     "workspacePanels": {

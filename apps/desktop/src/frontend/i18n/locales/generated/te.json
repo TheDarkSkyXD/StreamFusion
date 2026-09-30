@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "డౌన్‌లోడ్ రేటు",
     "downloadWriteRateLabel": "రేటు వ్రాయండి",
     "downloadRateStalled": "నిలిచిపోయింది",
-    "downloadRateAverage": "సగటు {{value}}"
+    "downloadRateAverage": "సగటు {{value}}",
+    "downloadRatePeak": "గరిష్టం {{value}}/సె",
+    "downloadRateMean": "సగటు {{value}}/సె",
+    "downloadRateRemaining": "{{value}} మిగిలి ఉంది"
   },
   "moderation": {
     "workspacePanels": {

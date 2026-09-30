@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "ডাউনলোড রেট",
     "downloadWriteRateLabel": "হার লিখুন",
     "downloadRateStalled": "স্থবির",
-    "downloadRateAverage": "গড় {{value}}"
+    "downloadRateAverage": "গড় {{value}}",
+    "downloadRatePeak": "সর্বোচ্চ {{value}}/সেকেন্ড",
+    "downloadRateMean": "গড় {{value}}/সেকেন্ড",
+    "downloadRateRemaining": "{{value}} বাকি"
   },
   "moderation": {
     "workspacePanels": {

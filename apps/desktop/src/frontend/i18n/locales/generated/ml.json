@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "ഡൗൺലോഡ് നിരക്ക്",
     "downloadWriteRateLabel": "റൈറ്റ് റേറ്റ്",
     "downloadRateStalled": "സ്തംഭിച്ചു",
-    "downloadRateAverage": "ശരാശരി {{value}}"
+    "downloadRateAverage": "ശരാശരി {{value}}",
+    "downloadRatePeak": "ഏറ്റവും ഉയർന്നത് {{value}}/സെ",
+    "downloadRateMean": "അർത്ഥം {{value}}/സെ",
+    "downloadRateRemaining": "{{value}} അവശേഷിക്കുന്നു"
   },
   "moderation": {
     "workspacePanels": {

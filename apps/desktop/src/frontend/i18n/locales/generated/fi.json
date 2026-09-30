@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Latausnopeus",
     "downloadWriteRateLabel": "Kirjoitusnopeus",
     "downloadRateStalled": "pysähtynyt",
-    "downloadRateAverage": "Keskimääräinen {{value}}"
+    "downloadRateAverage": "Keskimääräinen {{value}}",
+    "downloadRatePeak": "Huippu {{value}}/s",
+    "downloadRateMean": "Keskiarvo {{value}}/s",
+    "downloadRateRemaining": "{{value}} jäljellä"
   },
   "moderation": {
     "workspacePanels": {

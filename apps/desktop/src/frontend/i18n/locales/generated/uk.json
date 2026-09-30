@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Швидкість завантаження",
     "downloadWriteRateLabel": "Швидкість запису",
     "downloadRateStalled": "Застопорився",
-    "downloadRateAverage": "Середня {{value}}"
+    "downloadRateAverage": "Середня {{value}}",
+    "downloadRatePeak": "Пік {{value}}/с",
+    "downloadRateMean": "Середнє {{value}}/с",
+    "downloadRateRemaining": "{{value}} залишилося"
   },
   "moderation": {
     "workspacePanels": {

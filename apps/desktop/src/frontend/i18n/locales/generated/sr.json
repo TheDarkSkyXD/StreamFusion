@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Довнлоад рате",
     "downloadWriteRateLabel": "Стопа писања",
     "downloadRateStalled": "Сталлед",
-    "downloadRateAverage": "Просечно {{value}}"
+    "downloadRateAverage": "Просечно {{value}}",
+    "downloadRatePeak": "Максимално {{value}}/с",
+    "downloadRateMean": "Средња вредност {{value}}/с",
+    "downloadRateRemaining": "Остало је {{value}}"
   },
   "moderation": {
     "workspacePanels": {

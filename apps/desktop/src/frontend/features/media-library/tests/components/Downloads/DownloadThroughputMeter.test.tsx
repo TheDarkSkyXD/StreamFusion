@@ -17,6 +17,8 @@ const NBSP = " ";
 const DOWNLOAD_RATE_TITLE = "Download rate";
 const WRITE_RATE_TITLE = "Write rate";
 
+const formatRate = (mib: number) => `${mib.toFixed(1)}${NBSP}MiB/s`;
+
 function downloadJob(overrides: Partial<DownloadJob> = {}): DownloadJob {
   return {
     id: "vod-1",
@@ -46,6 +48,7 @@ function series(overrides: Partial<ThroughputSeries> = {}): ThroughputSeries {
     smoothedBytesPerSecond: 3 * MIB,
     peakBytesPerSecond: 3 * MIB,
     averageBytesPerSecond: 4 * MIB,
+    estimatedSecondsRemaining: null,
     ...overrides,
   };
 }
@@ -75,6 +78,8 @@ afterEach(() => {
 // Guards: a finished row reports the average it can actually compute and dims the wave.
 // Guards: ffmpeg rows must be labelled as a write rate rather than a network rate.
 // Guards: two rows in one list must not share a gradient id, which breaks url(#...) on reorder.
+// Guards: the time remaining must appear only when an estimate is real, and never for a stalled row.
+// Guards: readouts must sit on an ink tier that passes WCAG AA against the row surface.
 describe("DownloadThroughputMeter", () => {
   it("renders a dash and no wave when nothing has been measured", () => {
     renderWithProviders(
@@ -87,7 +92,7 @@ describe("DownloadThroughputMeter", () => {
 
     expect(readout()).toBe(EM_DASH);
     expect(screen.getByTitle(DOWNLOAD_RATE_TITLE)).toHaveClass(
-      "text-[var(--color-foreground-muted)]"
+      "text-[var(--color-foreground-secondary)]"
     );
     expect(document.querySelector("svg path")).toBeNull();
   });
@@ -143,8 +148,114 @@ describe("DownloadThroughputMeter", () => {
     view.unmount();
   });
 
-  it("labels a write-rate row by what its byte counter measures", () => {
-    seed("vod-1", series());
+  it("shows the time remaining alongside the rate", () => {
+    seed("vod-1", series({ estimatedSecondsRemaining: 95 }));
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob()}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-primary)]"
+      />
+    );
+
+    expect(screen.getByText("1m 35s left")).toBeInTheDocument();
+    expect(screen.getByText("1m 35s left")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("1m 35s left").tagName).toBe("SPAN");
+  });
+
+  it("keeps both readouts on the secondary ink tier, which is the one that passes AA here", () => {
+    seed("vod-1", series({ estimatedSecondsRemaining: 42 }));
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob()}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-primary)]"
+      />
+    );
+
+    // Muted ink measures 3.03:1 against the row surface, below the 4.5:1 AA floor for 12px text.
+    expect(screen.getByText("42s left").className).toContain("--color-foreground-secondary");
+    expect(screen.getByText("42s left").className).not.toContain("--color-foreground-muted");
+    expect(screen.getByTitle(DOWNLOAD_RATE_TITLE).className).not.toContain(
+      "--color-foreground-muted"
+    );
+  });
+
+  it("renders the idle placeholder on the readable ink tier rather than muted", () => {
+    seed("vod-1", series({ phase: "idle" }));
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob({ status: "queued" })}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-foreground-secondary)]"
+      />
+    );
+
+    expect(screen.getByTitle(DOWNLOAD_RATE_TITLE).className).toContain(
+      "--color-foreground-secondary"
+    );
+  });
+
+  it("reads a long remaining time in hours and minutes", () => {
+    seed("vod-1", series({ estimatedSecondsRemaining: 7_500 }));
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob()}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-primary)]"
+      />
+    );
+
+    expect(screen.getByText("2h 5m left")).toBeInTheDocument();
+  });
+
+  it("omits the remaining time when there is no estimate", () => {
+    seed("vod-1", series({ estimatedSecondsRemaining: null }));
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob()}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-primary)]"
+      />
+    );
+
+    expect(screen.queryByText(/left$/)).toBeNull();
+    expect(readout()).toBe(`3.0${NBSP}MiB/s`);
+  });
+
+  it("puts peak and mean on the remaining time, so hovering a live row reveals them", () => {
+    seed(
+      "vod-1",
+      series({ estimatedSecondsRemaining: 42, peakBytesPerSecond: 12 * MIB, averageBytesPerSecond: 5 * MIB })
+    );
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob()}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-primary)]"
+      />
+    );
+
+    const remaining = screen.getByText("42s left");
+    expect(remaining.getAttribute("title")).toBe(`Peak ${formatRate(12)} · Mean ${formatRate(5)}`);
+    expect(screen.queryByText(/Peak/)).toBeNull();
+  });
+
+  it("offers no hover detail when there is neither an estimate nor a peak", () => {
+    seed("vod-1", series({ estimatedSecondsRemaining: null, peakBytesPerSecond: 0 }));
+    renderWithProviders(
+      <DownloadThroughputMeter
+        job={downloadJob()}
+        sharedMaximum={64 * MIB}
+        statusTextClassName="text-[var(--color-primary)]"
+      />
+    );
+
+    expect(readout()).toBe(`3.0${NBSP}MiB/s`);
+    expect(screen.getByTitle(DOWNLOAD_RATE_TITLE)).toBeInTheDocument();
+  });
+
+  it("labels a write-rate row by what its byte counter measures", () => {    seed("vod-1", series());
     renderWithProviders(
       <DownloadThroughputMeter
         job={downloadJob({ byteSource: "output-file" })}

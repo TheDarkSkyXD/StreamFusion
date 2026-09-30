@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Rychlost stahování",
     "downloadWriteRateLabel": "Napište sazbu",
     "downloadRateStalled": "Zastaveno",
-    "downloadRateAverage": "Průměr {{value}}"
+    "downloadRateAverage": "Průměr {{value}}",
+    "downloadRatePeak": "Vrchol {{value}}/s",
+    "downloadRateMean": "Průměr {{value}}/s",
+    "downloadRateRemaining": "Zbývá: {{value}}"
   },
   "moderation": {
     "workspacePanels": {

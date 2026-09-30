@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Velocità di download",
     "downloadWriteRateLabel": "Tasso di scrittura",
     "downloadRateStalled": "In stallo",
-    "downloadRateAverage": "Media {{value}}"
+    "downloadRateAverage": "Media {{value}}",
+    "downloadRatePeak": "Picco {{value}}/s",
+    "downloadRateMean": "Media {{value}}/s",
+    "downloadRateRemaining": "{{value}} rimasti"
   },
   "moderation": {
     "workspacePanels": {

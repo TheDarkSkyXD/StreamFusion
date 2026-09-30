@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Downloadrate",
     "downloadWriteRateLabel": "Schreibrate",
     "downloadRateStalled": "Ins Stocken geraten",
-    "downloadRateAverage": "Durchschnittlich {{value}}"
+    "downloadRateAverage": "Durchschnittlich {{value}}",
+    "downloadRatePeak": "Spitzenwert {{value}}/s",
+    "downloadRateMean": "Durchschnittlich {{value}}/s",
+    "downloadRateRemaining": "{{value}} übrig"
   },
   "moderation": {
     "workspacePanels": {

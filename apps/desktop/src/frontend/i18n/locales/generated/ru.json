@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Скорость загрузки",
     "downloadWriteRateLabel": "Скорость записи",
     "downloadRateStalled": "Застопорился",
-    "downloadRateAverage": "Средний {{value}}"
+    "downloadRateAverage": "Средний {{value}}",
+    "downloadRatePeak": "Пик {{value}}/с",
+    "downloadRateMean": "Среднее значение {{value}}/с",
+    "downloadRateRemaining": "{{value}} осталось"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "อัตราการดาวน์โหลด",
     "downloadWriteRateLabel": "อัตราการเขียน",
     "downloadRateStalled": "จนตรอก",
-    "downloadRateAverage": "เฉลี่ย {{value}}"
+    "downloadRateAverage": "เฉลี่ย {{value}}",
+    "downloadRatePeak": "สูงสุด {{value}}/วินาที",
+    "downloadRateMean": "เฉลี่ย {{value}}/วินาที",
+    "downloadRateRemaining": "เหลืออีก {{value}}"
   },
   "moderation": {
     "workspacePanels": {

@@ -26,6 +26,7 @@ export interface ThroughputSeries {
   readonly smoothedBytesPerSecond: number | null;
   readonly peakBytesPerSecond: number;
   readonly averageBytesPerSecond: number | null;
+  readonly estimatedSecondsRemaining: number | null;
 }
 
 export type DownloadQueueLoadError = "unavailable" | "failed";
@@ -200,6 +201,37 @@ function averageRate(tracking: JobTracking): number | null {
   return (tracking.lastBytes - tracking.baselineBytes) / elapsedSeconds;
 }
 
+/**
+ * A count-up needs a second of evidence, and a stalled transfer has no finish line worth naming.
+ * Two bounds matter: aria2 and qBittorrent both refuse an ETA below their stall threshold, and an
+ * HLS row carries no total bytes, so its estimate has to come from progress percent over elapsed
+ * transfer time instead. Percent near zero is discarded rather than divided through, because the
+ * first bucket of a long VOD would otherwise report a finish time in the thousands of hours.
+ */
+const MIN_ETA_SAMPLE_MS = 1_000;
+const MIN_ETA_PERCENT = 1;
+
+function estimateSecondsRemaining(job: DownloadJob, tracking: JobTracking): number | null {
+  if (tracking.phase !== "active") return null;
+  if (tracking.lastAtMs - tracking.baselineAtMs < MIN_ETA_SAMPLE_MS) return null;
+
+  const rate = tracking.smoothed;
+  if (rate === null || rate <= THROUGHPUT_STALL_FLOOR_BYTES_PER_SECOND) return null;
+
+  const { percent, totalBytes, transferredBytes } = job.progress;
+  if (totalBytes !== null && totalBytes > transferredBytes) {
+    return (totalBytes - transferredBytes) / rate;
+  }
+
+  if (percent !== null && percent >= MIN_ETA_PERCENT && percent < 100) {
+    const elapsedSeconds = (tracking.lastAtMs - tracking.baselineAtMs) / 1000;
+    const remainingFraction = (100 - percent) / percent;
+    return elapsedSeconds * remainingFraction;
+  }
+
+  return null;
+}
+
 function buildSeries(jobs: readonly DownloadJob[]): Record<string, ThroughputSeries> {
   const series: Record<string, ThroughputSeries> = {};
   for (const job of jobs) {
@@ -212,6 +244,7 @@ function buildSeries(jobs: readonly DownloadJob[]): Record<string, ThroughputSer
       smoothedBytesPerSecond: tracking.smoothed,
       peakBytesPerSecond: tracking.peak,
       averageBytesPerSecond: averageRate(tracking),
+      estimatedSecondsRemaining: estimateSecondsRemaining(job, tracking),
     };
   }
   return series;

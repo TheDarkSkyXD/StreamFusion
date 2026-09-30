@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Szybkość pobierania",
     "downloadWriteRateLabel": "Napisz stawkę",
     "downloadRateStalled": "Zablokowany",
-    "downloadRateAverage": "Średnia {{value}}"
+    "downloadRateAverage": "Średnia {{value}}",
+    "downloadRatePeak": "Szczyt {{value}}/s",
+    "downloadRateMean": "Średnia {{value}}/s",
+    "downloadRateRemaining": "pozostało {{value}}"
   },
   "moderation": {
     "workspacePanels": {

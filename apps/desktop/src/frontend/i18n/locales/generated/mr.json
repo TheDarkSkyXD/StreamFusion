@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "डाउनलोड दर",
     "downloadWriteRateLabel": "दर लिहा",
     "downloadRateStalled": "रखडले",
-    "downloadRateAverage": "सरासरी {{value}}"
+    "downloadRateAverage": "सरासरी {{value}}",
+    "downloadRatePeak": "शिखर {{value}}/से",
+    "downloadRateMean": "सरासरी {{value}}/से",
+    "downloadRateRemaining": "{{value}} बाकी"
   },
   "moderation": {
     "workspacePanels": {

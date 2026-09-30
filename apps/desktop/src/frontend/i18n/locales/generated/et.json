@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Allalaadimise kiirus",
     "downloadWriteRateLabel": "Kirjutamismäär",
     "downloadRateStalled": "Seiskunud",
-    "downloadRateAverage": "Keskmine {{value}}"
+    "downloadRateAverage": "Keskmine {{value}}",
+    "downloadRatePeak": "Tipp {{value}}/s",
+    "downloadRateMean": "Keskmine {{value}}/s",
+    "downloadRateRemaining": "{{value}} jäänud"
   },
   "moderation": {
     "workspacePanels": {

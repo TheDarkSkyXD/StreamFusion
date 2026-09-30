@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Tốc độ tải xuống",
     "downloadWriteRateLabel": "Tốc độ ghi",
     "downloadRateStalled": "Bị đình trệ",
-    "downloadRateAverage": "Trung bình {{value}}"
+    "downloadRateAverage": "Trung bình {{value}}",
+    "downloadRatePeak": "Đỉnh {{value}}/giây",
+    "downloadRateMean": "Trung bình là {{value}}/giây",
+    "downloadRateRemaining": "còn lại {{value}}"
   },
   "moderation": {
     "workspacePanels": {

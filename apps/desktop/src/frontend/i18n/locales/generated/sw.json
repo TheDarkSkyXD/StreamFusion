@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Kiwango cha upakuaji",
     "downloadWriteRateLabel": "Kiwango cha kuandika",
     "downloadRateStalled": "Imesitishwa",
-    "downloadRateAverage": "Wastani {{value}}"
+    "downloadRateAverage": "Wastani {{value}}",
+    "downloadRatePeak": "Kilele {{value}}/s",
+    "downloadRateMean": "Wastani wa {{value}}/s",
+    "downloadRateRemaining": "{{value}} kushoto"
   },
   "moderation": {
     "workspacePanels": {

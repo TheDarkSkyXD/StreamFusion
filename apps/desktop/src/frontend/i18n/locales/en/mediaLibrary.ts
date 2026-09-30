@@ -191,5 +191,8 @@ export const mediaLibraryEn = {
     downloadWriteRateLabel: "Write rate",
     downloadRateStalled: "Stalled",
     downloadRateAverage: "Average {{value}}",
+    downloadRatePeak: "Peak {{value}}/s",
+    downloadRateMean: "Mean {{value}}/s",
+    downloadRateRemaining: "{{value}} left",
   },
 } as const;

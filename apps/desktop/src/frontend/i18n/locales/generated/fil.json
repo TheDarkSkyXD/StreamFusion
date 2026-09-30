@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Rate ng pag-download",
     "downloadWriteRateLabel": "Isulat ang rate",
     "downloadRateStalled": "Natigilan",
-    "downloadRateAverage": "Karaniwang {{value}}"
+    "downloadRateAverage": "Karaniwang {{value}}",
+    "downloadRatePeak": "Peak {{value}}/s",
+    "downloadRateMean": "Ang ibig sabihin ay {{value}}/s",
+    "downloadRateRemaining": "{{value}} ang natitira"
   },
   "moderation": {
     "workspacePanels": {

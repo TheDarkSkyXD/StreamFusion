@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Stopnja prenosa",
     "downloadWriteRateLabel": "Stopnja pisanja",
     "downloadRateStalled": "Zastalo",
-    "downloadRateAverage": "Povprečno {{value}}"
+    "downloadRateAverage": "Povprečno {{value}}",
+    "downloadRatePeak": "Največja {{value}}/s",
+    "downloadRateMean": "Povprečje {{value}}/s",
+    "downloadRateRemaining": "{{value}} levo"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Rata de descărcare",
     "downloadWriteRateLabel": "Rata de scriere",
     "downloadRateStalled": "Blocat",
-    "downloadRateAverage": "Media {{value}}"
+    "downloadRateAverage": "Media {{value}}",
+    "downloadRatePeak": "Vârf {{value}}/s",
+    "downloadRateMean": "În medie {{value}}/s",
+    "downloadRateRemaining": "{{value}} au rămas"
   },
   "moderation": {
     "workspacePanels": {

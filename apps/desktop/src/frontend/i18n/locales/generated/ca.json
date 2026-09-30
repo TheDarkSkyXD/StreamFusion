@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Taxa de descàrrega",
     "downloadWriteRateLabel": "Taxa d'escriptura",
     "downloadRateStalled": "aturat",
-    "downloadRateAverage": "Mitjana {{value}}"
+    "downloadRateAverage": "Mitjana {{value}}",
+    "downloadRatePeak": "Pic {{value}}/s",
+    "downloadRateMean": "Mitjana {{value}}/s",
+    "downloadRateRemaining": "{{value}} esquerra"
   },
   "moderation": {
     "workspacePanels": {

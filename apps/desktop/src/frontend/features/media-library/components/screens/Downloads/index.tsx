@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Progress } from "@/components/ui/progress";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -263,15 +264,24 @@ function DownloadRow({
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="truncate text-base font-bold leading-6">{job.title}</h3>
-            <p className="mt-0.5 text-sm text-[var(--color-foreground-secondary)]">
-              {[
-                job.channelName,
-                job.kind === "video" ? t("mediaLibrary.video") : t("mediaLibrary.clip"),
-                job.qualityLabel,
-              ]
-                .filter(Boolean)
-                .join(" / ")}
-            </p>
+            <div className="mt-1 flex items-center gap-2 text-sm text-[var(--color-foreground-secondary)]">
+              {/* The ring carries the platform, which is identification rather than an accent. */}
+              <PlatformAvatar
+                alt={job.channelName}
+                platform={job.platform}
+                size="w-5 h-5"
+                className="shrink-0"
+              />
+              <span className="truncate">
+                {[
+                  job.channelName,
+                  job.kind === "video" ? t("mediaLibrary.video") : t("mediaLibrary.clip"),
+                  job.qualityLabel,
+                ]
+                  .filter(Boolean)
+                  .join(" / ")}
+              </span>
+            </div>
           </div>
           <span
             className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASSES[job.status]}`}

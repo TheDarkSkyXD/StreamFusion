@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "下載率",
     "downloadWriteRateLabel": "寫入速率",
     "downloadRateStalled": "停滯",
-    "downloadRateAverage": "平均{{value}}"
+    "downloadRateAverage": "平均{{value}}",
+    "downloadRatePeak": "峰值 {{value}}/秒",
+    "downloadRateMean": "平均 {{value}}/秒",
+    "downloadRateRemaining": "還剩 {{value}} 個"
   },
   "moderation": {
     "workspacePanels": {

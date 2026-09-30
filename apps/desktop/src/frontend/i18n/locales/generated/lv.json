@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Lejupielādes ātrums",
     "downloadWriteRateLabel": "Rakstīšanas likme",
     "downloadRateStalled": "Apstājās",
-    "downloadRateAverage": "Vidēji {{value}}"
+    "downloadRateAverage": "Vidēji {{value}}",
+    "downloadRatePeak": "Maksimums {{value}}/s",
+    "downloadRateMean": "Vidēji {{value}}/s",
+    "downloadRateRemaining": "{{value}} palicis"
   },
   "moderation": {
     "workspacePanels": {

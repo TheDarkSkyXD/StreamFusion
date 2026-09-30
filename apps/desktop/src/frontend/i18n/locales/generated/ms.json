@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Kadar muat turun",
     "downloadWriteRateLabel": "Kadar tulis",
     "downloadRateStalled": "Tergendala",
-    "downloadRateAverage": "Purata {{value}}"
+    "downloadRateAverage": "Purata {{value}}",
+    "downloadRatePeak": "Puncak {{value}}/s",
+    "downloadRateMean": "Min {{value}}/s",
+    "downloadRateRemaining": "{{value}} kiri"
   },
   "moderation": {
     "workspacePanels": {

@@ -60,6 +60,7 @@ afterEach(() => {
 // Guards: a stalled transfer must freeze the wave tail rather than scroll floored samples across the row.
 // Guards: idle queue wait and paused time must not be counted as transfer time, or the first sample and the completion average both read far below the sustained rate.
 // Guards: a download that is measured and not moving must read as stalled, not as the idle "no data yet" state.
+// Guards: a time remaining estimate must never appear without a real basis, and must never name a finish time for a stalled or barely-started transfer.
 // Guards: queue pushes inside an open bucket must not notify subscribers.
 // Guards: leaving the page must empty every tracked series.
 describe("download throughput store", () => {
@@ -395,5 +396,97 @@ describe("download throughput store", () => {
 
     expect(seriesOf().phase).toBe("idle");
     expect(seriesOf().smoothedBytesPerSecond).toBeNull();
+  });
+
+  it("estimates the remaining time from the smoothed rate against a known total", () => {
+    // 8 MiB/s sustained, 100 MiB total. At the fourth bucket 36 MiB has moved,
+    // so the 64 MiB left is 8 seconds.
+    push(
+      [downloadJob({ progress: { percent: 36, transferredBytes: 36 * MIB, totalBytes: 100 * MIB } })],
+      START_MS
+    );
+    for (let bucket = 1; bucket <= 4; bucket += 1) {
+      push(
+        [
+          downloadJob({
+            progress: {
+              percent: 36,
+              transferredBytes: (20 + bucket * 4) * MIB,
+              totalBytes: 100 * MIB,
+            },
+          }),
+        ],
+        START_MS + bucket * 500
+      );
+    }
+
+    expect(seriesOf().smoothedBytesPerSecond).toBe(8 * MIB);
+    expect(seriesOf().estimatedSecondsRemaining).toBeCloseTo(8, 0);
+  });
+
+  it("estimates the remaining time from elapsed time and percent when the total is unknown", () => {
+    // An HLS row carries no total bytes. 25 percent done in 8s means 24s left.
+    push([downloadJob({ progress: { percent: 10, transferredBytes: 0, totalBytes: null } })], START_MS);
+    for (let bucket = 1; bucket <= 16; bucket += 1) {
+      push(
+        [
+          downloadJob({
+            progress: { percent: 25, transferredBytes: bucket * MIB, totalBytes: null },
+          }),
+        ],
+        START_MS + bucket * 500
+      );
+    }
+
+    expect(seriesOf().estimatedSecondsRemaining).toBeCloseTo(24, 0);
+  });
+
+  it("withholds the remaining time until there is a second of evidence", () => {
+    push(
+      [downloadJob({ progress: { percent: 1, transferredBytes: 4 * MIB, totalBytes: 400 * MIB } })],
+      START_MS
+    );
+    push(
+      [
+        downloadJob({
+          progress: { percent: 2, transferredBytes: 8 * MIB, totalBytes: 400 * MIB },
+        }),
+      ],
+      START_MS + 500
+    );
+
+    expect(seriesOf().estimatedSecondsRemaining).toBeNull();
+  });
+
+  it("withholds the remaining time when the transfer is stalled", () => {
+    push(
+      [downloadJob({ progress: { percent: 30, transferredBytes: 4 * MIB, totalBytes: 128 * MIB } })],
+      START_MS
+    );
+    for (let bucket = 1; bucket <= 8; bucket += 1) {
+      push(
+        [
+          downloadJob({
+            progress: { percent: 31, transferredBytes: 4 * MIB, totalBytes: 128 * MIB },
+          }),
+        ],
+        START_MS + bucket * 500
+      );
+    }
+
+    expect(seriesOf().phase).toBe("stalled");
+    expect(seriesOf().estimatedSecondsRemaining).toBeNull();
+  });
+
+  it("withholds the remaining time at the first percent of a long transfer", () => {
+    push([downloadJob({ progress: { percent: 0, transferredBytes: 0, totalBytes: null } })], START_MS);
+    for (let bucket = 1; bucket <= 8; bucket += 1) {
+      push(
+        [downloadJob({ progress: { percent: 0.5, transferredBytes: bucket * MIB, totalBytes: null } })],
+        START_MS + bucket * 500
+      );
+    }
+
+    expect(seriesOf().estimatedSecondsRemaining).toBeNull();
   });
 });

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Ποσοστό λήψης",
     "downloadWriteRateLabel": "Ρυθμός εγγραφής",
     "downloadRateStalled": "Σταματημένο",
-    "downloadRateAverage": "Μέσος όρος {{value}}"
+    "downloadRateAverage": "Μέσος όρος {{value}}",
+    "downloadRatePeak": "Κορυφή {{value}}/s",
+    "downloadRateMean": "Μέση τιμή {{value}}/s",
+    "downloadRateRemaining": "Απομένουν {{value}}"
   },
   "moderation": {
     "workspacePanels": {

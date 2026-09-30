@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Скорост на изтегляне",
     "downloadWriteRateLabel": "Скорост на запис",
     "downloadRateStalled": "В застой",
-    "downloadRateAverage": "Средно {{value}}"
+    "downloadRateAverage": "Средно {{value}}",
+    "downloadRatePeak": "Пик {{value}}/сек",
+    "downloadRateMean": "Средно {{value}}/сек",
+    "downloadRateRemaining": "{{value}} остават"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "İndirme hızı",
     "downloadWriteRateLabel": "Yazma hızı",
     "downloadRateStalled": "Durdu",
-    "downloadRateAverage": "Ortalama {{value}}"
+    "downloadRateAverage": "Ortalama {{value}}",
+    "downloadRatePeak": "Tepe {{value}}/sn",
+    "downloadRateMean": "Ortalama {{value}}/sn",
+    "downloadRateRemaining": "{{value}} kaldı"
   },
   "moderation": {
     "workspacePanels": {

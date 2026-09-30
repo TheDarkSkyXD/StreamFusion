@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "다운로드 속도",
     "downloadWriteRateLabel": "쓰기 속도",
     "downloadRateStalled": "정지됨",
-    "downloadRateAverage": "평균 {{value}}"
+    "downloadRateAverage": "평균 {{value}}",
+    "downloadRatePeak": "최고 {{value}}/초",
+    "downloadRateMean": "평균 {{value}}/초",
+    "downloadRateRemaining": "{{value}} 남음"
   },
   "moderation": {
     "workspacePanels": {

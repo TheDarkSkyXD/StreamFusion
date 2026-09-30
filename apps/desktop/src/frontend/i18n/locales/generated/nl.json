@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Downloadsnelheid",
     "downloadWriteRateLabel": "Schrijf tarief",
     "downloadRateStalled": "Vastgelopen",
-    "downloadRateAverage": "Gemiddeld {{value}}"
+    "downloadRateAverage": "Gemiddeld {{value}}",
+    "downloadRatePeak": "Piek {{value}}/s",
+    "downloadRateMean": "Gemiddelde {{value}}/s",
+    "downloadRateRemaining": "{{value}} over"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Atsisiuntimo greitis",
     "downloadWriteRateLabel": "Rašymo norma",
     "downloadRateStalled": "Sustojo",
-    "downloadRateAverage": "Vidutinis {{value}}"
+    "downloadRateAverage": "Vidutinis {{value}}",
+    "downloadRatePeak": "Didžiausias {{value}}/s",
+    "downloadRateMean": "Vidutinė {{value}}/s",
+    "downloadRateRemaining": "Liko {{value}}"
   },
   "moderation": {
     "workspacePanels": {

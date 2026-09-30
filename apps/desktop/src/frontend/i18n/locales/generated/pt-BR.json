@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Taxa de download",
     "downloadWriteRateLabel": "Taxa de gravação",
     "downloadRateStalled": "Parado",
-    "downloadRateAverage": "Média {{value}}"
+    "downloadRateAverage": "Média {{value}}",
+    "downloadRatePeak": "Pico {{value}}/s",
+    "downloadRateMean": "Média {{value}}/s",
+    "downloadRateRemaining": "{{value}} restantes"
   },
   "moderation": {
     "workspacePanels": {

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "קצב הורדות",
     "downloadWriteRateLabel": "שיעור כתיבה",
     "downloadRateStalled": "נתקע",
-    "downloadRateAverage": "ממוצע {{value}}"
+    "downloadRateAverage": "ממוצע {{value}}",
+    "downloadRatePeak": "שיא {{value}}/s",
+    "downloadRateMean": "ממוצע {{value}}/s",
+    "downloadRateRemaining": "נותרו {{value}}"
   },
   "moderation": {
     "workspacePanels": {

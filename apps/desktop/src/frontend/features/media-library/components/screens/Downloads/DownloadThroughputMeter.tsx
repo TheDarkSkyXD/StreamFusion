@@ -16,7 +16,8 @@ import {
 } from "./throughput-wave-paths";
 
 const EM_DASH = "—";
-const NON_BREAKING_SPACE = " ";
+/** Escaped rather than typed: a literal U+00A0 in source is invisible and survives nobody's editor. */
+const NON_BREAKING_SPACE = "\u00A0";
 const RATE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
 
 function formatBytesPerSecond(bytesPerSecond: number): string {
@@ -29,6 +30,23 @@ function formatBytesPerSecond(bytesPerSecond: number): string {
 
   const precision = unitIndex <= 1 ? 0 : unitIndex === 2 ? 1 : 2;
   return `${value.toFixed(precision)}${NON_BREAKING_SPACE}${RATE_UNITS[unitIndex]}`;
+}
+
+const MINUTE = 60;
+const HOUR = 60 * MINUTE;
+
+/** Compact duration on the pattern aria2 and qBittorrent print, so nothing wraps in a dense row. */
+function formatDuration(seconds: number): string {
+  if (seconds < MINUTE) return `${Math.max(1, Math.round(seconds))}s`;
+  if (seconds < HOUR) {
+    const rounded = Math.round(seconds);
+    const minutes = Math.floor(rounded / MINUTE);
+    const remainder = rounded % MINUTE;
+    return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
+  }
+  const hours = Math.floor(seconds / HOUR);
+  const minutes = Math.round((seconds % HOUR) / MINUTE);
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
 
 function lastMeasuredRate(series: ThroughputSeries | undefined) {
@@ -74,7 +92,6 @@ export function DownloadThroughputMeter({
     job.byteSource === "output-file"
       ? t("mediaLibrary.downloadWriteRateLabel")
       : t("mediaLibrary.downloadRateLabel");
-  const title = phase === "stalled" ? t("mediaLibrary.downloadRateStalled") : rateLabel;
 
   const isComplete = phase === "complete";
   const rate = isComplete ? (series?.averageBytesPerSecond ?? null) : lastMeasuredRate(series);
@@ -87,17 +104,55 @@ export function DownloadThroughputMeter({
       ? t("mediaLibrary.downloadRateAverage", { value: rateText })
       : rateText;
 
+  const remaining = series?.estimatedSecondsRemaining ?? null;
+  const remainingText = remaining === null ? null : formatDuration(remaining);
+  // The wave is decorative, so its accessible value is the numbers beside it. Peak and average
+  // are only announced on hover, where a sighted user can act on them.
+  const detail = (() => {
+    const parts: string[] = [];
+    if (series && series.peakBytesPerSecond > 0) {
+      parts.push(
+        t("mediaLibrary.downloadRatePeak", { value: formatBytesPerSecond(series.peakBytesPerSecond) })
+      );
+    }
+    if (series && series.averageBytesPerSecond !== null && series.averageBytesPerSecond > 0) {
+      parts.push(
+        t("mediaLibrary.downloadRateMean", {
+          value: formatBytesPerSecond(series.averageBytesPerSecond),
+        })
+      );
+    }
+    return parts.length === 0 ? null : parts.join(" · ");
+  })();
+  const spoken = [rateLabel, value === EM_DASH ? null : value, remainingText].filter(
+    (part): part is string => part !== null
+  );
+
   return (
     <span className="flex shrink-0 items-center gap-2">
-      <VisuallyHidden>{rateLabel}</VisuallyHidden>
+      {spoken.map((phrase) => (
+        <VisuallyHidden key={phrase}>{phrase}</VisuallyHidden>
+      ))}
       <span
-        title={title}
+        title={phase === "stalled" ? t("mediaLibrary.downloadRateStalled") : rateLabel}
         className={`shrink-0 tabular-nums ${
-          phase === "idle" ? "text-[var(--color-foreground-muted)]" : statusTextClassName
+          // Muted ink is 3.03:1 on the row surface, which fails AA at this size, so both the
+          // idle placeholder and the rate use the secondary tier.
+          phase === "idle" ? "text-[var(--color-foreground-secondary)]" : statusTextClassName
         }`}
+        aria-hidden="true"
       >
         {value}
       </span>
+      {remainingText === null ? null : (
+        <span
+          aria-hidden="true"
+          title={detail ?? undefined}
+          className="shrink-0 text-xs tabular-nums text-[var(--color-foreground-secondary)]"
+        >
+          {t("mediaLibrary.downloadRateRemaining", { value: remainingText })}
+        </span>
+      )}
       <svg
         aria-hidden="true"
         viewBox={`0 0 ${THROUGHPUT_WAVE_WIDTH} ${THROUGHPUT_WAVE_BASELINE}`}

@@ -1380,7 +1380,10 @@
     "downloadRateLabel": "Nedladdningshastighet",
     "downloadWriteRateLabel": "Skrivhastighet",
     "downloadRateStalled": "Stannade",
-    "downloadRateAverage": "Genomsnittlig {{value}}"
+    "downloadRateAverage": "Genomsnittlig {{value}}",
+    "downloadRatePeak": "Topp {{value}}/s",
+    "downloadRateMean": "Genomsnittlig {{value}}/s",
+    "downloadRateRemaining": "{{value}} kvar"
   },
   "moderation": {
     "workspacePanels": {
