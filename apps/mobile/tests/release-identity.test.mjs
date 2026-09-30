@@ -132,14 +132,14 @@ test("a malformed production value fails the build instead of shipping", () => {
 
 test("a prerelease suffix is accepted and a bare major is not", () => {
   pinTestCertificate();
-  for (const version of ["1.0.0", "1.0.0-rc.1", "2.1.3-beta.4", "1.0.0-alpha.1"]) {
+  for (const version of ["1.0.0", "1.0.0-rc.1", "2.1.3-beta.4", "1.0.0-alpha.1", "0.1.0-alpha", "1.0.0-rc"]) {
     const resolved = resolveAppConfig(
       {},
       productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
     );
     assert.equal(resolved.version, version);
   }
-  for (const version of ["1.0", "1.0.0-nightly.1", "v1.0.0", "1.0.0-rc"]) {
+  for (const version of ["1.0", "1.0.0-nightly.1", "v1.0.0", "1.0.0-alpha.beta", "1.0.0.0"]) {
     assert.throws(
       () =>
         resolveAppConfig(
@@ -147,6 +147,27 @@ test("a prerelease suffix is accepted and a bare major is not", () => {
           productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
         ),
       /STREAMFUSION_PRODUCTION_VERSION/u,
+    );
+  }
+});
+
+test("every version the mobile tag policy accepts is also buildable", async () => {
+  const { validateMobileReleaseTag } = await import("../../../scripts/release-policy.mjs");
+  pinTestCertificate();
+
+  for (const version of ["0.1.0-alpha", "0.1.0-alpha.1", "1.0.0-rc.2", "2.0.0"]) {
+    assert.doesNotThrow(
+      () => validateMobileReleaseTag({ tag: `android-v${version}`, version }),
+      `policy rejected ${version}`,
+    );
+    const resolved = resolveAppConfig(
+      {},
+      productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
+    );
+    assert.equal(
+      resolved.version,
+      version,
+      `the policy accepts android-v${version} but app.config.js cannot build it`,
     );
   }
 });

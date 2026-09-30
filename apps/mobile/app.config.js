@@ -29,8 +29,10 @@ const IDENTITIES = Object.freeze({
 });
 
 const PRODUCTION_IDENTITY = IDENTITIES[PRODUCTION_APPLICATION_ID];
-const RELEASE_VERSION_PATTERN =
-  /^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u;
+// Must stay in step with the mobile branch of scripts/release-policy.mjs. A tag
+// the policy accepts but this rejects is unbuildable, so the two are compared
+// against each other in tests/release-identity.test.mjs.
+const RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)(?:\.\d+)?)?$/u;
 const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/u;
 const PRODUCTION_ENVIRONMENT = Object.freeze({
   projectId: Object.freeze({

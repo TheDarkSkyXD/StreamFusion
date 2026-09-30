@@ -291,6 +291,164 @@ test("one release workflow handles tagged and manual releases with fail-closed g
   assert.doesNotMatch(source, /builder-debug|apps\/desktop\/release\/\*\.yml/);
 });
 
+test("the android tag namespace cannot trigger the desktop release workflow", async () => {
+  const { validateMobileReleaseTag } = await import("./release-policy.mjs");
+  const [tagPattern] = loadWorkflow("release.yml").on.push.tags;
+  const matches = (tag) => new RegExp(`^${tagPattern.replaceAll("*", "[\\s\\S]*")}$`, "u").test(tag);
+
+  assert.equal(matches("v2.0.0"), true, "desktop tags still trigger a release");
+  assert.equal(
+    matches("android-v0.1.0-alpha"),
+    false,
+    "an android tag must not start a desktop release",
+  );
+  assert.throws(
+    () => validateMobileReleaseTag({ tag: "android-v9.9.9", version: "0.1.0-alpha" }),
+    /must exactly match mobile version/
+  );
+});
+
+test("the android release workflow owns the android tag namespace and nothing else", () => {
+  const android = loadWorkflow("android-release.yml");
+  const desktop = loadWorkflow("release.yml");
+
+  assert.deepEqual(android.on.push.tags, ["android-v*"]);
+  assert.deepEqual(desktop.on.push.tags, ["v*"]);
+  assert.equal(android.on.workflow_dispatch.inputs.tag.required, true);
+  assert.equal(android.concurrency["cancel-in-progress"], false);
+  assert.match(android.concurrency.group, /^android-release-/u);
+  assert.equal(android.name, "Android release");
+  assert.notEqual(android.name, desktop.name);
+
+  const source = readFileSync(".github/workflows/android-release.yml", "utf8");
+  assert.match(source, /case "\$RELEASE_TAG" in\n\s*android-v\*\)/u);
+  assert.match(source, /scripts\/release-policy\.mjs/u);
+  assert.match(source, /git show-ref --verify --quiet/u);
+  assert.doesNotMatch(source, /apps\/desktop/u);
+});
+
+test("the android release never publishes an unsigned or debug-signed APK", () => {
+  const source = readFileSync(".github/workflows/android-release.yml", "utf8");
+
+  // The desktop workflow degrades to unsigned packaging and still publishes.
+  // Android has one legal mode: an APK without the production signature either
+  // will not install or silently forks the app identity, so there is no
+  // "unsigned" branch to copy here.
+  assert.doesNotMatch(source, /unsigned/iu);
+  assert.doesNotMatch(source, /assembleDebug/u);
+  assert.doesNotMatch(source, /signingConfig/u);
+  assert.doesNotMatch(source, /CSC_LINK|WIN_CSC|MAC_CSC/u);
+  assert.match(source, /--profile production/u);
+  assert.doesNotMatch(source, /--profile development/u);
+  assert.doesNotMatch(source, /--profile alpha/u);
+});
+
+test("the android release fails closed on the signing certificate", () => {
+  const source = readFileSync(".github/workflows/android-release.yml", "utf8");
+  const { verify, signing, build } = loadWorkflow("android-release.yml").jobs;
+
+  assert.ok(signing, "a signing prerequisite job must exist");
+  assert.deepEqual(signing.needs, "verify");
+  assert.deepEqual(build.needs, ["verify", "signing"]);
+
+  const runs = Object.values({ verify, signing, build })
+    .flatMap((job) => job.steps.map((step) => step.run ?? ""))
+    .join("\n");
+  assert.doesNotMatch(runs, /\|\|\s*true/u);
+  assert.doesNotMatch(runs, /continue-on-error/u);
+  assert.doesNotMatch(runs, /--no-verify/u);
+  assert.doesNotMatch(source, /always\(\)/u);
+
+  // The bare form only checks the pin exists; the APK form is what proves the
+  // artifact was signed by it. Both must appear.
+  assert.match(
+    stepNamed(signing, "Require a pinned production signing certificate").run,
+    /verify:release(?! --)/u,
+  );
+  assert.match(
+    stepNamed(build, "Verify the APK against the pinned signer").run,
+    /verify:release -- "android-release-set\/\$ASSET_NAME"/u,
+  );
+});
+
+test("the android release publishes a draft before it publishes", () => {
+  const source = readFileSync(".github/workflows/android-release.yml", "utf8");
+  const { release } = loadWorkflow("android-release.yml").jobs;
+
+  const create = stepNamed(release, "Create the draft release");
+  const publish = stepNamed(release, "Publish the immutable release");
+  assert.match(create.run, /--verify-tag/u);
+  assert.match(create.run, /--draft(?!=)/u);
+  assert.match(create.run, /--notes-file release-assets\/release-notes\.md/u);
+  assert.doesNotMatch(create.run, /--generate-notes/u);
+  assert.match(publish.run, /--draft=false/u);
+  assert.match(publish.run, /gh release verify/u);
+  assert.doesNotMatch(source, /gh release delete/u);
+  assert.doesNotMatch(source, /--clobber/u);
+});
+
+test("only the android publish job may write to the repository", () => {
+  const workflow = loadWorkflow("android-release.yml");
+
+  assert.equal(workflow.permissions.contents, "read");
+  const writers = Object.entries(workflow.jobs)
+    .filter(([, job]) => job.permissions?.contents === "write")
+    .map(([id]) => id);
+  assert.deepEqual(writers, ["release"]);
+  assert.doesNotMatch(
+    JSON.stringify(workflow.jobs),
+    /write-all|"actions":\s*"write"|"pull-requests":\s*"write"/u,
+  );
+
+  // Mobile approval must not queue behind desktop approval.
+  assert.equal(workflow.jobs.build.environment, "android-release");
+  assert.equal(workflow.jobs.release.environment, "android-release");
+  assert.notEqual(workflow.jobs.release.environment, "production-release");
+});
+
+test("the android release refuses an EAS build from another commit", () => {
+  const { build } = loadWorkflow("android-release.yml").jobs;
+  const step = stepNamed(build, "Request the EAS production build");
+
+  assert.equal(
+    step.env.RELEASE_COMMIT,
+    "${{ github.sha }}",
+    "read-eas-build.mjs only proves the commit when it is told which one to expect",
+  );
+  assert.match(step.run, /read-eas-build\.mjs/u);
+  assert.match(step.run, /--non-interactive/u);
+  assert.equal(step.env.EXPO_TOKEN, "${{ secrets.EXPO_TOKEN }}");
+  assert.equal(step.env.STREAMFUSION_RELEASE_CHANNEL, "production");
+});
+
+test("the android release attaches the whole Release Set and nothing partial", () => {
+  const source = readFileSync(".github/workflows/android-release.yml", "utf8");
+  const { build } = loadWorkflow("android-release.yml").jobs;
+
+  const upload = stepNamed(build, "Upload the Android Release Set");
+  assert.equal(upload.with["if-no-files-found"], "error");
+  assert.ok(upload.with["retention-days"], "the promote step must survive approval latency");
+  assert.match(source, /assemble-android-release-set\.mjs/u);
+  for (const asset of ["android-update.json", "SHA256SUMS", "build-info.json", "release-notes.md"]) {
+    assert.ok(
+      existsSync(`scripts/assemble-android-release-set.mjs`) &&
+        readFileSync("scripts/assemble-android-release-set.mjs", "utf8").includes(asset),
+      `the Release Set must include ${asset}`,
+    );
+  }
+});
+
+test("the android release does not duplicate the Android Release Gate", () => {
+  const source = readFileSync(".github/workflows/android-release.yml", "utf8");
+
+  assert.doesNotMatch(source, /verify:android-gates/u);
+  assert.doesNotMatch(source, /android-public-release/u);
+  assert.equal(existsSync(".github/workflows/pre-release.yml"), false);
+  assert.equal(existsSync(".github/workflows/android-release.yml"), true);
+  assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN);
+  assert.doesNotMatch(source, /firebase\s+test\s+lab|test-lab/iu);
+});
+
 test("electron-builder emits deterministic installer names and macOS updater archives", () => {
   const desktopPackage = JSON.parse(
     readFileSync("apps/desktop/package.json", "utf8"),
