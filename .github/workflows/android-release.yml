@@ -70,7 +70,13 @@ jobs:
           npm run lint:dependencies
           npm run lint:lockfile
           npm run audit:signatures
-          npm run audit:dependencies
+
+      - name: Audit the shipped Android dependency tree
+        # The repository-wide audit covers the Electron and worker trees and
+        # build-time tooling such as @expo/fingerprint and jsdom. Those
+        # advisories never reach a device. This gate covers the dependencies
+        # that are actually bundled into the APK, which is the tree a user runs.
+        run: node scripts/audit-android-release-deps.mjs
 
       - name: Require the Android tag namespace and a mobile version
         shell: bash
