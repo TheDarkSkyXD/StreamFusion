@@ -218,7 +218,12 @@ jobs:
         run: |
           set -euo pipefail
           export APKSIGNER_PATH="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
-          npm run --workspace @streamfusion/mobile verify:release -- "android-release-set/$ASSET_NAME"
+          test -x "$APKSIGNER_PATH" || {
+            echo "apksigner not found under $ANDROID_HOME/build-tools" >&2
+            exit 1
+          }
+          npm run --workspace @streamfusion/mobile verify:release -- \
+            "$GITHUB_WORKSPACE/android-release-set/$ASSET_NAME"
 
       - name: Assemble the Android Release Set
         env:
@@ -262,6 +267,12 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
+      - name: Setup Java
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Pin npm
         run: npm install --global npm@11.19.0
 
@@ -281,7 +292,12 @@ jobs:
         run: |
           set -euo pipefail
           export APKSIGNER_PATH="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
-          npm run --workspace @streamfusion/mobile verify:release -- "release-assets/$ASSET_NAME"
+          test -x "$APKSIGNER_PATH" || {
+            echo "apksigner not found under $ANDROID_HOME/build-tools" >&2
+            exit 1
+          }
+          npm run --workspace @streamfusion/mobile verify:release -- \
+            "$GITHUB_WORKSPACE/release-assets/$ASSET_NAME"
 
       - name: Create the draft release
         shell: bash

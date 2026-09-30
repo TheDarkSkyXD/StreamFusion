@@ -348,6 +348,7 @@ test("the android release never publishes an unsigned or debug-signed APK", () =
 test("the android release fails closed on the signing certificate", () => {
   const source = readFileSync(".github/workflows/android-release.yml", "utf8");
   const { verify, signing, build } = loadWorkflow("android-release.yml").jobs;
+  const workflow = loadWorkflow("android-release.yml");
 
   assert.ok(signing, "a signing prerequisite job must exist");
   assert.deepEqual(signing.needs, "verify");
@@ -367,10 +368,23 @@ test("the android release fails closed on the signing certificate", () => {
     stepNamed(signing, "Require a pinned production signing certificate").run,
     /verify:release(?! --)/u,
   );
+  // npm run --workspace executes in apps/mobile, so a workspace-relative APK
+  // path would resolve against the wrong directory and the check would report a
+  // missing artifact instead of verifying a signature.
   assert.match(
     stepNamed(build, "Verify the APK against the pinned signer").run,
-    /verify:release -- "android-release-set\/\$ASSET_NAME"/u,
+    /verify:release -- \\\n\s+"\$GITHUB_WORKSPACE\/android-release-set\/\$ASSET_NAME"/u,
   );
+  assert.match(
+    stepNamed(workflow.jobs.release, "Re-verify the signer after transport").run,
+    /verify:release -- \\\n\s+"\$GITHUB_WORKSPACE\/release-assets\/\$ASSET_NAME"/u,
+  );
+  for (const jobId of ["build", "release"]) {
+    assert.ok(
+      stepNamed(workflow.jobs[jobId], "Setup Java"),
+      `${jobId} needs Java for apksigner`,
+    );
+  }
 });
 
 test("the android release publishes a draft before it publishes", () => {
@@ -454,7 +468,8 @@ test("only the android publish job may write to the repository", () => {
 });
 
 test("the android release refuses an EAS build from another commit", () => {
-  const { build } = loadWorkflow("android-release.yml").jobs;
+  const workflow = loadWorkflow("android-release.yml");
+  const { build } = workflow.jobs;
 
   // The build now runs Gradle on the runner, so there is no EAS metadata to
   // reconcile. It must never silently fall back to EAS, which would need an
