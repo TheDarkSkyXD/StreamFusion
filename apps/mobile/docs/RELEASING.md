@@ -46,6 +46,8 @@ npm run --workspace @streamfusion/mobile config:android
 
 ## Signing identity
 
+The keystore and its passwords, plus how to prove a backup restores, are documented in [SIGNING-KEY-RECOVERY.md](./SIGNING-KEY-RECOVERY.md). Read that before changing anything about the signer.
+
 `config/production-signing-certificate.json` pins the production certificate. The repository ships with `certificateSha256: null`, which fails every production build closed. An unpinned signer cannot be verified before publication, and Android accepts an update only when the certificate matches.
 
 Generate the production key once. The script uses the JDK bundled with Android Studio, prompts for the password without echoing it, and passes it to `keytool` through the environment so it never reaches a command line or a log:
