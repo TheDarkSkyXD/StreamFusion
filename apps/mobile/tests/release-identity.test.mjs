@@ -27,10 +27,6 @@ function pinTestCertificate() {
   );
 }
 
-function unpinTestCertificate() {
-  writeFileSync(CERTIFICATE_PATH, committedCertificate);
-}
-
 function productionEnvironment(overrides = {}) {
   return {
     STREAMFUSION_RELEASE_CHANNEL: "production",
@@ -234,24 +230,37 @@ test("an unknown application id is rejected", () => {
   );
 });
 
-test("a production build is refused until the signing certificate is pinned", () => {
-  unpinTestCertificate();
-  assert.throws(
-    () => resolveAppConfig({}, productionEnvironment()),
-    /no production Android build is authorized|signing certificate is not pinned/iu,
-  );
-});
-
-test("the committed certificate records the public application id and no fingerprint yet", () => {
+test("the committed certificate pins the production signer", () => {
   const pinned = JSON.parse(
     readFileSync("config/production-signing-certificate.json", "utf8"),
   );
 
   assert.equal(pinned.applicationId, PRODUCTION_APPLICATION_ID);
-  assert.equal(
-    pinned.certificateSha256,
-    null,
-    "the repository ships without a production signer, so production builds fail closed",
+  assert.match(
+    String(pinned.certificateSha256),
+    /^[0-9a-f]{64}$/u,
+    "a production release requires a pinned 64-character lowercase hex fingerprint",
+  );
+  assert.ok(pinned.recordedBy, "a fingerprint without provenance cannot be audited");
+  assert.match(String(pinned.recordedAt), /^\d{4}-\d{2}-\d{2}$/u);
+});
+
+test("a production build is refused when the pinned certificate is missing", (context) => {
+  const certificatePath = "config/production-signing-certificate.json";
+  const original = readFileSync(certificatePath, "utf8");
+  context.after(() => writeFileSync(certificatePath, original));
+
+  writeFileSync(
+    certificatePath,
+    JSON.stringify({
+      ...JSON.parse(original),
+      certificateSha256: null,
+    }),
+  );
+
+  assert.throws(
+    () => resolveAppConfig({}, productionEnvironment()),
+    /no production Android build is authorized/iu,
   );
 });
 

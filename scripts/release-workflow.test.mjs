@@ -338,9 +338,11 @@ test("the android release never publishes an unsigned or debug-signed APK", () =
   assert.doesNotMatch(source, /assembleDebug/u);
   assert.doesNotMatch(source, /signingConfig/u);
   assert.doesNotMatch(source, /CSC_LINK|WIN_CSC|MAC_CSC/u);
-  assert.match(source, /--profile production/u);
-  assert.doesNotMatch(source, /--profile development/u);
-  assert.doesNotMatch(source, /--profile alpha/u);
+  // The production identity is selected by the channel variable, not by an EAS
+  // build profile, because the APK is now assembled on the runner.
+  assert.match(source, /STREAMFUSION_RELEASE_CHANNEL: production/u);
+  assert.match(source, /app:assembleRelease/u);
+  assert.doesNotMatch(source, /assembleDebug|eas build|eas-cli/u);
 });
 
 test("the android release fails closed on the signing certificate", () => {
@@ -408,17 +410,46 @@ test("only the android publish job may write to the repository", () => {
 
 test("the android release refuses an EAS build from another commit", () => {
   const { build } = loadWorkflow("android-release.yml").jobs;
-  const step = stepNamed(build, "Request the EAS production build");
 
-  assert.equal(
-    step.env.RELEASE_COMMIT,
-    "${{ github.sha }}",
-    "read-eas-build.mjs only proves the commit when it is told which one to expect",
+  // The build now runs Gradle on the runner, so there is no EAS metadata to
+  // reconcile. It must never silently fall back to EAS, which would need an
+  // Expo token the repository does not have.
+  const buildSteps = build.steps.map((step) => step.name);
+  assert.ok(buildSteps.includes("Assemble the signed release APK"));
+  assert.ok(buildSteps.includes("Materialize the production keystore"));
+  assert.doesNotMatch(
+    readFileSync(".github/workflows/android-release.yml", "utf8"),
+    /eas-cli|EXPO_TOKEN/u,
   );
-  assert.match(step.run, /read-eas-build\.mjs/u);
-  assert.match(step.run, /--non-interactive/u);
-  assert.equal(step.env.EXPO_TOKEN, "${{ secrets.EXPO_TOKEN }}");
-  assert.equal(step.env.STREAMFUSION_RELEASE_CHANNEL, "production");
+  const assemble = stepNamed(build, "Assemble the signed release APK");
+  assert.match(assemble.run, /app:assembleRelease/u);
+  assert.match(assemble.run, /app-release\.apk/u);
+  assert.match(assemble.run, /set -euo pipefail/u);
+  const materialize = stepNamed(build, "Materialize the production keystore");
+  for (const secret of [
+    "STREAMFUSION_MOBILE_KEYSTORE_BASE64",
+    "STREAMFUSION_MOBILE_KEYSTORE_PASSWORD",
+    "STREAMFUSION_MOBILE_KEY_ALIAS",
+    "STREAMFUSION_MOBILE_KEY_PASSWORD",
+  ]) {
+    assert.ok(
+      Object.values(materialize.env ?? {}).includes(`\${{ secrets.${secret} }}`),
+      `${secret} must be read or the build signs with the debug key`,
+    );
+  }
+  for (const exported of [
+    "STREAMFUSION_UPLOAD_STORE_FILE",
+    "STREAMFUSION_UPLOAD_STORE_PASSWORD",
+    "STREAMFUSION_UPLOAD_KEY_ALIAS",
+    "STREAMFUSION_UPLOAD_KEY_PASSWORD",
+  ]) {
+    assert.match(
+      materialize.run,
+      new RegExp(exported, "u"),
+      `${exported} must reach Gradle or the release is signed with the debug key`,
+    );
+  }
+  assert.equal(assemble.env.ASSET_NAME, "${{ needs.verify.outputs.asset_name }}");
 });
 
 test("the android release attaches the whole Release Set and nothing partial", () => {

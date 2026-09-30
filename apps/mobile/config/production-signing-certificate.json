@@ -1,8 +1,8 @@
 {
   "$schema": "./production-signing-certificate.schema.json",
   "applicationId": "com.thedarkskyxd.streamfusion",
-  "certificateSha256": null,
-  "recordedBy": null,
-  "recordedAt": null,
+  "certificateSha256": "e84285558899c9eef61d5c8cd28f5fdb59ff70240246e7a073cb622642ef3c57",
+  "recordedBy": "autopilot 2026-09-30, local key ~/.streamfusion/streamfusion-mobile-release.jks",
+  "recordedAt": "2026-09-30",
   "notes": "Null fingerprint means no production build is authorized. Android accepts an update only when the signing certificate matches, so an unpinned signer cannot be verified before publication. Populate certificateSha256 with the lowercase hex SHA-256 certificate fingerprint of the StreamFusion Mobile production signing key, never the keystore password. Record the same value in the Android Developer Console package registration."
 }

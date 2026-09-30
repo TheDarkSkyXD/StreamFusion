@@ -140,44 +140,60 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
-      - name: Pin npm and the EAS CLI
-        run: |
-          npm install --global npm@11.19.0
-          npm install --global eas-cli@24.8.0
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Setup Java
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
 
-      - name: Request the EAS production build
-        id: build
+      - name: Materialize the production keystore
         shell: bash
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          STREAMFUSION_RELEASE_CHANNEL: production
-          RELEASE_COMMIT: ${{ github.sha }}
+          KEYSTORE_BASE64: ${{ secrets.STREAMFUSION_MOBILE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.STREAMFUSION_MOBILE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.STREAMFUSION_MOBILE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.STREAMFUSION_MOBILE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          cd apps/mobile
-          npx eas-cli build \
-            --platform android \
-            --profile production \
-            --non-interactive \
-            --json --wait > eas-build.json
-          node ../../scripts/read-eas-build.mjs eas-build.json "$GITHUB_OUTPUT"
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            test -n "${!name}" || {
+              echo "missing secret $name; the production keystore is not configured" >&2
+              exit 1
+            }
+          done
+          mkdir -p .signing
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > .signing/release.jks
+          printf 'STREAMFUSION_UPLOAD_STORE_FILE=%s\n' "$PWD/.signing/release.jks" >> "$GITHUB_ENV"
+          printf 'STREAMFUSION_UPLOAD_STORE_PASSWORD=%s\n' "$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          printf 'STREAMFUSION_UPLOAD_KEY_ALIAS=%s\n' "$KEY_ALIAS" >> "$GITHUB_ENV"
+          printf 'STREAMFUSION_UPLOAD_KEY_PASSWORD=%s\n' "$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Download the EAS artifact
+      - name: Prebuild the Android project
+        run: npm run --workspace @streamfusion/mobile prebuild:android
+
+      - name: Assemble the signed release APK
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_URL: ${{ steps.build.outputs.artifact_url }}
           ASSET_NAME: ${{ needs.verify.outputs.asset_name }}
         run: |
           set -euo pipefail
-          test -n "$ARTIFACT_URL" || { echo "EAS returned no artifact URL" >&2; exit 1; }
+          pushd apps/mobile/android
+          ./gradlew --no-daemon --stacktrace app:assembleRelease
+          popd
           mkdir -p android-release-set
-          curl --fail --location --silent --show-error \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            "$ARTIFACT_URL" -o "android-release-set/$ASSET_NAME"
+          test -f apps/mobile/android/app/build/outputs/apk/release/app-release.apk || {
+            echo "Gradle produced no release APK" >&2
+            exit 1
+          }
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk \
+            "android-release-set/$ASSET_NAME"
 
       - name: Verify the APK against the pinned signer
         shell: bash
@@ -194,13 +210,14 @@ jobs:
           VERSION: ${{ needs.verify.outputs.version }}
           PRERELEASE: ${{ needs.verify.outputs.prerelease }}
           VERSION_CODE: ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}
-          EAS_BUILD_ID: ${{ steps.build.outputs.build_id }}
-          EAS_BUILD_URL: ${{ steps.build.outputs.build_url }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           node scripts/assemble-android-release-set.mjs \
             android-release-set \
-            "$RELEASE_TAG" "$VERSION" "$PRERELEASE" "$VERSION_CODE" "$EAS_BUILD_ID" "$EAS_BUILD_URL"
+            "$RELEASE_TAG" "$VERSION" "$PRERELEASE" "$VERSION_CODE" \
+            "$COMMIT_SHA" "$RUN_URL"
 
       - name: Upload the Android Release Set
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

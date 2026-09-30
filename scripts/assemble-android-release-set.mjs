@@ -24,8 +24,8 @@ export function assembleReleaseSet({
   version,
   prerelease,
   versionCode,
-  easBuildId,
-  easBuildUrl,
+  commitSha,
+  runUrl,
   apkFileName,
 }) {
   const apkPath = path.join(directory, apkFileName);
@@ -50,9 +50,11 @@ export function assembleReleaseSet({
 
   const buildInfo = {
     releaseTag,
-    easBuildId,
-    easBuildUrl,
+    commitSha,
+    buildRunUrl: runUrl,
     buildProfile: "production",
+    builder: "github-actions",
+    toolchain: "gradlew app:assembleRelease on ubuntu-latest",
     expoSdk: "57",
     applicationId: PRODUCTION_APPLICATION_ID,
     versionName: version,
@@ -111,11 +113,11 @@ export function assembleReleaseSet({
 }
 
 function runCli() {
-  const [, , directory, releaseTag, version, prerelease, versionCode, easBuildId, easBuildUrl] =
+  const [, , directory, releaseTag, version, prerelease, versionCode, commitSha, runUrl] =
     process.argv;
   if (!directory || !releaseTag || !version || !versionCode) {
     throw new Error(
-      "usage: node scripts/assemble-android-release-set.mjs <directory> <release-tag> <version> <prerelease> <version-code> <eas-build-id> <eas-build-url>",
+      "usage: node scripts/assemble-android-release-set.mjs <directory> <release-tag> <version> <prerelease> <version-code> <commit-sha> <build-run-url>",
     );
   }
 
@@ -132,8 +134,8 @@ function runCli() {
     version,
     prerelease,
     versionCode: Number(versionCode),
-    easBuildId: easBuildId || "unknown",
-    easBuildUrl: easBuildUrl || "unknown",
+    commitSha: commitSha || "unknown",
+    runUrl: runUrl || "unknown",
     apkFileName,
   });
   console.log(

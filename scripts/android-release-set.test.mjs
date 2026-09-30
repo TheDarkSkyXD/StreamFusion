@@ -6,7 +6,6 @@ import path from "node:path";
 import test from "node:test";
 
 import { assembleReleaseSet } from "./assemble-android-release-set.mjs";
-import { readEasBuild } from "./read-eas-build.mjs";
 
 const APK_NAME = "StreamFusion-android-v0.1.0-alpha.apk";
 const APK_BYTES = Buffer.from("pretend this is a signed apk");
@@ -26,8 +25,7 @@ test("the release set carries the APK, its manifest, checksums, and build record
     version: "0.1.0-alpha",
     prerelease: "true",
     versionCode: 7,
-    easBuildId: "build-123",
-    easBuildUrl: "https://expo.dev/artifacts/eas/build-123",
+    commitSha: "abc123", runUrl: "https://github.com/o/r/actions/runs/1",
     apkFileName: APK_NAME,
   });
 
@@ -49,8 +47,7 @@ test("the updater manifest describes the bytes that were actually built", () => 
     version: "0.1.0-alpha",
     prerelease: "true",
     versionCode: 7,
-    easBuildId: "build-123",
-    easBuildUrl: "https://expo.dev/artifacts/eas/build-123",
+    commitSha: "abc123", runUrl: "https://github.com/o/r/actions/runs/1",
     apkFileName: APK_NAME,
   });
 
@@ -83,8 +80,7 @@ test("the checksums file matches every other file byte for byte", () => {
     version: "0.1.0-alpha",
     prerelease: "true",
     versionCode: 7,
-    easBuildId: "build-123",
-    easBuildUrl: "https://expo.dev/artifacts/eas/build-123",
+    commitSha: "abc123", runUrl: "https://github.com/o/r/actions/runs/1",
     apkFileName: APK_NAME,
   });
 
@@ -114,8 +110,8 @@ test("the build record names the production application id and the EAS build", (
     version: "1.0.0",
     prerelease: "false",
     versionCode: 12,
-    easBuildId: "build-999",
-    easBuildUrl: "https://expo.dev/artifacts/eas/build-999",
+    commitSha: "def456",
+    runUrl: "https://github.com/o/r/actions/runs/2",
     apkFileName: APK_NAME,
   });
 
@@ -124,7 +120,9 @@ test("the build record names the production application id and the EAS build", (
   );
   assert.equal(buildInfo.applicationId, "com.thedarkskyxd.streamfusion");
   assert.equal(buildInfo.buildProfile, "production");
-  assert.equal(buildInfo.easBuildId, "build-999");
+  assert.equal(buildInfo.builder, "github-actions");
+  assert.equal(buildInfo.commitSha, "def456");
+  assert.equal(buildInfo.buildRunUrl, "https://github.com/o/r/actions/runs/2");
   assert.equal(buildInfo.versionCode, 12);
   assert.equal(buildInfo.prerelease, false);
 });
@@ -138,8 +136,7 @@ test("the release notes tell a first-time user how to install", () => {
     version: "0.1.0-alpha",
     prerelease: "true",
     versionCode: 1,
-    easBuildId: "build-123",
-    easBuildUrl: "https://expo.dev/artifacts/eas/build-123",
+    commitSha: "abc123", runUrl: "https://github.com/o/r/actions/runs/1",
     apkFileName: APK_NAME,
   });
 
@@ -151,55 +148,16 @@ test("the release notes tell a first-time user how to install", () => {
   assert.match(notes, /not complete in this release/u);
 });
 
-test("a build from a different commit or profile is refused", () => {
-  const metadata = {
-    id: "build-123",
-    url: "https://expo.dev/artifacts/eas/build-123",
-    gitCommit: "abc123",
-    buildProfile: "production",
-    artifacts: [{ type: "apk", url: "https://expo.dev/artifacts/abc/app.apk" }],
-  };
-
-  assert.deepEqual(
-    readEasBuild({ metadata, expectedCommit: "abc123", expectedProfile: "production" }),
-    {
-      build_id: "build-123",
-      build_url: "https://expo.dev/artifacts/eas/build-123",
-      artifact_url: "https://expo.dev/artifacts/abc/app.apk",
-    },
-  );
-  assert.throws(
-    () => readEasBuild({ metadata, expectedCommit: "different", expectedProfile: "production" }),
-    /built commit abc123 but the release tag points at different/u,
-  );
-  assert.throws(
-    () => readEasBuild({ metadata, expectedCommit: "abc123", expectedProfile: "alpha" }),
-    /used profile production, expected alpha/u,
-  );
-  assert.throws(
-    () => readEasBuild({ metadata: { id: "b" }, expectedCommit: "abc123", expectedProfile: "production" }),
-    /missing git commit/u,
-  );
-  assert.throws(
-    () => readEasBuild({ metadata: { gitCommit: "abc123", buildProfile: "production" }, expectedProfile: "production" }),
-    /missing build id/u,
-  );
-  assert.throws(
-    () =>
-      readEasBuild({
-        metadata: { id: "b", gitCommit: "abc123", buildProfile: "production", artifacts: [] },
-        expectedProfile: "production",
-      }),
-    /missing artifact URL/u,
-  );
-});
-
 test("the release helpers the workflow calls all exist", () => {
   for (const file of [
     "scripts/assemble-android-release-set.mjs",
-    "scripts/read-eas-build.mjs",
     ".github/workflows/android-release.yml",
   ]) {
     assert.ok(existsSync(file), `${file} is referenced but missing`);
   }
+  assert.equal(
+    existsSync("scripts/read-eas-build.mjs"),
+    false,
+    "the release now builds on the runner, so the EAS metadata reader is dead weight",
+  );
 });
