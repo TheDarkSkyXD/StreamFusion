@@ -34,12 +34,35 @@ V2 Signer: certificate DN: CN=Android Debug, OU=Android, O=Unknown, L=Unknown, S
 V2 Signer: certificate SHA-256 digest: FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C
 `;
 
+// Captured verbatim from the release run on the runner's build-tools. That
+// version prints the digest as bare lowercase hex with no colons, which a
+// parser written against an older colon-separated sample silently rejects.
+const V2_BARE_HEX = `Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Number of signers: 1
+V2 Signer: certificate DN: CN=StreamFusion Mobile, OU=StreamFusion, O=StreamFusion, C=US
+V2 Signer: certificate SHA-256 digest: ${PINNED.certificateSha256}
+V2 Signer: certificate SHA-1 digest: 0f05fb0088ac4e83b820f1636074d83b31967458
+V2 Signer: certificate MD5 digest: e02767eb40d9c6ce1e76c99c5b9fd340
+V2 Signer: key algorithm: RSA
+V2 Signer: key size (bits): 4096
+`;
+
 /** Mirrors the parser in apps/mobile/scripts/verify-release.mjs. */
 function readSignerFingerprint(report) {
   return report.match(
-    /(?:Signer #1|V2 Signer):?\s*certificate SHA-256 digest:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){31})/u,
+    /(?:Signer #1|V2 Signer):?\s*certificate SHA-256 digest:\s*([0-9a-fA-F]{2}(?::?[0-9a-fA-F]{2}){31})/u,
   )?.[1];
 }
+
+test("the runner's bare lowercase digest is accepted", () => {
+  const fingerprint = readSignerFingerprint(V2_BARE_HEX);
+
+  assert.ok(fingerprint, "build-tools prints the digest without colons");
+  assert.equal(fingerprint.replaceAll(":", "").toLowerCase(), PINNED.certificateSha256);
+});
 
 test("a v2-signed release APK is accepted", () => {
   const fingerprint = readSignerFingerprint(V2_REPORT);
