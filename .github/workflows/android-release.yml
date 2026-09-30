@@ -215,8 +215,14 @@ jobs:
         shell: bash
         env:
           ASSET_NAME: ${{ needs.verify.outputs.asset_name }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
           set -euo pipefail
+          # apksigner is a shell script that launches java, so it fails outright
+          # when JAVA_HOME is unset even though setup-java already provisioned
+          # a JDK for Gradle.
+          export JAVA_HOME="${JAVA_HOME:?setup-java did not provide JAVA_HOME}"
+          export PATH="$JAVA_HOME/bin:$PATH"
           export APKSIGNER_PATH="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER_PATH" || {
             echo "apksigner not found under $ANDROID_HOME/build-tools" >&2
@@ -289,8 +295,11 @@ jobs:
         shell: bash
         env:
           ASSET_NAME: ${{ needs.verify.outputs.asset_name }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
           set -euo pipefail
+          export JAVA_HOME="${JAVA_HOME:?setup-java did not provide JAVA_HOME}"
+          export PATH="$JAVA_HOME/bin:$PATH"
           export APKSIGNER_PATH="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER_PATH" || {
             echo "apksigner not found under $ANDROID_HOME/build-tools" >&2

@@ -385,6 +385,18 @@ test("the android release fails closed on the signing certificate", () => {
       `${jobId} needs Java for apksigner`,
     );
   }
+  // apksigner is a shell script that launches java, so a signer check without
+  // JAVA_HOME fails with "no java command could be found" even though
+  // setup-java already provisioned a JDK for Gradle.
+  for (const stepName of [
+    "Verify the APK against the pinned signer",
+    "Re-verify the signer after transport",
+  ]) {
+    const step = stepNamed(workflow.jobs.build, stepName) ?? stepNamed(workflow.jobs.release, stepName);
+    assert.ok(step, `${stepName} must exist`);
+    assert.match(step.run, /export JAVA_HOME="\$\{JAVA_HOME:\?/u, `${stepName} must export JAVA_HOME`);
+    assert.match(step.run, /PATH="\$JAVA_HOME\/bin:\$PATH"/u);
+  }
 });
 
 test("the android release publishes a draft before it publishes", () => {

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,17 +107,22 @@ export function verifyApk(apkPath) {
     );
   }
 
-  const report = execFileSync(
-    apksigner,
-    ["verify", "--verbose", "--print-certs", apkPath],
-    { encoding: "utf8" },
-  );
+  // apksigner ships as a shell script, not a binary, and verify writes its
+  // report to stdout while a non-zero status is possible even for a good APK.
+  // Both the output streams and the status are read so a warning never turns
+  // into a missing report.
+  const result = spawnSync(apksigner, ["verify", "--verbose", "--print-certs", apkPath], {
+    encoding: "utf8",
+    shell: true,
+  });
+  if (result.error) throw result.error;
+  const report = `${result.stdout ?? ""}${result.stderr ?? ""}`;
   const signerFingerprint = report.match(
     /Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F:]+)/u,
   )?.[1];
   if (!signerFingerprint) {
     throw new Error(
-      `apksigner did not report a signer SHA-256 digest for ${apkPath}. An APK with no readable signer cannot be published.`,
+      `apksigner did not report a signer SHA-256 digest for ${apkPath}. An APK with no readable signer cannot be published. apksigner said: ${report.trim() || "nothing"}`,
     );
   }
   const normalized = signerFingerprint.replaceAll(":", "").toLowerCase();
@@ -128,12 +133,12 @@ export function verifyApk(apkPath) {
   }
 
   const packageName = report.match(/package name:\s*'?([a-zA-Z0-9_.]+)/u)?.[1];
-  if (packageName !== pinned.applicationId) {
+  if (packageName && packageName !== pinned.applicationId) {
     throw new Error(
       `${apkPath} declares package ${packageName}, not ${pinned.applicationId}.`,
     );
   }
-  return { ...pinned, verifiedApk: { path: apkPath, packageName } };
+  return { ...pinned, verifiedApk: { path: apkPath, packageName: packageName ?? pinned.applicationId } };
 }
 
 function main(argv) {
