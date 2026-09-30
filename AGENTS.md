@@ -29,6 +29,7 @@
 | Player components | `apps/desktop/src/frontend/features/playback/components/player/AGENTS.md` |
 | Stream browsing and feature screens | `apps/desktop/src/frontend/features/AGENTS.md` |
 | Shared React hooks | `apps/desktop/src/frontend/hooks/AGENTS.md` |
+| Mobile app | `apps/mobile/CONTEXT.md` |
 | Mod dashboard pages | `apps/desktop/src/frontend/features/moderation/components/screens/Mod/AGENTS.md` |
 | Preload bridge | `apps/desktop/src/backend/preload/AGENTS.md` |
 | Shared IPC contracts | `apps/desktop/src/shared/AGENTS.md` |

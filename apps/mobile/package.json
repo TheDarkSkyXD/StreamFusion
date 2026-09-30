@@ -19,7 +19,9 @@
     "bundle:android": "expo export --platform android --output-dir dist",
     "build:android:development": "node scripts/build-android-development.mjs",
     "config:android": "expo config --type public --json",
-    "lint": "eslint app/ src/ modules/ scripts/ tests/ vendor/ metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
+    "config:android:production": "node scripts/resolve-production-config.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
+    "lint": "eslint app/ src/ modules/ scripts/ tests/ vendor/ app.config.js metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
     "test": "node --test tests/*.test.mjs && vitest run --config vitest.config.mts && node scripts/verify-architecture.mjs",
     "typecheck": "tsc --noEmit",
     "eas-build-pre-install": "node ../../scripts/eas-build-pre-install.mjs"

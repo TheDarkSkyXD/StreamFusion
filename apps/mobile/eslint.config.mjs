@@ -1,6 +1,7 @@
 import { defineConfig } from "eslint/config";
 import expoConfig from "eslint-config-expo/flat.js";
 import boundaries from "eslint-plugin-boundaries";
+import globals from "globals";
 
 const productionFiles = ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}"];
 const featureLayers = ["mobile-routes", "mobile-components", "mobile-domain", "mobile-capabilities", "mobile-adapters", "mobile-data", "mobile-utils", "mobile-feature-composition"];
@@ -12,6 +13,7 @@ const nativeBridgeRestrictedFiles = ["app/**/*.{ts,tsx}", "src/composition/**/*.
 export default defineConfig([
   ...expoConfig,
   { files: ["vitest.config.mts"] },
+  { files: ["app.config.js", "plugins/**/*.{js,cjs,mjs}"], languageOptions: { sourceType: "commonjs", globals: globals.node } },
   { ignores: ["android/**", "dist/**", ".expo/**"] },
   {
     files: productionFiles,
