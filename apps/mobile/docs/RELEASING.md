@@ -37,7 +37,15 @@ npm run --workspace @streamfusion/mobile config:android
 
 `config/production-signing-certificate.json` pins the production certificate. The repository ships with `certificateSha256: null`, which fails every production build closed. An unpinned signer cannot be verified before publication, and Android accepts an update only when the certificate matches.
 
-Record the fingerprint once the production key exists:
+Generate the production key once. The script uses the JDK bundled with Android Studio, prompts for the password without echoing it, and passes it to `keytool` through the environment so it never reaches a command line or a log:
+
+```powershell
+./apps/mobile/scripts/generate-production-key.ps1
+```
+
+It writes to `~/.streamfusion/streamfusion-mobile-release.jks` by default, refuses to overwrite an existing keystore, and prints the SHA-256 fingerprint. The key is dedicated to StreamFusion Mobile and must never be reused from desktop or development. Back it up twice, encrypted, in separate physical locations, before pinning.
+
+Record the fingerprint:
 
 ```bash
 npm run --workspace @streamfusion/mobile verify:release -- --pin <sha256> <recorded-by>
