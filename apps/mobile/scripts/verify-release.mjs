@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -91,6 +91,44 @@ function pinFingerprint(fingerprint, recordedBy) {
   return normalized;
 }
 
+function resolveAapt2() {
+  const explicit = process.env.AAPT2_PATH;
+  if (explicit && existsSync(explicit)) return explicit;
+
+  const androidHome = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
+  if (androidHome) {
+    const buildTools = path.join(androidHome, "build-tools");
+    if (existsSync(buildTools)) {
+      const versions = readdirSync(buildTools)
+        .filter((entry) => /^\d+/u.test(entry))
+        .sort(compareNumericVersions)
+        .reverse();
+      for (const version of versions) {
+        for (const name of process.platform === "win32" ? ["aapt2.exe"] : ["aapt2"]) {
+          const candidate = path.join(buildTools, version, name);
+          if (existsSync(candidate)) return candidate;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function compareNumericVersions(left, right) {
+  return left.localeCompare(right, "en", { numeric: true });
+}
+
+function readPackageName(apkPath) {
+  const aapt2 = resolveAapt2();
+  if (!aapt2) return null;
+
+  const result = spawnSync(aapt2, ["dump", "badging", apkPath], {
+    encoding: "utf8",
+  });
+  if (result.error || result.status !== 0) return null;
+  return result.stdout.match(/package:\s*name='([^']+)'/u)?.[1] ?? null;
+}
+
 export function verifyApk(apkPath) {
   const pinned = readPinnedCertificate();
   if (!apkPath) {
@@ -137,13 +175,23 @@ export function verifyApk(apkPath) {
     );
   }
 
-  const packageName = report.match(/package name:\s*'?([a-zA-Z0-9_.]+)/u)?.[1];
-  if (packageName && packageName !== pinned.applicationId) {
+  // apksigner does not report the application id, so the package name is read
+  // from the manifest through aapt2. A missing value is a failure rather than a
+  // pass: the certificate alone does not prove the public application id, and a
+  // development-identity APK signed with the production key is a different app
+  // that users can never upgrade to the public one.
+  const packageName = readPackageName(apkPath);
+  if (!packageName) {
     throw new Error(
-      `${apkPath} declares package ${packageName}, not ${pinned.applicationId}.`,
+      `Could not read the application id from ${apkPath}. Set AAPT2_PATH to the Android SDK build-tools aapt2 so the release check can prove this is ${pinned.applicationId}.`,
     );
   }
-  return { ...pinned, verifiedApk: { path: apkPath, packageName: packageName ?? pinned.applicationId } };
+  if (packageName !== pinned.applicationId) {
+    throw new Error(
+      `${apkPath} declares application id ${packageName}, not ${pinned.applicationId}. A release must carry the public application id.`,
+    );
+  }
+  return { ...pinned, verifiedApk: { path: apkPath, packageName } };
 }
 
 function main(argv) {
