@@ -1,15 +1,8 @@
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  Maximize2,
-  Move,
-  Pause,
-  PictureInPicture2,
-  Play,
-  X,
-} from "lucide-react-native";
+import { Maximize2, Pause, Play, X } from "lucide-react-native";
 
 import { impactHaptic } from "@mobile/design/haptics";
 import {
@@ -17,25 +10,19 @@ import {
   mobileRadii,
   mobileShadows,
   mobileSizing,
-  mobileSpacing,
 } from "@mobile/design/tokens";
-import type { FocusedWatchSession, WatchPeek, WatchTarget } from "../capabilities/watch";
+import type {
+  FocusedWatchSession,
+  WatchPeek,
+  WatchTarget,
+} from "../capabilities/watch";
 import type { PlayerSurfaceProps } from "./watch-screen";
-import {
-  miniPlayerSnapStyle,
-  type MiniPlayerSnapRegion,
-} from "../domain/player-presentation";
+import { miniPlayerSnapStyle } from "../domain/player-presentation";
 import { useWatchPeek } from "./use-focused-watch-session";
-
-const SNAP_CYCLE: readonly MiniPlayerSnapRegion[] = [
-  "bottom-end",
-  "bottom-start",
-  "top-start",
-  "top-end",
-];
 
 const MINI_WIDTH = 240;
 const MINI_VIDEO_HEIGHT = Math.round((MINI_WIDTH * 9) / 16);
+const CONTROLS_IDLE_MS = 3_000;
 
 export function WatchMiniPlayerHost({
   PlayerSurface,
@@ -49,10 +36,13 @@ export function WatchMiniPlayerHost({
   readonly session: FocusedWatchSession;
 }) {
   const peek = useWatchPeek(session);
-  if (hidden || peek.kind !== "active" || peek.presentation.presentation !== "mini") {
+  if (
+    hidden ||
+    peek.kind !== "active" ||
+    peek.presentation.presentation !== "mini"
+  ) {
     return null;
   }
-  const pipEligible = peek.state.session.pictureInPictureEligible;
   return (
     <MiniPlayer
       PlayerSurface={PlayerSurface}
@@ -63,14 +53,6 @@ export function WatchMiniPlayerHost({
       onPause={() => {
         void session.setPlaying(peek.state.phase === "paused");
       }}
-      {...(pipEligible
-        ? {
-            onPip: () => {
-              void session.requestPictureInPicture();
-            },
-          }
-        : {})}
-      onRelocate={(region) => session.relocateMiniPlayer(region)}
       peek={peek}
     />
   );
@@ -81,26 +63,40 @@ export function MiniPlayer({
   onDismiss,
   onExpand,
   onPause,
-  onPip,
-  onRelocate,
   peek,
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly onDismiss: () => void;
   readonly onExpand: () => void;
   readonly onPause: () => void;
-  readonly onPip?: () => void;
-  readonly onRelocate: (region: MiniPlayerSnapRegion) => void;
   readonly peek: Extract<WatchPeek, { kind: "active" }>;
 }) {
   const insets = useSafeAreaInsets();
   const paused = peek.state.phase === "paused";
-  const nextRegion =
-    SNAP_CYCLE[
-      (SNAP_CYCLE.indexOf(peek.presentation.snapRegion) + 1) % SNAP_CYCLE.length
-    ]!;
   const { t } = useTranslation();
   const sessionId = peek.state.session.sessionId;
+  const phase = peek.state.phase;
+  const [hiddenFor, setHiddenFor] = useState<{
+    readonly sessionId: string;
+    readonly phase: typeof phase;
+  } | null>(null);
+  const [idleToken, setIdleToken] = useState(0);
+  const controlsVisible =
+    hiddenFor?.sessionId !== sessionId || hiddenFor.phase !== phase;
+
+  useEffect(() => {
+    const timeout = setTimeout(
+      () => setHiddenFor({ sessionId, phase }),
+      CONTROLS_IDLE_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [sessionId, phase, idleToken]);
+
+  const revealControls = () => {
+    setHiddenFor(null);
+    setIdleToken((token) => token + 1);
+  };
+
   return (
     <View
       accessibilityLabel={t("playback.watch.miniPlayerLabel", {
@@ -118,52 +114,46 @@ export function MiniPlayer({
       <View style={styles.videoFrame} testID="mini-player-video">
         <PlayerSurface sessionId={sessionId} testID="mini-player-surface" />
         <Pressable
-          accessibilityLabel={t("playback.watch.expandMiniPlayer")}
+          accessibilityLabel={t("playback.watch.showControls")}
           accessibilityRole="button"
-          onPress={onExpand}
-          style={styles.videoExpand}
-          testID="mini-player-video-expand"
+          onPress={revealControls}
+          style={styles.videoReveal}
+          testID="mini-player-video-reveal"
         />
-        <View style={styles.closeSpot}>
-          <IconControl
-            Icon={X}
-            accessibilityLabel={t("playback.close")}
-            onPress={onDismiss}
-            testID="dismiss-player"
-          />
-        </View>
-        <View style={styles.controls}>
-          <IconControl
-            Icon={paused ? Play : Pause}
-            accessibilityLabel={
-              paused ? t("mediaLibrary.resume") : t("playback.pause")
-            }
-            onPress={onPause}
-            testID="mini-player-pause"
-          />
-          {onPip ? (
-            <IconControl
-              Icon={PictureInPicture2}
-              accessibilityLabel={t("playback.watch.enterPip")}
-              onPress={onPip}
-              testID="mini-player-pip"
-            />
-          ) : null}
-          <IconControl
-            Icon={Move}
-            accessibilityLabel={t("playback.watch.moveToRegion", {
-              region: nextRegion,
-            })}
-            onPress={() => onRelocate(nextRegion)}
-            testID="mini-player-relocate"
-          />
-          <IconControl
-            Icon={Maximize2}
-            accessibilityLabel={t("playback.watch.expandMiniPlayer")}
-            onPress={onExpand}
-            testID="mini-player-expand"
-          />
-        </View>
+        {controlsVisible ? (
+          <>
+            <View style={styles.expandSpot}>
+              <IconControl
+                Icon={Maximize2}
+                accessibilityLabel={t("playback.watch.expandMiniPlayer")}
+                onPress={onExpand}
+                testID="mini-player-expand"
+              />
+            </View>
+            <View style={styles.closeSpot}>
+              <IconControl
+                Icon={X}
+                accessibilityLabel={t("playback.close")}
+                onPress={onDismiss}
+                testID="dismiss-player"
+              />
+            </View>
+            <View pointerEvents="box-none" style={styles.centerSpot}>
+              <IconControl
+                Icon={paused ? Play : Pause}
+                accessibilityLabel={
+                  paused ? t("mediaLibrary.resume") : t("playback.pause")
+                }
+                iconSize={32}
+                onPress={() => {
+                  revealControls();
+                  onPause();
+                }}
+                testID="mini-player-pause"
+              />
+            </View>
+          </>
+        ) : null}
       </View>
     </View>
   );
@@ -172,11 +162,13 @@ export function MiniPlayer({
 function IconControl({
   Icon,
   accessibilityLabel,
+  iconSize = 24,
   onPress,
   testID,
 }: {
   readonly Icon: typeof Pause;
   readonly accessibilityLabel: string;
+  readonly iconSize?: number;
   readonly onPress: () => void;
   readonly testID: string;
 }) {
@@ -188,13 +180,16 @@ function IconControl({
         void impactHaptic("light");
         onPress();
       }}
-      style={({ pressed }) => [styles.control, pressed ? styles.controlPressed : null]}
+      style={({ pressed }) => [
+        styles.control,
+        pressed ? styles.controlPressed : null,
+      ]}
       testID={testID}
     >
       <Icon
         accessibilityElementsHidden
         color={mobileColors.textPrimary}
-        size={18}
+        size={iconSize}
         strokeWidth={2}
       />
     </Pressable>
@@ -217,26 +212,24 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "100%",
   },
-  videoExpand: {
+  videoReveal: {
     ...StyleSheet.absoluteFill,
   },
+  expandSpot: {
+    left: 0,
+    position: "absolute",
+    top: 0,
+  },
   closeSpot: {
-    backgroundColor: mobileColors.overlay,
-    borderRadius: mobileRadii.full,
     position: "absolute",
     right: 0,
     top: 0,
   },
-  controls: {
-    backgroundColor: mobileColors.overlay,
-    bottom: 0,
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    justifyContent: "space-between",
-    left: 0,
-    paddingHorizontal: mobileSpacing.small,
+  centerSpot: {
+    alignItems: "center",
+    justifyContent: "center",
+    ...StyleSheet.absoluteFill,
     position: "absolute",
-    right: 0,
   },
   control: {
     alignItems: "center",
@@ -246,6 +239,6 @@ const styles = StyleSheet.create({
     minWidth: mobileSizing.minimumTouchTarget,
   },
   controlPressed: {
-    backgroundColor: mobileColors.playerScrim,
+    opacity: 0.7,
   },
 });
