@@ -191,7 +191,7 @@ export function WatchScreen({
       style={[styles.screen, pipSurface ? styles.pipScreen : null]}
       testID="screen-watch"
     >
-      {pipSurface ? null : (
+      {pipSurface || fullscreen ? null : (
         <View style={styles.meta} testID="watch-channel-chrome">
           {onBack ? (
             <Pressable
@@ -280,6 +280,7 @@ export function WatchScreen({
         </View>
       )}
       <View
+        key="player-stage"
         style={[
           styles.playerStage,
           fullscreen || pipSurface ? styles.fullscreenStage : null,
@@ -347,7 +348,7 @@ export function WatchScreen({
           <WatchCaptionOverlay text={captions?.cueText ?? ""} />
         )}
       </View>
-      {pipSurface ? null : (
+      {pipSurface || fullscreen ? null : (
         <>
           {view.primaryAction === "retry" ? (
             <MobileButton

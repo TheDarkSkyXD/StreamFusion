@@ -364,6 +364,57 @@ describe("watch screen", () => {
     );
   });
 
+  it("shows only the player and its controls in fullscreen", () => {
+    const playback = {
+      integration: "twitch-gql-usher" as const,
+      kind: "active" as const,
+      phase: "playing" as const,
+      policySequence: 1,
+      protection: { kind: "normal" as const },
+      session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      target,
+    };
+    const nodes = descendants(
+      WatchScreen({
+        PlayerSurface: () => null,
+        chat: { detail: "Connecting guest chat.", kind: "connecting" },
+        inspection: null,
+        onMute: () => undefined,
+        onOpenRelated: () => undefined,
+        onPip: () => undefined,
+        onPlayPause: () => undefined,
+        onQualityPress: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onToggleControls: () => undefined,
+        onToggleFullscreen: () => undefined,
+        peek: {
+          adsDetected: false,
+          kind: "active",
+          muted: false,
+          presentation: {
+            pip: "idle",
+            presentation: "fullscreen",
+            previous: "watch",
+            snapRegion: "bottom-end",
+          },
+          quality: "auto",
+          qualities: ["auto"],
+          progress: { durationMs: 0, positionMs: 0, seekable: false },
+          state: playback,
+          volume: 1,
+        },
+        playback,
+        tab: "info",
+        target,
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-fullscreen")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-channel-chrome")).toBe(false);
+    expect(nodes.some((node) => node.props.testID === "watch-under-player")).toBe(false);
+  });
+
   it("shows an on-player adblock shield instead of an under-player status card", () => {
     const playback = {
       integration: "twitch-gql-usher" as const,

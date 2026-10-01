@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentType,
   type ReactNode,
 } from "react";
 import {
@@ -254,6 +255,7 @@ export function AppShell({
   notificationSession,
   chatDisplaySession,
   predictionSession,
+  AndroidNavigationBar,
   nativeNotifications,
   settingsSession,
   supportSession,
@@ -305,6 +307,7 @@ export function AppShell({
   readonly notificationSession: NotificationSettingsSession;
   readonly chatDisplaySession: ChatDisplaySettingsSession;
   readonly predictionSession: PredictionSettingsSession;
+  readonly AndroidNavigationBar: ComponentType<{ readonly hidden: boolean }>;
   readonly nativeNotifications: NativeNotificationRuntime;
   readonly settingsSession: SettingsSession;
   readonly supportSession: SupportSettingsSession;
@@ -346,6 +349,11 @@ export function AppShell({
   const pictureInPictureSurface =
     watchPeek.kind === "active" &&
     isPictureInPictureSurface(watchPeek.presentation);
+  const fullscreen =
+    watchingWatch &&
+    watchPeek.kind === "active" &&
+    watchPeek.presentation.presentation === "fullscreen";
+  const playerOnlySurface = pictureInPictureSurface || fullscreen;
 
   useEffect(() => {
     nativeNotifications.bindOpen((openLocation) => {
@@ -385,7 +393,7 @@ export function AppShell({
     [connectivitySession],
   );
   const networkStatus = useNetworkStatus({
-    enabled: !pictureInPictureSurface,
+    enabled: !playerOnlySurface,
     readNetwork,
   });
   const placement = getShellNavigationPlacement(width);
@@ -399,8 +407,13 @@ export function AppShell({
       () => {
         const decision = resolveHardwareBack({
           canNavigateBack: canNavigateBack(navigation),
+          fullscreen,
           hasOverlay: hasDismissalConfirmation,
         });
+        if (decision === "exit-fullscreen") {
+          watch.runtime.session.exitFullscreen();
+          return true;
+        }
         if (decision === "cancel-dismissal") {
           cancelDismissal();
           return true;
@@ -413,7 +426,14 @@ export function AppShell({
       },
     );
     return () => subscription.remove();
-  }, [cancelDismissal, dispatch, hasDismissalConfirmation, navigation]);
+  }, [
+    cancelDismissal,
+    dispatch,
+    fullscreen,
+    hasDismissalConfirmation,
+    navigation,
+    watch.runtime.session,
+  ]);
 
   const navigationView = (bottomInset = 0) => (
     <PrimaryNavigation
@@ -429,7 +449,7 @@ export function AppShell({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "android" ? "height" : undefined}
-      enabled={Platform.OS === "android"}
+      enabled={Platform.OS === "android" && !playerOnlySurface}
       style={styles.app}
       testID="development-client-ready"
     >
@@ -438,15 +458,17 @@ export function AppShell({
         style={[
           styles.safeFrame,
           {
-            paddingBottom: safeFrameBottomInset({
-              applyKeyboardOverlay: Platform.OS !== "android",
-              fallbackInset: placement === "rail" ? insets.bottom : 0,
-              keyboardInset,
-              pictureInPicture: pictureInPictureSurface,
-            }),
-            paddingLeft: pictureInPictureSurface ? 0 : insets.left,
-            paddingRight: pictureInPictureSurface ? 0 : insets.right,
-            paddingTop: pictureInPictureSurface ? 0 : insets.top,
+            paddingBottom: playerOnlySurface
+              ? 0
+              : safeFrameBottomInset({
+                  applyKeyboardOverlay: Platform.OS !== "android",
+                  fallbackInset: placement === "rail" ? insets.bottom : 0,
+                  keyboardInset,
+                  pictureInPicture: pictureInPictureSurface,
+                }),
+            paddingLeft: playerOnlySurface ? 0 : insets.left,
+            paddingRight: playerOnlySurface ? 0 : insets.right,
+            paddingTop: playerOnlySurface ? 0 : insets.top,
           },
         ]}
         testID="app-shell-ready"
@@ -454,26 +476,28 @@ export function AppShell({
         <View
           style={placement === "rail" ? styles.railLayout : styles.phoneLayout}
         >
-          {placement === "rail" && !pictureInPictureSurface
+          {placement === "rail" && !playerOnlySurface
             ? navigationView()
             : null}
           <View style={styles.workspace}>
-            {pictureInPictureSurface || watchOwnsChrome ? null : (
+            {playerOnlySurface || watchOwnsChrome ? null : (
               <ShellHeader dispatch={dispatch} state={navigation} />
             )}
-            <RestorationNotice
-              developmentDiagnostic={
-                __DEV__ ? persistenceStatus.developmentDiagnostic : null
-              }
-              status={lifecycle.status}
-            />
-            {pictureInPictureSurface ? null : (
+            {playerOnlySurface ? null : (
+              <RestorationNotice
+                developmentDiagnostic={
+                  __DEV__ ? persistenceStatus.developmentDiagnostic : null
+                }
+                status={lifecycle.status}
+              />
+            )}
+            {playerOnlySurface ? null : (
               <MobileConnectivityBanner status={networkStatus.status} />
             )}
-            {pictureInPictureSurface ? null : (
+            {playerOnlySurface ? null : (
               <UpdateAvailableNotice session={supportSession} />
             )}
-            {notificationBanner ? (
+            {notificationBanner && !playerOnlySurface ? (
               <InAppNotificationBannerView
                 banner={notificationBanner}
                 onDismiss={() => nativeNotifications.dismissBanner()}
@@ -554,7 +578,7 @@ export function AppShell({
             />
             <WatchMiniPlayerHost
               PlayerSurface={watch.PlayerSurface}
-              hidden={watchingWatch || pictureInPictureSurface}
+              hidden={watchingWatch || playerOnlySurface}
               onExpand={(target) => {
                 watch.runtime.session.reveal();
                 dispatch({
@@ -575,14 +599,15 @@ export function AppShell({
           </View>
         </View>
         {placement === "bottom" &&
-        !pictureInPictureSurface &&
+        !playerOnlySurface &&
         !keyboard.open ? (
           <View style={{ flexShrink: 0 }}>
             {navigationView(bottomNavigationSafeInset(insets.bottom))}
           </View>
         ) : null}
       </View>
-      <StatusBar style="light" />
+      <StatusBar hidden={fullscreen} style="light" />
+      <AndroidNavigationBar hidden={fullscreen} />
     </KeyboardAvoidingView>
   );
 }

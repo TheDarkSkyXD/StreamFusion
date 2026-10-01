@@ -64,7 +64,7 @@ describe("shell layout", () => {
     expect(source).toContain("safeFrameBottomInset({");
     expect(source).toContain("applyKeyboardOverlay: Platform.OS !== \"android\"");
     expect(source).toContain(
-      "placement === \"bottom\" &&\n        !pictureInPictureSurface &&\n        !keyboard.open",
+      "placement === \"bottom\" &&\n        !playerOnlySurface &&\n        !keyboard.open",
     );
   });
 

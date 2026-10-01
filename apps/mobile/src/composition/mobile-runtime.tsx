@@ -9,6 +9,7 @@ import { AppState } from "react-native";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { applyAndroidSystemChrome } from "@mobile/features/shell/adapters/apply-android-system-chrome";
+import { AndroidNavigationBar } from "@mobile/features/shell/adapters/android-navigation-bar";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
 import { createAndroidCapabilityContractRuntime } from "@mobile/features/native-contracts/composition/android-capability-contract-runtime";
 import { createCapabilityProfileRuntime } from "@mobile/features/capability-profile/composition/capability-profile-runtime";
@@ -574,6 +575,7 @@ export function MobileRuntime() {
       ready={i18nReady && settings.ready}
     >
     <AppShell
+      AndroidNavigationBar={AndroidNavigationBar}
       activityRepository={
         developmentActivityProof?.repository ??
         persistenceRuntime.productState.activity

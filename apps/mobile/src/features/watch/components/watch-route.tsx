@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { BackHandler } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
 import { toSerializedTimestamp } from "@streamfusion/core/activity";
@@ -240,16 +239,6 @@ function WatchSessionRoute({
     repository: screen.history,
     target,
   });
-  useEffect(() => {
-    if (peek.kind !== "active" || peek.presentation.presentation !== "fullscreen") {
-      return undefined;
-    }
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      session.exitFullscreen();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [peek, session]);
   const playing =
     peek.kind === "active" && peek.state.phase !== "paused";
   const revealControls = useCallback(() => {
