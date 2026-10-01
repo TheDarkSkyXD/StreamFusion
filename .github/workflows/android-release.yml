@@ -345,7 +345,7 @@ jobs:
           set -euo pipefail
           publish_flag=(--latest=false)
           if [[ "$PRERELEASE" == "true" ]]; then
-            publish_flag=(--prerelease)
+            publish_flag+=(--prerelease)
           fi
           gh release create "$RELEASE_TAG" \
             release-assets/* \
@@ -363,11 +363,7 @@ jobs:
           PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
           set -euo pipefail
-          latest_flag=()
-          if [[ "$PRERELEASE" != "true" ]]; then
-            latest_flag=(--latest)
-          fi
-          gh release edit "$RELEASE_TAG" --draft=false "${latest_flag[@]}"
+          gh release edit "$RELEASE_TAG" --draft=false --latest=false
           # gh release verify needs a release attestation, which a public
           # repository only produces once immutable releases are enabled. Its
           # absence is reported as a notice rather than swallowed, and any other

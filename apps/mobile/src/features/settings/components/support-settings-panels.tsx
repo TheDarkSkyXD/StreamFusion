@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { mobileSpacing } from "@mobile/design/tokens";
 
 import {
   CHECK_FREQUENCIES,
@@ -9,7 +10,6 @@ import {
   type SupportSettingsSession,
   type SupportSettingsView,
 } from "../capabilities/support-settings";
-import { defaultSupportSettingsView } from "../domain/support-settings";
 import {
   SettingsAction,
   SettingsCopy,
@@ -26,6 +26,14 @@ const MAINTENANCE_ACTIONS = [
   { kind: "reset-app", label: "Reset the app" },
 ] as const;
 
+const styles = StyleSheet.create({
+  updateNotice: {
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
+    gap: mobileSpacing.small,
+  },
+});
+
 function logLinesCopy(logs: SupportSettingsView["logs"]): string {
   if (logs.length === 0) {
     return "No redacted runtime lines match this filter.";
@@ -41,19 +49,40 @@ export function UpdatesSettingsPanel({
   readonly session: SupportSettingsSession;
 }) {
   const view = useSupportView(session);
+  const release = view.update.status === "available" || view.update.status === "current"
+    ? view.update.release
+    : null;
   return (
     <SettingsSection testID="panel-updates" title="UPDATES">
       <SettingsCopy
         testID="update-status"
-        value={`Installed ${view.installedVersion}. ${view.updateCopy}`}
+        value={view.updateCopy}
       />
+      <SettingsCopy
+        testID="update-last-checked"
+        value={view.preferences.lastCheckAt === null
+          ? "No successful check yet."
+          : `Last successful check ${new Date(view.preferences.lastCheckAt).toLocaleString()}`}
+      />
+      {view.releaseOpenError ? (
+        <SettingsCopy testID="update-open-error" value={view.releaseOpenError} />
+      ) : null}
       <SettingsCopy
         testID="automatic-foreground-update-checks-copy"
         value={view.deniedCopy}
       />
       <SettingsSwitch
+        checked={view.preferences.allowPrerelease}
+        detail="Include Android alpha, beta, and release candidates."
+        label="Allow prerelease updates"
+        onToggle={() => {
+          void session.apply({ allowPrerelease: !view.preferences.allowPrerelease });
+        }}
+        testID="allow-prerelease-updates"
+      />
+      <SettingsSwitch
         checked={view.preferences.automaticForegroundUpdateChecks}
-        label="Check automatically while foregrounded"
+        label="Check again when returning to app"
         onToggle={() => {
           void session.apply({
             automaticForegroundUpdateChecks:
@@ -64,7 +93,7 @@ export function UpdatesSettingsPanel({
       />
       <SettingsSelect
         current={view.preferences.checkFrequency}
-        detail="Minimum time between automatic GitHub release checks."
+        detail="Minimum time between return-to-app checks. Launch always checks."
         disabled={!view.preferences.automaticForegroundUpdateChecks}
         label="Check frequency"
         onSelect={(checkFrequency) => {
@@ -77,13 +106,59 @@ export function UpdatesSettingsPanel({
         testID="check-frequency"
       />
       <SettingsAction
-        label="Check now"
+        disabled={view.update.status === "checking"}
+        label={view.update.status === "checking" ? "Checking..." : "Check now"}
         onPress={() => {
           void session.checkForUpdates();
         }}
         testID="check-for-updates"
       />
+      {view.update.status === "available" ? (
+        <SettingsAction
+          label="Download APK in browser"
+          onPress={() => { void session.openApk(); }}
+          testID="download-update-apk"
+        />
+      ) : null}
+      {release ? (
+        <>
+          <SettingsAction
+            label="View GitHub release"
+            onPress={() => { void session.openRelease(); }}
+            testID="view-update-release"
+          />
+          <SettingsCopy
+            testID="update-release-notes"
+            value={`Android ${release.version} release notes\n${release.notes || "No release notes were provided."}`}
+          />
+        </>
+      ) : null}
     </SettingsSection>
+  );
+}
+
+export function UpdateAvailableNotice({
+  session,
+}: {
+  readonly session: SupportSettingsSession;
+}) {
+  const view = useSupportView(session);
+  if (view.update.status !== "available") return null;
+  return (
+    <View style={styles.updateNotice} testID="update-available-notice">
+      <SettingsCopy
+        testID="update-available-notice-copy"
+        value={`StreamFusion Android ${view.update.release.version} is available.`}
+      />
+      {view.releaseOpenError ? (
+        <SettingsCopy testID="update-available-notice-error" value={view.releaseOpenError} />
+      ) : null}
+      <SettingsAction
+        label="View update on GitHub"
+        onPress={() => { void session.openRelease(); }}
+        testID="open-available-update"
+      />
+    </View>
   );
 }
 
@@ -297,7 +372,7 @@ function MaintenanceActions({
 
 function useSupportView(session: SupportSettingsSession): SupportSettingsView {
   const [view, setView] = useState<SupportSettingsView>(() =>
-    defaultSupportSettingsView(),
+    session.peek(),
   );
   useEffect(() => {
     const unsubscribe = session.subscribe(() => {

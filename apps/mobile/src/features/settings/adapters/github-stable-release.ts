@@ -1,37 +1,39 @@
-import { interpretGithubLatestRelease } from "../domain/github-release";
+import { interpretGithubReleases } from "../domain/github-release";
 import type { SupportReleaseCheckPort } from "../capabilities/support-settings";
 
-const GITHUB_LATEST_RELEASE =
-  "https://api.github.com/repos/TheDarkSkyXD/StreamFusion/releases/latest";
+const GITHUB_RELEASES =
+  "https://api.github.com/repos/TheDarkSkyXD/StreamFusion/releases?per_page=100";
 
 export function createGithubStableReleaseCheckPort(
   fetchImpl: typeof fetch = fetch,
 ): SupportReleaseCheckPort {
   return {
-    async check(installedVersion) {
+    async check(input) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
-        const response = await fetchImpl(GITHUB_LATEST_RELEASE, {
-          headers: {
-            Accept: "application/vnd.github+json",
-            "User-Agent": "StreamFusion-Mobile",
-          },
+        const response = await fetchImpl(GITHUB_RELEASES, {
+          headers: { Accept: "application/vnd.github+json" },
+          signal: controller.signal,
         });
         if (!response.ok) {
           return {
-            copy: `GitHub release check returned ${response.status}. Try again when the network is available.`,
-            network: "online",
+            status: "error",
+            message: response.status === 403
+              ? "GitHub rate limited the release check. Try again later."
+              : `GitHub release check failed (${response.status}). Try again.`,
           };
         }
-        const payload: unknown = await response.json();
+        return interpretGithubReleases({ ...input, payload: await response.json() });
+      } catch (error) {
         return {
-          copy: interpretGithubLatestRelease({ installedVersion, payload }).copy,
-          network: "online",
+          status: "error",
+          message: error instanceof Error && error.name === "AbortError"
+            ? "GitHub release check timed out. Try again."
+            : "Could not reach GitHub. Check your connection and try again.",
         };
-      } catch {
-        return {
-          copy: "GitHub is unreachable. Preferences stay on this device. Retry when the network returns.",
-          network: "offline",
-        };
+      } finally {
+        clearTimeout(timeout);
       }
     },
   };

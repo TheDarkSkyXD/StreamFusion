@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { useUpdateStore } from "@/features/settings/components/state/update-store";
+import { useUpdater } from "@/features/settings/components/hooks/useUpdater";
 import type { UpdateProgress, UpdateState } from "@shared/ipc-channels";
 import { installElectronAPIMock } from "../../../../../../tests/test-utils";
 
@@ -48,16 +50,11 @@ afterEach(() => {
   Reflect.deleteProperty(window, "electronAPI");
 });
 
-// The useUpdater hook calls `useUpdateStore()` without a selector, which
-// creates an infinite re-render loop when the init effect fires
-// `store.updateFromBackend()`. The tests below exercise the store-level
-// actions and computed values directly through the store + individual
-// action callbacks to avoid the OOM.
-
 // Guards: check failures coerce error.message into the store's error field and flip status to "error" so the Settings panel can render an actionable banner
 // Guards: setAllowPrerelease / setAutoCheck round-trip through the backend and apply the *returned* values Ã¢â‚¬â€ preserves the "backend is the source of truth for prerelease + auto-check" contract
 // Guards: getStatus + updateFromBackend hydrate the store and set isInitialized so the Settings panel doesn't render skeletons forever on cold start
 // Guards: onStatusChange / onProgress callbacks plumb updates into the store, including a non-percent-only progress object (the renderer reads percent, bytesPerSecond, transferred, total)
+// Guards: a startup update event cannot be overwritten by an older status snapshot.
 describe("useUpdater actions via electronAPI", () => {
   it("check calls electronAPI.updater.check and applies result to store", async () => {
     const result = await window.electronAPI!.updater.check();
@@ -107,6 +104,39 @@ describe("useUpdater actions via electronAPI", () => {
 });
 
 describe("useUpdater initialization flow", () => {
+  it("keeps an available event received before the initial snapshot resolves", async () => {
+    let resolveStatus: (state: UpdateState) => void = () => undefined;
+    let onStatus: (state: UpdateState) => void = () => undefined;
+    const api = window.electronAPI.updater;
+    api.getStatus = vi.fn(
+      () =>
+        new Promise<UpdateState>((resolve) => {
+          resolveStatus = resolve;
+        })
+    );
+    api.onStatusChange = vi.fn((callback) => {
+      onStatus = callback;
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useUpdater());
+    const available: UpdateState = {
+      ...backendState,
+      status: "available",
+      updateInfo: {
+        version: "2.3.0",
+        releaseDate: "2026-10-01T00:00:00.000Z",
+        releaseNotes: null,
+        releaseName: "v2.3.0",
+      },
+    };
+    act(() => onStatus(available));
+    await act(async () => resolveStatus(backendState));
+
+    await waitFor(() => expect(result.current.isUpdateAvailable).toBe(true));
+    expect(result.current.updateInfo?.version).toBe("2.3.0");
+  });
+
   it("getStatus + updateFromBackend hydrates the store", async () => {
     const status = await window.electronAPI!.updater.getStatus();
     useUpdateStore.getState().updateFromBackend(status);

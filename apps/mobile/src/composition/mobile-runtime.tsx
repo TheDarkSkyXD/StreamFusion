@@ -72,6 +72,7 @@ import { createAndroidNotificationPermissionPort } from "@mobile/features/settin
 import { createExpoLocalNotificationPresenter } from "@mobile/features/notifications/adapters/expo-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
+import { createGithubReleaseOpenPort } from "@mobile/features/settings/adapters/github-release-open";
 import { createSupportLogPort } from "@mobile/features/settings/adapters/support-log-buffer";
 import { createSupportMaintenancePort } from "@mobile/features/settings/adapters/support-maintenance";
 import { createSupportSharePort } from "@mobile/features/settings/adapters/support-share";
@@ -421,6 +422,7 @@ const supportSession = createSupportSettingsSession({
   }),
   metadata: createExpoAppMetadataReader(),
   releases: createGithubStableReleaseCheckPort(),
+  open: createGithubReleaseOpenPort(),
   share: createSupportSharePort(),
   store: supportStore,
 });
@@ -428,6 +430,17 @@ const supportSession = createSupportSettingsSession({
 export function MobileRuntime() {
   useEffect(() => {
     applyAndroidSystemChrome();
+  }, []);
+  useEffect(() => {
+    void supportSession.checkOnLaunch();
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (previous !== "active" && state === "active") {
+        void supportSession.checkOnForeground();
+      }
+      previous = state;
+    });
+    return () => subscription.remove();
   }, []);
 
   const [activityProof, setActivityProof] = useState(

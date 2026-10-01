@@ -1,39 +1,93 @@
-export type GithubReleaseCheck = {
-  readonly copy: string;
+import type { AndroidRelease, GithubReleaseCheck } from "../capabilities/support-settings";
+
+type Version = {
+  readonly major: number;
+  readonly minor: number;
+  readonly patch: number;
+  readonly stage: number;
+  readonly stageNumber: number;
 };
 
-export function interpretGithubLatestRelease(input: {
+const ANDROID_TAG = /^android-v(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)(?:\.\d+)?)?)$/;
+const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(?:\.(\d+))?)?$/;
+const STAGES: Record<string, number> = { alpha: 0, beta: 1, rc: 2 };
+const RELEASE_BASE = "https://github.com/TheDarkSkyXD/StreamFusion/releases";
+
+export function interpretGithubReleases(input: {
   readonly installedVersion: string;
+  readonly allowPrerelease: boolean;
   readonly payload: unknown;
 }): GithubReleaseCheck {
-  if (!isRecord(input.payload)) {
-    return { copy: "GitHub did not return a stable release payload." };
+  if (!Array.isArray(input.payload)) {
+    return { status: "error", message: "GitHub returned an invalid releases list. Try again." };
   }
-  if (input.payload.draft === true || input.payload.prerelease === true) {
-    return {
-      copy: "Ignored a prerelease or draft. Only the latest stable GitHub release counts.",
-    };
+  const installed = parseVersion(input.installedVersion);
+  if (!installed) {
+    return { status: "error", message: "The installed app version cannot be compared with Android releases." };
   }
-  const tag = tagName(input.payload.tag_name);
-  if (!tag) {
-    return { copy: "The latest GitHub release is missing a version tag." };
+
+  let latest: { release: AndroidRelease; version: Version } | null = null;
+  for (const item of input.payload) {
+    const candidate = parseAndroidRelease(item);
+    if (!candidate || (!input.allowPrerelease && candidate.version.stage < 3)) continue;
+    if (!latest || compareVersions(candidate.version, latest.version) > 0) {
+      latest = candidate;
+    }
   }
-  if (normalizeVersion(tag) === normalizeVersion(input.installedVersion)) {
-    return {
-      copy: `Installed ${input.installedVersion} matches stable ${tag}. APK download waits until the native updater ships.`,
-    };
+  if (!latest) {
+    return { status: "current", release: null };
   }
+  return compareVersions(latest.version, installed) > 0
+    ? { status: "available", release: latest.release }
+    : { status: "current", release: latest.release };
+}
+
+function parseAndroidRelease(value: unknown): { release: AndroidRelease; version: Version } | null {
+  if (!isRecord(value) || value.draft === true || typeof value.tag_name !== "string") return null;
+  const match = ANDROID_TAG.exec(value.tag_name);
+  if (!match) return null;
+  const versionText = match[1];
+  if (!versionText) return null;
+  const version = parseVersion(versionText);
+  if (!version || value.prerelease !== (version.stage < 3) || !Array.isArray(value.assets)) return null;
+
+  const tag = value.tag_name;
+  const releaseUrl = `${RELEASE_BASE}/tag/${tag}`;
+  const asset = value.assets.find((entry: unknown) => {
+    if (!isRecord(entry) || typeof entry.name !== "string" || typeof entry.browser_download_url !== "string") return false;
+    return entry.name === `StreamFusion-${tag}.apk` &&
+      entry.browser_download_url === `${RELEASE_BASE}/download/${tag}/${entry.name}`;
+  });
+  if (!isRecord(asset) || typeof asset.browser_download_url !== "string") return null;
   return {
-    copy: `Stable ${tag} is published. Installed ${input.installedVersion}. APK download and PackageInstaller wait until the native updater ships.`,
+    version,
+    release: {
+      version: versionText,
+      tag,
+      notes: typeof value.body === "string" ? value.body.trim() : "",
+      releaseUrl,
+      apkUrl: asset.browser_download_url,
+    },
   };
 }
 
-function tagName(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+function parseVersion(value: string): Version | null {
+  const match = VERSION.exec(value.replace(/^v/, ""));
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    stage: match[4] ? (STAGES[match[4]] ?? 3) : 3,
+    stageNumber: match[5] ? Number(match[5]) : 0,
+  };
 }
 
-function normalizeVersion(value: string): string {
-  return value.replace(/^v/i, "").trim().toLowerCase();
+function compareVersions(left: Version, right: Version): number {
+  for (const key of ["major", "minor", "patch", "stage", "stageNumber"] as const) {
+    if (left[key] !== right[key]) return left[key] - right[key];
+  }
+  return 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

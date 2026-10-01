@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const registrars = vi.hoisted(() => ({
   app: vi.fn(),
   lazyFeatures: vi.fn(),
+  loadFeature: vi.fn().mockResolvedValue(undefined),
   logs: vi.fn(),
   storage: vi.fn(),
   system: vi.fn(),
@@ -31,13 +32,15 @@ vi.mock("@backend/features/shell/routes/system-routes", () => ({
 }));
 vi.mock("@backend/ipc/lazy-feature-loader", () => ({
   registerLazyIpcFeatureLoader: registrars.lazyFeatures,
+  loadIpcFeature: registrars.loadFeature,
 }));
 
 import { createDesktopIpcRuntime } from "@backend/ipc-handlers";
 import { MainRendererPortController } from "@backend/ipc/main-renderer-port";
 import { TrustedIpcRegistry } from "@backend/ipc/trusted-ipc-registry";
+import { IPC_FEATURES } from "@shared/ipc-channels";
 
-// Guards: startup registers only the feature-loader transport, leaving every handler implementation unloaded.
+// Guards: startup loads the updater once even before the Updates settings tab opens.
 // Guards: lazy feature handlers receive the trusted registry that validates renderer requests.
 // Guards: a broken feature-loader registrar is reported without crashing bootstrap.
 describe("desktop IPC runtime", () => {
@@ -45,7 +48,7 @@ describe("desktop IPC runtime", () => {
     vi.clearAllMocks();
   });
 
-  it("registers only the lazy feature entry point", () => {
+  it("loads the updater once while keeping other features lazy", () => {
     const runtime = createDesktopIpcRuntime();
     runtime.start();
     runtime.start();
@@ -59,6 +62,11 @@ describe("desktop IPC runtime", () => {
       expect.any(TrustedIpcRegistry)
     );
     expect(registrars.lazyFeatures).toHaveBeenCalledOnce();
+    expect(registrars.loadFeature).toHaveBeenCalledOnce();
+    expect(registrars.loadFeature).toHaveBeenCalledWith(IPC_FEATURES.UPDATES, {
+      renderer: expect.any(MainRendererPortController),
+      registry: expect.any(TrustedIpcRegistry),
+    });
   });
 
   it("logs a feature-loader registrar failure and allows a retry", () => {
@@ -72,6 +80,7 @@ describe("desktop IPC runtime", () => {
     expect(() => runtime.start()).not.toThrow();
     expect(() => runtime.start()).not.toThrow();
     expect(registrars.lazyFeatures).toHaveBeenCalledTimes(2);
+    expect(registrars.loadFeature).toHaveBeenCalledOnce();
     expect(loggerMock.error).toHaveBeenCalledWith(
       "IPC:Bootstrap",
       "Failed to register IPC handler group",

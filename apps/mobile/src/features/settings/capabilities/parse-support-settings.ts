@@ -7,6 +7,7 @@ import {
 } from "./support-settings";
 
 export const DEFAULT_SUPPORT_SETTINGS: SupportSettings = {
+  allowPrerelease: true,
   attachLogs: true,
   attachProfile: true,
   automaticForegroundUpdateChecks: false,
@@ -26,6 +27,7 @@ export function parseSupportSettings(value: unknown): SupportSettings {
   const record = asRecord(value);
   if (!record) return DEFAULT_SUPPORT_SETTINGS;
   return {
+    allowPrerelease: boolOr(record.allowPrerelease, DEFAULT_SUPPORT_SETTINGS.allowPrerelease),
     attachLogs: boolOr(record.attachLogs, DEFAULT_SUPPORT_SETTINGS.attachLogs),
     attachProfile: boolOr(
       record.attachProfile,

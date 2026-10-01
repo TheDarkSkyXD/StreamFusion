@@ -22,6 +22,8 @@ import type {
 } from "../../../../../shared/ipc-channels";
 import { IPC_CHANNELS } from "../../../../../shared/ipc-channels";
 import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
+import { registerLoadedFeatureCleanup } from "@backend/startup/loaded-feature-cleanup";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 
 /**
  * Persisted shape of the existing `update-settings` store. `allowPrerelease`
@@ -33,7 +35,6 @@ interface UpdateStoreSchema {
   allowPrerelease: boolean;
   autoCheckEnabled: boolean;
   checkFrequency: CheckFrequency;
-  /** Unix-ms timestamp of the last completed check; gates the interval. */
   lastCheckAt: number;
   updateCheckUrl: string;
 }
@@ -49,9 +50,6 @@ const FREQUENCY_INTERVAL_MS: Record<CheckFrequency, number> = {
   weekly: 7 * 24 * 60 * 60 * 1000,
 };
 
-// Floor for the effective interval so a tampered/unknown frequency can't spin a
-// check loop. Also the cadence the scheduler ticks at (it re-checks the
-// last-check timestamp each tick, firing only once the interval has elapsed).
 const MIN_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 /**
@@ -94,6 +92,8 @@ let rendererRef: MainRendererPort | null = null;
 
 // Flag to track if the service was initialized successfully
 let isInitialized = false;
+let pendingCheck: Promise<UpdateState> | null = null;
+let periodicCheck: { stop: () => void } | null = null;
 
 /**
  * Transform electron-updater's UpdateInfo to our format
@@ -152,6 +152,7 @@ function updateState(partial: Partial<UpdateState>): void {
  */
 export function initUpdateService(renderer: MainRendererPort): void {
   rendererRef = renderer;
+  if (isInitialized) return;
 
   // Configure auto-updater
   autoUpdater.autoDownload = false; // Manual download control
@@ -220,72 +221,65 @@ export function initUpdateService(renderer: MainRendererPort): void {
 
   logger.info("Service:Updater", "Update service initialized");
   isInitialized = true;
+  registerLoadedFeatureCleanup("updates", () => {
+    periodicCheck?.stop();
+    periodicCheck = null;
+  });
 
-  // Match Xtra: check once during startup when the saved interval has elapsed.
-  // Do not keep polling while the app remains open.
-  maybeRunStartupCheck();
-}
-
-/**
- * Run one automatic check, recording the timestamp so the interval gate fires at
- * most once per effective interval. Separate from manual `checkForUpdates` so a
- * manual check doesn't reset the auto cadence and a failed auto-check doesn't
- * leave a stale timestamp blocking retries.
- */
-async function runAutoCheck(): Promise<void> {
-  // Claim the interval slot synchronously so a concurrent tick can't double-fire,
-  // but remember the prior timestamp: a failed/offline check restores it so the
-  // next tick (MIN_INTERVAL_MS) retries instead of blocking checks for a whole
-  // effective interval.
-  const prevCheckAt = updateStore.get("lastCheckAt", 0);
-  updateStore.set("lastCheckAt", Date.now());
-  try {
-    await autoUpdater.checkForUpdates();
-  } catch (err) {
-    updateStore.set("lastCheckAt", prevCheckAt);
-    logger.warn("Service:Updater", "Auto-check failed", {
-      error:
-        err instanceof Error
-          ? { name: err.name, message: err.message, stack: err.stack }
-          : String(err),
-    });
+  if (app.isPackaged) {
+    void checkForUpdates();
+    schedulePeriodicChecks();
   }
 }
 
-/** Run the single interval-gated update check performed during app startup. */
-function maybeRunStartupCheck(): void {
-  if (!isInitialized || !currentState.autoCheckEnabled || !app.isPackaged) {
-    if (!app.isPackaged) {
-      logger.info("Service:Updater", "Skipping startup update check in development mode");
-    }
-    return;
-  }
+function schedulePeriodicChecks(): void {
+  periodicCheck?.stop();
+  periodicCheck = null;
+  if (!isInitialized || !app.isPackaged || !currentState.autoCheckEnabled) return;
 
-  const interval = effectiveIntervalMs(currentState.checkFrequency);
-  const lastCheckAt = updateStore.get("lastCheckAt", 0);
-  if (Date.now() - lastCheckAt >= interval) {
-    void runAutoCheck();
-  }
+  periodicCheck = createManagedInterval(
+    () => {
+      if (
+        pendingCheck ||
+        currentState.status === "available" ||
+        currentState.status === "downloading" ||
+        currentState.status === "downloaded"
+      )
+        return;
+      const lastCheckAt = updateStore.get("lastCheckAt", 0);
+      if (Date.now() - lastCheckAt >= effectiveIntervalMs(currentState.checkFrequency)) {
+        void checkForUpdates();
+      }
+    },
+    MIN_INTERVAL_MS,
+    { unref: true }
+  );
 }
 
 /**
  * Check for updates
  */
-export async function checkForUpdates(): Promise<UpdateState> {
+export function checkForUpdates(): Promise<UpdateState> {
   if (!isInitialized) {
     const message = "Update service not initialized (development mode)";
     logger.warn("Service:Updater", message);
-    return { ...currentState, status: "error", error: message };
+    return Promise.resolve({ ...currentState, status: "error", error: message });
   }
 
-  try {
-    await autoUpdater.checkForUpdates();
+  if (pendingCheck) return pendingCheck;
+  pendingCheck = (async () => {
+    try {
+      await autoUpdater.checkForUpdates();
+      if (currentState.status !== "error") updateStore.set("lastCheckAt", Date.now());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to check for updates";
+      updateState({ status: "error", error: message });
+    }
     return currentState;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to check for updates";
-    updateState({ status: "error", error: message });
-    return currentState;
-  }
+  })().finally(() => {
+    pendingCheck = null;
+  });
+  return pendingCheck;
 }
 
 /**
@@ -346,8 +340,7 @@ export function setAllowPrerelease(allow: boolean): UpdateState {
 }
 
 /**
- * Set whether the app checks for updates on startup, and/or the minimum
- * interval between startup checks. Changes apply on the next startup, as in Xtra.
+ * Set whether the app keeps checking after the launch check, and the interval.
  */
 export function setAutoCheck(settings: {
   enabled?: boolean;
@@ -369,6 +362,7 @@ export function setAutoCheck(settings: {
       autoUpdater.setFeedURL({ provider: "generic", url: settings.updateCheckUrl });
     }
   }
+  schedulePeriodicChecks();
 
   // Mirror the settings change to the renderer (matches setAllowPrerelease,
   // which surfaces via the returned state; this also pushes a status event).

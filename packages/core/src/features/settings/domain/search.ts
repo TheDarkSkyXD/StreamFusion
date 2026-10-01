@@ -370,9 +370,15 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
     entry(
       "automatic-foreground-update-checks",
       "updates",
-      "Check automatically while foregrounded",
-      ["automatic", "foreground", "updates"],
+      "Check again when returning to app",
+      ["automatic", "foreground", "return", "updates"],
     ),
+    entry("allow-prerelease-updates", "updates", "Allow prerelease updates", [
+      "alpha", "beta", "prerelease", "release", "updates",
+    ]),
+    entry("check-frequency", "updates", "Check frequency", [
+      "hourly", "daily", "weekly", "frequency", "updates",
+    ]),
     entry("diagnostic-window", "diagnostics", "Observation window", [
       "diagnostics",
       "window",

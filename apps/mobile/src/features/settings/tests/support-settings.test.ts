@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { interpretGithubLatestRelease } from "../domain/github-release";
+import { interpretGithubReleases } from "../domain/github-release";
 import {
   buildLocalReport,
   DEFAULT_SUPPORT_SETTINGS,
@@ -56,18 +56,29 @@ describe("support settings domain", () => {
 });
 
 describe("github latest release", () => {
-  it("ignores prereleases and reports an available stable tag", () => {
-    expect(
-      interpretGithubLatestRelease({
-        installedVersion: "1.0.0-beta.1",
-        payload: { prerelease: true, tag_name: "v9.0.0" },
-      }).copy,
-    ).toMatch(/prerelease/);
-    expect(
-      interpretGithubLatestRelease({
-        installedVersion: "1.0.0-beta.1",
-        payload: { prerelease: false, tag_name: "v1.2.0" },
-      }).copy,
-    ).toMatch(/Stable v1.2.0/);
+  it("chooses the newest Android prerelease instead of a desktop release", () => {
+    const release = (tag: string, prerelease = true) => ({
+      tag_name: tag,
+      prerelease,
+      draft: false,
+      body: "Player fixes",
+      assets: [{
+        name: `StreamFusion-${tag}.apk`,
+        browser_download_url: `https://github.com/TheDarkSkyXD/StreamFusion/releases/download/${tag}/StreamFusion-${tag}.apk`,
+      }],
+    });
+    const result = interpretGithubReleases({
+      installedVersion: "0.1.0-alpha",
+      allowPrerelease: true,
+      payload: [
+        release("v2.0.0", false),
+        release("android-v0.1.1-alpha"),
+        release("android-v0.1.0-alpha"),
+      ],
+    });
+    expect(result).toMatchObject({
+      status: "available",
+      release: { version: "0.1.1-alpha", notes: "Player fixes" },
+    });
   });
 });

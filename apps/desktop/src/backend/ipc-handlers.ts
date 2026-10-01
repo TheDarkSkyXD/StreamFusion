@@ -2,7 +2,8 @@ import type { BrowserWindow } from "electron";
 
 import { logger } from "@backend/logging/logger";
 import { runLoadedFeatureCleanups } from "@backend/startup/loaded-feature-cleanup";
-import { registerLazyIpcFeatureLoader } from "./ipc/lazy-feature-loader";
+import { loadIpcFeature, registerLazyIpcFeatureLoader } from "./ipc/lazy-feature-loader";
+import { IPC_FEATURES } from "@shared/ipc-channels";
 import { MainRendererPortController, type MainRendererPort } from "./ipc/main-renderer-port";
 import { TrustedIpcRegistry } from "./ipc/trusted-ipc-registry";
 
@@ -28,6 +29,13 @@ export function createDesktopIpcRuntime(): DesktopIpcRuntime {
         registerLazyIpcFeatureLoader(renderer, registry);
         started = true;
         logger.debug("IPC:Bootstrap", "Core IPC handlers registered");
+        void loadIpcFeature(IPC_FEATURES.UPDATES, { renderer, registry }).catch(
+          (error: unknown) => {
+            logger.warn("IPC:Bootstrap", "Update service startup failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        );
       } catch (error) {
         logger.error("IPC:Bootstrap", "Failed to register IPC handler group", {
           group: "feature-loader",

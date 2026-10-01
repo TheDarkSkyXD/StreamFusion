@@ -72,10 +72,20 @@ export function useUpdater(): UseUpdaterReturn {
       return;
     }
 
+    let receivedStatusEvent = false;
+    const unsubscribeStatus = updater.onStatusChange((state) => {
+      receivedStatusEvent = true;
+      updateFromBackend(state);
+    });
+
+    const unsubscribeProgress = updater.onProgress((p) => {
+      setProgress(p);
+    });
+
     const initializeStatus = async () => {
       try {
         const backendStatus = await updater.getStatus();
-        updateFromBackend(backendStatus);
+        if (!receivedStatusEvent) updateFromBackend(backendStatus);
         setInitialized(true);
       } catch (err) {
         logger.error("Hook:Updater", "failed to get initial status", {
@@ -85,14 +95,6 @@ export function useUpdater(): UseUpdaterReturn {
     };
 
     initializeStatus();
-
-    const unsubscribeStatus = updater.onStatusChange((state) => {
-      updateFromBackend(state);
-    });
-
-    const unsubscribeProgress = updater.onProgress((p) => {
-      setProgress(p);
-    });
 
     return () => {
       unsubscribeStatus();

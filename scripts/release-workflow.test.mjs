@@ -408,8 +408,11 @@ test("the android release publishes a draft before it publishes", () => {
   assert.match(create.run, /--verify-tag/u);
   assert.match(create.run, /--draft(?!=)/u);
   assert.match(create.run, /--notes-file release-assets\/release-notes\.md/u);
+  assert.match(create.run, /publish_flag=\(--latest=false\)/u);
+  assert.match(create.run, /publish_flag\+=\(--prerelease\)/u);
   assert.doesNotMatch(create.run, /--generate-notes/u);
   assert.match(publish.run, /--draft=false/u);
+  assert.match(publish.run, /gh release edit "\$RELEASE_TAG" --draft=false --latest=false/u);
   assert.match(publish.run, /gh release verify/u);
   assert.doesNotMatch(source, /gh release delete/u);
   assert.doesNotMatch(source, /--clobber/u);

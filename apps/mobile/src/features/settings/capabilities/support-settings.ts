@@ -33,6 +33,7 @@ export type SupportMaintenanceKind =
   | "reset-app";
 
 export type SupportSettings = {
+  readonly allowPrerelease: boolean;
   readonly attachLogs: boolean;
   readonly attachProfile: boolean;
   readonly automaticForegroundUpdateChecks: boolean;
@@ -50,13 +51,31 @@ export type SupportSettings = {
 
 export type SupportPreferencePatch = Partial<SupportSettings>;
 
+export type AndroidRelease = {
+  readonly version: string;
+  readonly tag: string;
+  readonly notes: string;
+  readonly releaseUrl: string;
+  readonly apkUrl: string;
+};
+
+export type GithubReleaseCheck =
+  | { readonly status: "available"; readonly release: AndroidRelease }
+  | { readonly status: "current"; readonly release: AndroidRelease | null }
+  | { readonly status: "error"; readonly message: string };
+
 export type SupportLogEntry = {
   readonly level: LogLevel;
   readonly message: string;
   readonly source: Exclude<LogSource, "all">;
 };
 
-export type SupportNetwork = "offline" | "online";
+export type UpdateCheckState =
+  | { readonly status: "idle" }
+  | { readonly status: "checking" }
+  | { readonly status: "available"; readonly release: AndroidRelease }
+  | { readonly status: "current"; readonly release: AndroidRelease | null }
+  | { readonly status: "error"; readonly message: string };
 
 export type SupportSettingsView = {
   readonly deniedCopy: string;
@@ -70,13 +89,19 @@ export type SupportSettingsView = {
   readonly reportPreview: string;
   readonly resultCopy: string;
   readonly updateCopy: string;
+  readonly update: UpdateCheckState;
+  readonly releaseOpenError: string | null;
 };
 
 export interface SupportReleaseCheckPort {
-  check(installedVersion: string): Promise<{
-    readonly copy: string;
-    readonly network: SupportNetwork;
-  }>;
+  check(input: {
+    readonly installedVersion: string;
+    readonly allowPrerelease: boolean;
+  }): Promise<GithubReleaseCheck>;
+}
+
+export interface SupportReleaseOpenPort {
+  open(url: string): Promise<void>;
 }
 
 export interface SupportSharePort {
@@ -104,9 +129,13 @@ export interface SupportSettingsSession {
   buildReport(): Promise<SupportSettingsView>;
   cancelMaintenance(): Promise<SupportSettingsView>;
   checkForUpdates(): Promise<SupportSettingsView>;
+  checkOnLaunch(): Promise<SupportSettingsView>;
+  checkOnForeground(): Promise<SupportSettingsView>;
   confirmMaintenance(): Promise<SupportSettingsView>;
   load(): Promise<SupportSettingsView>;
   peek(): SupportSettingsView;
+  openApk(): Promise<void>;
+  openRelease(): Promise<void>;
   requestMaintenance(kind: SupportMaintenanceKind): Promise<SupportSettingsView>;
   shareReport(): Promise<SupportSettingsView>;
   subscribe(listener: () => void): () => void;

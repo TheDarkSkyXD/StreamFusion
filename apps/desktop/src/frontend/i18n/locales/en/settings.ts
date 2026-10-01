@@ -182,7 +182,7 @@ export const settingsEn = {
     allowPreReleaseUpdates: "Allow Pre-release Updates",
     receiveBetaAndPreviewVersionsBeforeStableRelease:
       "Receive beta and preview versions before stable release",
-    checkForUpdatesOnStartup: "Check for updates on startup",
+    checkForUpdatesOnStartup: "Keep checking for updates",
     checkForNewVersionsInTheBackgroundOnASchedule:
       "Check for new versions in the background on a schedule",
     checkFrequency: "Check frequency",
@@ -350,8 +350,8 @@ export const settingsEn = {
     electronUpdateFeedContainingThePlatformUpdateMetadata:
       "Electron update feed containing the platform update metadata",
     checkAtLaunchWhenTheSelectedIntervalHasElapsed:
-      "Check at launch when the selected interval has elapsed",
-    minimumTimeBetweenStartupChecks: "Minimum time between startup checks",
+      "The app checks every launch. Turn this on for checks while it stays open.",
+    minimumTimeBetweenStartupChecks: "Time between additional checks",
     selectFrequency: "Select frequency",
     hourly: "Hourly",
     daily: "Daily",

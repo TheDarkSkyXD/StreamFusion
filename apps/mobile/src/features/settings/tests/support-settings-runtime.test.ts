@@ -2,7 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { createSupportSettingsSession } from "../composition/support-settings-runtime";
 import { DEFAULT_SUPPORT_SETTINGS } from "../domain/support-settings";
-import type { SupportSettings } from "../capabilities/support-settings";
+import type {
+  SupportReleaseCheckPort,
+  SupportReleaseOpenPort,
+  SupportSettings,
+  SupportSettingsStore,
+} from "../capabilities/support-settings";
+
+const AVAILABLE_RELEASE = {
+  version: "1.2.0",
+  tag: "android-v1.2.0",
+  notes: "New player controls.",
+  releaseUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v1.2.0",
+  apkUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/download/android-v1.2.0/StreamFusion-android-v1.2.0.apk",
+};
 
 function memoryStore(initial: SupportSettings = DEFAULT_SUPPORT_SETTINGS) {
   let value = initial;
@@ -18,6 +31,9 @@ function memoryStore(initial: SupportSettings = DEFAULT_SUPPORT_SETTINGS) {
 function session(overrides?: {
   readonly connected?: boolean;
   readonly historyCount?: number;
+  readonly releases?: SupportReleaseCheckPort;
+  readonly open?: SupportReleaseOpenPort;
+  readonly store?: SupportSettingsStore;
 }) {
   const historyRows = Array.from({ length: overrides?.historyCount ?? 2 }, (_, i) => i);
   return createSupportSettingsSession({
@@ -38,16 +54,14 @@ function session(overrides?: {
       resetApp: async () => "Reset product Settings.",
     },
     metadata: { read: () => ({ name: "StreamFusion", runtimeHost: "development-client", version: "1.0.0-beta.1" }) },
-    releases: {
-      check: async () => ({
-        copy: "Stable v1.2.0 is published. APK download waits.",
-        network: "online",
-      }),
+    releases: overrides?.releases ?? {
+      check: async () => ({ status: "available" as const, release: AVAILABLE_RELEASE }),
     },
+    open: overrides?.open ?? { open: async () => {} },
     share: {
       share: async () => "Android share opened for the redacted local report.",
     },
-    store: memoryStore(),
+    store: overrides?.store ?? memoryStore(),
   });
 }
 
@@ -57,8 +71,111 @@ describe("support settings runtime", () => {
     const settings = session();
     await settings.load();
     const checked = await settings.checkForUpdates();
-    expect(checked.updateCopy).toMatch(/Stable v1.2.0/);
-    expect(checked.preferences.lastCheckCopy).toMatch(/Stable v1.2.0/);
+    expect(checked.update).toMatchObject({ status: "available", release: { version: "1.2.0" } });
+    expect(checked.preferences.lastCheckCopy).toBe("Android 1.2.0 is available.");
+  });
+
+  it("checks once on launch even when return-to-app checks are off", async () => {
+    let calls = 0;
+    const settings = session({
+      releases: { check: async () => {
+        calls += 1;
+        return { status: "available", release: AVAILABLE_RELEASE };
+      } },
+    });
+    await Promise.all([settings.checkOnLaunch(), settings.checkOnLaunch()]);
+    expect(settings.peek().update.status).toBe("available");
+    expect(calls).toBe(1);
+    await settings.checkOnForeground();
+    expect(calls).toBe(1);
+  });
+
+  it("rechecks with the new prerelease preference and keeps unrelated writes", async () => {
+    const seen: boolean[] = [];
+    const store = memoryStore();
+    const settings = session({
+      store,
+      releases: { check: async ({ allowPrerelease }) => {
+        seen.push(allowPrerelease);
+        return allowPrerelease
+          ? { status: "available", release: AVAILABLE_RELEASE }
+          : { status: "current", release: null };
+      } },
+    });
+    await settings.checkOnLaunch();
+    await Promise.all([
+      settings.apply({ allowPrerelease: false }),
+      settings.apply({ reportDescription: "player stalled" }),
+    ]);
+    expect(seen).toEqual([true, false]);
+    expect((await store.read()).allowPrerelease).toBe(false);
+    expect((await store.read()).reportDescription).toBe("player stalled");
+    expect(settings.peek().update.status).toBe("current");
+  });
+
+  it("coalesces busy checks and finishes on a newly selected release channel", async () => {
+    let started!: () => void;
+    let finish!: (value: { status: "available"; release: typeof AVAILABLE_RELEASE }) => void;
+    const requestStarted = new Promise<void>((resolve) => { started = resolve; });
+    const firstResult = new Promise<{ status: "available"; release: typeof AVAILABLE_RELEASE }>((resolve) => {
+      finish = resolve;
+    });
+    const channels: boolean[] = [];
+    const settings = session({
+      releases: { check: async ({ allowPrerelease }) => {
+        channels.push(allowPrerelease);
+        if (channels.length === 1) {
+          started();
+          return firstResult;
+        }
+        return { status: "current", release: null };
+      } },
+    });
+    const launched = settings.checkOnLaunch();
+    await requestStarted;
+    const manual = settings.checkForUpdates();
+    const toggle = settings.apply({ allowPrerelease: false });
+    expect(settings.peek().update.status).toBe("checking");
+    finish({ status: "available", release: AVAILABLE_RELEASE });
+    await Promise.all([launched, manual, toggle]);
+    expect(channels).toEqual([true, false]);
+    expect(settings.peek().update.status).toBe("current");
+    expect(settings.peek().preferences.allowPrerelease).toBe(false);
+  });
+
+  it("keeps an available update when browser open fails, then retries without refetching", async () => {
+    let checks = 0;
+    let opens = 0;
+    const settings = session({
+      releases: { check: async () => {
+        checks += 1;
+        return { status: "available", release: AVAILABLE_RELEASE };
+      } },
+      open: { open: async (url) => {
+        expect(url).toBe(AVAILABLE_RELEASE.releaseUrl);
+        opens += 1;
+        if (opens === 1) throw new Error("no browser");
+      } },
+    });
+    await settings.checkOnLaunch();
+    await settings.openRelease();
+    expect(settings.peek().update.status).toBe("available");
+    expect(settings.peek().releaseOpenError).toBe("Could not open the release in your browser. Try again.");
+    await settings.openRelease();
+    expect(settings.peek().releaseOpenError).toBeNull();
+    expect(checks).toBe(1);
+    expect(opens).toBe(2);
+  });
+
+  it("shows a check error when the release adapter rejects", async () => {
+    const settings = session({
+      releases: { check: async () => { throw new Error("network failed"); } },
+    });
+    await settings.checkOnLaunch();
+    expect(settings.peek().update).toEqual({
+      status: "error",
+      message: "Update check could not finish. Try again.",
+    });
   });
 
   it("keeps History until confirm and reports guest disconnect without OAuth", async () => {

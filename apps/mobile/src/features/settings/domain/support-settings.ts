@@ -5,6 +5,7 @@ import type {
   SupportPreferencePatch,
   SupportSettings,
   SupportSettingsView,
+  UpdateCheckState,
 } from "../capabilities/support-settings";
 import {
   DEFAULT_SUPPORT_SETTINGS,
@@ -54,8 +55,10 @@ export function composeSupportSettingsView(input: {
   readonly pending: SupportMaintenanceKind | null;
   readonly preferences: SupportSettings;
   readonly resultCopy: string;
+  readonly releaseOpenError: string | null;
+  readonly update: UpdateCheckState;
 }): SupportSettingsView {
-  const { installedVersion, logs, pending, preferences, resultCopy } = input;
+  const { installedVersion, logs, pending, preferences, releaseOpenError, resultCopy, update } = input;
   return {
     deniedCopy: automaticCheckCopy(preferences.automaticForegroundUpdateChecks),
     installedVersion,
@@ -69,8 +72,31 @@ export function composeSupportSettingsView(input: {
       preferences.lastReport ||
       "No local report is ready. Build report keeps a redacted copy on this device.",
     resultCopy,
-    updateCopy: preferences.lastCheckCopy,
+    releaseOpenError,
+    updateCopy: updateStatusCopy(update, installedVersion, preferences.lastCheckCopy),
+    update,
   };
+}
+
+export function updateStatusCopy(
+  update: UpdateCheckState,
+  installedVersion: string,
+  previousCopy: string,
+): string {
+  switch (update.status) {
+    case "idle":
+      return `Installed ${installedVersion}. ${previousCopy}`;
+    case "checking":
+      return `Installed ${installedVersion}. Checking GitHub for Android releases...`;
+    case "available":
+      return `Installed ${installedVersion}. Android ${update.release.version} is available.`;
+    case "current":
+      return update.release
+        ? `Installed ${installedVersion} is up to date.`
+        : `Installed ${installedVersion}. No stable Android release has been published yet.`;
+    case "error":
+      return `Installed ${installedVersion}. ${update.message}`;
+  }
 }
 
 export function defaultSupportSettingsView(
@@ -82,6 +108,8 @@ export function defaultSupportSettingsView(
     pending: null,
     preferences: DEFAULT_SUPPORT_SETTINGS,
     resultCopy: "",
+    releaseOpenError: null,
+    update: { status: "idle" },
   });
 }
 
@@ -124,6 +152,6 @@ export function maintenanceCopy(kind: SupportMaintenanceKind): string {
 
 function automaticCheckCopy(enabled: boolean): string {
   return enabled
-    ? "Preference is saved. Automatic foreground checks every 24 hours wait until the native updater ships."
-    : "Automatic GitHub checks stay off. Manual Check now still inspects the latest stable release.";
+    ? "Checks on launch and when returning to the app after the selected interval."
+    : "Checks on every launch. Return-to-app checks are off.";
 }

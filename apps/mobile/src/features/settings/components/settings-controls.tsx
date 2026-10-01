@@ -57,13 +57,15 @@ function SettingsRow({
   accessibilityRole,
   accessibilityState,
   children,
+  disabled = false,
   onPress,
   testID,
 }: {
   readonly accessibilityLabel: string;
   readonly accessibilityRole: "button" | "switch";
-  readonly accessibilityState?: { readonly checked: boolean };
+  readonly accessibilityState?: { readonly checked?: boolean; readonly disabled?: boolean };
   readonly children: string;
+  readonly disabled?: boolean;
   readonly onPress: () => void;
   readonly testID: string;
 }) {
@@ -72,6 +74,7 @@ function SettingsRow({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
+      disabled={disabled}
       onPress={onPress}
       style={styles.row}
       testID={testID}
@@ -259,10 +262,12 @@ export function SettingsLanguagePicker({
 }
 
 export function SettingsAction({
+  disabled = false,
   label,
   onPress,
   testID,
 }: {
+  readonly disabled?: boolean;
   readonly label: string;
   readonly onPress: () => void;
   readonly testID: string;
@@ -271,6 +276,8 @@ export function SettingsAction({
     <SettingsRow
       accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       testID={testID}
     >

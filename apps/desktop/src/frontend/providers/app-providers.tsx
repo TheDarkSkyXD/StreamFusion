@@ -10,6 +10,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import { useDownloadDuplicateConfirmationStore } from "@/features/media-library/components/state/download-duplicate-confirmation-store";
 import { DisplayLanguageSync } from "@/i18n/DisplayLanguageSync";
 import { useRendererActivityReporter } from "@/features/settings/components/hooks/use-renderer-activity-reporter";
+import { UpdateNotice } from "@/features/settings/components/update-notice";
 
 const DeveloperConsole = import.meta.env.DEV
   ? lazy(() =>
@@ -45,6 +46,7 @@ export function AppProviders({
           <AuthProvider>
             <DisplayLanguageSync>
               {children}
+              <UpdateNotice navigate={navigate} />
               <DeferredDownloadDuplicateConfirmationDialog />
               {DeveloperConsole && (
                 <Suspense fallback={null}>

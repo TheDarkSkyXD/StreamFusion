@@ -190,7 +190,7 @@ export const settingsEs = {
     allowPreReleaseUpdates: "Permitir versiones preliminares",
     receiveBetaAndPreviewVersionsBeforeStableRelease:
       "Recibir versiones beta y preliminares antes del lanzamiento estable",
-    checkForUpdatesOnStartup: "Buscar actualizaciones al iniciar",
+    checkForUpdatesOnStartup: "Seguir buscando actualizaciones",
     checkForNewVersionsInTheBackgroundOnASchedule:
       "Buscar nuevas versiones en segundo plano según una programación",
     checkFrequency: "Frecuencia de búsqueda",
@@ -367,8 +367,8 @@ export const settingsEs = {
     electronUpdateFeedContainingThePlatformUpdateMetadata:
       "Canal de actualizaciones de Electron que contiene los metadatos de actualización de la plataforma",
     checkAtLaunchWhenTheSelectedIntervalHasElapsed:
-      "Buscar al iniciar cuando haya transcurrido el intervalo seleccionado",
-    minimumTimeBetweenStartupChecks: "Tiempo mínimo entre búsquedas al iniciar",
+      "La app busca al iniciar. Activa esta opción para seguir buscando mientras esté abierta.",
+    minimumTimeBetweenStartupChecks: "Tiempo entre búsquedas adicionales",
     selectFrequency: "Seleccionar frecuencia",
     hourly: "Cada hora",
     daily: "Cada día",

@@ -120,6 +120,7 @@ import {
   LogsSettingsPanel,
   ReportBugSettingsPanel,
   UpdatesSettingsPanel,
+  UpdateAvailableNotice,
 } from "@mobile/features/settings/components/support-settings-panels";
 import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
 import type { ProductPreferences } from "@streamfusion/core/settings";
@@ -468,6 +469,9 @@ export function AppShell({
             />
             {pictureInPictureSurface ? null : (
               <MobileConnectivityBanner status={networkStatus.status} />
+            )}
+            {pictureInPictureSurface ? null : (
+              <UpdateAvailableNotice session={supportSession} />
             )}
             {notificationBanner ? (
               <InAppNotificationBannerView

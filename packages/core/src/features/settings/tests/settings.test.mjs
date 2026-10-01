@@ -127,6 +127,14 @@ test("local search isolates updates, diagnostics, logs, report, and about", () =
   assert.deepEqual(settingsPanelsFor(searchSettingsControls("github")), [
     "updates",
   ]);
+  assert.deepEqual(
+    searchSettingsControls("prerelease").map((entry) => entry.id),
+    ["allow-prerelease-updates"],
+  );
+  assert.deepEqual(
+    searchSettingsControls("frequency").map((entry) => entry.id),
+    ["check-frequency"],
+  );
   assert.deepEqual(settingsPanelsFor(searchSettingsControls("bug")), [
     "report-bug",
   ]);
