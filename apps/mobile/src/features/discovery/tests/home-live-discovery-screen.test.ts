@@ -1,4 +1,6 @@
-import { isValidElement, type ReactElement } from "react";
+import { createElement, Fragment, isValidElement, type ReactElement } from "react";
+import type { FlatListProps } from "react-native";
+import type { Stream } from "@streamfusion/core/content";
 import { describe, expect, it, vi } from "vitest";
 
 import { composeHomeLiveDiscovery } from "../domain/home-live-discovery";
@@ -6,6 +8,30 @@ import { fixtureOutcome } from "../domain/discovery-fixture";
 import { HomeLiveDiscoveryView } from "../components/home-live-discovery-screen";
 
 vi.mock("react-native", () => ({
+  FlatList(props: FlatListProps<Stream>) {
+    const slot = (value: FlatListProps<Stream>["ListHeaderComponent"]) =>
+      typeof value === "function" ? createElement(value) : value;
+    return createElement(
+      Fragment,
+      null,
+      slot(props.ListHeaderComponent),
+      props.data?.flatMap((item, index) => [
+        props.renderItem?.({
+          item,
+          index,
+          separators: {
+            highlight() {},
+            unhighlight() {},
+            updateProps() {},
+          },
+        }),
+        index < (props.data?.length ?? 0) - 1 && props.ItemSeparatorComponent
+          ? createElement(props.ItemSeparatorComponent)
+          : null,
+      ]),
+      slot(props.ListFooterComponent),
+    );
+  },
   Image: "Image",
   Pressable: "Pressable",
   RefreshControl: "RefreshControl",

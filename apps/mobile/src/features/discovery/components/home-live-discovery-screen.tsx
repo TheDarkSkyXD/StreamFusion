@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { StyleSheet, Text } from "react-native";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
-import { MobileRefreshableScroll } from "@mobile/design/refreshable";
+import { MobileRefreshableFlatList } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -26,6 +26,35 @@ import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
 /** Match Electron HOME_CAROUSEL_INTERVAL_DEFAULT_MS (15s). */
 const HOME_FEATURED_ROTATE_MS = 15_000;
+
+type HomeStreamRowProps = {
+  readonly stream: Stream;
+  readonly onSelectStream?: ((stream: Stream) => void) | undefined;
+  readonly onOpenChannel?: ((channel: ChannelIdentity) => void) | undefined;
+};
+
+const HomeStreamRow = memo(function HomeStreamRow({
+  stream,
+  onSelectStream,
+  onOpenChannel,
+}: HomeStreamRowProps) {
+  const onOpen = () => {
+    if (onSelectStream) {
+      onSelectStream(stream);
+      return;
+    }
+    onOpenChannel?.(channelFromStream(stream));
+  };
+  return <HomeStreamCard onOpen={onOpen} stream={stream} />;
+});
+
+function homeStreamKey(stream: Stream): string {
+  return `${stream.platform}:${stream.id}`;
+}
+
+function HomeStreamSeparator() {
+  return <View style={styles.rowGap} />;
+}
 
 export function HomeLiveDiscoveryScreen({
   footer,
@@ -133,65 +162,86 @@ export function HomeLiveDiscoveryView({
     }
     onOpenChannel?.(channelFromStream(stream));
   };
+  const rows = featured.length > 0 ? recommended : view.streams;
   const phase = (
     <Text selectable style={mobileType.body} testID="home-phase">
       {phaseCopy(view)}
     </Text>
   );
   return (
-    <MobileRefreshableScroll
+    <MobileRefreshableFlatList<Stream>
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
+      data={rows}
+      initialNumToRender={3}
+      ItemSeparatorComponent={HomeStreamSeparator}
+      keyExtractor={homeStreamKey}
+      ListFooterComponent={
+        footer == null ? null : (
+          <View style={rows.length > 0 ? styles.footerAfterRows : undefined}>
+            {footer}
+          </View>
+        )
+      }
+      ListHeaderComponent={
+        <View
+          style={[
+            styles.header,
+            rows.length > 0 || footer != null ? styles.headerBeforeContent : null,
+          ]}
+        >
+          {showTitle ? <MobileScreenHeader title={title} /> : null}
+          {topShelf ?? null}
+          {featured.length > 0 ? (
+            <HomeFeaturedCarouselView
+              activeIndex={featuredIndex}
+              onSelectIndex={(index) => onFeaturedIndexChange?.(index)}
+              onWatch={openStream}
+              streams={featured}
+            />
+          ) : null}
+          <Text selectable style={mobileType.title}>
+            Live Channels
+          </Text>
+          {view.phase === "empty" || view.phase === "failed" ? (
+            <MobileStatusPanel tone={view.phase === "failed" ? "error" : "empty"}>
+              {phase}
+            </MobileStatusPanel>
+          ) : (
+            phase
+          )}
+          {proofMode && onSelectProofMode ? (
+            <HomeDiscoveryProofControls
+              mode={proofMode}
+              onSelect={onSelectProofMode}
+            />
+          ) : null}
+          <HomeProviderBanner
+            onOpenAccounts={onOpenAccounts}
+            onRetry={onRetry}
+            outcome={view.providers.twitch}
+          />
+          <HomeProviderBanner
+            onOpenAccounts={onOpenAccounts}
+            onRetry={onRetry}
+            outcome={view.providers.kick}
+          />
+        </View>
+      }
+      maxToRenderPerBatch={3}
       onRefresh={onRefresh}
       refreshing={refreshing}
+      renderItem={({ item }) => (
+        <HomeStreamRow
+          onOpenChannel={onOpenChannel}
+          onSelectStream={onSelectStream}
+          stream={item}
+        />
+      )}
       style={styles.scroll}
       testID="home-live-discovery"
-    >
-      {showTitle ? <MobileScreenHeader title={title} /> : null}
-      {topShelf ?? null}
-      {featured.length > 0 ? (
-        <HomeFeaturedCarouselView
-          activeIndex={featuredIndex}
-          onSelectIndex={(index) => onFeaturedIndexChange?.(index)}
-          onWatch={openStream}
-          streams={featured}
-        />
-      ) : null}
-      <Text selectable style={mobileType.title}>
-        Live Channels
-      </Text>
-      {view.phase === "empty" || view.phase === "failed" ? (
-        <MobileStatusPanel tone={view.phase === "failed" ? "error" : "empty"}>
-          {phase}
-        </MobileStatusPanel>
-      ) : (
-        phase
-      )}
-      {proofMode && onSelectProofMode ? (
-        <HomeDiscoveryProofControls
-          mode={proofMode}
-          onSelect={onSelectProofMode}
-        />
-      ) : null}
-      <HomeProviderBanner
-        onOpenAccounts={onOpenAccounts}
-        onRetry={onRetry}
-        outcome={view.providers.twitch}
-      />
-      <HomeProviderBanner
-        onOpenAccounts={onOpenAccounts}
-        onRetry={onRetry}
-        outcome={view.providers.kick}
-      />
-      {(featured.length > 0 ? recommended : view.streams).map((stream) => (
-        <HomeStreamCard
-          key={`${stream.platform}:${stream.id}`}
-          onOpen={() => openStream(stream)}
-          stream={stream}
-        />
-      ))}
-      {footer ?? null}
-    </MobileRefreshableScroll>
+      windowSize={5}
+    />
   );
 }
 
@@ -216,8 +266,19 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   content: {
-    gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
+  },
+  header: {
+    gap: mobileSpacing.medium,
+  },
+  headerBeforeContent: {
+    marginBottom: mobileSpacing.medium,
+  },
+  rowGap: {
+    height: mobileSpacing.medium,
+  },
+  footerAfterRows: {
+    marginTop: mobileSpacing.medium,
   },
 });

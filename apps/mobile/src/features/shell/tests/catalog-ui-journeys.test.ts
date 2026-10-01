@@ -1,4 +1,6 @@
-import { isValidElement, type ReactElement } from "react";
+import { createElement, Fragment, isValidElement, type ReactElement } from "react";
+import type { FlatListProps } from "react-native";
+import type { Stream } from "@streamfusion/core/content";
 import { describe, expect, it, vi } from "vitest";
 
 import { CategoriesView } from "@mobile/features/discovery/components/categories-screen";
@@ -23,6 +25,27 @@ import { emptySearchHistory } from "@mobile/features/discovery/domain/search-his
 import { composeUnifiedSearch } from "@mobile/features/discovery/domain/unified-search";
 
 vi.mock("react-native", () => ({
+  FlatList(props: FlatListProps<Stream>) {
+    const slot = (value: FlatListProps<Stream>["ListHeaderComponent"]) =>
+      typeof value === "function" ? createElement(value) : value;
+    return createElement(
+      Fragment,
+      null,
+      slot(props.ListHeaderComponent),
+      props.data?.map((item, index) =>
+        props.renderItem?.({
+          item,
+          index,
+          separators: {
+            highlight() {},
+            unhighlight() {},
+            updateProps() {},
+          },
+        }),
+      ),
+      slot(props.ListFooterComponent),
+    );
+  },
   Image: "Image",
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Modal: "Modal",

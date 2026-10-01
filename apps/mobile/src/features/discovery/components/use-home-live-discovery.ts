@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Platform } from "@streamfusion/core/platform";
 
@@ -40,22 +41,35 @@ export function useHomeLiveDiscovery(input: {
     queryKey: topStreamsQueryKey("kick", input.language),
     retry: false,
   });
-  return {
-    refresh() {
-      return queryClient.invalidateQueries({
+  const loading = enabled && (twitch.isPending || kick.isPending);
+  const view = useMemo(
+    () =>
+      composeHomeLiveDiscovery({
+        loading,
+        ...(kick.data === undefined ? {} : { kick: kick.data }),
+        ...(twitch.data === undefined ? {} : { twitch: twitch.data }),
+      }),
+    [loading, kick.data, twitch.data],
+  );
+  const refresh = useCallback(
+    () =>
+      queryClient.invalidateQueries({
         queryKey: ["discovery", "top-streams"],
-      });
-    },
-    refreshing: twitch.isFetching || kick.isFetching,
-    retry(platform: Platform) {
+      }),
+    [queryClient],
+  );
+  const retry = useCallback(
+    (platform: Platform) => {
       void queryClient.invalidateQueries({
         queryKey: ["discovery", "top-streams", platform],
       });
     },
-    view: composeHomeLiveDiscovery({
-      loading: enabled && (twitch.isPending || kick.isPending),
-      ...(kick.data === undefined ? {} : { kick: kick.data }),
-      ...(twitch.data === undefined ? {} : { twitch: twitch.data }),
-    }),
+    [queryClient],
+  );
+  return {
+    refresh,
+    refreshing: twitch.isFetching || kick.isFetching,
+    retry,
+    view,
   };
 }
