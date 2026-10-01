@@ -5,7 +5,6 @@ import {
   Maximize,
   Minimize,
   Pause,
-  PictureInPicture2,
   Play,
   RefreshCw,
   RotateCcw,
@@ -36,7 +35,6 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 
-import type { PictureInPicturePhase } from "../capabilities/watch";
 import { PlayerSettingsIcon } from "./player-icons";
 
 const RAIL_ICON = 26;
@@ -51,7 +49,6 @@ export function PlayerControls({
   onRefresh,
   onFullscreen,
   onMute,
-  onPip,
   onPlayPause,
   onQualityPress,
   onVolumeChange,
@@ -62,8 +59,6 @@ export function PlayerControls({
   onPlayerTap,
   onToggleVisible,
   paused,
-  pipAvailable,
-  pipPhase,
   progress,
   qualities = [],
   quality,
@@ -93,7 +88,6 @@ export function PlayerControls({
   readonly onFullscreen: () => void;
   readonly onMute: () => void;
   readonly onRefresh?: () => void;
-  readonly onPip: () => void;
   readonly onPlayPause: () => void;
   readonly onQualityPress: () => void;
   readonly onVolumeChange?: (volume: number) => void;
@@ -104,8 +98,6 @@ export function PlayerControls({
   readonly onPlayerTap?: () => void;
   readonly onToggleVisible: () => void;
   readonly paused: boolean;
-  readonly pipAvailable: boolean;
-  readonly pipPhase: PictureInPicturePhase;
   readonly platform?: "kick" | "twitch";
   readonly progress?: {
     readonly durationMs: number;
@@ -120,7 +112,6 @@ export function PlayerControls({
   readonly visible?: boolean;
 }) {
   const insets = useSafeAreaInsets();
-  const pipBusy = pipPhase === "requesting" || pipPhase === "active";
   const showQuality = chrome?.showQuality !== false;
   const showVolume = chrome?.showVolume !== false;
   const showFullscreen = fullscreen || chrome?.showFullscreen !== false;
@@ -287,17 +278,6 @@ export function PlayerControls({
                 >
                   <PlayerSettingsIcon />
                 </Pressable>
-                <IconControl
-                  Icon={PictureInPicture2}
-                  accessibilityLabel={pipAccessibilityLabel(
-                    pipAvailable,
-                    pipPhase,
-                    (key) => t(key),
-                  )}
-                  disabled={!pipAvailable || pipBusy}
-                  onPress={onPip}
-                  testID="player-pip"
-                />
                 {showFullscreen ? (
                   <IconControl
                     Icon={fullscreen ? Minimize : Maximize}
@@ -446,7 +426,6 @@ function IconControl({
   Icon,
   accessibilityLabel,
   badge,
-  disabled = false,
   filled = false,
   hitSize = RAIL_HIT,
   iconSize = RAIL_ICON,
@@ -457,7 +436,6 @@ function IconControl({
   readonly Icon: LucideIcon;
   readonly accessibilityLabel: string;
   readonly badge?: string;
-  readonly disabled?: boolean;
   readonly filled?: boolean;
   readonly hitSize?: number;
   readonly iconSize?: number;
@@ -469,8 +447,6 @@ function IconControl({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
       hitSlop={mobileHitSlop}
       onPress={() => {
         void impactHaptic("light");
@@ -480,8 +456,7 @@ function IconControl({
       style={({ pressed }) => [
         styles.iconHit,
         { height: hitSize, width: hitSize },
-        pressed && !disabled ? styles.iconHitPressed : null,
-        disabled ? styles.disabled : null,
+        pressed ? styles.iconHitPressed : null,
       ]}
       testID={testID}
     >
@@ -569,21 +544,6 @@ function formatClock(milliseconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function pipAccessibilityLabel(
-  pipAvailable: boolean,
-  pipPhase: PictureInPicturePhase,
-  t: (key: string) => string,
-): string {
-  if (pipPhase === "requesting") return t("playback.watch.pipRequesting");
-  if (pipPhase === "active") return t("playback.watch.pipActive");
-  if (pipPhase === "failed") return t("playback.watch.pipFailed");
-  if (pipPhase === "returned") return t("playback.watch.pipReturned");
-  if (!pipAvailable || pipPhase === "unavailable") {
-    return t("playback.watch.pipUnavailable");
-  }
-  return t("playback.watch.pip");
-}
-
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
@@ -644,9 +604,6 @@ const styles = StyleSheet.create({
     lineHeight: 10,
     marginTop: -14,
     textAlign: "center",
-  },
-  disabled: {
-    opacity: 0.4,
   },
   scrubberBlock: {
     gap: 6,

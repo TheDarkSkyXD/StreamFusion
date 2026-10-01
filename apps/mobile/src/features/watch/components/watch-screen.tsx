@@ -103,7 +103,6 @@ export function WatchScreen({
   onSelectTab,
   onMute,
   onVolumeChange,
-  onPip,
   onPlayPause,
   onQualityPress,
   onCloseQualityMenu,
@@ -150,7 +149,6 @@ export function WatchScreen({
   readonly onSelectTab: (tab: WatchTab) => void;
   readonly onMute?: () => void;
   readonly onVolumeChange?: (volume: number) => void;
-  readonly onPip?: () => void;
   readonly onPlayPause?: () => void;
   readonly onQualityPress?: () => void;
   readonly onSeekBack?: () => void;
@@ -180,7 +178,6 @@ export function WatchScreen({
     peek?.kind === "active" &&
     !pipSurface &&
     onMute &&
-    onPip &&
     onPlayPause &&
     onQualityPress &&
     onToggleFullscreen &&
@@ -323,7 +320,6 @@ export function WatchScreen({
             onFullscreen={onToggleFullscreen}
             onMute={onMute}
             {...(onVolumeChange === undefined ? {} : { onVolumeChange })}
-            onPip={onPip}
             onPlayPause={onPlayPause}
             onQualityPress={onQualityPress}
             onToggleVisible={onToggleControls}
@@ -340,8 +336,6 @@ export function WatchScreen({
             {...(onSelectQuality === undefined ? {} : { onSelectQuality })}
             {...(onCloseQualityMenu === undefined ? {} : { onCloseQualityMenu })}
             paused={peek.state.phase === "paused"}
-            pipAvailable={peek.state.session.pictureInPictureEligible}
-            pipPhase={peek.presentation.pip}
             platform={target.platform}
             progress={peek.progress}
             quality={peek.quality}

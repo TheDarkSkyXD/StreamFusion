@@ -146,7 +146,7 @@ Missing means no route or control exists yet.
 | `action:player-theater` | missing | — | — | missing |
 | `action:player-stats` | missing | — | — | missing |
 | `action:player-fullscreen` | implemented | #152, #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
-| `action:player-pip` | implemented | #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
+| `action:player-pip` | implemented | #153 | apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `action:player-captions` | missing | — | — | missing |
 | `action:toggle-chat` | missing | — | — | missing |
 | `action:chat-emotes` | missing | — | — | missing |

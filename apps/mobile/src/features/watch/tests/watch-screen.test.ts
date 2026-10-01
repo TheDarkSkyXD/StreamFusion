@@ -22,7 +22,6 @@ vi.mock("lucide-react-native", () => ({
   Maximize: "Maximize",
   Minimize: "Minimize",
   Pause: "Pause",
-  PictureInPicture2: "PictureInPicture2",
   Play: "Play",
   RefreshCw: "RefreshCw",
   RotateCcw: "RotateCcw",
@@ -258,7 +257,6 @@ describe("watch screen", () => {
       inspection: null,
       onMute: () => undefined,
       onOpenRelated: () => undefined,
-      onPip: () => undefined,
       onPlayPause: () => undefined,
       onQualityPress: () => undefined,
       onRetry: () => undefined,
@@ -296,7 +294,7 @@ describe("watch screen", () => {
     expect(nodes.some((node) => node.props.testID === "player-fullscreen")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(false);
     expect(nodes.some((node) => node.props.testID === "player-live-badge")).toBe(
       true,
     );
@@ -332,7 +330,6 @@ describe("watch screen", () => {
       inspection: null,
       onMute: () => undefined,
       onOpenRelated: () => undefined,
-      onPip: () => undefined,
       onPlayPause: () => undefined,
       onQualityPress: () => undefined,
       onRetry: () => undefined,
@@ -386,7 +383,6 @@ describe("watch screen", () => {
         inspection: null,
         onMute: () => undefined,
         onOpenRelated: () => undefined,
-        onPip: () => undefined,
         onPlayPause: () => undefined,
         onQualityPress: () => undefined,
         onRetry: () => undefined,
@@ -450,7 +446,6 @@ describe("watch screen", () => {
         inspection: null,
         onMute: () => undefined,
         onOpenRelated: () => undefined,
-        onPip: () => undefined,
         onPlayPause: () => undefined,
         onQualityPress: () => undefined,
         onRetry: () => undefined,
@@ -708,7 +703,6 @@ describe("watch screen", () => {
       inspection: null,
       onMute: () => undefined,
       onOpenRelated: () => undefined,
-      onPip: () => undefined,
       onPlayPause: () => undefined,
       onPlayerTap: () => {
         tabs.push("info");

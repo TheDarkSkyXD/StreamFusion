@@ -643,7 +643,7 @@ const paths = {
     "apps/mobile/src/features/watch/components/player-controls.tsx",
   ],
   "action:player-pip": [
-    "apps/mobile/src/features/watch/components/player-controls.tsx",
+    "apps/mobile/src/features/shell/components/app-shell.tsx",
   ],
   "action:player-seek-back": [
     "apps/mobile/src/features/watch/components/player-controls.tsx",

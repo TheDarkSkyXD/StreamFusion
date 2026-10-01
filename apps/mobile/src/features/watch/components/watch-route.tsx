@@ -281,10 +281,6 @@ function WatchSessionRoute({
         setTab("info");
       }}
       onOpenRelated={onOpenRelated}
-      onPip={() => {
-        revealControls();
-        void session.requestPictureInPicture();
-      }}
       onPlayPause={() => {
         revealControls();
         if (peek.kind === "active") {

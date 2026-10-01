@@ -1708,7 +1708,7 @@
         153
       ],
       "implementation": [
-        "apps/mobile/src/features/watch/components/player-controls.tsx"
+        "apps/mobile/src/features/shell/components/app-shell.tsx"
       ],
       "verification": "tests",
       "evidence": [],

@@ -47,7 +47,6 @@ vi.mock("lucide-react-native", async () => {
     Maximize: icon("Maximize"),
     Minimize: icon("Minimize"),
     Pause: icon("Pause"),
-    PictureInPicture2: icon("PictureInPicture2"),
     Play: icon("Play"),
     RefreshCw: icon("RefreshCw"),
     RotateCcw: icon("RotateCcw"),
@@ -114,13 +113,10 @@ const base = {
   muted: false,
   onFullscreen: () => undefined,
   onMute: () => undefined,
-  onPip: () => undefined,
   onPlayPause: () => undefined,
   onQualityPress: () => undefined,
   onToggleVisible: () => undefined,
   paused: false,
-  pipAvailable: true,
-  pipPhase: "idle" as const,
   quality: "auto",
   qualities: ["auto", "720p"] as const,
   seekable: false,
@@ -161,7 +157,6 @@ describe("player controls chrome", () => {
       "player-live-badge",
       "player-refresh",
       "player-quality",
-      "player-pip",
       "player-fullscreen",
     ]) {
       expect(findByTestId(actions, id), id).toBeTruthy();
@@ -206,7 +201,7 @@ describe("player controls chrome", () => {
     const railDescendants = descendants(rail);
     expect(findByTestId(railDescendants, "player-mute")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-quality")).toBeTruthy();
-    expect(findByTestId(railDescendants, "player-pip")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-pip")).toBeUndefined();
     expect(findByTestId(railDescendants, "player-fullscreen")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-play-pause")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-seek-back")).toBeUndefined();
@@ -310,7 +305,6 @@ describe("player controls chrome", () => {
       onRefresh: () => actions.push("refresh"),
       onFullscreen: () => actions.push("fullscreen"),
       onMute: () => actions.push("mute"),
-      onPip: () => actions.push("pip"),
       onPlayPause: () => actions.push("play"),
       onQualityPress: () => actions.push("settings"),
     });
@@ -338,7 +332,6 @@ describe("player controls chrome", () => {
         "player-mute",
         "player-refresh",
         "player-quality",
-        "player-pip",
         "player-fullscreen",
       ]) {
         const onPress = pressableProps.get(id)?.onPress;
@@ -351,7 +344,6 @@ describe("player controls chrome", () => {
         "mute",
         "refresh",
         "settings",
-        "pip",
         "fullscreen",
       ]);
     } finally {
