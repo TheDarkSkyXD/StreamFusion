@@ -427,10 +427,8 @@ export function AppShell({
 
   return (
     <KeyboardAvoidingView
-      // Android adjustResize already shrinks the window; never lift the shell.
-      // iOS overlap is handled by safeFrameBottomInset — keep KAV inert there too.
-      behavior={undefined}
-      enabled={false}
+      behavior={Platform.OS === "android" ? "height" : undefined}
+      enabled={Platform.OS === "android"}
       style={styles.app}
       testID="development-client-ready"
     >

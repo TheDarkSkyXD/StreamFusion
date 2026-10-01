@@ -68,11 +68,6 @@ describe("shell layout", () => {
     );
   });
 
-  it("keeps KeyboardAvoidingView inert so Android resize is not double-lifted", () => {
-    expect(source).toContain("enabled={false}");
-    expect(source).toContain("behavior={undefined}");
-  });
-
   it("extends bottom tab bar background through the system inset", () => {
     expect(source).toContain("bottomInset={bottomInset}");
     expect(source).toContain(
