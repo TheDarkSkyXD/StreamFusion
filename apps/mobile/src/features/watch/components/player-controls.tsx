@@ -145,7 +145,6 @@ export function PlayerControls({
       />
       {visible ? (
         <View pointerEvents="box-none" style={styles.railWrap}>
-          <View pointerEvents="none" style={styles.scrim} />
           <View
             style={[
               styles.rail,
@@ -595,14 +594,6 @@ const styles = StyleSheet.create({
   railWrap: {
     bottom: 0,
     justifyContent: "flex-end",
-    left: 0,
-    position: "absolute",
-    right: 0,
-  },
-  scrim: {
-    backgroundColor: "rgba(0,0,0,0.72)",
-    bottom: 0,
-    height: 144,
     left: 0,
     position: "absolute",
     right: 0,
