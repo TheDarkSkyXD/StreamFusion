@@ -1,16 +1,13 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
-import { MobilePlatformBadge } from "@mobile/design/platform-badge";
-import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
   mobilePressRing,
   mobileRadii,
-  mobileSpacing,
-  mobileType,
 } from "@mobile/design/tokens";
-import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import type { Stream } from "@streamfusion/core/content";
+
+import { LiveStreamCardContent } from "./live-stream-card-content";
 
 export function HomeStreamCard({
   onOpen,
@@ -19,72 +16,18 @@ export function HomeStreamCard({
   readonly onOpen?: () => void;
   readonly stream: Stream;
 }) {
-  const inner = (
-    <>
-      <View style={styles.thumbWrap}>
-        {stream.thumbnailUrl ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: stream.thumbnailUrl }}
-            style={styles.thumb}
-          />
-        ) : (
-          <View style={styles.thumb} />
-        )}
-        <View style={styles.liveBadge}>
-          <Text selectable style={styles.liveLabel}>
-            LIVE
-          </Text>
-        </View>
-        <View style={styles.viewerBadge}>
-          <Text selectable style={styles.viewerLabel}>
-            {`${stream.viewerCount} viewers`}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.meta}>
-        {stream.channelAvatar ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: stream.channelAvatar }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View style={styles.avatar} />
-        )}
-        <View style={styles.copy}>
-          <Text selectable style={styles.title}>
-            {stream.title}
-          </Text>
-          <View style={styles.channelRow}>
-            <Text selectable style={styles.channel}>
-              {stream.channelDisplayName}
-            </Text>
-            {stream.channelIsVerified ? (
-              <MobileVerifiedBadge platform={stream.platform} />
-            ) : null}
-          </View>
-          {stream.categoryName ? (
-            <Text selectable style={styles.category}>
-              {stream.categoryName}
-            </Text>
-          ) : null}
-          <MobileCatalogTags
-            language={stream.language}
-            tags={stream.tags}
-            testID={`home-stream-tags-${stream.id}`}
-          />
-        </View>
-        <MobilePlatformBadge platform={stream.platform} />
-      </View>
-    </>
+  const content = (
+    <LiveStreamCardContent
+      stream={stream}
+      tagsTestID={`home-stream-tags-${stream.id}`}
+    />
   );
-  const label = `${stream.channelDisplayName} live on ${stream.platform}`;
+  const label = `${stream.channelDisplayName} live on ${stream.platform}, ${stream.viewerCount} viewers`;
   const testID = `home-stream-${stream.platform}-${stream.id}`;
   if (onOpen === undefined) {
     return (
       <View accessibilityLabel={label} style={styles.card} testID={testID}>
-        {inner}
+        {content}
       </View>
     );
   }
@@ -98,7 +41,7 @@ export function HomeStreamCard({
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
       testID={testID}
     >
-      {inner}
+      {content}
     </Pressable>
   );
 }
@@ -112,81 +55,5 @@ const styles = StyleSheet.create({
   },
   pressed: {
     ...mobilePressRing.pressed,
-  },
-  thumbWrap: {
-    aspectRatio: 16 / 9,
-    backgroundColor: mobileColors.surfaceMuted,
-    width: "100%",
-  },
-  thumb: {
-    height: "100%",
-    width: "100%",
-  },
-  liveBadge: {
-    backgroundColor: mobileColors.live,
-    borderRadius: mobileRadii.small,
-    left: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-    position: "absolute",
-    top: mobileSpacing.small,
-  },
-  liveLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
-  },
-    viewerBadge: {
-    backgroundColor: mobileColors.overlay,
-    borderRadius: mobileRadii.small,
-    bottom: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-    position: "absolute",
-    right: mobileSpacing.small,
-  },
-  viewerLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "600",
-    lineHeight: 14,
-  },
-  meta: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 40,
-    width: 40,
-  },
-  copy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-  },
-  channelRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.xSmall,
-  },
-  title: {
-    ...mobileType.title,
-  },
-  channel: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  category: {
-    color: mobileColors.textCategory,
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 18,
   },
 });

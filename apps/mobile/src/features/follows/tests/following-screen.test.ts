@@ -113,10 +113,8 @@ describe("Following screen", () => {
           node.props.testID === "following-stream-twitch-twitch-stream",
       ),
     ).toBe(true);
-    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
-    expect(nodes.some((node) => node.props.children === "Just Chatting")).toBe(
-      true,
-    );
+    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(false);
+    expect(nodes.some((node) => node.props.children === stream.channelDisplayName)).toBe(true);
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Live Guest Follows/);
   });

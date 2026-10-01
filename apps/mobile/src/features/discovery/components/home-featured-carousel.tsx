@@ -71,14 +71,6 @@ export function HomeFeaturedCarouselView({
         )}
         <View style={styles.scrim} />
         <View style={styles.viewerBadge}>
-          <View
-            style={[
-              styles.liveDot,
-              active.platform === "twitch"
-                ? styles.liveDotTwitch
-                : styles.liveDotKick,
-            ]}
-          />
           <Text selectable style={styles.viewerLabel}>
             {`${active.viewerCount} viewers`}
           </Text>
@@ -182,27 +174,13 @@ const styles = StyleSheet.create({
     backgroundColor: mobileColors.playerScrim,
   },
   viewerBadge: {
-    alignItems: "center",
     backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.small,
-    flexDirection: "row",
-    gap: mobileSpacing.xSmall,
     left: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.small,
     paddingVertical: mobileSpacing.xSmall,
     position: "absolute",
     top: mobileSpacing.small,
-  },
-  liveDot: {
-    borderRadius: mobileRadii.full,
-    height: 10,
-    width: 10,
-  },
-  liveDotTwitch: {
-    backgroundColor: mobileColors.twitch,
-  },
-  liveDotKick: {
-    backgroundColor: mobileColors.kick,
   },
   viewerLabel: {
     color: mobileColors.textPrimary,

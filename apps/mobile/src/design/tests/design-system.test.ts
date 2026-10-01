@@ -12,6 +12,7 @@ import { MobileUnderlineTabs } from "../underline-tabs";
 import { MobileVerifiedBadge } from "../verified-badge";
 
 vi.mock("react-native", () => ({
+  Image: "Image",
   Pressable: "Pressable",
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
@@ -23,6 +24,7 @@ type ElementProps = Readonly<{
   accessibilityLabel?: string;
   accessibilityState?: Readonly<{ disabled?: boolean; selected?: boolean }>;
   children?: unknown;
+  d?: string;
   disabled?: boolean;
   onPress?: () => void;
   style?: unknown;
@@ -240,16 +242,10 @@ describe("mobile design primitives", () => {
     expect(flattenStyle(proof?.props.style).color).toBe(mobileColors.tagText);
     const twitch = descendants(MobileVerifiedBadge({ platform: "twitch" }));
     const kick = descendants(MobileVerifiedBadge({ platform: "kick" }));
-    expect(
-      twitch.some(
-        (node) => resolveStyle(node.props.style).backgroundColor === mobileColors.twitch,
-      ),
-    ).toBe(true);
-    expect(
-      kick.some(
-        (node) => resolveStyle(node.props.style).backgroundColor === mobileColors.kick,
-      ),
-    ).toBe(true);
+    expect(twitch.some((node) => node.props.accessibilityLabel === "Verified on Twitch")).toBe(true);
+    expect(kick.some((node) => node.props.accessibilityLabel === "Verified on Kick")).toBe(true);
+    expect(twitch.some((node) => node.props.d === "m6.95 10.26-2.1-2.1.88-.88 1.22 1.22 3.32-3.32.88.88-4.2 4.2Z")).toBe(true);
+    expect(kick.some((node) => node.type === "Image")).toBe(true);
     expect(mobileShadows.toast).toContain("rgba(0,0,0,0.3)");
     expect(mobileShadows.popover).toContain("0 4px 16px");
     expect(mobileShadows.dialog).toContain("0 8px 32px");

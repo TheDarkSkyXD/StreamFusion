@@ -25,6 +25,15 @@ vi.mock("react-native", () => ({
   AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) },
 }));
 
+vi.mock("react-native-svg", () => ({
+  default: "Svg",
+  Defs: "Defs",
+  LinearGradient: "LinearGradient",
+  Path: "Path",
+  Rect: "Rect",
+  Stop: "Stop",
+}));
+
 vi.mock("@react-native-community/slider", () => ({
   default: "Slider",
 }));
