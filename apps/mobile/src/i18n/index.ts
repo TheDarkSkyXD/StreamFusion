@@ -1,6 +1,7 @@
 /* eslint-disable import/no-named-as-default-member -- i18next default instance API */
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { en } from "@desktop-i18n/locales/en";
 
 import {
   DEFAULT_DISPLAY_LANGUAGE,
@@ -12,16 +13,10 @@ import { DISPLAY_LANGUAGE_CATALOG_LOADERS } from "./catalog-loaders";
 const catalogLoads = new Map<DisplayLanguage, Promise<void>>();
 let languageActivation = Promise.resolve();
 
-async function loadEnglishCatalog(): Promise<Record<string, unknown>> {
-  const { en } = await import("@desktop-i18n/locales/en");
-  return en as Record<string, unknown>;
-}
-
 let bootstrapped = false;
 
 export async function bootstrapMobileI18n(): Promise<typeof i18n> {
   if (bootstrapped) return i18n;
-  const en = await loadEnglishCatalog();
   if (!i18n.isInitialized) {
     await i18n.use(initReactI18next).init({
       resources: { en: { translation: en } },

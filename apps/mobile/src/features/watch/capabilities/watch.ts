@@ -422,6 +422,7 @@ export interface FocusedWatchSession {
   leave(target: WatchTarget): Promise<void>;
   peek(): WatchPeek;
   relocateMiniPlayer(region: MiniPlayerSnapRegion): void;
+  refresh(target: WatchTarget): Promise<WatchStartResult>;
   requestPictureInPicture(): Promise<FocusedPictureInPictureResult | { readonly kind: "idle" }>;
   restoreFromPictureInPicture(): void;
   reveal(): void;

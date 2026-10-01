@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
@@ -17,6 +17,7 @@ import type {
 } from "../capabilities/watch";
 import { asHlsSourceUri } from "../domain/hls-source";
 import { twitchHlsRequestHeaders } from "../domain/hls-request-headers";
+import { setWatchOrientationControllerForTests } from "../domain/watch-fullscreen-orientation";
 
 const target: WatchTarget = {
   channelId: "twitch-1",
@@ -27,6 +28,8 @@ const target: WatchTarget = {
 const sourceUri = asHlsSourceUri(
   "https://usher.ttvnw.net/api/channel/hls/live.m3u8",
 )!;
+
+afterEach(() => setWatchOrientationControllerForTests(null));
 
 function protection(): FocusedPlaybackProtectionPort {
   return {
@@ -815,5 +818,386 @@ describe("focused watch session", () => {
       filtering: { enabled: true, mode: "strip", platform: "twitch" },
       sourceUri,
     });
+  });
+
+  for (const platform of ["twitch", "kick"] as const) {
+    it(`refreshes ${platform} in fullscreen with its audio and quality intact`, async () => {
+      const watched: WatchTarget = {
+        channelId: `${platform}-1`,
+        channelName: "live",
+        platform,
+      };
+      const controls: string[] = [];
+      const locks: string[] = [];
+      setWatchOrientationControllerForTests({
+        lockAsync: async (lock) => { locks.push(lock); },
+      });
+      let sequence = 0;
+      const playback = playbackPort({
+        setMuted: async (sessionId, value) => {
+          controls.push(`mute:${sessionId}:${value}`);
+          return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+        },
+        setVolume: async (sessionId, value) => {
+          controls.push(`volume:${sessionId}:${value}`);
+          return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+        },
+        setQuality: async (sessionId, value) => {
+          controls.push(`quality:${sessionId}:${value}`);
+          return {
+            kind: "listed",
+            catalog: { qualities: ["auto", "720p"], selected: value, sessionId },
+          };
+        },
+      });
+      const kickUri = asHlsSourceUri("https://kick.example/live.m3u8")!;
+      const session = createFocusedWatchSession({
+        playback,
+        policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+        protection: protection(),
+        sessionIds: { create: () => `watch:${++sequence}` },
+        sources: {
+          ...sources(),
+          kick: {
+            integration: "kick-v1-playback-url",
+            platform: "kick",
+            resolve: async () => ({
+              integration: "kick-v1-playback-url",
+              kind: "resolved",
+              requestHeaders: {},
+              sourceUri: kickUri,
+            }),
+          },
+        },
+      });
+      await session.start(watched);
+      await session.setMuted(true);
+      await session.setVolume(0.3);
+      await session.setQuality("720p");
+      session.enterFullscreen();
+      controls.length = 0;
+
+      await expect(session.refresh(watched)).resolves.toMatchObject({
+        kind: "started",
+        session: { sessionId: "watch:2" },
+      });
+      expect(controls).toEqual([
+        "volume:watch:2:0.3",
+        "mute:watch:2:true",
+        "quality:watch:2:720p",
+      ]);
+      expect(playback.ended).toEqual(["watch:1"]);
+      expect(session.peek()).toMatchObject({
+        kind: "active",
+        muted: true,
+        presentation: { presentation: "fullscreen" },
+        quality: "720p",
+        volume: 0.3,
+      });
+      expect(locks).toEqual(["landscape"]);
+    });
+
+    it(`restores portrait when ${platform} fullscreen refresh fails`, async () => {
+      const watched: WatchTarget = {
+        channelId: `${platform}-1`,
+        channelName: "live",
+        platform,
+      };
+      const locks: string[] = [];
+      setWatchOrientationControllerForTests({
+        lockAsync: async (lock) => { locks.push(lock); },
+      });
+      let resolves = 0;
+      const resolveTwitch: LivePlaybackSources["twitch"]["resolve"] = async () =>
+        ++resolves === 1
+          ? {
+              integration: "twitch-gql-usher",
+              kind: "resolved",
+              requestHeaders: twitchHlsRequestHeaders(),
+              sourceUri,
+            }
+          : {
+              failure: { detail: "Stream URL unavailable", kind: "invalid-response" },
+              integration: "twitch-gql-usher",
+              kind: "unavailable",
+            };
+      const resolveKick: LivePlaybackSources["kick"]["resolve"] = async () =>
+        ++resolves === 1
+          ? {
+              integration: "kick-v1-playback-url",
+              kind: "resolved",
+              requestHeaders: {},
+              sourceUri,
+            }
+          : {
+              failure: { detail: "Stream URL unavailable", kind: "invalid-response" },
+              integration: "kick-v1-playback-url",
+              kind: "unavailable",
+            };
+      const session = createFocusedWatchSession({
+        playback: playbackPort(),
+        policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+        protection: protection(),
+        sessionIds: { create: () => `watch:${resolves}` },
+        sources: {
+          ...sources(resolveTwitch),
+          kick: {
+            integration: "kick-v1-playback-url",
+            platform: "kick",
+            resolve: resolveKick,
+          },
+        },
+      });
+      await session.start(watched);
+      session.enterFullscreen();
+      await expect(session.refresh(watched)).resolves.toMatchObject({ kind: "failed" });
+      expect(session.snapshot(watched).kind).toBe("failed");
+      expect(session.peek().kind).toBe("idle");
+      expect(locks).toEqual(["landscape", "portrait-up"]);
+    });
+  }
+
+  it("ends the old native session once when refresh source resolution fails", async () => {
+    const released: string[] = [];
+    const playback = playbackPort();
+    let resolves = 0;
+    let sequence = 0;
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: {
+        ...protection(),
+        acquire: (sessionId) => ({ release: () => { released.push(sessionId); } }),
+      },
+      sessionIds: { create: () => `watch:${++sequence}` },
+      sources: sources(async () =>
+        ++resolves === 1
+          ? {
+              integration: "twitch-gql-usher",
+              kind: "resolved",
+              requestHeaders: twitchHlsRequestHeaders(),
+              sourceUri,
+            }
+          : {
+              failure: { detail: "Stream URL unavailable", kind: "invalid-response" },
+              integration: "twitch-gql-usher",
+              kind: "unavailable",
+            },
+      ),
+    });
+    await session.start(target);
+    await expect(session.refresh(target)).resolves.toMatchObject({ kind: "failed" });
+    expect(playback.ended).toEqual(["watch:1"]);
+    expect(released).toEqual(["watch:1"]);
+    expect(session.snapshot(target).kind).toBe("failed");
+  });
+
+  it("updates the quality catalog when the current selection is queried again", async () => {
+    const playback = playbackPort({
+      setQuality: async (sessionId, selected) => ({
+        kind: "listed",
+        catalog: { qualities: ["auto", "1080p", "720p"], selected, sessionId },
+      }),
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    expect(session.peek()).toMatchObject({ quality: "auto", qualities: ["auto"] });
+    await session.setQuality("auto");
+    expect(session.peek()).toMatchObject({
+      quality: "auto",
+      qualities: ["auto", "1080p", "720p"],
+    });
+  });
+
+  it("does not end the old native session twice when dismissed during source resolution", async () => {
+    let finishResolution: (() => void) | undefined;
+    const released: string[] = [];
+    const playback = playbackPort();
+    let resolves = 0;
+    let sequence = 0;
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: {
+        ...protection(),
+        acquire: (sessionId) => ({ release: () => { released.push(sessionId); } }),
+      },
+      sessionIds: { create: () => `watch:${++sequence}` },
+      sources: sources(async () => {
+        if (++resolves > 1) {
+          await new Promise<void>((resolve) => { finishResolution = resolve; });
+        }
+        return {
+          integration: "twitch-gql-usher",
+          kind: "resolved",
+          requestHeaders: twitchHlsRequestHeaders(),
+          sourceUri,
+        };
+      }),
+    });
+    await session.start(target);
+    const refreshing = session.refresh(target);
+    await vi.waitFor(() => expect(finishResolution).toBeDefined());
+    await session.dismiss();
+    finishResolution?.();
+    await expect(refreshing).resolves.toEqual({ kind: "cancelled" });
+    expect(playback.ended).toEqual(["watch:1"]);
+    expect(released).toEqual(["watch:1"]);
+    expect(session.snapshot(target).kind).toBe("ready");
+  });
+
+  it("routes controls and native events to the adopted session during refresh", async () => {
+    let resolveRestoredVolume: (() => void) | undefined;
+    let nativeVolume = 1;
+    let nativeMuted = false;
+    let sequence = 0;
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const playback = playbackPort({
+      setVolume: async (sessionId, value) => {
+        if (sessionId === "watch:2" && !resolveRestoredVolume) {
+          await new Promise<void>((resolve) => { resolveRestoredVolume = resolve; });
+        }
+        nativeVolume = value;
+        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+      },
+      setMuted: async (sessionId, value) => {
+        if (sessionId === "watch:2") nativeMuted = value;
+        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+      },
+      subscribe: (listener) => { emit = listener; return () => undefined; },
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => `watch:${++sequence}` },
+      sources: sources(),
+    });
+    await session.start(target);
+    await session.setVolume(0.3);
+    await session.setMuted(true);
+    const refreshing = session.refresh(target);
+    await vi.waitFor(() => expect(resolveRestoredVolume).toBeDefined());
+    expect(session.snapshot(target)).toMatchObject({
+      kind: "active",
+      session: { sessionId: "watch:2" },
+    });
+    emit?.({ kind: "playing", sessionId: "watch:2" });
+    emit?.({
+      durationMs: 60_000,
+      kind: "progress",
+      positionMs: 12_000,
+      seekable: true,
+      sessionId: "watch:2",
+    });
+    await session.setVolume(0.7);
+    await session.setMuted(false);
+    resolveRestoredVolume?.();
+    await expect(refreshing).resolves.toMatchObject({ kind: "started" });
+    expect(nativeVolume).toBe(0.7);
+    expect(nativeMuted).toBe(false);
+    expect(session.peek()).toMatchObject({
+      muted: false,
+      progress: { positionMs: 12_000 },
+      state: { phase: "playing", session: { sessionId: "watch:2" } },
+      volume: 0.7,
+    });
+  });
+
+  it("retains a native failure while refreshed controls are restoring", async () => {
+    let resolveRestoredVolume: (() => void) | undefined;
+    let sequence = 0;
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const locks: string[] = [];
+    setWatchOrientationControllerForTests({
+      lockAsync: async (lock) => { locks.push(lock); },
+    });
+    const playback = playbackPort({
+      setVolume: async (sessionId) => {
+        if (sessionId === "watch:2") {
+          await new Promise<void>((resolve) => { resolveRestoredVolume = resolve; });
+        }
+        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+      },
+      subscribe: (listener) => { emit = listener; return () => undefined; },
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => `watch:${++sequence}` },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.enterFullscreen();
+    const refreshing = session.refresh(target);
+    await vi.waitFor(() => expect(resolveRestoredVolume).toBeDefined());
+    emit?.({
+      code: "PLAYBACK_NETWORK_FAILED",
+      detail: "network dropped",
+      kind: "failed",
+      sessionId: "watch:2",
+    });
+    resolveRestoredVolume?.();
+    await expect(refreshing).resolves.toMatchObject({
+      failure: { code: "PLAYBACK_NETWORK_FAILED", detail: "network dropped" },
+      kind: "failed",
+    });
+    expect(session.snapshot(target)).toMatchObject({
+      failure: { code: "PLAYBACK_NETWORK_FAILED" },
+      kind: "failed",
+    });
+    expect(session.peek().kind).toBe("idle");
+    expect(locks).toEqual(["landscape", "portrait-up"]);
+  });
+
+  it("discards a refreshed native session when a newer Watch start wins", async () => {
+    let resolveVolume: ((result: Awaited<ReturnType<FocusedPlaybackPort["setVolume"]>>) => void) | undefined;
+    const released: string[] = [];
+    const playback = playbackPort({
+      setVolume: async (sessionId) => {
+        if (sessionId === "watch:2") {
+          return new Promise((resolve) => { resolveVolume = resolve; });
+        }
+        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+      },
+    });
+    let sequence = 0;
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: {
+        ...protection(),
+        acquire: (sessionId) => ({ release: () => { released.push(sessionId); } }),
+      },
+      sessionIds: { create: () => `watch:${++sequence}` },
+      sources: sources(),
+    });
+    await session.start(target);
+    const refreshing = session.refresh(target);
+    await vi.waitFor(() => expect(resolveVolume).toBeDefined());
+    const other: WatchTarget = {
+      channelId: "twitch-2",
+      channelName: "other",
+      platform: "twitch",
+    };
+    await session.start(other);
+    resolveVolume?.({
+      kind: "applied",
+      session: { pictureInPictureEligible: false, sessionId: "watch:2" },
+    });
+    await expect(refreshing).resolves.toEqual({ kind: "cancelled" });
+    expect(session.snapshot(other)).toMatchObject({
+      kind: "active",
+      session: { sessionId: "watch:3" },
+    });
+    expect(playback.ended).toEqual(["watch:1", "watch:2"]);
+    expect(released).toEqual(["watch:1", "watch:2"]);
   });
 });

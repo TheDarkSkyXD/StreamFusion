@@ -267,6 +267,13 @@ function WatchSessionRoute({
         revealControls();
         if (peek.kind === "active") void session.setMuted(!peek.muted);
       }}
+      onVolumeChange={(volume) => {
+        revealControls();
+        if (peek.kind === "active") {
+          void session.setVolume(volume);
+          if (volume > 0 && peek.muted) void session.setMuted(false);
+        }
+      }}
       {...(onOpenChannel === undefined
         ? {}
         : { onOpenChannel: () => onOpenChannel(target) })}
@@ -287,9 +294,15 @@ function WatchSessionRoute({
       onQualityPress={() => {
         revealControls();
         setQualityMenuOpen(true);
+        if (peek.kind === "active") void session.setQuality(peek.quality);
       }}
       onRetry={() => {
+        revealControls();
         void session.start(target);
+      }}
+      onRefresh={() => {
+        revealControls();
+        void session.refresh(target);
       }}
       onSeekBack={() => {
         revealControls();

@@ -98,9 +98,11 @@ export function WatchScreen({
   onOpenChannel,
   onOpenRelated,
   onPlayerTap,
+  onRefresh,
   onRetry,
   onSelectTab,
   onMute,
+  onVolumeChange,
   onPip,
   onPlayPause,
   onQualityPress,
@@ -142,10 +144,12 @@ export function WatchScreen({
   readonly onOpenChannel?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onPlayerTap?: () => void;
+  readonly onRefresh?: () => void;
   readonly onRetry: () => void;
   readonly onSelectQuality?: (quality: string) => void;
   readonly onSelectTab: (tab: WatchTab) => void;
   readonly onMute?: () => void;
+  readonly onVolumeChange?: (volume: number) => void;
   readonly onPip?: () => void;
   readonly onPlayPause?: () => void;
   readonly onQualityPress?: () => void;
@@ -313,9 +317,12 @@ export function WatchScreen({
               filteringActive: adblockFilteringActive(adblockView, target),
             })}
             fullscreen={fullscreen}
+            live={!target.media}
             muted={peek.muted}
+            {...(target.media || onRefresh === undefined ? {} : { onRefresh })}
             onFullscreen={onToggleFullscreen}
             onMute={onMute}
+            {...(onVolumeChange === undefined ? {} : { onVolumeChange })}
             onPip={onPip}
             onPlayPause={onPlayPause}
             onQualityPress={onQualityPress}
@@ -335,9 +342,11 @@ export function WatchScreen({
             paused={peek.state.phase === "paused"}
             pipAvailable={peek.state.session.pictureInPictureEligible}
             pipPhase={peek.presentation.pip}
+            platform={target.platform}
             progress={peek.progress}
             quality={peek.quality}
             seekable={peek.progress.seekable}
+            volume={peek.volume}
           />
         ) : null}
         {pipSurface ? null : (

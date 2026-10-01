@@ -24,12 +24,17 @@ vi.mock("lucide-react-native", () => ({
   Pause: "Pause",
   PictureInPicture2: "PictureInPicture2",
   Play: "Play",
+  RefreshCw: "RefreshCw",
   RotateCcw: "RotateCcw",
   RotateCw: "RotateCw",
-  Settings2: "Settings2",
   ShieldCheck: "ShieldCheck",
+  Volume1: "Volume1",
   Volume2: "Volume2",
   VolumeX: "VolumeX",
+}));
+
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
 }));
 
 const i18nTest = vi.hoisted(() => ({

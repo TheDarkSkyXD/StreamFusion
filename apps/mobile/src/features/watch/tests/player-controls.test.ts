@@ -31,20 +31,31 @@ vi.mock("react-native", async () => {
   };
 });
 
-vi.mock("lucide-react-native", () => {
-  const icon = () => null;
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ bottom: 16, left: 12, right: 12, top: 0 }),
+}));
+
+vi.mock("lucide-react-native", async () => {
+  const { createElement } = await import("react");
+  const icon = (name: string) => (props: Record<string, unknown>) =>
+    createElement("i", {
+      "data-icon": name,
+      "data-fill": props.fill,
+      "data-stroke": props.strokeWidth,
+    });
   return {
-    Maximize: icon,
-    Minimize: icon,
-    Pause: icon,
-    PictureInPicture2: icon,
-    Play: icon,
-    RotateCcw: icon,
-    RotateCw: icon,
-    Settings2: icon,
-    ShieldCheck: icon,
-    Volume2: icon,
-    VolumeX: icon,
+    Maximize: icon("Maximize"),
+    Minimize: icon("Minimize"),
+    Pause: icon("Pause"),
+    PictureInPicture2: icon("PictureInPicture2"),
+    Play: icon("Play"),
+    RefreshCw: icon("RefreshCw"),
+    RotateCcw: icon("RotateCcw"),
+    RotateCw: icon("RotateCw"),
+    ShieldCheck: icon("ShieldCheck"),
+    Volume1: icon("Volume1"),
+    Volume2: icon("Volume2"),
+    VolumeX: icon("VolumeX"),
   };
 });
 
@@ -137,21 +148,29 @@ describe("player controls chrome", () => {
       i18n.t(key, options as never);
   });
 
-  it("centers play/pause for live streams without seek chips", () => {
-    const nodes = descendants(PlayerControls(base));
-    expect(findByTestId(nodes, "player-center-transport")).toBeTruthy();
-    expect(findByTestId(nodes, "player-play-pause")).toBeTruthy();
-    expect(findByTestId(nodes, "player-live-badge")).toBeTruthy();
+  it("keeps the complete live action bar inside the bottom rail", () => {
+    const nodes = descendants(
+      PlayerControls({ ...base, onRefresh: () => undefined }),
+    );
+    const rail = findByTestId(nodes, "player-controls-rail");
+    expect(rail).toBeTruthy();
+    const actions = descendants(rail);
+    for (const id of [
+      "player-play-pause",
+      "player-mute",
+      "player-live-badge",
+      "player-refresh",
+      "player-quality",
+      "player-pip",
+      "player-fullscreen",
+    ]) {
+      expect(findByTestId(actions, id), id).toBeTruthy();
+    }
     expect(findByTestId(nodes, "player-seek-back")).toBeUndefined();
     expect(findByTestId(nodes, "player-seek-forward")).toBeUndefined();
-    expect(
-      nodes.some((node) =>
-        String(node.props.children).includes("Theater and stats"),
-      ),
-    ).toBe(false);
   });
 
-  it("flanks center play with VOD seek icons and keeps scrub time on the rail", () => {
+  it("flanks VOD play with seek icons and keeps scrub time on the rail", () => {
     const rendered = renderVodControls({
       ...base,
       onSeekBack: () => undefined,
@@ -160,19 +179,16 @@ describe("player controls chrome", () => {
       seekable: true,
     });
     try {
-      const center = findRendered(
-        rendered.container,
-        "player-center-transport",
-      );
-      expect(center).toBeTruthy();
+      const rail = findRendered(rendered.container, "player-controls-rail");
+      expect(rail).toBeTruthy();
       expect(
-        center?.querySelector('[data-testid="player-seek-back"]'),
+        rail?.querySelector('[data-testid="player-seek-back"]'),
       ).toBeTruthy();
       expect(
-        center?.querySelector('[data-testid="player-play-pause"]'),
+        rail?.querySelector('[data-testid="player-play-pause"]'),
       ).toBeTruthy();
       expect(
-        center?.querySelector('[data-testid="player-seek-forward"]'),
+        rail?.querySelector('[data-testid="player-seek-forward"]'),
       ).toBeTruthy();
       expect(
         findRendered(rendered.container, "player-progress")?.textContent,
@@ -183,21 +199,20 @@ describe("player controls chrome", () => {
     }
   });
 
-  it("keeps mute/pip/fullscreen on the bottom rail and quality top-right", () => {
+  it("keeps transport and utilities on the bottom rail", () => {
     const nodes = descendants(PlayerControls(base));
     const rail = findByTestId(nodes, "player-controls-rail");
     expect(rail).toBeTruthy();
     const railDescendants = descendants(rail);
     expect(findByTestId(railDescendants, "player-mute")).toBeTruthy();
-    expect(findByTestId(railDescendants, "player-quality")).toBeUndefined();
-    expect(findByTestId(nodes, "player-quality")).toBeTruthy();
+    expect(findByTestId(railDescendants, "player-quality")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-pip")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-fullscreen")).toBeTruthy();
-    expect(findByTestId(railDescendants, "player-play-pause")).toBeUndefined();
+    expect(findByTestId(railDescendants, "player-play-pause")).toBeTruthy();
     expect(findByTestId(railDescendants, "player-seek-back")).toBeUndefined();
   });
 
-  it("hides the rail and center transport when chrome is not visible but keeps the tap catcher", () => {
+  it("hides the rail when chrome is not visible but keeps the tap catcher", () => {
     const nodes = descendants(
       PlayerControls({
         ...base,
@@ -206,7 +221,7 @@ describe("player controls chrome", () => {
     );
     expect(findByTestId(nodes, "player-chrome-toggle")).toBeTruthy();
     expect(findByTestId(nodes, "player-controls-rail")).toBeUndefined();
-    expect(findByTestId(nodes, "player-center-transport")).toBeUndefined();
+    expect(findByTestId(nodes, "player-play-pause")).toBeUndefined();
   });
 
   it("opens a compact quality sheet from the settings icon", () => {
@@ -228,7 +243,31 @@ describe("player controls chrome", () => {
     expect(selected).toEqual(["720p"]);
   });
 
-  it("uses mute accessibility labels without a volume slider", () => {
+  it("exposes volume in settings and applies slider changes", () => {
+    const changes: number[] = [];
+    const nodes = descendants(
+      PlayerControls({
+        ...base,
+        chrome: { showFullscreen: true, showQuality: false, showVolume: true },
+        onCloseQualityMenu: () => undefined,
+        onVolumeChange: (volume) => changes.push(volume),
+        qualityMenuOpen: true,
+        muted: true,
+        volume: 0.35,
+      }),
+    );
+    const slider = findByTestId(nodes, "player-volume-slider");
+    expect(slider?.props.value).toBe(0);
+    expect(slider?.props.accessibilityLabel).toBe("Volume");
+    expect(slider?.props.style).toMatchObject({ width: "100%", height: 48 });
+    expect(findByTestId(nodes, "player-quality-option-720p")).toBeUndefined();
+    (
+      slider?.props as { onValueChange?: (value: number) => void } | undefined
+    )?.onValueChange?.(0.8);
+    expect(changes).toEqual([0.8]);
+  });
+
+  it("uses mute accessibility labels and opens volume through settings", () => {
     const muted = descendants(PlayerControls({ ...base, muted: true }));
     expect(
       muted.some(
@@ -237,11 +276,87 @@ describe("player controls chrome", () => {
           node.props.accessibilityLabel === "Unmute",
       ),
     ).toBe(true);
+    expect(findByTestId(muted, "player-quality")).toBeTruthy();
+  });
+
+  it("keeps fullscreen exit available when the entry preference is off", () => {
+    const prefs = {
+      showFullscreen: false,
+      showQuality: true,
+      showVolume: true,
+    };
+    const normal = descendants(PlayerControls({ ...base, chrome: prefs }));
+    expect(findByTestId(normal, "player-fullscreen")).toBeUndefined();
+    const fullscreen = descendants(
+      PlayerControls({ ...base, chrome: prefs, fullscreen: true }),
+    );
     expect(
-      muted.some((node) =>
-        String(node.props.testID ?? "").includes("volume-slider"),
-      ),
-    ).toBe(false);
+      findByTestId(fullscreen, "player-fullscreen")?.props.accessibilityLabel,
+    ).toBe("Exit fullscreen");
+    const rail = findByTestId(fullscreen, "player-controls-rail");
+    const style = rail?.props.style as
+      readonly Record<string, number>[] | undefined;
+    expect(style?.[1]).toMatchObject({
+      paddingBottom: 16,
+      paddingLeft: 12,
+      paddingRight: 12,
+    });
+  });
+
+  it("uses the desktop icon shapes and invokes every live action", () => {
+    const actions: string[] = [];
+    const rendered = renderVodControls({
+      ...base,
+      onRefresh: () => actions.push("refresh"),
+      onFullscreen: () => actions.push("fullscreen"),
+      onMute: () => actions.push("mute"),
+      onPip: () => actions.push("pip"),
+      onPlayPause: () => actions.push("play"),
+      onQualityPress: () => actions.push("settings"),
+    });
+    try {
+      const rail = findRendered(rendered.container, "player-controls-rail");
+      expect(
+        rail?.querySelector('[data-icon="Pause"]')?.getAttribute("data-fill"),
+      ).toBe("#ffffff");
+      expect(
+        rail?.querySelector('[data-icon="Volume2"]')?.getAttribute("data-fill"),
+      ).toBe("#ffffff");
+      expect(
+        rail
+          ?.querySelector('[data-icon="Maximize"]')
+          ?.getAttribute("data-stroke"),
+      ).toBe("3");
+      const settingsPath = rail?.querySelector(
+        '[data-testid="player-quality"] Path',
+      );
+      expect(
+        settingsPath?.getAttribute("d")?.startsWith("M413.967 276.8"),
+      ).toBe(true);
+      for (const id of [
+        "player-play-pause",
+        "player-mute",
+        "player-refresh",
+        "player-quality",
+        "player-pip",
+        "player-fullscreen",
+      ]) {
+        const onPress = pressableProps.get(id)?.onPress;
+        if (typeof onPress !== "function")
+          throw new Error(`${id} is not pressable`);
+        onPress();
+      }
+      expect(actions).toEqual([
+        "play",
+        "mute",
+        "refresh",
+        "settings",
+        "pip",
+        "fullscreen",
+      ]);
+    } finally {
+      rendered.unmount();
+    }
   });
 
   it("renders a VOD scrubber on the rail with clock and seek target", () => {

@@ -14,6 +14,7 @@ import type {
   PlaybackProgress,
   RecordedPlaybackSources,
   WatchPeek,
+  WatchPlaybackFailure,
   WatchSessionIdSource,
   WatchStartResult,
   WatchTarget,
@@ -75,11 +76,13 @@ export function createFocusedWatchSession(input: {
   const listeners = new Set<() => void>();
   let generation = 0;
   let current: CurrentSession | null = null;
+  let refreshingSessionId: string | null = null;
   let presentation: PlayerPresentationState = INITIAL_PLAYER_PRESENTATION;
   let muted = false;
   let volume = 1;
   let quality = "auto";
   let qualities: readonly string[] = ["auto"];
+  let qualityRequestSequence = 0;
   let progress: PlaybackProgress = IDLE_PROGRESS;
   let adsDetected = false;
   let cachedPeek: WatchPeek = IDLE_PEEK;
@@ -135,6 +138,7 @@ export function createFocusedWatchSession(input: {
   }
 
   function applyNativeEvent(event: NativePlaybackEvent): void {
+    if (event.sessionId === refreshingSessionId) return;
     if (!current) return;
     const next = nextNativePlayback({
       adsDetected,
@@ -162,6 +166,8 @@ export function createFocusedWatchSession(input: {
 
   async function resetToReady(target: WatchTarget): Promise<void> {
     generation += 1;
+    const endingSessionId = refreshingSessionId;
+    refreshingSessionId = null;
     const wasFullscreen = presentation.presentation === "fullscreen";
     presentation = INITIAL_PLAYER_PRESENTATION;
     adsDetected = false;
@@ -171,14 +177,175 @@ export function createFocusedWatchSession(input: {
     }
     if (current?.kind === "active") {
       const sessionId = current.session.sessionId;
-      current.lease.release();
+      if (sessionId !== endingSessionId) current.lease.release();
       current = { kind: "ready", target };
       notify();
-      await abandon(sessionId);
+      if (sessionId !== endingSessionId) await abandon(sessionId);
       return;
     }
     current = { kind: "ready", target };
     notify();
+  }
+
+  async function startWithIntent(
+    target: WatchTarget,
+    intent: "replace" | "refresh",
+  ): Promise<WatchStartResult> {
+    const previous = current;
+    const refreshing =
+      intent === "refresh" &&
+      refreshingSessionId === null &&
+      previous?.kind === "active" &&
+      sameWatchTarget(previous.target, target);
+    if (intent === "refresh" && !refreshing) return { kind: "cancelled" };
+
+    const attempt = ++generation;
+    const endingSessionId = refreshingSessionId;
+    refreshingSessionId = refreshing ? previous.session.sessionId : null;
+    current = refreshing
+      ? { ...previous, phase: "buffering" }
+      : { kind: "resolving", target };
+    notify();
+    if (previous?.kind === "active" && previous.session.sessionId !== endingSessionId) {
+      previous.lease.release();
+      await abandon(previous.session.sessionId);
+    }
+    if (attempt !== generation) return { kind: "cancelled" };
+
+    const outcome = await runFocusedWatchStart({
+      attempt,
+      generation: () => generation,
+      playback: input.playback,
+      policy: input.policy,
+      protection: input.protection,
+      sessionIds: input.sessionIds,
+      sources: input.sources,
+      target,
+      ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
+      ...(input.playbackSettings === undefined
+        ? {}
+        : { playbackSettings: input.playbackSettings }),
+      ...(input.playlistProxy === undefined
+        ? {}
+        : { playlistProxy: input.playlistProxy }),
+      ...(input.recorded === undefined ? {} : { recorded: input.recorded }),
+    });
+    if (attempt !== generation) {
+      if (outcome.kind === "started") {
+        outcome.lease.release();
+        await abandon(outcome.session.sessionId);
+      }
+      return { kind: "cancelled" };
+    }
+    if (outcome.kind === "cancelled") return { kind: "cancelled" };
+    if (outcome.kind === "failed") {
+      refreshingSessionId = null;
+      if (refreshing && presentation.presentation === "fullscreen") {
+        presentation = INITIAL_PLAYER_PRESENTATION;
+        void restorePortraitOrientation();
+      }
+      current = { failure: outcome.failure, kind: "failed", target };
+      notify();
+      return startResultFrom(outcome);
+    }
+
+    const sessionId = outcome.session.sessionId;
+    current = {
+      integration: outcome.integration,
+      kind: "active",
+      lease: outcome.lease,
+      phase: "buffering",
+      policySequence: outcome.policySequence,
+      protection: input.protection.snapshot(),
+      session: outcome.session,
+      target,
+    };
+    refreshingSessionId = null;
+    if (!refreshing) {
+      presentation = INITIAL_PLAYER_PRESENTATION;
+      muted = false;
+      volume = 1;
+      quality = "auto";
+      qualities = ["auto"];
+    }
+    progress = IDLE_PROGRESS;
+    adsDetected = false;
+    notify();
+
+    if (refreshing) {
+      const interrupted = (): WatchStartResult | null => {
+        if (attempt !== generation) return { kind: "cancelled" };
+        if (current?.kind === "active" && current.session.sessionId === sessionId) return null;
+        if (current?.kind === "failed") {
+          if (presentation.presentation === "fullscreen") {
+            presentation = INITIAL_PLAYER_PRESENTATION;
+            void restorePortraitOrientation();
+            notify();
+          }
+          return { failure: current.failure, kind: "failed" };
+        }
+        return { kind: "cancelled" };
+      };
+      let stopped = interrupted();
+      if (stopped) return stopped;
+
+      let restoredVolume = volume;
+      let volumeResult = await input.playback.setVolume(sessionId, restoredVolume);
+      stopped = interrupted();
+      if (stopped) return stopped;
+      while (volumeResult.kind === "applied" && restoredVolume !== volume) {
+        restoredVolume = volume;
+        volumeResult = await input.playback.setVolume(sessionId, restoredVolume);
+        stopped = interrupted();
+        if (stopped) return stopped;
+      }
+      let restoredMute = muted;
+      let muteResult = await input.playback.setMuted(sessionId, restoredMute);
+      stopped = interrupted();
+      if (stopped) return stopped;
+      while (muteResult.kind === "applied" && restoredMute !== muted) {
+        restoredMute = muted;
+        muteResult = await input.playback.setMuted(sessionId, restoredMute);
+        stopped = interrupted();
+        if (stopped) return stopped;
+      }
+      const requestedQuality = quality;
+      const qualitySequence = qualityRequestSequence;
+      const qualityResult = await input.playback.setQuality(sessionId, requestedQuality);
+      stopped = interrupted();
+      if (stopped) return stopped;
+      if (
+        volumeResult.kind !== "applied" ||
+        muteResult.kind !== "applied" ||
+        qualityResult.kind !== "listed"
+      ) {
+        const failure: WatchPlaybackFailure = {
+          code: "PLAYBACK_UNKNOWN",
+          detail: "Playback restarted but its controls could not be restored.",
+          integration: outcome.integration,
+          kind: "playback-failed",
+          lastSuccessfulStage: "native-session-started",
+          platform: target.platform,
+          recovery: ["retry", "open-provider"],
+        };
+        current.lease.release();
+        if (presentation.presentation === "fullscreen") {
+          presentation = INITIAL_PLAYER_PRESENTATION;
+          void restorePortraitOrientation();
+        }
+        current = { failure, kind: "failed", target };
+        notify();
+        await abandon(sessionId);
+        if (attempt !== generation) return { kind: "cancelled" };
+        return { failure, kind: "failed" };
+      }
+      if (qualitySequence === qualityRequestSequence) {
+        quality = qualityResult.catalog.selected;
+        qualities = qualityResult.catalog.qualities;
+        notify();
+      }
+    }
+    return startResultFrom(outcome);
   }
 
   return {
@@ -254,11 +421,18 @@ export function createFocusedWatchSession(input: {
     },
     async setQuality(nextQuality) {
       if (current?.kind !== "active") return;
+      const sessionId = current.session.sessionId;
+      const requestSequence = ++qualityRequestSequence;
       const listed = await input.playback.setQuality(
-        current.session.sessionId,
+        sessionId,
         nextQuality,
       );
-      if (listed.kind === "listed") {
+      if (
+        listed.kind === "listed" &&
+        current?.kind === "active" &&
+        current.session.sessionId === sessionId &&
+        requestSequence === qualityRequestSequence
+      ) {
         quality = listed.catalog.selected;
         qualities = listed.catalog.qualities;
         notify();
@@ -302,59 +476,11 @@ export function createFocusedWatchSession(input: {
       presentation = returnFromPictureInPicture(presentation);
       notify();
     },
-    async start(target): Promise<WatchStartResult> {
-      const attempt = ++generation;
-      const previous = current;
-      current = { kind: "resolving", target };
-      notify();
-      if (previous?.kind === "active") {
-        previous.lease.release();
-        await abandon(previous.session.sessionId);
-      }
-      if (attempt !== generation) return { kind: "cancelled" };
-      const outcome = await runFocusedWatchStart({
-        attempt,
-        generation: () => generation,
-        playback: input.playback,
-        policy: input.policy,
-        protection: input.protection,
-        sessionIds: input.sessionIds,
-        sources: input.sources,
-        target,
-        ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
-        ...(input.playbackSettings === undefined
-          ? {}
-          : { playbackSettings: input.playbackSettings }),
-        ...(input.playlistProxy === undefined
-          ? {}
-          : { playlistProxy: input.playlistProxy }),
-        ...(input.recorded === undefined ? {} : { recorded: input.recorded }),
-      });
-      if (outcome.kind === "cancelled") return { kind: "cancelled" };
-      if (outcome.kind === "failed") {
-        current = { failure: outcome.failure, kind: "failed", target };
-        notify();
-        return startResultFrom(outcome);
-      }
-      current = {
-        integration: outcome.integration,
-        kind: "active",
-        lease: outcome.lease,
-        phase: "buffering",
-        policySequence: outcome.policySequence,
-        protection: input.protection.snapshot(),
-        session: outcome.session,
-        target,
-      };
-      presentation = INITIAL_PLAYER_PRESENTATION;
-      muted = false;
-      volume = 1;
-      quality = "auto";
-      qualities = ["auto"];
-      progress = IDLE_PROGRESS;
-      adsDetected = false;
-      notify();
-      return startResultFrom(outcome);
+    refresh(target) {
+      return startWithIntent(target, "refresh");
+    },
+    start(target) {
+      return startWithIntent(target, "replace");
     },
     async leave(target) {
       if (!current || !sameWatchTarget(current.target, target)) return;
@@ -366,6 +492,8 @@ export function createFocusedWatchSession(input: {
     },
     async dispose() {
       generation += 1;
+      const endingSessionId = refreshingSessionId;
+      refreshingSessionId = null;
       if (presentation.presentation === "fullscreen") {
         void restorePortraitOrientation();
       }
@@ -373,8 +501,10 @@ export function createFocusedWatchSession(input: {
       unsubscribeProtection();
       listeners.clear();
       if (current?.kind === "active") {
-        current.lease.release();
-        await abandon(current.session.sessionId);
+        if (current.session.sessionId !== endingSessionId) {
+          current.lease.release();
+          await abandon(current.session.sessionId);
+        }
       }
       current = null;
     },

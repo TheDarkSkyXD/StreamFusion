@@ -1,20 +1,30 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import Slider from "@react-native-community/slider";
 import {
   Maximize,
   Minimize,
   Pause,
   PictureInPicture2,
   Play,
+  RefreshCw,
   RotateCcw,
   RotateCw,
-  Settings2,
   ShieldCheck,
+  Volume1,
   Volume2,
   VolumeX,
   type LucideIcon,
 } from "lucide-react-native";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { impactHaptic } from "@mobile/design/haptics";
 import {
@@ -27,30 +37,24 @@ import {
 } from "@mobile/design/tokens";
 
 import type { PictureInPicturePhase } from "../capabilities/watch";
+import { PlayerSettingsIcon } from "./player-icons";
 
-const CENTER_PLAY_ICON = 48;
-const CENTER_SEEK_ICON = 32;
-const CENTER_PLAY_HIT = 72;
 const RAIL_ICON = 26;
-const RAIL_HIT = 44;
+const RAIL_HIT = 48;
 
-/**
- * Mobile Watch player chrome — center transport + bottom utility rail.
- *
- * Capability gaps intentionally not shown on-player (keep docs/comments only):
- * theater mode, video stats, volume slider, and playback speed are desktop-only
- * for now. Mute toggles audio; quality opens a compact sheet.
- */
 export function PlayerControls({
   adBlockStatus = null,
   chrome,
   fullscreen,
+  live: liveProp,
   muted,
+  onRefresh,
   onFullscreen,
   onMute,
   onPip,
   onPlayPause,
   onQualityPress,
+  onVolumeChange,
   onSeekBack,
   onSeekForward,
   onSeekTo,
@@ -68,6 +72,8 @@ export function PlayerControls({
   rewindSeconds = 10,
   fastForwardSeconds = 10,
   seekable,
+  platform = "twitch",
+  volume = 1,
   visible = true,
 }: {
   readonly adBlockStatus?: {
@@ -81,13 +87,16 @@ export function PlayerControls({
   };
   readonly fastForwardSeconds?: number;
   readonly fullscreen: boolean;
+  readonly live?: boolean;
   readonly muted: boolean;
   readonly onCloseQualityMenu?: () => void;
   readonly onFullscreen: () => void;
   readonly onMute: () => void;
+  readonly onRefresh?: () => void;
   readonly onPip: () => void;
   readonly onPlayPause: () => void;
   readonly onQualityPress: () => void;
+  readonly onVolumeChange?: (volume: number) => void;
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
   readonly onSeekTo?: (positionMs: number) => void;
@@ -97,26 +106,34 @@ export function PlayerControls({
   readonly paused: boolean;
   readonly pipAvailable: boolean;
   readonly pipPhase: PictureInPicturePhase;
-  readonly progress?: { readonly durationMs: number; readonly positionMs: number };
+  readonly platform?: "kick" | "twitch";
+  readonly progress?: {
+    readonly durationMs: number;
+    readonly positionMs: number;
+  };
   readonly qualities?: readonly string[];
   readonly quality: string;
   readonly qualityMenuOpen?: boolean;
   readonly rewindSeconds?: number;
   readonly seekable: boolean;
+  readonly volume?: number;
   readonly visible?: boolean;
 }) {
+  const insets = useSafeAreaInsets();
   const pipBusy = pipPhase === "requesting" || pipPhase === "active";
   const showQuality = chrome?.showQuality !== false;
   const showVolume = chrome?.showVolume !== false;
-  const showFullscreen = chrome?.showFullscreen !== false;
-  const live = !seekable;
+  const showFullscreen = fullscreen || chrome?.showFullscreen !== false;
+  const live = liveProp ?? !seekable;
   const { t } = useTranslation();
 
   return (
     <View pointerEvents="box-none" style={styles.overlay}>
       <Pressable
         accessibilityLabel={
-          visible ? t("playback.watch.hideControls") : t("playback.watch.showControls")
+          visible
+            ? t("playback.watch.hideControls")
+            : t("playback.watch.showControls")
         }
         accessibilityRole="button"
         onPress={() => {
@@ -127,161 +144,192 @@ export function PlayerControls({
         testID="player-chrome-toggle"
       />
       {visible ? (
-        <>
-          {showQuality ? (
-            <View pointerEvents="box-none" style={styles.topRight}>
-              <IconControl
-                Icon={Settings2}
-                accessibilityLabel={t("playback.watch.qualityNamed", {
-                  quality,
-                })}
-                onPress={onQualityPress}
-                testID="player-quality"
-              />
-            </View>
-          ) : null}
+        <View pointerEvents="box-none" style={styles.railWrap}>
+          <View pointerEvents="none" style={styles.scrim} />
           <View
-            pointerEvents="box-none"
-            style={styles.centerTransport}
-            testID="player-center-transport"
+            style={[
+              styles.rail,
+              fullscreen
+                ? {
+                    paddingBottom: Math.max(insets.bottom, mobileSpacing.small),
+                    paddingLeft: Math.max(insets.left, mobileSpacing.small),
+                    paddingRight: Math.max(insets.right, mobileSpacing.small),
+                  }
+                : null,
+            ]}
+            testID="player-controls-rail"
           >
-            {seekable && onSeekBack ? (
-              <IconControl
-                Icon={RotateCcw}
-                accessibilityLabel={t("playback.watch.seekBack", {
-                  seconds: rewindSeconds,
-                })}
-                badge={String(rewindSeconds)}
-                iconSize={CENTER_SEEK_ICON}
-                onPress={onSeekBack}
-                testID="player-seek-back"
+            {seekable && progress ? (
+              <ProgressScrubber
+                durationMs={progress.durationMs}
+                positionMs={progress.positionMs}
+                {...(onSeekTo === undefined ? {} : { onSeekTo })}
               />
             ) : null}
-            <View style={styles.centerPlayRing}>
-              <IconControl
-                Icon={paused ? Play : Pause}
-                accessibilityLabel={paused ? t("playback.play") : t("playback.pause")}
-                hitSize={CENTER_PLAY_HIT}
-                iconSize={CENTER_PLAY_ICON}
-                onPress={onPlayPause}
-                testID="player-play-pause"
-              />
-            </View>
-            {seekable && onSeekForward ? (
-              <IconControl
-                Icon={RotateCw}
-                accessibilityLabel={t("playback.watch.seekForward", {
-                  seconds: fastForwardSeconds,
-                })}
-                badge={String(fastForwardSeconds)}
-                iconSize={CENTER_SEEK_ICON}
-                onPress={onSeekForward}
-                testID="player-seek-forward"
-              />
-            ) : null}
-          </View>
-          <View pointerEvents="box-none" style={styles.railWrap}>
-            <View pointerEvents="none" style={styles.scrim} />
-            <View style={styles.rail} testID="player-controls-rail">
-              {seekable && progress ? (
-                <ProgressScrubber
-                  durationMs={progress.durationMs}
-                  positionMs={progress.positionMs}
-                  {...(onSeekTo === undefined ? {} : { onSeekTo })}
-                />
-              ) : null}
-              <View style={styles.row}>
-                <View style={styles.left}>
-                  {showVolume ? (
-                    <View style={styles.muteWrap}>
-                      {muted ? (
-                        <View style={styles.muteTip} testID="player-mute-tip">
-                          <Text style={styles.muteTipLabel}>
-                            {t("playback.unmute")}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <IconControl
-                        Icon={muted ? VolumeX : Volume2}
-                        accessibilityLabel={
-                          muted ? t("playback.unmute") : t("playback.mute")
-                        }
-                        onPress={onMute}
-                        testID="player-mute"
-                      />
-                    </View>
-                  ) : null}
-                  {adBlockStatus?.isActive ? (
-                    <View
-                      accessibilityLabel={
-                        adBlockStatus.isShowingAd
-                          ? t("playback.blockingAds")
-                          : t("playback.adBlockActive")
-                      }
-                      accessibilityHint={
-                        adBlockStatus.isShowingAd
-                          ? t("playback.blockingAds2")
-                          : t("playback.adBlockActive2")
-                      }
-                      accessibilityRole="image"
-                      style={styles.adblockShield}
-                      testID="player-adblock-shield"
-                    >
-                      <ShieldCheck
-                        accessibilityElementsHidden
-                        color={
-                          adBlockStatus.isShowingAd
-                            ? "#22c55e"
-                            : "rgba(255,255,255,0.7)"
-                        }
-                        size={RAIL_ICON}
-                        strokeWidth={2.25}
-                      />
-                    </View>
-                  ) : null}
-                  {live ? (
-                    <View style={styles.liveBadge} testID="player-live-badge">
-                      <View style={styles.liveDot} />
-                      <Text style={styles.liveLabel}>{t("playback.live")}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <View style={styles.right}>
+            <View style={styles.row}>
+              <View style={styles.left}>
+                {seekable && onSeekBack ? (
                   <IconControl
-                    Icon={PictureInPicture2}
-                    accessibilityLabel={pipAccessibilityLabel(
-                      pipAvailable,
-                      pipPhase,
-                      (key) => t(key),
-                    )}
-                    disabled={!pipAvailable || pipBusy}
-                    onPress={onPip}
-                    testID="player-pip"
+                    Icon={RotateCcw}
+                    accessibilityLabel={t("playback.watch.seekBack", {
+                      seconds: rewindSeconds,
+                    })}
+                    badge={String(rewindSeconds)}
+                    onPress={onSeekBack}
+                    testID="player-seek-back"
                   />
-                  {showFullscreen ? (
-                    <IconControl
-                      Icon={fullscreen ? Minimize : Maximize}
-                      accessibilityLabel={
-                        fullscreen
-                          ? t("playback.watch.exitFullscreen")
-                          : t("playback.watch.fullscreen")
-                      }
-                      onPress={onFullscreen}
-                      testID="player-fullscreen"
+                ) : null}
+                <IconControl
+                  Icon={paused ? Play : Pause}
+                  accessibilityLabel={
+                    paused ? t("playback.play") : t("playback.pause")
+                  }
+                  filled
+                  onPress={onPlayPause}
+                  testID="player-play-pause"
+                />
+                {seekable && onSeekForward ? (
+                  <IconControl
+                    Icon={RotateCw}
+                    accessibilityLabel={t("playback.watch.seekForward", {
+                      seconds: fastForwardSeconds,
+                    })}
+                    badge={String(fastForwardSeconds)}
+                    onPress={onSeekForward}
+                    testID="player-seek-forward"
+                  />
+                ) : null}
+                {showVolume ? (
+                  <IconControl
+                    Icon={
+                      muted || volume === 0
+                        ? VolumeX
+                        : volume < 0.5
+                          ? Volume1
+                          : Volume2
+                    }
+                    accessibilityLabel={
+                      muted ? t("playback.unmute") : t("playback.mute")
+                    }
+                    filled
+                    onPress={onMute}
+                    testID="player-mute"
+                  />
+                ) : null}
+                {live ? (
+                  <View
+                    style={[
+                      styles.liveBadge,
+                      platform === "kick" ? styles.kickLiveBadge : null,
+                    ]}
+                    testID="player-live-badge"
+                  >
+                    <View
+                      style={[
+                        styles.liveDot,
+                        platform === "kick" ? styles.kickLiveDot : null,
+                      ]}
                     />
-                  ) : null}
-                </View>
+                    <Text style={styles.liveLabel}>{t("playback.live")}</Text>
+                  </View>
+                ) : null}
+                {adBlockStatus?.isActive ? (
+                  <View
+                    accessibilityLabel={
+                      adBlockStatus.isShowingAd
+                        ? t("playback.blockingAds")
+                        : t("playback.adBlockActive")
+                    }
+                    accessibilityHint={
+                      adBlockStatus.isShowingAd
+                        ? t("playback.blockingAds2")
+                        : t("playback.adBlockActive2")
+                    }
+                    accessibilityRole="image"
+                    style={styles.adblockShield}
+                    testID="player-adblock-shield"
+                  >
+                    <ShieldCheck
+                      accessibilityElementsHidden
+                      color={
+                        adBlockStatus.isShowingAd
+                          ? "#22c55e"
+                          : "rgba(255,255,255,0.7)"
+                      }
+                      size={RAIL_ICON}
+                      strokeWidth={2.25}
+                    />
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.right}>
+                {live && onRefresh ? (
+                  <IconControl
+                    Icon={RefreshCw}
+                    accessibilityLabel={t("playback.refreshStream")}
+                    onPress={onRefresh}
+                    strokeWidth={3}
+                    testID="player-refresh"
+                  />
+                ) : null}
+                <Pressable
+                  accessibilityLabel={t("playback.settings")}
+                  accessibilityRole="button"
+                  hitSlop={mobileHitSlop}
+                  onPress={() => {
+                    void impactHaptic("light");
+                    onQualityPress();
+                  }}
+                  style={({ pressed }) => [
+                    styles.iconHit,
+                    pressed ? styles.iconHitPressed : null,
+                  ]}
+                  testID="player-quality"
+                >
+                  <PlayerSettingsIcon />
+                </Pressable>
+                <IconControl
+                  Icon={PictureInPicture2}
+                  accessibilityLabel={pipAccessibilityLabel(
+                    pipAvailable,
+                    pipPhase,
+                    (key) => t(key),
+                  )}
+                  disabled={!pipAvailable || pipBusy}
+                  onPress={onPip}
+                  testID="player-pip"
+                />
+                {showFullscreen ? (
+                  <IconControl
+                    Icon={fullscreen ? Minimize : Maximize}
+                    accessibilityLabel={
+                      fullscreen
+                        ? t("playback.watch.exitFullscreen")
+                        : t("playback.watch.fullscreen")
+                    }
+                    onPress={onFullscreen}
+                    strokeWidth={3}
+                    testID="player-fullscreen"
+                  />
+                ) : null}
               </View>
             </View>
           </View>
-        </>
+        </View>
       ) : null}
-      {showQuality && qualityMenuOpen && onSelectQuality && onCloseQualityMenu ? (
+      {qualityMenuOpen && onCloseQualityMenu ? (
         <QualitySheet
           onClose={onCloseQualityMenu}
-          onSelect={onSelectQuality}
+          {...(onSelectQuality === undefined
+            ? {}
+            : { onSelect: onSelectQuality })}
           qualities={qualities.length > 0 ? qualities : [quality]}
           selected={quality}
+          showQuality={showQuality}
+          showVolume={showVolume}
+          volume={volume}
+          muted={muted}
+          {...(onVolumeChange === undefined ? {} : { onVolumeChange })}
         />
       ) : null}
     </View>
@@ -293,16 +341,32 @@ function QualitySheet({
   onSelect,
   qualities,
   selected,
+  showQuality,
+  showVolume,
+  volume,
+  muted,
+  onVolumeChange,
 }: {
   readonly onClose: () => void;
-  readonly onSelect: (quality: string) => void;
+  readonly onSelect?: (quality: string) => void;
   readonly qualities: readonly string[];
   readonly selected: string;
+  readonly showQuality: boolean;
+  readonly showVolume: boolean;
+  readonly volume: number;
+  readonly muted: boolean;
+  readonly onVolumeChange?: (volume: number) => void;
 }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible>
-      <View style={styles.sheetBackdrop}>
+      <View
+        style={[
+          styles.sheetBackdrop,
+          { paddingBottom: Math.max(insets.bottom, mobileSpacing.medium) },
+        ]}
+      >
         <Pressable
           accessibilityLabel={t("playback.watch.dismissQualityMenu")}
           onPress={onClose}
@@ -311,41 +375,68 @@ function QualitySheet({
         />
         <View style={styles.sheet} testID="player-quality-menu">
           <Text selectable style={styles.sheetTitle}>
-            {t("playback.quality")}
+            {t("playback.settings")}
           </Text>
-          <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
-            {qualities.map((option) => {
-              const active = option === selected;
-              return (
-                <Pressable
-                  accessibilityLabel={option}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  key={option}
-                  onPress={() => {
-                    onSelect(option);
-                    onClose();
-                  }}
-                  style={({ pressed }) => [
-                    styles.sheetOption,
-                    active ? styles.sheetOptionActive : null,
-                    pressed ? styles.sheetOptionPressed : null,
-                  ]}
-                  testID={`player-quality-option-${option}`}
-                >
-                  <Text
-                    selectable
-                    style={[
-                      styles.sheetOptionLabel,
-                      active ? styles.sheetOptionLabelActive : null,
-                    ]}
-                  >
-                    {option}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          {showVolume && onVolumeChange ? (
+            <View style={styles.volumeSection}>
+              <Text style={styles.volumeLabel}>{t("settings.volume")}</Text>
+              <Slider
+                accessibilityLabel={t("settings.volume")}
+                maximumTrackTintColor="rgba(255,255,255,0.28)"
+                maximumValue={1}
+                minimumTrackTintColor={mobileColors.textPrimary}
+                minimumValue={0}
+                onValueChange={onVolumeChange}
+                style={styles.volumeSlider}
+                testID="player-volume-slider"
+                thumbTintColor={mobileColors.textPrimary}
+                value={muted ? 0 : volume}
+              />
+            </View>
+          ) : null}
+          {showQuality && onSelect ? (
+            <>
+              <Text selectable style={styles.sheetTitle}>
+                {t("playback.quality")}
+              </Text>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                style={styles.sheetScroll}
+              >
+                {qualities.map((option) => {
+                  const active = option === selected;
+                  return (
+                    <Pressable
+                      accessibilityLabel={option}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      key={option}
+                      onPress={() => {
+                        onSelect(option);
+                        onClose();
+                      }}
+                      style={({ pressed }) => [
+                        styles.sheetOption,
+                        active ? styles.sheetOptionActive : null,
+                        pressed ? styles.sheetOptionPressed : null,
+                      ]}
+                      testID={`player-quality-option-${option}`}
+                    >
+                      <Text
+                        selectable
+                        style={[
+                          styles.sheetOptionLabel,
+                          active ? styles.sheetOptionLabelActive : null,
+                        ]}
+                      >
+                        {option}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -357,18 +448,22 @@ function IconControl({
   accessibilityLabel,
   badge,
   disabled = false,
+  filled = false,
   hitSize = RAIL_HIT,
   iconSize = RAIL_ICON,
   onPress,
+  strokeWidth = 2.25,
   testID,
 }: {
   readonly Icon: LucideIcon;
   readonly accessibilityLabel: string;
   readonly badge?: string;
   readonly disabled?: boolean;
+  readonly filled?: boolean;
   readonly hitSize?: number;
   readonly iconSize?: number;
   readonly onPress: () => void;
+  readonly strokeWidth?: number;
   readonly testID: string;
 }) {
   return (
@@ -395,8 +490,9 @@ function IconControl({
         <Icon
           accessibilityElementsHidden
           color={mobileColors.textPrimary}
+          fill={filled ? mobileColors.textPrimary : "none"}
           size={iconSize}
-          strokeWidth={2.25}
+          strokeWidth={strokeWidth}
         />
         {badge ? (
           <Text style={styles.seekBadge} importantForAccessibility="no">
@@ -407,7 +503,6 @@ function IconControl({
     </Pressable>
   );
 }
-
 
 function ProgressScrubber({
   durationMs,
@@ -497,47 +592,6 @@ const styles = StyleSheet.create({
   tapCatcher: {
     ...StyleSheet.absoluteFill,
   },
-  centerTransport: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    flexDirection: "row",
-    gap: mobileSpacing.large,
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  centerPlayRing: {
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderColor: "rgba(255,255,255,0.85)",
-    borderRadius: mobileRadii.full,
-    borderWidth: 2,
-    height: CENTER_PLAY_HIT,
-    justifyContent: "center",
-    width: CENTER_PLAY_HIT,
-  },
-  topRight: {
-    position: "absolute",
-    right: mobileSpacing.small,
-    top: mobileSpacing.small,
-    zIndex: 2,
-  },
-  muteWrap: {
-    alignItems: "flex-start",
-    justifyContent: "flex-end",
-  },
-  muteTip: {
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: mobileRadii.small,
-    marginBottom: 6,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: 4,
-  },
-  muteTipLabel: {
-    color: "#111",
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 14,
-  },
   railWrap: {
     bottom: 0,
     justifyContent: "flex-end",
@@ -548,7 +602,7 @@ const styles = StyleSheet.create({
   scrim: {
     backgroundColor: "rgba(0,0,0,0.72)",
     bottom: 0,
-    height: 120,
+    height: 144,
     left: 0,
     position: "absolute",
     right: 0,
@@ -563,19 +617,19 @@ const styles = StyleSheet.create({
   row: {
     alignItems: "center",
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     minHeight: mobileSizing.minimumTouchTarget,
   },
   left: {
     alignItems: "center",
     flexDirection: "row",
-    flexShrink: 1,
     gap: mobileSpacing.xSmall,
   },
   right: {
     alignItems: "center",
     flexDirection: "row",
-    gap: mobileSpacing.xSmall,
+    marginLeft: "auto",
   },
   iconHit: {
     alignItems: "center",
@@ -648,7 +702,6 @@ const styles = StyleSheet.create({
     borderRadius: mobileRadii.small,
     flexDirection: "row",
     gap: 6,
-    marginLeft: mobileSpacing.xSmall,
     paddingHorizontal: mobileSpacing.small,
     paddingVertical: 4,
   },
@@ -664,6 +717,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.6,
     lineHeight: 14,
+  },
+  kickLiveBadge: {
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  kickLiveDot: {
+    backgroundColor: mobileColors.kick,
   },
   sheetBackdrop: {
     backgroundColor: mobileColors.overlay,
@@ -691,6 +750,19 @@ const styles = StyleSheet.create({
   },
   sheetScroll: {
     flexGrow: 0,
+  },
+  volumeSection: {
+    paddingHorizontal: mobileSpacing.medium,
+    paddingBottom: mobileSpacing.small,
+  },
+  volumeLabel: {
+    color: mobileColors.textPrimary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  volumeSlider: {
+    width: "100%",
+    height: 48,
   },
   sheetOption: {
     justifyContent: "center",
