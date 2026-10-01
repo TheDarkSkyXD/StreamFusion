@@ -1,6 +1,7 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
@@ -65,6 +66,11 @@ export function LiveStreamCardContent({
           {viewerCount}
         </Text>
       </View>
+      <MobilePlatformBadge
+        platform={stream.platform}
+        style={styles.platformBadge}
+        variant="icon"
+      />
       <View style={styles.metadata}>
         {stream.channelAvatar ? (
           <Image
@@ -153,6 +159,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     lineHeight: 21,
+  },
+  platformBadge: {
+    position: "absolute",
+    right: mobileSpacing.medium,
+    top: mobileSpacing.medium,
   },
   metadata: {
     alignItems: "flex-end",

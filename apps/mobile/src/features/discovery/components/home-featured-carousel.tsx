@@ -75,6 +75,11 @@ export function HomeFeaturedCarouselView({
             {`${active.viewerCount} viewers`}
           </Text>
         </View>
+        <MobilePlatformBadge
+          platform={active.platform}
+          style={styles.platformBadge}
+          variant="icon"
+        />
         <View style={styles.panel}>
           <View style={styles.panelRow}>
             {active.channelAvatar ? (
@@ -94,7 +99,6 @@ export function HomeFeaturedCarouselView({
                 {active.channelIsVerified ? (
                   <MobileVerifiedBadge platform={active.platform} />
                 ) : null}
-                <MobilePlatformBadge platform={active.platform} />
               </View>
               <Text numberOfLines={2} selectable style={styles.title}>
                 {active.title}
@@ -187,6 +191,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     lineHeight: 16,
+  },
+  platformBadge: {
+    position: "absolute",
+    right: mobileSpacing.small,
+    top: mobileSpacing.small,
   },
   panel: {
     backgroundColor: mobileColors.overlay,
