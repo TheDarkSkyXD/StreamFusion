@@ -27,7 +27,7 @@ test("the development client is Android-only and distinct from production", () =
     appManifest.expo.android.package,
     "com.thedarkskyxd.streamfusion",
   );
-  assert.equal(appManifest.expo.android.versionCode, 2);
+  assert.equal(appManifest.expo.version, packageManifest.version);
   assert.equal(existsSync("ios"), false);
 });
 
