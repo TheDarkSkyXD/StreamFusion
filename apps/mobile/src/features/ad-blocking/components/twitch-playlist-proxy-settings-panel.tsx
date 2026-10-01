@@ -450,27 +450,32 @@ function SourceRow({
       <Text selectable style={styles.sourceUrl}>
         {source.url}
       </Text>
-      <Text selectable style={styles.detail}>
-        {source.enabled ? "Enabled" : "Disabled"} ·{" "}
-        {status === "checking"
-          ? "Checking"
-          : status === "online"
-            ? "Online"
-            : "Offline"}
-        {source.addQueryParams ? " · playback query params" : ""}
-      </Text>
-      <View
-        accessibilityLabel={`Source ${status}`}
-        style={[
-          styles.statusDot,
-          status === "online"
-            ? styles.statusOnline
-            : status === "offline"
-              ? styles.statusOffline
-              : styles.statusChecking,
-        ]}
-        testID={`twitch-playlist-proxy-status-${source.id}`}
-      />
+      <View style={styles.statusRow}>
+        <View style={styles.statusPair}>
+          <View
+            accessibilityElementsHidden
+            style={[
+              styles.statusDot,
+              status === "online"
+                ? styles.statusOnline
+                : status === "offline"
+                  ? styles.statusOffline
+                  : styles.statusChecking,
+            ]}
+            testID={`twitch-playlist-proxy-status-${source.id}`}
+          />
+          <Text selectable style={styles.detail}>
+            {status === "checking"
+              ? "Checking"
+              : status === "online"
+                ? "Online"
+                : "Offline"}
+          </Text>
+        </View>
+        {source.addQueryParams ? (
+          <Text selectable style={styles.detail}>· playback query params</Text>
+        ) : null}
+      </View>
       <View style={styles.sourceActions}>
         <Switch
           accessibilityLabel={
@@ -702,6 +707,17 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     height: 10,
     width: 10,
+  },
+  statusRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
+  },
+  statusPair: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.xSmall,
   },
   statusOnline: { backgroundColor: "#34d399" },
   statusOffline: { backgroundColor: mobileColors.danger },
