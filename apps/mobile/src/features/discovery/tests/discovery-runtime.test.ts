@@ -106,7 +106,7 @@ describe("createDiscoveryRuntime", () => {
     const outcome = await session.readTopStreams({ platform: "kick" });
     expect(outcome.path).toEqual({ kind: "guest", platform: "kick" });
     expect(outcome.items[0]?.channelName).toBe("absi");
-    expect(urls[0]).toContain("kick.com/stream/featured-livestreams");
+    expect(urls.some((url) => url.includes("kick.com/stream/featured-livestreams"))).toBe(true);
     expect(urls.some((url) => url.includes("relay.test"))).toBe(false);
   });
 

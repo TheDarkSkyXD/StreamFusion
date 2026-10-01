@@ -4,6 +4,7 @@ import type { SettingsSession } from "@mobile/features/settings/capabilities/set
 import { playbackSessionPolicy } from "@mobile/features/settings/domain/settings-view";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import type { LiveStreamCatalog } from "@mobile/features/discovery/capabilities/live-stream-catalog";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import type { VerifiedPolicyStore } from "@mobile/features/installation-policy/capabilities/installation-policy";
 import type { AndroidPlaybackContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
@@ -30,6 +31,7 @@ export function createGuestWatchScreen(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly filtering?: AdBlockSession;
   readonly history: WatchHistoryRepository;
+  readonly kickLiveCatalog?: LiveStreamCatalog;
   readonly nowEpochMs?: () => number;
   readonly playback: AndroidPlaybackContractPort;
   readonly playbackSettings?: SettingsSession;
@@ -79,7 +81,12 @@ export function createGuestWatchScreen(input: {
         twitchVideo: createTwitchVodPlaybackSource({ fetch: input.fetch }),
       },
       sources: {
-        kick: createKickLivePlaybackSource({ fetch: input.fetch }),
+        kick: createKickLivePlaybackSource({
+          fetch: input.fetch,
+          ...(input.kickLiveCatalog === undefined
+            ? {}
+            : { liveCatalog: input.kickLiveCatalog }),
+        }),
         twitch: createTwitchLivePlaybackSource({ fetch: input.fetch }),
       },
     }),

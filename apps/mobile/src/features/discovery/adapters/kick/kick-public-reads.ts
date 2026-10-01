@@ -1,6 +1,7 @@
 import type { Category, Stream } from "@streamfusion/core/content";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
+import type { LiveStreamCatalog } from "../../capabilities/live-stream-catalog";
 import { requestInit } from "../../utils/optional";
 import {
   KICK_FEATURED_LIVESTREAMS,
@@ -14,7 +15,35 @@ import {
 export async function readKickPublicTopStreams(
   fetchImpl: typeof globalThis.fetch,
   signal?: AbortSignal,
+  liveCatalog?: LiveStreamCatalog,
 ): Promise<PlatformReadOutcome<Stream>> {
+  if (liveCatalog) {
+    const catalog = await liveCatalog.read(
+      signal === undefined ? {} : { signal },
+    );
+    if (
+      signal?.aborted ||
+      (catalog.kind === "unavailable" && catalog.failure.kind === "cancelled")
+    ) {
+      return {
+        cache: { kind: "miss" },
+        error: { code: "cancelled", retry: "none" },
+        items: [],
+        path: { kind: "unavailable", platform: "kick", reason: "cancelled" },
+        platform: "kick",
+        status: "failed",
+      };
+    }
+    if (catalog.kind === "ready") {
+      return {
+        cache: { kind: "miss" },
+        items: catalog.entries.map((entry) => entry.stream),
+        path: { kind: "guest", platform: "kick" },
+        platform: "kick",
+        status: "complete",
+      };
+    }
+  }
   return kickPublicCollection({
     fetchImpl,
     map: mapKickPublicStreams,

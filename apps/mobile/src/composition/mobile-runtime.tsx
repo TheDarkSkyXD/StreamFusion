@@ -56,6 +56,7 @@ import {
   userTokenFromTwitchSnapshot,
 } from "@mobile/features/discovery/composition/discovery-runtime";
 import { createSearchHistoryRepository } from "@mobile/features/discovery/composition/search-history-repository";
+import { createKickLiveCatalog } from "@mobile/features/discovery/adapters/kick/kick-live-catalog";
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
 import { createGuestLiveAlertPoller } from "@mobile/features/activity/domain/guest-live-alert-poller";
@@ -267,6 +268,9 @@ const connectivitySession = createConnectivityRuntime({
   secrets: secureSecretStore,
   settings: persistenceRuntime.productState.settings,
 });
+const kickLiveCatalog = createKickLiveCatalog({
+  fetch: connectivitySession.fetch,
+});
 const twitchPlaylistProxySession = createTwitchPlaylistProxySession({
   settings: persistenceRuntime.productState.settings,
 });
@@ -464,6 +468,7 @@ export function MobileRuntime() {
     () =>
       createDiscoveryRuntime({
         cache: persistenceRuntime.disposableCache,
+        kickLiveCatalog,
         installation: {
           async read() {
             return installationIdentityFromStore(
@@ -508,6 +513,7 @@ export function MobileRuntime() {
     () =>
       createGuestWatchScreen({
         discovery: homeDiscovery,
+        kickLiveCatalog,
         fetch: connectivitySession.fetch,
         filtering: adblockSession,
         history: persistenceRuntime.productState.watchHistory,

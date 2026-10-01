@@ -2,8 +2,9 @@ import type { Category, Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
+import type { LiveStreamCatalog } from "../../capabilities/live-stream-catalog";
 import { requestInit } from "../../utils/optional";
-import { kickTags, kickVerified } from "../../utils/catalog-fields";
+import { mapKickOfficialStreams } from "./kick-official-streams";
 import {
   readKickPublicCategories,
   readKickPublicCategoryStreams,
@@ -11,6 +12,7 @@ import {
 
 type KickInput = {
   readonly fetch: typeof globalThis.fetch;
+  readonly liveCatalog?: LiveStreamCatalog;
   readonly readAccessToken: () => Promise<string | null>;
 };
 
@@ -43,7 +45,34 @@ export function createKickOfficialCategoryReads(input: KickInput) {
       readonly language?: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Stream>> {
+      if (read.signal?.aborted) return failed("cancelled");
       if ((await input.readAccessToken()) === null) {
+        if (input.liveCatalog) {
+          const catalog = await input.liveCatalog.read(
+            read.signal === undefined ? {} : { signal: read.signal },
+          );
+          if (read.signal?.aborted) return failed("cancelled");
+          if (catalog.kind === "ready") {
+            const items = catalog.entries
+              .map((entry) => entry.stream)
+              .filter(
+                (stream) =>
+                  stream.categoryId === read.categoryId &&
+                  (!read.language || stream.language === read.language),
+              );
+            if (items.length > 0) {
+              return {
+                cache: { kind: "miss" },
+                items,
+                path: { kind: "guest", platform: "kick" },
+                platform: "kick",
+                status: "complete",
+              };
+            }
+          } else if (catalog.failure.kind === "cancelled") {
+            return failed("cancelled");
+          }
+        }
         return readKickPublicCategoryStreams({
           categoryId: read.categoryId,
           fetchImpl: input.fetch,
@@ -54,11 +83,11 @@ export function createKickOfficialCategoryReads(input: KickInput) {
         category_id: read.categoryId,
         limit: "20",
       });
-      if (read.language) params.set("language", read.language);
+      if (read.language) params.set("language_code", read.language);
       return kickCollection({
         input,
-        map: kickStreams,
-        path: `https://api.kick.com/public/v1/livestreams?${params}`,
+        map: mapKickOfficialStreams,
+        path: `https://api.kick.com/public/v2/livestreams?${params}`,
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
@@ -120,6 +149,7 @@ async function kickCollection<T>(input: {
 }): Promise<PlatformReadOutcome<T>> {
   if (input.signal?.aborted) return failed("cancelled");
   const accessToken = await input.input.readAccessToken();
+  if (input.signal?.aborted) return failed("cancelled");
   if (accessToken === null) return failed("signed-out-login-required");
   try {
     const response = await input.input.fetch(
@@ -129,9 +159,11 @@ async function kickCollection<T>(input: {
     if (!response.ok) {
       return failed(response.status === 401 ? "auth-lost" : "kick-failed");
     }
+    const payload: unknown = await response.json();
+    if (input.signal?.aborted) return failed("cancelled");
     return {
       cache: { kind: "miss" },
-      items: input.map(await response.json()),
+      items: input.map(payload),
       path: { kind: "direct", platform: "kick" },
       platform: "kick",
       status: "complete",
@@ -140,47 +172,6 @@ async function kickCollection<T>(input: {
     if (input.signal?.aborted || isAbort(error)) return failed("cancelled");
     return failed("kick-failed");
   }
-}
-
-function kickStreams(value: unknown): readonly Stream[] {
-  return rows(value).flatMap((record) => {
-    const channel =
-      typeof record.channel === "object" && record.channel !== null
-        ? (record.channel as Record<string, unknown>)
-        : record;
-    const user =
-      typeof channel.user === "object" && channel.user !== null
-        ? (channel.user as Record<string, unknown>)
-        : channel;
-    const id = identifier(record, "id");
-    return id === ""
-      ? []
-      : [
-          {
-            channelAvatar: stringField(user, "profile_pic"),
-            channelDisplayName: stringField(user, "username"),
-            channelId: identifier(channel, "id"),
-            channelName: stringField(channel, "slug"),
-            id,
-            isLive: record.is_live !== false,
-            language: stringField(record, "language"),
-            platform: "kick" as const,
-            startedAt: null,
-            tags: kickTags(record),
-            thumbnailUrl: stringField(record, "thumbnail_url"),
-            title:
-              stringField(record, "session_title") ||
-              stringField(record, "title"),
-            viewerCount:
-              typeof record.viewer_count === "number" && record.viewer_count >= 0
-                ? record.viewer_count
-                : 0,
-            ...(kickVerified(record) || kickVerified(channel) || kickVerified(user)
-              ? { channelIsVerified: true }
-              : {}),
-          },
-        ];
-  });
 }
 
 function kickCategories(value: unknown): readonly Category[] {
@@ -227,7 +218,8 @@ function failed<T>(code: string): PlatformReadOutcome<T> {
       ? {
           kind: "unavailable",
           platform: "kick",
-          reason: code === "auth-lost" ? "auth-lost" : "signed-out-login-required",
+          reason:
+            code === "auth-lost" ? "auth-lost" : "signed-out-login-required",
         }
       : cancelled
         ? { kind: "unavailable", platform: "kick", reason: "cancelled" }

@@ -1,5 +1,6 @@
 import type { Channel, Stream, Video } from "@streamfusion/core/content";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
+import type { LiveStreamCatalog } from "../../capabilities/live-stream-catalog";
 
 import type {
   ChannelPageOutcome,
@@ -25,6 +26,7 @@ const KICK_CHANNELS = "https://api.kick.com/public/v1/channels";
 export function createKickOfficialChannelReader(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly readAccessToken: () => Promise<string | null>;
+  readonly liveCatalog?: LiveStreamCatalog;
 }) {
   return {
     async getChannel(read: {
@@ -33,8 +35,37 @@ export function createKickOfficialChannelReader(input: {
     }): Promise<ChannelPageOutcome> {
       if (read.signal?.aborted) return failed("cancelled");
       const accessToken = await input.readAccessToken();
+      if (read.signal?.aborted) return failed("cancelled");
       const slug = read.channel.username || read.channel.id;
       if (accessToken === null) {
+        if (input.liveCatalog) {
+          const catalog = await input.liveCatalog.read(
+            read.signal === undefined ? {} : { signal: read.signal },
+          );
+          if (
+            read.signal?.aborted ||
+            (catalog.kind === "unavailable" &&
+              catalog.failure.kind === "cancelled")
+          )
+            return failed("cancelled");
+          const entry =
+            catalog.kind === "ready"
+              ? catalog.entries.find(
+                  (item) =>
+                    item.channel.username.toLowerCase() === slug.toLowerCase(),
+                )
+              : undefined;
+          if (entry) {
+            return {
+              cache: { kind: "miss" },
+              channel: entry.channel,
+              live: entry.stream,
+              path: { kind: "guest", platform: "kick" },
+              platform: "kick",
+              status: "complete",
+            };
+          }
+        }
         return kickPublicChannelPage(input.fetch, slug, read.signal);
       }
       try {

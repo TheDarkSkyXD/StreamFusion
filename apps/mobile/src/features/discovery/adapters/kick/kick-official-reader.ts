@@ -1,5 +1,6 @@
 import type { Category, Channel, Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
+import type { LiveStreamCatalog } from "../../capabilities/live-stream-catalog";
 
 import type {
   PlatformReadOutcome,
@@ -10,7 +11,9 @@ import {
   streamsFromLiveChannels,
 } from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
-import { kickTags, kickVerified } from "../../utils/catalog-fields";
+import { kickVerified } from "../../utils/catalog-fields";
+import { createKickLiveCatalog } from "./kick-live-catalog";
+import { mapKickOfficialStreams } from "./kick-official-streams";
 import { createKickOfficialCategoryReads } from "./kick-official-category-reader";
 import { createKickOfficialChannelReader } from "./kick-official-channel-reader";
 import {
@@ -22,15 +25,18 @@ import {
   readKickPublicTopStreams,
 } from "./kick-public-reads";
 
-const KICK_LIVESTREAMS = "https://api.kick.com/public/v1/livestreams?limit=20";
+const KICK_LIVESTREAMS = "https://api.kick.com/public/v2/livestreams?limit=20";
 
 export function createKickOfficialReader(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly readAccessToken: () => Promise<string | null>;
+  readonly liveCatalog?: LiveStreamCatalog;
 }) {
+  const liveCatalog =
+    input.liveCatalog ?? createKickLiveCatalog({ fetch: input.fetch });
   return {
-    ...createKickOfficialCategoryReads(input),
-    ...createKickOfficialChannelReader(input),
+    ...createKickOfficialCategoryReads({ ...input, liveCatalog }),
+    ...createKickOfficialChannelReader({ ...input, liveCatalog }),
     platform: "kick" as const,
     async getCategories(read: {
       readonly signal?: AbortSignal;
@@ -110,8 +116,9 @@ export function createKickOfficialReader(input: {
     } = {}): Promise<PlatformReadOutcome<Stream>> {
       if (read.signal?.aborted) return cancelled("kick");
       const accessToken = await input.readAccessToken();
+      if (read.signal?.aborted) return cancelled("kick");
       if (accessToken === null) {
-        return readKickPublicTopStreams(input.fetch, read.signal);
+        return readKickPublicTopStreams(input.fetch, read.signal, liveCatalog);
       }
       try {
         const response = await input.fetch(
@@ -125,9 +132,10 @@ export function createKickOfficialReader(input: {
           return failed(response.status === 401 ? "auth-lost" : "kick-failed");
         }
         const payload: unknown = await response.json();
+        if (read.signal?.aborted) return cancelled("kick");
         return {
           cache: { kind: "miss" },
-          items: kickStreams(payload),
+          items: mapKickOfficialStreams(payload),
           path: { kind: "direct", platform: "kick" },
           platform: "kick",
           status: "complete",
@@ -159,53 +167,6 @@ function kickChannels(value: unknown): readonly Channel[] {
         isVerified: kickVerified(record) || kickVerified(user),
         platform: "kick" as const,
         username: stringField(record, "slug") || stringField(user, "username"),
-      },
-    ];
-  });
-}
-
-function kickStreams(value: unknown): readonly Stream[] {
-  const rows = Array.isArray(value)
-    ? value
-    : typeof value === "object" &&
-        value !== null &&
-        Array.isArray((value as { data?: unknown }).data)
-      ? (value as { data: unknown[] }).data
-      : [];
-  return rows.flatMap((row) => {
-    if (typeof row !== "object" || row === null) return [];
-    const record = row as Record<string, unknown>;
-    const channel =
-      typeof record.channel === "object" && record.channel !== null
-        ? (record.channel as Record<string, unknown>)
-        : record;
-    const user =
-      typeof channel.user === "object" && channel.user !== null
-        ? (channel.user as Record<string, unknown>)
-        : channel;
-    const id = identifier(record, "id");
-    if (id === "") return [];
-    return [
-      {
-        channelAvatar: stringField(user, "profile_pic"),
-        channelDisplayName: stringField(user, "username"),
-        channelId: identifier(channel, "id"),
-        channelName: stringField(channel, "slug"),
-        id,
-        isLive: record.is_live !== false,
-        language: stringField(record, "language"),
-        platform: "kick" as const,
-        startedAt: null,
-        tags: kickTags(record),
-        thumbnailUrl: stringField(record, "thumbnail_url"),
-        title: stringField(record, "session_title") || stringField(record, "title"),
-        viewerCount:
-          typeof record.viewer_count === "number" && record.viewer_count >= 0
-            ? record.viewer_count
-            : 0,
-        ...(kickVerified(record) || kickVerified(channel) || kickVerified(user)
-          ? { channelIsVerified: true }
-          : {}),
       },
     ];
   });

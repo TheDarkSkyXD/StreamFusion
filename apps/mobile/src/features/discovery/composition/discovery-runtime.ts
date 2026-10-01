@@ -1,4 +1,5 @@
 import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
+import type { LiveStreamCatalog } from "../capabilities/live-stream-catalog";
 
 import { createKickOfficialReader } from "../adapters/kick/kick-official-reader";
 import { createRelaySignedOutReader } from "../adapters/relay/relay-signed-out-reader";
@@ -26,6 +27,7 @@ export function createDiscoveryRuntime(input: {
   readonly fetch?: typeof globalThis.fetch;
   readonly installation: InstallationIdentitySource;
   readonly kickAccessToken: () => Promise<string | null>;
+  readonly kickLiveCatalog?: LiveStreamCatalog;
   readonly network: NetworkSource;
   readonly relayBaseUrl: string;
   readonly twitchClientId: string | null;
@@ -44,6 +46,9 @@ export function createDiscoveryRuntime(input: {
   const kick = createKickOfficialReader({
     fetch: request,
     readAccessToken: input.kickAccessToken,
+    ...(input.kickLiveCatalog === undefined
+      ? {}
+      : { liveCatalog: input.kickLiveCatalog }),
   });
   const relay = createRelaySignedOutReader({
     baseUrl: input.relayBaseUrl,
