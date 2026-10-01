@@ -1,8 +1,9 @@
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  Maximize2,
   Move,
   Pause,
   PictureInPicture2,
@@ -13,12 +14,10 @@ import {
 import { impactHaptic } from "@mobile/design/haptics";
 import {
   mobileColors,
-  mobileHitSlop,
   mobileRadii,
   mobileShadows,
   mobileSizing,
   mobileSpacing,
-  mobileType,
 } from "@mobile/design/tokens";
 import type { FocusedWatchSession, WatchPeek, WatchTarget } from "../capabilities/watch";
 import type { PlayerSurfaceProps } from "./watch-screen";
@@ -35,7 +34,7 @@ const SNAP_CYCLE: readonly MiniPlayerSnapRegion[] = [
   "top-end",
 ];
 
-const MINI_WIDTH = 200;
+const MINI_WIDTH = 240;
 const MINI_VIDEO_HEIGHT = Math.round((MINI_WIDTH * 9) / 16);
 
 export function WatchMiniPlayerHost({
@@ -102,7 +101,6 @@ export function MiniPlayer({
     ]!;
   const { t } = useTranslation();
   const sessionId = peek.state.session.sessionId;
-  const live = peek.state.target.media === undefined;
   return (
     <View
       accessibilityLabel={t("playback.watch.miniPlayerLabel", {
@@ -117,83 +115,55 @@ export function MiniPlayer({
       ]}
       testID="mini-player"
     >
-      <Pressable
-        accessibilityLabel={t("playback.watch.expandMiniPlayer")}
-        accessibilityRole="button"
-        onPress={onExpand}
-        style={styles.videoPress}
-        testID="mini-player-expand"
-      >
-        <View style={styles.videoFrame} testID="mini-player-video">
-          <PlayerSurface
-            sessionId={sessionId}
-            testID="mini-player-surface"
-          />
-          <View pointerEvents="none" style={styles.videoScrim} />
-          {live ? (
-            <View style={styles.liveBadge} testID="mini-player-live">
-              <View style={styles.liveDot} />
-              <Text style={styles.liveLabel}>{t("playback.live")}</Text>
-            </View>
-          ) : null}
-          {paused ? (
-            <View style={styles.pausedMark} testID="mini-player-paused-mark">
-              <Play
-                accessibilityElementsHidden
-                color={mobileColors.textPrimary}
-                fill={mobileColors.textPrimary}
-                size={22}
-                strokeWidth={2}
-              />
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.metaRow}>
-          <Text
-            ellipsizeMode="tail"
-            numberOfLines={1}
-            selectable
-            style={styles.title}
-            testID="mini-player-title"
-          >
-            {peek.state.target.channelName}
-          </Text>
-          <Text selectable style={styles.meta}>
-            {paused ? t("playback.watch.paused") : t("playback.watch.playing")}
-          </Text>
-        </View>
-      </Pressable>
-      <View style={styles.controls}>
-        <IconControl
-          Icon={paused ? Play : Pause}
-          accessibilityLabel={
-            paused ? t("mediaLibrary.resume") : t("playback.pause")
-          }
-          onPress={onPause}
-          testID="mini-player-pause"
+      <View style={styles.videoFrame} testID="mini-player-video">
+        <PlayerSurface sessionId={sessionId} testID="mini-player-surface" />
+        <Pressable
+          accessibilityLabel={t("playback.watch.expandMiniPlayer")}
+          accessibilityRole="button"
+          onPress={onExpand}
+          style={styles.videoExpand}
+          testID="mini-player-video-expand"
         />
-        {onPip ? (
+        <View style={styles.closeSpot}>
           <IconControl
-            Icon={PictureInPicture2}
-            accessibilityLabel={t("playback.watch.enterPip")}
-            onPress={onPip}
-            testID="mini-player-pip"
+            Icon={X}
+            accessibilityLabel={t("playback.close")}
+            onPress={onDismiss}
+            testID="dismiss-player"
           />
-        ) : null}
-        <IconControl
-          Icon={Move}
-          accessibilityLabel={t("playback.watch.moveToRegion", {
-            region: nextRegion,
-          })}
-          onPress={() => onRelocate(nextRegion)}
-          testID="mini-player-relocate"
-        />
-        <IconControl
-          Icon={X}
-          accessibilityLabel={t("playback.close")}
-          onPress={onDismiss}
-          testID="dismiss-player"
-        />
+        </View>
+        <View style={styles.controls}>
+          <IconControl
+            Icon={paused ? Play : Pause}
+            accessibilityLabel={
+              paused ? t("mediaLibrary.resume") : t("playback.pause")
+            }
+            onPress={onPause}
+            testID="mini-player-pause"
+          />
+          {onPip ? (
+            <IconControl
+              Icon={PictureInPicture2}
+              accessibilityLabel={t("playback.watch.enterPip")}
+              onPress={onPip}
+              testID="mini-player-pip"
+            />
+          ) : null}
+          <IconControl
+            Icon={Move}
+            accessibilityLabel={t("playback.watch.moveToRegion", {
+              region: nextRegion,
+            })}
+            onPress={() => onRelocate(nextRegion)}
+            testID="mini-player-relocate"
+          />
+          <IconControl
+            Icon={Maximize2}
+            accessibilityLabel={t("playback.watch.expandMiniPlayer")}
+            onPress={onExpand}
+            testID="mini-player-expand"
+          />
+        </View>
       </View>
     </View>
   );
@@ -214,7 +184,6 @@ function IconControl({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      hitSlop={mobileHitSlop}
       onPress={() => {
         void impactHaptic("light");
         onPress();
@@ -234,18 +203,13 @@ function IconControl({
 
 const styles = StyleSheet.create({
   shell: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
+    backgroundColor: mobileColors.background,
     borderRadius: mobileRadii.large,
-    borderWidth: 1,
     boxShadow: mobileShadows.dialog,
     overflow: "hidden",
     position: "absolute",
     width: MINI_WIDTH,
     zIndex: 20,
-  },
-  videoPress: {
-    width: "100%",
   },
   videoFrame: {
     backgroundColor: "#000000",
@@ -253,69 +217,35 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "100%",
   },
-  videoScrim: {
+  videoExpand: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.12)",
   },
-  liveBadge: {
-    alignItems: "center",
-    backgroundColor: "rgba(15,15,15,0.72)",
-    borderRadius: mobileRadii.small,
-    flexDirection: "row",
-    gap: 4,
-    left: mobileSpacing.xSmall,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    position: "absolute",
-    top: mobileSpacing.xSmall,
-  },
-  liveDot: {
-    backgroundColor: mobileColors.live,
+  closeSpot: {
+    backgroundColor: mobileColors.overlay,
     borderRadius: mobileRadii.full,
-    height: 6,
-    width: 6,
-  },
-  liveLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-  },
-  pausedMark: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-  },
-  metaRow: {
-    gap: 2,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall + 2,
-  },
-  title: {
-    ...mobileType.title,
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  meta: {
-    ...mobileType.caption,
-    color: mobileColors.textSecondary,
-    fontWeight: "600",
+    position: "absolute",
+    right: 0,
+    top: 0,
   },
   controls: {
-    borderTopColor: mobileColors.dividerMuted,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    backgroundColor: mobileColors.overlay,
+    bottom: 0,
     flexDirection: "row",
-    justifyContent: "space-around",
+    gap: mobileSpacing.small,
+    justifyContent: "space-between",
+    left: 0,
+    paddingHorizontal: mobileSpacing.small,
+    position: "absolute",
+    right: 0,
   },
   control: {
     alignItems: "center",
-    flex: 1,
+    borderRadius: mobileRadii.medium,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
     minWidth: mobileSizing.minimumTouchTarget,
   },
   controlPressed: {
-    backgroundColor: mobileColors.surfaceMuted,
+    backgroundColor: mobileColors.playerScrim,
   },
 });

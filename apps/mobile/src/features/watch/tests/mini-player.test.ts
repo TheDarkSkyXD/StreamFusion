@@ -22,6 +22,7 @@ vi.mock("react-native-safe-area-context", () => ({
 vi.mock("lucide-react-native", () => {
   const Icon = () => null;
   return {
+    Maximize2: Icon,
     Move: Icon,
     Pause: Icon,
     PictureInPicture2: Icon,
@@ -33,7 +34,6 @@ vi.mock("lucide-react-native", () => {
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
   children?: unknown;
-  numberOfLines?: number;
   sessionId?: string;
   testID?: string;
 }>;
@@ -132,7 +132,7 @@ describe("mini-player", () => {
   });
 
 
-  it("exposes a floating video card with expand, pause, relocate, pip, and dismiss", () => {
+  it("exposes video overlay controls with expand, pause, relocate, pip, and dismiss", () => {
     const root = MiniPlayer({
       PlayerSurface: StubSurface,
       onDismiss: () => undefined,
@@ -157,8 +157,11 @@ describe("mini-player", () => {
       true,
     );
     expect(nodes.some((node) => node.props.testID === "mini-player-live")).toBe(
-      true,
+      false,
     );
+    expect(
+      nodes.some((node) => node.props.testID === "mini-player-video-expand"),
+    ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "mini-player-pause")).toBe(
       true,
     );
@@ -178,13 +181,7 @@ describe("mini-player", () => {
     expect(nodes.some((node) => node.props.testID === "dismiss-player")).toBe(
       true,
     );
-    expect(
-      nodes.some(
-        (node) =>
-          node.props.testID === "mini-player-title" &&
-          node.props.numberOfLines === 1,
-      ),
-    ).toBe(true);
+    expect(nodes.some((node) => node.type === "Text")).toBe(false);
   });
 
   it("hides the PiP control when the callback is omitted", () => {
