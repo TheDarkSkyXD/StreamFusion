@@ -67,21 +67,28 @@ object FocusedPlaybackSessionOwner {
       .setDefaultRequestProperties(requestHeaders)
     requestHeaders["User-Agent"]?.let(httpFactory::setUserAgent)
     val filterMode = playlistFilterMode(request)
-    val dataSourceFactory =
+    val filteringFactory =
       if (filterMode == "passthrough") {
-        httpFactory
+        null
       } else {
-        FilteringDataSource.Factory(httpFactory, filterMode) { diagnostic, adsDetected ->
-          publish(
-            mapOf(
-              "kind" to "filtering",
-              "sessionId" to sessionId,
-              "diagnostic" to diagnostic,
-              "adsDetected" to adsDetected,
-            ),
-          )
-        }
+        FilteringDataSource.Factory(
+          httpFactory,
+          filterMode,
+          { diagnostic, adsDetected ->
+            publish(
+              mapOf(
+                "kind" to "filtering",
+                "sessionId" to sessionId,
+                "diagnostic" to diagnostic,
+                "adsDetected" to adsDetected,
+              ),
+            )
+          },
+          sourceUri,
+          (request["filtering"] as? Map<*, *>)?.get("channelName") as? String,
+        )
       }
+    val dataSourceFactory = filteringFactory ?: httpFactory
     val exo = ExoPlayer.Builder(context.applicationContext)
       .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
       .setRenderersFactory(captionRenderers(context.applicationContext))
@@ -99,12 +106,12 @@ object FocusedPlaybackSessionOwner {
       if (context is Activity) {
         hostActivity = WeakReference(context)
       }
-      val outgoing = sessions.remove(sessionId)?.player
-      sessions[sessionId] = Session(sessionId, exo)
+      val outgoing = sessions.remove(sessionId)
+      sessions[sessionId] = Session(sessionId, exo, filteringFactory)
       bindViewsLocked()
       outgoing
     }
-    previous?.release()
+    previous?.dispose()
     exo.prepare()
     exo.playWhenReady = true
     startProgressTicker()
@@ -120,9 +127,9 @@ object FocusedPlaybackSessionOwner {
         pictureInPictureSessionId = null
       }
       bindViewsLocked()
-      current.player
+      current
     }
-    outgoing.release()
+    outgoing.dispose()
     if (synchronized(lock) { sessions.isEmpty() }) stopProgressTicker()
     mapOf(
       "kind" to "completed",
@@ -269,7 +276,7 @@ object FocusedPlaybackSessionOwner {
   fun release() = onMain {
     val outgoing = synchronized(lock) {
       views.forEach { it.detachPlayer() }
-      val players = sessions.values.map { it.player }
+      val players = sessions.values.toList()
       sessions.clear()
       applicationContext = null
       pictureInPictureActive = false
@@ -277,7 +284,7 @@ object FocusedPlaybackSessionOwner {
       pictureInPictureSessionId = null
       players
     }
-    outgoing.forEach { it.release() }
+    outgoing.forEach { it.dispose() }
     stopProgressTicker()
   }
 
@@ -469,10 +476,16 @@ object FocusedPlaybackSessionOwner {
   private class Session(
     val sessionId: String,
     val player: ExoPlayer,
+    val filteringFactory: FilteringDataSource.Factory?,
     var muted: Boolean = false,
     var selectedQuality: String = "auto",
     var volumeBeforeMute: Float = 1f,
-  )
+  ) {
+    fun dispose() {
+      player.release()
+      filteringFactory?.dispose()
+    }
+  }
 
   private class SessionListener(
     private val sessionId: String,

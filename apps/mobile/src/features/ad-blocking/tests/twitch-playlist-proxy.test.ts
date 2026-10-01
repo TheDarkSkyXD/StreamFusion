@@ -49,17 +49,27 @@ describe("twitch playlist proxy utilities", () => {
   });
 
   it("resolves a channel placeholder in the query string", () => {
-    expect(isTwitchPlaylistProxyTemplate("https://example.com/live?channel=$channel")).toBe(true);
+    expect(
+      isTwitchPlaylistProxyTemplate(
+        "https://example.com/live?channel=$channel",
+      ),
+    ).toBe(true);
     expect(
       resolveTwitchPlaylistProxyUrl(
-        { ...source, url: "https://example.com/live?channel=$channel", addQueryParams: false },
+        {
+          ...source,
+          url: "https://example.com/live?channel=$channel",
+          addQueryParams: false,
+        },
         "A Channel",
       ),
     ).toBe("https://example.com/live?channel=A%20Channel");
   });
 
   it("builds the status endpoint without leaking playlist parameters", () => {
-    expect(resolveTwitchPlaylistProxyPingUrl(source)).toBe("https://eu.luminous.dev/ping");
+    expect(resolveTwitchPlaylistProxyPingUrl(source)).toBe(
+      "https://eu.luminous.dev/ping",
+    );
   });
 
   it("keeps only enabled templates in their configured order", () => {
@@ -71,7 +81,9 @@ describe("twitch playlist proxy utilities", () => {
     ]);
 
     expect(sources.map((candidate) => candidate.id)).toEqual(["first", "last"]);
-    expect(isTwitchPlaylistProxyTemplate("ftp://example.com/$channel")).toBe(false);
+    expect(isTwitchPlaylistProxyTemplate("ftp://example.com/$channel")).toBe(
+      false,
+    );
   });
 
   it("moves a source within the fallback order without mutating the input", () => {
@@ -81,11 +93,11 @@ describe("twitch playlist proxy utilities", () => {
       { ...source, id: "third" },
     ];
 
-    expect(moveTwitchPlaylistProxySource(sources, "third", "first").map(({ id }) => id)).toEqual([
-      "third",
-      "first",
-      "second",
-    ]);
+    expect(
+      moveTwitchPlaylistProxySource(sources, "third", "first").map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["third", "first", "second"]);
     expect(sources.map(({ id }) => id)).toEqual(["first", "second", "third"]);
   });
 
@@ -98,15 +110,19 @@ describe("twitch playlist proxy utilities", () => {
     ).toBe(true);
   });
 
-  it("treats any boolean online field as a reachable health response", () => {
+  it("reports healthy only when the source says it is online", () => {
     expect(isTwitchPlaylistProxyOnlineResponse({ online: true })).toBe(true);
-    expect(isTwitchPlaylistProxyOnlineResponse({ online: false })).toBe(true);
-    expect(isTwitchPlaylistProxyOnlineResponse({ status: "online" })).toBe(false);
+    expect(isTwitchPlaylistProxyOnlineResponse({ online: false })).toBe(false);
+    expect(isTwitchPlaylistProxyOnlineResponse({ status: "online" })).toBe(
+      false,
+    );
   });
 
-  it("matches desktop defaults including enabled-on luminous sources", () => {
-    expect(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.enabled).toBe(true);
-    expect(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.sources.length).toBeGreaterThan(0);
+  it("keeps desktop's source list while leaving proxy off by default", () => {
+    expect(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.enabled).toBe(false);
+    expect(
+      DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.sources.length,
+    ).toBeGreaterThan(0);
     expect(parseTwitchPlaylistProxyPreferences(null)).toEqual(
       DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
     );
@@ -120,7 +136,12 @@ describe("twitch playlist proxy utilities", () => {
           sources: [
             { ...source, id: "first" },
             { ...source, id: "second", enabled: false },
-            { ...source, id: "third", url: "https://third.example/live/$channel", addQueryParams: false },
+            {
+              ...source,
+              id: "third",
+              url: "https://third.example/live/$channel",
+              addQueryParams: false,
+            },
           ],
         },
         "xqc",
@@ -137,14 +158,22 @@ describe("twitch playlist proxy session and adblock strip", () => {
     const settings = memorySettings();
     const session = createTwitchPlaylistProxySession({ settings });
     const view = await session.load();
-    expect(view.enabled).toBe(true);
-    await session.save({ enabled: false, sources: [] });
-    await expect(session.snapshot()).resolves.toEqual({ enabled: false, sources: [] });
+    expect(view.enabled).toBe(false);
+    await session.save({ enabled: true, sources: [] });
+    await expect(session.snapshot()).resolves.toEqual({
+      enabled: true,
+      sources: [],
+    });
   });
 
-  it("keeps AdBlockSession effective strip when playlist proxy prefs are on", async () => {
-    const settings = memorySettings();
-    const playlistProxy = createTwitchPlaylistProxySession({ settings });
+  it("gives custom filtering priority over a legacy both-on preference", async () => {
+    const settings = memorySettings({
+      "twitchPlaylistProxy.v1": JSON.stringify({
+        enabled: true,
+        sources: [source],
+        version: 1,
+      }),
+    });
     const policy: EffectiveCapabilityPolicyReader = {
       read: async () => ({
         kind: "enabled",
@@ -156,13 +185,60 @@ describe("twitch playlist proxy session and adblock strip", () => {
       policy,
       settings,
     });
-    // Proxy mode no longer blanks effective(); Watch applies passthrough only
-    // to proxy URL attempts so direct/usher still strips commercial slates.
-    expect((await playlistProxy.snapshot()).enabled).toBe(true);
+    const playlistProxy = createTwitchPlaylistProxySession({
+      settings,
+      customFiltering: adblock,
+    });
+    expect((await playlistProxy.snapshot()).enabled).toBe(false);
     await expect(adblock.effective("twitch")).resolves.toEqual({
       enabled: true,
       mode: "strip",
       platform: "twitch",
     });
+    await adblock.save({ enabled: false, method: "strip" });
+    expect(
+      JSON.parse((await settings.read("twitchPlaylistProxy.v1")) ?? "{}")
+        .enabled,
+    ).toBe(false);
+    await adblock.save({ enabled: true, method: "strip" });
+    expect((await playlistProxy.snapshot()).enabled).toBe(false);
+  });
+
+  it("allows proxy in Expo Go and locks it when native custom filtering becomes effective", async () => {
+    const settings = memorySettings();
+    const policy: EffectiveCapabilityPolicyReader = {
+      read: async () => ({
+        kind: "enabled",
+        sequence: 1,
+        verifiedAtEpochMs: 1,
+      }),
+    };
+    const unavailableCustom = createAdBlockSession({
+      policy,
+      settings,
+      runtimeSupported: false,
+    });
+    const proxy = createTwitchPlaylistProxySession({
+      settings,
+      customFiltering: unavailableCustom,
+    });
+    expect((await unavailableCustom.load()).runtimeSupported).toBe(false);
+    await proxy.save({ enabled: true, sources: [source] });
+    expect((await proxy.snapshot()).enabled).toBe(true);
+    const nativeCustom = createAdBlockSession({
+      policy,
+      settings,
+      runtimeSupported: true,
+    });
+    const nativeProxy = createTwitchPlaylistProxySession({
+      settings,
+      customFiltering: nativeCustom,
+    });
+    expect((await nativeProxy.snapshot()).enabled).toBe(false);
+    await nativeCustom.save({ enabled: true, method: "strip" });
+    expect(
+      JSON.parse((await settings.read("twitchPlaylistProxy.v1")) ?? "{}")
+        .enabled,
+    ).toBe(false);
   });
 });

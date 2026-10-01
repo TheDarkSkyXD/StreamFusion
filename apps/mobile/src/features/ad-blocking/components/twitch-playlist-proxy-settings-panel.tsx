@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, Switch } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Switch,
+} from "react-native";
 
 import { SettingsSwitch } from "@mobile/features/settings/components/settings-controls";
+import type { AdBlockSession } from "../capabilities/ad-blocking";
+import type {
+  PlaylistProxyHealth,
+  PlaylistProxySourceStatus,
+} from "../capabilities/playlist-proxy-health";
+import { usePlaylistProxyStatuses } from "./use-playlist-proxy-statuses";
 
 import {
   mobileColors,
@@ -16,9 +29,7 @@ import type {
   TwitchPlaylistProxyView,
 } from "../capabilities/twitch-playlist-proxy";
 import { isTwitchPlaylistProxyTemplate } from "../domain/twitch-playlist-proxy";
-import {
-  DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
-} from "../domain/twitch-playlist-proxy-preferences";
+import { DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES } from "../domain/twitch-playlist-proxy-preferences";
 
 type SourceDraft = {
   readonly id: string | null;
@@ -27,9 +38,13 @@ type SourceDraft = {
 };
 
 const EMPTY_DRAFT: SourceDraft = { id: null, url: "", addQueryParams: true };
+const NO_SOURCES: readonly TwitchPlaylistProxySource[] = [];
 
 function sourceId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `playlist-proxy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -37,33 +52,58 @@ function sourceId(): string {
 
 export function TwitchPlaylistProxySettingsPanel({
   session,
+  customFiltering,
+  health,
 }: {
   readonly session: TwitchPlaylistProxySession;
+  readonly customFiltering: AdBlockSession;
+  readonly health: PlaylistProxyHealth;
 }) {
   const [view, setView] = useState<TwitchPlaylistProxyView | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<SourceDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [deleteSource, setDeleteSource] =
+    useState<TwitchPlaylistProxySource | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [customEnabled, setCustomEnabled] = useState(true);
   useEffect(() => {
-    void session.load().then(setView);
-  }, [session]);
+    void Promise.all([session.load(), customFiltering.load()])
+      .then(([proxy, custom]) => {
+        setView(proxy);
+        setCustomEnabled(custom.enabled);
+      })
+      .catch(() => setSaveError("Could not load playlist proxy settings."));
+  }, [session, customFiltering]);
   const preferences: TwitchPlaylistProxyPreferences = view
     ? { enabled: view.enabled, sources: view.sources }
     : DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES;
+  const { statuses, refresh } = usePlaylistProxyStatuses(
+    view?.sources ?? NO_SOURCES,
+    health,
+  );
 
-  const save = (next: TwitchPlaylistProxyPreferences) => {
+  const save = async (
+    next: TwitchPlaylistProxyPreferences,
+  ): Promise<boolean> => {
     setBusy(true);
-    void session
-      .save(next)
-      .then(setView)
-      .finally(() => {
-        setBusy(false);
-      });
+    setSaveError(null);
+    try {
+      setView(await session.save(next));
+      return true;
+    } catch {
+      setSaveError("Could not save playlist proxy settings. Try again.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <TwitchPlaylistProxySettingsView
-      busy={busy}
+      busy={busy || view === null}
+      customEnabled={customEnabled}
+      deleteSource={deleteSource}
       draft={draft}
       draftError={draftError}
       onChangeDraft={setDraft}
@@ -71,7 +111,23 @@ export function TwitchPlaylistProxySettingsPanel({
         setDraft(null);
         setDraftError(null);
       }}
-      onRestoreDefaults={() => save(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES)}
+      onRestoreDefaults={() => {
+        void save(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES);
+      }}
+      onCancelDelete={() => setDeleteSource(null)}
+      onConfirmDelete={() => {
+        if (!deleteSource) return;
+        void save({
+          ...preferences,
+          sources: preferences.sources.filter(
+            (source) => source.id !== deleteSource.id,
+          ),
+        }).then((saved) => {
+          if (saved) setDeleteSource(null);
+        });
+      }}
+      onRequestDelete={setDeleteSource}
+      onRefreshStatuses={refresh}
       onSaveDraft={() => {
         if (!draft) return;
         const url = draft.url.trim();
@@ -80,16 +136,21 @@ export function TwitchPlaylistProxySettingsPanel({
           return;
         }
         if (draft.id) {
-          save({
+          void save({
             ...preferences,
             sources: preferences.sources.map((source) =>
               source.id === draft.id
                 ? { ...source, addQueryParams: draft.addQueryParams, url }
                 : source,
             ),
+          }).then((saved) => {
+            if (saved) {
+              setDraft(null);
+              setDraftError(null);
+            }
           });
         } else {
-          save({
+          void save({
             ...preferences,
             sources: [
               ...preferences.sources,
@@ -100,14 +161,21 @@ export function TwitchPlaylistProxySettingsPanel({
                 url,
               },
             ],
+          }).then((saved) => {
+            if (saved) {
+              setDraft(null);
+              setDraftError(null);
+            }
           });
         }
-        setDraft(null);
-        setDraftError(null);
       }}
-      onSavePreferences={save}
+      onSavePreferences={(next) => {
+        void save(next);
+      }}
       onSetDraftError={setDraftError}
       preferences={preferences}
+      saveError={saveError}
+      statuses={statuses}
       view={view}
     />
   );
@@ -115,27 +183,43 @@ export function TwitchPlaylistProxySettingsPanel({
 
 export function TwitchPlaylistProxySettingsView({
   busy,
+  customEnabled = false,
+  deleteSource = null,
   draft,
   draftError,
   onChangeDraft,
   onCloseDraft,
   onRestoreDefaults,
+  onCancelDelete,
+  onConfirmDelete,
+  onRequestDelete,
+  onRefreshStatuses,
   onSaveDraft,
   onSavePreferences,
   onSetDraftError,
   preferences,
+  saveError,
+  statuses = {},
   view,
 }: {
   readonly busy: boolean;
+  readonly customEnabled?: boolean;
+  readonly deleteSource?: TwitchPlaylistProxySource | null;
   readonly draft: SourceDraft | null;
   readonly draftError: string | null;
   readonly onChangeDraft: (draft: SourceDraft | null) => void;
   readonly onCloseDraft: () => void;
   readonly onRestoreDefaults: () => void;
+  readonly onCancelDelete: () => void;
+  readonly onConfirmDelete: () => void;
+  readonly onRequestDelete: (source: TwitchPlaylistProxySource) => void;
+  readonly onRefreshStatuses: () => void;
   readonly onSaveDraft: () => void;
   readonly onSavePreferences: (next: TwitchPlaylistProxyPreferences) => void;
   readonly onSetDraftError: (error: string | null) => void;
   readonly preferences: TwitchPlaylistProxyPreferences;
+  readonly saveError?: string | null;
+  readonly statuses?: Readonly<Record<string, PlaylistProxySourceStatus>>;
   readonly view: TwitchPlaylistProxyView | null;
 }) {
   return (
@@ -143,28 +227,69 @@ export function TwitchPlaylistProxySettingsView({
       <Text selectable style={styles.label}>
         TWITCH PLAYLIST PROXY
       </Text>
-      <Text selectable style={styles.title} testID="twitch-playlist-proxy-title">
+      <Text
+        selectable
+        style={styles.title}
+        testID="twitch-playlist-proxy-title"
+      >
         {view?.title ?? "Reading playlist proxy."}
       </Text>
-      <Text selectable style={styles.detail} testID="twitch-playlist-proxy-detail">
+      <Text
+        selectable
+        style={styles.detail}
+        testID="twitch-playlist-proxy-detail"
+      >
         {view?.detail ??
           "Routes live Twitch playlists through ordered $channel sources when enabled."}
       </Text>
       <SettingsSwitch
         checked={preferences.enabled}
-        disabled={busy}
+        disabled={busy || customEnabled}
         label="Playlist proxy"
         onToggle={() =>
           onSavePreferences({ ...preferences, enabled: !preferences.enabled })
         }
         testID="twitch-playlist-proxy-enabled"
       />
+      {customEnabled ? (
+        <Text
+          selectable
+          style={styles.detail}
+          testID="twitch-playlist-proxy-locked"
+        >
+          Turn off Custom Twitch ad blocker to use the playlist proxy.
+        </Text>
+      ) : null}
+      {saveError ? (
+        <Text
+          selectable
+          style={styles.error}
+          testID="twitch-playlist-proxy-save-error"
+        >
+          {saveError}
+        </Text>
+      ) : null}
       <Text selectable style={styles.detail}>
         Sources are tried top to bottom. Direct Twitch is the final fallback.
-        Custom strip and canary stay paused while this is on.
       </Text>
+      <Pressable
+        accessibilityLabel="Refresh source status"
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={onRefreshStatuses}
+        style={styles.switchRow}
+        testID="twitch-playlist-proxy-refresh"
+      >
+        <Text selectable style={styles.switchLabel}>
+          Refresh status
+        </Text>
+      </Pressable>
       {preferences.sources.length === 0 ? (
-        <Text selectable style={styles.detail} testID="twitch-playlist-proxy-empty">
+        <Text
+          selectable
+          style={styles.detail}
+          testID="twitch-playlist-proxy-empty"
+        >
           No playlist proxy sources. Add a source or restore defaults.
         </Text>
       ) : (
@@ -172,14 +297,8 @@ export function TwitchPlaylistProxySettingsView({
           <SourceRow
             busy={busy}
             key={source.id}
-            onDelete={() =>
-              onSavePreferences({
-                ...preferences,
-                sources: preferences.sources.filter(
-                  (candidate) => candidate.id !== source.id,
-                ),
-              })
-            }
+            onDelete={() => onRequestDelete(source)}
+            status={statuses[source.id] ?? "checking"}
             onEdit={() => {
               onSetDraftError(null);
               onChangeDraft({
@@ -193,7 +312,11 @@ export function TwitchPlaylistProxySettingsView({
                   onMoveDown: () =>
                     onSavePreferences({
                       ...preferences,
-                      sources: swapSources(preferences.sources, index, index + 1),
+                      sources: swapSources(
+                        preferences.sources,
+                        index,
+                        index + 1,
+                      ),
                     }),
                 }
               : {})}
@@ -202,7 +325,11 @@ export function TwitchPlaylistProxySettingsView({
                   onMoveUp: () =>
                     onSavePreferences({
                       ...preferences,
-                      sources: swapSources(preferences.sources, index, index - 1),
+                      sources: swapSources(
+                        preferences.sources,
+                        index,
+                        index - 1,
+                      ),
                     }),
                 }
               : {})}
@@ -257,6 +384,41 @@ export function TwitchPlaylistProxySettingsView({
           onSave={onSaveDraft}
         />
       ) : null}
+      {deleteSource ? (
+        <View
+          style={styles.draft}
+          testID="twitch-playlist-proxy-delete-confirmation"
+        >
+          <Text selectable style={styles.title}>
+            Delete playlist source?
+          </Text>
+          <Text selectable style={styles.detail}>
+            {deleteSource.url} will no longer be tried during Twitch playback.
+          </Text>
+          <Pressable
+            accessibilityLabel="Confirm delete playlist source"
+            accessibilityRole="button"
+            onPress={onConfirmDelete}
+            style={styles.switchRow}
+            testID="twitch-playlist-proxy-confirm-delete"
+          >
+            <Text selectable style={styles.switchLabel}>
+              Delete source
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Cancel deleting playlist source"
+            accessibilityRole="button"
+            onPress={onCancelDelete}
+            style={styles.switchRow}
+            testID="twitch-playlist-proxy-cancel-delete"
+          >
+            <Text selectable style={styles.switchLabel}>
+              Cancel
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -269,6 +431,7 @@ function SourceRow({
   onMoveUp,
   onToggle,
   source,
+  status,
 }: {
   readonly busy: boolean;
   readonly onDelete: () => void;
@@ -277,24 +440,49 @@ function SourceRow({
   readonly onMoveUp?: () => void;
   readonly onToggle: () => void;
   readonly source: TwitchPlaylistProxySource;
+  readonly status: PlaylistProxySourceStatus;
 }) {
   return (
-    <View style={styles.sourceRow} testID={`twitch-playlist-proxy-source-${source.id}`}>
+    <View
+      style={styles.sourceRow}
+      testID={`twitch-playlist-proxy-source-${source.id}`}
+    >
       <Text selectable style={styles.sourceUrl}>
         {source.url}
       </Text>
       <Text selectable style={styles.detail}>
-        {source.enabled ? "Enabled" : "Disabled"}
+        {source.enabled ? "Enabled" : "Disabled"} ·{" "}
+        {status === "checking"
+          ? "Checking"
+          : status === "online"
+            ? "Online"
+            : "Offline"}
         {source.addQueryParams ? " · playback query params" : ""}
       </Text>
+      <View
+        accessibilityLabel={`Source ${status}`}
+        style={[
+          styles.statusDot,
+          status === "online"
+            ? styles.statusOnline
+            : status === "offline"
+              ? styles.statusOffline
+              : styles.statusChecking,
+        ]}
+        testID={`twitch-playlist-proxy-status-${source.id}`}
+      />
       <View style={styles.sourceActions}>
         <Switch
-          accessibilityLabel={source.enabled ? "Disable source" : "Enable source"}
+          accessibilityLabel={
+            source.enabled ? "Disable source" : "Enable source"
+          }
           disabled={busy}
           onValueChange={() => onToggle()}
           testID={`twitch-playlist-proxy-toggle-${source.id}`}
           thumbColor={
-            source.enabled ? mobileColors.textPrimary : mobileColors.textSecondary
+            source.enabled
+              ? mobileColors.textPrimary
+              : mobileColors.textSecondary
           }
           trackColor={{
             false: mobileColors.border,
@@ -395,7 +583,11 @@ function SourceDraftEditor({
         value={draft.url}
       />
       {draftError ? (
-        <Text selectable style={styles.error} testID="twitch-playlist-proxy-draft-error">
+        <Text
+          selectable
+          style={styles.error}
+          testID="twitch-playlist-proxy-draft-error"
+        >
           {draftError}
         </Text>
       ) : null}
@@ -506,6 +698,14 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: mobileSpacing.xSmall,
   },
+  statusDot: {
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  statusOnline: { backgroundColor: "#34d399" },
+  statusOffline: { backgroundColor: mobileColors.danger },
+  statusChecking: { backgroundColor: mobileColors.textSecondary },
   actionButton: {
     alignItems: "center",
     backgroundColor: mobileColors.surface,

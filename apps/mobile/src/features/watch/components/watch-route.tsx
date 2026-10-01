@@ -9,7 +9,6 @@ import type {
 } from "@streamfusion/core/media-jobs";
 
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
-import type { TwitchPlaylistProxyView } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { ProductPreferences } from "@streamfusion/core/settings";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
@@ -181,8 +180,6 @@ function WatchSessionRoute({
     setTab(target.media ? "comments" : "chat");
   }
   const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
-  const [playlistProxyView, setPlaylistProxyView] =
-    useState<TwitchPlaylistProxyView | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -230,9 +227,6 @@ function WatchSessionRoute({
   useEffect(() => {
     void screen.adblock?.load().then(setAdblockView);
   }, [screen.adblock]);
-  useEffect(() => {
-    void screen.playlistProxy?.load().then(setPlaylistProxyView);
-  }, [screen.playlistProxy]);
   useWatchHistoryCapture({
     inspection: inspection.data ?? null,
     peek,
@@ -258,7 +252,6 @@ function WatchSessionRoute({
     <WatchScreen
       PlayerSurface={screen.PlayerSurface}
       adblockView={adblockView}
-      playlistProxyActive={playlistProxyView?.enabled === true}
       chat={chat}
       followBusy={channelFollow.follow.kind === "pending"}
       followed={channelFollow.follow.kind === "guest-present"}

@@ -13,7 +13,9 @@ export const DEFAULT_AD_BLOCK_PREFERENCES: AdBlockPreferences = {
   method: "strip",
 };
 
-export function parseAdBlockPreferences(raw: string | null): AdBlockPreferences {
+export function parseAdBlockPreferences(
+  raw: string | null,
+): AdBlockPreferences {
   if (!raw) return DEFAULT_AD_BLOCK_PREFERENCES;
   try {
     const parsed = JSON.parse(raw) as Partial<AdBlockPreferences>;
@@ -29,16 +31,24 @@ export function parseAdBlockPreferences(raw: string | null): AdBlockPreferences 
 export function composeAdBlockView(input: {
   readonly policyAllowed: boolean;
   readonly preferences: AdBlockPreferences;
+  readonly runtimeSupported?: boolean;
 }): AdBlockView {
-  const enabled = input.policyAllowed && input.preferences.enabled;
+  const runtimeSupported = input.runtimeSupported ?? true;
+  const enabled =
+    runtimeSupported && input.policyAllowed && input.preferences.enabled;
   return {
     canary: input.preferences.method === "canary",
-    detail: detailFor(input.policyAllowed, input.preferences),
+    detail: runtimeSupported
+      ? detailFor(input.policyAllowed, input.preferences)
+      : "Custom Twitch ad blocking requires the native player. This build uses unfiltered playback; the playlist proxy remains available.",
     enabled,
     kickSupported: false,
     method: input.preferences.method,
     policyAllowed: input.policyAllowed,
-    title: titleFor(enabled, input.preferences.method),
+    runtimeSupported,
+    title: runtimeSupported
+      ? titleFor(enabled, input.preferences.method)
+      : "Custom ad blocker unavailable",
     twitchSupported: true,
   };
 }
@@ -79,7 +89,7 @@ function detailFor(
     return "Kill switch is off. Twitch and Kick play unfiltered playlists.";
   }
   if (preferences.method === "canary") {
-    return "Canary reports Twitch ad markers without rewriting playlists. Kick has no approved filter.";
+    return "Canary reports Twitch ad markers without rewriting playlists.";
   }
-  return "Twitch live playlists strip known ad markers in the player. Kick has no approved filter and stays unfiltered. Filter failure keeps the original playlist.";
+  return "Blocking mode is on for live Twitch streams.";
 }

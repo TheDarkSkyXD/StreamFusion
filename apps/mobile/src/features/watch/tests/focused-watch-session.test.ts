@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
+import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { EffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/capabilities/installation-policy";
 import type { ProductSettingsStore } from "@mobile/features/storage/capabilities/persistence";
 
@@ -23,7 +24,9 @@ const target: WatchTarget = {
   platform: "twitch",
 };
 
-const sourceUri = asHlsSourceUri("https://usher.ttvnw.net/api/channel/hls/live.m3u8")!;
+const sourceUri = asHlsSourceUri(
+  "https://usher.ttvnw.net/api/channel/hls/live.m3u8",
+)!;
 
 function protection(): FocusedPlaybackProtectionPort {
   return {
@@ -203,6 +206,7 @@ describe("focused watch session", () => {
     });
     await session.start(target);
     expect(requests[0]?.filtering).toEqual({
+      channelName: "live",
       enabled: true,
       mode: "strip",
       platform: "twitch",
@@ -210,7 +214,9 @@ describe("focused watch session", () => {
   });
 
   it("wires default-on AdBlockSession strip into Twitch Watch start", async () => {
-    const requests: { filtering?: { enabled: boolean; mode: string; platform: string } }[] = [];
+    const requests: {
+      filtering?: { enabled: boolean; mode: string; platform: string };
+    }[] = [];
     const settings: ProductSettingsStore = {
       async read() {
         return null;
@@ -246,6 +252,7 @@ describe("focused watch session", () => {
     });
     await session.start(target);
     expect(requests[0]?.filtering).toEqual({
+      channelName: "live",
       enabled: true,
       mode: "strip",
       platform: "twitch",
@@ -259,7 +266,9 @@ describe("focused watch session", () => {
       channelName: "kicklive",
       platform: "kick",
     };
-    const kickUri = asHlsSourceUri("https://fa723fc1b171.cloudfront.net/live.m3u8")!;
+    const kickUri = asHlsSourceUri(
+      "https://fa723fc1b171.cloudfront.net/live.m3u8",
+    )!;
     const settings: ProductSettingsStore = {
       async read() {
         return null;
@@ -434,9 +443,13 @@ describe("focused watch session", () => {
       sources: sources(),
     });
     await session.start(target);
-    expect(session.peek()).toMatchObject({ adsDetected: false, kind: "active" });
+    expect(session.peek()).toMatchObject({
+      adsDetected: false,
+      kind: "active",
+    });
     emit?.({
-      diagnostic: "Ads detected; held without media (desktop unsafe-hold, no backup).",
+      diagnostic:
+        "Ads detected; held without media (desktop unsafe-hold, no backup).",
       kind: "filtering",
       sessionId: "watch:1",
     });
@@ -447,10 +460,13 @@ describe("focused watch session", () => {
       kind: "filtering",
       sessionId: "watch:1",
     });
-    expect(session.peek()).toMatchObject({ adsDetected: false, kind: "active" });
+    expect(session.peek()).toMatchObject({
+      adsDetected: false,
+      kind: "active",
+    });
   });
 
-    it("marks Picture-in-Picture unavailable without ending the session", async () => {
+  it("marks Picture-in-Picture unavailable without ending the session", async () => {
     const playback = playbackPort();
     const session = createFocusedWatchSession({
       playback,
@@ -576,10 +592,79 @@ describe("focused watch session", () => {
         title: "Archive",
       },
     };
-    await expect(session.start(vod)).resolves.toMatchObject({ kind: "started" });
+    await expect(session.start(vod)).resolves.toMatchObject({
+      kind: "started",
+    });
     expect(started).toEqual([sourceUri]);
     await session.seekTo(10_000);
     expect(seeks).toEqual([10_000]);
+  });
+
+  it("leaves Twitch VOD and clip playback outside live ad filtering", async () => {
+    const settings: ProductSettingsStore = {
+      read: async () => null,
+      write: async () => undefined,
+    };
+    const filtering = createAdBlockSession({
+      policy: { read: async () => ({ kind: "enabled", sequence: 1, verifiedAtEpochMs: 1 }) },
+      settings,
+    });
+    const recorded = {
+      kickVideo: {
+        integration: "kick-v2-video" as const,
+        platform: "kick" as const,
+        resolve: async () => ({
+          failure: { detail: "unused", kind: "invalid-response" as const },
+          integration: "kick-v2-video" as const,
+          kind: "unavailable" as const,
+        }),
+      },
+      twitchClip: {
+        integration: "twitch-gql-clip" as const,
+        platform: "twitch" as const,
+        resolve: async () => ({
+          integration: "twitch-gql-clip" as const,
+          kind: "resolved" as const,
+          requestHeaders: twitchHlsRequestHeaders(),
+          sourceUri,
+        }),
+      },
+      twitchVideo: {
+        integration: "twitch-gql-vod" as const,
+        platform: "twitch" as const,
+        resolve: async () => ({
+          integration: "twitch-gql-vod" as const,
+          kind: "resolved" as const,
+          requestHeaders: twitchHlsRequestHeaders(),
+          sourceUri,
+        }),
+      },
+    };
+    for (const kind of ["video", "clip"] as const) {
+      const requests: (PlaybackFilterRequest | undefined)[] = [];
+      const session = createFocusedWatchSession({
+        filtering,
+        playback: playbackPort({
+          async start(request) {
+            requests.push(request.filtering);
+            return {
+              kind: "started",
+              session: { pictureInPictureEligible: false, sessionId: request.sessionId },
+            };
+          },
+        }),
+        policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+        protection: protection(),
+        recorded,
+        sessionIds: { create: () => `watch:${kind}` },
+        sources: sources(async () => { throw new Error("live source must not run for recordings"); }),
+      });
+      await expect(session.start({
+        ...target,
+        media: { durationSeconds: 120, id: kind, kind, title: kind },
+      })).resolves.toMatchObject({ kind: "started" });
+      expect(requests).toEqual([{ enabled: false, mode: "passthrough", platform: "twitch" }]);
+    }
   });
 
   it("falls back across Twitch playlist proxy sources then direct usher", async () => {
@@ -631,16 +716,6 @@ describe("focused watch session", () => {
       },
     });
     const session = createFocusedWatchSession({
-      filtering: createAdBlockSession({
-        policy: {
-          read: async () => ({
-            kind: "enabled",
-            sequence: 1,
-            verifiedAtEpochMs: 1,
-          }),
-        },
-        settings,
-      }),
       playback,
       playlistProxy,
       policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
@@ -653,13 +728,15 @@ describe("focused watch session", () => {
       },
       sources: sources(),
     });
-    await expect(session.start(target)).resolves.toMatchObject({ kind: "started" });
+    await expect(session.start(target)).resolves.toMatchObject({
+      kind: "started",
+    });
     expect(started[0]).toBe("https://bad.example/live/live");
     expect(started[1]).toBe("https://good.example/live/live");
     expect(started).toHaveLength(2);
   });
 
-  it("uses passthrough on proxy URLs and strip on direct usher fallback", async () => {
+  it("gives custom strip priority over a legacy enabled proxy", async () => {
     const requests: {
       filtering?: { enabled: boolean; mode: string; platform: string };
       sourceUri: string;
@@ -730,13 +807,11 @@ describe("focused watch session", () => {
       },
       sources: sources(),
     });
-    await expect(session.start(target)).resolves.toMatchObject({ kind: "started" });
-    expect(requests).toHaveLength(2);
-    expect(requests[0]).toMatchObject({
-      filtering: { enabled: false, mode: "passthrough", platform: "twitch" },
-      sourceUri: "https://bad.example/live/live",
+    await expect(session.start(target)).resolves.toMatchObject({
+      kind: "started",
     });
-    expect(requests[1]).toMatchObject({
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
       filtering: { enabled: true, mode: "strip", platform: "twitch" },
       sourceUri,
     });

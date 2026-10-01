@@ -84,7 +84,6 @@ export type WatchMediaJobControls<Eligibility> = {
 export function WatchScreen({
   PlayerSurface,
   adblockView,
-  playlistProxyActive = false,
   captions,
   chat,
   chrome,
@@ -123,7 +122,6 @@ export function WatchScreen({
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly adblockView?: AdBlockView | null;
-  readonly playlistProxyActive?: boolean;
   readonly captions?: WatchCaptionControls;
   readonly chat: WatchChatAvailability;
   readonly chrome?: {
@@ -312,9 +310,7 @@ export function WatchScreen({
           <PlayerControls
             adBlockStatus={watchAdBlockStatus({
               adsDetected: peek.adsDetected,
-              filteringActive: adblockFilteringActive(adblockView, target.platform),
-              playlistProxyActive:
-                playlistProxyActive && target.platform === "twitch",
+              filteringActive: adblockFilteringActive(adblockView, target),
             })}
             fullscreen={fullscreen}
             muted={peek.muted}
@@ -387,10 +383,10 @@ export function WatchScreen({
 
 function adblockFilteringActive(
   view: AdBlockView | null | undefined,
-  platform: WatchTarget["platform"],
+  target: WatchTarget,
 ): boolean {
-  if (!view || platform !== "twitch") return false;
-  return view.enabled && view.policyAllowed;
+  if (!view || target.platform !== "twitch" || target.media) return false;
+  return view.enabled && view.policyAllowed && view.method === "strip";
 }
 
 function channelIsVerified(inspection: WatchInspection | null): boolean {

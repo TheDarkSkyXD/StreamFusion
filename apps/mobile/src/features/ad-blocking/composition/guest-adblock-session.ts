@@ -14,13 +14,20 @@ import {
   playbackFilterRequest,
 } from "../domain/adblock-policy";
 import { createAdBlockPreferenceStore } from "../data/adblock-preference-store";
+import { createTwitchPlaylistProxyStore } from "../data/twitch-playlist-proxy-store";
+import { parseTwitchPlaylistProxyPreferences } from "../domain/twitch-playlist-proxy-preferences";
 
 export function createAdBlockSession(input: {
   readonly now?: () => number;
   readonly policy: EffectiveCapabilityPolicyReader;
   readonly settings: ProductSettingsStore;
+  readonly runtimeSupported?: boolean;
 }): AdBlockSession {
   const preferences = createAdBlockPreferenceStore({
+    ...(input.now === undefined ? {} : { now: input.now }),
+    settings: input.settings,
+  });
+  const playlistProxy = createTwitchPlaylistProxyStore({
     ...(input.now === undefined ? {} : { now: input.now }),
     settings: input.settings,
   });
@@ -35,6 +42,9 @@ export function createAdBlockSession(input: {
     return composeAdBlockView({
       policyAllowed,
       preferences: parseAdBlockPreferences(raw),
+      ...(input.runtimeSupported === undefined
+        ? {}
+        : { runtimeSupported: input.runtimeSupported }),
     });
   }
 
@@ -44,8 +54,17 @@ export function createAdBlockSession(input: {
     },
     load: snapshot,
     async save(next: AdBlockPreferences) {
+      const wasEnabled = (await snapshot()).enabled;
       await preferences.write(next);
-      return snapshot();
+      const saved = await snapshot();
+      if (wasEnabled || saved.enabled) {
+        const proxy = parseTwitchPlaylistProxyPreferences(
+          await playlistProxy.read(),
+        );
+        if (proxy.enabled)
+          await playlistProxy.write({ ...proxy, enabled: false });
+      }
+      return saved;
     },
   };
 }

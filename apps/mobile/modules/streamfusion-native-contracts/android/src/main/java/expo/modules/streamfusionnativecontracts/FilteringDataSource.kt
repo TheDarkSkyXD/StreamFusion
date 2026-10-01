@@ -8,10 +8,12 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import java.nio.charset.StandardCharsets
 
-class FilteringDataSource(
+internal class FilteringDataSource(
   private val upstream: DataSource,
   private val mode: String,
   private val onDiagnostic: (String, Boolean) -> Unit,
+  private val backup: TwitchBackupOrchestrator?,
+  private val sourceUri: String,
 ) : DataSource {
   private var delegate: DataSource = upstream
   private var openedUpstream = false
@@ -59,7 +61,7 @@ class FilteringDataSource(
     val original = readAll(upstream)
     upstream.close()
     openedUpstream = false
-    val rewrittenBytes = rewriteOrKeep(original)
+    val rewrittenBytes = rewriteOrKeep(dataSpec.uri.toString(), original)
     delegate = ByteArrayDataSource(rewrittenBytes)
     return delegate.open(
       DataSpec.Builder()
@@ -69,15 +71,19 @@ class FilteringDataSource(
     )
   }
 
-  private fun rewriteOrKeep(original: ByteArray): ByteArray {
+  private fun rewriteOrKeep(uri: String, original: ByteArray): ByteArray {
     val text = String(original, StandardCharsets.UTF_8)
     return try {
-      val rewritten = PlaybackPlaylistFilter.rewrite(text, mode)
+      val rewritten = if (mode == "strip") {
+        backup?.process(uri, text) ?: PlaybackPlaylistFilter.rewrite(text, mode)
+      } else {
+        PlaybackPlaylistFilter.rewrite(text, mode)
+      }
       onDiagnostic(rewritten.diagnostic, rewritten.adsDetected)
       rewritten.playlist.toByteArray(StandardCharsets.UTF_8)
     } catch (_: Throwable) {
       // Desktop fail-closed: known-unsafe media must not reach the player.
-      if (mode == "strip" && PlaybackPlaylistFilter.hasAds(text)) {
+      if (mode == "strip" && !TwitchBackupPlaylist.isMaster(text) && PlaybackPlaylistFilter.hasAds(text)) {
         onDiagnostic("Filter failed; held unsafe media (fail-closed).", true)
         PlaybackPlaylistFilter.holdUnsafeMediaPlaylist(text)
           .toByteArray(StandardCharsets.UTF_8)
@@ -92,7 +98,7 @@ class FilteringDataSource(
     val path = uri.path?.lowercase().orEmpty()
     // Twitch media playlists always carry .m3u8 in the path; match contains() so
     // encoded or compound path segments still rewrite (desktop uses includes).
-    return path.contains(".m3u8")
+    return path.contains(".m3u8") || (uri.toString() == sourceUri && !path.endsWith(".mp4"))
   }
 
   private fun readAll(source: DataSource): ByteArray {
@@ -118,9 +124,15 @@ class FilteringDataSource(
     private val upstreamFactory: DataSource.Factory,
     private val mode: String,
     private val onDiagnostic: (String, Boolean) -> Unit,
+    private val sourceUri: String,
+    channelName: String?,
   ) : DataSource.Factory {
+    private val backup = if (mode == "strip") TwitchBackupOrchestrator(sourceUri, channelName) else null
+
     override fun createDataSource(): DataSource {
-      return FilteringDataSource(upstreamFactory.createDataSource(), mode, onDiagnostic)
+      return FilteringDataSource(upstreamFactory.createDataSource(), mode, onDiagnostic, backup, sourceUri)
     }
+
+    fun dispose() = backup?.dispose()
   }
 }

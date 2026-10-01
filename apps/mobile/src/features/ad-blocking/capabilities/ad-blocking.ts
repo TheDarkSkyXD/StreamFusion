@@ -14,6 +14,7 @@ export type AdBlockPreferences = {
 };
 
 export type PlaybackFilterRequest = {
+  readonly channelName?: string;
   readonly enabled: boolean;
   readonly mode: PlaybackFilterMode;
   readonly platform: Platform;
@@ -32,6 +33,7 @@ export type AdBlockView = {
   readonly enabled: boolean;
   readonly kickSupported: false;
   readonly method: AdBlockMethod;
+  readonly runtimeSupported: boolean;
   readonly policyAllowed: boolean;
   readonly title: string;
   readonly twitchSupported: true;

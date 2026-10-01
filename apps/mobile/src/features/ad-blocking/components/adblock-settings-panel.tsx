@@ -14,7 +14,6 @@ import type {
   AdBlockSession,
   AdBlockView,
 } from "../capabilities/ad-blocking";
-import type { TwitchPlaylistProxySession } from "../capabilities/twitch-playlist-proxy";
 
 type SavePreferences = {
   readonly enabled: boolean;
@@ -22,42 +21,41 @@ type SavePreferences = {
 };
 
 export function AdBlockSettingsPanel({
-  playlistProxySession,
   session,
+  onSaved,
 }: {
-  readonly playlistProxySession?: TwitchPlaylistProxySession;
   readonly session: AdBlockSession;
+  readonly onSaved?: () => void;
 }) {
   const [view, setView] = useState<AdBlockView | null>(null);
   const [busy, setBusy] = useState(false);
-  const [playlistProxyEnabled, setPlaylistProxyEnabled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    void session.load().then(setView);
+    void session
+      .load()
+      .then(setView)
+      .catch(() => setError("Could not load ad blocker settings."));
   }, [session]);
-  useEffect(() => {
-    if (!playlistProxySession) {
-      return;
-    }
-    void playlistProxySession.snapshot().then((prefs) => {
-      setPlaylistProxyEnabled(prefs.enabled);
-    });
-  }, [playlistProxySession]);
-  const effectivePlaylistProxyEnabled = playlistProxySession
-    ? playlistProxyEnabled
-    : false;
   return (
     <AdBlockSettingsView
       busy={busy}
       onSave={(next) => {
         setBusy(true);
+        setError(null);
         void session
           .save(next)
-          .then(setView)
+          .then((saved) => {
+            setView(saved);
+            onSaved?.();
+          })
+          .catch(() =>
+            setError("Could not save ad blocker settings. Try again."),
+          )
           .finally(() => {
             setBusy(false);
           });
       }}
-      playlistProxyEnabled={effectivePlaylistProxyEnabled}
+      error={error}
       view={view}
     />
   );
@@ -65,21 +63,27 @@ export function AdBlockSettingsPanel({
 
 export function AdBlockSettingsView({
   busy,
+  error,
   onSave,
-  playlistProxyEnabled = false,
   view,
 }: {
   readonly busy: boolean;
+  readonly error?: string | null;
   readonly onSave: (next: SavePreferences) => void;
-  readonly playlistProxyEnabled?: boolean;
   readonly view: AdBlockView | null;
 }) {
-  const enabled = playlistProxyEnabled ? false : (view?.enabled ?? true);
+  const enabled = view?.enabled ?? false;
   const method = view?.method ?? "strip";
-  const locked = busy || view?.policyAllowed === false || playlistProxyEnabled;
+  const locked =
+    busy || view === null || !view.policyAllowed || !view.runtimeSupported;
   return (
     <View style={styles.panel} testID="panel-adblock">
-      <AdBlockCopy playlistProxyEnabled={playlistProxyEnabled} view={view} />
+      <AdBlockCopy view={view} />
+      {error ? (
+        <Text selectable style={styles.error} testID="adblock-error">
+          {error}
+        </Text>
+      ) : null}
       <FilterToggle
         busy={busy}
         enabled={enabled}
@@ -105,30 +109,22 @@ export function AdBlockSettingsView({
   );
 }
 
-function AdBlockCopy({
-  playlistProxyEnabled,
-  view,
-}: {
-  readonly playlistProxyEnabled: boolean;
-  readonly view: AdBlockView | null;
-}) {
+function AdBlockCopy({ view }: { readonly view: AdBlockView | null }) {
   return (
     <>
       <Text selectable style={styles.label}>
-        AD BLOCKING
+        CUSTOM TWITCH AD BLOCKER
       </Text>
       <Text selectable style={styles.title} testID="adblock-title">
-        {playlistProxyEnabled
-          ? "Custom ad blocker paused"
-          : (view?.title ?? "Reading playback filtering.")}
+        {view?.title ?? "Reading playback filtering."}
       </Text>
       <Text selectable style={styles.detail} testID="adblock-detail">
-        {playlistProxyEnabled
-          ? "Twitch playlist proxy is enabled, so strip and canary stay paused. Your save is kept for when playlist proxy is turned off."
-          : (view?.detail ?? "Reading signed policy and the kill switch.")}
+        {view?.detail ?? "Reading signed policy and the kill switch."}
       </Text>
       <Text selectable style={styles.detail} testID="adblock-twitch-support">
-        Twitch live playlists can strip known ad markers inside the player.
+        When enabled in blocking mode, Twitch live playlists strip ad markers,
+        use an ad-free backup during unsafe breaks, and hold playback when no
+        safe stream is available.
       </Text>
       <Text selectable style={styles.detail} testID="adblock-kick-support">
         Kick has no approved filter. Playback stays unfiltered.
@@ -154,7 +150,7 @@ function FilterToggle({
     <SettingsSwitch
       checked={enabled}
       disabled={locked || busy}
-      label="Filtering"
+      label="Custom Twitch ad blocker"
       onToggle={() => onSave({ enabled: !enabled, method })}
       testID="adblock"
     />
@@ -163,11 +159,13 @@ function FilterToggle({
 
 const METHOD_CONTROLS = {
   canary: {
-    accessibilityLabel: "Use canary",
+    accessibilityLabel: "Observe ads only with canary",
+    label: "Observe ads only (canary)",
     testID: "adblock-method-canary",
   },
   strip: {
-    accessibilityLabel: "Use playlist strip",
+    accessibilityLabel: "Use Twitch ad blocker with backup",
+    label: "Block Twitch ads with backup",
     testID: "adblock-method-strip",
   },
 } as const;
@@ -196,7 +194,7 @@ function MethodOption({
       testID={control.testID}
     >
       <Text selectable style={styles.switchLabel}>
-        {current === value ? `Method: ${value}` : `Use ${value}`}
+        {current === value ? `${control.label} selected` : control.label}
       </Text>
     </Pressable>
   );
@@ -242,5 +240,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     lineHeight: 22,
+  },
+  error: {
+    color: mobileColors.danger,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

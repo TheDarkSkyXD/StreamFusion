@@ -100,8 +100,8 @@ import { FollowingWorkspace } from "@mobile/features/follows/components/followin
 import type { ConnectivitySession } from "@mobile/features/connectivity/capabilities/connectivity-session";
 import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
-import { AdBlockSettingsPanel } from "@mobile/features/ad-blocking/components/adblock-settings-panel";
-import { TwitchPlaylistProxySettingsPanel } from "@mobile/features/ad-blocking/components/twitch-playlist-proxy-settings-panel";
+import { AdBlockSettingsWorkspace } from "@mobile/features/ad-blocking/components/adblock-settings-workspace";
+import type { PlaylistProxyHealth } from "@mobile/features/ad-blocking/capabilities/playlist-proxy-health";
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { AdBlockSession } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { ChatDisplaySettingsSession } from "@mobile/features/settings/capabilities/chat-display-settings";
@@ -252,6 +252,7 @@ export function AppShell({
   connectivitySession,
   adblockSession,
   twitchPlaylistProxySession,
+  playlistProxyHealth,
   notificationSession,
   chatDisplaySession,
   predictionSession,
@@ -304,6 +305,7 @@ export function AppShell({
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
   readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
+  readonly playlistProxyHealth: PlaylistProxyHealth;
   readonly notificationSession: NotificationSettingsSession;
   readonly chatDisplaySession: ChatDisplaySettingsSession;
   readonly predictionSession: PredictionSettingsSession;
@@ -566,6 +568,7 @@ export function AppShell({
               connectivitySession={connectivitySession}
               adblockSession={adblockSession}
               twitchPlaylistProxySession={twitchPlaylistProxySession}
+              playlistProxyHealth={playlistProxyHealth}
               notificationSession={notificationSession}
               chatDisplaySession={chatDisplaySession}
               predictionSession={predictionSession}
@@ -784,6 +787,7 @@ function ShellScreen({
   connectivitySession,
   adblockSession,
   twitchPlaylistProxySession,
+  playlistProxyHealth,
   notificationSession,
   chatDisplaySession,
   predictionSession,
@@ -837,6 +841,7 @@ function ShellScreen({
   readonly connectivitySession: ConnectivitySession;
   readonly adblockSession: AdBlockSession;
   readonly twitchPlaylistProxySession: TwitchPlaylistProxySession;
+  readonly playlistProxyHealth: PlaylistProxyHealth;
   readonly notificationSession: NotificationSettingsSession;
   readonly chatDisplaySession: ChatDisplaySettingsSession;
   readonly predictionSession: PredictionSettingsSession;
@@ -1333,15 +1338,11 @@ function ShellScreen({
               />
             ),
             adblock: (
-              <>
-                <TwitchPlaylistProxySettingsPanel
-                  session={twitchPlaylistProxySession}
-                />
-                <AdBlockSettingsPanel
-                  playlistProxySession={twitchPlaylistProxySession}
-                  session={adblockSession}
-                />
-              </>
+              <AdBlockSettingsWorkspace
+                adblock={adblockSession}
+                health={playlistProxyHealth}
+                playlistProxy={twitchPlaylistProxySession}
+              />
             ),
             chat: <ChatSettingsPanel session={chatDisplaySession} />,
             diagnostics: (

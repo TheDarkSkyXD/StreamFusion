@@ -44,6 +44,10 @@ describe("twitch playlist proxy settings view", () => {
         onChangeDraft: () => undefined,
         onCloseDraft: () => undefined,
         onRestoreDefaults: () => undefined,
+        onCancelDelete: () => undefined,
+        onConfirmDelete: () => undefined,
+        onRequestDelete: () => undefined,
+        onRefreshStatuses: () => undefined,
         onSaveDraft: () => undefined,
         onSavePreferences: () => undefined,
         onSetDraftError: () => undefined,
@@ -55,15 +59,19 @@ describe("twitch playlist proxy settings view", () => {
       nodes.some((node) => node.props.testID === "panel-twitch-playlist-proxy"),
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.testID === "twitch-playlist-proxy-enabled"),
+      nodes.some(
+        (node) => node.props.testID === "twitch-playlist-proxy-enabled",
+      ),
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.testID === "twitch-playlist-proxy-restore"),
+      nodes.some(
+        (node) => node.props.testID === "twitch-playlist-proxy-restore",
+      ),
     ).toBe(true);
   });
 
   it("toggles the playlist proxy enabled preference", () => {
-    let enabled = true;
+    let enabled = false;
     const preferences = DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES;
     const view = composeTwitchPlaylistProxyView(preferences);
     const nodes = descendants(
@@ -74,6 +82,10 @@ describe("twitch playlist proxy settings view", () => {
         onChangeDraft: () => undefined,
         onCloseDraft: () => undefined,
         onRestoreDefaults: () => undefined,
+        onCancelDelete: () => undefined,
+        onConfirmDelete: () => undefined,
+        onRequestDelete: () => undefined,
+        onRefreshStatuses: () => undefined,
         onSaveDraft: () => undefined,
         onSavePreferences: (next) => {
           enabled = next.enabled;
@@ -90,12 +102,62 @@ describe("twitch playlist proxy settings view", () => {
           node.props.onPress,
       )
       ?.props.onPress?.();
-    expect(enabled).toBe(false);
+    expect(enabled).toBe(true);
+  });
+
+  it("locks proxy while custom filtering is effective and confirms deletion", () => {
+    const preferences = DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES;
+    const source = preferences.sources[0];
+    expect(source).toBeDefined();
+    if (!source) return;
+    let confirmed = false;
+    const nodes = descendants(
+      TwitchPlaylistProxySettingsView({
+        busy: false,
+        customEnabled: true,
+        deleteSource: source,
+        draft: null,
+        draftError: null,
+        onCancelDelete: () => undefined,
+        onChangeDraft: () => undefined,
+        onCloseDraft: () => undefined,
+        onConfirmDelete: () => {
+          confirmed = true;
+        },
+        onRefreshStatuses: () => undefined,
+        onRequestDelete: () => undefined,
+        onRestoreDefaults: () => undefined,
+        onSaveDraft: () => undefined,
+        onSavePreferences: () => undefined,
+        onSetDraftError: () => undefined,
+        preferences,
+        statuses: { [source.id]: "online" },
+        view: composeTwitchPlaylistProxyView(preferences),
+      }),
+    );
+    expect(
+      nodes.find(
+        (node) => node.props.testID === "twitch-playlist-proxy-enabled",
+      )?.props.disabled,
+    ).toBe(true);
+    expect(
+      nodes.some(
+        (node) =>
+          node.props.testID === `twitch-playlist-proxy-status-${source.id}`,
+      ),
+    ).toBe(true);
+    expect(confirmed).toBe(false);
+    nodes
+      .find(
+        (node) => node.props.testID === "twitch-playlist-proxy-confirm-delete",
+      )
+      ?.props.onPress?.();
+    expect(confirmed).toBe(true);
   });
 });
 
-describe("adblock settings pause when playlist proxy is on", () => {
-  it("locks strip and canary controls while playlist proxy mode is enabled", () => {
+describe("adblock settings while playlist proxy is on", () => {
+  it("keeps custom controls available so enabling custom can disable proxy", () => {
     const view = composeAdBlockView({
       policyAllowed: true,
       preferences: { enabled: true, method: "strip" },
@@ -104,16 +166,18 @@ describe("adblock settings pause when playlist proxy is on", () => {
       AdBlockSettingsView({
         busy: false,
         onSave: () => undefined,
-        playlistProxyEnabled: true,
         view,
       }),
     );
-    expect(nodes.find((node) => node.props.testID === "adblock")?.props.disabled).toBe(
-      true,
-    );
     expect(
-      nodes.find((node) => node.props.testID === "adblock-method-canary")?.props.disabled,
-    ).toBe(true);
-    expect(nodes.find((node) => node.props.testID === "adblock-title")).toBeTruthy();
+      nodes.find((node) => node.props.testID === "adblock")?.props.disabled,
+    ).toBeFalsy();
+    expect(
+      nodes.find((node) => node.props.testID === "adblock-method-canary")?.props
+        .disabled,
+    ).toBeFalsy();
+    expect(
+      nodes.find((node) => node.props.testID === "adblock-title"),
+    ).toBeTruthy();
   });
 });

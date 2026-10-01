@@ -46,6 +46,15 @@ The [Mobile domain language](../../docs/research/streamfusion-mobile/CONTEXT.md)
 
 ## Expo Go testing
 
+Custom Twitch ad blocking uses the native Media3 player's playlist interception.
+It requests alternative Twitch player tokens, verifies clean backup renditions,
+and holds unsafe media when no clean backup is available. Enabling it disables
+the Twitch playlist proxy. The player shield appears only for enabled custom
+blocking on Twitch live streams. Canary observation does not show the shield.
+Expo Go cannot intercept playlists and shows the custom blocker as unavailable;
+playlist proxy settings remain available there. Rebuild the Android development
+client after changing the native blocker.
+
 From `apps/mobile`:
 
 ```bash

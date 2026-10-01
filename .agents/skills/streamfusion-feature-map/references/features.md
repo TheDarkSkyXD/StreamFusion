@@ -81,6 +81,8 @@ Roots: `apps/mobile/src/features/`.
 - `storage`: encrypted Product/Cache stores, migrations, recovery, and native adapters.
 - `media-jobs`: durable Media Job engine, fixture start surface, Activity job details, and recoverable native work.
 - `follows`: Guest Follows, Following destination, followed-content hydration, and live-notification prefs.
+- `watch`: focused live and recorded playback, native Media3 and Expo player adapters, and player controls.
+- `ad-blocking`: custom Twitch filtering, mutually exclusive playlist proxy preferences, and source health settings. Native Twitch backup-token and playlist interception live in `modules/streamfusion-native-contracts/android/`; Expo Go supports playlist proxies but cannot run the custom filter.
 
 Expo's `apps/mobile/app/` entries delegate to
 `apps/mobile/src/composition/mobile-runtime.tsx`. Shared design tokens stay under

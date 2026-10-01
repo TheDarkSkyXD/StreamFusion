@@ -92,7 +92,7 @@ export function isTwitchPlaylistProxyOnlineResponse(value: unknown): boolean {
     typeof value === "object" &&
     value !== null &&
     "online" in value &&
-    typeof Reflect.get(value, "online") === "boolean"
+    Reflect.get(value, "online") === true
   );
 }
 

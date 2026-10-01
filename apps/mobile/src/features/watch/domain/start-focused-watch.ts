@@ -1,4 +1,4 @@
-import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type { PlaybackFiltering, PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { TwitchPlaylistProxyPreferences } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
@@ -110,6 +110,14 @@ async function startAuthorizedSession(
     input.filtering === undefined
       ? undefined
       : await input.filtering.effective(input.target.platform);
+  const targetFiltering: PlaybackFilterRequest | undefined =
+    filtering === undefined
+      ? undefined
+      : input.target.media
+        ? { ...filtering, enabled: false, mode: "passthrough" }
+        : input.target.platform === "twitch"
+          ? { ...filtering, channelName: input.target.channelName }
+          : filtering;
   if (stale()) {
     controller.abort();
     return { kind: "cancelled" };
@@ -128,7 +136,10 @@ async function startAuthorizedSession(
       requestHeaders: resolved.requestHeaders,
       sourceUri: resolved.sourceUri,
     },
-    preferences: proxyPreferences,
+    preferences:
+      targetFiltering?.enabled === true && targetFiltering.mode !== "passthrough"
+        ? undefined
+        : proxyPreferences,
     target: input.target,
   });
   let lastDetail = "Native playback could not start.";
@@ -137,12 +148,9 @@ async function startAuthorizedSession(
       controller.abort();
       return { kind: "cancelled" };
     }
-    // External playlist proxies own ad removal. Keep local strip/canary for the
-    // direct usher URI (proxy→direct fallback, which has no
-    // proxy routing) so the commercial-break slate cannot paint.
     const isProxyAttempt = attempt.sourceUri !== resolved.sourceUri;
     const attemptFiltering =
-      filtering === undefined
+      targetFiltering === undefined
         ? undefined
         : isProxyAttempt
           ? {
@@ -150,7 +158,7 @@ async function startAuthorizedSession(
               mode: "passthrough" as const,
               platform: input.target.platform,
             }
-          : filtering;
+          : targetFiltering;
     const sessionId = input.sessionIds.create();
     const started = await input.playback.start({
       ...(attemptFiltering === undefined ? {} : { filtering: attemptFiltering }),

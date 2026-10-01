@@ -67,6 +67,7 @@ export interface PlaybackSessionRequest {
   readonly allowHevc?: boolean;
   readonly buffer?: PlaybackBufferRequest;
   readonly filtering?: {
+    readonly channelName?: string;
     readonly enabled: boolean;
     readonly mode: "passthrough" | "canary" | "strip";
     readonly platform: string;

@@ -12,7 +12,9 @@ export function adsDetectedFromFilteringEvent(event: {
   return adsDetectedFromFilteringDiagnostic(event.diagnostic);
 }
 
-export function adsDetectedFromFilteringDiagnostic(diagnostic: string): boolean {
+export function adsDetectedFromFilteringDiagnostic(
+  diagnostic: string,
+): boolean {
   const text = diagnostic.trim();
   if (text.length === 0) return false;
   if (/no twitch ad markers/i.test(text)) return false;
@@ -31,10 +33,8 @@ export type WatchAdBlockStatus = {
 export function watchAdBlockStatus(input: {
   readonly adsDetected: boolean;
   readonly filteringActive: boolean;
-  readonly playlistProxyActive?: boolean;
 }): WatchAdBlockStatus | null {
-  const isActive = input.filteringActive || input.playlistProxyActive === true;
-  if (!isActive) return null;
+  if (!input.filteringActive) return null;
   return {
     isActive: true,
     isShowingAd: input.adsDetected,

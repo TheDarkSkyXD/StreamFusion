@@ -9,7 +9,9 @@ import {
 describe("adsDetectedFromFilteringDiagnostic", () => {
   it("treats clean playlists as not showing ads", () => {
     expect(
-      adsDetectedFromFilteringDiagnostic("No Twitch ad markers in this playlist."),
+      adsDetectedFromFilteringDiagnostic(
+        "No Twitch ad markers in this playlist.",
+      ),
     ).toBe(false);
     expect(adsDetectedFromFilteringDiagnostic("Filtering is off.")).toBe(false);
   });
@@ -51,7 +53,7 @@ describe("adsDetectedFromFilteringEvent", () => {
 });
 
 describe("watchAdBlockStatus", () => {
-  it("hides the shield unless filtering or playlist proxy is active", () => {
+  it("hides the shield unless custom filtering is active", () => {
     expect(
       watchAdBlockStatus({ adsDetected: true, filteringActive: false }),
     ).toBeNull();
@@ -61,12 +63,5 @@ describe("watchAdBlockStatus", () => {
         filteringActive: true,
       }),
     ).toEqual({ isActive: true, isShowingAd: false });
-    expect(
-      watchAdBlockStatus({
-        adsDetected: true,
-        filteringActive: false,
-        playlistProxyActive: true,
-      }),
-    ).toEqual({ isActive: true, isShowingAd: true });
   });
 });

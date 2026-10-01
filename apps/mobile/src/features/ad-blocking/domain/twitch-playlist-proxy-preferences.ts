@@ -5,7 +5,7 @@ import type {
 } from "../capabilities/twitch-playlist-proxy";
 
 export const DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES: TwitchPlaylistProxyPreferences = {
-  enabled: true,
+  enabled: false,
   sources: [
     {
       id: "luminous-eu",
@@ -113,8 +113,8 @@ export function composeTwitchPlaylistProxyView(
   const enabledCount = preferences.sources.filter((source) => source.enabled).length;
   return {
     detail: preferences.enabled
-      ? `Live Twitch tries ${enabledCount} playlist source${enabledCount === 1 ? "" : "s"} in order, then direct Twitch. Custom strip and canary stay paused.`
-      : "Playlist proxy is off. Watch uses direct Twitch and the Ad Blocking method below.",
+      ? `Live Twitch tries ${enabledCount} playlist source${enabledCount === 1 ? "" : "s"} in order, then direct Twitch.`
+      : "Playlist proxy is off. Watch uses direct Twitch.",
     enabled: preferences.enabled,
     sources: preferences.sources,
     title: preferences.enabled

@@ -69,6 +69,7 @@ import {
 import { createConnectivityRuntime } from "@mobile/features/connectivity/composition/connectivity-runtime";
 import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/guest-adblock-session";
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
+import { createFetchPlaylistProxyHealth } from "@mobile/features/ad-blocking/adapters/fetch-playlist-proxy-health";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
 import { createExpoLocalNotificationPresenter } from "@mobile/features/notifications/adapters/expo-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
@@ -273,16 +274,19 @@ const connectivitySession = createConnectivityRuntime({
 const kickLiveCatalog = createKickLiveCatalog({
   fetch: connectivitySession.fetch,
 });
-const twitchPlaylistProxySession = createTwitchPlaylistProxySession({
-  settings: persistenceRuntime.productState.settings,
-});
 const adblockSession = createAdBlockSession({
   policy: createEffectiveCapabilityPolicyReader({
     nowEpochMs: Date.now,
     store: installationPolicyRuntime.policyStore,
   }),
   settings: persistenceRuntime.productState.settings,
+  runtimeSupported: androidCapabilityRuntime.contracts.playback.readiness().kind === "ready",
 });
+const twitchPlaylistProxySession = createTwitchPlaylistProxySession({
+  customFiltering: adblockSession,
+  settings: persistenceRuntime.productState.settings,
+});
+const playlistProxyHealth = createFetchPlaylistProxyHealth(connectivitySession.fetch);
 const settingsSession = createSettingsSession({
   settings: persistenceRuntime.productState.settings,
 });
@@ -657,6 +661,7 @@ export function MobileRuntime() {
       connectivitySession={connectivitySession}
       adblockSession={adblockSession}
       twitchPlaylistProxySession={twitchPlaylistProxySession}
+      playlistProxyHealth={playlistProxyHealth}
       notificationSession={notificationSession}
       chatDisplaySession={chatDisplaySession}
       predictionSession={predictionSession}
