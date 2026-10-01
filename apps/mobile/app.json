@@ -4,6 +4,7 @@
     "slug": "streamfusion-development",
     "version": "0.1.2-alpha.1",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "platforms": [
       "android"
@@ -11,6 +12,10 @@
     "scheme": "streamfusion-development",
     "newArchEnabled": true,
     "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f0f0f"
+      },
       "softwareKeyboardLayoutMode": "resize",
       "allowBackup": false,
       "package": "com.thedarkskyxd.streamfusion.dev",
