@@ -118,6 +118,133 @@ describe("adaptive app shell", () => {
     expect(shellNavigationReducer(state, { type: "back" })).toBe(state);
   });
 
+  it("returns from Watch to the browsing screen and keeps its trail for the mini-player", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "following/channel-preview" },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "123",
+          channelLogin: "first",
+        },
+      },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "456",
+          channelLogin: "second",
+        },
+      },
+    });
+
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    state = shellNavigationReducer(restored.state, { type: "back" });
+
+    expect(getActiveShellLocation(state)).toEqual({
+      route: "following/channel-preview",
+    });
+    expect(state.histories.watch.trail).toMatchObject([
+      { route: "watch/session-preview", target: { channelLogin: "second" } },
+    ]);
+    expect(canNavigateBack(state)).toBe(true);
+  });
+
+  it("returns a direct Watch link to Search and restores older snapshots", () => {
+    const opened = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "kick",
+          channelId: "123",
+          channelLogin: "live",
+        },
+      },
+    });
+    expect(
+      getActiveShellRoute(shellNavigationReducer(opened, { type: "back" })).id,
+    ).toBe("search");
+
+    const legacy = JSON.parse(serializeShellNavigationState(opened));
+    delete legacy.watchReturnDestination;
+    const restored = restoreShellNavigationState(JSON.stringify(legacy));
+    expect(restored.kind).toBe("restored");
+    expect(
+      getActiveShellRoute(
+        shellNavigationReducer(restored.state, { type: "back" }),
+      ).id,
+    ).toBe("search");
+  });
+
+  it("remembers the browsing destination when Watch is opened from its tab", () => {
+    let state = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "select",
+      destination: "following",
+    });
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "watch",
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "123",
+          channelLogin: "live",
+        },
+      },
+    });
+
+    expect(
+      getActiveShellRoute(shellNavigationReducer(state, { type: "back" })).id,
+    ).toBe("following");
+  });
+
+  it("returns from Watch root to the last browsing destination", () => {
+    let state = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "select",
+      destination: "following",
+    });
+    state = shellNavigationReducer(state, {
+      type: "select",
+      destination: "watch",
+    });
+    expect(getActiveShellRoute(state).id).toBe("watch");
+    expect(canNavigateBack(state)).toBe(false);
+    expect(
+      getActiveShellRoute(shellNavigationReducer(state, { type: "back" })).id,
+    ).toBe("following");
+  });
+
+  it("keeps an empty Watch preview inside Watch when backing out", () => {
+    const opened = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "navigate",
+      location: { route: "watch/session-preview", target: { kind: "preview" } },
+    });
+    expect(
+      getActiveShellRoute(shellNavigationReducer(opened, { type: "back" })).id,
+    ).toBe("watch");
+  });
+
   it("returns an active destination to root, then requests scroll-to-top", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
@@ -259,6 +386,16 @@ describe("adaptive app shell", () => {
   });
 
   it("fails closed on corrupt, unsupported, and non-allowlisted restoration", () => {
+    const invalidReturn = JSON.parse(
+      serializeShellNavigationState(createInitialShellNavigationState()),
+    );
+    invalidReturn.watchReturnDestination = "watch";
+    expect(
+      restoreShellNavigationState(JSON.stringify(invalidReturn)),
+    ).toMatchObject({
+      kind: "fallback",
+      reason: "corrupt",
+    });
     expect(restoreShellNavigationState("not-json")).toMatchObject({
       kind: "fallback",
       reason: "corrupt",

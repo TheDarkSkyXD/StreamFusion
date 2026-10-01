@@ -409,6 +409,7 @@ export function AppShell({
           canNavigateBack: canNavigateBack(navigation),
           fullscreen,
           hasOverlay: hasDismissalConfirmation,
+          watchingStream: watchingWatch && watchPeek.kind === "active",
         });
         if (decision === "exit-fullscreen") {
           watch.runtime.session.exitFullscreen();
@@ -432,6 +433,8 @@ export function AppShell({
     fullscreen,
     hasDismissalConfirmation,
     navigation,
+    watchingWatch,
+    watchPeek.kind,
     watch.runtime.session,
   ]);
 

@@ -93,6 +93,7 @@ export interface ShellNavigationState {
   readonly activeDestination: ShellDestinationId;
   readonly histories: Readonly<Record<ShellDestinationId, DestinationHistory>>;
   readonly rootScrollRequests: Readonly<Record<ShellDestinationId, number>>;
+  readonly watchReturnDestination: Exclude<ShellDestinationId, "watch">;
 }
 
 export type ShellNavigationAction =
@@ -325,6 +326,7 @@ export function createInitialShellNavigationState(): ShellNavigationState {
     activeDestination: "search",
     histories: createInitialHistories(),
     rootScrollRequests: initialScrollRequests,
+    watchReturnDestination: "search",
   };
 }
 
@@ -401,6 +403,10 @@ export function shellNavigationReducer(
       return {
         ...state,
         activeDestination: action.destination,
+        watchReturnDestination:
+          action.destination === "watch" && state.activeDestination !== "watch"
+            ? state.activeDestination
+            : state.watchReturnDestination,
         histories: {
           ...state.histories,
           [action.destination]: { ...selectedHistory, trail: [] },
@@ -410,10 +416,15 @@ export function shellNavigationReducer(
     case "navigate": {
       const route = SHELL_ROUTES[action.location.route];
       const history = state.histories[route.destination];
+      const watchReturnDestination =
+        route.destination === "watch" && state.activeDestination !== "watch"
+          ? state.activeDestination
+          : state.watchReturnDestination;
       if (action.location.route === history.root) {
         return {
           ...state,
           activeDestination: route.destination,
+          watchReturnDestination,
           histories: {
             ...state.histories,
             [route.destination]: { ...history, trail: [] },
@@ -422,7 +433,11 @@ export function shellNavigationReducer(
       }
       const current = history.trail.at(-1);
       if (current && locationsMatch(current, action.location))
-        return { ...state, activeDestination: route.destination };
+        return {
+          ...state,
+          activeDestination: route.destination,
+          watchReturnDestination,
+        };
       // Replace an existing Watch session tip so Watch now / related open always
       // lands on the new target (feed → session) instead of stacking previews.
       const replaceWatchSession =
@@ -434,6 +449,7 @@ export function shellNavigationReducer(
       return {
         ...state,
         activeDestination: route.destination,
+        watchReturnDestination,
         histories: {
           ...state.histories,
           [route.destination]: {
@@ -444,8 +460,21 @@ export function shellNavigationReducer(
       };
     }
     case "back": {
+      if (
+        state.activeDestination === "watch" &&
+        getActiveShellLocation(state).route === "watch"
+      ) {
+        return { ...state, activeDestination: state.watchReturnDestination };
+      }
       const history = state.histories[state.activeDestination];
       if (history.trail.length === 0) return state;
+      const location = getActiveShellLocation(state);
+      if (
+        location.route === "watch/session-preview" &&
+        location.target.kind === "channel"
+      ) {
+        return { ...state, activeDestination: state.watchReturnDestination };
+      }
       return {
         ...state,
         histories: {
@@ -466,6 +495,7 @@ export function serializeShellNavigationState(
   return JSON.stringify({
     version: 1,
     activeDestination: state.activeDestination,
+    watchReturnDestination: state.watchReturnDestination,
     histories: Object.fromEntries(
       SHELL_DESTINATION_IDS.map((destination) => [
         destination,
@@ -492,6 +522,12 @@ const channelLoginPattern = /^[a-zA-Z0-9_-]{1,64}$/u;
 
 function isDestinationId(value: unknown): value is ShellDestinationId {
   return SHELL_DESTINATION_IDS.some((destination) => destination === value);
+}
+
+function isWatchReturnDestination(
+  value: unknown,
+): value is Exclude<ShellDestinationId, "watch"> {
+  return isDestinationId(value) && value !== "watch";
 }
 
 function isPlatform(value: unknown): value is Platform {
@@ -610,9 +646,16 @@ export function restoreShellNavigationState(
     return fallback("unsupported");
   if (
     !isRecord(parsed) ||
-    !hasOnlyKeys(parsed, ["version", "activeDestination", "histories"]) ||
+    !hasOnlyKeys(parsed, [
+      "version",
+      "activeDestination",
+      "histories",
+      "watchReturnDestination",
+    ]) ||
     parsed.version !== 1 ||
     !isDestinationId(parsed.activeDestination) ||
+    (parsed.watchReturnDestination !== undefined &&
+      !isWatchReturnDestination(parsed.watchReturnDestination)) ||
     !isRecord(parsed.histories) ||
     !hasOnlyKeys(parsed.histories, SHELL_DESTINATION_IDS) ||
     !isTrailForDestination(parsed.histories.search, "search") ||
@@ -627,6 +670,7 @@ export function restoreShellNavigationState(
     kind: "restored",
     state: {
       activeDestination: parsed.activeDestination,
+      watchReturnDestination: parsed.watchReturnDestination ?? "search",
       histories: {
         search: { root: "search", trail: parsed.histories.search },
         following: { root: "following", trail: parsed.histories.following },
