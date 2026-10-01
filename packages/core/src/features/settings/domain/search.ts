@@ -374,10 +374,18 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       ["automatic", "foreground", "return", "updates"],
     ),
     entry("allow-prerelease-updates", "updates", "Allow prerelease updates", [
-      "alpha", "beta", "prerelease", "release", "updates",
+      "alpha",
+      "beta",
+      "prerelease",
+      "release",
+      "updates",
     ]),
     entry("check-frequency", "updates", "Check frequency", [
-      "hourly", "daily", "weekly", "frequency", "updates",
+      "hourly",
+      "daily",
+      "weekly",
+      "frequency",
+      "updates",
     ]),
     entry("diagnostic-window", "diagnostics", "Observation window", [
       "diagnostics",

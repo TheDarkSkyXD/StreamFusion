@@ -76,7 +76,10 @@
   },
   "overrides": {
     "ajv@8.20.0": {
-      "fast-uri": "3.1.6"
+      "fast-uri": "3.1.8"
+    },
+    "miniflare@5.20260820.0-alpha": {
+      "undici": "7.29.1"
     },
     "expo-router@57.0.17": {
       "query-string": "9.5.0"

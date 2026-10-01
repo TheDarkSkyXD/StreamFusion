@@ -1010,9 +1010,7 @@ describe("SettingsPage — Updates tab (U15)", () => {
 
   it("renders the auto-check toggle and the frequency select", async () => {
     await openUpdatesTab();
-    expect(
-      screen.getByRole("switch", { name: /check for updates on startup/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /keep checking for updates/i })).toBeInTheDocument();
     // The frequency trigger is a Radix combobox labelled "Check frequency".
     expect(screen.getByRole("combobox", { name: /check frequency/i })).toBeInTheDocument();
     // Existing controls remain.
@@ -1021,7 +1019,7 @@ describe("SettingsPage — Updates tab (U15)", () => {
 
   it("toggling the auto-check switch calls setAutoCheckEnabled", async () => {
     const user = await openUpdatesTab();
-    await user.click(screen.getByRole("switch", { name: /check for updates on startup/i }));
+    await user.click(screen.getByRole("switch", { name: /keep checking for updates/i }));
     expect(updaterMock.setAutoCheckEnabled).toHaveBeenCalledTimes(1);
     expect(updaterMock.setAutoCheckEnabled).toHaveBeenCalledWith(true);
   });

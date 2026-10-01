@@ -26,6 +26,7 @@ vi.mock("@/features/shell/components/layout/AppLayout", () => ({
   AppLayout: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/features/shell/components/ToastRoot", () => ({ ToastRoot: () => null }));
+vi.mock("@/features/settings/components/update-notice", () => ({ UpdateNotice: () => null }));
 vi.mock("@/components/ui/tooltip", () => ({
   TooltipProvider: ({ children }: { children: ReactNode }) => children,
 }));

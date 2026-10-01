@@ -97,7 +97,7 @@ export function assembleReleaseSet({
     "## Known issues",
     "",
     "- Twitch and Kick account sign-in is not complete in this release.",
-    "- The in-app updater is not available yet; install new versions from this page.",
+    "- Update checks run on launch and from Settings. Download the APK in your browser and install it with Android.",
   ].join("\n");
   writeFileSync(path.join(directory, "release-notes.md"), `${notes}\n`);
 
