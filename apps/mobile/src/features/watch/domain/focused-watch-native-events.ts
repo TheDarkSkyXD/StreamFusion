@@ -4,13 +4,12 @@ import type {
 } from "../capabilities/watch";
 import { adsDetectedFromFilteringEvent } from "./adblock-playback-status";
 import {
+  applyPictureInPictureResult,
+  requestPictureInPicture,
   returnFromPictureInPicture,
   type PlayerPresentationState,
 } from "./player-presentation";
-import {
-  phaseFrom,
-  type CurrentSession,
-} from "./focused-watch-session-state";
+import { phaseFrom, type CurrentSession } from "./focused-watch-session-state";
 
 export type NativePlaybackNext =
   | { readonly kind: "ignore" }
@@ -32,7 +31,10 @@ export function nextNativePlayback(input: {
   readonly progress: PlaybackProgress;
 }): NativePlaybackNext {
   const { current, event } = input;
-  if (current.kind !== "active" || current.session.sessionId !== event.sessionId) {
+  if (
+    current.kind !== "active" ||
+    current.session.sessionId !== event.sessionId
+  ) {
     return { kind: "ignore" };
   }
   if (event.kind === "filtering") {
@@ -44,10 +46,22 @@ export function nextNativePlayback(input: {
     });
   }
   if (event.kind === "picture-in-picture-exited") {
+    if (input.presentation.presentation !== "pip") return { kind: "ignore" };
     return next({
       adsDetected: input.adsDetected,
       current,
       presentation: returnFromPictureInPicture(input.presentation),
+      progress: input.progress,
+    });
+  }
+  if (event.kind === "picture-in-picture-entered") {
+    return next({
+      adsDetected: input.adsDetected,
+      current,
+      presentation: applyPictureInPictureResult(
+        requestPictureInPicture(input.presentation),
+        "active",
+      ),
       progress: input.progress,
     });
   }

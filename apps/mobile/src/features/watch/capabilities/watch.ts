@@ -1,8 +1,8 @@
+import type { Channel, Stream } from "@streamfusion/core/content";
 import type {
-  Channel,
-  Stream,
-} from "@streamfusion/core/content";
-import type { Platform, StreamChannelIdentity } from "@streamfusion/core/platform";
+  Platform,
+  StreamChannelIdentity,
+} from "@streamfusion/core/platform";
 import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 
 export type { WatchChatAvailability } from "@mobile/features/chat/capabilities/watch-chat";
@@ -10,18 +10,10 @@ export type { WatchChatAvailability } from "@mobile/features/chat/capabilities/w
 export type PlayerPresentation = "watch" | "mini" | "pip" | "fullscreen";
 
 export type MiniPlayerSnapRegion =
-  | "top-start"
-  | "top-end"
-  | "bottom-start"
-  | "bottom-end";
+  "top-start" | "top-end" | "bottom-start" | "bottom-end";
 
 export type PictureInPicturePhase =
-  | "idle"
-  | "requesting"
-  | "active"
-  | "unavailable"
-  | "failed"
-  | "returned";
+  "idle" | "requesting" | "active" | "unavailable" | "failed" | "returned";
 
 export type PlayerPresentationState = {
   readonly pip: PictureInPicturePhase;
@@ -205,6 +197,10 @@ export type NativePlaybackEvent =
       readonly kind: "progress";
       readonly positionMs: number;
       readonly seekable: boolean;
+      readonly sessionId: string;
+    }
+  | {
+      readonly kind: "picture-in-picture-entered";
       readonly sessionId: string;
     }
   | {
@@ -423,7 +419,9 @@ export interface FocusedWatchSession {
   peek(): WatchPeek;
   relocateMiniPlayer(region: MiniPlayerSnapRegion): void;
   refresh(target: WatchTarget): Promise<WatchStartResult>;
-  requestPictureInPicture(): Promise<FocusedPictureInPictureResult | { readonly kind: "idle" }>;
+  requestPictureInPicture(): Promise<
+    FocusedPictureInPictureResult | { readonly kind: "idle" }
+  >;
   restoreFromPictureInPicture(): void;
   reveal(): void;
   seekTo(positionMs: number): Promise<void>;

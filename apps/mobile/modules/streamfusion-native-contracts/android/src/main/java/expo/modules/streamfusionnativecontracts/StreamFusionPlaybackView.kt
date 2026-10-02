@@ -36,6 +36,11 @@ class StreamFusionPlaybackView(
     playerView.player = null
   }
 
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    FocusedPlaybackSessionOwner.register(this)
+  }
+
   override fun onDetachedFromWindow() {
     detachPlayer()
     FocusedPlaybackSessionOwner.unregister(this)

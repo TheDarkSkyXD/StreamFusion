@@ -3,15 +3,25 @@ import { act, createElement, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { MiniPlayer } from "../components/mini-player";
-import type { WatchPeek, WatchTarget } from "../capabilities/watch";
+import { MiniPlayer, WatchMiniPlayerHost } from "../components/mini-player";
+import type {
+  FocusedWatchSession,
+  WatchPeek,
+  WatchTarget,
+} from "../capabilities/watch";
 
 const pressableProps = vi.hoisted(
   () => new Map<string, Record<string, unknown>>(),
 );
+const viewProps = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+const gestureHandlers = vi.hoisted(
+  () => new Map<string, (...args: unknown[]) => unknown>(),
+);
+const responderCreates = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("react-native", async () => {
-  const { createElement } = await import("react");
+  const { createElement, forwardRef, useImperativeHandle } =
+    await import("react");
   return {
     Pressable: (props: Record<string, unknown>) => {
       if (typeof props.testID === "string")
@@ -31,11 +41,41 @@ vi.mock("react-native", async () => {
         top: 0,
         bottom: 0,
       },
+      absoluteFillObject: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+      },
     },
-    View: (props: Record<string, unknown>) =>
-      createElement("div", { "data-testid": props.testID }, props.children),
+    AppState: { addEventListener: () => ({ remove: () => undefined }) },
+    PanResponder: {
+      create: (handlers: Record<string, (...args: unknown[]) => unknown>) => {
+        responderCreates.count += 1;
+        for (const [name, handler] of Object.entries(handlers))
+          gestureHandlers.set(name, handler);
+        return { panHandlers: handlers };
+      },
+    },
+    View: forwardRef((props: Record<string, unknown>, ref) => {
+      if (typeof props.testID === "string") viewProps.set(props.testID, props);
+      useImperativeHandle(ref, () => ({
+        measureInWindow: (callback: (x: number, y: number) => void) =>
+          callback(0, 0),
+      }));
+      return createElement(
+        "div",
+        { "data-testid": props.testID },
+        props.children,
+      );
+    }),
   };
 });
+
+vi.mock("../components/use-focused-watch-session", () => ({
+  useWatchPeek: (session: { peek(): WatchPeek }) => session.peek(),
+}));
 
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
@@ -105,7 +145,19 @@ vi.mock("react-i18next", () => ({
   initReactI18next: { type: "3rdParty", init: () => undefined },
 }));
 
-function renderedMiniPlayer() {
+function renderedMiniPlayer(
+  geometry: {
+    readonly frame: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+    };
+    readonly onFrameCommit: (frame: unknown) => void;
+  } = {
+    frame: { x: 100, y: 100, width: 240 },
+    onFrameCommit: () => undefined,
+  },
+) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -135,6 +187,10 @@ function renderedMiniPlayer() {
           onExpand,
           onPause,
           peek: nextPeek,
+          bounds: { left: 0, top: 0, right: 400, bottom: 800 },
+          frame: geometry.frame,
+          origin: { x: 0, y: 0 },
+          onFrameCommit: geometry.onFrameCommit,
         }),
       ),
     );
@@ -175,6 +231,9 @@ describe("mini-player controls", () => {
   afterEach(() => {
     vi.useRealTimers();
     pressableProps.clear();
+    viewProps.clear();
+    gestureHandlers.clear();
+    responderCreates.count = 0;
   });
 
   it("shows only expand, close, and a large centered pause control over the video", () => {
@@ -290,5 +349,149 @@ describe("mini-player controls", () => {
     player.unmount();
     expect(vi.getTimerCount()).toBe(0);
     expect(player.surfaceCounts()).toEqual({ mounts: 1, unmounts: 1 });
+  });
+
+  it("captures a drag that starts on a control without pressing it, then commits the frame", () => {
+    vi.useFakeTimers();
+    const onFrameCommit = vi.fn();
+    const player = renderedMiniPlayer({
+      frame: { x: 100, y: 100, width: 240 },
+      onFrameCommit,
+    });
+    const touch = (x: number, y: number) => ({
+      nativeEvent: { touches: [{ identifier: "1", pageX: x, pageY: y }] },
+    });
+    try {
+      expect(
+        gestureHandlers.get("onMoveShouldSetPanResponderCapture")?.(
+          touch(120, 120),
+          { dx: 3, dy: 3 },
+        ),
+      ).toBe(false);
+      expect(
+        gestureHandlers.get("onMoveShouldSetPanResponderCapture")?.(
+          touch(120, 120),
+          { dx: 10, dy: 0 },
+        ),
+      ).toBe(true);
+      act(() => gestureHandlers.get("onPanResponderGrant")?.(touch(120, 120)));
+      expect(controlIds(player.container)).toHaveLength(3);
+      act(() => gestureHandlers.get("onPanResponderMove")?.(touch(150, 160)));
+      expect(controlIds(player.container)).toHaveLength(3);
+      expect(responderCreates.count).toBe(1);
+      expect((viewProps.get("mini-player")?.style as unknown[])[1]).toEqual({
+        left: 130,
+        top: 140,
+        width: 240,
+      });
+      press("dismiss-player");
+      expect(player.onDismiss).not.toHaveBeenCalled();
+      act(() => gestureHandlers.get("onPanResponderRelease")?.());
+      expect(onFrameCommit).toHaveBeenCalledWith({
+        x: 130,
+        y: 140,
+        width: 240,
+      });
+      act(() => vi.advanceTimersByTime(0));
+      press("mini-player-expand");
+      expect(player.onExpand).toHaveBeenCalledTimes(1);
+    } finally {
+      player.unmount();
+    }
+  });
+
+  it("commits a fast swipe whose only move is the responder grant", () => {
+    const onFrameCommit = vi.fn();
+    const player = renderedMiniPlayer({
+      frame: { x: 100, y: 100, width: 240 },
+      onFrameCommit,
+    });
+    const touch = (x: number, y: number) => ({
+      nativeEvent: { touches: [{ identifier: "1", pageX: x, pageY: y }] },
+    });
+    try {
+      gestureHandlers.get("onStartShouldSetPanResponderCapture")?.(
+        touch(120, 120),
+      );
+      act(() => gestureHandlers.get("onPanResponderGrant")?.(touch(170, 160)));
+      act(() => gestureHandlers.get("onPanResponderRelease")?.());
+      expect(onFrameCommit).toHaveBeenCalledWith({
+        x: 150,
+        y: 140,
+        width: 240,
+      });
+      expect(player.onPause).not.toHaveBeenCalled();
+    } finally {
+      player.unmount();
+    }
+  });
+
+  it("preserves the settled frame through hidden system PiP workspace bounds", () => {
+    vi.useFakeTimers();
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    let hostPeek: WatchPeek = peek;
+    const session = {
+      peek: () => hostPeek,
+      dismiss: async () => undefined,
+      setPlaying: async () => undefined,
+    } as FocusedWatchSession;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const Surface = ({ sessionId }: { readonly sessionId: string }) =>
+      createElement("span", { "data-session": sessionId });
+    const render = (hidden: boolean) =>
+      act(() =>
+        root.render(
+          createElement(WatchMiniPlayerHost, {
+            PlayerSurface: Surface,
+            hidden,
+            onExpand: () => undefined,
+            session,
+          }),
+        ),
+      );
+    const layout = (width: number, height: number) =>
+      act(() => {
+        const onLayout = viewProps.get("mini-player-workspace")?.onLayout;
+        if (typeof onLayout !== "function")
+          throw new Error("Mini workspace is missing");
+        onLayout({ nativeEvent: { layout: { width, height } } });
+      });
+    const touch = (x: number, y: number) => ({
+      nativeEvent: { touches: [{ identifier: "1", pageX: x, pageY: y }] },
+    });
+    try {
+      render(false);
+      layout(400, 800);
+      act(() => gestureHandlers.get("onPanResponderGrant")?.(touch(350, 700)));
+      act(() => gestureHandlers.get("onPanResponderMove")?.(touch(250, 100)));
+      act(() => gestureHandlers.get("onPanResponderRelease")?.());
+      expect((viewProps.get("mini-player")?.style as unknown[])[1]).toEqual({
+        left: 52,
+        top: 57,
+        width: 240,
+      });
+
+      hostPeek = {
+        ...peek,
+        presentation: {
+          ...peek.presentation,
+          presentation: "pip",
+          pip: "active",
+        },
+      };
+      render(true);
+      layout(180, 120);
+      layout(400, 800);
+      hostPeek = peek;
+      render(false);
+      expect((viewProps.get("mini-player")?.style as unknown[])[1]).toEqual({
+        left: 52,
+        top: 57,
+        width: 240,
+      });
+    } finally {
+      act(() => root.unmount());
+    }
   });
 });

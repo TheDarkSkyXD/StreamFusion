@@ -21,6 +21,9 @@ class StreamFusionPlaybackModule : Module() {
     OnActivityEntersBackground {
       FocusedPlaybackSessionOwner.pauseForBackground()
     }
+    OnUserLeavesActivity {
+      FocusedPlaybackSessionOwner.onUserLeavesActivity(appContext.currentActivity)
+    }
     OnActivityEntersForeground {
       val activity = appContext.currentActivity
       FocusedPlaybackSessionOwner.rememberActivity(activity)

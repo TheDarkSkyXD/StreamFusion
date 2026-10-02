@@ -525,6 +525,39 @@ describe("focused watch session", () => {
     expect(playback.ended).toEqual([]);
   });
 
+  it("enters automatic PiP from a mini-player and ignores events for a replaced session", async () => {
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const playback = playbackPort({
+      subscribe: (listener) => {
+        emit = listener;
+        return () => {
+          emit = undefined;
+        };
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback,
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.conceal();
+    emit?.({ kind: "picture-in-picture-entered", sessionId: "stale" });
+    expect(session.peek()).toMatchObject({
+      presentation: { presentation: "mini" },
+    });
+    emit?.({ kind: "picture-in-picture-entered", sessionId: "watch:1" });
+    expect(session.peek()).toMatchObject({
+      presentation: { pip: "active", presentation: "pip", previous: "mini" },
+    });
+    emit?.({ kind: "picture-in-picture-exited", sessionId: "watch:1" });
+    expect(session.peek()).toMatchObject({
+      presentation: { pip: "returned", presentation: "mini" },
+    });
+  });
+
   it("routes recorded Watch targets to recorded sources and seeks", async () => {
     const started: string[] = [];
     const seeks: number[] = [];
@@ -609,7 +642,13 @@ describe("focused watch session", () => {
       write: async () => undefined,
     };
     const filtering = createAdBlockSession({
-      policy: { read: async () => ({ kind: "enabled", sequence: 1, verifiedAtEpochMs: 1 }) },
+      policy: {
+        read: async () => ({
+          kind: "enabled",
+          sequence: 1,
+          verifiedAtEpochMs: 1,
+        }),
+      },
       settings,
     });
     const recorded = {
@@ -652,7 +691,10 @@ describe("focused watch session", () => {
             requests.push(request.filtering);
             return {
               kind: "started",
-              session: { pictureInPictureEligible: false, sessionId: request.sessionId },
+              session: {
+                pictureInPictureEligible: false,
+                sessionId: request.sessionId,
+              },
             };
           },
         }),
@@ -660,13 +702,19 @@ describe("focused watch session", () => {
         protection: protection(),
         recorded,
         sessionIds: { create: () => `watch:${kind}` },
-        sources: sources(async () => { throw new Error("live source must not run for recordings"); }),
+        sources: sources(async () => {
+          throw new Error("live source must not run for recordings");
+        }),
       });
-      await expect(session.start({
-        ...target,
-        media: { durationSeconds: 120, id: kind, kind, title: kind },
-      })).resolves.toMatchObject({ kind: "started" });
-      expect(requests).toEqual([{ enabled: false, mode: "passthrough", platform: "twitch" }]);
+      await expect(
+        session.start({
+          ...target,
+          media: { durationSeconds: 120, id: kind, kind, title: kind },
+        }),
+      ).resolves.toMatchObject({ kind: "started" });
+      expect(requests).toEqual([
+        { enabled: false, mode: "passthrough", platform: "twitch" },
+      ]);
     }
   });
 
@@ -830,23 +878,35 @@ describe("focused watch session", () => {
       const controls: string[] = [];
       const locks: string[] = [];
       setWatchOrientationControllerForTests({
-        lockAsync: async (lock) => { locks.push(lock); },
+        lockAsync: async (lock) => {
+          locks.push(lock);
+        },
       });
       let sequence = 0;
       const playback = playbackPort({
         setMuted: async (sessionId, value) => {
           controls.push(`mute:${sessionId}:${value}`);
-          return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+          return {
+            kind: "applied",
+            session: { pictureInPictureEligible: false, sessionId },
+          };
         },
         setVolume: async (sessionId, value) => {
           controls.push(`volume:${sessionId}:${value}`);
-          return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+          return {
+            kind: "applied",
+            session: { pictureInPictureEligible: false, sessionId },
+          };
         },
         setQuality: async (sessionId, value) => {
           controls.push(`quality:${sessionId}:${value}`);
           return {
             kind: "listed",
-            catalog: { qualities: ["auto", "720p"], selected: value, sessionId },
+            catalog: {
+              qualities: ["auto", "720p"],
+              selected: value,
+              sessionId,
+            },
           };
         },
       });
@@ -905,22 +965,28 @@ describe("focused watch session", () => {
       };
       const locks: string[] = [];
       setWatchOrientationControllerForTests({
-        lockAsync: async (lock) => { locks.push(lock); },
+        lockAsync: async (lock) => {
+          locks.push(lock);
+        },
       });
       let resolves = 0;
-      const resolveTwitch: LivePlaybackSources["twitch"]["resolve"] = async () =>
-        ++resolves === 1
-          ? {
-              integration: "twitch-gql-usher",
-              kind: "resolved",
-              requestHeaders: twitchHlsRequestHeaders(),
-              sourceUri,
-            }
-          : {
-              failure: { detail: "Stream URL unavailable", kind: "invalid-response" },
-              integration: "twitch-gql-usher",
-              kind: "unavailable",
-            };
+      const resolveTwitch: LivePlaybackSources["twitch"]["resolve"] =
+        async () =>
+          ++resolves === 1
+            ? {
+                integration: "twitch-gql-usher",
+                kind: "resolved",
+                requestHeaders: twitchHlsRequestHeaders(),
+                sourceUri,
+              }
+            : {
+                failure: {
+                  detail: "Stream URL unavailable",
+                  kind: "invalid-response",
+                },
+                integration: "twitch-gql-usher",
+                kind: "unavailable",
+              };
       const resolveKick: LivePlaybackSources["kick"]["resolve"] = async () =>
         ++resolves === 1
           ? {
@@ -930,7 +996,10 @@ describe("focused watch session", () => {
               sourceUri,
             }
           : {
-              failure: { detail: "Stream URL unavailable", kind: "invalid-response" },
+              failure: {
+                detail: "Stream URL unavailable",
+                kind: "invalid-response",
+              },
               integration: "kick-v1-playback-url",
               kind: "unavailable",
             };
@@ -950,7 +1019,9 @@ describe("focused watch session", () => {
       });
       await session.start(watched);
       session.enterFullscreen();
-      await expect(session.refresh(watched)).resolves.toMatchObject({ kind: "failed" });
+      await expect(session.refresh(watched)).resolves.toMatchObject({
+        kind: "failed",
+      });
       expect(session.snapshot(watched).kind).toBe("failed");
       expect(session.peek().kind).toBe("idle");
       expect(locks).toEqual(["landscape", "portrait-up"]);
@@ -967,7 +1038,11 @@ describe("focused watch session", () => {
       policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
       protection: {
         ...protection(),
-        acquire: (sessionId) => ({ release: () => { released.push(sessionId); } }),
+        acquire: (sessionId) => ({
+          release: () => {
+            released.push(sessionId);
+          },
+        }),
       },
       sessionIds: { create: () => `watch:${++sequence}` },
       sources: sources(async () =>
@@ -979,14 +1054,19 @@ describe("focused watch session", () => {
               sourceUri,
             }
           : {
-              failure: { detail: "Stream URL unavailable", kind: "invalid-response" },
+              failure: {
+                detail: "Stream URL unavailable",
+                kind: "invalid-response",
+              },
               integration: "twitch-gql-usher",
               kind: "unavailable",
             },
       ),
     });
     await session.start(target);
-    await expect(session.refresh(target)).resolves.toMatchObject({ kind: "failed" });
+    await expect(session.refresh(target)).resolves.toMatchObject({
+      kind: "failed",
+    });
     expect(playback.ended).toEqual(["watch:1"]);
     expect(released).toEqual(["watch:1"]);
     expect(session.snapshot(target).kind).toBe("failed");
@@ -1007,7 +1087,10 @@ describe("focused watch session", () => {
       sources: sources(),
     });
     await session.start(target);
-    expect(session.peek()).toMatchObject({ quality: "auto", qualities: ["auto"] });
+    expect(session.peek()).toMatchObject({
+      quality: "auto",
+      qualities: ["auto"],
+    });
     await session.setQuality("auto");
     expect(session.peek()).toMatchObject({
       quality: "auto",
@@ -1026,12 +1109,18 @@ describe("focused watch session", () => {
       policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
       protection: {
         ...protection(),
-        acquire: (sessionId) => ({ release: () => { released.push(sessionId); } }),
+        acquire: (sessionId) => ({
+          release: () => {
+            released.push(sessionId);
+          },
+        }),
       },
       sessionIds: { create: () => `watch:${++sequence}` },
       sources: sources(async () => {
         if (++resolves > 1) {
-          await new Promise<void>((resolve) => { finishResolution = resolve; });
+          await new Promise<void>((resolve) => {
+            finishResolution = resolve;
+          });
         }
         return {
           integration: "twitch-gql-usher",
@@ -1061,16 +1150,27 @@ describe("focused watch session", () => {
     const playback = playbackPort({
       setVolume: async (sessionId, value) => {
         if (sessionId === "watch:2" && !resolveRestoredVolume) {
-          await new Promise<void>((resolve) => { resolveRestoredVolume = resolve; });
+          await new Promise<void>((resolve) => {
+            resolveRestoredVolume = resolve;
+          });
         }
         nativeVolume = value;
-        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+        return {
+          kind: "applied",
+          session: { pictureInPictureEligible: false, sessionId },
+        };
       },
       setMuted: async (sessionId, value) => {
         if (sessionId === "watch:2") nativeMuted = value;
-        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+        return {
+          kind: "applied",
+          session: { pictureInPictureEligible: false, sessionId },
+        };
       },
-      subscribe: (listener) => { emit = listener; return () => undefined; },
+      subscribe: (listener) => {
+        emit = listener;
+        return () => undefined;
+      },
     });
     const session = createFocusedWatchSession({
       playback,
@@ -1116,16 +1216,26 @@ describe("focused watch session", () => {
     let emit: ((event: NativePlaybackEvent) => void) | undefined;
     const locks: string[] = [];
     setWatchOrientationControllerForTests({
-      lockAsync: async (lock) => { locks.push(lock); },
+      lockAsync: async (lock) => {
+        locks.push(lock);
+      },
     });
     const playback = playbackPort({
       setVolume: async (sessionId) => {
         if (sessionId === "watch:2") {
-          await new Promise<void>((resolve) => { resolveRestoredVolume = resolve; });
+          await new Promise<void>((resolve) => {
+            resolveRestoredVolume = resolve;
+          });
         }
-        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+        return {
+          kind: "applied",
+          session: { pictureInPictureEligible: false, sessionId },
+        };
       },
-      subscribe: (listener) => { emit = listener; return () => undefined; },
+      subscribe: (listener) => {
+        emit = listener;
+        return () => undefined;
+      },
     });
     const session = createFocusedWatchSession({
       playback,
@@ -1158,14 +1268,23 @@ describe("focused watch session", () => {
   });
 
   it("discards a refreshed native session when a newer Watch start wins", async () => {
-    let resolveVolume: ((result: Awaited<ReturnType<FocusedPlaybackPort["setVolume"]>>) => void) | undefined;
+    let resolveVolume:
+      | ((
+          result: Awaited<ReturnType<FocusedPlaybackPort["setVolume"]>>,
+        ) => void)
+      | undefined;
     const released: string[] = [];
     const playback = playbackPort({
       setVolume: async (sessionId) => {
         if (sessionId === "watch:2") {
-          return new Promise((resolve) => { resolveVolume = resolve; });
+          return new Promise((resolve) => {
+            resolveVolume = resolve;
+          });
         }
-        return { kind: "applied", session: { pictureInPictureEligible: false, sessionId } };
+        return {
+          kind: "applied",
+          session: { pictureInPictureEligible: false, sessionId },
+        };
       },
     });
     let sequence = 0;
@@ -1174,7 +1293,11 @@ describe("focused watch session", () => {
       policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
       protection: {
         ...protection(),
-        acquire: (sessionId) => ({ release: () => { released.push(sessionId); } }),
+        acquire: (sessionId) => ({
+          release: () => {
+            released.push(sessionId);
+          },
+        }),
       },
       sessionIds: { create: () => `watch:${++sequence}` },
       sources: sources(),

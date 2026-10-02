@@ -115,6 +115,10 @@ export type NativePlaybackEvent =
       readonly sessionId: string;
     }
   | {
+      readonly kind: "picture-in-picture-entered";
+      readonly sessionId: string;
+    }
+  | {
       readonly kind: "picture-in-picture-exited";
       readonly sessionId: string;
     }
@@ -296,7 +300,8 @@ export interface CaptionSessionState {
   readonly reason?: string;
 }
 
-export interface CaptionProofState extends CaptionModelState, CaptionSessionState {}
+export interface CaptionProofState
+  extends CaptionModelState, CaptionSessionState {}
 
 export type NativeCaptionEvent =
   | ({ readonly kind: "cue" } & CaptionSessionState)
@@ -307,7 +312,9 @@ export interface AndroidCaptionsContractPort extends AndroidCapabilityContractPo
     AndroidNativeOperationResult<CaptionModelState>
   >;
   getCaptionProof(): Promise<AndroidNativeOperationResult<CaptionProofState>>;
-  getEnglishModelState(): Promise<AndroidNativeOperationResult<CaptionModelState>>;
+  getEnglishModelState(): Promise<
+    AndroidNativeOperationResult<CaptionModelState>
+  >;
   installEnglishModel(
     request: CaptionModelRequest,
   ): Promise<AndroidNativeOperationResult<CaptionModelState>>;
@@ -398,7 +405,9 @@ export interface AndroidDiagnosticsContractPort extends AndroidCapabilityContrac
   queueDevelopmentResourceSnapshotFailure(): Promise<
     AndroidNativeOperationResult<AndroidDevelopmentResourceSnapshotFailureQueue>
   >;
-  readResourceSnapshot(): Promise<AndroidNativeOperationResult<AndroidResourceSnapshot>>;
+  readResourceSnapshot(): Promise<
+    AndroidNativeOperationResult<AndroidResourceSnapshot>
+  >;
 }
 
 export interface VerifyDownloadedApkRequest {

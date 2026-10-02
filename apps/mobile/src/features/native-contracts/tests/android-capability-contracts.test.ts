@@ -160,6 +160,33 @@ function reader<TBinding>(binding: TBinding): ExpoBindingReader<TBinding> {
 }
 
 describe("Android capability module contracts", () => {
+  it("parses native PiP entry and exit events with a session identity", () => {
+    let publish: ((event: unknown) => void) | undefined;
+    const port = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        addListener: (_name, listener) => {
+          publish = listener;
+          return {
+            remove: () => {
+              publish = undefined;
+            },
+          };
+        },
+      }),
+    );
+    const events: unknown[] = [];
+    const unsubscribe = port.subscribe((event) => events.push(event));
+    publish?.({ kind: "picture-in-picture-entered", sessionId: "watch:1" });
+    publish?.({ kind: "picture-in-picture-exited", sessionId: "watch:1" });
+    publish?.({ kind: "picture-in-picture-entered", sessionId: "" });
+    expect(events).toEqual([
+      { kind: "picture-in-picture-entered", sessionId: "watch:1" },
+      { kind: "picture-in-picture-exited", sessionId: "watch:1" },
+    ]);
+    unsubscribe();
+  });
+
   it("keeps unimplemented capabilities contained while diagnostics measures resources", async () => {
     const contracts = {
       captions: createAndroidCaptionsContractPort(reader(captionsBinding)),

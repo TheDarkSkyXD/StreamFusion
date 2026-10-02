@@ -46,6 +46,14 @@ The [Mobile domain language](../../docs/research/streamfusion-mobile/CONTEXT.md)
 
 ## Expo Go testing
 
+The in-app mini-player supports one-finger dragging and two-finger resizing,
+keeps its 16:9 shape, and stays inside the workspace above navigation. Its
+position and size survive expansion and PiP return for the current stream.
+The Android native client automatically enters system Picture-in-Picture
+when leaving the app during playback. Paused or failed streams do not auto-enter.
+Android owns movement and resizing of the system PiP window; pinch resizing
+requires Android 12 or newer. Rebuild the native client for these PiP changes.
+
 Custom Twitch ad blocking uses the native Media3 player's playlist interception.
 It requests alternative Twitch player tokens, verifies clean backup renditions,
 and holds unsafe media when no clean backup is available. Enabling it disables

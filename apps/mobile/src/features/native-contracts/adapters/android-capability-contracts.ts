@@ -175,7 +175,9 @@ function nonEmptyString(value: unknown): string | undefined {
 }
 
 function finiteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function sha256(value: unknown): string | undefined {
@@ -251,9 +253,12 @@ function playbackQualities(value: unknown): PlaybackQualityCatalog | undefined {
   const state = object(value);
   const sessionId = state ? nonEmptyString(state.sessionId) : undefined;
   const selected = state ? nonEmptyString(state.selected) : undefined;
-  const qualities = state && Array.isArray(state.qualities)
-    ? state.qualities.filter((item): item is string => typeof item === "string" && item.length > 0)
-    : undefined;
+  const qualities =
+    state && Array.isArray(state.qualities)
+      ? state.qualities.filter(
+          (item): item is string => typeof item === "string" && item.length > 0,
+        )
+      : undefined;
   return state && sessionId && selected && qualities && qualities.length > 0
     ? { qualities, selected, sessionId }
     : undefined;
@@ -281,7 +286,9 @@ function playbackEndState(
   }
   if (result.kind === "ended") {
     const state = playbackState(result.state);
-    return state?.sessionId === sessionId ? { kind: "ended", state } : undefined;
+    return state?.sessionId === sessionId
+      ? { kind: "ended", state }
+      : undefined;
   }
   return undefined;
 }
@@ -300,6 +307,9 @@ function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
   if (event.kind === "buffering") return { kind: "buffering", sessionId };
   if (event.kind === "playing") return { kind: "playing", sessionId };
   if (event.kind === "ended") return { kind: "ended", sessionId };
+  if (event.kind === "picture-in-picture-entered") {
+    return { kind: "picture-in-picture-entered", sessionId };
+  }
   if (event.kind === "picture-in-picture-exited") {
     return { kind: "picture-in-picture-exited", sessionId };
   }
@@ -395,20 +405,27 @@ function captionPack(value: unknown): CaptionModelState["pack"] | undefined {
 
 function captionModelState(value: unknown): CaptionModelState | undefined {
   const state = object(value);
-  if (!state || state.modelId !== "english-v1" || typeof state.installed !== "boolean") {
+  if (
+    !state ||
+    state.modelId !== "english-v1" ||
+    typeof state.installed !== "boolean"
+  ) {
     return undefined;
   }
   const phase =
     captionModelPhase(state.phase) ??
     (state.installed ? "ready" : "not-installed");
-  const pack = captionPack(state.pack) ?? (state.installed ? "fixture" : "none");
+  const pack =
+    captionPack(state.pack) ?? (state.installed ? "fixture" : "none");
   const downloadedBytes = numberAtLeast(state.downloadedBytes, 0) ?? 0;
-  const expectedBytes = numberAtLeast(state.expectedBytes, 0) ?? LOCAL_CAPTION_DOWNLOAD_BYTES;
+  const expectedBytes =
+    numberAtLeast(state.expectedBytes, 0) ?? LOCAL_CAPTION_DOWNLOAD_BYTES;
   const audioUploadAttempts = numberAtLeast(state.audioUploadAttempts, 0) ?? 0;
   const displaySize =
     nonEmptyString(state.displaySize) ?? LOCAL_CAPTION_DISPLAY_SIZE;
   const license = nonEmptyString(state.license) ?? LOCAL_CAPTION_LICENSE;
-  const languageLabel = nonEmptyString(state.languageLabel) ?? LOCAL_CAPTION_LANGUAGE_LABEL;
+  const languageLabel =
+    nonEmptyString(state.languageLabel) ?? LOCAL_CAPTION_LANGUAGE_LABEL;
   const statusMessage =
     nonEmptyString(state.statusMessage) ??
     (state.installed
@@ -815,7 +832,10 @@ export function createAndroidPlaybackContractPort(
       ),
     subscribe(listener) {
       const resolution = resolveBinding("playback", reader);
-      if (resolution.kind === "unavailable" || !resolution.binding.addListener) {
+      if (
+        resolution.kind === "unavailable" ||
+        !resolution.binding.addListener
+      ) {
         return () => undefined;
       }
       const subscription = resolution.binding.addListener(
@@ -1013,13 +1033,22 @@ export function createAndroidCaptionsContractPort(
     getEnglishModelState: () =>
       call((binding) => binding.getEnglishModelState(), captionModelState),
     installEnglishModel: (request) =>
-      call((binding) => binding.installEnglishModel(request), captionModelState),
+      call(
+        (binding) => binding.installEnglishModel(request),
+        captionModelState,
+      ),
     removeEnglishModel: (request) =>
       call((binding) => binding.removeEnglishModel(request), captionModelState),
     queueDevelopmentCaptionConstraint: () =>
-      call((binding) => binding.queueDevelopmentCaptionConstraint(), captionModelState),
+      call(
+        (binding) => binding.queueDevelopmentCaptionConstraint(),
+        captionModelState,
+      ),
     clearDevelopmentCaptionConstraint: () =>
-      call((binding) => binding.clearDevelopmentCaptionConstraint(), captionModelState),
+      call(
+        (binding) => binding.clearDevelopmentCaptionConstraint(),
+        captionModelState,
+      ),
     startFocusedCaptionSession: (request) =>
       call(
         (binding) => binding.startFocusedCaptionSession(request),
@@ -1034,7 +1063,10 @@ export function createAndroidCaptionsContractPort(
       call((binding) => binding.getCaptionProof(), captionProofState),
     subscribe(listener) {
       const resolution = resolveBinding("captions", reader);
-      if (resolution.kind === "unavailable" || !resolution.binding.addListener) {
+      if (
+        resolution.kind === "unavailable" ||
+        !resolution.binding.addListener
+      ) {
         return () => undefined;
       }
       const subscription = resolution.binding.addListener(

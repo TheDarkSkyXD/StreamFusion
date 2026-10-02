@@ -43,10 +43,7 @@ import {
   toWatchState,
   type CurrentSession,
 } from "./focused-watch-session-state";
-import {
-  runFocusedWatchStart,
-  startResultFrom,
-} from "./start-focused-watch";
+import { runFocusedWatchStart, startResultFrom } from "./start-focused-watch";
 
 function afterPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -60,7 +57,9 @@ function afterPaint(): Promise<void> {
 
 export function createFocusedWatchSession(input: {
   readonly filtering?: {
-    effective(platform: WatchTarget["platform"]): Promise<PlaybackFilterRequest>;
+    effective(
+      platform: WatchTarget["platform"],
+    ): Promise<PlaybackFilterRequest>;
   };
   readonly playback: FocusedPlaybackPort;
   readonly playbackSettings?: { snapshot(): PlaybackSessionPolicy };
@@ -103,7 +102,10 @@ export function createFocusedWatchSession(input: {
       progress,
       quality,
       qualities,
-      state: toWatchState(current) as Extract<FocusedWatchState, { kind: "active" }>,
+      state: toWatchState(current) as Extract<
+        FocusedWatchState,
+        { kind: "active" }
+      >,
       volume,
     };
   };
@@ -206,7 +208,10 @@ export function createFocusedWatchSession(input: {
       ? { ...previous, phase: "buffering" }
       : { kind: "resolving", target };
     notify();
-    if (previous?.kind === "active" && previous.session.sessionId !== endingSessionId) {
+    if (
+      previous?.kind === "active" &&
+      previous.session.sessionId !== endingSessionId
+    ) {
       previous.lease.release();
       await abandon(previous.session.sessionId);
     }
@@ -275,7 +280,11 @@ export function createFocusedWatchSession(input: {
     if (refreshing) {
       const interrupted = (): WatchStartResult | null => {
         if (attempt !== generation) return { kind: "cancelled" };
-        if (current?.kind === "active" && current.session.sessionId === sessionId) return null;
+        if (
+          current?.kind === "active" &&
+          current.session.sessionId === sessionId
+        )
+          return null;
         if (current?.kind === "failed") {
           if (presentation.presentation === "fullscreen") {
             presentation = INITIAL_PLAYER_PRESENTATION;
@@ -290,12 +299,18 @@ export function createFocusedWatchSession(input: {
       if (stopped) return stopped;
 
       let restoredVolume = volume;
-      let volumeResult = await input.playback.setVolume(sessionId, restoredVolume);
+      let volumeResult = await input.playback.setVolume(
+        sessionId,
+        restoredVolume,
+      );
       stopped = interrupted();
       if (stopped) return stopped;
       while (volumeResult.kind === "applied" && restoredVolume !== volume) {
         restoredVolume = volume;
-        volumeResult = await input.playback.setVolume(sessionId, restoredVolume);
+        volumeResult = await input.playback.setVolume(
+          sessionId,
+          restoredVolume,
+        );
         stopped = interrupted();
         if (stopped) return stopped;
       }
@@ -311,7 +326,10 @@ export function createFocusedWatchSession(input: {
       }
       const requestedQuality = quality;
       const qualitySequence = qualityRequestSequence;
-      const qualityResult = await input.playback.setQuality(sessionId, requestedQuality);
+      const qualityResult = await input.playback.setQuality(
+        sessionId,
+        requestedQuality,
+      );
       stopped = interrupted();
       if (stopped) return stopped;
       if (
@@ -391,7 +409,10 @@ export function createFocusedWatchSession(input: {
       const previous = presentation;
       presentation = toFullscreen(presentation);
       notify();
-      if (previous.presentation !== "fullscreen" && presentation.presentation === "fullscreen") {
+      if (
+        previous.presentation !== "fullscreen" &&
+        presentation.presentation === "fullscreen"
+      ) {
         void allowFullscreenLandscapeOrientation();
       }
     },
@@ -399,7 +420,10 @@ export function createFocusedWatchSession(input: {
       const previous = presentation;
       presentation = fromFullscreen(presentation);
       notify();
-      if (previous.presentation === "fullscreen" && presentation.presentation !== "fullscreen") {
+      if (
+        previous.presentation === "fullscreen" &&
+        presentation.presentation !== "fullscreen"
+      ) {
         void restorePortraitOrientation();
       }
     },
@@ -423,10 +447,7 @@ export function createFocusedWatchSession(input: {
       if (current?.kind !== "active") return;
       const sessionId = current.session.sessionId;
       const requestSequence = ++qualityRequestSequence;
-      const listed = await input.playback.setQuality(
-        sessionId,
-        nextQuality,
-      );
+      const listed = await input.playback.setQuality(sessionId, nextQuality);
       if (
         listed.kind === "listed" &&
         current?.kind === "active" &&
@@ -446,20 +467,25 @@ export function createFocusedWatchSession(input: {
       FocusedPictureInPictureResult | { readonly kind: "idle" }
     > {
       if (current?.kind !== "active") return { kind: "idle" };
+      const sessionId = current.session.sessionId;
       presentation = requestPictureInPicture(presentation);
       notify();
       await afterPaint();
-      if (current?.kind !== "active") return { kind: "idle" };
-      const result = await input.playback.enterPictureInPicture(
-        current.session.sessionId,
-      );
+      if (current?.kind !== "active" || current.session.sessionId !== sessionId)
+        return { kind: "idle" };
+      const result = await input.playback.enterPictureInPicture(sessionId);
+      if (current?.kind !== "active" || current.session.sessionId !== sessionId)
+        return result;
       if (result.kind === "entered") {
-        presentation = applyPictureInPictureResult(presentation, "active");
-        notify();
+        if (presentation.presentation === "pip") {
+          presentation = applyPictureInPictureResult(presentation, "active");
+          notify();
+        }
         return result;
       }
       // Expo Go and hosts without system PiP: floating mini-player is the
       // working Picture-in-Picture action. Playback continues without ending.
+      if (presentation.presentation !== "pip") return result;
       presentation = {
         pip: "idle",
         presentation: "mini",

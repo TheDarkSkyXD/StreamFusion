@@ -5,9 +5,15 @@ import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Rational
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -19,6 +25,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
 import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
 
@@ -34,6 +41,21 @@ object FocusedPlaybackSessionOwner {
   private var pictureInPictureSessionId: String? = null
   private var applicationContext: Context? = null
   private var hostActivity: WeakReference<Activity>? = null
+  private var observedActivity: ComponentActivity? = null
+  private var pipView: PlayerView? = null
+  private val pipModeListener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+    onPictureInPictureChanged(info.isInPictureInPictureMode)
+  }
+  private val lifecycleObserver: LifecycleEventObserver = LifecycleEventObserver { _, event ->
+    if (event == Lifecycle.Event.ON_STOP) onActivityStopped()
+    if (event == Lifecycle.Event.ON_DESTROY) {
+      observedActivity?.removeOnPictureInPictureModeChangedListener(pipModeListener)
+      observedActivity?.lifecycle?.removeObserver(lifecycleObserver)
+      observedActivity = null
+      hostActivity = null
+      removePipView()
+    }
+  }
   private val progressTicker = object : Runnable {
     override fun run() {
       val snapshot = synchronized(lock) { sessions.values.map { it.sessionId to it.player } }
@@ -49,7 +71,17 @@ object FocusedPlaybackSessionOwner {
 
   fun rememberActivity(activity: Activity?) {
     if (activity == null) return
-    synchronized(lock) { hostActivity = WeakReference(activity) }
+    onMain {
+      synchronized(lock) { hostActivity = WeakReference(activity) }
+      if (activity is ComponentActivity && observedActivity !== activity) {
+        observedActivity?.removeOnPictureInPictureModeChangedListener(pipModeListener)
+        observedActivity?.lifecycle?.removeObserver(lifecycleObserver)
+        observedActivity = activity
+        activity.addOnPictureInPictureModeChangedListener(pipModeListener)
+        activity.lifecycle.addObserver(lifecycleObserver)
+      }
+      disableSystemAutoEnter(activity)
+    }
   }
 
   fun start(context: Context, request: Map<String, Any>): Map<String, Any> = onMain {
@@ -130,6 +162,7 @@ object FocusedPlaybackSessionOwner {
       current
     }
     outgoing.dispose()
+    if (pictureInPictureSessionId == null) removePipView()
     if (synchronized(lock) { sessions.isEmpty() }) stopProgressTicker()
     mapOf(
       "kind" to "completed",
@@ -210,7 +243,7 @@ object FocusedPlaybackSessionOwner {
   }
 
   fun enterPictureInPicture(activity: Activity?, sessionId: String): Map<String, Any> = onMain {
-    requireSession(sessionId) ?: return@onMain missing(sessionId)
+    val session = requireSession(sessionId) ?: return@onMain missing(sessionId)
     val host = resolveHost(activity)
     if (host == null) {
       return@onMain unsupported("Picture in Picture needs the current Activity.")
@@ -218,26 +251,47 @@ object FocusedPlaybackSessionOwner {
     if (!pipEligible(host)) {
       return@onMain unsupported("Picture in Picture is not available on this device.")
     }
+    if (!canEnterPip(session)) {
+      return@onMain unsupported("Picture in Picture needs a playing video.")
+    }
     pictureInPictureRequested = true
     pictureInPictureSessionId = sessionId
+    attachPipView(host, session)
     val entered = try {
-      host.enterPictureInPictureMode(
-        PictureInPictureParams.Builder()
-          .setAspectRatio(Rational(16, 9))
-          .build(),
-      )
+      host.enterPictureInPictureMode(pipParams())
     } catch (_: IllegalStateException) {
       pictureInPictureRequested = false
       pictureInPictureSessionId = null
+      removePipView()
       return@onMain unsupported("Picture in Picture could not start from this screen.")
     }
     if (!entered) {
       pictureInPictureRequested = false
       pictureInPictureSessionId = null
+      removePipView()
       return@onMain unsupported("The system refused Picture in Picture.")
     }
-    pictureInPictureActive = true
     sessionCompleted(host, sessionId)
+  }
+
+  fun onUserLeavesActivity(activity: Activity?) = onMain {
+    val host = resolveHost(activity) ?: return@onMain
+    if (pictureInPictureActive || pictureInPictureRequested || !pipEligible(host)) return@onMain
+    val session = synchronized(lock) { sessions.values.lastOrNull() } ?: return@onMain
+    if (!canEnterPip(session)) return@onMain
+    pictureInPictureRequested = true
+    pictureInPictureSessionId = session.sessionId
+    attachPipView(host, session)
+    val entered = try {
+      host.enterPictureInPictureMode(pipParams())
+    } catch (_: IllegalStateException) {
+      false
+    }
+    if (!entered) {
+      pictureInPictureRequested = false
+      pictureInPictureSessionId = null
+      removePipView()
+    }
   }
 
   fun pauseForBackground() = onMain {
@@ -255,22 +309,7 @@ object FocusedPlaybackSessionOwner {
       synchronized(lock) { pictureInPictureActive = true }
       return@onMain
     }
-    val sessionId = synchronized(lock) {
-      val wasActive = pictureInPictureActive || pictureInPictureRequested
-      pictureInPictureRequested = false
-      pictureInPictureActive = false
-      val id = if (wasActive) pictureInPictureSessionId else null
-      pictureInPictureSessionId = null
-      id
-    }
-    if (sessionId != null) {
-      publish(
-        mapOf(
-          "kind" to "picture-in-picture-exited",
-          "sessionId" to sessionId,
-        ),
-      )
-    }
+    onPictureInPictureChanged(false)
   }
 
   fun release() = onMain {
@@ -284,6 +323,11 @@ object FocusedPlaybackSessionOwner {
       pictureInPictureSessionId = null
       players
     }
+    disableSystemAutoEnter(resolveHost(null))
+    removePipView()
+    observedActivity?.removeOnPictureInPictureModeChangedListener(pipModeListener)
+    observedActivity?.lifecycle?.removeObserver(lifecycleObserver)
+    observedActivity = null
     outgoing.forEach { it.dispose() }
     stopProgressTicker()
   }
@@ -304,16 +348,89 @@ object FocusedPlaybackSessionOwner {
 
   fun bindIfMatches(view: StreamFusionPlaybackView, sessionId: String?) = onMain {
     synchronized(lock) {
-      val player = sessionId?.let { sessions[it]?.player }
+      val player = if (pictureInPictureRequested || pictureInPictureActive) null else sessionId?.let { sessions[it]?.player }
       if (player != null) view.attachPlayer(player) else view.detachPlayer()
     }
   }
 
   private fun bindViewsLocked() {
     views.forEach { view ->
-      val player = view.boundSessionId()?.let { sessions[it]?.player }
+      val player = if (pictureInPictureRequested || pictureInPictureActive) null else view.boundSessionId()?.let { sessions[it]?.player }
       if (player != null) view.attachPlayer(player) else view.detachPlayer()
     }
+  }
+
+  private fun canEnterPip(session: Session): Boolean = FocusedPipPolicy.canEnter(
+    hasSession = synchronized(lock) {
+      sessions[session.sessionId] === session &&
+        (views.any { it.boundSessionId() == session.sessionId && it.isAttachedToWindow } || pipView != null)
+    },
+    playWhenReady = session.player.playWhenReady,
+    playbackState = session.player.playbackState,
+    hasFailure = session.player.playerError != null,
+  )
+
+  private fun pipParams(): PictureInPictureParams {
+    val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9))
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(false)
+    return builder.build()
+  }
+
+  private fun disableSystemAutoEnter(activity: Activity?) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || activity == null || !pipEligible(activity)) return
+    activity.setPictureInPictureParams(pipParams())
+  }
+
+  private fun attachPipView(activity: Activity, session: Session) {
+    val content = activity.findViewById<FrameLayout>(android.R.id.content) ?: return
+    views.forEach { it.detachPlayer() }
+    removePipView()
+    val view = PlayerView(activity).apply {
+      useController = false
+      layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+      player = session.player
+    }
+    content.addView(view)
+    pipView = view
+  }
+
+  private fun removePipView() {
+    pipView?.let { view ->
+      view.player = null
+      (view.parent as? ViewGroup)?.removeView(view)
+    }
+    pipView = null
+    synchronized(lock) { bindViewsLocked() }
+  }
+
+  private fun onPictureInPictureChanged(entered: Boolean) {
+    if (entered) {
+      val host = resolveHost(null)
+      val session = pictureInPictureSessionId?.let(::requireSession)
+        ?: synchronized(lock) { sessions.values.lastOrNull() }?.takeIf(::canEnterPip)
+        ?: return
+      if (pipView == null && host != null) attachPipView(host, session)
+      val sessionId = session.sessionId
+      pictureInPictureSessionId = sessionId
+      pictureInPictureRequested = false
+      pictureInPictureActive = true
+      publish(mapOf("kind" to "picture-in-picture-entered", "sessionId" to sessionId))
+      return
+    }
+    val wasActive = pictureInPictureActive
+    val sessionId = pictureInPictureSessionId
+    pictureInPictureRequested = false
+    pictureInPictureActive = false
+    pictureInPictureSessionId = null
+    removePipView()
+    if (wasActive && sessionId != null) {
+      publish(mapOf("kind" to "picture-in-picture-exited", "sessionId" to sessionId))
+    }
+  }
+
+  private fun onActivityStopped() {
+    onPictureInPictureChanged(false)
+    pauseForBackground()
   }
 
   private fun requireSession(sessionId: String): Session? = synchronized(lock) {
