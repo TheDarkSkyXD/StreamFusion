@@ -6,12 +6,80 @@ import test from "node:test";
 
 import {
   createPackagePublicationLookup,
+  fetchPublicationMetadata,
   findReleaseAgeViolations,
   readMinimumReleaseAgeMinutes,
   validateRepository,
 } from "./validate-lockfile-release-age.mjs";
 
 const now = new Date("2026-08-05T12:00:00.000Z");
+
+test("native registry lookup caches publication times and refreshes explicitly", async (context) => {
+  const cacheDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "publication-times-"),
+  );
+  context.after(() => rm(cacheDirectory, { recursive: true, force: true }));
+  let calls = 0;
+  const request = async (url, options) => {
+    assert.equal(url, "https://registry.npmjs.org/%40scope%2Fpackage");
+    assert.equal(options.headers.Accept, "application/json");
+    assert.ok(options.signal instanceof AbortSignal);
+    calls += 1;
+    return Response.json({
+      time: {
+        "1.0.0":
+          calls === 1 ? "2026-07-01T00:00:00.000Z" : "2026-07-02T00:00:00.000Z",
+      },
+      versions: {},
+    });
+  };
+  const options = { cacheDirectory, request };
+  assert.deepEqual(await fetchPublicationMetadata("@scope/package", options), {
+    time: { "1.0.0": "2026-07-01T00:00:00.000Z" },
+  });
+  assert.deepEqual(await fetchPublicationMetadata("@scope/package", options), {
+    time: { "1.0.0": "2026-07-01T00:00:00.000Z" },
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(
+    await fetchPublicationMetadata("@scope/package", {
+      ...options,
+      preferOnline: true,
+    }),
+    { time: { "1.0.0": "2026-07-02T00:00:00.000Z" } },
+  );
+  assert.equal(calls, 2);
+});
+
+test("native registry lookup rejects HTTP failures and invalid metadata", async (context) => {
+  const cacheDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "publication-failure-"),
+  );
+  context.after(() => rm(cacheDirectory, { recursive: true, force: true }));
+  await assert.rejects(
+    fetchPublicationMetadata("unavailable", {
+      cacheDirectory,
+      request: async () => new Response("unavailable", { status: 503 }),
+    }),
+    /HTTP 503/u,
+  );
+  await assert.rejects(
+    fetchPublicationMetadata("invalid", {
+      cacheDirectory,
+      request: async () => Response.json({ versions: {} }),
+    }),
+    /no publication times/u,
+  );
+  await writeFile(path.join(cacheDirectory, "valid.json"), "incomplete JSON");
+  assert.deepEqual(
+    await fetchPublicationMetadata("valid", {
+      cacheDirectory,
+      request: async () =>
+        Response.json({ time: { "1.0.0": "2026-07-01T00:00:00.000Z" } }),
+    }),
+    { time: { "1.0.0": "2026-07-01T00:00:00.000Z" } },
+  );
+});
 
 function registryPackage(name, version) {
   return {
@@ -357,10 +425,7 @@ test("validates the root npm policy", async () => {
       }),
     });
     assert.equal(violations.length, 1);
-    assert.match(
-      violations[0],
-      /^package-lock\.json: young-package@2\.0\.0:/,
-    );
+    assert.match(violations[0], /^package-lock\.json: young-package@2\.0\.0:/);
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

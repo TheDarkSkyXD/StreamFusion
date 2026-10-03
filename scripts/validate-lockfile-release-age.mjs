@@ -1,13 +1,55 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
-import pacote from "pacote";
 
 const EXACT_VERSION =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 const REGISTRY_CONCURRENCY = 16;
+
+export async function fetchPublicationMetadata(
+  name,
+  {
+    preferOnline = false,
+    request = fetch,
+    cacheDirectory = path.resolve(
+      import.meta.dirname,
+      "../node_modules/.cache/publication-times",
+    ),
+  } = {},
+) {
+  const cachePath = path.join(
+    cacheDirectory,
+    `${encodeURIComponent(name)}.json`,
+  );
+  if (!preferOnline) {
+    try {
+      return JSON.parse(await readFile(cachePath, "utf8"));
+    } catch (error) {
+      if (error.code !== "ENOENT" && !(error instanceof SyntaxError))
+        throw error;
+    }
+  }
+  const response = await request(
+    `${DEFAULT_REGISTRY}/${encodeURIComponent(name)}`,
+    {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  if (!response.ok)
+    throw new Error(
+      `Registry request for ${name} failed with HTTP ${response.status}`,
+    );
+  const { time } = await response.json();
+  if (!time || typeof time !== "object" || Array.isArray(time)) {
+    throw new Error(`Registry response for ${name} has no publication times`);
+  }
+  const metadata = { time };
+  await mkdir(cacheDirectory, { recursive: true });
+  await writeFile(cachePath, JSON.stringify(metadata));
+  return metadata;
+}
 
 async function mapWithConcurrency(values, concurrency, mapper) {
   const results = new Array(values.length);
@@ -27,7 +69,7 @@ async function mapWithConcurrency(values, concurrency, mapper) {
 }
 
 export function createPackagePublicationLookup({
-  packument = pacote.packument,
+  packument = fetchPublicationMetadata,
 } = {}) {
   const requests = new Map();
 

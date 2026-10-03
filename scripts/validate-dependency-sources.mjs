@@ -2,6 +2,11 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import {
+  blockedDependency,
+  BLOCKED_DEPENDENCIES,
+} from "./blocked-dependencies.mjs";
+
 const DEPENDENCY_SECTIONS = [
   "dependencies",
   "devDependencies",
@@ -45,6 +50,16 @@ export function findForbiddenDependencySources(manifest) {
     const dependencies = manifest[section];
     if (!dependencies || typeof dependencies !== "object") continue;
     for (const [dependency, specifier] of Object.entries(dependencies)) {
+      const blocked = blockedDependency(dependency, specifier);
+      if (blocked) {
+        violations.push({
+          dependency,
+          section,
+          specifier,
+          reason: `blocked dependency ${blocked} (${BLOCKED_DEPENDENCIES.get(blocked)})`,
+        });
+        continue;
+      }
       if (isForbiddenDependencySource(specifier)) {
         violations.push({ dependency, section, specifier });
       }
@@ -59,6 +74,16 @@ function findForbiddenOverrideSources(overrides, prefix = "overrides") {
   for (const [dependency, specifier] of Object.entries(overrides)) {
     const section = `${prefix}.${dependency}`;
     if (typeof specifier === "string") {
+      const blocked = blockedDependency("", specifier);
+      if (blocked) {
+        violations.push({
+          dependency,
+          section: prefix,
+          specifier,
+          reason: `blocked alias for ${blocked} (${BLOCKED_DEPENDENCIES.get(blocked)})`,
+        });
+        continue;
+      }
       if (isForbiddenDependencySource(specifier)) {
         violations.push({ dependency, section: prefix, specifier });
       }
@@ -74,12 +99,14 @@ function loadJson(filePath) {
 }
 
 function findCompetingPackageFileViolations(rootDirectory, policyDirectory) {
-  return findCompetingPackageFiles(readdirSync(policyDirectory)).map((file) => ({
-    file: path.relative(rootDirectory, path.join(policyDirectory, file)),
-    section: "repository",
-    dependency: file,
-    specifier: "competing package-manager file",
-  }));
+  return findCompetingPackageFiles(readdirSync(policyDirectory)).map(
+    (file) => ({
+      file: path.relative(rootDirectory, path.join(policyDirectory, file)),
+      section: "repository",
+      dependency: file,
+      specifier: "competing package-manager file",
+    }),
+  );
 }
 
 export function validateRepository(rootDirectory) {
@@ -114,7 +141,10 @@ export function validateRepository(rootDirectory) {
   }
 
   for (const workspaceDirectory of workspaceDirectories) {
-    const nestedLockfilePath = path.join(workspaceDirectory, "package-lock.json");
+    const nestedLockfilePath = path.join(
+      workspaceDirectory,
+      "package-lock.json",
+    );
     if (existsSync(nestedLockfilePath)) {
       violations.push({
         file: path.relative(rootDirectory, nestedLockfilePath),
@@ -150,9 +180,9 @@ if (isDirectExecution) {
   const rootDirectory = path.resolve(import.meta.dirname, "..");
   const violations = validateRepository(rootDirectory);
   if (violations.length > 0) {
-    for (const { file, section, dependency, specifier } of violations) {
+    for (const { file, section, dependency, specifier, reason } of violations) {
       console.error(
-        `${file}: ${section}.${dependency} uses forbidden source ${specifier}`,
+        `${file}: ${section}.${dependency} uses ${reason ?? "forbidden source"} ${specifier}`,
       );
     }
     process.exitCode = 1;

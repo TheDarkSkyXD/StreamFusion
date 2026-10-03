@@ -71,18 +71,18 @@ jobs:
           npm run lint:lockfile
           npm run audit:signatures
 
+      - name: Test the Android dependency gates
+        run: node --test scripts/audit-android-release-deps.test.mjs scripts/blocked-dependencies.test.mjs scripts/validate-lockfile-release-age.test.mjs
+
       - name: Audit the shipped Android dependency tree
-        # The repository-wide audit covers the Electron and worker trees and
-        # build-time tooling such as @expo/fingerprint and jsdom. Those
-        # advisories never reach a device. This gate covers the dependencies
-        # that are actually bundled into the APK, which is the tree a user runs.
         shell: bash
         run: |
           set -euo pipefail
           NPM_CLI_JS="$(dirname "$(readlink -f "$(command -v npm)")")/../lib/node_modules/npm/bin/npm-cli.js"
           test -f "$NPM_CLI_JS" || NPM_CLI_JS="$(npm root -g)/npm/bin/npm-cli.js"
           export NPM_CLI_JS
-          node scripts/audit-android-release-deps.mjs
+          npm run --workspace @streamfusion/mobile bundle:android -- --source-maps
+          node scripts/audit-android-release-deps.mjs apps/mobile/dist
 
       - name: Require the Android tag namespace and a mobile version
         shell: bash
