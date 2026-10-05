@@ -550,6 +550,7 @@ describe("adaptive app shell", () => {
       "more/history",
       "more/downloads",
       "more/moderation",
+      "more/multistream",
       "more/settings",
       "more/diagnostics",
       "more/accounts",

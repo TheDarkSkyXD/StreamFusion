@@ -23,14 +23,18 @@ const video: WatchTarget = {
 };
 
 describe("Watch caption eligibility", () => {
-  it("hides player CC chrome for live streams until track-based CC ships", () => {
-    expect(watchCaptionEligibility(live)).toEqual({ kind: "hidden" });
+  it("requires an actual native player session", () => {
+    expect(watchCaptionEligibility(live).kind).toBe("unsupported");
     expect(watchCaptionSessionId(live)).toBeNull();
+    expect(watchCaptionEligibility(live, true, "actual-player-7")).toEqual({
+      kind: "eligible",
+      label: "Local captions",
+      sessionId: "actual-player-7",
+    });
   });
 
-  it("hides captions on Videos and Clips", () => {
-    expect(watchCaptionEligibility(video)).toEqual({ kind: "hidden" });
-    expect(watchCaptionSessionId(video)).toBeNull();
+  it("uses native program audio for recorded video without deriving a different session id", () => {
+    expect(watchCaptionSessionId(video, "native-vod-99")).toBe("native-vod-99");
   });
 
   it("stays hidden when Settings turns captions off", () => {

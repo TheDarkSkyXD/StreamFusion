@@ -1,0 +1,40 @@
+{
+  "platform": "android",
+  "verifiedAt": "2026-10-05T16:08:02.142Z",
+  "command": "NODE_OPTIONS=--preserve-symlinks --preserve-symlinks-main npm exec --workspace @streamfusion/mobile -- expo export --platform android --output-dir dist/android-provenance --source-maps --clear",
+  "artifact": "entry-855ea16a83ee7445a093f504e67a6935.hbc",
+  "bytes": 13018604,
+  "sha256": "f001035c0eb869cdc6d45c6491a9e4d93589cf18ec61c03de3a4b64f65c3ca68",
+  "sources": [
+    {
+      "path": "apps/mobile/src/composition/mobile-runtime.tsx",
+      "sourceMapMatches": true,
+      "sha256": "b1d2162d6f9fb813fc34d009e3d2b2882e84082721536bf1b3aee03e3b8d59cb"
+    },
+    {
+      "path": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+      "sourceMapMatches": true,
+      "sha256": "23923d088c7b67c3bd5c0df9db63b93c6c90975e0edce82d9557dd28acd82bba"
+    },
+    {
+      "path": "apps/mobile/src/features/moderation/domain/moderation-controller.ts",
+      "sourceMapMatches": true,
+      "sha256": "008aa211fb512599351a3b4f545325c9b24e4e5271e86cc93d1d062c371e00f7"
+    },
+    {
+      "path": "apps/mobile/src/features/engagement/domain/engagement-controller.ts",
+      "sourceMapMatches": true,
+      "sha256": "e9d4247def266eb1202fc22830efc576035f21e24d29d5b817f3a829a11c370e"
+    },
+    {
+      "path": "apps/mobile/src/features/multistream/domain/multistream-session.ts",
+      "sourceMapMatches": true,
+      "sha256": "8e40f94da9870d05f678f2c38bbfdeda7403d5a93a8f87f2514e955fe552fba3"
+    },
+    {
+      "path": "apps/mobile/src/features/local-captions/domain/local-captions-controller.ts",
+      "sourceMapMatches": true,
+      "sha256": "57782cbb197089e523c8264a6bd74969ea8b1f7646e225f6fa72746661f50f6c"
+    }
+  ]
+}

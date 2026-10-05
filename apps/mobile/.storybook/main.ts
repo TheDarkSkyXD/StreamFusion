@@ -6,7 +6,7 @@ const config: StorybookConfig = {
   staticDirs: ["./public"],
   stories: [
     "../src/design/**/*.stories.tsx",
-    "../src/features/design-preview/components/**/*.stories.tsx",
+    "../src/features/**/components/**/*.stories.tsx",
   ],
   addons: ["@storybook/addon-docs", "@storybook/addon-a11y"],
   framework: {

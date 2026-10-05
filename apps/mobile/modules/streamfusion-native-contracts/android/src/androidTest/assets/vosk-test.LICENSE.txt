@@ -1,0 +1,5 @@
+The spoken PCM fixture vosk-test.wav is from the Vosk API upstream example.
+Source: https://github.com/alphacep/vosk-api/blob/master/python/example/test.wav
+SHA256: dcfea5712c43a43ba7ae8083afb39d36993e5a69c46e88b68aaa72b65cb615bb
+Vosk API is Copyright 2019 Alpha Cephei Inc., licensed under Apache-2.0.
+License: https://github.com/alphacep/vosk-api/blob/master/COPYING

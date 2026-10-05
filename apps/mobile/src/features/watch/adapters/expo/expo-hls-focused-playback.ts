@@ -29,7 +29,7 @@ export function createExpoHlsFocusedPlaybackPort(): FocusedPlaybackPort {
         const player = createVideoPlayer(source);
         bindPlayerEvents(input.sessionId, player);
         player.loop = false;
-        player.muted = false;
+        player.muted = input.muted ?? false;
         player.play();
         setExpoHlsPlaybackEntry({ player, sessionId: input.sessionId });
         emitExpoHlsPlaybackEvent({

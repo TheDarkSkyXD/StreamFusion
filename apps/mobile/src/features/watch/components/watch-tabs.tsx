@@ -1,8 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
-import { MobileButton } from "@mobile/design/button";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { MobileCatalogTags } from "@mobile/design/tag";
@@ -22,8 +28,13 @@ import type {
   WatchTab,
 } from "../capabilities/watch";
 import type { Platform } from "@streamfusion/core/platform";
-import { resolveChatUsernameColor } from "@mobile/features/chat/domain/resolve-chat-username-color";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/domain/chat-display-preferences";
+import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
+import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
+import type {
+  WatchChatConnectInput,
+  WatchChatMessage,
+} from "@mobile/features/chat/capabilities/watch-chat";
+
 import { formatWatchViewerCount } from "../domain/watch-live-meta";
 
 /**
@@ -35,8 +46,11 @@ import { formatWatchViewerCount } from "../domain/watch-live-meta";
  */
 export function WatchTabs({
   chat,
+  chatInteractions,
+  chatTarget,
   info,
   onChatRetry,
+  onModerateMessage,
   onOpenRelated,
   onSelect,
   platform,
@@ -45,8 +59,11 @@ export function WatchTabs({
   tab,
 }: {
   readonly chat: WatchChatAvailability;
+  readonly chatInteractions?: ChatInteractions;
+  readonly chatTarget?: WatchChatConnectInput;
   readonly info: WatchInfo | null;
   readonly onChatRetry?: () => void;
+  readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onSelect: (tab: WatchTab) => void;
   readonly platform: Platform;
@@ -61,7 +78,9 @@ export function WatchTabs({
       {tab === "info" ? (
         <Pressable
           accessibilityLabel={
-            recorded ? t("playback.watch.showComments") : t("playback.watch.showChat")
+            recorded
+              ? t("playback.watch.showComments")
+              : t("playback.watch.showChat")
           }
           accessibilityRole="button"
           onPress={() => onSelect(chatTab)}
@@ -72,18 +91,28 @@ export function WatchTabs({
           testID={recorded ? "watch-show-comments" : "watch-show-chat"}
         >
           <Text style={styles.switchLabel}>
-            {recorded ? t("playback.watch.showComments") : t("playback.watch.showChat")}
+            {recorded
+              ? t("playback.watch.showComments")
+              : t("playback.watch.showChat")}
           </Text>
         </Pressable>
       ) : null}
-      {tab === "chat" ? (
-        <ChatPane chat={chat} platform={platform} {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })} />
-      ) : null}
-      {tab === "comments" ? (
-        <CommentsPane
+      {tab === "chat" || tab === "comments" ? (
+        <ChatPanel
+          key={`${platform}:${chatTarget?.channelId}:${chatTarget?.media?.id ?? "live"}`}
           chat={chat}
           platform={platform}
+          recorded={recorded}
+          title={
+            recorded ? t("playback.watch.comments") : t("playback.watch.chat")
+          }
+          testID={recorded ? "watch-comments" : "watch-chat"}
+          {...(chatInteractions === undefined
+            ? {}
+            : { interactions: chatInteractions })}
+          {...(chatTarget === undefined ? {} : { target: chatTarget })}
           {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })}
+          {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
         />
       ) : null}
       {tab === "info" ? (
@@ -100,178 +129,7 @@ export function WatchTabs({
   );
 }
 
-function CommentsPane({
-  chat,
-  onRetry,
-  platform,
-}: {
-  readonly chat: WatchChatAvailability;
-  readonly onRetry?: () => void;
-  readonly platform: Platform;
-}) {
-  const { t } = useTranslation();
-  return (
-    <ChatPane
-      chat={chat}
-      platform={platform}
-      testID="watch-comments"
-      title={t("playback.watch.comments")}
-      {...(onRetry === undefined ? {} : { onRetry })}
-    />
-  );
-}
-
-function ChatPane({
-  chat,
-  onRetry,
-  platform,
-  testID = "watch-chat",
-  title,
-}: {
-  readonly chat: WatchChatAvailability;
-  readonly onRetry?: () => void;
-  readonly platform: Platform;
-  readonly testID?: string;
-  readonly title?: string;
-}) {
-  const { t } = useTranslation();
-  const paneTitle = title ?? t("playback.watch.chat");
-  if (chat.kind === "connecting") {
-    return (
-      <View style={styles.paneFill}>
-        <MobileStatusPanel testID={testID} tone="loading">
-          <Text selectable style={mobileType.title}>
-            {paneTitle}
-          </Text>
-          <Text selectable style={mobileType.body}>
-            {chat.detail}
-          </Text>
-        </MobileStatusPanel>
-      </View>
-    );
-  }
-  if (chat.kind === "failed") {
-    return (
-      <View style={styles.paneFill}>
-        <MobileStatusPanel testID={testID} tone="error">
-          <Text selectable style={mobileType.title}>
-            {paneTitle}
-          </Text>
-          <Text selectable style={mobileType.body}>
-            {chat.detail}
-          </Text>
-          {onRetry ? (
-            <MobileButton
-              accessibilityLabel={t("playback.watch.retryChat")}
-              onPress={onRetry}
-              testID={`${testID}-retry`}
-              variant="secondary"
-            >
-              {t("playback.retry")}
-            </MobileButton>
-          ) : null}
-        </MobileStatusPanel>
-      </View>
-    );
-  }
-  if (chat.kind === "unavailable") {
-    return (
-      <View style={styles.paneFill}>
-        <MobileStatusPanel testID={testID} tone="info">
-          <Text selectable style={mobileType.title}>
-            {paneTitle}
-          </Text>
-          <Text selectable style={mobileType.body}>
-            {chat.detail}
-          </Text>
-        </MobileStatusPanel>
-      </View>
-    );
-  }
-  if (chat.kind === "empty") {
-    return (
-      <View style={styles.paneFill}>
-        <MobileStatusPanel testID={testID} tone="empty">
-          <Text selectable style={mobileType.title}>
-            {paneTitle}
-          </Text>
-          <Text selectable style={mobileType.body}>
-            {chat.detail}
-          </Text>
-        </MobileStatusPanel>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.paneFill} testID={testID}>
-      <Text selectable style={mobileType.title}>
-        {paneTitle}
-      </Text>
-      <ScrollView
-        contentContainerStyle={styles.messageList}
-        style={styles.messageScroll}
-        testID={`${testID}-scroll`}
-      >
-        {chat.messages.map((message) => (
-          <View
-            key={message.id}
-            style={styles.messageRow}
-            testID={`watch-chat-message-${message.id}`}
-          >
-            <View style={styles.messageChrome} testID={`watch-chat-chrome-${message.id}`}>
-              {message.badges.map((badge) =>
-                badge.imageUrl ? (
-                  <Image
-                    key={`${badge.setId}-${badge.version}`}
-                    accessibilityIgnoresInvertColors
-                    accessibilityLabel={badge.title}
-                    resizeMode="contain"
-                    source={{ uri: badge.imageUrl }}
-                    style={styles.chatBadge}
-                    testID={`watch-chat-badge-${message.id}-${badge.setId}`}
-                  />
-                ) : null,
-              )}
-              <View style={styles.messageNameSlot}>
-                <Text
-                  selectable
-                  style={[
-                    styles.messageName,
-                    {
-                      color: resolveChatUsernameColor({
-                        ...(message.color === undefined
-                          ? {}
-                          : { color: message.color }),
-                        platform,
-                        readableColorForUncolored:
-                          DEFAULT_CHAT_DISPLAY_PREFERENCES.readableColorForUncolored,
-                        themeAdaptUsernameColor:
-                          DEFAULT_CHAT_DISPLAY_PREFERENCES.themeAdaptUsernameColor,
-                        username: message.username || message.displayName,
-                      }),
-                    },
-                  ]}
-                  testID={`watch-chat-username-${message.id}`}
-                >
-                  {message.displayName}
-                </Text>
-              </View>
-            </View>
-            <Text selectable style={styles.messageText}>
-              {`: ${message.text}`}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-function InfoPane({
-  info,
-}: {
-  readonly info: WatchInfo | null;
-}) {
+function InfoPane({ info }: { readonly info: WatchInfo | null }) {
   const { i18n, t } = useTranslation();
   if (!info) {
     return (
@@ -299,7 +157,11 @@ function InfoPane({
         <ChannelAvatar url={info.channel.avatarUrl} />
         <View style={styles.infoCopy}>
           <View style={styles.identity}>
-            <Text selectable style={styles.infoName} testID="watch-info-display-name">
+            <Text
+              selectable
+              style={styles.infoName}
+              testID="watch-info-display-name"
+            >
               {info.channel.displayName}
             </Text>
             {info.channel.isVerified ? (
@@ -322,7 +184,11 @@ function InfoPane({
         <ChannelAvatar url={info.channel.avatarUrl} />
         <View style={styles.infoCopy}>
           <View style={styles.identity}>
-            <Text selectable style={styles.infoName} testID="watch-info-display-name">
+            <Text
+              selectable
+              style={styles.infoName}
+              testID="watch-info-display-name"
+            >
               {info.channel.displayName}
             </Text>
             {info.channel.isVerified ? (
@@ -341,7 +207,11 @@ function InfoPane({
       <ChannelAvatar url={info.channel.avatarUrl} />
       <View style={styles.infoCopy}>
         <View style={styles.identity}>
-          <Text selectable style={styles.infoName} testID="watch-info-display-name">
+          <Text
+            selectable
+            style={styles.infoName}
+            testID="watch-info-display-name"
+          >
             {info.channel.displayName}
           </Text>
           {info.channel.isVerified ? (
@@ -371,7 +241,9 @@ function InfoPane({
 
 function ChannelAvatar({ url }: { readonly url: string }) {
   if (url === "") {
-    return <View style={styles.infoAvatar} testID="watch-info-avatar-placeholder" />;
+    return (
+      <View style={styles.infoAvatar} testID="watch-info-avatar-placeholder" />
+    );
   }
   return (
     <Image
@@ -464,57 +336,6 @@ const styles = StyleSheet.create({
     minHeight: 0,
     paddingHorizontal: mobileSpacing.medium,
     paddingTop: mobileSpacing.small,
-  },
-  paneFill: {
-    flex: 1,
-    gap: mobileSpacing.small,
-    minHeight: 0,
-  },
-  messageScroll: {
-    flex: 1,
-    minHeight: 0,
-  },
-  messageList: {
-    gap: mobileSpacing.small,
-    paddingBottom: mobileSpacing.medium,
-  },
-  messageRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-  },
-  messageChrome: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexShrink: 0,
-    gap: 4,
-    height: 18,
-  },
-  chatBadge: {
-    height: 18,
-    width: 18,
-  },
-  messageNameSlot: {
-    height: 18,
-    justifyContent: "center",
-  },
-  messageText: {
-    color: mobileColors.textSecondary,
-    flexShrink: 1,
-    fontSize: 13,
-    fontWeight: "500",
-    includeFontPadding: false,
-    lineHeight: 18,
-  },
-  messageName: {
-    fontSize: 13,
-    fontWeight: "700",
-    includeFontPadding: false,
-    lineHeight: 18,
-    textAlignVertical: "center",
-    // Optical nudge: Android glyphs sit ~1dp low vs badge art in 18px chrome.
-    transform: [{ translateY: -1 }],
   },
   switchRow: {
     ...mobilePressRing.rest,

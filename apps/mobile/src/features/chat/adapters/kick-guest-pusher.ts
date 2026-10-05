@@ -31,9 +31,11 @@ export async function connectKickGuestChat(input: {
   }
   if (input.signal.aborted) return () => undefined;
   const socket = input.socketFactory(PUSHER_URL);
+  let disposed = false;
   const channel = `chatrooms.${chatroomId}.v2`;
   socket.onopen = () => undefined;
   socket.onmessage = (event) => {
+    if (disposed || input.signal.aborted || event.data.length > 65_536) return;
     const frame = parseJson(event.data);
     if (frame === null) return;
     if (frame.event === "pusher:connection_established") {
@@ -57,12 +59,22 @@ export async function connectKickGuestChat(input: {
     if (message) input.onMessage(message);
   };
   socket.onerror = () => {
+    if (disposed || input.signal.aborted) return;
     input.onError("Kick chat closed before messages arrived.");
   };
   socket.onclose = () => {
+    if (disposed || input.signal.aborted) return;
     input.onClose();
   };
-  return () => socket.close();
+  const close = () => {
+    disposed = true;
+    socket.close();
+  };
+  input.signal.addEventListener("abort", close, { once: true });
+  return () => {
+    input.signal.removeEventListener("abort", close);
+    close();
+  };
 }
 
 async function readKickChatroomId(input: {
@@ -85,7 +97,9 @@ async function readKickChatroomId(input: {
 function parseJson(value: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(value);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;
   } catch {

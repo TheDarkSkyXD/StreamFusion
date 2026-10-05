@@ -20,6 +20,7 @@ export type ShellRouteId =
   | "more/history"
   | "more/downloads"
   | "more/moderation"
+  | "more/multistream"
   | "more/settings"
   | "more/diagnostics"
   | "more/accounts"
@@ -124,6 +125,7 @@ export const MORE_ROUTE_IDS = [
   "more/history",
   "more/downloads",
   "more/moderation",
+  "more/multistream",
   "more/settings",
   "more/diagnostics",
   "more/accounts",
@@ -257,6 +259,10 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "Open eligible managed channels and their Platform-specific actions.",
     "Moderation",
     "more",
+  ),
+  "more/multistream": route(
+    "more/multistream", "MORE", "more-multistream",
+    "Watch live channels together and choose one audio source.", "Multistream", "more",
   ),
   "more/settings": route(
     "more/settings",

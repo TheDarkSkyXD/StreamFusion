@@ -29,7 +29,7 @@ export type AndroidNativeFailure =
 export type AndroidCapabilityReadiness =
   | {
       readonly capability: AndroidCapabilityId;
-      readonly contractVersion: 1 | 2 | 3;
+      readonly contractVersion: 1 | 2 | 3 | 4;
       readonly kind: "ready";
     }
   | {
@@ -64,6 +64,7 @@ export type PlaybackBufferRequest = {
 };
 
 export interface PlaybackSessionRequest {
+  readonly muted?: boolean;
   readonly allowHevc?: boolean;
   readonly buffer?: PlaybackBufferRequest;
   readonly filtering?: {

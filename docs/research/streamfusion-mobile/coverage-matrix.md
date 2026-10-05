@@ -9,11 +9,11 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 110 |
-| Partial | 11 |
-| Placeholder | 4 |
-| Missing | 59 |
-| Discovered | 184 |
+| Implemented | 134 |
+| Partial | 14 |
+| Placeholder | 2 |
+| Missing | 35 |
+| Discovered | 185 |
 
 Implemented means the current candidate has a working control or screen for that row.
 Placeholder means the shell can open a saved-place route.
@@ -41,11 +41,11 @@ Missing means no route or control exists yet.
 | `screen:channel` | implemented | #130, #132, #133, #147, #148, #151 | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `screen:watch` | implemented | #152, #153, #156, #157, #167 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
 | `screen:video` | implemented | #133, #153, #154 | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
-| `screen:multi` | missing | — | — | missing |
+| `screen:multi` | partial | — | apps/mobile/src/features/multistream/components/multistream-workspace.tsx | missing |
 | `screen:history` | implemented | #155 | apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `screen:activity` | implemented | #141, #151, #163, #172, #173, #174 | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
-| `screen:moderation-home` | placeholder | #159, #168 | — | missing |
-| `screen:moderation` | missing | #159, #168 | — | missing |
+| `screen:moderation-home` | implemented | #159, #168 | apps/mobile/src/features/moderation/components/mod-workspace.tsx | tests |
+| `screen:moderation` | partial | #159, #168 | apps/mobile/src/features/moderation/components/mod-workspace.tsx | missing |
 | `screen:settings` | implemented | #167, #168, #169, #170 | apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `screen:accounts` | partial | #135, #145, #146, #151 | apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx | missing |
 | `screen:system` | implemented | #143, #170, #171 | apps/mobile/src/features/capability-profile/components/capability-profile-panel.tsx, apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
@@ -104,20 +104,20 @@ Missing means no route or control exists yet.
 | `tab:watch:chat` | implemented | #152, #156 | apps/mobile/src/features/watch/components/watch-tabs.tsx | tests |
 | `tab:watch:info` | implemented | #152, #154 | apps/mobile/src/features/watch/components/watch-tabs.tsx | tests |
 | `tab:watch:related` | implemented | #152, #154 | apps/mobile/src/features/watch/components/watch-tabs.tsx | tests |
-| `tab:video:details` | missing | — | — | missing |
-| `tab:video:comments` | missing | — | — | missing |
-| `tab:video:related` | missing | — | — | missing |
+| `tab:video:details` | implemented | — | apps/mobile/src/features/watch/components/watch-screen.tsx | tests |
+| `tab:video:comments` | implemented | — | apps/mobile/src/features/chat/domain/recorded-chat-session.ts | tests |
+| `tab:video:related` | implemented | — | apps/mobile/src/features/watch/components/watch-tabs.tsx | tests |
 | `tab:activity:all` | implemented | — | — | tests |
 | `tab:activity:channels` | implemented | — | — | tests |
 | `tab:activity:jobs` | implemented | #141, #163 | — | tests |
-| `tab:moderation:chat` | missing | — | — | missing |
+| `tab:moderation:chat` | partial | — | apps/mobile/src/features/chat/components/chat-panel.tsx | missing |
 | `tab:moderation:retention` | missing | — | — | missing |
 | `tab:moderation:mod-log` | missing | — | — | missing |
-| `tab:moderation:banned` | missing | — | — | missing |
-| `tab:moderation:engagement` | missing | — | — | missing |
-| `tab:moderation:unban` | missing | — | — | missing |
-| `tab:moderation:moderators` | missing | — | — | missing |
-| `tab:moderation:vips` | missing | — | — | missing |
+| `tab:moderation:banned` | implemented | — | apps/mobile/src/features/moderation/adapters/moderation-api.ts | tests |
+| `tab:moderation:engagement` | implemented | — | apps/mobile/src/features/engagement/components/engagement-sheet.tsx | tests |
+| `tab:moderation:unban` | implemented | — | apps/mobile/src/features/moderation/adapters/moderation-api.ts | tests |
+| `tab:moderation:moderators` | implemented | — | apps/mobile/src/features/moderation/adapters/moderation-api.ts | tests |
+| `tab:moderation:vips` | implemented | — | apps/mobile/src/features/moderation/adapters/moderation-api.ts | tests |
 | `tab:moderation:activity` | missing | — | — | missing |
 | `tab:moderation:active-mods` | missing | — | — | missing |
 | `tab:settings-diagnostics:overview` | implemented | #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
@@ -147,36 +147,36 @@ Missing means no route or control exists yet.
 | `action:player-stats` | missing | — | — | missing |
 | `action:player-fullscreen` | implemented | #152, #153 | apps/mobile/src/features/watch/components/player-controls.tsx | tests |
 | `action:player-pip` | implemented | #153 | apps/mobile/src/features/shell/components/app-shell.tsx | tests |
-| `action:player-captions` | missing | — | — | missing |
+| `action:player-captions` | implemented | — | apps/mobile/src/features/watch/components/watch-caption-bar.tsx | tests |
 | `action:toggle-chat` | missing | — | — | missing |
-| `action:chat-emotes` | missing | — | — | missing |
-| `action:chat-context` | missing | — | — | missing |
-| `action:chat-send` | missing | — | — | missing |
+| `action:chat-emotes` | implemented | — | apps/mobile/src/features/chat/components/chat-panel.tsx | tests |
+| `action:chat-context` | implemented | — | apps/mobile/src/features/chat/components/chat-panel.tsx | tests |
+| `action:chat-send` | implemented | — | apps/mobile/src/features/chat/adapters/platform-chat-commands.ts | tests |
 | `action:channel-follow` | implemented | #151 | apps/mobile/src/features/discovery/components/channel-header.tsx | tests |
-| `action:multistream-add` | missing | — | — | missing |
+| `action:multistream-add` | implemented | — | apps/mobile/src/features/multistream/domain/multistream-session.ts | tests |
 | `action:job-record` | missing | — | — | missing |
 | `action:job-download` | missing | — | — | missing |
 | `action:job-details` | missing | — | — | missing |
 | `action:watch-tab` | missing | — | — | missing |
 | `action:video-tab` | missing | — | — | missing |
-| `action:audio-owner` | missing | — | — | missing |
-| `action:multistream-edit` | missing | — | — | missing |
-| `action:multi-chat-mode` | missing | — | — | missing |
+| `action:audio-owner` | implemented | — | apps/mobile/src/features/multistream/domain/multistream-session.ts | tests |
+| `action:multistream-edit` | implemented | — | apps/mobile/src/features/multistream/components/multistream-workspace.tsx | tests |
+| `action:multi-chat-mode` | implemented | — | apps/mobile/src/features/multistream/domain/multistream-chat.ts | tests |
 | `action:restore-slot` | missing | — | — | missing |
 | `action:cool-device` | missing | — | — | missing |
-| `action:multi-chat-channel` | missing | — | — | missing |
+| `action:multi-chat-channel` | implemented | — | apps/mobile/src/features/multistream/components/multistream-workspace.tsx | tests |
 | `action:history-remove` | implemented | #155 | apps/mobile/src/features/media-library/components/history-row.tsx | tests |
 | `action:history-clear` | implemented | #155 | apps/mobile/src/features/media-library/components/history-view.tsx | tests |
 | `action:activity-dismiss-item` | implemented | — | — | tests |
 | `action:activity-mark-read` | implemented | — | — | tests |
 | `action:activity-clear-completed` | implemented | — | apps/mobile/src/features/activity/domain/activity-inbox-workflow.ts | tests |
 | `action:activity-tab` | implemented | — | — | tests |
-| `action:moderation-switch` | missing | — | — | missing |
-| `action:moderation-tools` | missing | — | — | missing |
-| `action:moderation-tab` | missing | — | — | missing |
+| `action:moderation-switch` | implemented | — | apps/mobile/src/features/moderation/domain/moderation-controller.ts | tests |
+| `action:moderation-tools` | implemented | — | apps/mobile/src/features/moderation/components/mod-workspace.tsx | tests |
+| `action:moderation-tab` | implemented | — | apps/mobile/src/features/moderation/components/mod-workspace.tsx | tests |
 | `action:toggle-setting` | missing | — | — | missing |
 | `action:cycle-setting` | missing | — | — | missing |
-| `action:caption-model` | missing | — | — | missing |
+| `action:caption-model` | implemented | — | apps/mobile/src/features/local-captions/domain/local-captions-controller.ts | tests |
 | `action:check-updates` | missing | — | — | missing |
 | `action:diagnostics-tab` | implemented | #171 | apps/mobile/src/features/diagnostics/domain/diagnostics-workspace.ts, apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx | tests |
 | `action:connect-account` | partial | — | — | missing |
@@ -212,7 +212,8 @@ Missing means no route or control exists yet.
 | `shell-route:more/categories` | implemented | — | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |
 | `shell-route:more/history` | implemented | #155 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/media-library/components/history-screen.tsx | tests |
 | `shell-route:more/downloads` | missing | — | — | missing |
-| `shell-route:more/moderation` | placeholder | — | — | missing |
+| `shell-route:more/moderation` | implemented | — | apps/mobile/src/features/moderation/components/mod-workspace.tsx | tests |
+| `shell-route:more/multistream` | implemented | — | apps/mobile/src/features/multistream/components/multistream-workspace.tsx | tests |
 | `shell-route:more/settings` | implemented | #162, #167, #169 | apps/mobile/src/features/shell/components/app-shell.tsx, apps/mobile/src/features/settings/components/settings-workspace.tsx | tests |
 | `shell-route:more/diagnostics` | implemented | #143, #171 | apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx, apps/mobile/src/features/shell/components/app-shell.tsx | tests |
 | `shell-route:more/accounts` | partial | — | — | missing |
@@ -223,7 +224,7 @@ Missing means no route or control exists yet.
 | Id | Status | Finding | Owners |
 | --- | --- | --- | --- |
 | `GAP-195-01` | escalated | More destination order conflicts. The contract lists Accounts before Settings and Diagnostics. SHELL MORE_ROUTE_IDS keeps Accounts last. This PR does not change navigation order. | #104, #139, #195 |
-| `GAP-195-02` | owned-elsewhere | Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation. | #147, #148, #149, #150, #152, #159, #167 |
+| `GAP-195-02` | owned-elsewhere | Watch and History cover live and recorded playback. Mobile now ships authenticated chat, recorded replay, supported moderation and engagement actions, multistream with merged or channel chat, and verified offline captions. Provider-only moderation logs, retention, and active moderator history use explicit handoffs. Multistream capacity remains a local safeguard, not qualified device capacity. | #147, #148, #149, #150, #152, #159, #167 |
 | `GAP-195-03` | owned-elsewhere | Chat, Predictions, Integrations, and API tokens Settings panels ship on this build. Diagnostics six-tab workspace ships on M09. Updates/Logs/Report/About Settings persist locally. GitHub Check now inspects the latest stable release without APK download. Native FCM registration, topic/direct fanout, and 100k dispatch proof ship on N01–N03. | #143, #168, #169, #170, #171, #172, #173, #174 |
 | `GAP-195-04` | owned-elsewhere | Guest notification preferences, Android permission, native FCM registration, in-app banners, ended-stream routing, topic/direct fanout, and 100k dispatch proof live on this build. Activity stays a local inbox plus relay receipts. | #151, #169, #172, #173, #174 |
 | `GAP-195-05` | open | More order is recorded, not changed. Physical-device and live-provider evidence remain missing for unfinished features. | #195, #196 |

@@ -1,0 +1,56 @@
+{
+  "observedAtUtc": "2026-10-05T15:07:33Z",
+  "device": {
+    "abi": "x86_64",
+    "apiLevel": 30,
+    "kind": "Android emulator"
+  },
+  "recognizer": {
+    "arm64ElfLoadAlignment": "0x4000",
+    "artifact": "com.alphacephei:vosk-android:0.3.75",
+    "jna": "5.18.1"
+  },
+  "model": {
+    "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+    "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+    "productFileDigestsVerified": 14,
+    "downloadBytes": 41205931
+  },
+  "input": {
+    "sha256": "dcfea5712c43a43ba7ae8083afb39d36993e5a69c46e88b68aaa72b65cb615bb",
+    "source": "https://github.com/alphacep/vosk-api/blob/master/python/example/test.wav",
+    "format": "PCM16 mono 16000 Hz"
+  },
+  "outcome": {
+    "junitReport": "android-recognition.xml",
+    "literalTranscriptAssertion": "one zero zero zero one",
+    "errors": 0,
+    "tests": 1,
+    "failures": 0
+  },
+  "scope": "Exact production recognizer, PCM converter, catalog and model store compiled in a standalone Android harness. Actual official model download, digest checks, secure extraction, recognition and removal run on Android.",
+  "limitation": "Does not prove the complete production Media3 player to session-scoped PCM tap to recognizer UI pipeline. Does not qualify real-time caption performance or physical-device ABI behavior.",
+  "sourceFiles": [
+    {
+      "sha256": "2dda65f2a21f31629e2213e6eaed9f9275d279265be9d6eaa32f1c0aa5517df3",
+      "file": "apps/mobile/modules/streamfusion-native-contracts/android/src/main/java/expo/modules/streamfusionnativecontracts/CaptionCatalog.kt"
+    },
+    {
+      "sha256": "8ccc64540dc3432d0510c3b63cc33033389d23e36d88524903f15ff49577ac45",
+      "file": "apps/mobile/modules/streamfusion-native-contracts/android/src/main/java/expo/modules/streamfusionnativecontracts/CaptionModelStore.kt"
+    },
+    {
+      "sha256": "54667df3a55762ad2a854cd9e36c34f450931441239de8fff76c84ab75e748c5",
+      "file": "apps/mobile/modules/streamfusion-native-contracts/android/src/main/java/expo/modules/streamfusionnativecontracts/CaptionRecognizer.kt"
+    },
+    {
+      "sha256": "ec1afe2d25ffb90e72931497c9abf5119bbd48cf631305136717b80f031b4cf9",
+      "file": "apps/mobile/modules/streamfusion-native-contracts/android/src/main/java/expo/modules/streamfusionnativecontracts/CaptionLocalRecognizer.kt"
+    },
+    {
+      "sha256": "722e7461e4e97bec0c20df6911296246bf4bb970176b132ac462ebe5edb4406a",
+      "file": "apps/mobile/modules/streamfusion-native-contracts/android/src/main/java/expo/modules/streamfusionnativecontracts/CaptionPcmConverter.kt"
+    }
+  ],
+  "testedGitTree": "af1d4381d43a4931b825a13e291c220992e77a90"
+}

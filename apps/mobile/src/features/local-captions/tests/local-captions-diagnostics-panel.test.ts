@@ -42,7 +42,7 @@ function press(nodes: readonly Element[], testID: string): void {
 
 // Guards: Diagnostics can install the fixture pack, start one session, reject a second, and prove no upload
 describe("Local captions diagnostics panel", () => {
-  it("stamps contract 2 and starts fixture caption work", () => {
+  it("stamps contract 3 and starts fixture caption work", () => {
     const actions: string[] = [];
     const nodes = descendants(
       LocalCaptionsDiagnosticsPanel({
@@ -108,7 +108,7 @@ describe("Local captions diagnostics panel", () => {
       }),
     );
     expect(byTestId(nodes, "local-captions-build-stamp")?.props.children).toBe(
-      "M04 Captions · contract 2",
+      "M04 Captions · contract 3",
     );
     expect(byTestId(nodes, "local-captions-proof")?.props.children).toContain(
       "uploads 0",

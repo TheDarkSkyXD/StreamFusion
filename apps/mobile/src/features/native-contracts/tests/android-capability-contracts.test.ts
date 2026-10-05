@@ -26,7 +26,7 @@ const unsupported = async () => ({
 const playbackBinding: ExpoPlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
-  getContractVersion: () => 3,
+  getContractVersion: () => 4,
   listQualities: unsupported,
   seekTo: unsupported,
   setMuted: unsupported,
@@ -100,7 +100,7 @@ const mediaJobsBinding: ExpoMediaJobsBinding = {
 const captionsBinding: ExpoCaptionsBinding = {
   clearDevelopmentCaptionConstraint: unsupported,
   getCaptionProof: unsupported,
-  getContractVersion: () => 2,
+  getContractVersion: () => 3,
   getEnglishModelState: unsupported,
   installEnglishModel: unsupported,
   queueDevelopmentCaptionConstraint: unsupported,
@@ -201,11 +201,11 @@ describe("Android capability module contracts", () => {
     };
 
     expect(Object.values(contracts).map((port) => port.readiness())).toEqual([
-      { capability: "captions", contractVersion: 2, kind: "ready" },
+      { capability: "captions", contractVersion: 3, kind: "ready" },
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 3, kind: "ready" },
-      { capability: "playback", contractVersion: 3, kind: "ready" },
+      { capability: "playback", contractVersion: 4, kind: "ready" },
     ]);
     await expect(
       contracts.playback.enterPictureInPicture("watch-1"),

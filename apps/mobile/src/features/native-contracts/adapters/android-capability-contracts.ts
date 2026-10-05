@@ -72,15 +72,15 @@ function describe(capability: AndroidCapabilityId): string {
   return capability.replaceAll("-", " ");
 }
 
-function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 {
+function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 | 4 {
+  if (capability === "playback") return 4;
   if (
     capability === "diagnostics" ||
-    capability === "playback" ||
     capability === "media-jobs"
   ) {
     return 3;
   }
-  if (capability === "captions") return 2;
+  if (capability === "captions") return 3;
   return 1;
 }
 

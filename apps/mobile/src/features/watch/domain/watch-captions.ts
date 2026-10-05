@@ -9,18 +9,30 @@ export type WatchCaptionEligibility =
       readonly label: string;
     };
 
-/**
- * Player CC chrome is hidden until provider caption tracks ship with a go-ahead.
- * Never show Coming soon / Install model / disabled CC on Watch.
- */
 export function watchCaptionEligibility(
   _target: WatchTarget,
-  _captionsEnabled = true,
+  captionsEnabled = true,
+  activeSessionId?: string,
 ): WatchCaptionEligibility {
-  return { kind: "hidden" };
+  if (!captionsEnabled) return { kind: "hidden" };
+  if (!activeSessionId) {
+    return {
+      kind: "unsupported",
+      reason:
+        "Local captions need a playing stream in the Android native client.",
+    };
+  }
+  return {
+    kind: "eligible",
+    label: "Local captions",
+    sessionId: activeSessionId,
+  };
 }
 
-export function watchCaptionSessionId(target: WatchTarget): string | null {
-  const eligibility = watchCaptionEligibility(target);
+export function watchCaptionSessionId(
+  target: WatchTarget,
+  activeSessionId?: string,
+): string | null {
+  const eligibility = watchCaptionEligibility(target, true, activeSessionId);
   return eligibility.kind === "eligible" ? eligibility.sessionId : null;
 }

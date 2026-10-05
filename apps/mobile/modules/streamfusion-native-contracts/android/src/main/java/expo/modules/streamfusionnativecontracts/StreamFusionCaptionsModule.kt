@@ -10,14 +10,14 @@ class StreamFusionCaptionsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("StreamFusionCaptions")
     Events("onNativeCaptions")
-    Function("getContractVersion") { 2 }
+    Function("getContractVersion") { 3 }
     OnCreate {
-      val filesDir = requireNotNull(appContext.reactContext?.filesDir) {
+      val context = requireNotNull(appContext.reactContext) {
         "Caption model storage requires an application files directory."
       }
-      val modelStore = CaptionModelStore(filesDir)
+      val modelStore = CaptionModelStore(context.filesDir)
       store = modelStore
-      sessions = CaptionSessionOwner(modelStore) { event ->
+      sessions = CaptionSessionOwner(context, modelStore) { event ->
         sendEvent("onNativeCaptions", event)
       }
     }
@@ -28,13 +28,14 @@ class StreamFusionCaptionsModule : Module() {
       if (request["modelId"] != CaptionCatalog.MODEL_ID) {
         return@AsyncFunction mapOf("kind" to "invalid")
       }
+      sessions().stopAll()
       mapOf("kind" to "completed", "value" to store().install(request["sourceUri"] as? String))
     }
     AsyncFunction("removeEnglishModel") { request: Map<String, Any> ->
       if (request["modelId"] != CaptionCatalog.MODEL_ID) {
         return@AsyncFunction mapOf("kind" to "invalid")
       }
-      sessions()?.stop("captions-removed")
+      sessions().stopAll()
       mapOf("kind" to "completed", "value" to store().remove())
     }
     AsyncFunction("startFocusedCaptionSession") { request: Map<String, Any> ->
@@ -48,12 +49,14 @@ class StreamFusionCaptionsModule : Module() {
     }
     AsyncFunction("queueDevelopmentCaptionConstraint") {
       store().queueConstraint()
+      sessions().stopAll()
       mapOf("kind" to "completed", "value" to store().snapshot())
     }
     AsyncFunction("clearDevelopmentCaptionConstraint") {
       store().clearConstraint()
       mapOf("kind" to "completed", "value" to store().snapshot())
     }
+    OnDestroy { sessions?.dispose() }
   }
 
   private fun store(): CaptionModelStore = requireNotNull(store)

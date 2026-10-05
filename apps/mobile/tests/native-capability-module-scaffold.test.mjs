@@ -122,11 +122,12 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
     assert.match(
       source,
       className === "Diagnostics" ||
-        className === "Playback" ||
         className === "MediaJobs"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
         : className === "Captions"
-          ? /Function\("getContractVersion"\) \{ 2 \}/u
+          ? /Function\("getContractVersion"\) \{ 3 \}/u
+          : className === "Playback"
+            ? /Function\("getContractVersion"\) \{ 4 \}/u
           : /Function\("getContractVersion"\) \{ 1 \}/u,
     );
     if (className === "Diagnostics") {
@@ -151,7 +152,7 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
       const catalog = readFileSync(path.join(kotlinRoot, "CaptionCatalog.kt"), "utf8");
       const owner = readFileSync(path.join(kotlinRoot, "CaptionSessionOwner.kt"), "utf8");
       const tap = readFileSync(path.join(kotlinRoot, "CaptionPcmTap.kt"), "utf8");
-      assert.match(catalog, /43\.11 MiB/u);
+      assert.match(catalog, /39\.30 MiB/u);
       assert.match(store, /sha256/u);
       assert.match(owner, /ONE_SESSION/u);
       assert.match(owner, /audioUploadAttempts/u);

@@ -1,0 +1,8 @@
+ts	phase	decision	why	evidence	result
+2026-10-05T14:54:22Z	design	narrow feature capabilities	Share token freshness and identity checks; keep provider operations feature-owned	workflow-architecture.md	accepted
+2026-10-05T14:54:23Z	playback	muted player start	Prevent competing audio before command promises complete	multistream-session.test.ts	verified
+2026-10-05T15:07:33Z	captions	Vosk offline recognition	Replace canned cues and diagnostic packs in production	recognition-proof.json	actual spoken Android recognition passed
+2026-10-05T15:33:39Z	lifecycle	caption teardown at player disposal	Close the matching recognizer on end, replacement, and release	CaptionPlaybackLifecycleTest.kt	failing-before and passing-after
+2026-10-05T15:44:16Z	review	retain provider send outcomes	Account changes cannot turn an uncertain POST into a safe failure	chat-workflows.test.ts	verified
+2026-10-05T15:47:56Z	review	retain interrupted mutation warnings	Separate submitted writes from cancelled reads	moderation-controller.test.ts and engagement-controller.test.ts	verified
+2026-10-05T15:50:15Z	review	native terminal disposal and PiP selection	Release failed/ended players and pause every background player except the PiP target	CaptionPlaybackLifecycleTest.kt and FocusedPlaybackBackgroundLifecycleTest.kt	45 native tests passed

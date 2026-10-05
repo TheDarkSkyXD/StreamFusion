@@ -8,7 +8,7 @@ class StreamFusionPlaybackModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("StreamFusionPlayback")
     Events("onNativePlayback")
-    Function("getContractVersion") { 3 }
+    Function("getContractVersion") { 4 }
     OnCreate {
       FocusedPlaybackSessionOwner.attachEmitter { event ->
         sendEvent("onNativePlayback", event)

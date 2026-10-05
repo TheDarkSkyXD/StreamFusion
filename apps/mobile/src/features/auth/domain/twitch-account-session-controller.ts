@@ -1,3 +1,4 @@
+import { MOBILE_TWITCH_SCOPES } from "./mobile-twitch-scopes";
 import {
   missingScopes,
   twitchAttemptId,
@@ -532,7 +533,7 @@ export function createTwitchAccountSessionController(options: {
         gateway: options.gateway,
         attemptId: id,
         expectedGeneration: generation,
-        scopes: ["chat:read"],
+        scopes: [...MOBILE_TWITCH_SCOPES],
         nowEpochMs: now,
         signal: owner.signal,
       });

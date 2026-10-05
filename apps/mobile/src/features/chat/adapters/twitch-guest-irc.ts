@@ -73,6 +73,7 @@ export function connectTwitchGuestIrc(input: {
     const next = input.socketFactory(TWITCH_IRC);
     socket = next;
     next.onopen = () => {
+      if (disposed || socket !== next) return;
       opened = true;
       reconnectAttempt = 0;
       next.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
@@ -82,9 +83,15 @@ export function connectTwitchGuestIrc(input: {
       input.onOpen();
     };
     next.onmessage = (event) => {
+      if (disposed || socket !== next) return;
       const chunk = socketDataToString(event.data);
       if (chunk === "") return;
       buffer += chunk;
+      if (buffer.length > 65_536) {
+        buffer = "";
+        input.onError("Twitch chat sent an oversized frame.");
+        return;
+      }
       const parts = buffer.split("\n");
       buffer = parts.pop() ?? "";
       for (const part of parts) handleLine(part);
@@ -94,10 +101,11 @@ export function connectTwitchGuestIrc(input: {
       }
     };
     next.onerror = () => {
-      if (disposed || opened) return;
+      if (disposed || socket !== next || opened) return;
       input.onError("Twitch chat closed before messages arrived.");
     };
     next.onclose = () => {
+      if (socket !== next) return;
       const wasOpen = opened;
       opened = false;
       socket = null;

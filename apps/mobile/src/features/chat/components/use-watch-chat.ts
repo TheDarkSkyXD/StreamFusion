@@ -6,7 +6,6 @@ import type {
   WatchChatAvailability,
   WatchChatSession,
 } from "../capabilities/watch-chat";
-import { RECORDED_COMMENTS } from "../capabilities/watch-chat";
 
 /** Cached for useSyncExternalStore — a fresh object each call can loop subscribers. */
 export const CONNECTING_WATCH_CHAT_SNAPSHOT: WatchChatAvailability = {
@@ -25,15 +24,38 @@ export function useWatchChat(
   target: WatchTarget,
 ): WatchChatAvailability {
   const recorded = target.media !== undefined;
+  const mediaId = target.media?.id;
+  const mediaKind = target.media?.kind;
+  const resumePositionSeconds = target.media?.resumePositionSeconds;
   useEffect(() => {
-    if (session === null || recorded) return undefined;
+    if (session === null) return undefined;
     session.attach({
       channelId: target.channelId,
       channelName: target.channelName,
       platform: target.platform,
+      ...(mediaId === undefined || mediaKind === undefined
+        ? {}
+        : {
+            media: {
+              id: mediaId,
+              kind: mediaKind,
+              ...(resumePositionSeconds === undefined
+                ? {}
+                : { resumePositionSeconds }),
+            },
+          }),
     });
     return () => session.dispose();
-  }, [recorded, session, target.channelId, target.channelName, target.platform]);
+  }, [
+    recorded,
+    session,
+    target.channelId,
+    target.channelName,
+    target.platform,
+    mediaId,
+    mediaKind,
+    resumePositionSeconds,
+  ]);
   const subscribe = useCallback(
     (listener: () => void) =>
       session === null ? subscribeNoop() : session.subscribe(listener),
@@ -45,7 +67,6 @@ export function useWatchChat(
     [session],
   );
   const live = useSyncExternalStore(subscribe, getSnapshot);
-  if (recorded) return RECORDED_COMMENTS;
   if (session === null) return UNAVAILABLE_WATCH_CHAT_SNAPSHOT;
   return live;
 }

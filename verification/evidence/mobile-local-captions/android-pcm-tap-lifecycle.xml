@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.CaptionPcmTapLifecycleTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-05T15:50:15.020Z" hostname="DESKTOP-O4BIJFR" time="0.005">
+  <properties/>
+  <testcase name="concurrentEndCallsNotifyExactlyOnce" classname="expo.modules.streamfusionnativecontracts.CaptionPcmTapLifecycleTest" time="0.003"/>
+  <testcase name="onlyTheMatchingSessionEndsAndStopsDeliveringAudio" classname="expo.modules.streamfusionnativecontracts.CaptionPcmTapLifecycleTest" time="0.001"/>
+  <testcase name="endingOneSubscriptionDoesNotClearItsCallbackReplacement" classname="expo.modules.streamfusionnativecontracts.CaptionPcmTapLifecycleTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

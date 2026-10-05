@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="expo.modules.streamfusionnativecontracts.CaptionRecognitionTest" tests="1" failures="0" errors="0" skipped="0" time="278.387" timestamp="2026-10-05T15:07:33" hostname="localhost">
+  <properties>
+    <property name="device" value="SF_Player_Controls_Proof_20261001(AVD) - 11" />
+    <property name="flavor" value="" />
+    <property name="project" value=":" />
+  </properties>
+  <testcase name="transcribesSpokenProgramPcmWithThePinnedEnglishModel" classname="expo.modules.streamfusionnativecontracts.CaptionRecognitionTest" time="271.904" />
+</testsuite>

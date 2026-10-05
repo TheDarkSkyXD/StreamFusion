@@ -28,6 +28,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicReference
 
 object FocusedPlaybackSessionOwner {
   private val SESSION_ID = Regex("^[a-zA-Z0-9._:-]{1,256}$")
@@ -123,13 +124,15 @@ object FocusedPlaybackSessionOwner {
     val dataSourceFactory = filteringFactory ?: httpFactory
     val exo = ExoPlayer.Builder(context.applicationContext)
       .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-      .setRenderersFactory(captionRenderers(context.applicationContext))
+      .setRenderersFactory(captionRenderers(context.applicationContext, sessionId))
       .setLoadControl(PlaybackPreferenceConfig.loadControl(request))
       .setTrackSelector(
         PlaybackPreferenceConfig.trackSelector(context.applicationContext, request),
       )
       .build()
-    exo.addListener(SessionListener(sessionId))
+    val initiallyMuted = request["muted"] == true
+    if (initiallyMuted) exo.volume = 0f
+    exo.addListener(SessionListener(sessionId, exo))
     exo.setMediaItem(
       PlaybackPreferenceConfig.mediaItem(sourceUri, mimeType(sourceUri), request),
     )
@@ -139,7 +142,7 @@ object FocusedPlaybackSessionOwner {
         hostActivity = WeakReference(context)
       }
       val outgoing = sessions.remove(sessionId)
-      sessions[sessionId] = Session(sessionId, exo, filteringFactory)
+      sessions[sessionId] = Session(sessionId, exo, filteringFactory).also { it.muted = initiallyMuted }
       bindViewsLocked()
       outgoing
     }
@@ -151,19 +154,7 @@ object FocusedPlaybackSessionOwner {
   }
 
   fun end(sessionId: String): Map<String, Any> = onMain {
-    val outgoing = synchronized(lock) {
-      val current = sessions.remove(sessionId) ?: return@onMain missing(sessionId)
-      if (pictureInPictureSessionId == sessionId) {
-        pictureInPictureActive = false
-        pictureInPictureRequested = false
-        pictureInPictureSessionId = null
-      }
-      bindViewsLocked()
-      current
-    }
-    outgoing.dispose()
-    if (pictureInPictureSessionId == null) removePipView()
-    if (synchronized(lock) { sessions.isEmpty() }) stopProgressTicker()
+    if (!disposeSession(sessionId)) return@onMain missing(sessionId)
     mapOf(
       "kind" to "completed",
       "value" to mapOf(
@@ -277,7 +268,10 @@ object FocusedPlaybackSessionOwner {
   fun onUserLeavesActivity(activity: Activity?) = onMain {
     val host = resolveHost(activity) ?: return@onMain
     if (pictureInPictureActive || pictureInPictureRequested || !pipEligible(host)) return@onMain
-    val session = synchronized(lock) { sessions.values.lastOrNull() } ?: return@onMain
+    val session = synchronized(lock) {
+      sessions.values.lastOrNull { !it.muted && it.player.volume > 0f && canEnterPip(it) }
+        ?: sessions.values.singleOrNull()?.takeIf { canEnterPip(it) }
+    } ?: return@onMain
     if (!canEnterPip(session)) return@onMain
     pictureInPictureRequested = true
     pictureInPictureSessionId = session.sessionId
@@ -295,11 +289,12 @@ object FocusedPlaybackSessionOwner {
   }
 
   fun pauseForBackground() = onMain {
-    val skip = synchronized(lock) {
-      pictureInPictureRequested || pictureInPictureActive
+    val players = synchronized(lock) {
+      val pipSessionId = pictureInPictureSessionId.takeIf {
+        pictureInPictureRequested || pictureInPictureActive
+      }
+      sessions.values.filter { it.sessionId != pipSessionId }.map { it.player }
     }
-    if (skip) return@onMain
-    val players = synchronized(lock) { sessions.values.map { it.player } }
     players.forEach { it.playWhenReady = false }
   }
 
@@ -437,6 +432,25 @@ object FocusedPlaybackSessionOwner {
     sessions[sessionId]
   }
 
+  private fun disposeSession(sessionId: String, expectedPlayer: ExoPlayer? = null): Boolean {
+    val outgoing = synchronized(lock) {
+      val current = sessions[sessionId] ?: return false
+      if (expectedPlayer != null && current.player !== expectedPlayer) return false
+      sessions.remove(sessionId)
+      if (pictureInPictureSessionId == sessionId) {
+        pictureInPictureActive = false
+        pictureInPictureRequested = false
+        pictureInPictureSessionId = null
+      }
+      bindViewsLocked()
+      current
+    }
+    outgoing.dispose()
+    if (pictureInPictureSessionId == null) removePipView()
+    if (synchronized(lock) { sessions.isEmpty() }) stopProgressTicker()
+    return true
+  }
+
   private fun missing(sessionId: String) = mapOf(
     "kind" to "completed",
     "value" to mapOf("kind" to "missing", "sessionId" to sessionId),
@@ -526,7 +540,7 @@ object FocusedPlaybackSessionOwner {
     return PlaybackSourceUri.mimeTypeFor(sourceUri)
   }
 
-  private fun captionRenderers(context: Context): DefaultRenderersFactory {
+  private fun captionRenderers(context: Context, sessionId: String): DefaultRenderersFactory {
     return object : DefaultRenderersFactory(context) {
       override fun buildAudioSink(
         context: Context,
@@ -536,7 +550,7 @@ object FocusedPlaybackSessionOwner {
         return DefaultAudioSink.Builder(context)
           .setEnableFloatOutput(enableFloatOutput)
           .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-          .setAudioProcessors(arrayOf(TeeAudioProcessor(CaptionPcmTap)))
+          .setAudioProcessors(arrayOf(TeeAudioProcessor(CaptionPcmTap.forSession(sessionId))))
           .build()
       }
     }
@@ -573,21 +587,16 @@ object FocusedPlaybackSessionOwner {
       return block()
     }
     val done = CountDownLatch(1)
-    var result: T? = null
-    var error: Throwable? = null
+    val result = AtomicReference<Result<T>>()
     main.post {
       try {
-        result = block()
-      } catch (failure: Throwable) {
-        error = failure
+        result.set(runCatching(block))
       } finally {
         done.countDown()
       }
     }
     done.await()
-    error?.let { throw it }
-    @Suppress("UNCHECKED_CAST")
-    return result as T
+    return requireNotNull(result.get()).getOrThrow()
   }
 
   private class Session(
@@ -599,6 +608,7 @@ object FocusedPlaybackSessionOwner {
     var volumeBeforeMute: Float = 1f,
   ) {
     fun dispose() {
+      CaptionPcmTap.endSession(sessionId)
       player.release()
       filteringFactory?.dispose()
     }
@@ -606,16 +616,21 @@ object FocusedPlaybackSessionOwner {
 
   private class SessionListener(
     private val sessionId: String,
+    private val player: ExoPlayer,
   ) : Player.Listener {
+    private fun currentSession(): Session? = synchronized(lock) {
+      sessions[sessionId]?.takeIf { it.player === player }
+    }
+
     override fun onTracksChanged(tracks: Tracks) {
-      val session = synchronized(lock) { sessions[sessionId] } ?: return
+      val session = currentSession() ?: return
       if (session.player.playWhenReady) {
         publish(mapOf("kind" to "playing", "sessionId" to sessionId))
       }
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
-      val session = synchronized(lock) { sessions[sessionId] } ?: return
+      val session = currentSession() ?: return
       when (playbackState) {
         Player.STATE_BUFFERING -> publish(mapOf("kind" to "buffering", "sessionId" to sessionId))
         Player.STATE_READY -> {
@@ -631,12 +646,16 @@ object FocusedPlaybackSessionOwner {
             )
           }
         }
-        Player.STATE_ENDED -> publish(mapOf("kind" to "ended", "sessionId" to sessionId))
+        Player.STATE_ENDED -> {
+          if (disposeSession(sessionId, player)) {
+            publish(mapOf("kind" to "ended", "sessionId" to sessionId))
+          }
+        }
       }
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-      synchronized(lock) { sessions[sessionId] } ?: return
+      currentSession() ?: return
       if (playWhenReady) {
         publish(mapOf("kind" to "playing", "sessionId" to sessionId))
         return
@@ -657,7 +676,7 @@ object FocusedPlaybackSessionOwner {
     }
 
     override fun onPlayerError(error: PlaybackException) {
-      synchronized(lock) { sessions[sessionId] } ?: return
+      if (!disposeSession(sessionId, player)) return
       publish(
         mapOf(
           "kind" to "failed",

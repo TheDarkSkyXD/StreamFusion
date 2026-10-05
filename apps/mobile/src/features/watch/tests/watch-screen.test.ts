@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
+import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
 import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
@@ -11,6 +12,7 @@ vi.mock("react-native", () => ({
   Pressable: "Pressable",
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
+  TextInput: "TextInput",
   RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
   View: "View",
@@ -42,28 +44,28 @@ const i18nTest = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
   initReactI18next: { type: "3rdParty", init: () => undefined },
 }));
-
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return {
     ...actual,
     useEffect: () => undefined,
-    useState: <S,>(initial: S | (() => S)) => {
+    useRef: (initial: unknown) => ({ current: initial }),
+    useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) =>
+      getSnapshot(),
+    useState: <S>(initial: S | (() => S)) => {
       const value =
         typeof initial === "function" ? (initial as () => S)() : initial;
       return [value, () => undefined] as const;
     },
   };
 });
-
-
-
 
 type ElementProps = Readonly<{
   children?: unknown;
@@ -101,7 +103,6 @@ describe("watch screen", () => {
       i18n.t(key, options as never);
   });
 
-
   it("requires an explicit start and shows connecting guest chat", () => {
     const root = WatchScreen({
       PlayerSurface: () => null,
@@ -118,7 +119,9 @@ describe("watch screen", () => {
       target,
     });
     const nodes = descendants(root);
-    expect(nodes.some((node) => node.props.testID === "watch-start")).toBe(false);
+    expect(nodes.some((node) => node.props.testID === "watch-start")).toBe(
+      false,
+    );
     expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(
       false,
     );
@@ -137,33 +140,37 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{
-            badges: [
-              {
-                imageUrl: "https://example.test/mod.png",
-                setId: "moderator",
-                title: "Moderator",
-                version: "1",
-              },
-            ],
-            color: "#FF7F50",
-            displayName: "Ada",
-            id: "msg-1",
-            text: "hello",
-            username: "ada",
-          }],
+          messages: [
+            {
+              badges: [
+                {
+                  imageUrl: "https://example.test/mod.png",
+                  setId: "moderator",
+                  title: "Moderator",
+                  version: "1",
+                },
+              ],
+              color: "#FF7F50",
+              displayName: "Ada",
+              id: "msg-1",
+              text: "hello",
+              username: "ada",
+            },
+          ],
         },
         inspection: null,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
+        playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
     );
     expect(
-      liveNodes.some((node) => node.props.testID === "watch-chat-message-msg-1"),
+      liveNodes.some(
+        (node) => node.props.testID === "watch-chat-message-msg-1",
+      ),
     ).toBe(true);
     expect(
       liveNodes.some((node) => node.props.testID === "watch-chat-chrome-msg-1"),
@@ -229,12 +236,14 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
+        playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
     );
-    failedNodes.find((node) => node.props.testID === "watch-chat-retry")?.props.onPress?.();
+    failedNodes
+      .find((node) => node.props.testID === "watch-chat-retry")
+      ?.props.onPress?.();
     expect(retried).toEqual(["chat"]);
   });
 
@@ -265,7 +274,7 @@ describe("watch screen", () => {
       onToggleFullscreen: () => undefined,
       peek: {
         adsDetected: false,
-          kind: "active",
+        kind: "active",
         muted: false,
         presentation: {
           pip: "unavailable",
@@ -284,23 +293,27 @@ describe("watch screen", () => {
       target,
     });
     const nodes = descendants(root);
-    expect(nodes.some((node) => node.props.testID === "player-play-pause")).toBe(
+    expect(
+      nodes.some((node) => node.props.testID === "player-play-pause"),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-mute")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "player-mute")).toBe(true);
     expect(nodes.some((node) => node.props.testID === "player-quality")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "player-fullscreen")).toBe(
-      true,
+    expect(
+      nodes.some((node) => node.props.testID === "player-fullscreen"),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(
+      false,
     );
-    expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(false);
-    expect(nodes.some((node) => node.props.testID === "player-live-badge")).toBe(
-      true,
-    );
-    expect(nodes.some((node) => node.props.testID === "player-controls-rail")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "player-live-badge"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "player-controls-rail"),
+    ).toBe(true);
     expect(
       nodes.some((node) =>
         String(node.props.children).includes("Theater and stats"),
@@ -338,7 +351,7 @@ describe("watch screen", () => {
       onToggleFullscreen: () => undefined,
       peek: {
         adsDetected: false,
-          kind: "active",
+        kind: "active",
         muted: false,
         presentation: {
           pip: "active",
@@ -357,10 +370,12 @@ describe("watch screen", () => {
       target,
     });
     const nodes = descendants(root);
-    expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "player-play-pause")).toBe(
-      false,
+    expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(
+      true,
     );
+    expect(
+      nodes.some((node) => node.props.testID === "player-play-pause"),
+    ).toBe(false);
     expect(nodes.some((node) => node.props.testID === "watch-target")).toBe(
       false,
     );
@@ -410,10 +425,18 @@ describe("watch screen", () => {
         target,
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "player-fullscreen")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "watch-channel-chrome")).toBe(false);
-    expect(nodes.some((node) => node.props.testID === "watch-under-player")).toBe(false);
+    expect(nodes.some((node) => node.props.testID === "watch-player")).toBe(
+      true,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "player-fullscreen"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-channel-chrome"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-under-player"),
+    ).toBe(false);
   });
 
   it("shows an on-player adblock shield instead of an under-player status card", () => {
@@ -506,7 +529,7 @@ describe("watch screen", () => {
           onDelete: () => undefined,
           onExport: () => undefined,
           onOpenArtifact: () => undefined,
-            },
+        },
         recording: {
           busy: false,
           eligibility: {
@@ -519,12 +542,12 @@ describe("watch screen", () => {
           onDelete: () => undefined,
           onExport: () => undefined,
           onOpenArtifact: () => undefined,
-            },
+        },
         inspection: null,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
+        playback: { kind: "ready", target },
         tab: "info",
         target,
       }),
@@ -554,12 +577,12 @@ describe("watch screen", () => {
           onDelete: () => undefined,
           onExport: () => undefined,
           onOpenArtifact: () => undefined,
-            },
+        },
         inspection: null,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target: video },
+        playback: { kind: "ready", target: video },
         tab: "info",
         target: video,
       }),
@@ -572,74 +595,95 @@ describe("watch screen", () => {
     ).toBe(false);
   });
 
-  it("shows local caption overlay and hides player CC chrome", () => {
-    const nodes = descendants(
-      WatchScreen({
-        PlayerSurface: () => null,
-        captions: {
-          busy: false,
-          cueText: "English model 43.11 MiB. No microphone. No upload.",
-          eligibility: {
-            kind: "eligible",
-            label: "Captions",
-            sessionId: "cap-twitch-twitch-1",
-          },
-          model: {
-            audioUploadAttempts: 0,
-            displaySize: "43.11 MiB",
-            downloadedBytes: 45_202_074,
-            expectedBytes: 45_202_074,
-            installed: true,
-            languageLabel: "English",
-            license: "Apache-2.0",
-            modelId: "english-v1",
-            pack: "fixture",
-            phase: "ready",
-            sha256Verified: true,
-            statusMessage:
-              "English model ready offline. 43.11 MiB. Audio stays on this device.",
-          },
-          onInstall: () => undefined,
-          onRemove: () => undefined,
-          onStart: () => undefined,
-          onStop: () => undefined,
-          session: {
-            audioLeftDevice: false,
-            audioUploadAttempts: 0,
+  it.each(["watch:1", "previous-watch"])(
+    "fences caption overlay and controls to player %s",
+    (captionSessionId) => {
+      const nodes = descendants(
+        WatchScreen({
+          PlayerSurface: () => null,
+          captions: {
+            busy: false,
             cueText: "English model 43.11 MiB. No microphone. No upload.",
-            microphonePermissionRequested: false,
-            pcmBytesProcessed: 640,
-            sessionId: "cap-twitch-twitch-1",
-            state: "active",
+            eligibility: {
+              kind: "eligible",
+              label: "Captions",
+              sessionId: captionSessionId,
+            },
+            model: {
+              audioUploadAttempts: 0,
+              displaySize: "43.11 MiB",
+              downloadedBytes: 45_202_074,
+              expectedBytes: 45_202_074,
+              installed: true,
+              languageLabel: "English",
+              license: "Apache-2.0",
+              modelId: "english-v1",
+              pack: "fixture",
+              phase: "ready",
+              sha256Verified: true,
+              statusMessage:
+                "English model ready offline. 43.11 MiB. Audio stays on this device.",
+            },
+            onInstall: () => undefined,
+            onRemove: () => undefined,
+            onStart: () => undefined,
+            onStop: () => undefined,
+            session: {
+              audioLeftDevice: false,
+              audioUploadAttempts: 0,
+              cueText: "English model 43.11 MiB. No microphone. No upload.",
+              microphonePermissionRequested: false,
+              pcmBytesProcessed: 640,
+              sessionId: captionSessionId,
+              state: "active",
+            },
           },
-        },
-        chat: {
-          detail: "Connecting guest chat.",
-          kind: "connecting",
-        },
-        inspection: null,
-        onOpenRelated: () => undefined,
-        onRetry: () => undefined,
-        onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
-        tab: "info",
-        target,
-      }),
-    );
-    expect(nodes.some((node) => node.props.testID === "watch-caption-overlay")).toBe(
-      true,
-    );
-    expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(false);
-  });
+          chat: {
+            detail: "Connecting guest chat.",
+            kind: "connecting",
+          },
+          inspection: null,
+          onOpenRelated: () => undefined,
+          onRetry: () => undefined,
+          onSelectTab: () => undefined,
+          playback: {
+            kind: "active",
+            phase: "playing",
+            integration: "twitch-gql-usher",
+            policySequence: 1,
+            protection: { kind: "normal" },
+            session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+            target,
+          },
+          tab: "info",
+          target,
+        }),
+      );
+      expect(
+        nodes.some((node) => node.props.testID === "watch-caption-overlay"),
+      ).toBe(captionSessionId === "watch:1");
+      expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(
+        true,
+      );
+      expect(
+        nodes.some((node) => node.props.testID === "watch-caption-stop"),
+      ).toBe(captionSessionId === "watch:1");
+    },
+  );
 
   it("renders the empty Watch page with display title and empty panel", () => {
     const nodes = descendants(WatchEmptyState());
     const title = nodes.find((node) => node.props.children === "Watch");
-    expect(title?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
-    expect(nodes.some((node) => node.props.testID === "watch-empty")).toBe(true);
-    expect(nodes.some((node) => node.props.children === "Nothing playing")).toBe(
+    expect(title?.props.style).toMatchObject({
+      fontSize: 24,
+      fontWeight: "700",
+    });
+    expect(nodes.some((node) => node.props.testID === "watch-empty")).toBe(
       true,
     );
+    expect(
+      nodes.some((node) => node.props.children === "Nothing playing"),
+    ).toBe(true);
     expect(
       nodes.some((node) =>
         String(node.props.children).includes(
@@ -649,7 +693,6 @@ describe("watch screen", () => {
     ).toBe(true);
   });
 
-
   it("defaults under-player to chat without Info/Related/Chat chips", () => {
     const nodes = descendants(
       WatchScreen({
@@ -657,27 +700,29 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
+          messages: [
+            { badges: [], displayName: "Ada", id: "msg-1", text: "hello" },
+          ],
         },
         inspection: null,
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
+        playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "watch-under-player")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-under-player"),
+    ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "watch-chat")).toBe(true);
     expect(nodes.some((node) => node.props.testID === "watch-tab-info")).toBe(
       false,
     );
-    expect(nodes.some((node) => node.props.testID === "watch-tab-related")).toBe(
-      false,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-tab-related"),
+    ).toBe(false);
     expect(nodes.some((node) => node.props.testID === "watch-tab-chat")).toBe(
       false,
     );
@@ -714,7 +759,7 @@ describe("watch screen", () => {
       onToggleFullscreen: () => undefined,
       peek: {
         adsDetected: false,
-          kind: "active",
+        kind: "active",
         muted: false,
         presentation: {
           pip: "unavailable",
@@ -733,7 +778,9 @@ describe("watch screen", () => {
       target,
     });
     const nodes = descendants(root);
-    nodes.find((node) => node.props.testID === "player-chrome-toggle")?.props.onPress?.();
+    nodes
+      .find((node) => node.props.testID === "player-chrome-toggle")
+      ?.props.onPress?.();
     expect(tabs).toEqual(["info"]);
     const infoNodes = descendants(
       WatchScreen({
@@ -748,7 +795,7 @@ describe("watch screen", () => {
         onSelectTab: (tab) => {
           tabs.push(tab);
         },
-          playback: { kind: "ready", target },
+        playback: { kind: "ready", target },
         tab: "info",
         target,
       }),
@@ -777,15 +824,17 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target },
+        playback: { kind: "ready", target },
         tab: "chat",
         target,
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "watch-open-channel")).toBe(
-      true,
-    );
-    nodes.find((node) => node.props.testID === "watch-open-channel")?.props.onPress?.();
+    expect(
+      nodes.some((node) => node.props.testID === "watch-open-channel"),
+    ).toBe(true);
+    nodes
+      .find((node) => node.props.testID === "watch-open-channel")
+      ?.props.onPress?.();
     expect(opened).toEqual(["channel"]);
   });
 
@@ -810,7 +859,7 @@ describe("watch screen", () => {
         onOpenRelated: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
-          playback: { kind: "ready", target: video },
+        playback: { kind: "ready", target: video },
         tab: "comments",
         target: video,
       }),
@@ -818,9 +867,9 @@ describe("watch screen", () => {
     expect(nodes.some((node) => node.props.testID === "watch-comments")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "watch-tab-comments")).toBe(
-      false,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-tab-comments"),
+    ).toBe(false);
   });
 
   it("wires Watch empty to Home live discovery when a discovery session is provided", () => {
@@ -842,24 +891,65 @@ describe("watch screen", () => {
     expect(route).toContain("discovery.session");
   });
 
-
-  
-  it("keeps Watch chat badges vertically centered with the username", () => {
-    const source = readFileSync(
-      new URL("../components/watch-tabs.tsx", import.meta.url),
-      "utf8",
+  it("renders readable chat usernames beside badges and native emotes", () => {
+    const nodes = descendants(
+      ChatPanel({
+        platform: "twitch",
+        chat: {
+          kind: "live",
+          detail: "Live",
+          messages: [
+            {
+              id: "styled",
+              displayName: "Ada",
+              username: "ada",
+              text: "Kappa",
+              badges: [
+                {
+                  setId: "moderator",
+                  version: "1",
+                  imageUrl: "https://badges/mod",
+                  title: "Moderator",
+                },
+              ],
+              parts: [
+                {
+                  kind: "emote",
+                  text: "Kappa",
+                  imageUrl: "https://emotes/kappa",
+                },
+              ],
+            },
+          ],
+        },
+      }),
     );
-    expect(source).toContain("messageChrome");
-    expect(source).toContain("messageNameSlot");
-    expect(source).toContain('alignItems: "center"');
-    expect(source).toContain('justifyContent: "center"');
-    expect(source).toContain("watch-chat-chrome-");
-    expect(source).toContain("includeFontPadding: false");
-    expect(source).toContain("fontSize: 13");
-    expect(source).toContain("height: 18");
-    expect(source).toContain("translateY: -1");
-    expect(source).toContain("resolveChatUsernameColor");
-    expect(source).not.toMatch(/chatBadge:[\s\S]*?marginTop/);
+    expect(
+      nodes.find((node) => node.props.testID === "watch-chat-chrome-styled")
+        ?.props,
+    ).toMatchObject({
+      style: { alignItems: "center", flexDirection: "row" },
+    });
+    expect(
+      nodes.find(
+        (node) => node.props.testID === "watch-chat-badge-styled-moderator",
+      )?.props,
+    ).toMatchObject({
+      accessibilityLabel: "Moderator",
+      source: { uri: "https://badges/mod" },
+      style: { width: 18, height: 18 },
+    });
+    expect(
+      nodes.find((node) => node.props.testID === "watch-chat-username-styled")
+        ?.props.children,
+    ).toBe("Ada");
+    expect(
+      nodes.some(
+        (node) =>
+          (node.props as Record<string, unknown>).accessibilityLabel ===
+          "Kappa",
+      ),
+    ).toBe(true);
   });
 
   it("stacks channel meta above the player with chat flush underneath", () => {
@@ -894,7 +984,9 @@ describe("watch screen", () => {
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
           kind: "live",
-          messages: [{ badges: [], displayName: "Ada", id: "msg-1", text: "hello" }],
+          messages: [
+            { badges: [], displayName: "Ada", id: "msg-1", text: "hello" },
+          ],
         },
         recording: {
           busy: false,
@@ -987,9 +1079,9 @@ describe("watch screen", () => {
       }),
     );
     expect(nodes.some((node) => node.props.testID === "watch-info")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "watch-info-avatar")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-info-avatar"),
+    ).toBe(true);
     expect(
       nodes.some(
         (node) =>
@@ -1008,8 +1100,6 @@ describe("watch screen", () => {
       true,
     );
   });
-
-
 
   it("renders Twitch-like top channel chrome with avatar name and Follow", () => {
     const followed: string[] = [];
@@ -1068,14 +1158,16 @@ describe("watch screen", () => {
         target,
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "watch-channel-chrome")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-channel-chrome"),
+    ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "watch-back")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "watch-open-channel")).toBe(
+    expect(
+      nodes.some((node) => node.props.testID === "watch-open-channel"),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-follow")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "watch-follow")).toBe(true);
     expect(
       nodes.some(
         (node) =>
@@ -1083,24 +1175,26 @@ describe("watch screen", () => {
           String(node.props.children).includes("Ada"),
       ),
     ).toBe(true);
-    nodes.find((node) => node.props.testID === "watch-follow")?.props.onPress?.();
+    nodes
+      .find((node) => node.props.testID === "watch-follow")
+      ?.props.onPress?.();
     expect(followed).toEqual(["follow"]);
     const ids = nodes
       .map((node) => node.props.testID)
       .filter((id): id is string => typeof id === "string");
-    expect(nodes.some((node) => node.props.testID === "watch-meta-viewers")).toBe(
-      true,
-    );
-    expect(nodes.some((node) => node.props.testID === "watch-meta-live-dot")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-meta-viewers"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-meta-live-dot"),
+    ).toBe(true);
     const uptimeNode = nodes.find(
       (node) => node.props.testID === "watch-meta-uptime",
     );
     expect(uptimeNode).toBeTruthy();
-    expect(/\d+:\d{2}:\d{2}/u.test(String(uptimeNode?.props.children ?? ""))).toBe(
-      true,
-    );
+    expect(
+      /\d+:\d{2}:\d{2}/u.test(String(uptimeNode?.props.children ?? "")),
+    ).toBe(true);
     const metaTexts = nodes
       .filter((node) => typeof node.props.children === "string")
       .map((node) => String(node.props.children));
@@ -1112,8 +1206,6 @@ describe("watch screen", () => {
       ids.indexOf("watch-under-player"),
     );
   });
-
-
 
   it("does not offer Open provider page on failed or ended Watch chrome", () => {
     const failed = descendants(
@@ -1140,10 +1232,12 @@ describe("watch screen", () => {
         target,
       }),
     );
-    expect(failed.some((node) => node.props.testID === "watch-open-provider")).toBe(
-      false,
+    expect(
+      failed.some((node) => node.props.testID === "watch-open-provider"),
+    ).toBe(false);
+    expect(failed.some((node) => node.props.testID === "watch-retry")).toBe(
+      true,
     );
-    expect(failed.some((node) => node.props.testID === "watch-retry")).toBe(true);
 
     const ended = descendants(
       WatchScreen({
@@ -1158,10 +1252,8 @@ describe("watch screen", () => {
         target,
       }),
     );
-    expect(ended.some((node) => node.props.testID === "watch-open-provider")).toBe(
-      false,
-    );
+    expect(
+      ended.some((node) => node.props.testID === "watch-open-provider"),
+    ).toBe(false);
   });
-
-
 });

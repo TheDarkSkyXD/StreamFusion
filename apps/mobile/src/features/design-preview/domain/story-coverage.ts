@@ -20,7 +20,8 @@ export const routeStoryCoverage = {
   "more/history": "android-screens-library-and-activity--history",
   "more/downloads": "android-screens-library-and-activity--downloads",
   "more/moderation":
-    "android-screens-library-and-activity--moderation-placeholder",
+    "android-workflows-moderation--broadcaster",
+  "more/multistream": "android-workflows-multistream--workspace",
   "more/settings": "android-screens-settings--hub",
   "more/diagnostics":
     "android-screens-library-and-activity--diagnostics-workspace",

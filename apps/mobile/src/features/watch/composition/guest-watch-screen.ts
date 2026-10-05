@@ -22,11 +22,15 @@ import { createTwitchClipPlaybackSource } from "../adapters/twitch/twitch-clip-p
 import { createTwitchLivePlaybackSource } from "../adapters/twitch/twitch-live-playback-source";
 import { createTwitchVodPlaybackSource } from "../adapters/twitch/twitch-vod-playback-source";
 import { createWatchChatSession } from "@mobile/features/chat/adapters/create-watch-chat-session";
+import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
+import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
 import { createWatchRuntime } from "./watch-runtime";
 
 export function createGuestWatchScreen(input: {
+  readonly chat?: WatchChatSession;
+  readonly chatInteractions?: ChatInteractions;
   readonly discovery: DiscoverySession;
   readonly fetch: typeof globalThis.fetch;
   readonly filtering?: AdBlockSession;
@@ -52,9 +56,11 @@ export function createGuestWatchScreen(input: {
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     ...(playlistProxy === undefined ? {} : { playlistProxy }),
-    chat: createWatchChatSession({ fetch: input.fetch }),
+    chat: input.chat ?? createWatchChatSession({ fetch: input.fetch }),
+    ...(input.chatInteractions === undefined ? {} : { chatInteractions: input.chatInteractions }),
     history: input.history,
     PlayerSurface,
+    nativePlayback: useNativeMedia3,
     runtime: createWatchRuntime({
       ...(filtering === undefined ? {} : { filtering }),
       ...(playbackSettings === undefined

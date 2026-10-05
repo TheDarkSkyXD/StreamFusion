@@ -89,6 +89,12 @@ import { createSupportSettingsSession } from "@mobile/features/settings/composit
 import { createSupportPreferenceStore } from "@mobile/features/settings/data/support-settings-store";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
 import { createGuestWatchScreen } from "@mobile/features/watch/composition/guest-watch-screen";
+import { createMultistreamRuntime } from "@mobile/features/multistream/composition/multistream-runtime";
+import { createAuthenticatedPlatformAccess } from "@mobile/features/auth/adapters/authenticated-platform-access";
+import { createChatRuntime } from "@mobile/features/chat/composition/chat-runtime";
+import { createModerationRuntime } from "@mobile/features/moderation/composition/moderation-runtime";
+import { createEngagementRuntime } from "@mobile/features/engagement/composition/engagement-runtime";
+import { createPlatformWorkflowNavigation } from "@mobile/features/moderation/adapters/workflow-navigation";
 
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
@@ -280,13 +286,16 @@ const adblockSession = createAdBlockSession({
     store: installationPolicyRuntime.policyStore,
   }),
   settings: persistenceRuntime.productState.settings,
-  runtimeSupported: androidCapabilityRuntime.contracts.playback.readiness().kind === "ready",
+  runtimeSupported:
+    androidCapabilityRuntime.contracts.playback.readiness().kind === "ready",
 });
 const twitchPlaylistProxySession = createTwitchPlaylistProxySession({
   customFiltering: adblockSession,
   settings: persistenceRuntime.productState.settings,
 });
-const playlistProxyHealth = createFetchPlaylistProxyHealth(connectivitySession.fetch);
+const playlistProxyHealth = createFetchPlaylistProxyHealth(
+  connectivitySession.fetch,
+);
 const settingsSession = createSettingsSession({
   settings: persistenceRuntime.productState.settings,
 });
@@ -496,9 +505,10 @@ export function MobileRuntime() {
         },
         fetch: connectivitySession.fetch,
         kickAccessToken: async () => {
-          const snapshot = await (useDevelopmentKickFixture
-            ? developmentKickRepository
-            : productionKickRepository
+          const snapshot = await (
+            useDevelopmentKickFixture
+              ? developmentKickRepository
+              : productionKickRepository
           ).read();
           const token = userTokenFromTwitchSnapshot(snapshot);
           return token.kind === "ready" ? token.accessToken : null;
@@ -511,15 +521,17 @@ export function MobileRuntime() {
         userTokens: {
           async read(platform) {
             if (platform === "kick") {
-              const snapshot = await (useDevelopmentKickFixture
-                ? developmentKickRepository
-                : productionKickRepository
+              const snapshot = await (
+                useDevelopmentKickFixture
+                  ? developmentKickRepository
+                  : productionKickRepository
               ).read();
               return userTokenFromTwitchSnapshot(snapshot);
             }
-            const snapshot = await (useDevelopmentTwitchFixture
-              ? developmentTwitchRepository
-              : productionTwitchRepository
+            const snapshot = await (
+              useDevelopmentTwitchFixture
+                ? developmentTwitchRepository
+                : productionTwitchRepository
             ).read();
             return userTokenFromTwitchSnapshot(snapshot);
           },
@@ -527,9 +539,79 @@ export function MobileRuntime() {
       }),
     [useDevelopmentKickFixture, useDevelopmentTwitchFixture],
   );
+  const platformAccess = useMemo(
+    () =>
+      createAuthenticatedPlatformAccess({
+        twitch: {
+          clientId: twitchClientId,
+          controller: productionTwitchController,
+          repository: productionTwitchRepository,
+        },
+        kick: {
+          clientId: kickClientId,
+          controller: productionKickController,
+          repository: productionKickRepository,
+        },
+        fixtureEnabled: (platform) =>
+          platform === "twitch"
+            ? useDevelopmentTwitchFixture
+            : useDevelopmentKickFixture,
+      }),
+    [useDevelopmentTwitchFixture, useDevelopmentKickFixture],
+  );
+  const chatRuntime = useMemo(
+    () =>
+      createChatRuntime({
+        access: platformAccess,
+        fetch: connectivitySession.fetch,
+        openUrl: async (url) => {
+          await Linking.openURL(url);
+        },
+      }),
+    [platformAccess],
+  );
+  const moderation = useMemo(
+    () =>
+      createModerationRuntime({
+        access: platformAccess,
+        fetch: connectivitySession.fetch,
+      }),
+    [platformAccess],
+  );
+  const engagement = useMemo(
+    () =>
+      createEngagementRuntime({
+        access: platformAccess,
+        fetch: connectivitySession.fetch,
+      }),
+    [platformAccess],
+  );
+  const workflowNavigation = useMemo(
+    () =>
+      createPlatformWorkflowNavigation(async (url) => {
+        await Linking.openURL(url);
+      }),
+    [],
+  );
+  useEffect(
+    () => () => {
+      moderation.dispose();
+      engagement.dispose();
+    },
+    [moderation, engagement],
+  );
+  useEffect(
+    () => () => {
+      chatRuntime.chat.dispose();
+      chatRuntime.interactions.dispose();
+    },
+    [chatRuntime],
+  );
   const watch = useMemo(
     () =>
       createGuestWatchScreen({
+        chat: chatRuntime.chat,
+        chatInteractions: chatRuntime.interactions,
         discovery: homeDiscovery,
         kickLiveCatalog,
         fetch: connectivitySession.fetch,
@@ -541,9 +623,35 @@ export function MobileRuntime() {
         policyStore: installationPolicyRuntime.policyStore,
         sessionIds: { create: secureRandom.uuid },
       }),
-    [homeDiscovery],
+    [homeDiscovery, chatRuntime],
   );
   useEffect(() => () => void watch.runtime.session.dispose(), [watch]);
+  const multistream = useMemo(
+    () =>
+      createMultistreamRuntime({
+        access: platformAccess,
+        fetch: connectivitySession.fetch,
+        openUrl: async (url) => {
+          await Linking.openURL(url);
+        },
+        discovery: homeDiscovery,
+        playback: androidCapabilityRuntime.contracts.playback,
+        diagnostics: androidCapabilityRuntime.contracts.diagnostics,
+        policyStore: installationPolicyRuntime.policyStore,
+        watch: watch.runtime,
+        sessionIds: { create: secureRandom.uuid },
+        limit: () => settingsSession.snapshot().multiviewCap,
+      }),
+    [homeDiscovery, platformAccess, watch],
+  );
+  useEffect(
+    () => () => {
+      void multistream.session.dispose();
+      multistream.chat.dispose();
+      multistream.interactions.dispose();
+    },
+    [multistream],
+  );
   useEffect(() => {
     liveAlertPoller.setForeground(AppState.currentState === "active");
     const subscription = AppState.addEventListener("change", (state) => {
@@ -573,105 +681,122 @@ export function MobileRuntime() {
   const settings = useSettingsSession(settingsSession);
   return (
     <QueryClientProvider client={queryClient}>
-    <I18nextProvider i18n={i18n}>
-    <DisplayLanguageSync
-      language={settings.view.preferences.language}
-      ready={i18nReady && settings.ready}
-    >
-    <AppShell
-      AndroidNavigationBar={AndroidNavigationBar}
-      activityRepository={
-        developmentActivityProof?.repository ??
-        persistenceRuntime.productState.activity
-      }
-      developmentActivityProof={activityProof}
-      appLinks={appLinks}
-      capabilityProfile={capabilityProfile.model}
-      onRetryCapabilityProfile={capabilityProfile.retry}
-      installationPolicy={installationPolicy.model}
-      onRefreshCapabilityPolicy={installationPolicy.refreshCapabilityPolicy}
-      onRetryInstallationRegistration={
-        installationPolicy.retryInstallationRegistration
-      }
-      onRunCapabilityProfileDevelopmentProof={() =>
-        capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()
-      }
-      onQueueActivityReadFailure={() => {
-        developmentActivityProof?.queueNextReadFailure();
-      }}
-      onExitDevelopmentActivityProof={async () => {
-        await developmentActivityProof?.exit();
-        setActivityProof(developmentActivityProof?.snapshot() ?? null);
-      }}
-      onReplayDevelopmentActivityProof={async () => {
-        await developmentActivityProof?.replayCompleted();
-        setActivityProof(developmentActivityProof?.snapshot() ?? null);
-      }}
-      onRetryDevelopmentActivityProofCleanup={async () => {
-        await developmentActivityProof?.retryCleanup();
-        setActivityProof(developmentActivityProof?.snapshot() ?? null);
-      }}
-      onStartDevelopmentActivityProof={async () => {
-        await developmentActivityProof?.start();
-        setActivityProof(developmentActivityProof?.snapshot() ?? null);
-      }}
-      developmentStatus={developmentClientController.read()}
-      onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
-      onPrepareRestorationProof={async (kind) => {
-        await persistenceRuntime.productState.shellRestoration.write(
-          kind === "corrupt" ? "not-json" : JSON.stringify({ version: 2 }),
-          Date.now(),
-        );
-      }}
-      onRunPersistenceProof={persistence.runProof}
-      persistenceStatus={persistence.model}
-      shellRestoration={persistenceRuntime.productState.shellRestoration}
-      twitchAccount={visibleTwitchAccount.model}
-      twitchAccountActions={visibleTwitchAccount.actions}
-      twitchAccountDevelopmentFixture={useDevelopmentTwitchFixture}
-      onEnableTwitchDevelopmentFixture={
-        __DEV__ && twitchClientId === null
-          ? () => setUseDevelopmentTwitchFixture(true)
-          : undefined
-      }
-      onDisableTwitchDevelopmentFixture={
-        useDevelopmentTwitchFixture
-          ? () => setUseDevelopmentTwitchFixture(false)
-          : undefined
-      }
-      kickAccount={visibleKickAccount.model}
-      kickAccountActions={visibleKickAccount.actions}
-      kickAccountDevelopmentFixture={useDevelopmentKickFixture}
-      onEnableKickDevelopmentFixture={
-        __DEV__ && kickClientId === null
-          ? () => setUseDevelopmentKickFixture(true)
-          : undefined
-      }
-      onDisableKickDevelopmentFixture={
-        useDevelopmentKickFixture
-          ? () => setUseDevelopmentKickFixture(false)
-          : undefined
-      }
-      homeDiscovery={homeDiscovery}
-      mediaJobs={mediaJobs}
-      captions={captions}
-      searchHistory={searchHistory}
-      discoveryPreferences={discoveryPreferences}
-      followingSession={followingSession}
-      connectivitySession={connectivitySession}
-      adblockSession={adblockSession}
-      twitchPlaylistProxySession={twitchPlaylistProxySession}
-      playlistProxyHealth={playlistProxyHealth}
-      notificationSession={notificationSession}
-      chatDisplaySession={chatDisplaySession}
-      predictionSession={predictionSession}
-      nativeNotifications={nativeNotifications}
-      settingsSession={settingsSession}
-      supportSession={supportSession}
-      watch={watch}
-    />
-    </DisplayLanguageSync>
-    </I18nextProvider>
+      <I18nextProvider i18n={i18n}>
+        <DisplayLanguageSync
+          language={settings.view.preferences.language}
+          ready={i18nReady && settings.ready}
+        >
+          <AppShell
+            moderation={moderation}
+            engagement={engagement}
+            workflowNavigation={workflowNavigation}
+            onRequestPlatformScopes={(platform) => {
+              if (platform === "twitch") {
+                setUseDevelopmentTwitchFixture(false);
+                void productionTwitchController.connect();
+              } else {
+                setUseDevelopmentKickFixture(false);
+                void productionKickController.connect();
+              }
+            }}
+            multistream={multistream}
+            AndroidNavigationBar={AndroidNavigationBar}
+            activityRepository={
+              developmentActivityProof?.repository ??
+              persistenceRuntime.productState.activity
+            }
+            developmentActivityProof={activityProof}
+            appLinks={appLinks}
+            capabilityProfile={capabilityProfile.model}
+            onRetryCapabilityProfile={capabilityProfile.retry}
+            installationPolicy={installationPolicy.model}
+            onRefreshCapabilityPolicy={
+              installationPolicy.refreshCapabilityPolicy
+            }
+            onRetryInstallationRegistration={
+              installationPolicy.retryInstallationRegistration
+            }
+            onRunCapabilityProfileDevelopmentProof={() =>
+              capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()
+            }
+            onQueueActivityReadFailure={() => {
+              developmentActivityProof?.queueNextReadFailure();
+            }}
+            onExitDevelopmentActivityProof={async () => {
+              await developmentActivityProof?.exit();
+              setActivityProof(developmentActivityProof?.snapshot() ?? null);
+            }}
+            onReplayDevelopmentActivityProof={async () => {
+              await developmentActivityProof?.replayCompleted();
+              setActivityProof(developmentActivityProof?.snapshot() ?? null);
+            }}
+            onRetryDevelopmentActivityProofCleanup={async () => {
+              await developmentActivityProof?.retryCleanup();
+              setActivityProof(developmentActivityProof?.snapshot() ?? null);
+            }}
+            onStartDevelopmentActivityProof={async () => {
+              await developmentActivityProof?.start();
+              setActivityProof(developmentActivityProof?.snapshot() ?? null);
+            }}
+            developmentStatus={developmentClientController.read()}
+            onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
+            onPrepareRestorationProof={async (kind) => {
+              await persistenceRuntime.productState.shellRestoration.write(
+                kind === "corrupt"
+                  ? "not-json"
+                  : JSON.stringify({ version: 2 }),
+                Date.now(),
+              );
+            }}
+            onRunPersistenceProof={persistence.runProof}
+            persistenceStatus={persistence.model}
+            shellRestoration={persistenceRuntime.productState.shellRestoration}
+            twitchAccount={visibleTwitchAccount.model}
+            twitchAccountActions={visibleTwitchAccount.actions}
+            twitchAccountDevelopmentFixture={useDevelopmentTwitchFixture}
+            onEnableTwitchDevelopmentFixture={
+              __DEV__ && twitchClientId === null
+                ? () => setUseDevelopmentTwitchFixture(true)
+                : undefined
+            }
+            onDisableTwitchDevelopmentFixture={
+              useDevelopmentTwitchFixture
+                ? () => setUseDevelopmentTwitchFixture(false)
+                : undefined
+            }
+            kickAccount={visibleKickAccount.model}
+            kickAccountActions={visibleKickAccount.actions}
+            kickAccountDevelopmentFixture={useDevelopmentKickFixture}
+            onEnableKickDevelopmentFixture={
+              __DEV__ && kickClientId === null
+                ? () => setUseDevelopmentKickFixture(true)
+                : undefined
+            }
+            onDisableKickDevelopmentFixture={
+              useDevelopmentKickFixture
+                ? () => setUseDevelopmentKickFixture(false)
+                : undefined
+            }
+            homeDiscovery={homeDiscovery}
+            mediaJobs={mediaJobs}
+            captions={captions}
+            searchHistory={searchHistory}
+            discoveryPreferences={discoveryPreferences}
+            followingSession={followingSession}
+            connectivitySession={connectivitySession}
+            adblockSession={adblockSession}
+            twitchPlaylistProxySession={twitchPlaylistProxySession}
+            playlistProxyHealth={playlistProxyHealth}
+            notificationSession={notificationSession}
+            chatDisplaySession={chatDisplaySession}
+            predictionSession={predictionSession}
+            nativeNotifications={nativeNotifications}
+            settingsSession={settingsSession}
+            supportSession={supportSession}
+            watch={watch}
+          />
+        </DisplayLanguageSync>
+      </I18nextProvider>
     </QueryClientProvider>
   );
 }

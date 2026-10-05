@@ -672,6 +672,47 @@ const paths = {
   ],
 };
 
+const workflowImplemented = {
+  "action:audio-owner": "apps/mobile/src/features/multistream/domain/multistream-session.ts",
+  "tab:video:details": "apps/mobile/src/features/watch/components/watch-screen.tsx",
+  "tab:video:comments": "apps/mobile/src/features/chat/domain/recorded-chat-session.ts",
+  "tab:video:related": "apps/mobile/src/features/watch/components/watch-tabs.tsx",
+  "screen:moderation-home": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+  "shell-route:more/moderation": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+  "shell-route:more/multistream": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+  "action:chat-emotes": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+  "action:chat-context": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+  "action:chat-send": "apps/mobile/src/features/chat/adapters/platform-chat-commands.ts",
+  "action:multistream-add": "apps/mobile/src/features/multistream/domain/multistream-session.ts",
+  "action:multistream-edit": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+  "action:multi-chat-mode": "apps/mobile/src/features/multistream/domain/multistream-chat.ts",
+  "action:multi-chat-channel": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+  "action:moderation-switch": "apps/mobile/src/features/moderation/domain/moderation-controller.ts",
+  "action:moderation-tools": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+  "action:moderation-tab": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+  "tab:moderation:banned": "apps/mobile/src/features/moderation/adapters/moderation-api.ts",
+  "tab:moderation:engagement": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+  "tab:moderation:unban": "apps/mobile/src/features/moderation/adapters/moderation-api.ts",
+  "tab:moderation:moderators": "apps/mobile/src/features/moderation/adapters/moderation-api.ts",
+  "tab:moderation:vips": "apps/mobile/src/features/moderation/adapters/moderation-api.ts",
+  "action:player-captions": "apps/mobile/src/features/watch/components/watch-caption-bar.tsx",
+  "action:caption-model": "apps/mobile/src/features/local-captions/domain/local-captions-controller.ts",
+};
+for (const [id, implementation] of Object.entries(workflowImplemented)) {
+  implemented.add(id);
+  partial.delete(id);
+  placeholder.delete(id);
+  paths[id] = [implementation];
+}
+for (const [id, implementation] of Object.entries({
+  "screen:multi": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+  "screen:moderation": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+  "tab:moderation:chat": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+})) {
+  partial.add(id);
+  paths[id] = [implementation];
+}
+
 const classified = new Set([...implemented, ...partial, ...placeholder]);
 const unknownClass = [...classified].filter((id) => !discovered.includes(id));
 if (unknownClass.length > 0) {
@@ -728,7 +769,7 @@ const gaps = [
     id: "GAP-195-02",
     status: "owned-elsewhere",
     finding:
-      "Watch and typed History cover guest live HLS, recorded Twitch/Kick video, Twitch clips, and local Stream/Video/Clip rows. Moderation remains a placeholder. Appearance, playback, player controls, buffer, and multiview Settings now persist and apply to Watch. Chat, Predictions, Integrations, and API tokens Settings panels now ship. Later Settings work is diagnostics polish and moderation.",
+      "Watch and History cover live and recorded playback. Mobile now ships authenticated chat, recorded replay, supported moderation and engagement actions, multistream with merged or channel chat, and verified offline captions. Provider-only moderation logs, retention, and active moderator history use explicit handoffs. Multistream capacity remains a local safeguard, not qualified device capacity.",
     owners: [147, 148, 149, 150, 152, 159, 167],
   },
   {

@@ -1,4 +1,20 @@
-import { ArrowLeft, ChevronRight, CircleUserRound, Settings } from "lucide-react-native";
+import {
+  MultistreamWorkspace,
+  type MultistreamWorkspaceProps,
+} from "@mobile/features/multistream/components/multistream-workspace";
+import { ModWorkspace } from "@mobile/features/moderation/components/mod-workspace";
+import { EngagementSheet } from "@mobile/features/engagement/components/engagement-sheet";
+import type { ModerationController } from "@mobile/features/moderation/domain/moderation-controller";
+import type { EngagementController } from "@mobile/features/engagement/domain/engagement-controller";
+import type { ModerationChannel } from "@mobile/features/moderation/capabilities/moderation";
+import type { PlatformWorkflowNavigation } from "@mobile/features/moderation/capabilities/workflow-navigation";
+import type { Platform as StreamPlatform } from "@streamfusion/core/platform";
+import {
+  ArrowLeft,
+  ChevronRight,
+  CircleUserRound,
+  Settings,
+} from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
 import { useTranslation } from "react-i18next";
 import {
@@ -135,9 +151,11 @@ import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watc
 import { isPictureInPictureSurface } from "@mobile/features/watch/domain/player-presentation";
 import { watchDownloadJobId } from "@mobile/features/watch/domain/watch-download";
 import { watchRecordingJobId } from "@mobile/features/watch/domain/watch-recording";
-import type { WatchPeek, WatchTarget } from "@mobile/features/watch/capabilities/watch";
+import type {
+  WatchPeek,
+  WatchTarget,
+} from "@mobile/features/watch/capabilities/watch";
 
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { DestinationIcon, MoreRouteIcon } from "./destination-icon";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { resolveHardwareBack } from "../domain/hardware-back";
@@ -213,6 +231,11 @@ function shellLocationFromNotification(
 }
 
 export function AppShell({
+  multistream,
+  moderation,
+  engagement,
+  workflowNavigation,
+  onRequestPlatformScopes,
   activityRepository,
   developmentActivityProof,
   appLinks,
@@ -262,6 +285,11 @@ export function AppShell({
   supportSession,
   watch,
 }: {
+  readonly multistream?: MultistreamWorkspaceProps;
+  readonly moderation?: ModerationController;
+  readonly engagement?: EngagementController;
+  readonly workflowNavigation?: PlatformWorkflowNavigation;
+  readonly onRequestPlatformScopes?: (platform: StreamPlatform) => void;
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
   readonly appLinks: AppLinkSource;
@@ -380,7 +408,7 @@ export function AppShell({
   const selectedJobId =
     location.route === "activity/job-preview"
       ? location.jobId
-      : watchMediaJobIdFor(location, watchPeek) ?? undefined;
+      : (watchMediaJobIdFor(location, watchPeek) ?? undefined);
   const mediaJobsController = useMediaJobsController({
     selectedJobId,
     workflow: mediaJobs,
@@ -401,7 +429,8 @@ export function AppShell({
   const placement = getShellNavigationPlacement(width);
 
   const cancelDismissal = activity.cancelDismissal;
-  const hasDismissalConfirmation = activity.model.dismissalConfirmation !== null;
+  const hasDismissalConfirmation =
+    activity.model.dismissalConfirmation !== null;
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -481,9 +510,7 @@ export function AppShell({
         <View
           style={placement === "rail" ? styles.railLayout : styles.phoneLayout}
         >
-          {placement === "rail" && !playerOnlySurface
-            ? navigationView()
-            : null}
+          {placement === "rail" && !playerOnlySurface ? navigationView() : null}
           <View style={styles.workspace}>
             {playerOnlySurface || watchOwnsChrome ? null : (
               <ShellHeader dispatch={dispatch} state={navigation} />
@@ -518,6 +545,15 @@ export function AppShell({
               />
             ) : null}
             <ShellScreen
+              {...(moderation === undefined ? {} : { moderation })}
+              {...(engagement === undefined ? {} : { engagement })}
+              {...(workflowNavigation === undefined
+                ? {}
+                : { workflowNavigation })}
+              {...(onRequestPlatformScopes === undefined
+                ? {}
+                : { onRequestPlatformScopes })}
+              {...(multistream === undefined ? {} : { multistream })}
               activity={activity}
               capabilityProfile={capabilityProfile}
               installationPolicy={installationPolicy}
@@ -709,7 +745,10 @@ function ShellHeader({
           accessibilityHint="Opens Settings inside More"
           accessibilityLabel="Settings"
           accessibilityRole="button"
-          android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          android_ripple={{
+            color: mobileColors.surfaceRaised,
+            borderless: true,
+          }}
           hitSlop={mobileHitSlop}
           onPress={() =>
             dispatch({ type: "navigate", location: { route: "more/settings" } })
@@ -727,7 +766,10 @@ function ShellHeader({
           accessibilityHint="Opens Accounts and maintenance inside More"
           accessibilityLabel="Accounts"
           accessibilityRole="button"
-          android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          android_ripple={{
+            color: mobileColors.surfaceRaised,
+            borderless: true,
+          }}
           hitSlop={mobileHitSlop}
           onPress={() =>
             dispatch({ type: "navigate", location: { route: "more" } })
@@ -747,6 +789,11 @@ function ShellHeader({
 }
 
 function ShellScreen({
+  multistream,
+  moderation,
+  engagement,
+  workflowNavigation,
+  onRequestPlatformScopes,
   activity,
   developmentActivityProof,
   capabilityProfile,
@@ -797,6 +844,11 @@ function ShellScreen({
   supportSession,
   watch,
 }: {
+  readonly multistream?: MultistreamWorkspaceProps;
+  readonly moderation?: ModerationController;
+  readonly engagement?: EngagementController;
+  readonly workflowNavigation?: PlatformWorkflowNavigation;
+  readonly onRequestPlatformScopes?: (platform: StreamPlatform) => void;
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
   readonly capabilityProfile: CapabilityProfileViewModel;
@@ -853,10 +905,39 @@ function ShellScreen({
 }) {
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
+  const focusedWatch = useWatchPeek(watch.runtime.session);
   const scrollView = useRef<ScrollView>(null);
   const scrollRequest = state.rootScrollRequests[state.activeDestination];
   const [diagnosticsTab, setDiagnosticsTab] =
     useState<MobileDiagnosticsTab>("overview");
+  const [engagementChannel, setEngagementChannel] =
+    useState<ModerationChannel | null>(null);
+  const [moderationTarget, setModerationTarget] = useState<{
+    readonly channel: ModerationChannel;
+    readonly userId: string;
+  } | null>(null);
+  const [previousWorkflowRoute, setPreviousWorkflowRoute] = useState(location.route);
+  if (previousWorkflowRoute !== location.route) {
+    setPreviousWorkflowRoute(location.route);
+    if (previousWorkflowRoute === "more/moderation") setModerationTarget(null);
+  }
+  const requestScopes = (platform: StreamPlatform) => {
+    dispatch({ type: "navigate", location: { route: "more/accounts" } });
+    onRequestPlatformScopes?.(platform);
+  };
+  const engagementSheet =
+    engagement && engagementChannel && workflowNavigation ? (
+      <EngagementSheet
+        channel={engagementChannel}
+        controller={engagement}
+        visible
+        onDismiss={() => setEngagementChannel(null)}
+        onOpenProvider={(channel) => {
+          void workflowNavigation.openChannel(channel);
+        }}
+        onRequestScopes={requestScopes}
+      />
+    ) : null;
 
   useEffect(() => {
     scrollView.current?.scrollTo({ animated: false, y: 0 });
@@ -872,12 +953,15 @@ function ShellScreen({
     });
   };
 
-  if (location.route === "watch" || location.route === "watch/session-preview") {
-    const target =
-      location.route === "watch/session-preview" &&
-      location.target.kind === "channel"
-        ? watchTargetFromLocation(location.target)
-        : null;
+  if (location.route === "more/multistream" && multistream) {
+    return <MultistreamWorkspace {...multistream} />;
+  }
+
+  if (
+    location.route === "watch" ||
+    location.route === "watch/session-preview"
+  ) {
+    const target = watchTargetFor(location, focusedWatch);
     const mediaJobSession = watchMediaJobSession(
       mediaJobsController,
       activity.refresh,
@@ -885,10 +969,43 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
+          {...(target && engagement
+            ? {
+                onOpenEngagement: () =>
+                  setEngagementChannel({
+                    platform: target.platform,
+                    id: target.channelId,
+                    login: target.channelName,
+                    name: target.channelName,
+                  }),
+              }
+            : {})}
+          {...(target && moderation
+            ? {
+                onModerateMessage: (message) => {
+                  setModerationTarget({
+                    channel: {
+                      platform: target.platform,
+                      id: target.channelId,
+                      login: target.channelName,
+                      name: target.channelName,
+                    },
+                    userId: message.userId ?? "",
+                  });
+                  dispatch({
+                    type: "navigate",
+                    location: { route: "more/moderation" },
+                  });
+                },
+              }
+            : {})}
           captions={watchCaptionSession(captionsController)}
           discovery={{
             onOpenAccounts: () =>
-              dispatch({ type: "navigate", location: { route: "more/accounts" } }),
+              dispatch({
+                type: "navigate",
+                location: { route: "more/accounts" },
+              }),
             session: homeDiscovery,
           }}
           download={mediaJobSession}
@@ -922,6 +1039,7 @@ function ShellScreen({
           screen={watch}
           target={target}
         />
+        {engagementSheet}
       </View>
     );
   }
@@ -1133,7 +1251,10 @@ function ShellScreen({
 
   if (location.route === "more/category-detail") {
     return (
-      <View style={styles.activityWorkspace} testID="screen-more-category-detail">
+      <View
+        style={styles.activityWorkspace}
+        testID="screen-more-category-detail"
+      >
         <CategoryDetailScreen
           category={location.category}
           onOpenAccounts={() =>
@@ -1174,7 +1295,6 @@ function ShellScreen({
       </View>
     );
   }
-
 
   if (location.route === "more/accounts") {
     return (
@@ -1250,7 +1370,8 @@ function ShellScreen({
             onRunNativeCapabilityProof,
             onRunPersistenceProof,
             onPresentNotificationProof,
-            notificationRegistrationCopy: notificationSession.peek().registrationCopy,
+            notificationRegistrationCopy:
+              notificationSession.peek().registrationCopy,
             onStartDevelopmentActivityProof,
             persistenceStatus,
             supportSession,
@@ -1260,65 +1381,43 @@ function ShellScreen({
     );
   }
 
-  if (location.route === "more/moderation") {
+  if (
+    location.route === "more/moderation" &&
+    moderation &&
+    workflowNavigation
+  ) {
     return (
-      <ScrollView
-        contentContainerStyle={styles.screenContent}
-        contentInsetAdjustmentBehavior="automatic"
-        ref={scrollView}
-        style={styles.screenScroll}
-        testID="screen-more-moderation"
-      >
-        <View style={styles.contentColumn}>
-          <MobileScreenHeader
-            summary="Moderation tools open here for connected broadcaster accounts. Guest mode stays read-only."
-            title="Moderation"
-          />
-          <View style={styles.statePanel} testID="moderation-empty">
-            <Text selectable style={styles.stateLabel}>
-              ACCOUNTS REQUIRED
-            </Text>
-            <Text selectable style={styles.cardBody}>
-              Connect Twitch or Kick under Accounts to manage eligible channels.
-              Desktop Mod View remains available for full moderator workflows.
-            </Text>
-            <Pressable
-              accessibilityHint="Opens Accounts inside More"
-              accessibilityLabel="Open Accounts"
-              accessibilityRole="button"
-              android_ripple={{ color: mobileColors.surfaceRaised }}
-              onPress={() =>
-                dispatch({
-                  type: "navigate",
-                  location: { route: "more/accounts" },
-                })
+      <View style={styles.activityWorkspace} testID="screen-more-moderation">
+        <ModWorkspace
+          controller={moderation}
+          {...(moderationTarget
+            ? {
+                initialChannel: moderationTarget.channel,
+                initialUserId: moderationTarget.userId,
               }
-              style={({ pressed }) => [
-                styles.card,
-                pressed ? styles.pressed : null,
-              ]}
-              testID="moderation-open-accounts"
-            >
-              <View style={styles.cardCopy}>
-                <Text selectable style={styles.cardTitle}>
-                  Open Accounts
-                </Text>
-                <Text selectable style={styles.cardBody}>
-                  Connect Platforms without leaving More.
-                </Text>
-              </View>
-              <ChevronRight
-                accessibilityElementsHidden
-                color={mobileColors.textSecondary}
-                size={mobileSizing.icon}
-              />
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
+            : {})}
+          onOpenChannel={(channel) =>
+            openWatch({
+              platform: channel.platform,
+              channelId: channel.id,
+              channelName: channel.login,
+            })
+          }
+          onOpenProvider={(channel, platform) => {
+            void workflowNavigation.openModeration(channel, platform);
+          }}
+          onRequestScopes={requestScopes}
+          {...(engagement
+            ? {
+                onOpenEngagement: (channel: ModerationChannel) =>
+                  setEngagementChannel(channel),
+              }
+            : {})}
+        />
+        {engagementSheet}
+      </View>
     );
   }
-
   if (location.route === "more/settings") {
     return (
       <View style={styles.activityWorkspace} testID="screen-more-settings-root">
@@ -1777,7 +1876,7 @@ function watchCaptionSession(
     session: controller.model.session,
     status: controller.model.status,
     onInstall: () => {
-      void controller.installFixture();
+      void controller.installModel();
     },
     onRemove: () => {
       void controller.removeModel();

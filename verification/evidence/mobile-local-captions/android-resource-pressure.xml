@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.CaptionResourcePressureTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-05T15:15:58.225Z" hostname="DESKTOP-O4BIJFR" time="2.063">
+  <properties/>
+  <testcase name="lowMemoryRejectsStartBeforeModelLoading" classname="expo.modules.streamfusionnativecontracts.CaptionResourcePressureTest" time="1.935"/>
+  <testcase name="androidReportedThermalChangeStopsAnActivePumpAtTheNextResourceSample" classname="expo.modules.streamfusionnativecontracts.CaptionResourcePressureTest" time="0.096"/>
+  <testcase name="severeThermalPressureRejectsStartBeforeModelLoading" classname="expo.modules.streamfusionnativecontracts.CaptionResourcePressureTest" time="0.03"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

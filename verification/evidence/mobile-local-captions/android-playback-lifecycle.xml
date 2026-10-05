@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-05T15:50:11.482Z" hostname="DESKTOP-O4BIJFR" time="3.474">
+  <properties/>
+  <testcase name="replacingMatchingPlaybackStopsCaptions" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="2.34"/>
+  <testcase name="endingAnotherPlaybackKeepsTheCaptionSessionActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.179"/>
+  <testcase name="endingMatchingPlaybackStopsCaptionsAndClearsTheCue" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.141"/>
+  <testcase name="failedPlaybackReleasesItsPlayerAndCaptionsWithoutPublishingEnded" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.163"/>
+  <testcase name="staleTerminalCallbacksCannotDisposeAReplacementPlaybackWithTheSameId" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.05"/>
+  <testcase name="releasingPlaybackStopsCaptions" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.141"/>
+  <testcase name="repeatedTerminalCallbacksDisposeAndPublishOnlyOnce" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.14"/>
+  <testcase name="delayedEndCallbackCannotStopAReplacementCaptionSessionWithTheSameId" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.138"/>
+  <testcase name="anotherPlaybackFailureKeepsTheCaptionPlayerActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.036"/>
+  <testcase name="endedPlaybackReleasesItsPlayerAndCaptionsBeforePublishing" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.144"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -16,7 +16,34 @@ export type WatchChatMessage = {
   readonly color?: string;
   /** Login/slug for deterministic uncolored fallback hashing. */
   readonly username?: string;
+  readonly userId?: string;
+  readonly parts?: readonly WatchChatMessagePart[];
+  readonly offsetSeconds?: number;
 };
+
+export type WatchChatMessagePart =
+  | { readonly kind: "text"; readonly text: string }
+  | {
+      readonly kind: "emote";
+      readonly text: string;
+      readonly imageUrl: string;
+    };
+
+export interface ChatReplayReader {
+  read(
+    target: WatchChatConnectInput,
+    offsetSeconds: number,
+    cursor: string | null,
+    signal: AbortSignal,
+  ): Promise<
+    | {
+        readonly kind: "page";
+        readonly messages: readonly WatchChatMessage[];
+        readonly cursor: string | null;
+      }
+    | { readonly kind: "unavailable"; readonly detail: string }
+  >;
+}
 
 export type WatchChatAvailability =
   | {
@@ -60,17 +87,23 @@ export interface WatchChatSession {
   retry(): void;
   snapshot(): WatchChatAvailability;
   subscribe(listener: () => void): () => void;
+  syncPlayback?(positionMs: number): void;
+  seekPlayback?(positionMs: number): void;
 }
 
 export type WatchChatConnectInput = {
   readonly channelId: string;
   readonly channelName: string;
   readonly platform: Platform;
+  readonly media?: {
+    readonly id: string;
+    readonly kind: "video" | "clip";
+    readonly resumePositionSeconds?: number;
+  };
 };
 
 export const RECORDED_COMMENTS: WatchChatAvailability = {
-  detail:
-    "Recorded comments are not wired on this device. Twitch and Kick VOD comment APIs stay on desktop.",
+  detail: "Recorded comments are unavailable for this media.",
   kind: "unavailable",
   reason: "recorded",
 };

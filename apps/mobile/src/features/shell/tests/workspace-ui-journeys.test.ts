@@ -54,6 +54,8 @@ vi.mock("react", async () => {
     ...actual,
     useEffect: vi.fn(),
     useRef: () => ({ current: null }),
+    useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
+    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
   };
 });
 
@@ -128,6 +130,7 @@ describe("workspace UI journeys", () => {
       "more/history",
       "more/downloads",
       "more/moderation",
+      "more/multistream",
       "more/settings",
       "more/diagnostics",
       "more/accounts",

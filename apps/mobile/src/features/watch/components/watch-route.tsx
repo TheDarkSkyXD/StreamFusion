@@ -44,6 +44,7 @@ import type {
   CaptionSessionState,
 } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import { i18n } from "@mobile/i18n";
+import type { WatchChatMessage } from "@mobile/features/chat/capabilities/watch-chat";
 
 export type WatchDownloadSession = {
   readonly busy: boolean;
@@ -84,6 +85,8 @@ const INERT_FOLLOWING_SESSION = {
 } as unknown as FollowingSession;
 
 export function WatchRoute({
+  onOpenEngagement,
+  onModerateMessage,
   captions,
   download,
   recording,
@@ -97,6 +100,8 @@ export function WatchRoute({
   screen,
   target,
 }: {
+  readonly onOpenEngagement?: () => void;
+  readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
@@ -134,6 +139,8 @@ export function WatchRoute({
   }
   return (
     <WatchSessionRoute
+      {...(onOpenEngagement === undefined ? {} : { onOpenEngagement })}
+      {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
       onOpenRelated={onOpenRelated}
       screen={screen}
       target={resolved}
@@ -149,6 +156,8 @@ export function WatchRoute({
 }
 
 function WatchSessionRoute({
+  onOpenEngagement,
+  onModerateMessage,
   captions,
   download,
   recording,
@@ -160,6 +169,8 @@ function WatchSessionRoute({
   screen,
   target,
 }: {
+  readonly onOpenEngagement?: () => void;
+  readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly captions?: WatchCaptionSession;
   readonly download?: WatchDownloadSession;
   readonly recording?: WatchDownloadSession;
@@ -208,6 +219,7 @@ function WatchSessionRoute({
   const captionEligibility = watchCaptionEligibility(
     target,
     playerPrefs?.captionsEnabled ?? true,
+    screen.nativePlayback && peek.kind === "active" ? peek.state.session.sessionId : undefined,
   );
   const rewindMs = (playerPrefs?.rewindSeconds ?? 10) * 1_000;
   const forwardMs = (playerPrefs?.fastForwardSeconds ?? 10) * 1_000;
@@ -250,6 +262,10 @@ function WatchSessionRoute({
   const showControls = controlsForcedVisible || controlsVisible;
   return (
     <WatchScreen
+      chatSession={screen.chat}
+      {...(screen.chatInteractions === undefined ? {} : { chatInteractions: screen.chatInteractions })}
+      {...(onOpenEngagement === undefined ? {} : { onOpenEngagement })}
+      {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
       PlayerSurface={screen.PlayerSurface}
       adblockView={adblockView}
       chat={chat}

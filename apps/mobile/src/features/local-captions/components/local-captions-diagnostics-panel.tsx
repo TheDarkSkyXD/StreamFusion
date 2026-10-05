@@ -88,15 +88,47 @@ export function LocalCaptionsDiagnosticsPanel({
   readonly onStop: () => void;
 }) {
   const actions = [
-    { label: "Install fixture English model", onPress: onInstallFixture, testID: "local-captions-install-fixture" },
-    { label: "Install integrity-fail fixture", onPress: onInstallIntegrityFail, testID: "local-captions-install-integrity-fail" },
-    { label: "Start fixture caption session", onPress: onStartFixture, testID: "local-captions-start-fixture" },
-    { label: "Start second caption session", onPress: onStartSecond, testID: "local-captions-start-second" },
-    { label: "Start constrained captions", onPress: onStartConstrained, testID: "local-captions-start-constrained" },
-    { label: "Queue caption constraint", onPress: onQueueConstraint, testID: "local-captions-queue-constraint" },
-    { label: "Clear caption constraint", onPress: onClearConstraint, testID: "local-captions-clear-constraint" },
+    {
+      label: "Install fixture English model",
+      onPress: onInstallFixture,
+      testID: "local-captions-install-fixture",
+    },
+    {
+      label: "Install integrity-fail fixture",
+      onPress: onInstallIntegrityFail,
+      testID: "local-captions-install-integrity-fail",
+    },
+    {
+      label: "Start fixture caption session",
+      onPress: onStartFixture,
+      testID: "local-captions-start-fixture",
+    },
+    {
+      label: "Start second caption session",
+      onPress: onStartSecond,
+      testID: "local-captions-start-second",
+    },
+    {
+      label: "Start constrained captions",
+      onPress: onStartConstrained,
+      testID: "local-captions-start-constrained",
+    },
+    {
+      label: "Queue caption constraint",
+      onPress: onQueueConstraint,
+      testID: "local-captions-queue-constraint",
+    },
+    {
+      label: "Clear caption constraint",
+      onPress: onClearConstraint,
+      testID: "local-captions-clear-constraint",
+    },
     { label: "Stop captions", onPress: onStop, testID: "local-captions-stop" },
-    { label: "Remove English model", onPress: onRemove, testID: "local-captions-remove" },
+    {
+      label: "Remove English model",
+      onPress: onRemove,
+      testID: "local-captions-remove",
+    },
   ];
   return (
     <View style={styles.panel} testID="local-captions-diagnostics">
@@ -104,11 +136,11 @@ export function LocalCaptionsDiagnosticsPanel({
         LOCAL CAPTIONS
       </Text>
       <Text selectable style={styles.meta} testID="local-captions-build-stamp">
-        M04 Captions · contract 2
+        M04 Captions · contract 3
       </Text>
       <Text selectable style={styles.body}>
-        Install the 43.11 MiB English model locally, run one focused caption
-        session, and keep decoded PCM on this device.
+        These controls install a tiny diagnostic fixture and generate test PCM.
+        They test session ownership and privacy. They do not recognize speech.
       </Text>
       {fixtureUris.map((uri) => (
         <Text key={uri} selectable style={styles.meta}>

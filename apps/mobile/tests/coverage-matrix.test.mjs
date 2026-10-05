@@ -43,11 +43,11 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   const ledger = JSON.parse(ledgerBefore.toString("utf8"));
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
-  assert.equal(ledger.totals.discovered, 184);
-  assert.equal(ledger.totals.implemented, 110);
-  assert.equal(ledger.totals.partial, 11);
-  assert.equal(ledger.totals.placeholder, 4);
-  assert.equal(ledger.totals.missing, 59);
+  assert.equal(ledger.totals.discovered, 185);
+  assert.equal(ledger.totals.implemented, 134);
+  assert.equal(ledger.totals.partial, 14);
+  assert.equal(ledger.totals.placeholder, 2);
+  assert.equal(ledger.totals.missing, 35);
   assert.equal(ledger.gaps.length, 5);
   assert.ok(ledger.gaps.some((gap) => gap.id === "GAP-195-01"));
   assert.ok(

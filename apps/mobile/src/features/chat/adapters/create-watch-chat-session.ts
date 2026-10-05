@@ -4,6 +4,7 @@ import type {
   WatchChatMessage,
   WatchChatSession,
   WatchChatSocketFactory,
+  ChatReplayReader,
 } from "../capabilities/watch-chat";
 import { appendWatchChatMessage } from "../domain/watch-chat-messages";
 import {
@@ -12,6 +13,8 @@ import {
 } from "../domain/twitch-global-badge-catalog";
 import { connectKickGuestChat } from "./kick-guest-pusher";
 import { connectTwitchGuestIrc } from "./twitch-guest-irc";
+import { createRecordedChatSession } from "../domain/recorded-chat-session";
+import { RECORDED_COMMENTS } from "../capabilities/watch-chat";
 
 const CONNECTING: WatchChatAvailability = {
   detail: "Connecting guest chat.",
@@ -19,26 +22,33 @@ const CONNECTING: WatchChatAvailability = {
 };
 
 const EMPTY_LIVE: WatchChatAvailability = {
-  detail: "Guest chat is live. Sending stays locked.",
+  detail: "Chat is live.",
   kind: "empty",
 };
 
 export function createWatchChatSession(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly socketFactory?: WatchChatSocketFactory;
+  readonly replayReader?: ChatReplayReader;
 }): WatchChatSession {
   const socketFactory =
     input.socketFactory ??
-    ((url: string) => new WebSocket(url) as unknown as ReturnType<WatchChatSocketFactory>);
+    ((url: string) =>
+      new WebSocket(url) as unknown as ReturnType<WatchChatSocketFactory>);
   let snapshot: WatchChatAvailability = CONNECTING;
   let messages: readonly WatchChatMessage[] = [];
   let disposeConnection: (() => void) | null = null;
   let generation = 0;
   let attached: WatchChatConnectInput | null = null;
   const listeners = new Set<() => void>();
+  const replay = input.replayReader
+    ? createRecordedChatSession(input.replayReader)
+    : null;
+  let recorded = false;
   const emit = () => {
     for (const listener of listeners) listener();
   };
+  replay?.subscribe(emit);
   const setSnapshot = (next: WatchChatAvailability) => {
     snapshot = next;
     emit();
@@ -49,16 +59,23 @@ export function createWatchChatSession(input: {
   };
 
   const connect = (target: WatchChatConnectInput) => {
+    const current = ++generation;
     disconnect();
+    replay?.dispose();
     attached = target;
     messages = [];
-    const current = ++generation;
+    recorded = target.media !== undefined;
+    if (recorded) {
+      if (replay) replay.attach(target);
+      else setSnapshot(RECORDED_COMMENTS);
+      return;
+    }
     setSnapshot(CONNECTING);
     const onOpen = () => {
       if (current !== generation) return;
       if (messages.length > 0) {
         setSnapshot({
-          detail: "Guest chat is live. Sending stays locked.",
+          detail: "Chat is live.",
           kind: "live",
           messages,
         });
@@ -69,7 +86,7 @@ export function createWatchChatSession(input: {
     const onMessage = (message: WatchChatMessage) => {
       if (current !== generation) return;
       const resolved =
-        message.badges.length === 0
+        target.platform !== "twitch" || message.badges.length === 0
           ? message
           : {
               ...message,
@@ -82,7 +99,7 @@ export function createWatchChatSession(input: {
             };
       messages = appendWatchChatMessage(messages, resolved);
       setSnapshot({
-        detail: "Guest chat is live. Sending stays locked.",
+        detail: "Chat is live.",
         kind: "live",
         messages,
       });
@@ -94,7 +111,7 @@ export function createWatchChatSession(input: {
     if (target.platform === "twitch") {
       void ensureTwitchGlobalBadgeCatalog(input.fetch).catch(() => undefined);
       disposeConnection = connectTwitchGuestIrc({
-        onClose: () => undefined,
+        onClose: () => onError("Twitch chat disconnected. Retry to reconnect."),
         onError,
         onMessage,
         onOpen,
@@ -106,23 +123,25 @@ export function createWatchChatSession(input: {
     const abort = new AbortController();
     void connectKickGuestChat({
       fetch: input.fetch,
-      onClose: () => undefined,
+      onClose: () => onError("Kick chat disconnected. Retry to reconnect."),
       onError,
       onMessage,
       onOpen,
       signal: abort.signal,
       socketFactory,
       target,
-    }).then((close) => {
-      if (current !== generation) {
-        close();
-        return;
-      }
-      disposeConnection = () => {
-        abort.abort();
-        close();
-      };
-    });
+    })
+      .then((close) => {
+        if (current !== generation) {
+          close();
+          return;
+        }
+        disposeConnection = () => {
+          abort.abort();
+          close();
+        };
+      })
+      .catch(() => onError("Kick chat could not connect."));
     disposeConnection = () => abort.abort();
   };
 
@@ -134,13 +153,22 @@ export function createWatchChatSession(input: {
       generation += 1;
       attached = null;
       disconnect();
+      replay?.dispose();
+      recorded = false;
       messages = [];
       snapshot = CONNECTING;
     },
     retry() {
-      if (attached) connect(attached);
+      if (recorded && replay) replay.retry();
+      else if (attached) connect(attached);
     },
-    snapshot: () => snapshot,
+    snapshot: () => (recorded && replay ? replay.snapshot() : snapshot),
+    syncPlayback(positionMs) {
+      if (recorded) replay?.syncPlayback?.(positionMs);
+    },
+    seekPlayback(positionMs) {
+      if (recorded) replay?.seekPlayback?.(positionMs);
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => {

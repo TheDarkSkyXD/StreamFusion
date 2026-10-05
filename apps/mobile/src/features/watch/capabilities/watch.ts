@@ -292,6 +292,7 @@ export interface FocusedPlaybackPort {
     volume: number,
   ): Promise<FocusedPlaybackControlResult>;
   start(input: {
+    readonly muted?: boolean;
     readonly allowHevc?: boolean;
     readonly buffer?: {
       readonly liveSyncDurationCount: number;

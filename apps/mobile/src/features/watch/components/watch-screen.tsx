@@ -7,7 +7,10 @@ import type {
   MediaJobCommandName,
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
-import type { AdBlockSession, AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type {
+  AdBlockSession,
+  AdBlockView,
+} from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
 import { MobileButton } from "@mobile/design/button";
@@ -23,7 +26,11 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 import type { WatchHistoryRepository } from "@mobile/features/media-library/capabilities/watch-history";
-import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
+import type {
+  WatchChatSession,
+  WatchChatMessage,
+} from "@mobile/features/chat/capabilities/watch-chat";
+import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
 import type {
   FocusedWatchState,
   WatchChatAvailability,
@@ -43,7 +50,10 @@ import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
 import { PlayerControls } from "./player-controls";
-import { WatchCaptionBar, type WatchCaptionBarProps } from "./watch-caption-bar";
+import {
+  WatchCaptionBar,
+  type WatchCaptionBarProps,
+} from "./watch-caption-bar";
 import { WatchCaptionOverlay } from "./watch-caption-overlay";
 import { WatchDownloadBar } from "./watch-download-bar";
 import { WatchRecordingBar } from "./watch-recording-bar";
@@ -57,9 +67,11 @@ export type PlayerSurfaceProps = {
 };
 
 export type WatchScreenRuntime = {
+  readonly nativePlayback?: boolean;
   readonly adblock?: AdBlockSession;
   readonly playlistProxy?: TwitchPlaylistProxySession;
   readonly chat: WatchChatSession;
+  readonly chatInteractions?: ChatInteractions;
   readonly history: WatchHistoryRepository;
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly runtime: WatchRuntime;
@@ -86,16 +98,20 @@ export function WatchScreen({
   adblockView,
   captions,
   chat,
+  chatSession,
+  chatInteractions,
   chrome,
   download,
   recording,
   inspection,
   onChatRetry,
+  onModerateMessage,
   followBusy = false,
   followed = false,
   onBack,
   onFollow,
   onOpenChannel,
+  onOpenEngagement,
   onOpenRelated,
   onPlayerTap,
   onRefresh,
@@ -125,6 +141,8 @@ export function WatchScreen({
   readonly adblockView?: AdBlockView | null;
   readonly captions?: WatchCaptionControls;
   readonly chat: WatchChatAvailability;
+  readonly chatSession?: WatchChatSession;
+  readonly chatInteractions?: ChatInteractions;
   readonly chrome?: {
     readonly showFullscreen: boolean;
     readonly showQuality: boolean;
@@ -138,9 +156,11 @@ export function WatchScreen({
   readonly followed?: boolean;
   readonly onBack?: () => void;
   readonly onChatRetry?: () => void;
+  readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly onCloseQualityMenu?: () => void;
   readonly onFollow?: () => void;
   readonly onOpenChannel?: () => void;
+  readonly onOpenEngagement?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
   readonly onPlayerTap?: () => void;
   readonly onRefresh?: () => void;
@@ -164,10 +184,16 @@ export function WatchScreen({
   readonly tab: WatchTab;
   readonly target: WatchTarget;
 }) {
+  const positionMs = peek?.kind === "active" ? peek.progress.positionMs : null;
+  useEffect(() => {
+    if (positionMs !== null) chatSession?.syncPlayback?.(positionMs);
+  }, [chatSession, positionMs]);
   const { t } = useTranslation();
   const translate = (key: string, values?: Record<string, unknown>) =>
     values === undefined ? t(key) : t(key, values);
   const view = composeWatchView(playback);
+  const captionSession =
+    captions?.session?.sessionId === view.sessionId ? captions.session : null;
   const title = resolveWatchCopy(view.title, translate);
   const detail = resolveWatchCopy(view.detail, translate);
   const fullscreen =
@@ -328,13 +354,24 @@ export function WatchScreen({
             qualityMenuOpen={qualityMenuOpen}
             visible={controlsVisible}
             {...(chrome === undefined ? {} : { chrome })}
-            {...(fastForwardSeconds === undefined ? {} : { fastForwardSeconds })}
+            {...(fastForwardSeconds === undefined
+              ? {}
+              : { fastForwardSeconds })}
             {...(rewindSeconds === undefined ? {} : { rewindSeconds })}
             {...(onSeekBack === undefined ? {} : { onSeekBack })}
             {...(onSeekForward === undefined ? {} : { onSeekForward })}
-            {...(onSeekTo === undefined ? {} : { onSeekTo })}
+            {...(onSeekTo === undefined
+              ? {}
+              : {
+                  onSeekTo: (position: number) => {
+                    chatSession?.seekPlayback?.(position);
+                    onSeekTo(position);
+                  },
+                })}
             {...(onSelectQuality === undefined ? {} : { onSelectQuality })}
-            {...(onCloseQualityMenu === undefined ? {} : { onCloseQualityMenu })}
+            {...(onCloseQualityMenu === undefined
+              ? {}
+              : { onCloseQualityMenu })}
             paused={peek.state.phase === "paused"}
             platform={target.platform}
             progress={peek.progress}
@@ -344,7 +381,13 @@ export function WatchScreen({
           />
         ) : null}
         {pipSurface ? null : (
-          <WatchCaptionOverlay text={captions?.cueText ?? ""} />
+          <WatchCaptionOverlay
+            text={
+              captionSession?.state === "active"
+                ? (captions?.cueText ?? "")
+                : ""
+            }
+          />
         )}
       </View>
       {pipSurface || fullscreen ? null : (
@@ -363,11 +406,29 @@ export function WatchScreen({
             <View style={styles.toolsRow} testID="watch-tools">
               {download ? <WatchDownloadBar {...download} /> : null}
               {recording ? <WatchRecordingBar {...recording} /> : null}
-              {captions ? <WatchCaptionBar compact {...captions} /> : null}
+              {captions ? (
+                <WatchCaptionBar
+                  compact
+                  {...captions}
+                  session={captionSession}
+                />
+              ) : null}
             </View>
+          ) : null}
+          {!target.media && onOpenEngagement ? (
+            <MobileButton
+              accessibilityLabel="Polls and predictions"
+              onPress={onOpenEngagement}
+              testID="watch-engagement"
+              variant="secondary"
+            >
+              Polls and predictions
+            </MobileButton>
           ) : null}
           <WatchTabs
             chat={chat}
+            chatTarget={target}
+            {...(chatInteractions === undefined ? {} : { chatInteractions })}
             info={inspection?.info ?? null}
             onOpenRelated={onOpenRelated}
             onSelect={onSelectTab}
@@ -376,13 +437,13 @@ export function WatchScreen({
             related={inspection?.related ?? null}
             tab={tab}
             {...(onChatRetry === undefined ? {} : { onChatRetry })}
+            {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
           />
         </>
       )}
     </View>
   );
 }
-
 
 function adblockFilteringActive(
   view: AdBlockView | null | undefined,
@@ -453,7 +514,11 @@ function WatchMetaViewers({
             style={styles.metaLiveDot}
             testID="watch-meta-live-dot"
           />
-          <Text selectable style={styles.metaViewers} testID="watch-meta-uptime">
+          <Text
+            selectable
+            style={styles.metaViewers}
+            testID="watch-meta-uptime"
+          >
             {uptime}
           </Text>
         </>

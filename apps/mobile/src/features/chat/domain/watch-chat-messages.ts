@@ -1,5 +1,9 @@
-import type { WatchChatBadge, WatchChatMessage } from "../capabilities/watch-chat";
+import type {
+  WatchChatBadge,
+  WatchChatMessage,
+} from "../capabilities/watch-chat";
 import { resolveTwitchBadges } from "./twitch-global-badge-catalog";
+import { twitchEmoteParts } from "./message-parts";
 
 const MAX_MESSAGES = 100;
 
@@ -17,14 +21,17 @@ export function appendWatchChatMessage(
   messages: readonly WatchChatMessage[],
   next: WatchChatMessage,
 ): readonly WatchChatMessage[] {
+  if (messages.some((message) => message.id === next.id)) return messages;
   const combined = [...messages, next];
-  return combined.length > MAX_MESSAGES ? combined.slice(-MAX_MESSAGES) : combined;
+  return combined.length > MAX_MESSAGES
+    ? combined.slice(-MAX_MESSAGES)
+    : combined;
 }
 
 export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
   const trimmed = line.replace(/\r$/, "");
   if (!trimmed.includes(" PRIVMSG ")) return null;
-  const text = trimmed.split(" :").at(-1) ?? "";
+  const text = / PRIVMSG [^ ]+ :(.*)$/.exec(trimmed)?.[1] ?? "";
   if (text === "") return null;
   const id = tagValue(trimmed, "id") || `twitch:${text}:${trimmed.length}`;
   const username =
@@ -33,6 +40,8 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
   const color = normalizeHexColor(tagValue(trimmed, "color"));
   const badgeRefs = parseIrcBadgesTag(tagValue(trimmed, "badges"));
   const badges = resolveTwitchBadges(badgeRefs);
+  const userId = tagValue(trimmed, "user-id");
+  const parts = twitchEmoteParts(text, tagValue(trimmed, "emotes"));
   return {
     badges,
     ...(color === undefined ? {} : { color }),
@@ -40,12 +49,12 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
     id,
     text,
     username,
+    ...(userId ? { userId } : {}),
+    ...(parts ? { parts } : {}),
   };
 }
 
-export function parseKickChatFrame(
-  payload: unknown,
-): WatchChatMessage | null {
+export function parseKickChatFrame(payload: unknown): WatchChatMessage | null {
   if (typeof payload !== "object" || payload === null) return null;
   const record = payload as Record<string, unknown>;
   const sender =
@@ -69,8 +78,7 @@ export function parseKickChatFrame(
     (typeof sender.username === "string" && sender.username) ||
     "chat";
   const displayName =
-    (typeof sender.username === "string" && sender.username) ||
-    username;
+    (typeof sender.username === "string" && sender.username) || username;
   const color = normalizeHexColor(
     typeof identity.color === "string" ? identity.color : "",
   );
@@ -81,6 +89,9 @@ export function parseKickChatFrame(
     id,
     text,
     username,
+    ...(typeof sender.id === "number" || typeof sender.id === "string"
+      ? { userId: String(sender.id) }
+      : {}),
   };
 }
 

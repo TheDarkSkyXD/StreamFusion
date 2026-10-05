@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.FocusedPlaybackBackgroundLifecycleTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-05T15:50:15.184Z" hostname="DESKTOP-O4BIJFR" time="0.122">
+  <properties/>
+  <testcase name="requestedPictureInPictureKeepsOnlyItsSessionPlayingInBackground" classname="expo.modules.streamfusionnativecontracts.FocusedPlaybackBackgroundLifecycleTest" time="0.024"/>
+  <testcase name="activePictureInPictureKeepsOnlyItsSessionPlayingInBackground" classname="expo.modules.streamfusionnativecontracts.FocusedPlaybackBackgroundLifecycleTest" time="0.033"/>
+  <testcase name="backgroundWithoutPictureInPicturePausesEverySession" classname="expo.modules.streamfusionnativecontracts.FocusedPlaybackBackgroundLifecycleTest" time="0.044"/>
+  <testcase name="backgroundDoesNotResumeAPausedPictureInPictureSession" classname="expo.modules.streamfusionnativecontracts.FocusedPlaybackBackgroundLifecycleTest" time="0.02"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

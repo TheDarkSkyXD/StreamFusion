@@ -34,6 +34,7 @@ export const moreRouteIcons = {
   "more/history": History,
   "more/downloads": Download,
   "more/moderation": Shield,
+  "more/multistream": LayoutGrid,
   "more/settings": Settings,
   "more/diagnostics": Activity,
   "more/accounts": CircleUserRound,
