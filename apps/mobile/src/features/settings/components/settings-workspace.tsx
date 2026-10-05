@@ -37,6 +37,7 @@ import {
 } from "@streamfusion/core/settings";
 
 import { MobileScreenHeader } from "@mobile/design/screen-header";
+import { MobileListRow } from "@mobile/design/list-row";
 import {
   mobileColors,
   mobileHitSlop,
@@ -114,7 +115,8 @@ export function SettingsWorkspace({
   const { view } = useSettingsSession(session);
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<SettingsPanelId | null>(null);
-  const gap = mobileSpacing.medium * densityGapMultiplier(view.preferences.density);
+  const gap =
+    mobileSpacing.medium * densityGapMultiplier(view.preferences.density);
 
   // Session search query is in-memory and survives Settings remounts. Clear on
   // hub enter so a stale filter (e.g. "lang" after language work) never hides
@@ -167,16 +169,12 @@ export function SettingsWorkspace({
       testID="screen-more-settings"
     >
       <View style={[styles.column, { gap }]} testID="screen-settings">
-        <MobileScreenHeader
-          summary={t("settings.languageAndAppPreferences")}
-          title={t("navigation.settings")}
-        />
+        <Text selectable style={styles.sectionTitle}>
+          {t("settings.languageAndAppPreferences")}
+        </Text>
         <SettingsSearchField session={session} value={view.query} />
         <RejectedNotices messages={view.rejected} />
-        <SettingsHub
-          onOpenPanel={openPanel}
-          view={view}
-        />
+        <SettingsHub onOpenPanel={openPanel} view={view} />
       </View>
     </ScrollView>
   );
@@ -229,7 +227,12 @@ export function SettingsCategoryDetail({
           <MobileScreenHeader title={title} />
         </View>
         <RejectedNotices messages={view.rejected} />
-        <SettingsPanelBody extras={extras} panel={panel} session={session} view={view} />
+        <SettingsPanelBody
+          extras={extras}
+          panel={panel}
+          session={session}
+          view={view}
+        />
       </View>
     </ScrollView>
   );
@@ -247,7 +250,9 @@ export function SettingsHub({
   return (
     <View style={styles.hub} testID="settings-hub">
       {SETTINGS_CATEGORY_SECTIONS.map((section) => {
-        const rows = categories.filter((category) => category.section === section.id);
+        const rows = categories.filter(
+          (category) => category.section === section.id,
+        );
         if (rows.length === 0) return null;
         return (
           <View key={section.id} style={styles.section}>
@@ -338,36 +343,22 @@ export function SettingsTileRoute({
 }) {
   const Icon = CATEGORY_ICONS[category.icon];
   return (
-    <Pressable
-      accessibilityLabel={category.title}
-      accessibilityRole="button"
+    <MobileListRow
+      description={category.description}
+      leading={
+        <View style={styles.tileIconWell}>
+          <Icon
+            accessibilityElementsHidden
+            color={mobileColors.textPrimary}
+            size={20}
+            strokeWidth={2}
+          />
+        </View>
+      }
       onPress={onPress}
-      style={({ pressed }) => [styles.tile, pressed ? styles.tilePressed : null]}
       testID={`settings-category-${category.id}`}
-    >
-      <View style={styles.tileIconWell}>
-        <Icon
-          accessibilityElementsHidden
-          color={mobileColors.textPrimary}
-          size={20}
-          strokeWidth={2}
-        />
-      </View>
-      <View style={styles.tileCopy}>
-        <Text selectable style={styles.tileTitle}>
-          {category.title}
-        </Text>
-        <Text selectable style={styles.tileDescription}>
-          {category.description}
-        </Text>
-      </View>
-      <ChevronRight
-        accessibilityElementsHidden
-        color={mobileColors.textMuted}
-        size={20}
-        strokeWidth={2}
-      />
-    </Pressable>
+      title={category.title}
+    />
   );
 }
 
@@ -398,7 +389,11 @@ function SettingsPanelBody({
   const extra = extras[panel];
   if (!extra) {
     return (
-      <Text selectable style={styles.empty} testID={`settings-panel-missing-${panel}`}>
+      <Text
+        selectable
+        style={styles.empty}
+        testID={`settings-panel-missing-${panel}`}
+      >
         This category is not available on this build.
       </Text>
     );
@@ -457,11 +452,20 @@ function SettingsSearchField({
   );
 }
 
-function RejectedNotices({ messages }: { readonly messages: readonly string[] }) {
+function RejectedNotices({
+  messages,
+}: {
+  readonly messages: readonly string[];
+}) {
   return (
     <>
       {messages.map((message) => (
-        <Text key={message} selectable style={styles.rejected} testID="settings-rejected">
+        <Text
+          key={message}
+          selectable
+          style={styles.rejected}
+          testID="settings-rejected"
+        >
           {message}
         </Text>
       ))}

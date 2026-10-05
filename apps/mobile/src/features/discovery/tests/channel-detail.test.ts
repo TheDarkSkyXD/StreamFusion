@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MediaTab } from "../components/channel-detail-media";
 import { ChannelDetailBody } from "../components/channel-detail-screen";
-import { composeChannelDetail, unsupportedMedia } from "../domain/channel-detail";
+import {
+  composeChannelDetail,
+  unsupportedMedia,
+} from "../domain/channel-detail";
 import {
   fixtureChannel,
   fixtureChannelDetail,
@@ -20,6 +23,8 @@ vi.mock("react-native", () => ({
   Text: "Text",
   View: "View",
 }));
+
+vi.mock("lucide-react-native", () => ({ Bell: "Bell", BellOff: "BellOff" }));
 
 type ElementProps = Readonly<{
   children?: unknown;
@@ -84,7 +89,9 @@ describe("channel detail compose", () => {
         platform: "twitch",
       },
     });
-    expect(view.channel?.displayName).toBe(fixtureChannel("twitch", true).displayName);
+    expect(view.channel?.displayName).toBe(
+      fixtureChannel("twitch", true).displayName,
+    );
     expect(view.phase).toBe("ready");
   });
 
@@ -99,7 +106,11 @@ describe("channel detail compose", () => {
 });
 
 function bodyProps(
-  channel: { readonly id: string; readonly platform: "twitch" | "kick"; readonly username: string },
+  channel: {
+    readonly id: string;
+    readonly platform: "twitch" | "kick";
+    readonly username: string;
+  },
   mode: "ready" | "kick-unsupported",
   extras: {
     readonly follow?: ReturnType<typeof fixtureChannelDetail>["follow"];
@@ -120,6 +131,41 @@ function bodyProps(
 }
 
 describe("channel detail screen", () => {
+  it("renders provider banner and invokes the live-alert preference action", () => {
+    const channel = {
+      id: "twitch-c1",
+      platform: "twitch",
+      username: "twitch-live",
+    } as const;
+    const props = bodyProps(channel, "ready");
+    let toggles = 0;
+    const nodes = descendants(
+      ChannelDetailBody({
+        ...props,
+        liveAlerts: true,
+        onToggleLiveAlerts: () => {
+          toggles += 1;
+        },
+        view: {
+          ...props.view,
+          channel: props.view.channel
+            ? {
+                ...props.view.channel,
+                bannerUrl: "https://example.test/banner.png",
+              }
+            : null,
+        },
+      }),
+    );
+    expect(nodes.some((node) => node.props.testID === "channel-banner")).toBe(
+      true,
+    );
+    nodes
+      .find((node) => node.props.testID === "channel-live-alerts")
+      ?.props.onPress?.();
+    expect(toggles).toBe(1);
+  });
+
   it("renders header, tabs, about, Follow, and provider page", () => {
     const root = ChannelDetailBody(
       bodyProps(
@@ -128,16 +174,24 @@ describe("channel detail screen", () => {
       ),
     );
     const nodes = descendants(root);
-    expect(nodes.some((node) => node.props.testID === "channel-header")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "channel-tabs")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "channel-about")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "channel-follow")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "channel-open-provider")).toBe(
+    expect(nodes.some((node) => node.props.testID === "channel-header")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "channel-follow-reason")).toBe(
+    expect(nodes.some((node) => node.props.testID === "channel-tabs")).toBe(
       true,
     );
+    expect(nodes.some((node) => node.props.testID === "channel-about")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "channel-follow")).toBe(
+      true,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "channel-open-provider"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "channel-follow-reason"),
+    ).toBe(true);
     expect(
       nodes.some(
         (node) =>
@@ -166,7 +220,9 @@ describe("channel detail screen", () => {
     const follow = nodes.find((node) => node.props.testID === "channel-follow");
     expect(follow?.props.disabled).toBe(true);
     expect(
-      nodes.some((node) => node.props.children === "Updating Guest Follow state."),
+      nodes.some(
+        (node) => node.props.children === "Updating Guest Follow state.",
+      ),
     ).toBe(true);
   });
 
@@ -199,9 +255,9 @@ describe("channel detail screen", () => {
         },
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "channel-clips-loading")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "channel-clips-loading"),
+    ).toBe(true);
   });
 
   it("shows empty copy after a completed guest clips read with no items", () => {
@@ -220,9 +276,9 @@ describe("channel detail screen", () => {
         },
       }),
     );
-    expect(nodes.some((node) => node.props.testID === "channel-clips-empty")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "channel-clips-empty"),
+    ).toBe(true);
   });
 
   it("shows Kick video rows and unsupported clips copy", () => {

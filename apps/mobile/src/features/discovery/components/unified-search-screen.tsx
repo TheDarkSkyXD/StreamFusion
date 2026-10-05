@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -12,7 +11,6 @@ import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
@@ -34,10 +32,7 @@ import {
 } from "../domain/channel-watch-target";
 
 import { SearchDock } from "./search-dock";
-import {
-  SearchFilters,
-  type SearchPlatformFilter,
-} from "./search-filters";
+import { SearchFilters, type SearchPlatformFilter } from "./search-filters";
 import { SearchHistoryPanel } from "./search-history-panel";
 import { SearchProofControls } from "./search-proof-controls";
 import { SearchProviderBanner } from "./search-provider-banner";
@@ -151,7 +146,9 @@ export function UnifiedSearchScreen({
   );
 }
 
-function channelAvatar(channel: ChannelIdentity & { readonly avatarUrl?: string | null }): string | undefined {
+function channelAvatar(
+  channel: ChannelIdentity & { readonly avatarUrl?: string | null },
+): string | undefined {
   const url = channel.avatarUrl?.trim();
   return url && url.length > 0 ? url : undefined;
 }
@@ -217,7 +214,6 @@ export function UnifiedSearchView({
   readonly tab: SearchResultType;
   readonly view: UnifiedSearchModel;
 }) {
-  const { t } = useTranslation();
   const activeHistoryScope = historyScope ?? historyScopeForTab(tab);
   const resultsBlock =
     view.phase === "idle" ? null : (
@@ -276,10 +272,7 @@ export function UnifiedSearchView({
   if (mode === "categories") {
     return (
       <KeyboardAvoidingView style={styles.frame} testID="unified-search">
-        <View style={styles.modeChrome}>
-          <MobileScreenHeader title={t("discovery.search.title")} />
-          {modeTabs}
-        </View>
+        <View style={styles.modeChrome}>{modeTabs}</View>
         <View style={styles.panel} testID="search-categories-panel">
           {categoriesPanel ?? (
             <MobileStatusPanel tone="empty">
@@ -304,8 +297,13 @@ export function UnifiedSearchView({
         refreshing={refreshing}
         style={styles.scroll}
       >
-        <MobileScreenHeader title={t("discovery.search.title")} />
         {modeTabs}
+        <SearchDock
+          onChangeText={onChangeDraft}
+          onClear={onClearDraft}
+          onSubmit={onSubmit}
+          value={draft}
+        />
         {proofMode && onSelectProofMode ? (
           <SearchProofControls mode={proofMode} onSelect={onSelectProofMode} />
         ) : null}
@@ -348,16 +346,9 @@ export function UnifiedSearchView({
           resultsBlock
         )}
       </MobileRefreshableScroll>
-      <SearchDock
-        onChangeText={onChangeDraft}
-        onClear={onClearDraft}
-        onSubmit={onSubmit}
-        value={draft}
-      />
     </KeyboardAvoidingView>
   );
 }
-
 
 const styles = StyleSheet.create({
   frame: {

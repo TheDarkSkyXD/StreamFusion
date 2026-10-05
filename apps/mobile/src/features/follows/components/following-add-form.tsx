@@ -1,21 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { findGuestFollow, type GuestFollow } from "@streamfusion/core/follows";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
-import {
-  mobileTextFieldProps,
-  mobileTextFieldStyle,
-} from "@mobile/design/text-field";
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { MobileTextField } from "@mobile/design/text-input";
+import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 
 import type { FollowingSession } from "../capabilities/following-session";
 
@@ -35,9 +27,6 @@ export function FollowingAddForm({
   const [busy, setBusy] = useState(false);
   return (
     <View style={styles.stack} testID="following-add-form">
-      <Text selectable style={styles.heading}>
-        {t("discovery.following.addGuestFollow")}
-      </Text>
       <View style={styles.row}>
         {(["twitch", "kick"] as const).map((value) => (
           <MobileFilterChip
@@ -52,15 +41,12 @@ export function FollowingAddForm({
           />
         ))}
       </View>
-      <TextInput
-        {...mobileTextFieldProps}
-        accessibilityLabel={t("discovery.following.channelLogin")}
+      <MobileTextField
+        label={t("discovery.following.channelLogin")}
         autoCapitalize="none"
         autoCorrect={false}
-        onChangeText={setLogin}
+        onChange={setLogin}
         placeholder={t("discovery.following.channelLoginPlaceholder")}
-        placeholderTextColor={mobileColors.textMuted}
-        style={styles.input}
         testID="following-add-login"
         value={login}
       />
@@ -110,16 +96,25 @@ async function addFollow(input: {
     input.setMessage(input.t("discovery.following.enterChannelLogin"));
     return;
   }
-  if (findGuestFollow(input.membership, { channelLogin, platform: input.platform })) {
+  if (
+    findGuestFollow(input.membership, {
+      channelLogin,
+      platform: input.platform,
+    })
+  ) {
     input.setMessage(input.t("discovery.following.alreadyGuestFollow"));
     return;
   }
   input.setBusy(true);
-  const result = await input.session.mutateFollow({
-    channelLogin,
-    platform: input.platform,
-  });
-  input.setBusy(false);
+  let result: Awaited<ReturnType<FollowingSession["mutateFollow"]>>;
+  try {
+    result = await input.session.mutateFollow({ channelLogin, platform: input.platform });
+  } catch {
+    input.setMessage("Could not save Guest Follow. Try again.");
+    return;
+  } finally {
+    input.setBusy(false);
+  }
   if (result.kind === "followed") {
     input.setMessage(
       input.t("discovery.following.followingAsGuest", {
@@ -138,22 +133,7 @@ async function addFollow(input: {
 
 const styles = StyleSheet.create({
   stack: { gap: mobileSpacing.small },
-  heading: {
-    color: mobileColors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
-  },
   row: { flexDirection: "row", gap: mobileSpacing.small },
-  input: {
-    ...mobileTextFieldStyle,
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-  },
   message: {
     color: mobileColors.textSecondary,
     fontSize: 14,

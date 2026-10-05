@@ -3,13 +3,9 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileListRow } from "@mobile/design/list-row";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
-import {
-  mobileColors,
-  mobileSpacing,
-  mobileType,
-} from "@mobile/design/tokens";
+import { mobileColors, mobileRadii, mobileSpacing, mobileType } from "@mobile/design/tokens";
 import {
   MOBILE_DIAGNOSTICS_TABS,
   type MobileDiagnosticsTab,
@@ -38,9 +34,6 @@ export function DiagnosticsWorkspace({
 }: DiagnosticsWorkspaceProps) {
   return (
     <View style={styles.screen} testID="screen-diagnostics">
-      <View style={styles.header}>
-        <MobileScreenHeader title="Diagnostics" />
-      </View>
       <View
         accessibilityLabel="Diagnostics sections"
         accessibilityRole="tablist"
@@ -72,12 +65,10 @@ export function DiagnosticsWorkspace({
         style={styles.body}
         testID={`diagnostics-panel-${selectedTab}`}
       >
-        <Text selectable style={mobileType.body} testID="diagnostics-observation">
-          {observationCopy}
-        </Text>
-        <Text selectable style={mobileType.body} testID="diagnostics-collection">
-          {collectionCopy}
-        </Text>
+        <View style={styles.summary}>
+          <MobileListRow description={observationCopy} testID="diagnostics-observation" title="Observation" />
+          <MobileListRow description={collectionCopy} testID="diagnostics-collection" title="Collection" />
+        </View>
         <Text
           selectable
           style={mobileType.body}
@@ -105,10 +96,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  header: {
-    paddingHorizontal: mobileSpacing.medium,
-    paddingTop: mobileSpacing.medium,
-  },
   tabs: {
     borderBottomColor: mobileColors.dividerMuted,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -126,5 +113,11 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.large,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
+  },
+  summary: {
+    backgroundColor: mobileColors.surface,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.large,
+    borderWidth: 1,
   },
 });

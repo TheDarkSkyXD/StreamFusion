@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 
 import { MobileButton, type MobileButtonVariant } from "@mobile/design/button";
-import { MobileScreenHeader } from "@mobile/design/screen-header";
 import {
   mobileColors,
   mobileRadii,
@@ -66,7 +65,6 @@ export function TwitchAccountsPanel({
 }) {
   return (
     <View style={styles.stack} testID="twitch-account-panel">
-      <MobileScreenHeader title="Accounts" />
       {developmentFixture ? (
         <View style={styles.fixtureRow}>
           <Text style={styles.fixture} testID="twitch-development-fixture">
@@ -281,7 +279,11 @@ function TwitchState({
           : "Connected. Required features are available."}
       </Text>
       <Text style={styles.detail}>
-        Account permissions available: {model.scopes.includes("chat:read") ? "read Twitch chat metadata" : "basic identity only"}.
+        Account permissions available:{" "}
+        {model.scopes.includes("chat:read")
+          ? "read Twitch chat metadata"
+          : "basic identity only"}
+        .
       </Text>
       {model.notice ? <Text style={styles.detail}>{model.notice}</Text> : null}
       {model.view === "manage" ? (
@@ -317,11 +319,7 @@ function TwitchState({
             onPress={actions.manage}
           />
         ) : (
-          <Action
-            id="manage-account"
-            label="Manage"
-            onPress={actions.manage}
-          />
+          <Action id="manage-account" label="Manage" onPress={actions.manage} />
         )}
         {model.view === "manage" ? (
           <Action
@@ -430,7 +428,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: mobileSizing.minimumTouchTarget,
   },
-  avatarText: { color: mobileColors.textPrimary, fontSize: 18, fontWeight: "700" },
+  avatarText: {
+    color: mobileColors.textPrimary,
+    fontSize: 18,
+    fontWeight: "700",
+  },
   code: {
     color: mobileColors.textPrimary,
     fontSize: 28,
@@ -440,7 +442,11 @@ const styles = StyleSheet.create({
   detail: { ...mobileType.body },
   fixture: { color: mobileColors.live, fontWeight: "700" },
   fixtureRow: { gap: mobileSpacing.small },
-  identity: { alignItems: "center", flexDirection: "row", gap: mobileSpacing.small },
+  identity: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+  },
   identityCopy: { flex: 1, minWidth: 0 },
   stack: { gap: mobileSpacing.medium, paddingBottom: mobileSpacing.xLarge },
 });

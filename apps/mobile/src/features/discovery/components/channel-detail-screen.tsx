@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ScrollView, StyleSheet, Text } from "react-native";
+import { setPerChannelLiveNotificationPreference } from "@streamfusion/core/follows";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
-import {
-  mobileColors,
-  mobileRadii,
-  mobileSizing,
-  mobileSpacing,
-} from "@mobile/design/tokens";
+import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
+import { MobileButton } from "@mobile/design/button";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 import type {
@@ -15,9 +13,7 @@ import type {
   ChannelDetailView as ChannelDetailModel,
   DiscoverySession,
 } from "../capabilities/platform-reads";
-import {
-  type ChannelFixtureMode,
-} from "../domain/channel-fixture";
+import { type ChannelFixtureMode } from "../domain/channel-fixture";
 import { ChannelHeader } from "./channel-header";
 import { HomeTab, MediaTab } from "./channel-detail-media";
 import { ChannelProofControls } from "./channel-proof-controls";
@@ -37,6 +33,11 @@ export function ChannelDetailScreen({
   readonly session: DiscoverySession;
 }) {
   const [tab, setTab] = useState<ChannelDetailTab>("home");
+  const queryClient = useQueryClient();
+  const notifications = useQuery({
+    queryFn: () => following.readNotifications(),
+    queryKey: ["follows", "notifications"],
+  });
   const live = useChannelDetail({
     channel,
     loadClips: tab === "clips",
@@ -52,6 +53,35 @@ export function ChannelDetailScreen({
   return (
     <ChannelDetailView
       channel={channel}
+      {...(notifications.data === undefined
+        ? {}
+        : {
+            liveAlerts:
+              notifications.data.perChannelNotifications[
+                `${channel.platform}:${channel.id}`
+              ] ?? true,
+          })}
+      onToggleLiveAlerts={() => {
+        if (!notifications.data) return;
+        void following
+          .writeNotifications(
+            setPerChannelLiveNotificationPreference(
+              notifications.data,
+              channel,
+              !(
+                notifications.data.perChannelNotifications[
+                  `${channel.platform}:${channel.id}`
+                ] ?? true
+              ),
+            ),
+          )
+          .then(
+            () =>
+              void queryClient.invalidateQueries({
+                queryKey: ["follows", "notifications"],
+              }),
+          );
+      }}
       onFollow={follow.toggle}
       onOpenProviderPage={follow.openProviderPage}
       onRetry={live.retry}
@@ -65,6 +95,8 @@ export function ChannelDetailScreen({
 
 export function ChannelDetailView({
   channel,
+  liveAlerts,
+  onToggleLiveAlerts,
   onFollow,
   onOpenProviderPage,
   onRetry,
@@ -76,6 +108,8 @@ export function ChannelDetailView({
   view,
 }: {
   readonly channel: ChannelIdentity;
+  readonly liveAlerts?: boolean;
+  readonly onToggleLiveAlerts?: () => void;
   readonly onFollow: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
@@ -89,6 +123,8 @@ export function ChannelDetailView({
   return (
     <ChannelDetailBody
       channel={channel}
+      {...(liveAlerts === undefined ? {} : { liveAlerts })}
+      {...(onToggleLiveAlerts === undefined ? {} : { onToggleLiveAlerts })}
       onFollow={onFollow}
       onOpenProviderPage={onOpenProviderPage}
       onRetry={onRetry}
@@ -105,6 +141,8 @@ export function ChannelDetailView({
 
 export function ChannelDetailBody({
   channel,
+  liveAlerts,
+  onToggleLiveAlerts,
   onFollow,
   onOpenProviderPage,
   onRetry,
@@ -116,6 +154,8 @@ export function ChannelDetailBody({
   view,
 }: {
   readonly channel: ChannelIdentity;
+  readonly liveAlerts?: boolean;
+  readonly onToggleLiveAlerts?: () => void;
   readonly onFollow: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
@@ -150,6 +190,8 @@ export function ChannelDetailBody({
       {view.channel ? (
         <ChannelHeader
           channel={view.channel}
+          {...(liveAlerts === undefined ? {} : { liveAlerts })}
+          {...(onToggleLiveAlerts === undefined ? {} : { onToggleLiveAlerts })}
           follow={view.follow}
           onFollow={onFollow}
           onOpenProviderPage={onOpenProviderPage}
@@ -161,20 +203,14 @@ export function ChannelDetailBody({
         />
       ) : null}
       {view.phase === "failed" || view.phase === "empty" ? (
-        <Pressable
+        <MobileButton
           accessibilityLabel="Retry channel"
-          accessibilityRole="button"
           onPress={onRetry}
-          style={({ pressed }) => [
-            styles.retry,
-            pressed ? styles.pressed : null,
-          ]}
           testID="channel-retry"
+          variant="secondary"
         >
-          <Text selectable style={styles.retryLabel}>
-            Retry
-          </Text>
-        </Pressable>
+          Retry
+        </MobileButton>
       ) : null}
       <ChannelTabs onSelect={onSelectTab} tab={tab} />
       {tab === "home" ? <HomeTab {...watchProp(onWatch)} view={view} /> : null}
@@ -204,7 +240,6 @@ function watchProp(
   return onWatch === undefined ? {} : { onWatch };
 }
 
-
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   content: {
@@ -231,18 +266,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 21,
   },
-  retry: {
-    alignItems: "center",
-    backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  retryLabel: {
-    color: mobileColors.background,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  pressed: { opacity: 0.76 },
 });

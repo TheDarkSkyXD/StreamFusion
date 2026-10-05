@@ -25,6 +25,7 @@ vi.mock("react-native", async () => {
 vi.mock("@react-native-community/slider", () => ({ default: "input" }));
 vi.mock("@mobile/design/select", () => ({ MobileSelect: () => null }));
 vi.mock("@mobile/design/haptics", () => ({ selectionHaptic: async () => {} }));
+vi.mock("lucide-react-native", () => ({ ChevronRight: "ChevronRight" }));
 
 const release = {
   version: "0.1.1-alpha",

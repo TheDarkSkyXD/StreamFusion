@@ -14,6 +14,8 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+vi.mock("lucide-react-native", () => ({ ChevronRight: "ChevronRight" }));
+
 const WORKSPACE_SLOTS = {
   overview: "overview-slot",
   resources: "resources-slot",

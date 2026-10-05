@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Slider from "@react-native-community/slider";
 import { selectionHaptic } from "@mobile/design/haptics";
-import {
-  MobileSelect,
-  type MobileSelectOption,
-} from "@mobile/design/select";
+import { MobileListRow, MobileSwitchRow } from "@mobile/design/list-row";
+import { MobileTextField } from "@mobile/design/text-input";
+import { MobileSelect, type MobileSelectOption } from "@mobile/design/select";
 
 import {
   DISPLAY_LANGUAGE_REGISTRY,
@@ -52,40 +51,6 @@ export function SettingsCopy({
   );
 }
 
-function SettingsRow({
-  accessibilityLabel,
-  accessibilityRole,
-  accessibilityState,
-  children,
-  disabled = false,
-  onPress,
-  testID,
-}: {
-  readonly accessibilityLabel: string;
-  readonly accessibilityRole: "button" | "switch";
-  readonly accessibilityState?: { readonly checked?: boolean; readonly disabled?: boolean };
-  readonly children: string;
-  readonly disabled?: boolean;
-  readonly onPress: () => void;
-  readonly testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole={accessibilityRole}
-      accessibilityState={accessibilityState}
-      disabled={disabled}
-      onPress={onPress}
-      style={styles.row}
-      testID={testID}
-    >
-      <Text selectable style={styles.rowLabel}>
-        {children}
-      </Text>
-    </Pressable>
-  );
-}
-
 export function SettingsSwitch({
   checked,
   detail,
@@ -102,39 +67,14 @@ export function SettingsSwitch({
   readonly testID: string;
 }) {
   return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="switch"
-      accessibilityState={{ checked, disabled }}
+    <MobileSwitchRow
+      {...(detail === undefined ? {} : { description: detail })}
       disabled={disabled}
-      onPress={onToggle}
-      style={styles.switchRow}
+      onChange={onToggle}
       testID={testID}
-    >
-      <View style={styles.switchCopy} accessible={false}>
-        <Text selectable style={styles.rowLabel}>
-          {label}
-        </Text>
-        {detail ? (
-          <Text selectable style={styles.detail}>
-            {detail}
-          </Text>
-        ) : null}
-      </View>
-      <Switch
-        accessibilityElementsHidden
-        disabled={disabled}
-        importantForAccessibility="no"
-        onValueChange={() => onToggle()}
-        pointerEvents="none"
-        thumbColor={checked ? mobileColors.textPrimary : mobileColors.textSecondary}
-        trackColor={{
-          false: mobileColors.border,
-          true: mobileColors.twitchBright,
-        }}
-        value={checked}
-      />
-    </Pressable>
+      title={label}
+      value={checked}
+    />
   );
 }
 
@@ -273,16 +213,12 @@ export function SettingsAction({
   readonly testID: string;
 }) {
   return (
-    <SettingsRow
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
+    <MobileListRow
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-    >
-      {label}
-    </SettingsRow>
+      title={label}
+    />
   );
 }
 
@@ -299,22 +235,17 @@ export function SettingsField({
 }) {
   return (
     <View style={styles.choiceBlock} testID={testID}>
-      <Text selectable style={styles.rowLabel}>
-        {label}
-      </Text>
-      <TextInput
-        accessibilityLabel={label}
+      <MobileTextField
+        label={label}
         multiline
-        onChangeText={onChangeText}
+        onChange={onChangeText}
         placeholder={label}
-        placeholderTextColor={mobileColors.textSecondary}
-        style={styles.field}
+        testID={`${testID}-input`}
         value={value}
       />
     </View>
   );
 }
-
 
 export function SettingsSlider({
   detail,
@@ -406,7 +337,6 @@ function snapSliderValue(
   );
 }
 
-
 const styles = StyleSheet.create({
   panel: {
     backgroundColor: mobileColors.surface,
@@ -429,27 +359,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 21,
   },
-  row: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-  },
-  switchRow: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    flexDirection: "row",
-    gap: mobileSpacing.medium,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
-  switchCopy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-  },
   rowLabel: {
     color: mobileColors.textPrimary,
     fontSize: 16,
@@ -458,53 +367,6 @@ const styles = StyleSheet.create({
   },
   choiceBlock: {
     gap: mobileSpacing.small,
-  },
-  choiceRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.small,
-  },
-  choice: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    minWidth: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.small,
-  },
-  choiceLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  languageList: {
-    gap: mobileSpacing.small,
-  },
-  languageRow: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    justifyContent: "center",
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
-  languageRowSelected: {
-    borderColor: mobileColors.twitchBright,
-    borderWidth: 1,
-  },
-  field: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.medium,
-    borderWidth: 1,
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
   },
   sliderBlock: {
     backgroundColor: mobileColors.surfaceRaised,

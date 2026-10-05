@@ -338,6 +338,7 @@ describe("createFollowingRuntime", () => {
       displayName: "Summit1G",
       platform: "kick",
     });
+    const guestStore = memoryGuestFollows([guest]);
     const session = createFollowingRuntime({
       accountFollows: [
         {
@@ -360,7 +361,7 @@ describe("createFollowingRuntime", () => {
             envelope({ channels: [], missing: [], platform: "twitch" }),
           ),
         ),
-      guestFollows: memoryGuestFollows([guest]),
+      guestFollows: guestStore,
       installation: async () => ({
         credential: "install",
         kind: "ready",
@@ -375,6 +376,28 @@ describe("createFollowingRuntime", () => {
       "71092938",
       "999",
     ]);
+    expect(await session.listGuestMembership()).toEqual([guest]);
+    await expect(
+      session.removeGuestFollow({ platform: "twitch", channelId: "999" }),
+    ).resolves.toEqual({
+      kind: "rejected",
+      reason: "guest-only-scope",
+    });
+    expect(await guestStore.list()).toEqual([guest]);
+    await expect(
+      session.removeGuestFollow({
+        platform: "twitch",
+        channelId: guest.channelId,
+      }),
+    ).resolves.toEqual({
+      kind: "unfollowed",
+      platform: "twitch",
+      channelId: guest.channelId,
+    });
+    expect(await session.listGuestMembership()).toEqual([]);
+    expect(
+      (await session.listMembership()).map((row) => row.channelId).sort(),
+    ).toEqual(["411439", "999"]);
   });
 
   it("keeps guest membership when account follow sources are unavailable", async () => {

@@ -1,7 +1,9 @@
 import { Image, StyleSheet, Text, View } from "react-native";
+import { Bell, BellOff } from "lucide-react-native";
 import type { Channel } from "@streamfusion/core/content";
 
 import { MobileButton } from "@mobile/design/button";
+import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
@@ -10,7 +12,10 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
-import type { FollowView, WatchAvailability } from "../capabilities/platform-reads";
+import type {
+  FollowView,
+  WatchAvailability,
+} from "../capabilities/platform-reads";
 import { watchAvailabilityCopy } from "../domain/channel-detail";
 import {
   followActionLabel,
@@ -24,6 +29,8 @@ export function ChannelHeader({
   onFollow,
   onOpenProviderPage,
   onWatch,
+  liveAlerts,
+  onToggleLiveAlerts,
   watch,
 }: {
   readonly channel: Channel;
@@ -31,6 +38,8 @@ export function ChannelHeader({
   readonly onFollow: () => void;
   readonly onOpenProviderPage: () => void;
   readonly onWatch: () => void;
+  readonly liveAlerts?: boolean;
+  readonly onToggleLiveAlerts?: () => void;
   readonly watch: WatchAvailability;
 }) {
   const followers =
@@ -43,43 +52,94 @@ export function ChannelHeader({
   const watchCopy = watchAvailabilityCopy(watch);
   return (
     <View style={styles.header} testID="channel-header">
-      {channel.avatarUrl ? (
+      {channel.bannerUrl ? (
         <Image
           accessibilityIgnoresInvertColors
-          source={{ uri: channel.avatarUrl }}
-          style={styles.avatar}
+          resizeMode="cover"
+          source={{ uri: channel.bannerUrl }}
+          style={styles.banner}
+          testID="channel-banner"
         />
-      ) : (
-        <View style={styles.avatar} />
-      )}
-      <View style={styles.copy}>
-        <View style={styles.nameRow}>
-          <Text accessibilityRole="header" selectable style={mobileType.display}>
-            {channel.displayName}
+      ) : null}
+      <View style={styles.identity}>
+        {channel.avatarUrl ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            source={{ uri: channel.avatarUrl }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={styles.avatar} />
+        )}
+        <View style={styles.copy}>
+          <View style={styles.nameRow}>
+            <Text
+              accessibilityRole="header"
+              selectable
+              style={mobileType.display}
+            >
+              {channel.displayName}
+            </Text>
+            {channel.isVerified ? (
+              <MobileVerifiedBadge platform={channel.platform} />
+            ) : null}
+          </View>
+          <Text selectable style={styles.meta}>
+            {followers}
           </Text>
-          {channel.isVerified ? (
-            <MobileVerifiedBadge platform={channel.platform} />
-          ) : null}
+          <MobilePlatformBadge platform={channel.platform} />
         </View>
-        <Text selectable style={styles.meta}>
-          {followers}
-        </Text>
-        <MobilePlatformBadge platform={channel.platform} />
+        {onToggleLiveAlerts !== undefined && liveAlerts !== undefined ? (
+          <MobileIconButton
+            label={liveAlerts ? "Turn off live alerts" : "Turn on live alerts"}
+            onPress={onToggleLiveAlerts}
+            testID="channel-live-alerts"
+          >
+            {liveAlerts ? (
+              <Bell color={mobileColors.textPrimary} size={20} />
+            ) : (
+              <BellOff color={mobileColors.textPrimary} size={20} />
+            )}
+          </MobileIconButton>
+        ) : null}
       </View>
       <View style={styles.actions}>
-        <MobileButton
-          accessibilityHint={followCopy(follow)}
-          accessibilityLabel={followLabel}
-          busy={followBusy}
-          disabled={followBusy}
-          onPress={onFollow}
-          testID="channel-follow"
-          variant="primary"
+        <View style={styles.primaryActions}>
+          <MobileButton
+            accessibilityHint={followCopy(follow)}
+            accessibilityLabel={followLabel}
+            busy={followBusy}
+            disabled={followBusy}
+            onPress={onFollow}
+            testID="channel-follow"
+            variant="primary"
+          >
+            {followLabel}
+          </MobileButton>
+          <MobileButton
+            accessibilityHint={watchCopy}
+            accessibilityLabel="Watch"
+            disabled={!watchEnabled}
+            onPress={onWatch}
+            testID="channel-watch"
+            variant="primary"
+          >
+            Watch
+          </MobileButton>
+        </View>
+        <Text
+          selectable
+          style={styles.followReason}
+          testID="channel-follow-reason"
         >
-          {followLabel}
-        </MobileButton>
-        <Text selectable style={styles.followReason} testID="channel-follow-reason">
           {followCopy(follow)}
+        </Text>
+        <Text
+          selectable
+          style={styles.followReason}
+          testID="channel-watch-reason"
+        >
+          {watchCopy}
         </Text>
         <MobileButton
           accessibilityHint={`Opens ${channel.displayName} on ${channel.platform}.`}
@@ -90,19 +150,6 @@ export function ChannelHeader({
         >
           {providerPageLabel(channel.platform)}
         </MobileButton>
-        <MobileButton
-          accessibilityHint={watchCopy}
-          accessibilityLabel="Watch"
-          disabled={!watchEnabled}
-          onPress={onWatch}
-          testID="channel-watch"
-          variant="primary"
-        >
-          Watch
-        </MobileButton>
-        <Text selectable style={styles.followReason} testID="channel-watch-reason">
-          {watchCopy}
-        </Text>
       </View>
     </View>
   );
@@ -110,14 +157,24 @@ export function ChannelHeader({
 
 const styles = StyleSheet.create({
   header: {
+    gap: mobileSpacing.medium,
+  },
+  banner: {
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.large,
+    height: 132,
+    width: "100%",
+  },
+  identity: {
+    alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.medium,
   },
   avatar: {
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.full,
-    height: 72,
-    width: 72,
+    height: 64,
+    width: 64,
   },
   copy: {
     flex: 1,
@@ -133,9 +190,9 @@ const styles = StyleSheet.create({
     ...mobileType.body,
   },
   actions: {
-    gap: mobileSpacing.xSmall,
-    maxWidth: 168,
+    gap: mobileSpacing.small,
   },
+  primaryActions: { flexDirection: "row", gap: mobileSpacing.small },
   followReason: {
     ...mobileType.label,
   },

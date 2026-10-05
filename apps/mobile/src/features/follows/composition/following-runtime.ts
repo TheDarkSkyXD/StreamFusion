@@ -1,6 +1,9 @@
 import { toSerializedTimestamp } from "@streamfusion/core/content";
 import type { Channel, Stream } from "@streamfusion/core/content";
-import { parseGuestFollowWrite, type GuestFollow } from "@streamfusion/core/follows";
+import {
+  parseGuestFollowWrite,
+  type GuestFollow,
+} from "@streamfusion/core/follows";
 import type { Platform } from "@streamfusion/core/platform";
 import type { FollowedIdentityRef } from "@streamfusion/core/relay";
 
@@ -116,8 +119,7 @@ function bindSession(deps: {
         read.channelLogin === undefined
           ? {}
           : { channelLogin: read.channelLogin };
-      const signal =
-        read.signal === undefined ? {} : { signal: read.signal };
+      const signal = read.signal === undefined ? {} : { signal: read.signal };
       return read.kind === "videos"
         ? deps.reader.readVideos({
             channelId: read.channelId,
@@ -136,12 +138,29 @@ function bindSession(deps: {
           });
     },
     listMembership: () => listUnionMembership(deps),
+    listGuestMembership: () => deps.guestFollows.list(),
     mutateFollow: (write) => mutateGuestFollow({ ...deps, write }),
+    removeGuestFollow: (identity) =>
+      removeGuestFollow(deps.guestFollows, identity),
     openProviderPage: (target) => deps.pages.open(target),
     readNotifications: () => deps.liveNotifications.read(),
     resolveChannel: (read) => resolveByLogin(deps.reader, read),
     writeNotifications: (value) => deps.liveNotifications.write(value),
   };
+}
+
+async function removeGuestFollow(
+  guestFollows: GuestFollowRepository,
+  identity: { readonly platform: Platform; readonly channelId: string },
+): Promise<FollowMutationResult> {
+  const guest = (await guestFollows.list()).find(
+    (follow) =>
+      follow.platform === identity.platform &&
+      follow.channelId === identity.channelId,
+  );
+  return guest === undefined
+    ? { kind: "rejected", reason: "guest-only-scope" }
+    : removeFollow(guestFollows, guest);
 }
 
 async function listUnionMembership(deps: {
@@ -285,7 +304,8 @@ async function addFollow(input: {
     return { follow: await input.guestFollows.upsert(known), kind: "followed" };
   }
   const channel = await resolvedChannel(input.reader, input.write);
-  if (channel === null) return { kind: "rejected", reason: "unresolved-channel" };
+  if (channel === null)
+    return { kind: "rejected", reason: "unresolved-channel" };
   const follow = parseGuestFollowWrite({
     channelId: channel.id,
     channelLogin: channel.username,
@@ -309,7 +329,7 @@ function guestFollowFromKnownIdentity(
   const channelId = write.channelId?.trim();
   const channelLogin = write.channelLogin?.trim().toLowerCase();
   if (!channelId || !channelLogin) return null;
-  const displayName = (write.displayName?.trim() || channelLogin);
+  const displayName = write.displayName?.trim() || channelLogin;
   return parseGuestFollowWrite({
     channelId,
     channelLogin,
@@ -361,7 +381,10 @@ async function resolvedChannel(
   const refs: FollowedIdentityRef[] = [];
   if (write.channelId) refs.push({ kind: "id", value: write.channelId });
   if (write.channelLogin) {
-    refs.push({ kind: "login", value: write.channelLogin.trim().toLowerCase() });
+    refs.push({
+      kind: "login",
+      value: write.channelLogin.trim().toLowerCase(),
+    });
   }
   if (refs.length === 0) return null;
   const outcome = await reader.readChannels({

@@ -1,4 +1,11 @@
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { MobileButton } from "@mobile/design/button";
@@ -80,8 +87,9 @@ const styles = StyleSheet.create({
   dock: {
     alignItems: "center",
     backgroundColor: mobileColors.surface,
-    borderTopColor: mobileColors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.large,
+    borderWidth: 1,
     flexDirection: "row",
     gap: mobileSpacing.small,
     padding: mobileSpacing.small,

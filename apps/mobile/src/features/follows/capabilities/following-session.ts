@@ -1,5 +1,14 @@
-import type { Category, Channel, Clip, Stream, Video } from "@streamfusion/core/content";
-import type { GuestFollow, LiveNotificationPreferences } from "@streamfusion/core/follows";
+import type {
+  Category,
+  Channel,
+  Clip,
+  Stream,
+  Video,
+} from "@streamfusion/core/content";
+import type {
+  GuestFollow,
+  LiveNotificationPreferences,
+} from "@streamfusion/core/follows";
 import type { Platform } from "@streamfusion/core/platform";
 import type {
   FollowedClipPeriod,
@@ -8,18 +17,18 @@ import type {
 } from "@streamfusion/core/relay";
 
 export type FollowingTab =
-  | "live"
-  | "videos"
-  | "clips"
-  | "categories"
-  | "channels";
+  "live" | "videos" | "clips" | "categories" | "channels";
 export type FollowingChip = "all" | "live" | "twitch" | "kick";
 export type EmptyReason = "no-membership" | "none-live" | "no-matches";
 
 export type TabItems<T> =
   | { readonly kind: "loading" }
   | { readonly kind: "empty"; readonly reason: EmptyReason }
-  | { readonly kind: "ready"; readonly items: readonly T[]; readonly stale: boolean }
+  | {
+      readonly kind: "ready";
+      readonly items: readonly T[];
+      readonly stale: boolean;
+    }
   | {
       readonly kind: "partial";
       readonly items: readonly T[];
@@ -32,7 +41,11 @@ export type TabItems<T> =
       readonly retryablePlatforms: readonly Platform[];
       readonly offline: boolean;
     }
-  | { readonly kind: "unsupported"; readonly reason: string; readonly items: readonly T[] };
+  | {
+      readonly kind: "unsupported";
+      readonly reason: string;
+      readonly items: readonly T[];
+    };
 
 export type FollowedReadOutcome<T> = {
   readonly platform: Platform;
@@ -69,8 +82,14 @@ export type FollowingChannelRow = {
 
 export type FollowingView = {
   readonly origin: { readonly kind: "guest" };
-  readonly accountImport: { readonly kind: "disabled"; readonly reason: "guest-only-scope" };
-  readonly systemPush: { readonly kind: "stubbed"; readonly reason: "system-push-not-shipped" };
+  readonly accountImport: {
+    readonly kind: "disabled";
+    readonly reason: "guest-only-scope";
+  };
+  readonly systemPush: {
+    readonly kind: "stubbed";
+    readonly reason: "system-push-not-shipped";
+  };
   readonly membership: readonly GuestFollow[];
   readonly tab: FollowingTab;
   readonly chip: FollowingChip;
@@ -85,7 +104,11 @@ export type FollowingView = {
 
 export type FollowMutationResult =
   | { readonly kind: "followed"; readonly follow: GuestFollow }
-  | { readonly kind: "unfollowed"; readonly platform: Platform; readonly channelId: string }
+  | {
+      readonly kind: "unfollowed";
+      readonly platform: Platform;
+      readonly channelId: string;
+    }
   | {
       readonly kind: "rejected";
       readonly reason: "guest-only-scope" | "unresolved-channel" | "invalid";
@@ -128,6 +151,11 @@ export interface ProviderPageOpener {
 
 export interface FollowingSession {
   listMembership(): Promise<readonly GuestFollow[]>;
+  listGuestMembership(): Promise<readonly GuestFollow[]>;
+  removeGuestFollow(input: {
+    readonly platform: Platform;
+    readonly channelId: string;
+  }): Promise<FollowMutationResult>;
   mutateFollow(input: {
     readonly platform: Platform;
     readonly channelId?: string;
