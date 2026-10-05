@@ -21,10 +21,13 @@
     "config:android": "expo config --type public --json",
     "config:android:production": "node scripts/resolve-production-config.mjs",
     "verify:release": "node scripts/verify-release.mjs",
-    "lint": "eslint app/ src/ modules/ scripts/ tests/ vendor/ app.config.js metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
+    "lint": "eslint .storybook/ app/ src/ modules/ scripts/ tests/ vendor/ app.config.js metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
     "test": "node --test tests/*.test.mjs && vitest run --config vitest.config.mts && node scripts/verify-architecture.mjs",
     "typecheck": "tsc --noEmit",
-    "eas-build-pre-install": "node ../../scripts/eas-build-pre-install.mjs"
+    "eas-build-pre-install": "node ../../scripts/eas-build-pre-install.mjs",
+    "storybook": "storybook dev -p 6007 --host 127.0.0.1 --no-open",
+    "build-storybook": "storybook build --output-dir dist/storybook",
+    "verify:storybook": "node scripts/verify-storybook.mjs"
   },
   "dependencies": {
     "@react-native-community/slider": "5.2.0",
@@ -64,6 +67,9 @@
     "tweetnacl": "1.0.3"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "10.5.10",
+    "@storybook/addon-docs": "10.5.10",
+    "@storybook/react-native-web-vite": "10.5.10",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.5",
@@ -73,7 +79,10 @@
     "jsdom": "30.0.1",
     "prettier": "3.9.6",
     "react-dom": "19.2.8",
+    "react-native-web": "0.21.3",
+    "storybook": "10.5.10",
     "typescript": "6.0.3",
+    "vite": "7.3.6",
     "vitest": "4.1.11"
   }
 }

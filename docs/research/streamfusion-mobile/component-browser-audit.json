@@ -1,0 +1,975 @@
+{
+  "checked": 141,
+  "date": "2026-10-05T12:57:18.835Z",
+  "failures": [],
+  "results": [
+    {
+      "id": "android-components-bottom-sheet--selection",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-bottom-sheet--closed",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-bottom-sheet--long-scrollable-list",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-bottom-sheet--form-with-footer",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--primary",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--secondary",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--outline",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--ghost",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--twitch",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--kick",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--destructive",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--disabled",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--busy",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--all-variants",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-button--interactive",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-dialog--destructive-confirmation",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-dialog--permission-rationale",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--filter-chips",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--tags",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--radio-choices",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--select-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--long-select-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--switch-rows",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--list-rows",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--icon-buttons",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--text-field",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--invalid-text-field",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--disabled-text-field",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--secure-text-field",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--multiline-text-field",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--scrollable-tabs",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--platform-badges",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--verified-badges",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--screen-header",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--status-panel",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--empty-state",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--error-with-retry",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--loading-state",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--offline-banner",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--checking-connectivity",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--skeletons",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--progress",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--snackbar-with-undo",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--native-scroll-area",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--pull-to-refresh",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-primitives--refreshable-flat-list",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-accounts--connected-and-guest",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-accounts--pending-authorization",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-accounts--session-expired",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-feature-cards--stream-cards",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-feature-cards--compact-media-rows",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-feature-cards--avatar-fallbacks",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-feature-cards--player-controls",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-components-feature-cards--adaptive-navigation",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--composer",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--emote-picker-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--user-actions-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--recorded-chat-replay",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--prediction-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--poll-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-chat-and-engagement--live-captions",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--home",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--search",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--search-result-preview",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--categories",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--category-detail",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--channel-detail",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--following",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--following-channel-preview",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--manage-guest-follows",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-discovery--loading",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--more",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--history",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--history-empty",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--history-error",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--downloads",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--downloads-offline",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--download-detail",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--activity",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--activity-empty",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--activity-detail",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--diagnostics-workspace",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-library-and-activity--moderation-placeholder",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-media-workflows--recording-recovery",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-media-workflows--duplicate-download-dialog",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-media-workflows--caption-model-management",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--home",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--twitch-workspace",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--kick-workspace",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--live-chat",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--auto-mod-queue",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--kick-retention",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--mod-actions",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--banned-users",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--unban-requests",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--moderators",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--vips",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--stream-tools",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--channel-activity",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--community",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--rewards",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--suspicious-activity",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--whispers",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--provider-tools",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--user-history-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--timeout-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-moderation--raid-target-picker",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-multistream--stream-grid",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-multistream--add-stream-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-multistream--audio-owner-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-multistream--constrained-device",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-multistream--merged-chat",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--hub",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--appearance",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--playback",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--player-controls",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--buffer",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--chat",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--predictions",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--notifications",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--ad-blocking",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--proxy",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--integrations",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--api-tokens",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--updates",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--diagnostics",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--logs",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--report-bug",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-settings--about",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--live",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--session-preview",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--video",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--clip",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--quality-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--fullscreen",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--mini-player",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--recording",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-screens-watch--playback-failure",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-player-tools--playback-speed-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-player-tools--video-stats-sheet",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    },
+    {
+      "id": "android-proposed-player-tools--volume-controls",
+      "renderedContent": true,
+      "status": "rendered",
+      "violations": []
+    }
+  ],
+  "viewport": {
+    "height": 892,
+    "width": 412
+  },
+  "samples": {
+    "compact": {
+      "checked": 8,
+      "failures": [],
+      "results": [
+        {
+          "id": "android-screens-discovery--home",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-screens-watch--live",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-screens-settings--hub",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-components-bottom-sheet--long-scrollable-list",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-components-dialog--destructive-confirmation",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-proposed-moderation--twitch-workspace",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-proposed-multistream--stream-grid",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-proposed-player-tools--video-stats-sheet",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        }
+      ],
+      "viewport": {
+        "height": 800,
+        "width": 360
+      }
+    },
+    "tablet": {
+      "checked": 8,
+      "failures": [],
+      "results": [
+        {
+          "id": "android-screens-discovery--home",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-screens-watch--live",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-screens-settings--hub",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-components-bottom-sheet--long-scrollable-list",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-components-dialog--destructive-confirmation",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-proposed-moderation--twitch-workspace",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-proposed-multistream--stream-grid",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        },
+        {
+          "id": "android-proposed-player-tools--video-stats-sheet",
+          "renderedContent": true,
+          "status": "rendered",
+          "violations": []
+        }
+      ],
+      "viewport": {
+        "height": 768,
+        "width": 1024
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+html,
+body,
+#storybook-root {
+  height: 100%;
+  margin: 0;
+  background: #0f0f0f;
+}
+
+#storybook-root {
+  display: flex;
+  flex-direction: column;
+}
+
+body,
+input,
+button,
+textarea {
+  font-family: Inter, system-ui, "Segoe UI", sans-serif;
+}
+
+#storybook-root div,
+#storybook-root input,
+#storybook-root textarea,
+[role="dialog"] div,
+[role="alertdialog"] div {
+  font-family: Inter, system-ui, "Segoe UI", sans-serif;
+}
+@font-face {
+  font-family: Inter;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}

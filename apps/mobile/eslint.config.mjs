@@ -3,6 +3,7 @@ import expoConfig from "eslint-config-expo/flat.js";
 import boundaries from "eslint-plugin-boundaries";
 import globals from "globals";
 
+const storybookFiles = [".storybook/**/*", "src/**/*.stories.tsx", "src/features/design-preview/**/*.{ts,tsx}"];
 const productionFiles = ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}"];
 const featureLayers = ["mobile-routes", "mobile-components", "mobile-domain", "mobile-capabilities", "mobile-adapters", "mobile-data", "mobile-utils", "mobile-feature-composition"];
 const coreSubpaths = ["platform", "content", "discovery", "follows", "auth", "chat", "activity", "reliability", "relay", "media-jobs", "local-captions", "display-language", "settings"];
@@ -16,10 +17,14 @@ export default defineConfig([
   { files: ["app.config.js", "plugins/**/*.{js,cjs,mjs}"], languageOptions: { sourceType: "commonjs", globals: globals.node } },
   { ignores: ["android/**", "dist/**", ".expo/**"] },
   {
-    files: productionFiles,
+    files: [...productionFiles, ".storybook/**/*.{ts,tsx}"],
     plugins: { boundaries },
     settings: {
       "import/resolver": { alias: { map: [["@mobile", "./src"], ["@desktop-i18n", "../desktop/src/frontend/i18n"]], extensions: [".ts", ".tsx", ".json"] } },
+      "boundaries/files": [
+        { category: "storybook", pattern: storybookFiles, exclusive: true },
+        { category: "production", pattern: productionFiles }
+      ],
       "boundaries/elements": [
         { type: "mobile-entry", pattern: "app", partialMatch: false },
         { type: "mobile-design", pattern: "src/design", partialMatch: false },
@@ -33,6 +38,10 @@ export default defineConfig([
     rules: {
       "boundaries/no-unknown-files": "error",
       "boundaries/dependencies": ["error", { default: "disallow", checkAllOrigins: true, checkUnknownLocals: true, checkInternals: true, policies: [
+        { from: { file: { path: ".storybook/main.ts" } }, allow: { dependency: { source: "node:url" } } },
+        { from: { file: { categories: "storybook" } }, allow: { to: { module: { origin: "external" } } } },
+        { from: { file: { categories: "storybook" } }, allow: { to: { file: { categories: "storybook" } } } },
+        { from: { file: { categories: "storybook" } }, allow: { to: { element: { types: { anyOf: ["mobile-design", "mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", "mobile-i18n", "mobile-native-module", ...featureLayers, "mobile-tests"] } } }, allow: { to: { module: { origin: "external" } } } },
         { from: { element: { types: { anyOf: ["mobile-entry"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-runtime-composition"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-design"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-design"] } } } } },
@@ -51,11 +60,13 @@ export default defineConfig([
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", ...featureLayers] } } } } },
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { dependency: { source: "node:fs" } } },
         { from: { element: { types: { anyOf: ["mobile-tests"] } } }, allow: { dependency: { source: "node:url" } } },
-        ...coreSubpaths.map((subpath) => ({ from: { element: { types: { anyOf: ["mobile-runtime-composition", "mobile-i18n", ...featureLayers, "mobile-tests"] } } }, allow: { dependency: { source: `@streamfusion/core/${subpath}` } } }))
+        ...coreSubpaths.map((subpath) => ({ from: { element: { types: { anyOf: ["mobile-runtime-composition", "mobile-i18n", ...featureLayers, "mobile-tests"] } } }, allow: { dependency: { source: `@streamfusion/core/${subpath}` } } })),
+        { from: { file: { categories: "production" } }, disallow: { to: { file: { categories: "storybook" } } } }
       ] }],
       "no-restricted-imports": ["error", { patterns: restrictedRuntimeImports }]
     }
   },
+  { files: [".storybook/main.ts"], rules: { "no-restricted-imports": "off" } },
   { files: nativeBridgeRestrictedFiles, rules: { "no-restricted-imports": ["error", { patterns: [...restrictedRuntimeImports, ...nativeBridgeImports] }], "no-restricted-syntax": ["error", { selector: "ImportDeclaration[source.value='expo'] ImportNamespaceSpecifier", message: "Only feature adapters and local Expo modules may access Expo native bridge APIs." }, { selector: "ImportDeclaration[source.value='react-native'] ImportNamespaceSpecifier", message: "Only feature adapters and local Expo modules may access React Native native bridge APIs." }] } },
   { files: ["src/features/**/domain/**/*.{ts,tsx}", "src/features/**/capabilities/**/*.{ts,tsx}", "src/features/**/utils/**/*.{ts,tsx}"], rules: { "no-restricted-imports": ["error", { patterns: [...restrictedRuntimeImports, ...nativeBridgeImports, { group: ["react", "react/**", "react-native", "react-native/**", "expo", "expo/**"], message: "Framework APIs belong in components, routes, or adapters." }] }] } },
   { files: ["src/features/**/tests/**/*.{ts,tsx,mjs}", "tests/**/*.{ts,tsx,mjs}"], rules: { "no-restricted-imports": ["error", { patterns: [{ group: ["@streamfusion/core/src/**"], message: "Tests use declared Core subpaths." }] }] } }

@@ -1,10 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import {
-  mobileColors,
-  mobileSizing,
-  mobileSpacing,
-} from "./tokens";
+import { mobileColors, mobileSizing, mobileSpacing } from "./tokens";
 
 export type MobileUnderlineTabItem<T extends string> = {
   readonly accessibilityLabel?: string;
@@ -34,6 +30,7 @@ export function MobileUnderlineTabs<T extends string>({
       horizontal
       nestedScrollEnabled
       showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
       testID={testID}
     >
       {tabs.map((tab) => {
@@ -58,7 +55,10 @@ export function MobileUnderlineTabs<T extends string>({
               {tab.label}
             </Text>
             <View
-              style={[styles.underline, selected ? styles.underlineActive : null]}
+              style={[
+                styles.underline,
+                selected ? styles.underlineActive : null,
+              ]}
             />
           </Pressable>
         );
@@ -68,6 +68,11 @@ export function MobileUnderlineTabs<T extends string>({
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    minHeight: mobileSizing.minimumTouchTarget,
+  },
   row: {
     alignItems: "flex-end",
     flexDirection: "row",
@@ -78,13 +83,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     minHeight: mobileSizing.minimumTouchTarget,
+    minWidth: mobileSizing.minimumTouchTarget,
     paddingTop: mobileSpacing.small,
   },
   pressed: {
     opacity: 0.76,
   },
   label: {
-    color: mobileColors.textMuted,
+    color: mobileColors.textSecondary,
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,

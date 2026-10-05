@@ -22,6 +22,7 @@ export function MobilePlatformBadge({
   return (
     <View
       accessibilityLabel={kick ? "Kick" : "Twitch"}
+      accessibilityRole="image"
       style={[
         variant === "icon" ? styles.iconBadge : styles.badge,
         ...(variant === "icon" ? [] : [kick ? styles.kick : styles.twitch]),

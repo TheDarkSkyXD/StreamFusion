@@ -1,0 +1,9 @@
+ts	phase	decision	why	evidence	result
+2026-10-05T00:00:00Z	frame	Build a React Native screen and component catalog using local fixtures	Mockups must be reusable without starting live services	apps/mobile/CONTEXT.md	open
+2026-10-05T12:31:53.2748298Z	frame	The initial framing row used a date-only placeholder timestamp	Record the actual run time without changing append-only history	component-decisions.tsv:2	superseded timestamp
+2026-10-05T12:31:53.2748298Z	design	Use browser Storybook with real React Native components	Native Storybook requires a conflicting safe-area peer upgrade	apps/mobile/.storybook/main.ts	build passed
+2026-10-05T12:31:53.2748298Z	coverage	Compare built stories against source routes and settings	The older parity matrix contains stale claims	apps/mobile/scripts/verify-storybook.mjs	20 routes and 16 settings covered
+2026-10-05T12:31:53.2748298Z	verification	Correct shared tab contrast and accessibility names	The browser WCAG scan found concrete failures	apps/mobile/src/design/underline-tabs.tsx	fixes applied
+2026-10-05T12:55:13.5836712Z	verification	Final browser audit renders every indexed story	Confirm the accessibility fixes against rendered content	component-browser-audit.json	141 stories with zero WCAG violations
+2026-10-05T12:55:13.5836712Z	review	Accept source-current and proposed capability separation	Mockups must disclose unavailable mobile outcomes	android-components.md	Authenticated actions and engagement gated to proposals
+2026-10-05T12:55:13.5836712Z	dependencies	Nest Storybook parser peers under the framework	Preserve production TypeScript and React Native versions	package-lock.json	Clean mobile installation and peer checks pass

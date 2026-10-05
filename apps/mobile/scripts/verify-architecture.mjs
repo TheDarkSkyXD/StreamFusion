@@ -34,6 +34,21 @@ const cases = [
   ["modules/streamfusion-native-contracts/src/proof-alias.ts", 'import "@mobile/features/native-contracts/capabilities/android-capability-contracts";\n', false],
   ["modules/streamfusion-native-contracts/src/proof-dynamic.ts", 'void import("@mobile/features/native-contracts/capabilities/android-capability-contracts");\n', false],
   ["modules/streamfusion-native-contracts/src/proof-require.ts", 'require("@mobile/features/native-contracts/capabilities/android-capability-contracts");\n', false],
+  ["src/design/architecture-proof-component.ts", "export const proof = true;\n", true],
+  ["src/features/design-preview/components/architecture-proof-preview.ts", 'import "../../../design/architecture-proof-component";\n', true],
+  ["src/design/architecture-proof.stories.tsx", 'import "../features/design-preview/components/architecture-proof-preview";\n', true],
+  [".storybook/architecture-proof.tsx", 'import "../src/design/architecture-proof-component";\n', true],
+  ["src/design/architecture-proof-story-alias.ts", 'import "@mobile/design/architecture-proof.stories";\n', false],
+  ["src/design/architecture-proof-story-relative.ts", 'import "./architecture-proof.stories";\n', false],
+  ["src/design/architecture-proof-story-dynamic.ts", 'void import("@mobile/design/architecture-proof.stories");\n', false],
+  ["src/design/architecture-proof-story-require.ts", 'require("./architecture-proof.stories");\n', false],
+  ["src/features/shell/components/architecture-proof-preview-alias.ts", 'import "@mobile/features/design-preview/components/architecture-proof-preview";\n', false],
+  ["src/features/shell/components/architecture-proof-preview-relative.ts", 'import "../../design-preview/components/architecture-proof-preview";\n', false],
+  ["src/features/shell/components/architecture-proof-preview-dynamic.ts", 'void import("@mobile/features/design-preview/components/architecture-proof-preview");\n', false],
+  ["src/features/shell/components/architecture-proof-preview-require.ts", 'require("../../design-preview/components/architecture-proof-preview");\n', false],
+  ["src/composition/architecture-proof-preview.ts", 'import "../features/design-preview/components/architecture-proof-preview";\n', false],
+  ["app/architecture-proof-preview.ts", 'import "../src/features/design-preview/components/architecture-proof-preview";\n', false],
+  ["src/features/shell/components/architecture-proof-storybook-config.ts", 'import "../../../../.storybook/architecture-proof";\n', false],
 ];
 const files = cases.map(([file]) => path.join(root, file));
 try {

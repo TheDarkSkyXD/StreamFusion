@@ -35,7 +35,7 @@ export function MobileListState({
     >
       {phase === "loading" ? (
         <View style={styles.loadingRow}>
-          <ActivityIndicator color={mobileColors.textSecondary} />
+          <ActivityIndicator accessibilityLabel={message} color={mobileColors.textSecondary} />
           <Text selectable style={mobileType.body}>
             {message}
           </Text>

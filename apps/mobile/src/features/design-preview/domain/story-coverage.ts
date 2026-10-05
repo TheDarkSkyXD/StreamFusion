@@ -1,0 +1,117 @@
+import type { ShellRouteId } from "@mobile/features/shell/domain/shell-navigation";
+
+export const routeStoryCoverage = {
+  search: "android-screens-discovery--search",
+  "search/result-preview": "android-screens-discovery--search-result-preview",
+  following: "android-screens-discovery--following",
+  "following/channel-preview":
+    "android-screens-discovery--following-channel-preview",
+  "following/manage": "android-screens-discovery--manage-guest-follows",
+  watch: "android-screens-discovery--home",
+  "watch/session-preview": "android-screens-watch--session-preview",
+  activity: "android-screens-library-and-activity--activity",
+  "activity/alert-preview":
+    "android-screens-library-and-activity--activity-detail",
+  "activity/job-preview":
+    "android-screens-library-and-activity--download-detail",
+  more: "android-screens-library-and-activity--more",
+  "more/channel": "android-screens-discovery--channel-detail",
+  "more/categories": "android-screens-discovery--categories",
+  "more/history": "android-screens-library-and-activity--history",
+  "more/downloads": "android-screens-library-and-activity--downloads",
+  "more/moderation":
+    "android-screens-library-and-activity--moderation-placeholder",
+  "more/settings": "android-screens-settings--hub",
+  "more/diagnostics":
+    "android-screens-library-and-activity--diagnostics-workspace",
+  "more/accounts": "android-screens-accounts--connected-and-guest",
+  "more/category-detail": "android-screens-discovery--category-detail",
+} satisfies Readonly<Record<ShellRouteId, string>>;
+
+export const settingsStoryCoverage = {
+  appearance: "android-screens-settings--appearance",
+  playback: "android-screens-settings--playback",
+  "player-controls": "android-screens-settings--player-controls",
+  buffer: "android-screens-settings--buffer",
+  chat: "android-screens-settings--chat",
+  predictions: "android-screens-settings--predictions",
+  notifications: "android-screens-settings--notifications",
+  adblock: "android-screens-settings--ad-blocking",
+  proxy: "android-screens-settings--proxy",
+  integrations: "android-screens-settings--integrations",
+  "api-tokens": "android-screens-settings--api-tokens",
+  updates: "android-screens-settings--updates",
+  diagnostics: "android-screens-settings--diagnostics",
+  logs: "android-screens-settings--logs",
+  "report-bug": "android-screens-settings--report-bug",
+  about: "android-screens-settings--about",
+};
+
+export const componentStoryCoverage = {
+  button: "android-components-button--all-variants",
+  chip: "android-components-primitives--filter-chips",
+  tag: "android-components-primitives--tags",
+  "platform-badge": "android-components-primitives--platform-badges",
+  "verified-badge": "android-components-primitives--verified-badges",
+  "underline-tabs": "android-components-primitives--scrollable-tabs",
+  select: "android-components-primitives--select-sheet",
+  "status-panel": "android-components-primitives--status-panel",
+  "list-state": "android-components-primitives--error-with-retry",
+  "screen-header": "android-components-primitives--screen-header",
+  refreshable: "android-components-primitives--pull-to-refresh",
+  "connectivity-banner": "android-components-primitives--offline-banner",
+  "bottom-sheet": "android-components-bottom-sheet--selection",
+  dialog: "android-components-dialog--destructive-confirmation",
+  "list-row": "android-components-primitives--list-rows",
+  feedback: "android-components-primitives--snackbar-with-undo",
+  "icon-button": "android-components-primitives--icon-buttons",
+  "text-input": "android-components-primitives--text-field",
+  "choice-group": "android-components-primitives--radio-choices",
+};
+
+export const componentExportStoryCoverage = {
+  MobileButton: "android-components-button--all-variants",
+  MobileFilterChip: "android-components-primitives--filter-chips",
+  MobileTag: "android-components-primitives--tags",
+  MobileCatalogTags: "android-components-primitives--tags",
+  MobilePlatformBadge: "android-components-primitives--platform-badges",
+  MobileVerifiedBadge: "android-components-primitives--verified-badges",
+  MobileUnderlineTabs: "android-components-primitives--scrollable-tabs",
+  MobileSelect: "android-components-primitives--select-sheet",
+  MobileStatusPanel: "android-components-primitives--status-panel",
+  MobileListState: "android-components-primitives--error-with-retry",
+  MobileScreenHeader: "android-components-primitives--screen-header",
+  MobileRefreshableScroll: "android-components-primitives--pull-to-refresh",
+  MobileRefreshableFlatList:
+    "android-components-primitives--refreshable-flat-list",
+  MobileConnectivityBanner: "android-components-primitives--offline-banner",
+  MobileBottomSheet: "android-components-bottom-sheet--selection",
+  MobileDialog: "android-components-dialog--destructive-confirmation",
+  MobileListRow: "android-components-primitives--list-rows",
+  MobileSwitchRow: "android-components-primitives--switch-rows",
+  MobileSnackbar: "android-components-primitives--snackbar-with-undo",
+  MobileProgress: "android-components-primitives--progress",
+  MobileSkeleton: "android-components-primitives--skeletons",
+  MobileLoadingSpinner: "android-components-primitives--loading-state",
+  MobileIconButton: "android-components-primitives--icon-buttons",
+  MobileTextField: "android-components-primitives--text-field",
+  MobileChoiceGroup: "android-components-primitives--radio-choices",
+};
+
+export const desktopRouteStoryCoverage = {
+  "/": "android-screens-discovery--home",
+  "/following": "android-screens-discovery--following",
+  "/categories": "android-screens-discovery--categories",
+  "/categories/$platform/$categoryId":
+    "android-screens-discovery--category-detail",
+  "/search": "android-screens-discovery--search",
+  "/stream/$platform/$channel": "android-screens-watch--live",
+  "/video/$platform/$videoId": "android-screens-watch--video",
+  "/settings": "android-screens-settings--hub",
+  "/multistream": "android-proposed-multistream--stream-grid",
+  "/history": "android-screens-library-and-activity--history",
+  "/downloads": "android-screens-library-and-activity--downloads",
+  "/mod": "android-proposed-moderation--home",
+  "/mod/twitch/$channel": "android-proposed-moderation--twitch-workspace",
+  "/mod/kick/$channel": "android-proposed-moderation--kick-workspace",
+};
