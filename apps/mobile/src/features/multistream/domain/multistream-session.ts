@@ -10,7 +10,11 @@ import type {
   MultistreamSnapshot,
   MultistreamTile,
 } from "../capabilities/multistream";
-import type { MultistreamResourceAdmission } from "../capabilities/resource-admission";
+import type {
+  MultistreamResourceAdmission,
+  MultistreamResourceMonitor,
+  MultistreamResourcePressure,
+} from "../capabilities/resource-admission";
 
 export function createMultistreamSession(input: {
   readonly channels: MultistreamChannelReader;
@@ -21,12 +25,15 @@ export function createMultistreamSession(input: {
   readonly limit: () => number;
   readonly beforeStart: () => Promise<void>;
   readonly admission?: MultistreamResourceAdmission;
+  readonly resourceMonitor?: MultistreamResourceMonitor;
 }): MultistreamSession {
   const listeners = new Set<() => void>();
   let tiles: readonly MultistreamTile[] = [];
   let audioOwner: string | null = null;
   let busy = false;
   let status: string | null = null;
+  let resourcePressure: MultistreamResourcePressure = { kind: "clear" };
+  let releaseResourceMonitor: (() => void) | null = null;
   let epoch = 0;
   let disposed = false;
   let pending: AbortController | null = null;
@@ -62,6 +69,24 @@ export function createMultistreamSession(input: {
     });
     queue = result;
     return result;
+  };
+  const monitorResources = () => {
+    if (releaseResourceMonitor || !input.resourceMonitor) return;
+    releaseResourceMonitor = input.resourceMonitor.subscribe(() => recheckResources());
+  };
+  const stopMonitoringResources = () => {
+    releaseResourceMonitor?.();
+    releaseResourceMonitor = null;
+  };
+  const recheckResources = () => {
+    const generation = epoch;
+    return run(async () => {
+      if (generation !== epoch || tiles.length === 0 || !input.admission) return;
+      const next = await input.admission.read();
+      if (generation !== epoch || disposed || tiles.length === 0) return;
+      resourcePressure = next;
+      emit();
+    });
   };
   const muteAll = async () => {
     const previousOwner = audioOwner;
@@ -116,6 +141,7 @@ export function createMultistreamSession(input: {
   const close = async () => {
     epoch += 1;
     pending?.abort();
+    stopMonitoringResources();
     await run(async () => {
       await muteAll();
       const remaining: MultistreamTile[] = [];
@@ -129,6 +155,7 @@ export function createMultistreamSession(input: {
           });
       }
       tiles = remaining;
+      resourcePressure = { kind: "clear" };
       if (!remaining.some((tile) => tile.id === audioOwner)) audioOwner = null;
       publish(
         remaining.length > 0
@@ -139,7 +166,7 @@ export function createMultistreamSession(input: {
   };
   return {
     snapshot(): MultistreamSnapshot {
-      return { tiles, audioOwner, busy, limit: limit(), status };
+      return { tiles, audioOwner, busy, limit: limit(), status, resourcePressure };
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -169,7 +196,10 @@ export function createMultistreamSession(input: {
           generation === epoch && !controller.signal.aborted && !disposed;
         const admission = await input.admission?.read();
         if (!active()) return;
-        if (admission && !admission.allowed) return publish(admission.detail);
+        if (admission) {
+          resourcePressure = admission;
+          if (admission.kind === "pressured") return publish(admission.detail);
+        }
         const policy = await input.policy.read(platform);
         if (!active()) return;
         if (policy.kind !== "enabled")
@@ -206,6 +236,7 @@ export function createMultistreamSession(input: {
         pending = null;
         if (started.kind !== "started") return publish(started.failure.detail);
         tiles = [...tiles, { id, target, state: "buffering", detail: null }];
+        monitorResources();
         publish("Stream added muted. Choose Listen for its audio.");
       });
     },
@@ -235,6 +266,10 @@ export function createMultistreamSession(input: {
           return publish(result.failure.detail);
         tiles = tiles.filter((tile) => tile.id !== id);
         if (audioOwner === id) audioOwner = null;
+        if (tiles.length === 0) {
+          stopMonitoringResources();
+          resourcePressure = { kind: "clear" };
+        }
         publish(null);
       });
     },
@@ -257,10 +292,45 @@ export function createMultistreamSession(input: {
         else publish("The player could not change playback.");
       });
     },
+    recheckResources,
+    reduceToOne() {
+      const generation = epoch;
+      return run(async () => {
+        if (generation !== epoch) return;
+        const keep = tiles.some((tile) => tile.id === audioOwner)
+          ? audioOwner
+          : tiles[0]?.id;
+        if (!keep || tiles.length < 2) return;
+        const failed = new Set<string>();
+        for (const tile of tiles) {
+          if (tile.id === keep) continue;
+          const result = await input.playback.end(tile.id);
+          if (generation !== epoch) return;
+          if (result.kind === "unavailable") failed.add(tile.id);
+        }
+        tiles = tiles
+          .filter((tile) => tile.id === keep || failed.has(tile.id))
+          .map((tile) =>
+            failed.has(tile.id)
+              ? {
+                  ...tile,
+                  state: "failed" as const,
+                  detail: "Stop could not be confirmed. Retry removing this player or restart the Android client.",
+                }
+              : tile,
+          );
+        publish(
+          failed.size > 0
+            ? "Some players could not confirm stop. Retry removing them or restart the Android client."
+            : "Workspace reduced to one stream.",
+        );
+      });
+    },
     close,
     async dispose() {
       await close();
       disposed = true;
+      input.resourceMonitor?.dispose();
       unsubscribe();
       listeners.clear();
     },

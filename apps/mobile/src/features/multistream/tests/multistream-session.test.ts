@@ -4,8 +4,18 @@ import type {
   HlsSourceUri,
 } from "@mobile/features/watch/capabilities/watch";
 import { createMultistreamSession } from "../domain/multistream-session";
+import type {
+  MultistreamResourceAdmission,
+  MultistreamResourceMonitor,
+} from "../capabilities/resource-admission";
 
-function setup(limit = 2) {
+function setup(
+  limit = 2,
+  resources: {
+    admission?: MultistreamResourceAdmission;
+    resourceMonitor?: MultistreamResourceMonitor;
+  } = {},
+) {
   const log: string[] = [];
   let sequence = 0;
   const playback: FocusedPlaybackPort = {
@@ -65,6 +75,7 @@ function setup(limit = 2) {
     sessionIds: { create: () => `player-${++sequence}` },
     policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
     limit: () => limit,
+    ...resources,
   });
   return { session, playback, channels, resolve, log };
 }
@@ -183,5 +194,94 @@ describe("Multistream session", () => {
     playback.end = end;
     await session.remove("player-1");
     expect(session.snapshot().tiles).toEqual([]);
+  });
+  it("reports pressure during playback and reduces to the current audio owner", async () => {
+    let pressured = false;
+    const { session, log } = setup(3, {
+      admission: {
+        read: async () =>
+          pressured
+            ? { kind: "pressured", detail: "Android reports low memory." }
+            : { kind: "clear" },
+      },
+    });
+    await session.add("twitch", "alpha");
+    await session.add("kick", "beta");
+    await session.add("twitch", "gamma");
+    await session.focus("player-2");
+    pressured = true;
+    await session.recheckResources();
+    expect(session.snapshot().resourcePressure).toEqual({
+      kind: "pressured",
+      detail: "Android reports low memory.",
+    });
+    await session.reduceToOne();
+    expect(session.snapshot().tiles.map((tile) => tile.id)).toEqual(["player-2"]);
+    expect(session.snapshot().audioOwner).toBe("player-2");
+    expect(log.slice(-2)).toEqual(["end:player-1", "end:player-3"]);
+  });
+  it("retains an uncertain stop during pressure reduction", async () => {
+    const { session, playback } = setup(2);
+    await session.add("twitch", "alpha");
+    await session.add("kick", "beta");
+    playback.end = async (id) => ({
+      kind: "unavailable",
+      failure: { code: "INVOCATION_FAILED", detail: `Stop uncertain for ${id}.` },
+    });
+    await session.reduceToOne();
+    expect(session.snapshot().tiles.map((tile) => tile.id)).toEqual([
+      "player-1",
+      "player-2",
+    ]);
+    expect(session.snapshot().tiles[1]?.detail).toBe(
+      "Stop could not be confirmed. Retry removing this player or restart the Android client.",
+    );
+    expect(session.snapshot().status).toBe(
+      "Some players could not confirm stop. Retry removing them or restart the Android client.",
+    );
+  });
+  it("ignores a resource sample resolved after close", async () => {
+    let reads = 0;
+    let finish!: (value: { kind: "pressured"; detail: string }) => void;
+    const { session } = setup(2, {
+      admission: {
+        read: () => {
+          reads += 1;
+          return reads === 1
+            ? Promise.resolve({ kind: "clear" })
+            : new Promise((resolve) => {
+                finish = resolve;
+              });
+        },
+      },
+    });
+    await session.add("twitch", "alpha");
+    const sampling = session.recheckResources();
+    await vi.waitFor(() => expect(reads).toBe(2));
+    const closing = session.close();
+    finish({ kind: "pressured", detail: "Stale pressure." });
+    await Promise.all([sampling, closing]);
+    expect(session.snapshot().resourcePressure).toEqual({ kind: "clear" });
+    expect(session.snapshot().tiles).toEqual([]);
+  });
+  it("holds one monitor lease while tiles exist and releases it on close", async () => {
+    let subscriptions = 0;
+    let releases = 0;
+    const { session } = setup(2, {
+      resourceMonitor: {
+        subscribe: () => {
+          subscriptions += 1;
+          return () => {
+            releases += 1;
+          };
+        },
+        dispose: () => {},
+      },
+    });
+    await session.add("twitch", "alpha");
+    await session.add("kick", "beta");
+    expect(subscriptions).toBe(1);
+    await session.close();
+    expect(releases).toBe(1);
   });
 });

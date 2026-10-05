@@ -9,27 +9,27 @@ export function createAndroidMultistreamAdmission(
       const result = await diagnostics.readResourceSnapshot();
       if (result.kind !== "completed")
         return {
-          allowed: true,
+          kind: "unavailable",
           detail:
             "Device pressure could not be measured. Reduce streams if playback stalls.",
-        };
+        } as const;
       if (result.value.memory.lowMemory)
         return {
-          allowed: false,
+          kind: "pressured",
           detail:
             "Android reports low memory. Remove a stream before adding another.",
-        };
+        } as const;
       const thermal = result.value.thermal;
       if (
         thermal.kind === "observed" &&
         ["severe", "critical", "emergency", "shutdown"].includes(thermal.state)
       )
         return {
-          allowed: false,
+          kind: "pressured",
           detail:
             "Android reports high thermal pressure. Let the device cool before adding another stream.",
-        };
-      return { allowed: true, detail: null };
+        } as const;
+      return { kind: "clear" } as const;
     },
   };
 }

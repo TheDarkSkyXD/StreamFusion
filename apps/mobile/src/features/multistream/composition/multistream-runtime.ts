@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { AppState } from "react-native";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import type { VerifiedPolicyStore } from "@mobile/features/installation-policy/capabilities/installation-policy";
 import { createEffectiveCapabilityPolicyReader } from "@mobile/features/installation-policy/domain/effective-capability-policy-reader";
@@ -17,6 +18,7 @@ import { ExpoHlsPlayerSurface } from "@mobile/features/watch/adapters/expo/expo-
 import { createPlaybackCompatibilityPolicy } from "@mobile/features/watch/adapters/playback-compatibility-policy";
 import { createDiscoveryMultistreamChannels } from "../adapters/discovery-multistream-channels";
 import { createAndroidMultistreamAdmission } from "../adapters/android-resource-admission";
+import { createForegroundMultistreamResourceMonitor } from "../adapters/foreground-resource-monitor";
 import { createMultistreamSession } from "../domain/multistream-session";
 import type { MultistreamSession } from "../capabilities/multistream";
 import type { MultistreamChat } from "../capabilities/multistream-chat";
@@ -75,6 +77,15 @@ export function createMultistreamRuntime(input: {
       limit: input.limit,
       beforeStart: () => input.watch.session.dismiss(),
       admission: createAndroidMultistreamAdmission(input.diagnostics),
+      resourceMonitor: createForegroundMultistreamResourceMonitor({
+        isForeground: () => AppState.currentState === "active",
+        subscribe: (listener) => {
+          const subscription = AppState.addEventListener("change", (state) =>
+            listener(state === "active"),
+          );
+          return () => subscription.remove();
+        },
+      }),
     }),
   };
 }

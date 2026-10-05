@@ -1,5 +1,6 @@
 import type { Platform } from "@streamfusion/core/platform";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+import type { MultistreamResourcePressure } from "./resource-admission";
 
 export type MultistreamTile = {
   readonly id: string;
@@ -13,6 +14,7 @@ export type MultistreamSnapshot = {
   readonly busy: boolean;
   readonly limit: number;
   readonly status: string | null;
+  readonly resourcePressure: MultistreamResourcePressure;
 };
 export interface MultistreamChannelReader {
   find(
@@ -30,6 +32,8 @@ export interface MultistreamSession {
   remove(id: string): Promise<void>;
   move(id: string, direction: "earlier" | "later"): void;
   pause(id: string, paused: boolean): Promise<void>;
+  recheckResources(): Promise<void>;
+  reduceToOne(): Promise<void>;
   close(): Promise<void>;
   dispose(): Promise<void>;
 }
