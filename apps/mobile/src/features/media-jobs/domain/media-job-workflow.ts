@@ -176,7 +176,7 @@ async function persistProjection(
       ? {
           ...projection,
           title: display.title,
-          body: `${display.channelName} � ${snapshot.statusMessage}`,
+          body: `${display.channelName} · ${snapshot.statusMessage}`,
         }
       : projection,
   );

@@ -120,7 +120,7 @@ export function PlayerTools({
             value={String(observation.speed)}
             options={[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => ({
               value: String(speed),
-              label: `${speed}�${speed === 1 ? " � Normal" : ""}`,
+              label: `${speed}×${speed === 1 ? " · Normal" : ""}`,
             }))}
             onChange={(speed) => void changeSpeed(speed)}
           />
@@ -128,13 +128,13 @@ export function PlayerTools({
         {tool === "stats" && observation ? (
           <>
             <Text style={mobileType.label}>
-              Current playback session � {sessionId}
+              Current playback session · {sessionId}
             </Text>
             <MobileListRow
               title="Resolution"
               description={
                 observation.width && observation.height
-                  ? `${observation.width} � ${observation.height}`
+                  ? `${observation.width} × ${observation.height}`
                   : "Unavailable in this host"
               }
             />
@@ -173,7 +173,7 @@ export function PlayerTools({
           </>
         ) : null}
         {!result ? (
-          <Text style={mobileType.body}>Reading current player�</Text>
+          <Text style={mobileType.body}>Reading current player…</Text>
         ) : null}
       </MobileBottomSheet>
     </>

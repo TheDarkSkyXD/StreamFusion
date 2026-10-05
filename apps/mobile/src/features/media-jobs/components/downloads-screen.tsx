@@ -139,15 +139,15 @@ export function DownloadRow({
             {display?.channelName ?? "Source metadata unavailable"}
           </Text>
           <Text style={mobileType.label}>
-            {mediaJobPhaseLabel(job.phase)} �{" "}
+            {mediaJobPhaseLabel(job.phase)} ·{" "}
             {(job.progress.transferredBytes / 1048576).toFixed(1)} MiB
-            {saved ? " � Available offline" : ""}
+            {saved ? " · Available offline" : ""}
           </Text>
         </View>
       </View>
       {transfer.bytesPerSecond !== null ? (
         <Text style={mobileType.label}>
-          {(transfer.bytesPerSecond / 1048576).toFixed(2)} MiB/s � measured
+          {(transfer.bytesPerSecond / 1048576).toFixed(2)} MiB/s · measured
           transfer
         </Text>
       ) : null}

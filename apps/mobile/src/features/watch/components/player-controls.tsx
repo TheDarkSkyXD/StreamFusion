@@ -342,7 +342,7 @@ function QualitySheet({
         {showVolume && onVolumeChange ? (
           <View style={styles.volumeSection}>
             <Text style={styles.volumeLabel}>
-              {t("settings.volume")} � {Math.round((muted ? 0 : volume) * 100)}%
+              {t("settings.volume")} · {Math.round((muted ? 0 : volume) * 100)}%
             </Text>
             <Slider
               accessibilityLabel={t("settings.volume")}

@@ -48,7 +48,7 @@ export function CaptionModelManagement({
         </Text>
         <MobileListRow
           title="English"
-          description="Vosk small English � 39.30 MiB � Apache-2.0"
+          description="Vosk small English · 39.30 MiB · Apache-2.0"
         />
         <Text style={mobileType.body} accessibilityLiveRegion="polite">
           {status ??
@@ -58,7 +58,7 @@ export function CaptionModelManagement({
         {installing ? (
           <>
             <MobileProgress
-              label={`${model?.phase === "verifying" ? "Verifying" : "Downloading"} � ${((model?.downloadedBytes ?? 0) / 1048576).toFixed(2)} MiB of 39.30 MiB`}
+              label={`${model?.phase === "verifying" ? "Verifying" : "Downloading"} · ${((model?.downloadedBytes ?? 0) / 1048576).toFixed(2)} MiB of 39.30 MiB`}
               value={
                 model && model.expectedBytes > 0
                   ? Math.min(1, model.downloadedBytes / model.expectedBytes)
@@ -98,7 +98,7 @@ export function CaptionModelManagement({
             variant="primary"
             onPress={() => onInstall?.()}
           >
-            Download � 39.30 MiB
+            Download · 39.30 MiB
           </MobileButton>
         )}
         <Text style={mobileType.label}>

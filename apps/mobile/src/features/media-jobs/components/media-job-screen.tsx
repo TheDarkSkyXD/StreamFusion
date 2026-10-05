@@ -106,7 +106,7 @@ function MediaJobDetail({
           description={
             transfer.bytesPerSecond === null
               ? "Waiting for measured transfer samples"
-              : `${(transfer.bytesPerSecond / 1048576).toFixed(2)} MiB/s � measured`
+              : `${(transfer.bytesPerSecond / 1048576).toFixed(2)} MiB/s · measured`
           }
         />
         <MobileListRow
