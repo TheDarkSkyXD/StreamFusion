@@ -3,6 +3,8 @@ import type {
   MediaJobPhase,
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
+import { useState } from "react";
+import { MobileDialog } from "@mobile/design/dialog";
 import { validCommands } from "@streamfusion/core/media-jobs";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
@@ -34,6 +36,7 @@ export function WatchDownloadBar({
   onExport,
   onOpenArtifact,
   onStart,
+  onStartAgain,
   status,
 }: {
   readonly busy?: boolean;
@@ -44,13 +47,19 @@ export function WatchDownloadBar({
   readonly onExport: () => void;
   readonly onOpenArtifact: () => void;
   readonly onStart: () => void;
+  readonly onStartAgain?: () => void;
   readonly status?: string | null;
 }) {
+  const [copyDialog, setCopyDialog] = useState(false);
   if (eligibility.kind === "hidden") return null;
   if (eligibility.kind === "unsupported") {
     return (
       <MobileStatusPanel testID="watch-download" tone="info">
-        <Text selectable style={mobileType.body} testID="watch-download-unsupported">
+        <Text
+          selectable
+          style={mobileType.body}
+          testID="watch-download-unsupported"
+        >
           {eligibility.reason}
         </Text>
       </MobileStatusPanel>
@@ -58,6 +67,28 @@ export function WatchDownloadBar({
   }
   return (
     <View style={styles.panel} testID="watch-download">
+      <MobileDialog
+        title="Download again?"
+        visible={copyDialog}
+        confirmLabel="Download again"
+        message="A separate copy will use additional storage. Your existing file will be kept."
+        onCancel={() => setCopyDialog(false)}
+        onConfirm={() => {
+          setCopyDialog(false);
+          if (!busy) onStartAgain?.();
+        }}
+      />
+      {job && onStartAgain ? (
+        <MobileButton
+          accessibilityLabel="Download again"
+          testID="watch-download-again"
+          variant="ghost"
+          disabled={busy}
+          onPress={() => setCopyDialog(true)}
+        >
+          Download again
+        </MobileButton>
+      ) : null}
       {job ? (
         <ActiveDownload
           busy={busy}

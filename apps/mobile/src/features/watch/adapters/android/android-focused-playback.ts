@@ -18,12 +18,44 @@ export function createAndroidFocusedPlaybackPort(
   contract: AndroidPlaybackContractPort,
 ): FocusedPlaybackPort {
   return {
+    async readPlaybackObservation(sessionId) {
+      const result = await contract.readPlaybackObservation?.(sessionId);
+      if (!result)
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "OPERATION_UNSUPPORTED",
+            detail: "Playback observations are unavailable.",
+          },
+        };
+      return result.kind === "completed"
+        ? { kind: "observed", observation: result.value }
+        : { kind: "unavailable", failure: mapFailure(result.failure) };
+    },
+    async setPlaybackSpeed(sessionId, speed) {
+      const result = await contract.setPlaybackSpeed?.(sessionId, speed);
+      if (!result)
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "OPERATION_UNSUPPORTED",
+            detail: "Playback speed is unavailable.",
+          },
+        };
+      return result.kind === "completed"
+        ? { kind: "observed", observation: result.value }
+        : { kind: "unavailable", failure: mapFailure(result.failure) };
+    },
     async start(input) {
       const result = await contract.startFocusedSession({
         ...(input.muted === undefined ? {} : { muted: input.muted }),
-        ...(input.allowHevc === undefined ? {} : { allowHevc: input.allowHevc }),
+        ...(input.allowHevc === undefined
+          ? {}
+          : { allowHevc: input.allowHevc }),
         ...(input.buffer === undefined ? {} : { buffer: input.buffer }),
-        ...(input.filtering === undefined ? {} : { filtering: input.filtering }),
+        ...(input.filtering === undefined
+          ? {}
+          : { filtering: input.filtering }),
         requestHeaders: input.requestHeaders,
         sessionId: input.sessionId,
         sourceUri: input.sourceUri,

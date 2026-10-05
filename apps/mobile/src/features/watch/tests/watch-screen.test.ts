@@ -8,8 +8,11 @@ import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
   Image: "Image",
-  Modal: "Modal",
   Pressable: "Pressable",
+  Modal: "Modal",
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "android" },
+
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   TextInput: "TextInput",
@@ -20,6 +23,11 @@ vi.mock("react-native", () => ({
 
 vi.mock("lucide-react-native", () => ({
   ArrowLeft: "ArrowLeft",
+  Settings2: "Settings2",
+  Captions: "Captions",
+  Download: "Download",
+  Ellipsis: "Ellipsis",
+  ChevronRight: "ChevronRight",
   Heart: "Heart",
   Maximize: "Maximize",
   Minimize: "Minimize",
@@ -556,7 +564,7 @@ describe("watch screen", () => {
       liveNodes.some((node) => node.props.testID === "watch-download-start"),
     ).toBe(false);
     expect(
-      liveNodes.some((node) => node.props.testID === "watch-recording-start"),
+      liveNodes.some((node) => node.props.testID === "watch-tool-media"),
     ).toBe(true);
     const videoNodes = descendants(
       WatchScreen({
@@ -588,7 +596,7 @@ describe("watch screen", () => {
       }),
     );
     expect(
-      videoNodes.some((node) => node.props.testID === "watch-download-start"),
+      videoNodes.some((node) => node.props.testID === "watch-tool-media"),
     ).toBe(true);
     expect(
       videoNodes.some((node) => node.props.testID === "watch-recording-start"),
@@ -662,22 +670,19 @@ describe("watch screen", () => {
       expect(
         nodes.some((node) => node.props.testID === "watch-caption-overlay"),
       ).toBe(captionSessionId === "watch:1");
-      expect(nodes.some((node) => node.props.testID === "watch-captions")).toBe(
-        true,
-      );
+      expect(
+        nodes.some((node) => node.props.testID === "watch-tool-captions"),
+      ).toBe(true);
       expect(
         nodes.some((node) => node.props.testID === "watch-caption-stop"),
-      ).toBe(captionSessionId === "watch:1");
+      ).toBe(false);
     },
   );
 
-  it("renders the empty Watch page with display title and empty panel", () => {
+  it("renders the empty Watch panel without repeating the shell title", () => {
     const nodes = descendants(WatchEmptyState());
     const title = nodes.find((node) => node.props.children === "Watch");
-    expect(title?.props.style).toMatchObject({
-      fontSize: 24,
-      fontWeight: "700",
-    });
+    expect(title).toBeUndefined();
     expect(nodes.some((node) => node.props.testID === "watch-empty")).toBe(
       true,
     );
@@ -952,7 +957,7 @@ describe("watch screen", () => {
     ).toBe(true);
   });
 
-  it("stacks channel meta above the player with chat flush underneath", () => {
+  it("stacks the mounted player before channel metadata and chat", () => {
     const nodes = descendants(
       WatchScreen({
         PlayerSurface: () => null,
@@ -1019,10 +1024,10 @@ describe("watch screen", () => {
     const under = ids.indexOf("watch-under-player");
     const chat = ids.indexOf("watch-chat");
     expect(meta).toBeGreaterThanOrEqual(0);
-    expect(player).toBeGreaterThan(meta);
+    expect(meta).toBeGreaterThan(player);
     expect(under).toBeGreaterThan(player);
     expect(chat).toBeGreaterThan(under);
-    expect(ids.includes("watch-tools")).toBe(false);
+    expect(ids.includes("watch-tools")).toBe(true);
     expect(ids.includes("watch-adblock-status")).toBe(false);
     expect(ids.includes("watch-captions-privacy")).toBe(false);
   });
@@ -1199,7 +1204,7 @@ describe("watch screen", () => {
       .filter((node) => typeof node.props.children === "string")
       .map((node) => String(node.props.children));
     expect(metaTexts.some((text) => text.includes("50.4K"))).toBe(true);
-    expect(ids.indexOf("watch-channel-chrome")).toBeLessThan(
+    expect(ids.indexOf("watch-channel-chrome")).toBeGreaterThan(
       ids.indexOf("watch-player-stage"),
     );
     expect(ids.indexOf("watch-player-stage")).toBeLessThan(

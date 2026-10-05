@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileTextField } from "@mobile/design/text-input";
 import { StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
@@ -9,7 +12,6 @@ import {
   mobileRadii,
   mobileSpacing,
 } from "@mobile/design/tokens";
-import { DiscoverySearchDock } from "@mobile/features/discovery/components/discovery-search-dock";
 import type { WatchHistoryItem } from "../capabilities/watch-history";
 import type {
   WatchHistoryStatus,
@@ -44,6 +46,12 @@ export function HistoryView({
   readonly onRetry: () => void;
   readonly refreshing?: boolean;
 }) {
+  const [filter, setFilter] = useState<"all" | "video" | "clip" | "stream">(
+    "all",
+  );
+  const visibleItems = model.items.filter(
+    (item) => filter === "all" || item.kind === filter,
+  );
   const showClear =
     model.items.length > 0 || model.confirmation?.kind === "clear";
   return (
@@ -71,12 +79,31 @@ export function HistoryView({
           Clear
         </MobileButton>
       ) : null}
-      <DiscoverySearchDock
-        onChangeQuery={onChangeQuery}
-        placeholder="Search history"
-        query={model.query}
-        testID="history-search"
+      <MobileTextField
+        label="Search history"
+        onChange={onChangeQuery}
+        placeholder="Channel or title"
+        value={model.query}
       />
+      <View style={styles.confirmActions}>
+        {(
+          [
+            { value: "all", label: "All" },
+            { value: "video", label: "Videos" },
+            { value: "clip", label: "Clips" },
+            { value: "stream", label: "Live" },
+          ] as const
+        ).map((item) => (
+          <MobileFilterChip
+            key={item.value}
+            label={item.label}
+            accessibilityLabel={item.label}
+            testID={`history-filter-${item.value}`}
+            selected={filter === item.value}
+            onPress={() => setFilter(item.value)}
+          />
+        ))}
+      </View>
       {model.confirmation ? (
         <HistoryConfirmation
           confirmation={model.confirmation}
@@ -85,7 +112,10 @@ export function HistoryView({
         />
       ) : null}
       <HistoryStatusNotice onRetry={onRetry} status={model.status} />
-      {model.items.map((item) => (
+      {visibleItems.length === 0 && model.items.length > 0 ? (
+        <Text style={styles.summary}>No matching history.</Text>
+      ) : null}
+      {visibleItems.map((item) => (
         <HistoryRow
           item={item}
           key={item.id}

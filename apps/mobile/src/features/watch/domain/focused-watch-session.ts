@@ -367,6 +367,52 @@ export function createFocusedWatchSession(input: {
   }
 
   return {
+    async readPlaybackObservation() {
+      if (current?.kind !== "active" || !input.playback.readPlaybackObservation)
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "OPERATION_UNSUPPORTED",
+            detail: "No playback observations are available.",
+          },
+        };
+      const sessionId = current.session.sessionId;
+      const result = await input.playback.readPlaybackObservation(sessionId);
+      if (current?.kind !== "active" || current.session.sessionId !== sessionId)
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "INVOCATION_FAILED",
+            detail: "The playback session changed.",
+          },
+        };
+      return result;
+    },
+    async setPlaybackSpeed(speed) {
+      if (
+        current?.kind !== "active" ||
+        !current.target.media ||
+        !input.playback.setPlaybackSpeed
+      )
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "OPERATION_UNSUPPORTED",
+            detail: "Playback speed is available for recorded media only.",
+          },
+        };
+      const sessionId = current.session.sessionId;
+      const result = await input.playback.setPlaybackSpeed(sessionId, speed);
+      if (current?.kind !== "active" || current.session.sessionId !== sessionId)
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "INVOCATION_FAILED",
+            detail: "The playback session changed.",
+          },
+        };
+      return result;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

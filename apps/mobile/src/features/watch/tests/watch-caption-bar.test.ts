@@ -7,7 +7,11 @@ import type { CaptionModelState } from "@mobile/features/native-contracts/capabi
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
-  StyleSheet: { create: (styles: unknown) => styles },
+  Modal: "Modal",
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "android" },
+  ScrollView: "ScrollView",
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   View: "View",
 }));
@@ -145,3 +149,17 @@ describe("Watch caption chrome", () => {
     );
   });
 });
+
+vi.mock("react", async () => {
+  const actual = await vi.importActual<typeof import("react")>("react");
+  return {
+    ...actual,
+    useState: (initial: unknown) => [initial, () => undefined],
+  };
+});
+
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+vi.mock("lucide-react-native", () => ({ ChevronRight: "ChevronRight" }));

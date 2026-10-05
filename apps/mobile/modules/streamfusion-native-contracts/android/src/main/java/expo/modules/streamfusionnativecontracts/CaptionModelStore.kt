@@ -5,11 +5,29 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
+import java.util.concurrent.atomic.AtomicBoolean
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
 internal class CaptionModelStore(private val filesDir: File) {
   private val lock = Any()
+  private val installLock = Any()
+  private val cancelled = AtomicBoolean(false)
+  @Volatile private var activeCall: Call? = null
+  @Volatile private var installingState: Map<String, Any>? = null
+
+  fun cancelInstall(): Map<String, Any> {
+    if (installingState != null) {
+      cancelled.set(true)
+      activeCall?.cancel()
+    }
+    return snapshot()
+  }
+
+  private fun checkCancellation() {
+    if (cancelled.get()) throw IOException("Model download cancelled.")
+  }
   private var constrained = false
   private val root = File(filesDir, "captions")
   private val selection = File(root, "selected-pack")
@@ -20,7 +38,7 @@ internal class CaptionModelStore(private val filesDir: File) {
   fun modelDir(fixture: Boolean = false): File =
     File(root, if (fixture) "diagnostic-fixture-v1" else "vosk-small-en-us-0.15")
 
-  fun install(sourceUri: String?): Map<String, Any> = synchronized(lock) {
+  fun install(sourceUri: String?, onProgress: (Map<String, Any>) -> Unit = {}): Map<String, Any> = synchronized(installLock) {
     if (constrained) return state("constrained", false, "none", CaptionCatalog.CONSTRAINED)
     if (sourceUri?.startsWith(CaptionCatalog.FIXTURE_URI) == true) {
       val dir = modelDir(true)
@@ -33,6 +51,14 @@ internal class CaptionModelStore(private val filesDir: File) {
     if (sourceUri != null && sourceUri != CaptionCatalog.MODEL_URL) {
       return state("integrity-error", false, "none", "Only the pinned official English model can be installed.")
     }
+    if (installed() && pack() == "product") return snapshot()
+    cancelled.set(false)
+    fun progress(phase: String, bytes: Long, message: String) {
+      val update = state(phase, false, "none", message) + ("downloadedBytes" to bytes)
+      installingState = update
+      onProgress(update)
+    }
+    progress("downloading", 0, "Downloading the English model.")
     root.mkdirs()
     val archive = File(root, "model-download.zip.part")
     val staging = File(root, "model-staging")
@@ -40,28 +66,40 @@ internal class CaptionModelStore(private val filesDir: File) {
       staging.deleteRecursively()
       staging.mkdirs()
       val client = OkHttpClient.Builder().callTimeout(10, TimeUnit.MINUTES).build()
-      client.newCall(Request.Builder().url(CaptionCatalog.MODEL_URL).build()).execute().use { response ->
+      val call = client.newCall(Request.Builder().url(CaptionCatalog.MODEL_URL).build())
+      activeCall = call
+      checkCancellation()
+      call.execute().use { response ->
         if (!response.isSuccessful) throw IOException("Model download returned HTTP ${response.code}.")
         val body = response.body ?: throw IOException("Model download was empty.")
         body.byteStream().use { input ->
           archive.outputStream().use { output ->
             val buffer = ByteArray(64 * 1024)
             var bytes = 0L
+            var lastReportedBytes = 0L
             while (true) {
+              checkCancellation()
               val count = input.read(buffer)
               if (count < 0) break
               bytes += count
               if (bytes > CaptionCatalog.DOWNLOAD_BYTES) throw IOException("Model download exceeded its pinned size.")
               output.write(buffer, 0, count)
+              if (bytes - lastReportedBytes >= 256 * 1024) {
+                progress("downloading", bytes, "Downloading the English model.")
+                lastReportedBytes = bytes
+              }
             }
           }
         }
       }
+      checkCancellation()
+      progress("verifying", archive.length(), "Verifying the English model.")
       if (archive.length() != CaptionCatalog.DOWNLOAD_BYTES || sha256(archive) != CaptionCatalog.MODEL_SHA256) {
         throw IOException(CaptionCatalog.INTEGRITY_ERROR)
       }
       extract(archive, staging)
       if (!verify(staging, false)) throw IOException(CaptionCatalog.INTEGRITY_ERROR)
+      checkCancellation()
       val target = modelDir()
       val backup = File(root, "model-previous")
       backup.deleteRecursively()
@@ -72,16 +110,20 @@ internal class CaptionModelStore(private val filesDir: File) {
       }
       selection.writeText("product")
       backup.deleteRecursively()
+      installingState = null
       snapshot()
     } catch (error: IOException) {
-      state("integrity-error", installed(), pack(), error.message ?: "English model installation failed.")
+      installingState = null
+      if (cancelled.get()) snapshot() + ("statusMessage" to "Model download cancelled. Existing verified files were kept.") else state("integrity-error", installed(), pack(), error.message ?: "English model installation failed.")
     } finally {
+      activeCall = null
+      installingState = null
       archive.delete()
       staging.deleteRecursively()
     }
   }
 
-  fun remove(): Map<String, Any> = synchronized(lock) {
+  fun remove(): Map<String, Any> = synchronized(installLock) {
     if (root.exists() && !root.deleteRecursively()) {
       val selected = pack()
       return state("integrity-error", installed(selected == "fixture"), selected, "The caption model could not be removed from this device.")
@@ -90,6 +132,7 @@ internal class CaptionModelStore(private val filesDir: File) {
   }
 
   fun snapshot(): Map<String, Any> = synchronized(lock) {
+    installingState?.let { return@synchronized it }
     val pack = pack()
     val valid = installed(pack == "fixture")
     when {
@@ -122,6 +165,7 @@ internal class CaptionModelStore(private val filesDir: File) {
     ZipInputStream(archive.inputStream().buffered()).use { zip ->
       var total = 0L
       while (true) {
+        checkCancellation()
         val entry = zip.nextEntry ?: break
         if (!entry.name.startsWith(prefix)) throw IOException("Unexpected model archive root.")
         val path = entry.name.removePrefix(prefix)
@@ -133,6 +177,7 @@ internal class CaptionModelStore(private val filesDir: File) {
           destination.outputStream().use { output ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
+              checkCancellation()
               val count = zip.read(buffer)
               if (count < 0) break
               total += count

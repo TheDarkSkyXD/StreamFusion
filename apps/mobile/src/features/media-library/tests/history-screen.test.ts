@@ -79,13 +79,19 @@ describe("History screen", () => {
       true,
     );
     expect(
-      nodes.some((node) => node.props.testID === "history-progress-twitch-video-vod-1"),
+      nodes.some(
+        (node) => node.props.testID === "history-progress-twitch-video-vod-1",
+      ),
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.accessibilityLabel === "Resume Yesterday"),
+      nodes.some(
+        (node) => node.props.accessibilityLabel === "Resume Yesterday",
+      ),
     ).toBe(true);
     expect(
-      nodes.some((node) => node.props.accessibilityLabel === "Replay Yesterday"),
+      nodes.some(
+        (node) => node.props.accessibilityLabel === "Replay Yesterday",
+      ),
     ).toBe(true);
     expect(
       nodes.some(
@@ -140,9 +146,9 @@ describe("History screen", () => {
         onRetry: () => undefined,
       }),
     );
-    expect(offline.some((node) => node.props.testID === "history-offline")).toBe(
-      true,
-    );
+    expect(
+      offline.some((node) => node.props.testID === "history-offline"),
+    ).toBe(true);
     const failed = descendants(
       HistoryView({
         model: composeWatchHistoryView({
@@ -188,10 +194,12 @@ describe("History screen", () => {
         onRetry: () => undefined,
       }),
     );
-    expect(clear.some((node) => node.props.testID === "history-confirmation")).toBe(
+    expect(
+      clear.some((node) => node.props.testID === "history-confirmation"),
+    ).toBe(true);
+    expect(clear.some((node) => node.props.testID === "history-clear")).toBe(
       true,
     );
-    expect(clear.some((node) => node.props.testID === "history-clear")).toBe(true);
     const remove = descendants(
       HistoryView({
         model: composeWatchHistoryView({
@@ -220,7 +228,17 @@ describe("History screen", () => {
       ),
     ).toBe(true);
     expect(
-      remove.some((node) => node.props.testID === "history-remove-twitch-video-vod-1"),
+      remove.some(
+        (node) => node.props.testID === "history-remove-twitch-video-vod-1",
+      ),
     ).toBe(true);
   });
+});
+
+vi.mock("react", async () => {
+  const actual = await vi.importActual<typeof import("react")>("react");
+  return {
+    ...actual,
+    useState: (initial: unknown) => [initial, () => undefined],
+  };
 });

@@ -19,6 +19,11 @@ export interface ExpoBindingReader<TBinding> {
 }
 
 export interface ExpoPlaybackBinding {
+  readonly readPlaybackObservation?: (sessionId: string) => Promise<unknown>;
+  readonly setPlaybackSpeed?: (
+    sessionId: string,
+    speed: number,
+  ) => Promise<unknown>;
   readonly addListener?: (
     eventName: string,
     listener: (event: unknown) => void,
@@ -27,12 +32,12 @@ export interface ExpoPlaybackBinding {
   readonly enterPictureInPicture: (sessionId: string) => Promise<unknown>;
   readonly getContractVersion: () => number;
   readonly listQualities: (sessionId: string) => Promise<unknown>;
-  readonly seekTo: (
-    sessionId: string,
-    positionMs: number,
-  ) => Promise<unknown>;
+  readonly seekTo: (sessionId: string, positionMs: number) => Promise<unknown>;
   readonly setMuted: (sessionId: string, muted: boolean) => Promise<unknown>;
-  readonly setPlaying: (sessionId: string, playing: boolean) => Promise<unknown>;
+  readonly setPlaying: (
+    sessionId: string,
+    playing: boolean,
+  ) => Promise<unknown>;
   readonly setQuality: (sessionId: string, quality: string) => Promise<unknown>;
   readonly setVolume: (sessionId: string, volume: number) => Promise<unknown>;
   readonly startFocusedSession: (
@@ -61,6 +66,7 @@ export interface ExpoMediaJobsBinding {
 }
 
 export interface ExpoCaptionsBinding {
+  readonly cancelEnglishModelInstall?: () => unknown;
   readonly addListener?: (
     eventName: string,
     listener: (event: unknown) => void,
@@ -69,9 +75,13 @@ export interface ExpoCaptionsBinding {
   readonly getCaptionProof: () => Promise<unknown>;
   readonly getContractVersion: () => number;
   readonly getEnglishModelState: () => Promise<unknown>;
-  readonly installEnglishModel: (request: CaptionModelRequest) => Promise<unknown>;
+  readonly installEnglishModel: (
+    request: CaptionModelRequest,
+  ) => Promise<unknown>;
   readonly queueDevelopmentCaptionConstraint: () => Promise<unknown>;
-  readonly removeEnglishModel: (request: CaptionModelRequest) => Promise<unknown>;
+  readonly removeEnglishModel: (
+    request: CaptionModelRequest,
+  ) => Promise<unknown>;
   readonly startFocusedCaptionSession: (
     request: CaptionSessionRequest,
   ) => Promise<unknown>;
@@ -102,22 +112,29 @@ function requireBinding<TBinding>(
   return module;
 }
 
-export const expoPlaybackBindingReader: ExpoBindingReader<ExpoPlaybackBinding> = {
-  read: () => requireBinding(getPlaybackModule(), "StreamFusionPlayback"),
-};
+export const expoPlaybackBindingReader: ExpoBindingReader<ExpoPlaybackBinding> =
+  {
+    read: () => requireBinding(getPlaybackModule(), "StreamFusionPlayback"),
+  };
 
-export const expoMediaJobsBindingReader: ExpoBindingReader<ExpoMediaJobsBinding> = {
-  read: () => requireBinding(getMediaJobsModule(), "StreamFusionMediaJobs"),
-};
+export const expoMediaJobsBindingReader: ExpoBindingReader<ExpoMediaJobsBinding> =
+  {
+    read: () => requireBinding(getMediaJobsModule(), "StreamFusionMediaJobs"),
+  };
 
-export const expoCaptionsBindingReader: ExpoBindingReader<ExpoCaptionsBinding> = {
-  read: () => requireBinding(getCaptionsModule(), "StreamFusionCaptions"),
-};
+export const expoCaptionsBindingReader: ExpoBindingReader<ExpoCaptionsBinding> =
+  {
+    read: () => requireBinding(getCaptionsModule(), "StreamFusionCaptions"),
+  };
 
-export const expoDiagnosticsBindingReader: ExpoBindingReader<ExpoDiagnosticsBinding> = {
-  read: () => requireBinding(getDiagnosticsModule(), "StreamFusionDiagnostics"),
-};
+export const expoDiagnosticsBindingReader: ExpoBindingReader<ExpoDiagnosticsBinding> =
+  {
+    read: () =>
+      requireBinding(getDiagnosticsModule(), "StreamFusionDiagnostics"),
+  };
 
-export const expoMaintenanceBindingReader: ExpoBindingReader<ExpoMaintenanceBinding> = {
-  read: () => requireBinding(getMaintenanceModule(), "StreamFusionMaintenance"),
-};
+export const expoMaintenanceBindingReader: ExpoBindingReader<ExpoMaintenanceBinding> =
+  {
+    read: () =>
+      requireBinding(getMaintenanceModule(), "StreamFusionMaintenance"),
+  };

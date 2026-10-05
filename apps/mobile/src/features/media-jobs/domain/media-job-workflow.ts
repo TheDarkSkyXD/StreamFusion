@@ -19,6 +19,7 @@ import {
 import type { AndroidMediaJobsContractPort } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import type { ActivityRepository } from "@mobile/features/storage/capabilities/persistence";
 
+import { mediaJobDisplay } from "../utils/media-display";
 import type {
   MediaJobRepository,
   MediaJobWorkflow,
@@ -59,7 +60,19 @@ async function applyJobCommand(
   const now = toSerializedTimestamp(nowIso);
   const jobId = command.kind === "start" ? command.intent.jobId : command.jobId;
   const product = await options.product.get(jobId);
-  const local = applyCommand(product, command, now);
+  const recoverablePartial =
+    product?.intent.kind === "recording" &&
+    product.artifact.kind === "partial" &&
+    product.artifact.bytes > 0;
+  const local = applyCommand(
+    command.kind === "finalize" &&
+      recoverablePartial &&
+      product.phase === "completed"
+      ? { ...product, phase: "paused" }
+      : product,
+    command,
+    now,
+  );
   if (local.kind === "rejected") return local;
   if (local.kind === "ignored" && command.kind !== "recover") return local;
   const native = await invokeNative(options.native, command, requestHeaders);
@@ -68,7 +81,12 @@ async function applyJobCommand(
     if (local.kind === "ok") {
       await persistProjection(
         options,
-        { ...local.snapshot, statusMessage: reason },
+        {
+          ...(command.kind === "finalize" && product
+            ? product
+            : local.snapshot),
+          statusMessage: reason,
+        },
         nowIso,
       );
     }
@@ -147,8 +165,20 @@ async function persistProjection(
       (item): item is Extract<ActivityItem, { kind: "job" }> =>
         item.kind === "job" && item.job.id === snapshot.intent.jobId,
     ) ?? null;
+  const projection = projectMediaJobActivity(
+    snapshot,
+    existing,
+    toSerializedTimestamp(nowIso),
+  );
+  const display = mediaJobDisplay(snapshot);
   await options.activity.record(
-    projectMediaJobActivity(snapshot, existing, toSerializedTimestamp(nowIso)),
+    display
+      ? {
+          ...projection,
+          title: display.title,
+          body: `${display.channelName} � ${snapshot.statusMessage}`,
+        }
+      : projection,
   );
 }
 
@@ -261,7 +291,11 @@ async function exportJob(
   options: { readonly native: AndroidMediaJobsContractPort },
   jobId: string,
 ): Promise<
-  | { readonly kind: "exported"; readonly matched: boolean; readonly destinationUri: string }
+  | {
+      readonly kind: "exported";
+      readonly matched: boolean;
+      readonly destinationUri: string;
+    }
   | { readonly kind: "cancelled" }
   | { readonly kind: "rejected"; readonly reason: string }
 > {

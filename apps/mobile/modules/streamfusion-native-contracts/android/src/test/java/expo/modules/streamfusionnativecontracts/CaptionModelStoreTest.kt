@@ -12,6 +12,28 @@ import org.junit.Test
 
 class CaptionModelStoreTest {
   @Test
+  fun cancelBeforeConnectionKeepsExistingFixtureAndRemovesOnlyTemporaryFiles() {
+    val root = Files.createTempDirectory("caption-cancel-proof").toFile()
+    try {
+      val store = CaptionModelStore(root)
+      store.install("${CaptionCatalog.FIXTURE_URI}/install")
+      val observed = mutableListOf<Long>()
+      val result = store.install(null) { progress ->
+        observed.add(progress["downloadedBytes"] as Long)
+        assertEquals("downloading", progress["phase"])
+        store.cancelInstall()
+      }
+      assertEquals(listOf(0L), observed)
+      assertEquals("ready", result["phase"])
+      assertEquals("fixture", result["pack"])
+      assertTrue(store.installed(true))
+      assertFalse(File(root, "captions/model-download.zip.part").exists())
+      assertFalse(File(root, "captions/model-staging").exists())
+      assertTrue(result["statusMessage"].toString().contains("cancelled"))
+    } finally { root.deleteRecursively() }
+  }
+
+  @Test
   fun diagnosticInstallationCannotEnableProductionRecognition() {
     val root = Files.createTempDirectory("caption-model-proof").toFile()
     try {

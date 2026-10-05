@@ -19,6 +19,8 @@ vi.mock("react-native", async () => {
   return {
     Image: host("div"),
     Modal: host("div"),
+    KeyboardAvoidingView: host("div"),
+    Platform: { OS: "android" },
     Pressable: host("button"),
     RefreshControl: host("div"),
     ScrollView: host("div"),
@@ -34,6 +36,9 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("lucide-react-native", () => ({
   ArrowLeft: "ArrowLeft",
+  Captions: "Captions",
+  Download: "Download",
+  Ellipsis: "Ellipsis",
   Heart: "Heart",
   Maximize: "Maximize",
   Minimize: "Minimize",
@@ -133,3 +138,7 @@ describe("watch fullscreen player mount", () => {
     vi.unstubAllGlobals();
   });
 });
+
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));

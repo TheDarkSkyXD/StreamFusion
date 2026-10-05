@@ -13,8 +13,12 @@ import { MediaJobScreen } from "../components/media-job-screen";
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
+  Modal: "Modal",
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "android" },
+  ScrollView: "ScrollView",
   RefreshControl: "RefreshControl",
-  StyleSheet: { create: (styles: unknown) => styles },
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Text: "Text",
   View: "View",
 }));
@@ -100,9 +104,9 @@ describe("Media Job screen", () => {
       }),
     );
     expect(byTestId(nodes, "media-job-detail")).toBeTruthy();
-    expect(String(byTestId(nodes, "media-job-phase")?.props.children)).toContain(
-      "Running",
-    );
+    expect(
+      String(byTestId(nodes, "media-job-phase")?.props.children),
+    ).toContain("Running");
     expect(
       String(byTestId(nodes, "media-job-progress")?.props.children),
     ).toContain("6%");
@@ -150,7 +154,7 @@ describe("Media Job screen", () => {
     byTestId(nodes, "media-job-open")?.props.onPress?.();
     byTestId(nodes, "media-job-export")?.props.onPress?.();
     byTestId(nodes, "media-job-delete")?.props.onPress?.();
-    expect(actions).toEqual(["open", "export", "delete"]);
+    expect(actions).toEqual(["open", "export"]);
   });
 
   it("shows the live snapshot status instead of a stale Preparing overlay", () => {
@@ -174,3 +178,20 @@ describe("Media Job screen", () => {
     );
   });
 });
+
+vi.mock("react", async () => {
+  const actual = await vi.importActual<typeof import("react")>("react");
+  return {
+    ...actual,
+    useState: (initial: unknown) => [
+      typeof initial === "function" ? initial() : initial,
+      () => undefined,
+    ],
+  };
+});
+
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+vi.mock("lucide-react-native", () => ({ ChevronRight: "ChevronRight" }));

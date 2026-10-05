@@ -9,8 +9,8 @@ class StreamFusionCaptionsModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("StreamFusionCaptions")
-    Events("onNativeCaptions")
-    Function("getContractVersion") { 3 }
+    Events("onNativeCaptions", "onNativeCaptionModel")
+    Function("getContractVersion") { 4 }
     OnCreate {
       val context = requireNotNull(appContext.reactContext) {
         "Caption model storage requires an application files directory."
@@ -21,6 +21,9 @@ class StreamFusionCaptionsModule : Module() {
         sendEvent("onNativeCaptions", event)
       }
     }
+    Function("cancelEnglishModelInstall") {
+      mapOf("kind" to "completed", "value" to store().cancelInstall())
+    }
     AsyncFunction("getEnglishModelState") {
       mapOf("kind" to "completed", "value" to store().snapshot())
     }
@@ -29,7 +32,9 @@ class StreamFusionCaptionsModule : Module() {
         return@AsyncFunction mapOf("kind" to "invalid")
       }
       sessions().stopAll()
-      mapOf("kind" to "completed", "value" to store().install(request["sourceUri"] as? String))
+      mapOf("kind" to "completed", "value" to store().install(request["sourceUri"] as? String) { progress ->
+        sendEvent("onNativeCaptionModel", progress)
+      })
     }
     AsyncFunction("removeEnglishModel") { request: Map<String, Any> ->
       if (request["modelId"] != CaptionCatalog.MODEL_ID) {
@@ -56,7 +61,7 @@ class StreamFusionCaptionsModule : Module() {
       store().clearConstraint()
       mapOf("kind" to "completed", "value" to store().snapshot())
     }
-    OnDestroy { sessions?.dispose() }
+    OnDestroy { store?.cancelInstall(); sessions?.dispose() }
   }
 
   private fun store(): CaptionModelStore = requireNotNull(store)

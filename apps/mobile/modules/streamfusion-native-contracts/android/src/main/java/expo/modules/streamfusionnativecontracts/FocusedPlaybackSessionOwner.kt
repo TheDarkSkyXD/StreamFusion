@@ -193,6 +193,39 @@ object FocusedPlaybackSessionOwner {
     sessionCompleted(null, sessionId)
   }
 
+  fun readObservation(sessionId: String): Map<String, Any> = onMain {
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    observationCompleted(current)
+  }
+
+  fun setSpeed(sessionId: String, speed: Float): Map<String, Any> = onMain {
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    if (current.player.isCurrentMediaItemLive || speed !in listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)) {
+      return@onMain unsupported("Playback speed is available for recorded media only.")
+    }
+    current.player.setPlaybackSpeed(speed)
+    observationCompleted(current)
+  }
+
+  private fun observationCompleted(current: Session): Map<String, Any> {
+    val player = current.player
+    val format = player.videoFormat
+    val counters = player.videoDecoderCounters
+    counters?.ensureUpdated()
+    return mapOf("kind" to "completed", "value" to mapOf(
+      "sessionId" to current.sessionId,
+      "speed" to player.playbackParameters.speed.toDouble(),
+      "bufferedMs" to player.totalBufferedDuration.coerceAtLeast(0L).toDouble(),
+      "width" to format?.width?.takeIf { it > 0 },
+      "height" to format?.height?.takeIf { it > 0 },
+      "frameRate" to format?.frameRate?.takeIf { it > 0 },
+      "bitrate" to format?.bitrate?.takeIf { it > 0 },
+      "codec" to (format?.codecs ?: format?.sampleMimeType),
+      "droppedFrames" to counters?.droppedBufferCount,
+      "renderedFrames" to counters?.renderedOutputBufferCount
+    ))
+  }
+
   fun listQualities(sessionId: String): Map<String, Any> = onMain {
     val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
     qualityCompleted(current)

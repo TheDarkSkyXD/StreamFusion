@@ -66,6 +66,47 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+it("targets the displayed copy for commands while keeping the selected job default", async () => {
+  const apply = vi.fn(async () => ({ kind: "ok", snapshot: runningJob() }));
+  const deleteJob = vi.fn(async () => ({ kind: "ok" }));
+  const exportJob = vi.fn(async () => ({ kind: "cancelled" }));
+  const openArtifact = vi.fn(async () => ({ kind: "ok" }));
+  const workflow = {
+    apply,
+    delete: deleteJob,
+    exportJob,
+    openArtifact,
+    list: vi.fn(async () => [runningJob()]),
+    recoverAll: vi.fn(async () => [runningJob()]),
+  } as unknown as MediaJobWorkflow;
+  const rendered = renderController(workflow);
+  try {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await rendered.current().apply("pause", "download-copy");
+      await rendered.current().deleteJob("download-copy");
+      await rendered.current().exportJob("download-copy");
+      await rendered.current().openArtifact("download-copy");
+      await rendered.current().apply("resume");
+    });
+    expect(apply.mock.calls[0]?.[0]).toEqual({
+      kind: "pause",
+      jobId: "download-copy",
+    });
+    expect(deleteJob).toHaveBeenCalledWith("download-copy", expect.any(String));
+    expect(exportJob).toHaveBeenCalledWith("download-copy");
+    expect(openArtifact).toHaveBeenCalledWith("download-copy");
+    expect(apply.mock.calls[1]?.[0]).toEqual({
+      kind: "resume",
+      jobId: "download-1",
+    });
+  } finally {
+    rendered.unmount();
+  }
+});
+
 it("serializes user commands and keeps a busy flag until the first settles", async () => {
   expect(ReactDOM.version).toBe(React.version);
   let finish:
@@ -139,8 +180,7 @@ it("keeps the last job list when background recovery fails", async () => {
 it("waits for in-flight recovery before starting a job", async () => {
   // Guards: start must not overlap recoverAll SQLite transactions (nested BEGIN)
   let resolveRecover:
-    | ((jobs: ReturnType<typeof runningJob>[]) => void)
-    | undefined;
+    ((jobs: ReturnType<typeof runningJob>[]) => void) | undefined;
   const recoverAll = vi.fn(
     () =>
       new Promise<ReturnType<typeof runningJob>[]>((resolve) => {

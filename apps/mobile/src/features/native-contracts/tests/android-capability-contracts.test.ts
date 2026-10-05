@@ -26,7 +26,7 @@ const unsupported = async () => ({
 const playbackBinding: ExpoPlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
-  getContractVersion: () => 4,
+  getContractVersion: () => 5,
   listQualities: unsupported,
   seekTo: unsupported,
   setMuted: unsupported,
@@ -100,7 +100,7 @@ const mediaJobsBinding: ExpoMediaJobsBinding = {
 const captionsBinding: ExpoCaptionsBinding = {
   clearDevelopmentCaptionConstraint: unsupported,
   getCaptionProof: unsupported,
-  getContractVersion: () => 3,
+  getContractVersion: () => 4,
   getEnglishModelState: unsupported,
   installEnglishModel: unsupported,
   queueDevelopmentCaptionConstraint: unsupported,
@@ -201,11 +201,11 @@ describe("Android capability module contracts", () => {
     };
 
     expect(Object.values(contracts).map((port) => port.readiness())).toEqual([
-      { capability: "captions", contractVersion: 3, kind: "ready" },
+      { capability: "captions", contractVersion: 4, kind: "ready" },
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 3, kind: "ready" },
-      { capability: "playback", contractVersion: 4, kind: "ready" },
+      { capability: "playback", contractVersion: 5, kind: "ready" },
     ]);
     await expect(
       contracts.playback.enterPictureInPicture("watch-1"),
@@ -783,5 +783,72 @@ describe("Android capability module contracts", () => {
       kind: "completed",
       value: { kind: "record", journal: { jobId: "job-1" }, files: null },
     });
+  });
+});
+
+describe("playback tools boundary", () => {
+  const observed = {
+    sessionId: "player-one",
+    speed: 1.5,
+    bufferedMs: 2000,
+    width: null,
+    height: null,
+    frameRate: null,
+    bitrate: null,
+    codec: null,
+    droppedFrames: null,
+    renderedFrames: null,
+  };
+  it("accepts session-bound native observations and rejects a different session or nonfinite counter", async () => {
+    const port = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        readPlaybackObservation: async () => ({
+          kind: "completed",
+          value: observed,
+        }),
+        setPlaybackSpeed: async () => ({ kind: "completed", value: observed }),
+      }),
+    );
+    expect(await port.readPlaybackObservation?.("player-one")).toEqual({
+      kind: "completed",
+      value: observed,
+    });
+    expect((await port.readPlaybackObservation?.("player-two"))?.kind).toBe(
+      "unavailable",
+    );
+    expect(await port.setPlaybackSpeed?.("player-one", 1.5)).toEqual({
+      kind: "completed",
+      value: observed,
+    });
+    const invalid = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        readPlaybackObservation: async () => ({
+          kind: "completed",
+          value: { ...observed, droppedFrames: NaN },
+        }),
+      }),
+    );
+    expect((await invalid.readPlaybackObservation?.("player-one"))?.kind).toBe(
+      "unavailable",
+    );
+  });
+  it("rejects an old playback module before invoking new operations", async () => {
+    let calls = 0;
+    const port = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        getContractVersion: () => 4,
+        readPlaybackObservation: async () => {
+          calls++;
+          return { kind: "completed", value: observed };
+        },
+      }),
+    );
+    expect((await port.readPlaybackObservation?.("player-one"))?.kind).toBe(
+      "unavailable",
+    );
+    expect(calls).toBe(0);
   });
 });

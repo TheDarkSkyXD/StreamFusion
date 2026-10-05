@@ -15,16 +15,11 @@ import {
   VolumeX,
   type LucideIcon,
 } from "lucide-react-native";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
+import { MobileListRow } from "@mobile/design/list-row";
 import { impactHaptic } from "@mobile/design/haptics";
 import {
   mobileColors,
@@ -337,88 +332,48 @@ function QualitySheet({
   readonly onVolumeChange?: (volume: number) => void;
 }) {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   return (
-    <Modal animationType="fade" onRequestClose={onClose} transparent visible>
-      <View
-        style={[
-          styles.sheetBackdrop,
-          { paddingBottom: Math.max(insets.bottom, mobileSpacing.medium) },
-        ]}
-      >
-        <Pressable
-          accessibilityLabel={t("playback.watch.dismissQualityMenu")}
-          onPress={onClose}
-          style={StyleSheet.absoluteFill}
-          testID="player-quality-dismiss"
-        />
-        <View style={styles.sheet} testID="player-quality-menu">
-          <Text selectable style={styles.sheetTitle}>
-            {t("playback.settings")}
-          </Text>
-          {showVolume && onVolumeChange ? (
-            <View style={styles.volumeSection}>
-              <Text style={styles.volumeLabel}>{t("settings.volume")}</Text>
-              <Slider
-                accessibilityLabel={t("settings.volume")}
-                maximumTrackTintColor="rgba(255,255,255,0.28)"
-                maximumValue={1}
-                minimumTrackTintColor={mobileColors.textPrimary}
-                minimumValue={0}
-                onValueChange={onVolumeChange}
-                style={styles.volumeSlider}
-                testID="player-volume-slider"
-                thumbTintColor={mobileColors.textPrimary}
-                value={muted ? 0 : volume}
+    <MobileBottomSheet
+      title={t("playback.settings")}
+      visible
+      onDismiss={onClose}
+    >
+      <View testID="player-quality-menu">
+        {showVolume && onVolumeChange ? (
+          <View style={styles.volumeSection}>
+            <Text style={styles.volumeLabel}>
+              {t("settings.volume")} � {Math.round((muted ? 0 : volume) * 100)}%
+            </Text>
+            <Slider
+              accessibilityLabel={t("settings.volume")}
+              maximumValue={1}
+              minimumValue={0}
+              minimumTrackTintColor={mobileColors.textPrimary}
+              maximumTrackTintColor={mobileColors.border}
+              onValueChange={onVolumeChange}
+              style={styles.volumeSlider}
+              testID="player-volume-slider"
+              thumbTintColor={mobileColors.textPrimary}
+              value={muted ? 0 : volume}
+            />
+          </View>
+        ) : null}
+        {showQuality && onSelect
+          ? qualities.map((option) => (
+              <MobileListRow
+                key={option}
+                title={option}
+                {...(option === selected ? { description: "Selected" } : {})}
+                testID={`player-quality-option-${option}`}
+                onPress={() => {
+                  onSelect(option);
+                  onClose();
+                }}
               />
-            </View>
-          ) : null}
-          {showQuality && onSelect ? (
-            <>
-              <Text selectable style={styles.sheetTitle}>
-                {t("playback.quality")}
-              </Text>
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                style={styles.sheetScroll}
-              >
-                {qualities.map((option) => {
-                  const active = option === selected;
-                  return (
-                    <Pressable
-                      accessibilityLabel={option}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      key={option}
-                      onPress={() => {
-                        onSelect(option);
-                        onClose();
-                      }}
-                      style={({ pressed }) => [
-                        styles.sheetOption,
-                        active ? styles.sheetOptionActive : null,
-                        pressed ? styles.sheetOptionPressed : null,
-                      ]}
-                      testID={`player-quality-option-${option}`}
-                    >
-                      <Text
-                        selectable
-                        style={[
-                          styles.sheetOptionLabel,
-                          active ? styles.sheetOptionLabelActive : null,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </>
-          ) : null}
-        </View>
+            ))
+          : null}
       </View>
-    </Modal>
+    </MobileBottomSheet>
   );
 }
 

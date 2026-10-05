@@ -15,6 +15,8 @@ vi.mock("react-native", async () => {
     createElement(tag, { "data-testid": props.testID }, props.children);
   return {
     Modal: host("div"),
+    KeyboardAvoidingView: host("div"),
+    Platform: { OS: "android" },
     Pressable: (props: Record<string, unknown>) => {
       if (typeof props.testID === "string")
         pressableProps.set(props.testID, props);
@@ -45,6 +47,7 @@ vi.mock("lucide-react-native", async () => {
     });
   return {
     Maximize: icon("Maximize"),
+    ChevronRight: icon("ChevronRight"),
     Minimize: icon("Minimize"),
     Pause: icon("Pause"),
     Play: icon("Play"),

@@ -7,6 +7,8 @@ export interface NativeUnsupportedResponse {
 }
 
 interface NativePlaybackModule {
+  readPlaybackObservation(sessionId: unknown): Promise<unknown>;
+  setPlaybackSpeed(sessionId: unknown, speed: unknown): Promise<unknown>;
   endFocusedSession(sessionId: unknown): Promise<unknown>;
   enterPictureInPicture(sessionId: unknown): Promise<unknown>;
   getContractVersion(): number;
@@ -35,6 +37,7 @@ interface NativeMediaJobsModule {
 }
 
 interface NativeCaptionsModule {
+  cancelEnglishModelInstall(): unknown;
   getContractVersion(): number;
   clearDevelopmentCaptionConstraint(): Promise<unknown>;
   getCaptionProof(): Promise<unknown>;
@@ -141,7 +144,9 @@ export function getConnectivityModule(): NativeConnectivityModule | null {
 }
 
 export function requirePlaybackModule(): NativePlaybackModule {
-  return requireLinkedNativeModule<NativePlaybackModule>("StreamFusionPlayback");
+  return requireLinkedNativeModule<NativePlaybackModule>(
+    "StreamFusionPlayback",
+  );
 }
 
 export function requireMediaJobsModule(): NativeMediaJobsModule {
@@ -151,7 +156,9 @@ export function requireMediaJobsModule(): NativeMediaJobsModule {
 }
 
 export function requireCaptionsModule(): NativeCaptionsModule {
-  return requireLinkedNativeModule<NativeCaptionsModule>("StreamFusionCaptions");
+  return requireLinkedNativeModule<NativeCaptionsModule>(
+    "StreamFusionCaptions",
+  );
 }
 
 export function requireDiagnosticsModule(): NativeDiagnosticsModule {

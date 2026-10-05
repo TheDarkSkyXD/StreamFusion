@@ -20,6 +20,7 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
+  TextInput: "TextInput",
   View: "View",
 }));
 
@@ -32,11 +33,11 @@ const i18nTest = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
 }));
-
 
 vi.mock("lucide-react-native", () => ({
   Bell: "Bell",
@@ -50,6 +51,7 @@ vi.mock("react", async () => {
   return {
     ...actual,
     useEffect: vi.fn(),
+    useState: (initial: unknown) => [initial, () => undefined],
     useRef: () => ({ current: null }),
   };
 });
@@ -130,11 +132,13 @@ function render(
     onCancelDismissal: () => undefined,
     onConfirmDismissal: async () => undefined,
     onDismissVisibleCompleted: () => undefined,
-    ...(developmentProof ? {
-      developmentProof,
-      onExitDevelopmentProof: async () => undefined,
-      onRetryDevelopmentProof: async () => undefined,
-    } : {}),
+    ...(developmentProof
+      ? {
+          developmentProof,
+          onExitDevelopmentProof: async () => undefined,
+          onRetryDevelopmentProof: async () => undefined,
+        }
+      : {}),
     onMarkAllRead: async () => undefined,
     onOpen: () => undefined,
     onRefresh: async () => undefined,
@@ -229,16 +233,16 @@ describe("Activity screen", () => {
     ).toBe(true);
   });
 
-  it("hides All/Channels/Jobs filter chrome and uses followed go-live empty copy", () => {
+  it("renders activity filters and followed go-live empty copy", () => {
     const nodes = render(
       model({ allItems: [], items: [], status: "ready", unreadCount: 0 }),
     );
     expect(
       nodes.some((node) => node.props.testID === "activity-filter-all"),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "activity-filter-jobs"),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       nodes.some(
         (node) =>

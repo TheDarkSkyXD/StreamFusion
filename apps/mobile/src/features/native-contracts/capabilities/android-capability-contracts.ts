@@ -29,7 +29,7 @@ export type AndroidNativeFailure =
 export type AndroidCapabilityReadiness =
   | {
       readonly capability: AndroidCapabilityId;
-      readonly contractVersion: 1 | 2 | 3 | 4;
+      readonly contractVersion: 1 | 2 | 3 | 4 | 5;
       readonly kind: "ready";
     }
   | {
@@ -136,6 +136,19 @@ export type NativePlaybackEvent =
       readonly sessionId: string;
     };
 
+export type PlaybackObservation = {
+  readonly sessionId: string;
+  readonly speed: number;
+  readonly bufferedMs: number;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly frameRate: number | null;
+  readonly bitrate: number | null;
+  readonly codec: string | null;
+  readonly droppedFrames: number | null;
+  readonly renderedFrames: number | null;
+};
+
 export type PlaybackQualityCatalog = {
   readonly qualities: readonly string[];
   readonly selected: string;
@@ -143,6 +156,13 @@ export type PlaybackQualityCatalog = {
 };
 
 export interface AndroidPlaybackContractPort extends AndroidCapabilityContractPort {
+  readPlaybackObservation?(
+    sessionId: string,
+  ): Promise<AndroidNativeOperationResult<PlaybackObservation>>;
+  setPlaybackSpeed?(
+    sessionId: string,
+    speed: number,
+  ): Promise<AndroidNativeOperationResult<PlaybackObservation>>;
   endFocusedSession(
     sessionId: string,
   ): Promise<AndroidNativeOperationResult<PlaybackEndState>>;
@@ -309,6 +329,10 @@ export type NativeCaptionEvent =
   | ({ readonly kind: "state" } & CaptionSessionState);
 
 export interface AndroidCaptionsContractPort extends AndroidCapabilityContractPort {
+  cancelEnglishModelInstall?(): Promise<
+    AndroidNativeOperationResult<CaptionModelState>
+  >;
+  subscribeModel?(listener: (state: CaptionModelState) => void): () => void;
   clearDevelopmentCaptionConstraint(): Promise<
     AndroidNativeOperationResult<CaptionModelState>
   >;

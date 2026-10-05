@@ -135,6 +135,18 @@ internal class MediaJobEngine(private val context: Context) {
     val journal = journalOrMissing(jobId) ?: return MediaJobCodec.missing(jobId)
     cancelFlags.getOrPut(jobId) { AtomicBoolean(false) }.set(true)
     workers.remove(jobId)?.cancel(true)
+    if (journal.optString("kind") == "recording" && !journal.optString("sourceUri").startsWith("streamfusion-fixture://")) {
+      val file = artifactFile(jobId)
+      if (file == null || !MediaJobPlayableFile.isPlayable(file)) {
+        val artifact = artifactFrom(jobId)
+        writeJournal(jobId, "recording", journal.optInt("generation"), "failed-retryable", artifact.second,
+          journalDurationMs(journal), artifact.first, artifact.second, false, false, "interrupted",
+          "The saved recording does not contain a playable media segment.", journal.optString("sourceUri"))
+        owned.remove(jobId)
+        stopServiceIfIdle()
+        return mapOf("kind" to "unsupported", "code" to "NATIVE_OPERATION_UNSUPPORTED", "diagnostic" to "The saved recording does not contain a playable media segment. Keep was not completed.")
+      }
+    }
     completeArtifact(jobId)
     val artifact = artifactFrom(jobId)
     val duration = journalDurationMs(journal)

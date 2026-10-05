@@ -8,7 +8,7 @@ class StreamFusionPlaybackModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("StreamFusionPlayback")
     Events("onNativePlayback")
-    Function("getContractVersion") { 4 }
+    Function("getContractVersion") { 5 }
     OnCreate {
       FocusedPlaybackSessionOwner.attachEmitter { event ->
         sendEvent("onNativePlayback", event)
@@ -45,6 +45,12 @@ class StreamFusionPlaybackModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("setMuted") { sessionId: String, muted: Boolean ->
       FocusedPlaybackSessionOwner.setMuted(sessionId, muted)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("readPlaybackObservation") { sessionId: String ->
+      FocusedPlaybackSessionOwner.readObservation(sessionId)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setPlaybackSpeed") { sessionId: String, speed: Double ->
+      FocusedPlaybackSessionOwner.setSpeed(sessionId, speed.toFloat())
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("setVolume") { sessionId: String, volume: Double ->
       FocusedPlaybackSessionOwner.setVolume(sessionId, volume.toFloat())

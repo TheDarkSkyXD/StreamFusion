@@ -11,6 +11,9 @@ vi.mock("expo-video", () => {
       volume: 1,
       loop: false,
       currentTime: 0,
+      bufferedPosition: 2,
+      playbackRate: 1,
+      isLive: false,
     })),
   };
 });
@@ -21,9 +24,8 @@ describe("createExpoHlsFocusedPlaybackPort", () => {
   });
 
   it("starts an Expo HLS session when Media3 is absent", async () => {
-    const { createExpoHlsFocusedPlaybackPort } = await import(
-      "../adapters/expo/expo-hls-focused-playback"
-    );
+    const { createExpoHlsFocusedPlaybackPort } =
+      await import("../adapters/expo/expo-hls-focused-playback");
     const port = createExpoHlsFocusedPlaybackPort();
     const started = await port.start({
       requestHeaders: { "Client-ID": "test" },
@@ -34,6 +36,24 @@ describe("createExpoHlsFocusedPlaybackPort", () => {
     if (started.kind === "started") {
       expect(started.session.sessionId).toBe("session-1");
     }
+    expect(await port.setPlaybackSpeed?.("session-1", 1.5)).toEqual({
+      kind: "observed",
+      observation: {
+        sessionId: "session-1",
+        speed: 1.5,
+        bufferedMs: 2000,
+        width: null,
+        height: null,
+        frameRate: null,
+        bitrate: null,
+        codec: null,
+        droppedFrames: null,
+        renderedFrames: null,
+      },
+    });
+    expect((await port.setPlaybackSpeed?.("session-1", 3))?.kind).toBe(
+      "unavailable",
+    );
     const ended = await port.end("session-1");
     expect(ended.kind).toBe("ended");
   });

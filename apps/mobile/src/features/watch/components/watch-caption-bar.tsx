@@ -1,3 +1,4 @@
+import { CaptionModelManagement } from "@mobile/features/local-captions/components/caption-model-management";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -19,6 +20,7 @@ export type WatchCaptionBarProps = {
   readonly model?: CaptionModelState | null;
   readonly onInstall?: () => void;
   readonly onRemove?: () => void;
+  readonly onCancelInstall?: () => void;
   readonly onStart?: () => void;
   readonly onStop?: () => void;
   readonly session?: CaptionSessionState | null;
@@ -31,6 +33,7 @@ export function WatchCaptionBar({
   model,
   onInstall,
   onRemove,
+  onCancelInstall,
   onStart,
   onStop,
   session,
@@ -42,6 +45,14 @@ export function WatchCaptionBar({
       <View style={styles.panel} testID="watch-captions-unavailable">
         <Text style={styles.heading}>Local captions</Text>
         <Text style={styles.status}>{eligibility.reason}</Text>
+        <CaptionModelManagement
+          busy={busy}
+          model={model}
+          onInstall={onInstall}
+          onRemove={onRemove}
+          onCancelInstall={onCancelInstall}
+          status={status}
+        />
       </View>
     );
   }
@@ -67,6 +78,14 @@ export function WatchCaptionBar({
       >
         {busy ? "Working on local captions…" : message}
       </Text>
+      <CaptionModelManagement
+        busy={busy}
+        model={model}
+        onInstall={onInstall}
+        onRemove={onRemove}
+        onCancelInstall={onCancelInstall}
+        status={status}
+      />
       <View style={styles.actions}>
         {active ? (
           <Action

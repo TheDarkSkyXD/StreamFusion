@@ -44,11 +44,14 @@ export interface MediaJobsViewModel {
 }
 
 export interface MediaJobsController {
-  readonly apply: (command: MediaJobCommandName) => Promise<void>;
-  readonly deleteJob: () => Promise<void>;
-  readonly exportJob: () => Promise<void>;
+  readonly apply: (
+    command: MediaJobCommandName,
+    jobId?: string,
+  ) => Promise<void>;
+  readonly deleteJob: (jobId?: string) => Promise<void>;
+  readonly exportJob: (jobId?: string) => Promise<void>;
   readonly model: MediaJobsViewModel;
-  readonly openArtifact: () => Promise<void>;
+  readonly openArtifact: (jobId?: string) => Promise<void>;
   readonly recover: () => Promise<void>;
   readonly refresh: () => Promise<void>;
   readonly startDownload: () => Promise<string>;
@@ -155,8 +158,9 @@ export function useMediaJobsController(options: {
 
   const runSelected = async (
     work: (jobId: string) => Promise<string | null>,
+    targetJobId?: string,
   ) => {
-    const selectedJobId = options.selectedJobId;
+    const selectedJobId = targetJobId ?? options.selectedJobId;
     if (!selectedJobId) return;
     await lockUser(async () => {
       const message = await work(selectedJobId);
@@ -167,7 +171,7 @@ export function useMediaJobsController(options: {
 
   return {
     model: { busy, jobs, selected, status },
-    apply: async (command) => {
+    apply: async (command, targetJobId) => {
       await runSelected(async (selectedJobId) => {
         const now = nowTimestamp();
         const result = await options.workflow.apply(
@@ -175,24 +179,25 @@ export function useMediaJobsController(options: {
           now,
         );
         return statusFromResult(result);
-      });
+      }, targetJobId);
     },
-    deleteJob: async () => {
+    deleteJob: async (targetJobId) => {
       await runSelected(async (jobId) => {
         const result = await options.workflow.delete(jobId, nowTimestamp());
         return result.kind === "rejected" ? result.reason : MEDIA_JOB_DELETED;
-      });
+      }, targetJobId);
     },
-    exportJob: async () => {
-      await runSelected(async (jobId) =>
-        exportMessage(await options.workflow.exportJob(jobId)),
+    exportJob: async (targetJobId) => {
+      await runSelected(
+        async (jobId) => exportMessage(await options.workflow.exportJob(jobId)),
+        targetJobId,
       );
     },
-    openArtifact: async () => {
+    openArtifact: async (targetJobId) => {
       await runSelected(async (jobId) => {
         const result = await options.workflow.openArtifact(jobId);
         return result.kind === "rejected" ? result.reason : MEDIA_JOB_OPENED;
-      });
+      }, targetJobId);
     },
     recover: async () => {
       await lockUser(async () => {
@@ -206,7 +211,8 @@ export function useMediaJobsController(options: {
     refresh,
     startDownload: () => start("download", MEDIA_JOB_FIXTURE_DOWNLOAD_URI),
     startHttpRange: () => start("download", MEDIA_JOB_HTTP_RANGE_PROOF_URI),
-    startNetworkLoss: () => start("download", MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI),
+    startNetworkLoss: () =>
+      start("download", MEDIA_JOB_FIXTURE_NETWORK_LOSS_URI),
     startRecording: () => start("recording", MEDIA_JOB_FIXTURE_RECORDING_URI),
     startCompressedRecording: () =>
       start("recording", MEDIA_JOB_FIXTURE_RECORDING_COMPRESSED_URI),
@@ -223,7 +229,9 @@ function nowTimestamp(): ReturnType<typeof toSerializedTimestamp> {
 }
 
 function statusFromResult(result: MediaJobCommandResult): string {
-  return result.kind === "rejected" ? result.reason : result.snapshot.statusMessage;
+  return result.kind === "rejected"
+    ? result.reason
+    : result.snapshot.statusMessage;
 }
 
 function applyPayload(

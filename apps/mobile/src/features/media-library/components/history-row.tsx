@@ -29,44 +29,51 @@ export function HistoryRow({
   const progress = watchHistoryProgressRatio(item);
   return (
     <View style={styles.card} testID={`history-row-${item.id}`}>
-      <View style={styles.thumbWrap}>
-        <HistoryMediaImage
-          resizeMode="cover"
-          style={styles.thumb}
-          testID={`history-thumbnail-${item.id}`}
-          uri={item.thumbnailUrl}
-        />
-        <View style={styles.kindBadge}>
-          <Text selectable style={styles.kindLabel}>
-            {item.kind.toUpperCase()}
-          </Text>
-        </View>
-        <MobilePlatformBadge platform={item.platform} style={styles.platformBadge} />
-        {progress === null ? null : (
-          <View
-            style={styles.progressTrack}
-            testID={`history-progress-${item.id}`}
-          >
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+      <View style={styles.mediaRow}>
+        <View style={styles.thumbWrap}>
+          <HistoryMediaImage
+            resizeMode="cover"
+            style={styles.thumb}
+            testID={`history-thumbnail-${item.id}`}
+            uri={item.thumbnailUrl}
+          />
+          <View style={styles.kindBadge}>
+            <Text selectable style={styles.kindLabel}>
+              {item.kind.toUpperCase()}
+            </Text>
           </View>
-        )}
-      </View>
-      <View style={styles.meta}>
-        <HistoryMediaImage
-          style={styles.avatar}
-          testID={`history-avatar-${item.id}`}
-          uri={item.avatarUrl}
-        />
-        <View style={styles.copy}>
-          <Text selectable style={styles.title}>
-            {item.title}
-          </Text>
-          <Text selectable style={styles.channel}>
-            {item.channelDisplayName}
-          </Text>
-          <Text selectable style={styles.when}>
-            {formatWatchedAt(item.updatedAt)}
-          </Text>
+          <MobilePlatformBadge
+            platform={item.platform}
+            style={styles.platformBadge}
+          />
+          {progress === null ? null : (
+            <View
+              style={styles.progressTrack}
+              testID={`history-progress-${item.id}`}
+            >
+              <View
+                style={[styles.progressFill, { width: `${progress * 100}%` }]}
+              />
+            </View>
+          )}
+        </View>
+        <View style={styles.meta}>
+          <HistoryMediaImage
+            style={styles.avatar}
+            testID={`history-avatar-${item.id}`}
+            uri={item.avatarUrl}
+          />
+          <View style={styles.copy}>
+            <Text selectable style={styles.title}>
+              {item.title}
+            </Text>
+            <Text selectable style={styles.channel}>
+              {item.channelDisplayName}
+            </Text>
+            <Text selectable style={styles.when}>
+              {formatWatchedAt(item.updatedAt)}
+            </Text>
+          </View>
         </View>
       </View>
       <View style={styles.actions}>
@@ -165,14 +172,18 @@ function formatWatchedAt(updatedAt: number): string {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: mobileColors.surface,
-    borderRadius: mobileRadii.large,
-    overflow: "hidden",
+    gap: mobileSpacing.small,
+    borderBottomColor: mobileColors.border,
+    borderBottomWidth: 1,
+    paddingBottom: mobileSpacing.small,
   },
+  mediaRow: { flexDirection: "row", gap: mobileSpacing.small },
   thumbWrap: {
     aspectRatio: 16 / 9,
     backgroundColor: mobileColors.surfaceMuted,
-    width: "100%",
+    width: 112,
+    borderRadius: mobileRadii.medium,
+    overflow: "hidden",
   },
   thumb: {
     height: "100%",
@@ -214,13 +225,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
+    flex: 1,
   },
   avatar: {
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.full,
-    height: 40,
-    width: 40,
+    height: 28,
+    width: 28,
   },
   copy: {
     flex: 1,

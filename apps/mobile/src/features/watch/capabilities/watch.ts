@@ -1,3 +1,4 @@
+import type { PlaybackObservation } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import type { Channel, Stream } from "@streamfusion/core/content";
 import type {
   Platform,
@@ -6,6 +7,11 @@ import type {
 import type { PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 
 export type { WatchChatAvailability } from "@mobile/features/chat/capabilities/watch-chat";
+
+export type { PlaybackObservation } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
+export type PlaybackObservationResult =
+  | { readonly kind: "observed"; readonly observation: PlaybackObservation }
+  | { readonly kind: "unavailable"; readonly failure: FocusedPlaybackFailure };
 
 export type PlayerPresentation = "watch" | "mini" | "pip" | "fullscreen";
 
@@ -266,6 +272,13 @@ export type FocusedPictureInPictureResult =
   | { readonly kind: "unsupported"; readonly failure: FocusedPlaybackFailure };
 
 export interface FocusedPlaybackPort {
+  readPlaybackObservation?(
+    sessionId: string,
+  ): Promise<PlaybackObservationResult>;
+  setPlaybackSpeed?(
+    sessionId: string,
+    speed: number,
+  ): Promise<PlaybackObservationResult>;
   end(sessionId: string): Promise<FocusedPlaybackEndResult>;
   enterPictureInPicture(
     sessionId: string,
@@ -411,6 +424,8 @@ export type WatchPeek =
     };
 
 export interface FocusedWatchSession {
+  readPlaybackObservation?(): Promise<PlaybackObservationResult>;
+  setPlaybackSpeed?(speed: number): Promise<PlaybackObservationResult>;
   conceal(): void;
   dismiss(): Promise<void>;
   dispose(): Promise<void>;

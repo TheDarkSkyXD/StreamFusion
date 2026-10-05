@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Stream } from "@streamfusion/core/content";
 import { toSerializedTimestamp } from "@streamfusion/core/activity";
@@ -8,6 +8,8 @@ import type {
   MediaJobSnapshot,
 } from "@streamfusion/core/media-jobs";
 
+import { mediaJobDisplay } from "@mobile/features/media-jobs/utils/media-display";
+import type { DisplayMediaJobIntent } from "@mobile/features/media-jobs/capabilities/media-display";
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
 import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { ProductPreferences } from "@streamfusion/core/settings";
@@ -25,7 +27,14 @@ import {
   useFocusedWatchSession,
   useWatchPeek,
 } from "./use-focused-watch-session";
-import { WatchEmptyState, WatchScreen, type WatchCaptionControls, type WatchMediaJobControls, type WatchScreenRuntime } from "./watch-screen";
+import {
+  WatchEmptyState,
+  WatchScreen,
+  type WatchCaptionControls,
+  type WatchMediaJobControls,
+  type WatchScreenRuntime,
+} from "./watch-screen";
+import { watchDownloadCopyId } from "../domain/watch-download-copy";
 import { recordedWatchStartPositionMs } from "../domain/watch-target";
 import {
   watchDownloadEligibility,
@@ -49,10 +58,10 @@ import type { WatchChatMessage } from "@mobile/features/chat/capabilities/watch-
 export type WatchDownloadSession = {
   readonly busy: boolean;
   readonly jobs: readonly MediaJobSnapshot[];
-  readonly onCommand: (command: MediaJobCommandName) => void;
-  readonly onDelete: () => void;
-  readonly onExport: () => void;
-  readonly onOpenArtifact: () => void;
+  readonly onCommand: (command: MediaJobCommandName, jobId?: string) => void;
+  readonly onDelete: (jobId?: string) => void;
+  readonly onExport: (jobId?: string) => void;
+  readonly onOpenArtifact: (jobId?: string) => void;
   readonly onStartIntent: (
     intent: MediaJobIntent,
     requestHeaders?: Readonly<Record<string, string>>,
@@ -66,21 +75,27 @@ export type WatchCaptionSession = {
   readonly model: CaptionModelState | null;
   readonly onInstall: () => void;
   readonly onRemove: () => void;
+  readonly onCancelInstall?: () => void;
   readonly onStart: (sessionId: string) => void;
   readonly onStop: (sessionId: string) => void;
   readonly session: CaptionSessionState | null;
   readonly status: string | null;
 };
 
-
 const INERT_FOLLOWING_SESSION = {
   listMembership: async () => [],
-  mutateFollow: async () => ({ kind: "rejected" as const, reason: "invalid" as const }),
+  mutateFollow: async () => ({
+    kind: "rejected" as const,
+    reason: "invalid" as const,
+  }),
   resolveChannel: async () => null,
-  hydrateLive: async () => ({ kick: { kind: "empty" }, twitch: { kind: "empty" } }),
+  hydrateLive: async () => ({
+    kick: { kind: "empty" },
+    twitch: { kind: "empty" },
+  }),
   hydrateRecorded: async () => ({ kind: "empty" }),
-  readNotifications: async () => ({} as never),
-  writeNotifications: async () => ({} as never),
+  readNotifications: async () => ({}) as never,
+  writeNotifications: async () => ({}) as never,
   openProviderPage: async () => {},
 } as unknown as FollowingSession;
 
@@ -214,16 +229,25 @@ function WatchSessionRoute({
     if (playback.kind !== "ready") return;
     void startWatchThenResume(session, target);
   }, [playback.kind, session, target]);
+  const lastCopyCommandTime = useRef(0);
   const eligibility = watchDownloadEligibility(target);
   const recordingEligibility = watchRecordingEligibility(target);
   const captionEligibility = watchCaptionEligibility(
     target,
     playerPrefs?.captionsEnabled ?? true,
-    screen.nativePlayback && peek.kind === "active" ? peek.state.session.sessionId : undefined,
+    screen.nativePlayback && peek.kind === "active"
+      ? peek.state.session.sessionId
+      : undefined,
   );
   const rewindMs = (playerPrefs?.rewindSeconds ?? 10) * 1_000;
   const forwardMs = (playerPrefs?.fastForwardSeconds ?? 10) * 1_000;
-  const downloadJob = jobForEligibility(download?.jobs, eligibility);
+  const downloadJob =
+    download?.jobs.find(
+      (job) =>
+        mediaJobDisplay(job)?.sourceIdentity ===
+          `${target.platform}:${target.media?.kind ?? "live"}:${target.media?.id ?? target.channelId}` &&
+        job.intent.kind === "download",
+    ) ?? jobForEligibility(download?.jobs, eligibility);
   const recordingJob = jobForEligibility(recording?.jobs, recordingEligibility);
   const inspection = useQuery({
     queryFn: ({ signal }) => screen.runtime.inspection.read({ signal, target }),
@@ -245,8 +269,7 @@ function WatchSessionRoute({
     repository: screen.history,
     target,
   });
-  const playing =
-    peek.kind === "active" && peek.state.phase !== "paused";
+  const playing = peek.kind === "active" && peek.state.phase !== "paused";
   const revealControls = useCallback(() => {
     setControlsVisible(true);
     setIdleToken((token) => token + 1);
@@ -263,10 +286,13 @@ function WatchSessionRoute({
   return (
     <WatchScreen
       chatSession={screen.chat}
-      {...(screen.chatInteractions === undefined ? {} : { chatInteractions: screen.chatInteractions })}
+      {...(screen.chatInteractions === undefined
+        ? {}
+        : { chatInteractions: screen.chatInteractions })}
       {...(onOpenEngagement === undefined ? {} : { onOpenEngagement })}
       {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
       PlayerSurface={screen.PlayerSurface}
+      playerTools={session}
       adblockView={adblockView}
       chat={chat}
       followBusy={channelFollow.follow.kind === "pending"}
@@ -338,7 +364,10 @@ function WatchSessionRoute({
       }}
       onToggleFullscreen={() => {
         revealControls();
-        if (peek.kind === "active" && peek.presentation.presentation === "fullscreen") {
+        if (
+          peek.kind === "active" &&
+          peek.presentation.presentation === "fullscreen"
+        ) {
           session.exitFullscreen();
           return;
         }
@@ -363,23 +392,50 @@ function WatchSessionRoute({
       {...(download === undefined
         ? {}
         : {
-            download: mediaJobControls(
-              download,
-              eligibility,
-              downloadJob,
-              () => {
+            download: {
+              ...mediaJobControls(
+                download,
+                eligibility,
+                downloadJob,
+                () => {
+                  void startWatchMediaJob(
+                    screen,
+                    target,
+                    download,
+                    setDownloadError,
+                    eligibility,
+                    "download",
+                    i18n.t("playback.watch.downloadCancelled"),
+                  );
+                },
+                downloadError,
+              ),
+              onStartAgain: () => {
+                if (eligibility.kind !== "eligible") return;
+                const commandTime = Math.max(
+                  Date.now(),
+                  lastCopyCommandTime.current + 1,
+                );
+                lastCopyCommandTime.current = commandTime;
+                const copy = {
+                  ...eligibility,
+                  jobId: watchDownloadCopyId(
+                    eligibility.jobId,
+                    commandTime,
+                    download.jobs.map((job) => job.intent.jobId),
+                  ),
+                };
                 void startWatchMediaJob(
                   screen,
                   target,
                   download,
                   setDownloadError,
-                  eligibility,
+                  copy,
                   "download",
                   i18n.t("playback.watch.downloadCancelled"),
                 );
               },
-              downloadError,
-            ),
+            },
           })}
       {...(recording === undefined
         ? {}
@@ -410,8 +466,6 @@ function WatchSessionRoute({
     />
   );
 }
-
-
 
 function seekWatchSessionTo(
   session: FocusedWatchSession,
@@ -472,8 +526,12 @@ function captionControls(
     model: session.model,
     onInstall: session.onInstall,
     onRemove: session.onRemove,
+    ...(session.onCancelInstall
+      ? { onCancelInstall: session.onCancelInstall }
+      : {}),
     onStart: () => {
-      if (eligibility.kind === "eligible") session.onStart(eligibility.sessionId);
+      if (eligibility.kind === "eligible")
+        session.onStart(eligibility.sessionId);
     },
     onStop: () => {
       session.onStop(
@@ -498,10 +556,10 @@ function mediaJobControls<Eligibility>(
     busy: session.busy,
     eligibility,
     job,
-    onCommand: session.onCommand,
-    onDelete: session.onDelete,
-    onExport: session.onExport,
-    onOpenArtifact: session.onOpenArtifact,
+    onCommand: (command) => session.onCommand(command, job?.intent.jobId),
+    onDelete: () => session.onDelete(job?.intent.jobId),
+    onExport: () => session.onExport(job?.intent.jobId),
+    onOpenArtifact: () => session.onOpenArtifact(job?.intent.jobId),
     onStart,
     status: error ?? session.status,
   };
@@ -533,14 +591,20 @@ async function startWatchMediaJob(
     return;
   }
   setError(null);
-  await session.onStartIntent(
-    {
-      schemaVersion: 1,
-      jobId: eligibility.jobId,
-      kind,
-      sourceUri: resolved.sourceUri,
-      createdAt: toSerializedTimestamp(new Date().toISOString()),
+  const intent: DisplayMediaJobIntent = {
+    display: {
+      title: target.media?.title ?? `${target.channelName} recording`,
+      channelName: target.channelName,
+      platform: target.platform,
+      contentKind: target.media?.kind ?? "recording",
+      sourceIdentity: `${target.platform}:${target.media?.kind ?? "live"}:${target.media?.id ?? target.channelId}`,
+      thumbnailUrl: target.media?.thumbnailUrl ?? null,
     },
-    resolved.requestHeaders,
-  );
+    schemaVersion: 1,
+    jobId: eligibility.jobId,
+    kind,
+    sourceUri: resolved.sourceUri,
+    createdAt: toSerializedTimestamp(new Date().toISOString()),
+  };
+  await session.onStartIntent(intent, resolved.requestHeaders);
 }

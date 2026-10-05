@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { watchDownloadEligibility, watchDownloadJobId } from "../domain/watch-download";
+import {
+  watchDownloadEligibility,
+  watchDownloadJobId,
+} from "../domain/watch-download";
 import type { WatchTarget } from "../capabilities/watch";
 
 const live: WatchTarget = {
@@ -68,5 +71,30 @@ describe("Watch download eligibility", () => {
       kind: "unsupported",
       reason: "Kick clips are not available in this build.",
     });
+  });
+});
+
+describe("intentional download copies", () => {
+  it("uses distinct native file identities while preserving the source identity", async () => {
+    const { watchDownloadCopyId } =
+      await import("../domain/watch-download-copy");
+    const base = watchDownloadEligibility({
+      platform: "twitch",
+      channelId: "channel",
+      channelName: "channel",
+      media: {
+        id: "123",
+        kind: "video",
+        title: "Broadcast",
+        durationSeconds: 100,
+      },
+    });
+    expect(base.kind).toBe("eligible");
+    if (base.kind !== "eligible")
+      throw new Error("Expected an eligible recording");
+    const first = watchDownloadCopyId(base.jobId, 1234, [base.jobId]);
+    const second = watchDownloadCopyId(base.jobId, 1234, [base.jobId, first]);
+    expect(first).toBe("dl-twitch-video-123-copy-1234-1");
+    expect(second).toBe("dl-twitch-video-123-copy-1234-2");
   });
 });

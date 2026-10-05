@@ -1,7 +1,10 @@
-import { StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Image, StyleSheet, Text, View } from "react-native";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
-
 import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileTextField } from "@mobile/design/text-input";
+import { MobileProgress } from "@mobile/design/feedback";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
@@ -10,193 +13,181 @@ import {
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
+import { mediaJobDisplay } from "../utils/media-display";
+import {
+  filterMediaJobs,
+  type MediaLibraryFilter,
+} from "../domain/media-library-filter";
+import { useTransferObservation } from "./use-transfer-observation";
 import { mediaJobPhaseLabel } from "../utils/media-job-labels";
-
+const filters: readonly {
+  readonly value: MediaLibraryFilter;
+  readonly label: string;
+}[] = [
+  { value: "all", label: "All" },
+  { value: "video", label: "Videos" },
+  { value: "clip", label: "Clips" },
+  { value: "recording", label: "Recordings" },
+];
 export function DownloadsScreen({
   jobs,
   onOpenJob,
   onRefresh,
   refreshing = false,
+  offline = false,
 }: {
   readonly jobs: readonly MediaJobSnapshot[];
   readonly onOpenJob: (jobId: string) => void;
   readonly onRefresh?: () => void | Promise<void>;
   readonly refreshing?: boolean;
+  readonly offline?: boolean;
 }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<MediaLibraryFilter>("all");
+  const visible = filterMediaJobs(jobs, query, filter);
   return (
     <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
       onRefresh={onRefresh}
       refreshing={refreshing}
-      style={styles.scroll}
+      style={styles.screen}
       testID="screen-downloads"
     >
-      {jobs.length === 0 ? (
-        <MobileStatusPanel testID="downloads-empty" tone="empty">
-          <Text selectable style={mobileType.title}>
-            No downloads yet
-          </Text>
-          <Text selectable style={mobileType.body}>
-            Start one from Watch.
+      <MobileTextField
+        label="Search downloads"
+        placeholder="Channel or title"
+        value={query}
+        onChange={setQuery}
+      />
+      <View style={styles.filters}>
+        {filters.map((item) => (
+          <MobileFilterChip
+            key={item.value}
+            label={item.label}
+            accessibilityLabel={item.label}
+            selected={filter === item.value}
+            onPress={() => setFilter(item.value)}
+            testID={`downloads-filter-${item.value}`}
+          />
+        ))}
+      </View>
+      {offline ? (
+        <MobileStatusPanel tone="info" testID="downloads-offline">
+          <Text style={mobileType.body}>
+            You are offline. Saved files remain available on this device.
           </Text>
         </MobileStatusPanel>
-      ) : (
-        <View style={styles.stack}>
-          {jobs.map((job) => {
-            const jobId = job.intent.jobId;
-            const progress = progressRatio(job);
-            return (
-              <View
-                key={jobId}
-                style={styles.card}
-                testID={`downloads-job-${jobId}`}
-              >
-                <View style={styles.thumbWrap}>
-                  <View style={styles.thumb}>
-                    <Text selectable style={styles.kindBadge}>
-                      {job.intent.kind.toUpperCase()}
-                    </Text>
-                  </View>
-                  {progress === null ? null : (
-                    <View style={styles.progressTrack}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          { width: `${progress * 100}%` },
-                        ]}
-                      />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.meta}>
-                  <View style={styles.copy}>
-                    <Text selectable style={styles.title}>
-                      {jobTitle(job)}
-                    </Text>
-                    <Text selectable style={styles.status}>
-                      {mediaJobPhaseLabel(job.phase)}
-                      {job.statusMessage ? ` · ${job.statusMessage}` : ""}
-                    </Text>
-                    {progress === null ? null : (
-                      <Text selectable style={styles.progressLabel}>
-                        {`${Math.round(progress * 100)}%`}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.actions}>
-                  <MobileButton
-                    accessibilityLabel={`Open media job ${jobId}`}
-                    onPress={() => onOpenJob(jobId)}
-                    testID={`downloads-open-${jobId}`}
-                    variant="secondary"
-                  >
-                    {job.phase === "completed" ? "Open" : "Details"}
-                  </MobileButton>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )}
+      ) : null}
+      <Text style={mobileType.title}>On this device</Text>
+      {visible.length === 0 ? (
+        <MobileStatusPanel testID="downloads-empty" tone="empty">
+          <Text style={mobileType.title}>
+            {jobs.length ? "No matching downloads" : "No downloads yet"}
+          </Text>
+          <Text style={mobileType.body}>
+            {jobs.length
+              ? "Try a different search or filter."
+              : "Start one from Watch."}
+          </Text>
+        </MobileStatusPanel>
+      ) : null}
+      {visible.map((job) => (
+        <DownloadRow
+          key={job.intent.jobId}
+          job={job}
+          onOpen={() => onOpenJob(job.intent.jobId)}
+        />
+      ))}
     </MobileRefreshableScroll>
   );
 }
-
-function jobTitle(job: MediaJobSnapshot): string {
-  const uri = job.intent.sourceUri;
-  if (!uri) return job.intent.kind;
-  try {
-    const path = uri.split("?")[0] ?? uri;
-    const leaf = path.split("/").filter(Boolean).at(-1);
-    return leaf && leaf.length > 0 ? decodeURIComponent(leaf) : job.intent.kind;
-  } catch {
-    return job.intent.kind;
-  }
-}
-
-function progressRatio(job: MediaJobSnapshot): number | null {
+export function DownloadRow({
+  job,
+  onOpen,
+}: {
+  readonly job: MediaJobSnapshot;
+  readonly onOpen: () => void;
+}) {
+  const display = mediaJobDisplay(job);
+  const transfer = useTransferObservation(job);
   const total = job.progress.totalBytes;
-  if (total === null || total <= 0) return null;
-  return Math.min(1, Math.max(0, job.progress.transferredBytes / total));
+  const progress =
+    total && total > 0
+      ? Math.min(1, job.progress.transferredBytes / total)
+      : null;
+  const saved = job.phase === "completed" && job.artifact.kind === "complete";
+  return (
+    <View style={styles.row} testID={`downloads-job-${job.intent.jobId}`}>
+      <View style={styles.media}>
+        {display?.thumbnailUrl ? (
+          <Image
+            source={{ uri: display.thumbnailUrl }}
+            style={styles.thumbnail}
+          />
+        ) : (
+          <View style={styles.thumbnail} />
+        )}
+        <View style={styles.copy}>
+          <Text numberOfLines={2} style={mobileType.title}>
+            {display?.title ??
+              (job.intent.kind === "recording"
+                ? "Saved recording"
+                : "Saved download")}
+          </Text>
+          <Text style={mobileType.body}>
+            {display?.channelName ?? "Source metadata unavailable"}
+          </Text>
+          <Text style={mobileType.label}>
+            {mediaJobPhaseLabel(job.phase)} �{" "}
+            {(job.progress.transferredBytes / 1048576).toFixed(1)} MiB
+            {saved ? " � Available offline" : ""}
+          </Text>
+        </View>
+      </View>
+      {transfer.bytesPerSecond !== null ? (
+        <Text style={mobileType.label}>
+          {(transfer.bytesPerSecond / 1048576).toFixed(2)} MiB/s � measured
+          transfer
+        </Text>
+      ) : null}
+      {progress !== null && !saved ? (
+        <MobileProgress
+          label={`${Math.round(progress * 100)}%`}
+          value={progress}
+        />
+      ) : null}
+      <MobileButton
+        accessibilityLabel={`Open media job ${job.intent.jobId}`}
+        onPress={onOpen}
+        testID={`downloads-open-${job.intent.jobId}`}
+        variant="ghost"
+      >
+        {saved ? "Open" : "Details"}
+      </MobileButton>
+    </View>
+  );
 }
-
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: mobileColors.background },
+  screen: { flex: 1, backgroundColor: mobileColors.background },
   content: {
-    gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
-    paddingBottom: mobileSpacing.xLarge,
+    gap: mobileSpacing.medium,
+    paddingBottom: 96,
   },
-  stack: { gap: mobileSpacing.medium },
-  card: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    overflow: "hidden",
+  filters: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
+  row: {
+    gap: mobileSpacing.small,
+    borderBottomWidth: 1,
+    borderBottomColor: mobileColors.border,
+    paddingBottom: mobileSpacing.small,
   },
-  thumbWrap: {
+  media: { flexDirection: "row", gap: mobileSpacing.small },
+  thumbnail: {
+    width: 112,
     aspectRatio: 16 / 9,
     backgroundColor: mobileColors.surfaceMuted,
-    width: "100%",
+    borderRadius: mobileRadii.medium,
   },
-  thumb: {
-    alignItems: "flex-start",
-    flex: 1,
-    justifyContent: "flex-start",
-    padding: mobileSpacing.small,
-  },
-  kindBadge: {
-    backgroundColor: mobileColors.overlay,
-    borderRadius: mobileRadii.small,
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
-    overflow: "hidden",
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-  },
-  progressTrack: {
-    backgroundColor: "rgba(255,255,255,0.24)",
-    bottom: 0,
-    height: 4,
-    left: 0,
-    position: "absolute",
-    right: 0,
-  },
-  progressFill: {
-    backgroundColor: mobileColors.textPrimary,
-    height: 4,
-  },
-  meta: {
-    padding: mobileSpacing.medium,
-  },
-  copy: { gap: mobileSpacing.xSmall },
-  title: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  status: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  progressLabel: {
-    color: mobileColors.textCategory,
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    paddingBottom: mobileSpacing.medium,
-    paddingHorizontal: mobileSpacing.medium,
-  },
+  copy: { flex: 1, gap: mobileSpacing.xSmall },
 });

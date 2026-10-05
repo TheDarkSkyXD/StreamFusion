@@ -5,7 +5,7 @@ import {
   ChevronRight,
   CircleAlert,
 } from "lucide-react-native";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   type FlatList as FlatListView,
@@ -16,6 +16,8 @@ import {
   View,
 } from "react-native";
 
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileTextField } from "@mobile/design/text-input";
 import { MobileButton } from "@mobile/design/button";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
@@ -67,6 +69,20 @@ export function ActivityScreen({
   readonly onRefresh: () => Promise<void>;
   readonly scrollRequest?: number;
 }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "unread" | "jobs" | "alerts">(
+    "all",
+  );
+  const visible = model.items.filter(
+    (item) =>
+      (filter === "all" ||
+        (filter === "unread" && item.readAt === null) ||
+        (filter === "jobs" && item.kind === "job") ||
+        (filter === "alerts" && item.kind !== "job")) &&
+      `${item.title} ${item.body}`
+        .toLocaleLowerCase()
+        .includes(query.trim().toLocaleLowerCase()),
+  );
   const listRef = useRef<FlatListView<ActivityItem>>(null);
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
@@ -76,7 +92,7 @@ export function ActivityScreen({
     <FlatList
       contentContainerStyle={styles.listContent}
       contentInsetAdjustmentBehavior="automatic"
-      data={model.items}
+      data={visible}
       onRefresh={() => {
         void onRefresh();
       }}
@@ -84,21 +100,54 @@ export function ActivityScreen({
       ref={listRef}
       keyExtractor={(item) => item.eventId}
       ListEmptyComponent={
-        <ActivityEmptyState
-          isRefreshing={model.isRefreshing}
-          onRefresh={onRefresh}
-          status={model.status}
-        />
+        model.items.length > 0 ? (
+          <Text style={styles.itemBody}>No matching activity.</Text>
+        ) : (
+          <ActivityEmptyState
+            isRefreshing={model.isRefreshing}
+            onRefresh={onRefresh}
+            status={model.status}
+          />
+        )
       }
       ListHeaderComponent={
         <View style={styles.headerContent}>
-          <Text selectable style={styles.headerSummary}>
-            Notifications from channels you follow.
-          </Text>
+          <MobileTextField
+            label="Search activity"
+            placeholder="Channel or title"
+            value={query}
+            onChange={setQuery}
+          />
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: mobileSpacing.small,
+            }}
+          >
+            {(["all", "unread", "jobs", "alerts"] as const).map((item) => (
+              <MobileFilterChip
+                key={item}
+                label={
+                  item === "jobs"
+                    ? "Downloads"
+                    : item[0]!.toUpperCase() + item.slice(1)
+                }
+                accessibilityLabel={item}
+                selected={filter === item}
+                onPress={() => setFilter(item)}
+                testID={`activity-filter-${item}`}
+              />
+            ))}
+          </View>
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}
-            {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
-            {...(onRetryDevelopmentProof ? { onRetry: onRetryDevelopmentProof } : {})}
+            {...(onExitDevelopmentProof
+              ? { onExit: onExitDevelopmentProof }
+              : {})}
+            {...(onRetryDevelopmentProof
+              ? { onRetry: onRetryDevelopmentProof }
+              : {})}
           />
           {model.mutationFailure ? (
             <View
@@ -618,7 +667,9 @@ export function ActivityDetailScreen({
       <DevelopmentActivityProofBanner
         model={developmentProof ?? null}
         {...(onExitDevelopmentProof ? { onExit: onExitDevelopmentProof } : {})}
-        {...(onRetryDevelopmentProof ? { onRetry: onRetryDevelopmentProof } : {})}
+        {...(onRetryDevelopmentProof
+          ? { onRetry: onRetryDevelopmentProof }
+          : {})}
       />
     </ScrollView>
   );
@@ -633,8 +684,11 @@ function DevelopmentActivityProofBanner({
   readonly onExit?: () => Promise<void>;
   readonly onRetry?: () => Promise<void>;
 }) {
-  if ((model?.kind !== "proof" && model?.kind !== "cleanup-required") ||
-    (!onExit && !onRetry)) return null;
+  if (
+    (model?.kind !== "proof" && model?.kind !== "cleanup-required") ||
+    (!onExit && !onRetry)
+  )
+    return null;
   return (
     <View style={styles.proofBanner} testID="activity-proof-banner">
       <Text selectable style={styles.itemBody}>

@@ -26,6 +26,7 @@ export function createLocalCaptionsController(port: LocalCaptionsPort) {
   let disposed = false;
   let revision = 0;
   let unsubscribe: (() => void) | null = null;
+  let unsubscribeModel: (() => void) | null = null;
   let snapshot: LocalCaptionsViewModel = {
     busy: false,
     cueText: "",
@@ -42,6 +43,10 @@ export function createLocalCaptionsController(port: LocalCaptionsPort) {
   const connect = () => {
     disposed = false;
     if (unsubscribe) return;
+    unsubscribeModel =
+      port.subscribeModel?.((model) => {
+        update({ model, status: model.statusMessage });
+      }) ?? null;
     unsubscribe = port.subscribe((event) => {
       revision += 1;
       update({
@@ -174,9 +179,21 @@ export function createLocalCaptionsController(port: LocalCaptionsPort) {
       revision += 1;
       unsubscribe?.();
       unsubscribe = null;
+      unsubscribeModel?.();
+      unsubscribeModel = null;
     },
     refresh,
     installModel: () => install(),
+    cancelInstall: async () => {
+      if (disposed) return;
+      const result = await port.cancelEnglishModelInstall?.();
+      if (!result)
+        update({
+          status: "Model download cancellation is unavailable in this host.",
+        });
+      else if (result.kind !== "completed")
+        update({ status: result.failure.diagnostic });
+    },
     installFixture: () => install(LOCAL_CAPTION_FIXTURE_INSTALL_URI),
     installIntegrityFail: () =>
       install(LOCAL_CAPTION_FIXTURE_INTEGRITY_FAIL_URI),

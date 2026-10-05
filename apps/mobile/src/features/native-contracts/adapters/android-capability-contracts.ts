@@ -46,6 +46,7 @@ import type {
   MediaJobOpenNativeResult,
   PackageInstallHandoff,
   PlaybackQualityCatalog,
+  PlaybackObservation,
   PlaybackSessionState,
   VerifiedApk,
 } from "../capabilities/android-capability-contracts";
@@ -72,15 +73,14 @@ function describe(capability: AndroidCapabilityId): string {
   return capability.replaceAll("-", " ");
 }
 
-function expectedContractVersion(capability: AndroidCapabilityId): 1 | 2 | 3 | 4 {
-  if (capability === "playback") return 4;
-  if (
-    capability === "diagnostics" ||
-    capability === "media-jobs"
-  ) {
+function expectedContractVersion(
+  capability: AndroidCapabilityId,
+): 1 | 2 | 3 | 4 | 5 {
+  if (capability === "playback") return 5;
+  if (capability === "diagnostics" || capability === "media-jobs") {
     return 3;
   }
-  if (capability === "captions") return 3;
+  if (capability === "captions") return 4;
   return 1;
 }
 
@@ -246,6 +246,55 @@ async function invoke<
       code: "NATIVE_RESULT_INVALID",
       diagnostic: `Rebuild StreamFusion Development because the ${describe(capability)} Android module returned an invalid operation result.`,
     },
+  };
+}
+
+function playbackObservation(value: unknown): PlaybackObservation | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  if (
+    !("sessionId" in value) ||
+    typeof value.sessionId !== "string" ||
+    !("speed" in value) ||
+    typeof value.speed !== "number" ||
+    !Number.isFinite(value.speed) ||
+    value.speed <= 0 ||
+    !("bufferedMs" in value) ||
+    typeof value.bufferedMs !== "number" ||
+    !Number.isFinite(value.bufferedMs) ||
+    value.bufferedMs < 0
+  )
+    return undefined;
+  const nullableNumber = (field: unknown): field is number | null =>
+    field === null ||
+    (typeof field === "number" && Number.isFinite(field) && field >= 0);
+  if (
+    !("width" in value) ||
+    !nullableNumber(value.width) ||
+    !("height" in value) ||
+    !nullableNumber(value.height) ||
+    !("frameRate" in value) ||
+    !nullableNumber(value.frameRate) ||
+    !("bitrate" in value) ||
+    !nullableNumber(value.bitrate) ||
+    !("droppedFrames" in value) ||
+    !nullableNumber(value.droppedFrames) ||
+    !("renderedFrames" in value) ||
+    !nullableNumber(value.renderedFrames) ||
+    !("codec" in value) ||
+    (value.codec !== null && typeof value.codec !== "string")
+  )
+    return undefined;
+  return {
+    sessionId: value.sessionId,
+    speed: value.speed,
+    bufferedMs: value.bufferedMs,
+    width: value.width,
+    height: value.height,
+    frameRate: value.frameRate,
+    bitrate: value.bitrate,
+    codec: value.codec,
+    droppedFrames: value.droppedFrames,
+    renderedFrames: value.renderedFrames,
   };
 }
 
@@ -743,6 +792,41 @@ export function createAndroidPlaybackContractPort(
 ): AndroidPlaybackContractPort {
   return {
     readiness: () => readiness("playback", reader),
+    readPlaybackObservation: (sessionId) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) =>
+          binding.readPlaybackObservation
+            ? binding.readPlaybackObservation(sessionId)
+            : Promise.resolve({
+                kind: "unsupported",
+                code: "NATIVE_OPERATION_UNSUPPORTED",
+                diagnostic:
+                  "Playback observations are unavailable in this host.",
+              }),
+        (value) => {
+          const observation = playbackObservation(value);
+          return observation?.sessionId === sessionId ? observation : undefined;
+        },
+      ),
+    setPlaybackSpeed: (sessionId, speed) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) =>
+          binding.setPlaybackSpeed
+            ? binding.setPlaybackSpeed(sessionId, speed)
+            : Promise.resolve({
+                kind: "unsupported",
+                code: "NATIVE_OPERATION_UNSUPPORTED",
+                diagnostic: "Playback speed is unavailable in this host.",
+              }),
+        (value) => {
+          const observation = playbackObservation(value);
+          return observation?.sessionId === sessionId ? observation : undefined;
+        },
+      ),
     startFocusedSession: (request) =>
       invoke(
         "playback",
@@ -1030,6 +1114,36 @@ export function createAndroidCaptionsContractPort(
     invoke("captions", reader, operation, parse);
   return {
     readiness: () => readiness("captions", reader),
+    cancelEnglishModelInstall: () =>
+      invoke(
+        "captions",
+        reader,
+        (binding) =>
+          Promise.resolve(
+            binding.cancelEnglishModelInstall
+              ? binding.cancelEnglishModelInstall()
+              : {
+                  kind: "unsupported",
+                  code: "NATIVE_OPERATION_UNSUPPORTED",
+                  diagnostic:
+                    "Model download cancellation is unavailable in this host.",
+                },
+          ),
+        captionModelState,
+      ),
+    subscribeModel(listener) {
+      const resolution = resolveBinding("captions", reader);
+      if (resolution.kind === "unavailable" || !resolution.binding.addListener)
+        return () => undefined;
+      const subscription = resolution.binding.addListener(
+        "onNativeCaptionModel",
+        (value) => {
+          const state = captionModelState(value);
+          if (state) listener(state);
+        },
+      );
+      return () => subscription.remove();
+    },
     getEnglishModelState: () =>
       call((binding) => binding.getEnglishModelState(), captionModelState),
     installEnglishModel: (request) =>

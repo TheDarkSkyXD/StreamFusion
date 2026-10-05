@@ -5,6 +5,7 @@ import {
 
 import type { StoreDatabase } from "@mobile/features/storage/data/database-contracts";
 
+import { mediaJobDisplay, parseMediaDisplay } from "../utils/media-display";
 import type { MediaJobRepository } from "../capabilities/media-jobs";
 
 interface MediaJobRow {
@@ -47,9 +48,24 @@ export function createProductMediaJobStore(
         [
           snapshot.intent.jobId,
           snapshot.intent.kind,
-          JSON.stringify(snapshot),
+          JSON.stringify({
+            schemaVersion: 2,
+            snapshot: {
+              ...snapshot,
+              intent: {
+                schemaVersion: snapshot.intent.schemaVersion,
+                jobId: snapshot.intent.jobId,
+                kind: snapshot.intent.kind,
+                sourceUri: snapshot.intent.sourceUri,
+                createdAt: snapshot.intent.createdAt,
+              },
+            },
+            display: mediaJobDisplay(snapshot),
+          }),
           snapshot.checkpoint ? JSON.stringify(snapshot.checkpoint) : null,
-          Date.parse(snapshot.checkpoint?.updatedAt ?? snapshot.intent.createdAt),
+          Date.parse(
+            snapshot.checkpoint?.updatedAt ?? snapshot.intent.createdAt,
+          ),
         ],
       );
     },
@@ -61,7 +77,22 @@ export function createProductMediaJobStore(
 
 function parseRow(row: MediaJobRow): MediaJobSnapshot | null {
   try {
-    return parseMediaJobSnapshot(JSON.parse(row.state));
+    const value: unknown = JSON.parse(row.state);
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "schemaVersion" in value &&
+      value.schemaVersion === 2 &&
+      "snapshot" in value
+    ) {
+      const snapshot = parseMediaJobSnapshot(value.snapshot);
+      const display =
+        "display" in value ? parseMediaDisplay(value.display) : null;
+      if (!snapshot || !display) return snapshot;
+      const intent = { ...snapshot.intent, display };
+      return { ...snapshot, intent };
+    }
+    return parseMediaJobSnapshot(value);
   } catch {
     return null;
   }

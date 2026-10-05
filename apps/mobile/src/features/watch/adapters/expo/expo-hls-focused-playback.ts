@@ -1,8 +1,13 @@
-import { createVideoPlayer, type VideoPlayer, type VideoSource } from "expo-video";
+import {
+  createVideoPlayer,
+  type VideoPlayer,
+  type VideoSource,
+} from "expo-video";
 
 import type {
   FocusedPlaybackFailure,
   FocusedPlaybackPort,
+  PlaybackObservationResult,
   HlsSourceUri,
 } from "../../capabilities/watch";
 import {
@@ -20,6 +25,37 @@ import {
  */
 export function createExpoHlsFocusedPlaybackPort(): FocusedPlaybackPort {
   return {
+    async readPlaybackObservation(sessionId) {
+      return readExpoPlaybackObservation(sessionId);
+    },
+    async setPlaybackSpeed(sessionId, speed) {
+      try {
+        const entry = getExpoHlsPlaybackEntry(sessionId);
+        if (!entry)
+          return {
+            kind: "unavailable",
+            failure: {
+              code: "INVOCATION_FAILED",
+              detail: "The playback session ended.",
+            },
+          };
+        if (
+          ![0.5, 0.75, 1, 1.25, 1.5, 2].includes(speed) ||
+          entry.player.isLive
+        )
+          return {
+            kind: "unavailable",
+            failure: {
+              code: "OPERATION_UNSUPPORTED",
+              detail: "Playback speed is available for recorded media only.",
+            },
+          };
+        entry.player.playbackRate = speed;
+        return readExpoPlaybackObservation(sessionId);
+      } catch (error) {
+        return { kind: "unavailable", failure: failureFrom(error) };
+      }
+    },
     async start(input) {
       try {
         const source = videoSource(input.sourceUri, input.requestHeaders);
@@ -148,6 +184,42 @@ export function createExpoHlsFocusedPlaybackPort(): FocusedPlaybackPort {
       return subscribeExpoHlsPlayback(listener);
     },
   };
+}
+
+function readExpoPlaybackObservation(
+  sessionId: string,
+): PlaybackObservationResult {
+  try {
+    const entry = getExpoHlsPlaybackEntry(sessionId);
+    if (!entry)
+      return {
+        kind: "unavailable",
+        failure: {
+          code: "INVOCATION_FAILED",
+          detail: "The playback session ended.",
+        },
+      };
+    return {
+      kind: "observed",
+      observation: {
+        sessionId,
+        speed: entry.player.playbackRate,
+        bufferedMs: Math.max(
+          0,
+          (entry.player.bufferedPosition - entry.player.currentTime) * 1000,
+        ),
+        width: null,
+        height: null,
+        frameRate: null,
+        bitrate: null,
+        codec: null,
+        droppedFrames: null,
+        renderedFrames: null,
+      },
+    };
+  } catch (error) {
+    return { kind: "unavailable", failure: failureFrom(error) };
+  }
 }
 
 function videoSource(
