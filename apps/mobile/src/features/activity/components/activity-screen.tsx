@@ -40,6 +40,9 @@ const activityDateFormat = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
   timeStyle: "short",
 });
+const activityDayFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+});
 function isCompletedActivity(item: ActivityItem): boolean {
   return item.kind !== "job" || item.job.state.kind === "terminal";
 }
@@ -204,7 +207,23 @@ export function ActivityScreen({
           />
         </View>
       }
-      renderItem={({ item }) => <ActivityRow item={item} onOpen={onOpen} />}
+      renderItem={({ item, index }) => {
+        const day = activityDayFormat.format(new Date(item.occurredAt));
+        const previous = visible[index - 1];
+        const beginsDay =
+          !previous ||
+          day !== activityDayFormat.format(new Date(previous.occurredAt));
+        return (
+          <View style={{ gap: mobileSpacing.small }}>
+            {beginsDay ? (
+              <Text accessibilityRole="header" style={mobileType.label}>
+                {day}
+              </Text>
+            ) : null}
+            <ActivityRow item={item} onOpen={onOpen} />
+          </View>
+        );
+      }}
       testID="activity-list"
     />
   );

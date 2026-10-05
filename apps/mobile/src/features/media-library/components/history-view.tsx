@@ -19,6 +19,10 @@ import type {
 } from "../domain/watch-history-view";
 import { HistoryRow } from "./history-row";
 
+const historyDayFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+});
+
 export function HistoryView({
   model,
   onCancel,
@@ -115,16 +119,30 @@ export function HistoryView({
       {visibleItems.length === 0 && model.items.length > 0 ? (
         <Text style={styles.summary}>No matching history.</Text>
       ) : null}
-      {visibleItems.map((item) => (
-        <HistoryRow
-          item={item}
-          key={item.id}
-          onOpen={() => onOpen(item)}
-          onRemove={() => onRemove(item)}
-          onReplay={() => onReplay(item)}
-          onResume={() => onResume(item)}
-        />
-      ))}
+      {visibleItems.map((item, index) => {
+        const day = historyDayFormat.format(new Date(item.updatedAt));
+        const previous = visibleItems[index - 1];
+        const beginsDay =
+          !previous ||
+          day !== historyDayFormat.format(new Date(previous.updatedAt));
+        return (
+          <View key={item.id} style={{ gap: mobileSpacing.small }}>
+            {beginsDay ? (
+              <Text accessibilityRole="header" style={styles.summary}>
+                {day}
+              </Text>
+            ) : null}
+            <HistoryRow
+              item={item}
+              key={item.id}
+              onOpen={() => onOpen(item)}
+              onRemove={() => onRemove(item)}
+              onReplay={() => onReplay(item)}
+              onResume={() => onResume(item)}
+            />
+          </View>
+        );
+      })}
     </MobileRefreshableScroll>
   );
 }
