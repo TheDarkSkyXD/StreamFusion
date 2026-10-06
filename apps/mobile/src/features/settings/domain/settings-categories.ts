@@ -1,6 +1,7 @@
 import type { SettingsPanelId } from "@streamfusion/core/settings";
 
-export type SettingsCategorySectionId = "customize" | "connections" | "support";
+export type SettingsCategorySectionId =
+  "general" | "viewing" | "experience" | "accounts-network" | "system-support";
 
 export type SettingsCategoryIconId =
   | "appearance"
@@ -22,133 +23,177 @@ export type SettingsCategoryIconId =
 
 export type SettingsCategory = {
   readonly description: string;
+  readonly descriptionKey: string | null;
   readonly icon: SettingsCategoryIconId;
   readonly id: SettingsPanelId;
   readonly section: SettingsCategorySectionId;
   readonly title: string;
+  readonly titleKey: string;
 };
 
 export const SETTINGS_CATEGORY_SECTIONS: readonly {
   readonly id: SettingsCategorySectionId;
   readonly title: string;
+  readonly titleKey: string;
 }[] = [
-  { id: "customize", title: "Customize" },
-  { id: "connections", title: "Connections" },
-  { id: "support", title: "Support" },
+  { id: "general", title: "General", titleKey: "settings.general2" },
+  { id: "viewing", title: "Viewing", titleKey: "settings.viewing" },
+  { id: "experience", title: "Experience", titleKey: "settings.experience" },
+  {
+    id: "accounts-network",
+    title: "Accounts & Network",
+    titleKey: "settings.accountsNetwork",
+  },
+  {
+    id: "system-support",
+    title: "System & Support",
+    titleKey: "settings.systemSupport",
+  },
 ];
 
-/** Frosty-style hub catalog — one tile per existing settings panel. */
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   {
     id: "appearance",
-    section: "customize",
-    title: "Appearance",
-    description: "Density, language, and session restore",
+    section: "general",
+    title: "General",
+    titleKey: "settings.general2",
+    description: "Language and app preferences",
+    descriptionKey: "settings.languageAndAppPreferences",
     icon: "appearance",
   },
   {
     id: "playback",
-    section: "customize",
+    section: "viewing",
     title: "Playback",
-    description: "Quality, captions, HEVC, and device id",
+    titleKey: "settings.playback",
+    description: "Stream quality & preferences",
+    descriptionKey: "settings.streamQualityPreferences",
     icon: "playback",
   },
   {
     id: "player-controls",
-    section: "customize",
+    section: "viewing",
     title: "Player controls",
-    description: "Chrome toggles and seek intervals",
+    titleKey: "settings.playerControls",
+    description: "Show or hide player buttons",
+    descriptionKey: "settings.showOrHidePlayerButtons",
     icon: "player-controls",
   },
   {
     id: "buffer",
-    section: "customize",
+    section: "viewing",
     title: "Buffer",
-    description: "Forward buffer, max buffer, live sync",
+    titleKey: "settings.buffer",
+    description: "Live latency & stability",
+    descriptionKey: "settings.liveLatencyStability",
     icon: "buffer",
   },
   {
+    id: "notifications",
+    section: "experience",
+    title: "Notifications",
+    titleKey: "settings.notifications",
+    description: "Alerts on this device",
+    descriptionKey: null,
+    icon: "notifications",
+  },
+  {
     id: "chat",
-    section: "customize",
+    section: "experience",
     title: "Chat",
-    description: "Display density and message chrome",
+    titleKey: "settings.chat",
+    description: "Appearance, emotes & events",
+    descriptionKey: "settings.appearanceEmotesEvents",
     icon: "chat",
   },
   {
     id: "predictions",
-    section: "customize",
+    section: "experience",
     title: "Predictions",
-    description: "Overlay and participation preferences",
+    titleKey: "settings.predictions",
+    description: "Chat prediction widget style",
+    descriptionKey: "settings.chatPredictionWidgetStyle",
     icon: "predictions",
   },
   {
-    id: "notifications",
-    section: "connections",
-    title: "Notifications",
-    description: "Alerts on this device",
-    icon: "notifications",
-  },
-  {
     id: "adblock",
-    section: "connections",
-    title: "Ad-blocking",
-    description: "Twitch playlist proxy and filters",
+    section: "accounts-network",
+    title: "Ad-Block",
+    titleKey: "settings.adBlock",
+    description: "Twitch ad-blocking settings",
+    descriptionKey: "settings.twitchAdBlockingSettings",
     icon: "adblock",
   },
   {
     id: "proxy",
-    section: "connections",
+    section: "accounts-network",
     title: "Proxy",
+    titleKey: "settings.proxy",
     description: "Outbound connectivity preferences",
+    descriptionKey: null,
     icon: "proxy",
   },
   {
     id: "integrations",
-    section: "connections",
+    section: "accounts-network",
     title: "Integrations",
-    description: "Twitch and Kick account links",
+    titleKey: "settings.integrations",
+    description: "Connected accounts & APIs",
+    descriptionKey: "settings.connectedAccountsApis",
     icon: "integrations",
   },
   {
     id: "api-tokens",
-    section: "connections",
-    title: "API tokens",
-    description: "Token status and rotation hints",
+    section: "accounts-network",
+    title: "API / Tokens",
+    titleKey: "settings.apiTokens",
+    description: "Sign-in & token status",
+    descriptionKey: "settings.signInTokenStatus",
     icon: "api-tokens",
   },
   {
     id: "updates",
-    section: "support",
+    section: "system-support",
     title: "Updates",
+    titleKey: "settings.updates",
     description: "GitHub release checks",
+    descriptionKey: null,
     icon: "updates",
   },
   {
     id: "diagnostics",
-    section: "support",
+    section: "system-support",
     title: "Diagnostics",
+    titleKey: "settings.diagnostics",
     description: "Capability profile and recovery",
+    descriptionKey: null,
     icon: "diagnostics",
   },
   {
     id: "logs",
-    section: "support",
+    section: "system-support",
     title: "Logs",
-    description: "Local support log buffer",
+    titleKey: "settings.logs",
+    description: "In-app log viewer & diagnostics",
+    descriptionKey: "settings.inAppLogViewerDiagnostics",
     icon: "logs",
   },
   {
     id: "report-bug",
-    section: "support",
-    title: "Report a bug",
-    description: "Build a redacted diagnostic report",
+    section: "system-support",
+    title: "Report Bug",
+    titleKey: "settings.reportBug",
+    description: "Capture a bug report for sharing",
+    descriptionKey: "settings.captureABugReportForSharing",
     icon: "report-bug",
   },
   {
     id: "about",
-    section: "support",
+    section: "system-support",
     title: "About",
-    description: "Licenses, privacy, and reset actions",
+    titleKey: "settings.about",
+    description: "Version & info",
+    descriptionKey: "settings.versionInfo",
     icon: "about",
   },
 ];
@@ -170,6 +215,6 @@ export function settingsCategoriesForPanels(
   return SETTINGS_CATEGORIES.filter((category) => allowed.has(category.id));
 }
 
-export function settingsCategoryTitle(panel: SettingsPanelId): string {
-  return CATEGORY_BY_ID.get(panel)?.title ?? panel;
+export function settingsCategoryTitleKey(panel: SettingsPanelId): string {
+  return CATEGORY_BY_ID.get(panel)?.titleKey ?? "settings.settings";
 }

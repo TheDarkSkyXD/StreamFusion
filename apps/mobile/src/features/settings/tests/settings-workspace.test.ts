@@ -1,13 +1,18 @@
 import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  activateDisplayLanguage,
+  bootstrapMobileI18n,
+  i18n,
+} from "@mobile/i18n";
 
 import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
 import { composeSettingsView } from "../domain/settings-view";
 import {
   settingsCategoriesForPanels,
-  settingsCategoryTitle,
+  settingsCategoryTitleKey,
 } from "../domain/settings-categories";
 import { AppearanceSettingsPanel } from "../components/settings-panels";
 import {
@@ -54,14 +59,13 @@ vi.mock("lucide-react-native", () => {
     Gauge: Icon,
     KeyRound: Icon,
     MessageSquare: Icon,
-    MonitorPlay: Icon,
-    Palette: Icon,
+    Monitor: "Monitor",
+    Network: "Network",
     RefreshCw: Icon,
-    ShieldBan: Icon,
-    SlidersHorizontal: Icon,
-    Target: Icon,
-    Users: Icon,
-    Wifi: Icon,
+    ShieldCheck: "ShieldCheck",
+    SlidersHorizontal: "SlidersHorizontal",
+    Trophy: "Trophy",
+    Link: "Link",
     X: Icon,
   };
 });
@@ -80,7 +84,10 @@ function descendants(node: unknown): readonly Element[] {
   const element: Element = node;
   const rendered = renderFunction(element);
   if (rendered) return [element, ...descendants(rendered)];
-  return [element, ...childNodes(element).flatMap((child) => descendants(child))];
+  return [
+    element,
+    ...childNodes(element).flatMap((child) => descendants(child)),
+  ];
 }
 
 function renderFunction(element: Element): unknown {
@@ -103,7 +110,9 @@ function hasTestId(nodes: readonly Element[], testID: string): boolean {
 }
 
 function fakeSession(): SettingsSession {
-  const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+  const view = composeSettingsView({
+    preferences: DEFAULT_PRODUCT_PREFERENCES,
+  });
   return {
     apply: async () => view,
     load: async () => view,
@@ -119,14 +128,30 @@ vi.mock("@mobile/design/haptics", () => ({
   selectionHaptic: vi.fn(async () => undefined),
 }));
 
-vi.mock("react-i18next", () => ({
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: { language: "en", resolvedLanguage: "en" },
+    t: (key: string) => i18n.t(key),
+    i18n,
   }),
 }));
 
-// Guards: Appearance stays dark-only for theme, exposes full display-language picker, density, restore
+beforeAll(async () => {
+  await bootstrapMobileI18n();
+});
+
+beforeEach(async () => {
+  await activateDisplayLanguage("en");
+});
+
+function visibleText(nodes: readonly Element[]): readonly string[] {
+  return nodes.flatMap((node) =>
+    node.type === "Text" && typeof node.props.children === "string"
+      ? [node.props.children]
+      : [],
+  );
+}
+
 describe("settings panels", () => {
   it("renders dark-only theme copy, language options, and changes density", () => {
     let density = DEFAULT_PRODUCT_PREFERENCES.density;
@@ -135,7 +160,8 @@ describe("settings panels", () => {
       AppearanceSettingsPanel({
         onChange: (patch) => {
           if (patch.density) density = patch.density;
-          if (typeof patch.language === "string") language = patch.language as typeof language;
+          if (typeof patch.language === "string")
+            language = patch.language as typeof language;
         },
         view: composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES }),
       }),
@@ -171,7 +197,9 @@ describe("settings panels", () => {
       }),
     );
     expect(hasTestId(nodes, "language-effective")).toBe(true);
-    const effective = nodes.find((node) => node.props.testID === "language-effective");
+    const effective = nodes.find(
+      (node) => node.props.testID === "language-effective",
+    );
     const copy = String(
       (effective?.props as { readonly value?: string }).value ??
         effective?.props.children ??
@@ -182,8 +210,10 @@ describe("settings panels", () => {
 });
 
 describe("settings hub navigation", () => {
-  it("lists Frosty-style category tiles instead of dumping every panel", () => {
-    const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+  it("lists category tiles instead of dumping every panel", () => {
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+    });
     const nodes = descendants(
       SettingsHub({
         onOpenPanel: () => undefined,
@@ -197,6 +227,81 @@ describe("settings hub navigation", () => {
     expect(hasTestId(nodes, "panel-appearance")).toBe(false);
   });
 
+  it("renders desktop vocabulary and icons in the five settings groups", () => {
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+    });
+    const nodes = descendants(
+      SettingsHub({ onOpenPanel: () => undefined, view }),
+    );
+    expect(visibleText(nodes)).toEqual(
+      expect.arrayContaining([
+        "General",
+        "Viewing",
+        "Experience",
+        "Accounts & Network",
+        "System & Support",
+        "Ad-Block",
+        "API / Tokens",
+        "Report Bug",
+        "Language and app preferences",
+        "Alerts on this device",
+        "Outbound connectivity preferences",
+      ]),
+    );
+    for (const [panel, icon] of [
+      ["appearance", "SlidersHorizontal"],
+      ["playback", "Monitor"],
+      ["predictions", "Trophy"],
+      ["adblock", "ShieldCheck"],
+      ["proxy", "Network"],
+      ["integrations", "Link"],
+    ]) {
+      const tile = nodes.find(
+        (node) => node.props.testID === `settings-category-${panel}`,
+      );
+      expect(descendants(tile).some((node) => node.type === icon)).toBe(true);
+    }
+  });
+
+  it("resolves hub labels and category headers after changing display language", async () => {
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+    });
+    expect(
+      visibleText(
+        descendants(SettingsHub({ onOpenPanel: () => undefined, view })),
+      ),
+    ).toContain("Accounts & Network");
+    await activateDisplayLanguage("es");
+    const nodes = descendants(
+      SettingsHub({ onOpenPanel: () => undefined, view }),
+    );
+    expect(visibleText(nodes)).toEqual(
+      expect.arrayContaining([
+        "General",
+        "Visualizaci\u00f3n",
+        "Experiencia",
+        "Cuentas y red",
+        "Sistema y asistencia",
+        "Bloqueo de anuncios",
+        "API y tokens",
+        "Informar de un error",
+      ]),
+    );
+    const detail = descendants(
+      SettingsCategoryDetail({
+        extras: {},
+        gap: 16,
+        onBack: () => undefined,
+        panel: "adblock",
+        session: fakeSession(),
+        view,
+      }),
+    );
+    expect(visibleText(detail)).toContain("Bloqueo de anuncios");
+  });
+
   it("filters hub tiles from search and exposes control deep-links", () => {
     const view = composeSettingsView({
       preferences: DEFAULT_PRODUCT_PREFERENCES,
@@ -205,7 +310,7 @@ describe("settings hub navigation", () => {
     expect(view.panels).toEqual(["proxy"]);
     const categories = settingsCategoriesForPanels(view.panels);
     expect(categories.map((category) => category.id)).toEqual(["proxy"]);
-    expect(settingsCategoryTitle("proxy")).toBe("Proxy");
+    expect(i18n.t(settingsCategoryTitleKey("proxy"))).toBe("Proxy");
 
     const nodes = descendants(
       SettingsHub({
@@ -219,7 +324,9 @@ describe("settings hub navigation", () => {
   });
 
   it("shows the full category set when the hub query is empty", () => {
-    const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+    });
     expect(view.query).toBe("");
     const categories = settingsCategoriesForPanels(view.panels);
     const categoryIds = categories.map((category) => category.id);
@@ -258,7 +365,9 @@ describe("settings hub navigation", () => {
       query: "lang",
     });
     expect(filtered.panels).toContain("appearance");
-    expect(filtered.matches.some((match) => match.id === "language")).toBe(true);
+    expect(filtered.matches.some((match) => match.id === "language")).toBe(
+      true,
+    );
     expect(filtered.panels).not.toContain("proxy");
 
     const filteredNodes = descendants(
@@ -290,19 +399,22 @@ describe("settings hub navigation", () => {
     expect(hasTestId(clearedNodes, "settings-search-matches")).toBe(false);
   });
 
-
   it("hides Multiview from search matches and panels", () => {
     const view = composeSettingsView({
       preferences: DEFAULT_PRODUCT_PREFERENCES,
       query: "multiview",
     });
     expect(view.panels).not.toContain("multiview");
-    expect(view.matches.every((match) => match.panel !== "multiview")).toBe(true);
+    expect(view.matches.every((match) => match.panel !== "multiview")).toBe(
+      true,
+    );
     expect(view.panels).toEqual([]);
   });
 
   it("opens a single category detail with only that panel", () => {
-    const view = composeSettingsView({ preferences: DEFAULT_PRODUCT_PREFERENCES });
+    const view = composeSettingsView({
+      preferences: DEFAULT_PRODUCT_PREFERENCES,
+    });
     let opened: string | null = null;
     const hub = descendants(
       SettingsHub({
@@ -312,7 +424,8 @@ describe("settings hub navigation", () => {
         view,
       }),
     );
-    hub.find((node) => node.props.testID === "settings-category-appearance")
+    hub
+      .find((node) => node.props.testID === "settings-category-appearance")
       ?.props.onPress?.();
     expect(opened).toBe("appearance");
 

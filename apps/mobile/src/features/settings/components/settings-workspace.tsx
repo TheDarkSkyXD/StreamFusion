@@ -20,14 +20,13 @@ import {
   Gauge,
   KeyRound,
   MessageSquare,
-  MonitorPlay,
-  Palette,
+  Monitor,
   RefreshCw,
-  ShieldBan,
+  ShieldCheck,
   SlidersHorizontal,
-  Target,
-  Users,
-  Wifi,
+  Trophy,
+  Link,
+  Network,
   X,
   type LucideIcon,
 } from "lucide-react-native";
@@ -51,7 +50,7 @@ import type { SettingsSession, SettingsView } from "../capabilities/settings";
 import {
   SETTINGS_CATEGORY_SECTIONS,
   settingsCategoriesForPanels,
-  settingsCategoryTitle,
+  settingsCategoryTitleKey,
   type SettingsCategory,
   type SettingsCategoryIconId,
 } from "../domain/settings-categories";
@@ -64,16 +63,16 @@ import {
 } from "./settings-panels";
 
 const CATEGORY_ICONS: Readonly<Record<SettingsCategoryIconId, LucideIcon>> = {
-  appearance: Palette,
-  playback: MonitorPlay,
+  appearance: SlidersHorizontal,
+  playback: Monitor,
   "player-controls": SlidersHorizontal,
   buffer: Gauge,
   chat: MessageSquare,
-  predictions: Target,
+  predictions: Trophy,
   notifications: Bell,
-  adblock: ShieldBan,
-  proxy: Wifi,
-  integrations: Users,
+  adblock: ShieldCheck,
+  proxy: Network,
+  integrations: Link,
   "api-tokens": KeyRound,
   updates: RefreshCw,
   diagnostics: Activity,
@@ -195,7 +194,8 @@ export function SettingsCategoryDetail({
   readonly session: SettingsSession;
   readonly view: SettingsView;
 }) {
-  const title = settingsCategoryTitle(panel);
+  const { t } = useTranslation();
+  const title = t(settingsCategoryTitleKey(panel));
   return (
     <ScrollView
       contentContainerStyle={[styles.content, { gap }]}
@@ -245,6 +245,7 @@ export function SettingsHub({
   readonly onOpenPanel: (panel: SettingsPanelId) => void;
   readonly view: SettingsView;
 }) {
+  const { t } = useTranslation();
   const categories = settingsCategoriesForPanels(view.panels);
   const query = view.query.trim();
   return (
@@ -257,7 +258,7 @@ export function SettingsHub({
         return (
           <View key={section.id} style={styles.section}>
             <Text selectable style={styles.sectionTitle}>
-              {section.title}
+              {t(section.titleKey)}
             </Text>
             <View style={styles.tileGroup}>
               {rows.map((category) => (
@@ -279,7 +280,7 @@ export function SettingsHub({
       ) : null}
       {categories.length === 0 ? (
         <Text selectable style={styles.empty} testID="settings-hub-empty">
-          No settings match that search.
+          {t("settings.noSettingsFound")}
         </Text>
       ) : null}
     </View>
@@ -293,6 +294,7 @@ function SettingsSearchMatches({
   readonly matches: SettingsView["matches"];
   readonly onOpenPanel: (panel: SettingsPanelId) => void;
 }) {
+  const { t } = useTranslation();
   if (matches.length === 0) return null;
   const limited = matches.slice(0, 8);
   return (
@@ -304,7 +306,7 @@ function SettingsSearchMatches({
         {limited.map((match) => (
           <Pressable
             key={match.id}
-            accessibilityLabel={`Open ${match.label} in ${settingsCategoryTitle(match.panel)}`}
+            accessibilityLabel={`Open ${match.label} in ${t(settingsCategoryTitleKey(match.panel))}`}
             accessibilityRole="button"
             onPress={() => onOpenPanel(match.panel)}
             style={({ pressed }) => [
@@ -318,7 +320,7 @@ function SettingsSearchMatches({
                 {match.label}
               </Text>
               <Text selectable style={styles.tileDescription}>
-                {settingsCategoryTitle(match.panel)}
+                {t(settingsCategoryTitleKey(match.panel))}
               </Text>
             </View>
             <ChevronRight
@@ -341,10 +343,15 @@ export function SettingsTileRoute({
   readonly category: SettingsCategory;
   readonly onPress: () => void;
 }) {
+  const { t } = useTranslation();
   const Icon = CATEGORY_ICONS[category.icon];
   return (
     <MobileListRow
-      description={category.description}
+      description={
+        category.descriptionKey === null
+          ? category.description
+          : t(category.descriptionKey)
+      }
       leading={
         <View style={styles.tileIconWell}>
           <Icon
@@ -357,7 +364,7 @@ export function SettingsTileRoute({
       }
       onPress={onPress}
       testID={`settings-category-${category.id}`}
-      title={category.title}
+      title={t(category.titleKey)}
     />
   );
 }
