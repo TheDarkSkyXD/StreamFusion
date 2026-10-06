@@ -122,14 +122,19 @@ function renderPanel(commands: ChatCommands) {
     read: async () => ({ emotes: [], failures: [] }),
   });
   const send = vi.spyOn(interactions, "send");
-  const render = (target: WatchChatConnectInput) =>
+  const render = (
+    target: WatchChatConnectInput,
+    messages: readonly WatchChatMessage[] = [messageA],
+    messageMetadataRevision = 0,
+  ) =>
     act(async () => {
       root.render(
         createElement(ChatPanel, {
           chat: {
             kind: "live",
             detail: "Chat connected.",
-            messages: [messageA],
+            messages,
+            messageMetadataRevision,
           },
           platform: target.platform,
           target,
@@ -289,6 +294,79 @@ describe("chat panel target identity", () => {
 });
 
 describe("chat reading position", () => {
+  it.each(["paused", "picker"])(
+    "updates late badges in %s rows while preserving older rows and reading position",
+    async (mode) => {
+      const panel = renderPanel(
+        chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      );
+      const older = { ...messageA, id: "aged-out", text: "Older reading row" };
+      const subscriber = {
+        ...messageA,
+        badges: [
+          {
+            setId: "subscriber",
+            version: "12",
+            imageUrl: "",
+            title: "subscriber",
+          },
+        ],
+      };
+      const hydrated = {
+        ...subscriber,
+        badges: [
+          {
+            setId: "subscriber",
+            version: "12",
+            imageUrl: "https://static-cdn.jtvnw.net/badges/v1/channel/3",
+            title: "1-Year Subscriber",
+          },
+        ],
+      };
+      try {
+        await panel.render(channelA, [older, subscriber]);
+        if (mode === "paused") {
+          const scroller = panel.container.querySelector(
+            '[data-testid="watch-chat-scroll"]',
+          );
+          if (!(scroller instanceof HTMLDivElement))
+            throw new Error("Missing chat list");
+          await act(async () => {
+            scroller.dispatchEvent(
+              new MouseEvent("mousedown", { bubbles: true }),
+            );
+            scroller.scrollTop = 160;
+            scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+          });
+        } else {
+          await panel.press('[data-testid="chat-emotes"]');
+        }
+        await panel.press('[aria-label="Actions for Alpha viewer"]');
+        const newest = { ...messageA, id: "newest", text: "New arrival" };
+        await panel.render(channelA, [hydrated, newest], 1);
+        expect(
+          panel.container.querySelector(
+            '[data-testid="watch-chat-badge-alpha-message-subscriber"]',
+          ),
+        ).toHaveProperty("ariaLabel", "1-Year Subscriber");
+        expect(panel.container.textContent).toContain("Older reading row");
+        expect(panel.container.textContent).not.toContain("New arrival");
+        expect(
+          panel.container.querySelector('[data-testid="chat-user-actions"]'),
+        ).not.toBeNull();
+        expect(
+          panel.container.querySelector(
+            mode === "paused"
+              ? '[data-testid="chat-resume"]'
+              : '[data-testid="chat-emote-picker"]',
+          ),
+        ).not.toBeNull();
+      } finally {
+        await panel.unmount();
+      }
+    },
+  );
+
   it("reconciles paused rows and closes selected actions when a room is cleared", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const container = document.createElement("div");

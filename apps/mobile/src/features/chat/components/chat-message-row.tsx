@@ -15,6 +15,7 @@ import { resolveMessageParts } from "../domain/message-parts";
 import { formatMessageTimestamp } from "../domain/message-timestamp";
 import { resolveChatUsernameColor } from "../domain/resolve-chat-username-color";
 import { ChatUsername } from "./chat-username";
+import { KickBadgeImage } from "./kick-badge-image";
 
 const replacesRole = (badge: ChatCosmeticBadge, role: string) =>
   badge.replaces === role ||
@@ -184,14 +185,23 @@ export const ChatMessageRow = memo(function ChatMessageRow({
               )
               .map((badge) =>
                 badge.imageUrl ? (
-                  <Image
-                    key={`${badge.setId}-${badge.version}`}
-                    accessibilityLabel={badge.title}
-                    resizeMode="contain"
-                    source={{ uri: badge.imageUrl }}
-                    style={styles.badge}
-                    testID={`watch-chat-badge-${message.id}-${badge.setId}`}
-                  />
+                  platform === "kick" ? (
+                    <KickBadgeImage
+                      key={`${badge.setId}-${badge.version}`}
+                      imageUrl={badge.imageUrl}
+                      title={badge.title}
+                      testID={`watch-chat-badge-${message.id}-${badge.setId}`}
+                    />
+                  ) : (
+                    <Image
+                      key={`${badge.setId}-${badge.version}`}
+                      accessibilityLabel={badge.title}
+                      resizeMode="contain"
+                      source={{ uri: badge.imageUrl }}
+                      style={styles.badge}
+                      testID={`watch-chat-badge-${message.id}-${badge.setId}`}
+                    />
+                  )
                 ) : null,
               )}
             {badges.map((badge) => (

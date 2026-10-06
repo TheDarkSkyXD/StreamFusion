@@ -218,32 +218,49 @@ function ChatPanelBody({
       ? (chat.moderationRevision ?? 0)
       : 0;
   const replayLoading = recorded && chat.kind === "connecting";
+  const messageMetadataRevision =
+    chat.kind === "live" || chat.kind === "empty"
+      ? (chat.messageMetadataRevision ?? 0)
+      : 0;
   const [appliedSource, setAppliedSource] = useState({
     moderationRevision,
+    messageMetadataRevision,
     replayLoading,
   });
   if (
     appliedSource.moderationRevision !== moderationRevision ||
+    appliedSource.messageMetadataRevision !== messageMetadataRevision ||
     appliedSource.replayLoading !== replayLoading
   ) {
-    setAppliedSource({ moderationRevision, replayLoading });
+    setAppliedSource({
+      moderationRevision,
+      messageMetadataRevision,
+      replayLoading,
+    });
     if (replayLoading) {
       setPausedMessages(null);
       setPickerMessages(EMPTY_MESSAGES);
       setSelected(null);
       setReply(null);
-    } else if (appliedSource.moderationRevision !== moderationRevision) {
+    } else {
+      const moderated = appliedSource.moderationRevision !== moderationRevision;
       const current = new Map(messages.map((message) => [message.id, message]));
       const reconcile = (held: readonly WatchChatMessage[]) =>
         held.flatMap((message) => {
           const updated = current.get(message.id);
-          return updated ? [updated] : [];
+          return updated ? [updated] : moderated ? [] : [message];
         });
       setPausedMessages((held) => (held ? reconcile(held) : null));
       setPickerMessages(reconcile);
       const reconcileSelection = (held: WatchChatMessage | null) => {
         const updated = held ? current.get(held.id) : undefined;
-        return updated && updated.deletedAt === undefined ? updated : null;
+        return updated
+          ? updated.deletedAt === undefined
+            ? updated
+            : null
+          : moderated
+            ? null
+            : held;
       };
       setSelected(reconcileSelection);
       setReply(reconcileSelection);

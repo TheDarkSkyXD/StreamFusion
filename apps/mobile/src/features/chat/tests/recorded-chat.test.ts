@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createRecordedChatReader } from "../adapters/recorded-chat-reader";
 import { createRecordedChatSession } from "../domain/recorded-chat-session";
 import type { ChatReplayReader } from "../capabilities/watch-chat";
+import { getBundledBadgeUrl } from "../utils/kick-badge-assets";
 
 const twitch = {
   channelId: "1",
@@ -105,7 +106,28 @@ describe("recorded providers", () => {
                 id: "k1",
                 content: "hello",
                 created_at: "2026-10-05T10:01:00Z",
-                sender: { id: 2, slug: "viewer", username: "Viewer" },
+                sender: {
+                  id: 2,
+                  slug: "viewer",
+                  username: "Viewer",
+                  identity: {
+                    badges: [
+                      { type: "moderator", text: "Moderator" },
+                      { type: "subscriber", count: 14 },
+                    ],
+                  },
+                },
+              },
+              {
+                id: "k2",
+                content: "hello again",
+                created_at: "2026-10-05T10:01:01Z",
+                sender: {
+                  id: 3,
+                  slug: "gifter",
+                  username: "Gifter",
+                  badges: [{ type: "sub_gifter", count: 50 }],
+                },
               },
             ],
           },
@@ -123,7 +145,30 @@ describe("recorded providers", () => {
     ).toMatchObject({
       kind: "page",
       cursor: "next-kick",
-      messages: [{ id: "k1", offsetSeconds: 60 }],
+      messages: [
+        {
+          id: "k1",
+          offsetSeconds: 60,
+          badges: [
+            { setId: "moderator", imageUrl: getBundledBadgeUrl("moderator") },
+            {
+              setId: "subscriber",
+              version: "14",
+              imageUrl: getBundledBadgeUrl("subscriber"),
+            },
+          ],
+        },
+        {
+          id: "k2",
+          badges: [
+            {
+              setId: "sub_gifter",
+              version: "50",
+              imageUrl: getBundledBadgeUrl("sub_gifter", 50),
+            },
+          ],
+        },
+      ],
     });
     expect(fetch.mock.calls[1]?.[0]).toBe(
       "https://web.kick.com/api/v1/chat/11/history?start_time=2026-10-05T10%3A01%3A00.000Z",

@@ -4,7 +4,9 @@ import type {
   WatchChatMessagePart,
 } from "../capabilities/watch-chat";
 import { resolveTwitchBadges } from "../domain/twitch-global-badge-catalog";
+import { parseKickIdentityBadges } from "../domain/kick-chat-badges";
 import { array, identifier, object, string } from "../utils/provider-json";
+import { getBundledBadgeUrl } from "../utils/kick-badge-assets";
 
 const QUERY = `query VideoCommentsByOffsetOrCursor($videoID: ID!, $contentOffsetSeconds: Int, $cursor: Cursor) {
   video(id: $videoID) { id comments(after: $cursor, contentOffsetSeconds: $contentOffsetSeconds, first: 100) {
@@ -187,6 +189,7 @@ export function createRecordedChatReader(
       const messages = array(data.messages).map((raw): WatchChatMessage => {
         const message = object(raw);
         const sender = object(message.sender);
+        const identity = object(sender.identity);
         const timestamp = Date.parse(string(message.created_at));
         if (
           !identifier(message.id) ||
@@ -204,10 +207,11 @@ export function createRecordedChatReader(
           username: string(sender.slug),
           text: message.content,
           offsetSeconds: Math.max(0, (timestamp - startedAt) / 1000),
-          badges: [],
-          ...(string(object(sender.identity).color)
-            ? { color: string(object(sender.identity).color) }
-            : {}),
+          badges: parseKickIdentityBadges(
+            identity.badges ?? sender.badges,
+            getBundledBadgeUrl,
+          ),
+          ...(string(identity.color) ? { color: string(identity.color) } : {}),
         };
       });
       return { kind: "page", messages, cursor: string(data.cursor) || null };

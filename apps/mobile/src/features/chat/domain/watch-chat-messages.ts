@@ -4,6 +4,7 @@ import type {
 } from "../capabilities/watch-chat";
 import { resolveTwitchBadges } from "./twitch-global-badge-catalog";
 import { twitchEmoteParts } from "./message-parts";
+import { parseKickIdentityBadges, type KickBadgeArtwork } from "./kick-chat-badges";
 
 const MAX_MESSAGES = 100;
 
@@ -56,7 +57,10 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
   };
 }
 
-export function parseKickChatFrame(payload: unknown): WatchChatMessage | null {
+export function parseKickChatFrame(
+  payload: unknown,
+  badgeArtwork: KickBadgeArtwork = () => undefined,
+): WatchChatMessage | null {
   if (typeof payload !== "object" || payload === null) return null;
   const record = payload as Record<string, unknown>;
   const sender =
@@ -85,7 +89,7 @@ export function parseKickChatFrame(payload: unknown): WatchChatMessage | null {
     typeof identity.color === "string" ? identity.color : "",
   );
   return {
-    badges: [],
+    badges: parseKickIdentityBadges(identity.badges, badgeArtwork),
     ...(color === undefined ? {} : { color }),
     displayName,
     id,

@@ -19,6 +19,11 @@ import { createRecordedChatSession } from "../domain/recorded-chat-session";
 import { RECORDED_COMMENTS } from "../capabilities/watch-chat";
 import { readWatchChatHistory } from "./watch-chat-history";
 import { applyWatchChatModeration } from "../domain/apply-watch-chat-moderation";
+import type { WatchChatBadgeCatalog } from "../capabilities/chat-badge-catalog";
+import { createTwitchChannelBadgeCatalogReader } from "./twitch-channel-badge-catalog";
+import { resolveWatchChatBadges } from "../domain/resolve-chat-badges";
+import { createKickBadgeCatalogReader } from "./kick-badge-catalog";
+import { resolveKickChatBadges } from "../domain/kick-chat-badges";
 
 const DEFAULT_EVENT_PREFERENCES: WatchChatEventPreferences = {
   showUserNotices: true,
@@ -64,6 +69,10 @@ export function createWatchChatSession(input: {
   let historyDetail: string | undefined;
   let generation = 0;
   let attached: WatchChatConnectInput | null = null;
+  let badgeCatalog: WatchChatBadgeCatalog = new Map();
+  let badgeRevision = 0;
+  const twitchBadges = createTwitchChannelBadgeCatalogReader(input.fetch);
+  const kickBadges = createKickBadgeCatalogReader(input.fetch);
   const listeners = new Set<() => void>();
   const replay = input.replayReader
     ? createRecordedChatSession(input.replayReader)
@@ -73,6 +82,45 @@ export function createWatchChatSession(input: {
     for (const listener of listeners) listener();
   };
   replay?.subscribe(emit);
+  const resolveMessageBadges = (message: WatchChatMessage): WatchChatMessage =>
+    !attached || message.badges.length === 0
+      ? message
+      : {
+          ...message,
+          badges:
+            attached.platform === "kick"
+              ? resolveKickChatBadges(message.badges, badgeCatalog)
+              : resolveWatchChatBadges(
+                  message.badges,
+                  badgeCatalog,
+                  resolveTwitchBadges(message.badges),
+                ),
+        };
+  let replayProjection:
+    | {
+        readonly source: WatchChatAvailability;
+        readonly revision: number;
+        readonly view: WatchChatAvailability;
+      }
+    | undefined;
+  const replaySnapshot = (): WatchChatAvailability => {
+    const source = replay?.snapshot() ?? snapshot;
+    if (
+      replayProjection?.source === source &&
+      replayProjection.revision === badgeRevision
+    )
+      return replayProjection.view;
+    const view =
+      source.kind === "live"
+        ? {
+            ...source,
+            messages: source.messages.map(resolveMessageBadges),
+            messageMetadataRevision: badgeRevision,
+          }
+        : source;
+    replayProjection = { source, revision: badgeRevision, view };
+    return view;
+  };
   const setSnapshot = (next: WatchChatAvailability) => {
     snapshot = next;
     emit();
@@ -95,7 +143,40 @@ export function createWatchChatSession(input: {
     moderationEvents = [];
     moderationRevision = 0;
     historyDetail = undefined;
+    badgeCatalog = new Map();
+    badgeRevision += 1;
+    replayProjection = undefined;
     recorded = target.media !== undefined;
+    const hydrateBadges = () => {
+      if (current !== generation) return;
+      badgeRevision += 1;
+      if (recorded) {
+        emit();
+        return;
+      }
+      messages = messages.map(resolveMessageBadges);
+      if (snapshot.kind === "live")
+        setSnapshot({
+          ...snapshot,
+          messages,
+          messageMetadataRevision: badgeRevision,
+        });
+      else if (snapshot.kind === "empty")
+        setSnapshot({ ...snapshot, messageMetadataRevision: badgeRevision });
+    };
+    if (target.platform === "twitch") {
+      void ensureTwitchGlobalBadgeCatalog(input.fetch)
+        .then(hydrateBadges)
+        .catch(() => undefined);
+    }
+    void (target.platform === "twitch" ? twitchBadges : kickBadges)
+      .read(target)
+      .then((catalog) => {
+        if (current !== generation) return;
+        badgeCatalog = catalog;
+        hydrateBadges();
+      })
+      .catch(() => undefined);
     if (recorded) {
       if (replay) replay.attach(target);
       else setSnapshot(RECORDED_COMMENTS);
@@ -110,6 +191,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
         return;
@@ -122,18 +204,7 @@ export function createWatchChatSession(input: {
     };
     const onMessage = (message: WatchChatMessage) => {
       if (current !== generation) return;
-      const resolved =
-        target.platform !== "twitch" || message.badges.length === 0
-          ? message
-          : {
-              ...message,
-              badges: resolveTwitchBadges(
-                message.badges.map((badge) => ({
-                  setId: badge.setId,
-                  version: badge.version,
-                })),
-              ),
-            };
+      const resolved = resolveMessageBadges(message);
       const next = appendWatchChatMessage(
         messages,
         { ...resolved, receivedAt: resolved.receivedAt ?? Date.now() },
@@ -148,6 +219,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
       }
@@ -160,6 +232,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
       }, 100);
@@ -231,12 +304,14 @@ export function createWatchChatSession(input: {
               kind: "live",
               messages,
               moderationRevision,
+              messageMetadataRevision: badgeRevision,
               ...(historyDetail ? { historyDetail } : {}),
             }
           : {
               detail: "Chat is live.",
               kind: "empty",
               moderationRevision,
+              messageMetadataRevision: badgeRevision,
               ...(historyDetail ? { historyDetail } : {}),
             },
       );
@@ -248,7 +323,6 @@ export function createWatchChatSession(input: {
       setSnapshot({ detail, kind: "failed", retry: "manual" });
     };
     if (target.platform === "twitch") {
-      void ensureTwitchGlobalBadgeCatalog(input.fetch).catch(() => undefined);
       disposeConnection = connectTwitchGuestIrc({
         onClose: () => onError("Twitch chat disconnected. Retry to reconnect."),
         onError,
@@ -319,7 +393,9 @@ export function createWatchChatSession(input: {
         }
         const liveIds = new Set(messages.map((message) => message.id));
         messages = [
-          ...seed.filter((message) => !liveIds.has(message.id)),
+          ...seed
+            .filter((message) => !liveIds.has(message.id))
+            .map(resolveMessageBadges),
           ...messages,
         ].slice(-(input.messageLimit?.() ?? 100));
         if (snapshot.kind !== "live" && snapshot.kind !== "empty") return;
@@ -328,6 +404,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
       });
@@ -342,16 +419,20 @@ export function createWatchChatSession(input: {
       generation += 1;
       attached = null;
       disconnect();
+      twitchBadges.dispose?.();
+      kickBadges.dispose?.();
       replay?.dispose();
       recorded = false;
       messages = [];
+      badgeCatalog = new Map();
+      replayProjection = undefined;
       snapshot = CONNECTING;
     },
     retry() {
       if (recorded && replay) replay.retry();
       else if (attached) connect(attached);
     },
-    snapshot: () => (recorded && replay ? replay.snapshot() : snapshot),
+    snapshot: () => (recorded && replay ? replaySnapshot() : snapshot),
     syncPlayback(positionMs) {
       if (recorded) replay?.syncPlayback?.(positionMs);
     },

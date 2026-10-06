@@ -12,6 +12,7 @@ import type {
 } from "../capabilities/watch-chat";
 import { parseKickChatFrame } from "../domain/watch-chat-messages";
 import { parseKickChatEvent } from "../domain/watch-chat-events";
+import { getBundledBadgeUrl } from "../utils/kick-badge-assets";
 
 const PUSHER_URL =
   "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0&flash=false";
@@ -35,6 +36,7 @@ export async function connectKickGuestChat(input: {
   if (input.signal.aborted) return () => undefined;
   const socket = input.socketFactory(PUSHER_URL);
   let disposed = false;
+  let subscribed = false;
   const channel = `chatrooms.${chatroomId}.v2`;
   socket.onopen = () => undefined;
   socket.onmessage = (event) => {
@@ -48,17 +50,38 @@ export async function connectKickGuestChat(input: {
           data: { auth: "", channel },
         }),
       );
-      input.onOpen();
       return;
     }
     if (frame.event === "pusher:ping") {
       socket.send(JSON.stringify({ event: "pusher:pong", data: {} }));
       return;
     }
+    if (
+      frame.event === "pusher:error" ||
+      (frame.event === "pusher:subscription_error" &&
+        (frame.channel === undefined || frame.channel === channel))
+    ) {
+      disposed = true;
+      socket.close();
+      input.onError("Kick rejected the chatroom connection or subscription.");
+      return;
+    }
+    if (frame.channel !== channel) return;
+    if (
+      frame.event === "pusher_internal:subscription_succeeded" ||
+      frame.event === "pusher:subscription_succeeded"
+    ) {
+      if (!subscribed) {
+        subscribed = true;
+        input.onOpen();
+      }
+      return;
+    }
+    if (!subscribed) return;
     const payload =
       typeof frame.data === "string" ? parseJson(frame.data) : frame.data;
     if (frame.event === "App\\Events\\ChatMessageEvent") {
-      const message = parseKickChatFrame(payload);
+      const message = parseKickChatFrame(payload, getBundledBadgeUrl);
       if (message) {
         if (input.onEvent) input.onEvent({ kind: "message", message });
         else input.onMessage(message);

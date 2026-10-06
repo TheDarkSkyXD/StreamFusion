@@ -90,6 +90,7 @@ export type WatchChatAvailability =
       readonly detail: string;
       readonly kind: "empty";
       readonly moderationRevision?: number;
+      readonly messageMetadataRevision?: number;
       readonly historyDetail?: string;
     }
   | {
@@ -97,6 +98,7 @@ export type WatchChatAvailability =
       readonly kind: "live";
       readonly messages: readonly WatchChatMessage[];
       readonly moderationRevision?: number;
+      readonly messageMetadataRevision?: number;
       readonly historyDetail?: string;
     }
   | {

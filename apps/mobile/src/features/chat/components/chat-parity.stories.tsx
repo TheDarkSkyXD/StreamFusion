@@ -14,6 +14,9 @@ import type {
   ChatUserCosmetics,
 } from "../capabilities/chat-interactions";
 import type { WatchChatMessage } from "../capabilities/watch-chat";
+import type { Platform } from "@streamfusion/core/platform";
+import { getBundledBadgeUrl } from "../utils/kick-badge-assets";
+import { parseKickIdentityBadges, parseKickSubscriberCatalog, resolveKickChatBadges } from "../domain/kick-chat-badges";
 import { ChatMessageRow } from "./chat-message-row";
 
 const image = (color: string, mark: string) =>
@@ -50,6 +53,7 @@ function RowCase({
   cosmetics,
   roleBadges,
   emotes = [],
+  platform = "twitch",
 }: {
   readonly label: string;
   readonly item: WatchChatMessage;
@@ -57,6 +61,7 @@ function RowCase({
   readonly cosmetics?: ChatUserCosmetics;
   readonly roleBadges?: readonly ChatCosmeticBadge[];
   readonly emotes?: readonly ChatEmote[];
+  readonly platform?: Platform;
 }) {
   return (
     <View
@@ -72,7 +77,7 @@ function RowCase({
       <Text style={mobileType.label}>{label}</Text>
       <ChatMessageRow
         message={item}
-        platform="twitch"
+        platform={platform}
         emotes={emotes}
         preferences={preferences}
         cosmetics={cosmetics}
@@ -324,5 +329,36 @@ export const AnimationDisabled: Story = {
         animatedEmotes: false,
       }}
     />
+  ),
+};
+
+const spreenSubscriberCatalog = parseKickSubscriberCatalog({
+  subscriber_badges: [
+    { months: 1, badge_image: { src: "https://files.kick.com/channel_subscriber_badges/1096607/conversion/original-fullsize.png" } },
+    { months: 12, badge_image: { src: "https://files.kick.com/channel_subscriber_badges/1096612/conversion/original-fullsize.png" } },
+    { months: 24, badge_image: { src: "https://files.kick.com/channel_subscriber_badges/1096615/conversion/original-fullsize.png" } },
+  ],
+});
+
+const kickRoleBadges = parseKickIdentityBadges(
+  ["broadcaster", "moderator", "vip", "og", "founder", "verified"].map((type) => ({ type, text: type })),
+  getBundledBadgeUrl,
+);
+const kickSubscriberBadges = resolveKickChatBadges(
+  parseKickIdentityBadges([{ type: "subscriber", text: "Subscriber", count: 14 }], getBundledBadgeUrl),
+  spreenSubscriberCatalog,
+);
+const kickGiftBadges = parseKickIdentityBadges(
+  [{ type: "sub_gifter", text: "Sub gifter", count: 50 }],
+  getBundledBadgeUrl,
+);
+
+export const KickOfficialBadges: Story = {
+  render: () => (
+    <View style={{ gap: mobileSpacing.small }}>
+      <RowCase label="Kick roles" platform="kick" item={message("kick-roles", "Official role artwork", { badges: kickRoleBadges })} />
+      <RowCase label="Spreen subscriber, 14 months uses 12-month tier" platform="kick" item={message("kick-sub", "Channel-specific subscriber badge", { badges: kickSubscriberBadges })} />
+      <RowCase label="Kick sub gifter, 50 gifts" platform="kick" item={message("kick-gift", "Count-tiered gift badge", { badges: kickGiftBadges })} />
+    </View>
   ),
 };

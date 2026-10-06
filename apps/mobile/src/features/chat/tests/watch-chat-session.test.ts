@@ -105,9 +105,18 @@ describe("watch chat session", () => {
         event: "pusher:connection_established",
       }),
     });
+    expect(kickSession.snapshot().kind).toBe("connecting");
+    kick?.onmessage?.({
+      data: JSON.stringify({
+        channel: "chatrooms.44.v2",
+        data: "{}",
+        event: "pusher_internal:subscription_succeeded",
+      }),
+    });
     expect(kickSession.snapshot().kind).toBe("empty");
     kick?.onmessage?.({
       data: JSON.stringify({
+        channel: "chatrooms.44.v2",
         data: JSON.stringify({
           content: "yo",
           id: "k1",

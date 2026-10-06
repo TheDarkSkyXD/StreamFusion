@@ -5,6 +5,7 @@ import type {
 import { kickPublicChannelUrl } from "@mobile/features/discovery/adapters/kick/kick-public-catalog";
 import { parseTwitchChatEvent } from "../domain/watch-chat-events";
 import { parseKickChatFrame } from "../domain/watch-chat-messages";
+import { getBundledBadgeUrl } from "../utils/kick-badge-assets";
 
 export type WatchChatHistoryResult =
   | { readonly kind: "loaded"; readonly messages: readonly WatchChatMessage[] }
@@ -75,7 +76,7 @@ export async function readWatchChatHistory(input: {
         .slice(0, limit)
         .reverse()
         .flatMap((item) => {
-          const parsed = parseKickChatFrame(item);
+          const parsed = parseKickChatFrame(item, getBundledBadgeUrl);
           return parsed ? [{ ...parsed, isHistorical: true }] : [];
         }),
     };

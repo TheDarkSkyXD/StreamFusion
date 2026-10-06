@@ -78,10 +78,23 @@ export function parseKickChatEvent(
       ? Date.parse(data.created_at)
       : Date.now();
   if (event === "App\\Events\\MessageDeletedEvent") {
-    const messageId = stringId(record(data.message)?.id);
+    const message = record(data.message);
+    const messageId = stringId(message?.id);
     if (!messageId) return null;
+    const actorFields = [
+      "deleted_by",
+      "deletedBy",
+      "moderator",
+      "actor",
+      "bot",
+      "automod",
+      "auto_mod",
+      "automation",
+      "source",
+    ] as const;
     const actor =
-      actorName(data.deleted_by) ?? actorName(record(data.message)?.deleted_by);
+      actorFields.map((key) => actorName(data[key])).find(Boolean) ??
+      actorFields.map((key) => actorName(message?.[key])).find(Boolean);
     return { kind: "delete", messageId, at, ...(actor ? { actor } : {}) };
   }
   if (event === "App\\Events\\ChatroomClearEvent")
@@ -170,9 +183,22 @@ function stringId(value: unknown): string {
 }
 
 function actorName(value: unknown): string | undefined {
-  if (typeof value === "string") return value || undefined;
   const actor = record(value);
-  return typeof actor?.username === "string" ? actor.username : undefined;
+  const candidates =
+    typeof value === "string"
+      ? [value]
+      : actor
+        ? [actor.username, actor.display_name, actor.name, actor.slug]
+        : [];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const name = candidate.trim();
+    if (!name) continue;
+    if (/^auto[-_\s]?mod$/i.test(name)) return "AutoMod";
+    if (/^bot$/i.test(name)) return "Bot";
+    return name;
+  }
+  return undefined;
 }
 
 function timestamp(line: string): number {

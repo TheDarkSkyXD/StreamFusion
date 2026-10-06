@@ -118,6 +118,43 @@ describe("guest chat events", () => {
     ).toMatchObject({ kind: "clear-room" });
   });
 
+  it("preserves Kick deletion actor aliases without assigning an unknown moderator", () => {
+    const deletion = "App\\Events\\MessageDeletedEvent";
+    expect(
+      parseKickChatEvent(deletion, {
+        message: { id: "m1" },
+        deletedBy: { display_name: "Channel Mod" },
+      }),
+    ).toMatchObject({ kind: "delete", actor: "Channel Mod" });
+    expect(
+      parseKickChatEvent(deletion, {
+        message: { id: "m1" },
+        bot: "bot",
+      }),
+    ).toMatchObject({ kind: "delete", actor: "Bot" });
+    expect(
+      parseKickChatEvent(deletion, {
+        message: { id: "m1", auto_mod: { slug: "auto_mod" } },
+      }),
+    ).toMatchObject({ kind: "delete", actor: "AutoMod" });
+    expect(
+      parseKickChatEvent(deletion, {
+        message: { id: "m1", actor: { name: "Nested Mod" } },
+      }),
+    ).toMatchObject({ kind: "delete", actor: "Nested Mod" });
+    expect(
+      parseKickChatEvent(deletion, {
+        message: { id: "m1" },
+        source: "automation",
+      }),
+    ).toMatchObject({ kind: "delete", actor: "automation" });
+    expect(
+      parseKickChatEvent(deletion, {
+        message: { id: "m1", deleted_by: { id: 42 } },
+      }),
+    ).toEqual(expect.not.objectContaining({ actor: expect.anything() }));
+  });
+
   it("marks retained messages and clears a room regardless of notice visibility", () => {
     const messages = [
       {
