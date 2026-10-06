@@ -200,4 +200,19 @@ describe("engagement account ownership and lifecycle", () => {
     ]);
     controller.dispose();
   });
+  it("reads only enabled records and requests only their scope", async () => {
+    const { controller, access, gateway } = setup();
+    await controller.open(channel, { polls: true, predictions: false });
+    expect(access.read).toHaveBeenCalledWith("twitch", ["channel:read:polls"]);
+    expect(gateway.polls).toHaveBeenCalledOnce();
+    expect(gateway.predictions).not.toHaveBeenCalled();
+    expect(controller.getSnapshot().predictions).toEqual([]);
+    await controller.open(channel, { polls: false, predictions: true });
+    expect(access.read).toHaveBeenCalledWith("twitch", [
+      "channel:read:predictions",
+    ]);
+    expect(gateway.polls).toHaveBeenCalledOnce();
+    expect(gateway.predictions).toHaveBeenCalledOnce();
+    controller.dispose();
+  });
 });

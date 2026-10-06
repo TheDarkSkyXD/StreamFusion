@@ -87,42 +87,6 @@ export function attachHelixChannelVerification(
   });
 }
 
-export function helixLiveStreamsFromSearch(value: unknown): readonly Stream[] {
-  return helixRows(value).flatMap((record) => {
-    if (record.is_live !== true) return [];
-    const id = stringField(record, "id");
-    const channelName =
-      stringField(record, "broadcaster_login") ||
-      stringField(record, "user_login");
-    if (id === "" || channelName === "") return [];
-    return [
-      {
-        channelAvatar: stringField(record, "thumbnail_url"),
-        channelDisplayName:
-          stringField(record, "display_name") || channelName,
-        channelId: id,
-        channelName,
-        id: `live:twitch:${id}`,
-        isLive: true,
-        language: stringField(record, "broadcaster_language"),
-        platform: "twitch" as const,
-        startedAt: null,
-        tags: helixTags(record),
-        thumbnailUrl: stringField(record, "thumbnail_url"),
-        title: stringField(record, "title"),
-        viewerCount: 0,
-        ...(stringField(record, "game_id") === ""
-          ? {}
-          : { categoryId: stringField(record, "game_id") }),
-        ...(stringField(record, "game_name") === ""
-          ? {}
-          : { categoryName: stringField(record, "game_name") }),
-      },
-    ];
-  });
-}
-
-
 export type HelixFollowedChannel = {
   readonly platform: "twitch";
   readonly channelId: string;
@@ -131,7 +95,9 @@ export type HelixFollowedChannel = {
   readonly followedAt: string;
 };
 
-export function helixFollowedChannels(value: unknown): readonly HelixFollowedChannel[] {
+export function helixFollowedChannels(
+  value: unknown,
+): readonly HelixFollowedChannel[] {
   return helixRows(value).flatMap((record) => {
     const channelId = stringField(record, "broadcaster_id");
     const channelLogin = stringField(record, "broadcaster_login").toLowerCase();
@@ -183,7 +149,9 @@ export function helixChannels(value: unknown): readonly Channel[] {
         id,
         isLive: record.is_live === true,
         isPartner: stringField(record, "broadcaster_type") === "partner",
-        isVerified: twitchChannelVerified(stringField(record, "broadcaster_type")),
+        isVerified: twitchChannelVerified(
+          stringField(record, "broadcaster_type"),
+        ),
         platform: "twitch" as const,
         username: stringField(record, "broadcaster_login"),
         ...(categoryId === "" ? {} : { categoryId }),

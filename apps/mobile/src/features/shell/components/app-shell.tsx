@@ -11,6 +11,7 @@ import {
   type ModerationScopeReturn,
 } from "@mobile/features/moderation/components/mod-workspace";
 import { EngagementSheet } from "@mobile/features/engagement/components/engagement-sheet";
+import type { ChatEngagementInlineRuntime } from "@mobile/features/engagement/components/chat-engagement-inline";
 import type { ModerationController } from "@mobile/features/moderation/domain/moderation-controller";
 import type { EngagementController } from "@mobile/features/engagement/domain/engagement-controller";
 import type { ModerationChannel } from "@mobile/features/moderation/capabilities/moderation";
@@ -237,6 +238,7 @@ export function AppShell({
   multistream,
   moderation,
   engagement,
+  inlineEngagement,
   workflowNavigation,
   onRequestPlatformScopes,
   moderationChat,
@@ -292,6 +294,7 @@ export function AppShell({
   readonly multistream?: MultistreamWorkspaceProps;
   readonly moderation?: ModerationController;
   readonly engagement?: EngagementController;
+  readonly inlineEngagement?: ChatEngagementInlineRuntime;
   readonly workflowNavigation?: PlatformWorkflowNavigation;
   readonly onRequestPlatformScopes?: (
     platform: StreamPlatform,
@@ -556,6 +559,7 @@ export function AppShell({
               {...(moderationChat ? { moderationChat } : {})}
               {...(moderation === undefined ? {} : { moderation })}
               {...(engagement === undefined ? {} : { engagement })}
+              {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
               {...(workflowNavigation === undefined
                 ? {}
                 : { workflowNavigation })}
@@ -775,6 +779,7 @@ function ShellScreen({
   multistream,
   moderation,
   engagement,
+  inlineEngagement,
   workflowNavigation,
   onRequestPlatformScopes,
   moderationChat,
@@ -832,6 +837,7 @@ function ShellScreen({
   readonly multistream?: MultistreamWorkspaceProps;
   readonly moderation?: ModerationController;
   readonly engagement?: EngagementController;
+  readonly inlineEngagement?: ChatEngagementInlineRuntime;
   readonly workflowNavigation?: PlatformWorkflowNavigation;
   readonly onRequestPlatformScopes?: (
     platform: StreamPlatform,
@@ -997,6 +1003,16 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
+          {...(target && inlineEngagement && workflowNavigation
+            ? {
+                inlineEngagement: {
+                  ...inlineEngagement,
+                  onOpenProvider: (channel: ModerationChannel) => {
+                    void workflowNavigation.openChannel(channel);
+                  },
+                },
+              }
+            : {})}
           {...(target && engagement
             ? {
                 onOpenEngagement: () =>

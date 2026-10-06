@@ -1,10 +1,11 @@
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
+  WatchChatEvent,
   WatchChatSocket,
   WatchChatSocketFactory,
 } from "../capabilities/watch-chat";
-import { parseTwitchPrivmsg } from "../domain/watch-chat-messages";
+import { parseTwitchChatEvent } from "../domain/watch-chat-events";
 
 const TWITCH_IRC = "wss://irc-ws.chat.twitch.tv:443";
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 15_000] as const;
@@ -17,6 +18,7 @@ export function connectTwitchGuestIrc(input: {
   readonly onClose: () => void;
   readonly onError: (detail: string) => void;
   readonly onMessage: (message: WatchChatMessage) => void;
+  readonly onEvent?: (event: WatchChatEvent) => void;
   readonly onOpen: () => void;
   readonly socketFactory: WatchChatSocketFactory;
   readonly target: WatchChatConnectInput;
@@ -62,8 +64,10 @@ export function connectTwitchGuestIrc(input: {
       socket?.send(`PONG ${trimmed.slice(5)}`);
       return;
     }
-    const message = parseTwitchPrivmsg(trimmed);
-    if (message) input.onMessage(message);
+    const event = parseTwitchChatEvent(trimmed);
+    if (!event) return;
+    if (input.onEvent) input.onEvent(event);
+    else if (event.kind === "message") input.onMessage(event.message);
   };
 
   const openSocket = () => {
@@ -95,7 +99,10 @@ export function connectTwitchGuestIrc(input: {
       const parts = buffer.split("\n");
       buffer = parts.pop() ?? "";
       for (const part of parts) handleLine(part);
-      if (buffer.includes("PRIVMSG ") || buffer.startsWith("PING ")) {
+      if (
+        / (?:PRIVMSG|USERNOTICE|NOTICE|CLEARMSG|CLEARCHAT) #/.test(buffer) ||
+        buffer.startsWith("PING ")
+      ) {
         handleLine(buffer);
         buffer = "";
       }

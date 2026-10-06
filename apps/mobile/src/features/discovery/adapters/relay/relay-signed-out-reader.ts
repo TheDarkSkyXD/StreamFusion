@@ -15,10 +15,7 @@ import type {
   PlatformReadOutcome,
   SearchReadOutcome,
 } from "../../capabilities/platform-reads";
-import {
-  emptySearchCatalog,
-  streamsFromLiveChannels,
-} from "../../domain/search-catalog";
+import { emptySearchCatalog } from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
 import { createRelayChannelReader } from "./relay-channel-reader";
 import {
@@ -229,17 +226,13 @@ function catalogFromSearchValue(
       status: "failed",
     };
   }
-  const streams =
-    body.streams.length > 0
-      ? body.streams
-      : streamsFromLiveChannels(body.channels);
   return {
     cache: { kind: "miss" },
     catalog: {
       categories: body.categories,
       channels: body.channels,
       clips: body.clips,
-      streams,
+      streams: body.streams,
       videos: body.videos,
     },
     path: { kind: "relay", platform },

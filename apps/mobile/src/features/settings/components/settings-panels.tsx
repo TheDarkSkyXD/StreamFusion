@@ -129,14 +129,16 @@ function PlaybackQualityRows({ onChange, view }: SettingsPanelProps) {
   return (
     <>
       <SettingsSelect
-        current={prefs.quality}
+        current={prefs.quality === "2k" ? "1440p" : prefs.quality}
         detail={t("settings.preferredStreamQualityWhenAvailable")}
         label={t("settings.defaultQuality")}
         onSelect={(quality) => onChange({ quality })}
-        options={VIDEO_QUALITY_OPTIONS.map((value) => ({
-          label: qualityLabel(t, value),
-          value,
-        }))}
+        options={VIDEO_QUALITY_OPTIONS.filter((value) => value !== "2k").map(
+          (value) => ({
+            label: qualityLabel(t, value),
+            value,
+          }),
+        )}
         testID="quality"
       />
       <SettingsSlider

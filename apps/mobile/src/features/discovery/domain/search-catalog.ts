@@ -1,5 +1,3 @@
-import type { Channel, Stream } from "@streamfusion/core/content";
-
 import type { SearchCatalogPage } from "../capabilities/platform-reads";
 
 export function emptySearchCatalog(): SearchCatalogPage {
@@ -10,14 +8,6 @@ export function emptySearchCatalog(): SearchCatalogPage {
     streams: [],
     videos: [],
   };
-}
-
-export function streamsFromLiveChannels(
-  channels: readonly Channel[],
-): readonly Stream[] {
-  return channels.flatMap((channel) =>
-    channel.isLive ? [streamFromLiveChannel(channel)] : [],
-  );
 }
 
 export function dedupeByIdentity<
@@ -32,29 +22,4 @@ export function dedupeByIdentity<
     next.push(item);
   }
   return next;
-}
-
-function streamFromLiveChannel(channel: Channel): Stream {
-  return {
-    channelAvatar: channel.avatarUrl,
-    channelDisplayName: channel.displayName,
-    channelId: channel.id,
-    channelName: channel.username,
-    id: `live:${channel.platform}:${channel.id}`,
-    isLive: true,
-    language: "",
-    platform: channel.platform,
-    startedAt: null,
-    tags: [],
-    thumbnailUrl: "",
-    title: channel.lastStreamTitle ?? channel.displayName,
-    viewerCount: 0,
-    ...(channel.isVerified || channel.isPartner
-      ? { channelIsVerified: true }
-      : {}),
-    ...(channel.categoryId === undefined ? {} : { categoryId: channel.categoryId }),
-    ...(channel.categoryName === undefined
-      ? {}
-      : { categoryName: channel.categoryName }),
-  };
 }

@@ -12,6 +12,7 @@ import type {
   GuestFollowRepository,
   LiveNotificationPreferenceStore,
 } from "@mobile/features/storage/capabilities/persistence";
+import type { LiveStreamCatalog } from "@mobile/features/discovery/capabilities/live-stream-catalog";
 import { createFollowingRuntime } from "../composition/following-runtime";
 import { guestFollow } from "../domain/following-fixtures";
 
@@ -119,6 +120,232 @@ function envelope(body: object) {
 }
 
 describe("createFollowingRuntime", () => {
+  it("adds Spreen as a Kick guest follow and reads live and recorded content without relay", async () => {
+    const guestFollows = memoryGuestFollows();
+    const urls: string[] = [];
+    const kickLiveCatalog: LiveStreamCatalog = {
+      read: async () => ({
+        kind: "ready",
+        entries: [
+          {
+            channel: {
+              avatarUrl: "https://example.test/spreen.png",
+              displayName: "Spreen",
+              id: "1234",
+              isLive: true,
+              isPartner: true,
+              isVerified: true,
+              platform: "kick",
+              username: "spreen",
+            },
+            playbackUrl: null,
+            stream: {
+              channelAvatar: "https://example.test/spreen.png",
+              channelDisplayName: "Spreen",
+              channelId: "1234",
+              channelName: "spreen",
+              id: "live-1",
+              isLive: true,
+              language: "es",
+              platform: "kick",
+              startedAt: null,
+              tags: [],
+              thumbnailUrl: "https://example.test/live.png",
+              title: "Spreen live",
+              viewerCount: 100,
+            },
+          },
+        ],
+      }),
+    };
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes("/videos")) {
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 99,
+                  session_title: "Recent stream",
+                  created_at: "2026-09-30T00:00:00.000Z",
+                  duration: 60000,
+                  views: 20,
+                },
+              ],
+            }),
+          );
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      },
+      guestFollows,
+      installation: async () => ({ kind: "none" }),
+      kickLiveCatalog,
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      relayBaseUrl: "http://relay.test/",
+    });
+    const followed = await session.mutateFollow({
+      channelLogin: "Spreen",
+      platform: "kick",
+    });
+    expect(followed).toMatchObject({
+      kind: "followed",
+      follow: {
+        channelId: "1234",
+        channelLogin: "spreen",
+        displayName: "Spreen",
+      },
+    });
+    expect((await session.hydrateLive()).kick.items).toMatchObject([
+      { channelId: "1234", title: "Spreen live" },
+    ]);
+    const recorded = await session.hydrateRecorded({
+      channelId: "1234",
+      channelLogin: "spreen",
+      kind: "videos",
+      platform: "kick",
+      sort: "recent",
+    });
+    expect(recorded).toMatchObject({
+      failed: false,
+      items: [{ channelId: "1234", id: "99", title: "Recent stream" }],
+    });
+    expect(urls).toEqual([
+      "https://kick.com/api/v2/channels/spreen/videos?limit=20",
+    ]);
+    expect(await guestFollows.list()).toHaveLength(1);
+  });
+
+  it("resolves an offline Kick channel through the public channel page", async () => {
+    const urls: string[] = [];
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        const url = String(input);
+        urls.push(url);
+        return new Response(
+          JSON.stringify({
+            id: 456,
+            slug: "offlinecreator",
+            user: { username: "OfflineCreator", profilepic: "" },
+          }),
+        );
+      },
+      guestFollows: memoryGuestFollows(),
+      installation: async () => ({ kind: "none" }),
+      kickLiveCatalog: { read: async () => ({ kind: "ready", entries: [] }) },
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      relayBaseUrl: "http://relay.test/",
+    });
+    expect(
+      await session.mutateFollow({
+        channelLogin: "offlinecreator",
+        platform: "kick",
+      }),
+    ).toMatchObject({
+      kind: "followed",
+      follow: { channelId: "456", channelLogin: "offlinecreator" },
+    });
+    expect(urls).toEqual(["https://kick.com/api/v1/channels/offlinecreator"]);
+  });
+
+  it("hydrates a live Kick follow omitted from the directory", async () => {
+    const urls: string[] = [];
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        urls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            id: 456,
+            slug: "smallcreator",
+            user: { username: "SmallCreator", profilepic: "" },
+            livestream: {
+              id: 999,
+              is_live: true,
+              session_title: "Live now",
+              viewer_count: 12,
+            },
+          }),
+        );
+      },
+      guestFollows: memoryGuestFollows([
+        guestFollow({
+          channelId: "456",
+          channelLogin: "smallcreator",
+          platform: "kick",
+        }),
+      ]),
+      installation: async () => ({ kind: "none" }),
+      kickLiveCatalog: { read: async () => ({ kind: "ready", entries: [] }) },
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      relayBaseUrl: "http://relay.test/",
+    });
+    expect((await session.hydrateLive()).kick.items).toMatchObject([
+      { channelId: "456", id: "999", title: "Live now" },
+    ]);
+    expect(urls).toEqual(["https://kick.com/api/v1/channels/smallcreator"]);
+  });
+
+  it("retains the relay when a public Kick channel read fails", async () => {
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        const url = String(input);
+        if (url.startsWith("https://kick.com/"))
+          return new Response("", { status: 503 });
+        if (url.includes("followed-content/channels")) {
+          return new Response(
+            JSON.stringify(
+              envelope({
+                channels: [
+                  {
+                    avatarUrl: "",
+                    displayName: "Spreen",
+                    id: "1234",
+                    isLive: false,
+                    isPartner: false,
+                    isVerified: false,
+                    platform: "kick",
+                    username: "spreen",
+                  },
+                ],
+                missing: [],
+                platform: "kick",
+              }),
+            ),
+          );
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      },
+      guestFollows: memoryGuestFollows(),
+      installation: async () => ({ credential: "install", kind: "ready" }),
+      kickLiveCatalog: {
+        read: async () => ({
+          failure: { kind: "provider-rejected", status: 503 },
+          kind: "unavailable",
+        }),
+      },
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      relayBaseUrl: "http://relay.test/",
+    });
+    expect(
+      await session.mutateFollow({
+        channelLogin: "spreen",
+        platform: "kick",
+      }),
+    ).toMatchObject({
+      kind: "followed",
+      follow: { channelId: "1234", channelLogin: "spreen" },
+    });
+  });
+
   it("persists twitch guest follow for xqc so Activity live alerts can target it", async () => {
     const guestFollows = memoryGuestFollows();
     const session = createFollowingRuntime({

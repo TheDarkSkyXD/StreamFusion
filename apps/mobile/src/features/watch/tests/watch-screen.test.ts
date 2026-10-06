@@ -80,6 +80,7 @@ vi.mock("react", async (importOriginal) => {
     memo: <P>(component: (props: P) => ReactNode) => component,
     useEffect: () => undefined,
     useMemo: (factory: () => unknown) => factory(),
+    useCallback: (callback: unknown) => callback,
     useRef: (initial: unknown) => ({ current: initial }),
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) =>
       getSnapshot(),
@@ -217,22 +218,27 @@ describe("watch screen", () => {
     expect(username?.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          fontSize: 13,
-          fontWeight: "700",
+          fontSize: 16,
+          lineHeight: 22,
+        }),
+        expect.objectContaining({
           includeFontPadding: false,
-          lineHeight: 18,
           transform: [{ translateY: -1 }],
         }),
-        { color: "#FF7F50" },
+        expect.objectContaining({ color: "#FF7F50", fontWeight: "500" }),
       ]),
     );
     const row = liveNodes.find(
       (node) => node.props.testID === "watch-chat-message-msg-1",
     );
-    expect(row?.props.style).toMatchObject({
-      alignItems: "center",
-      flexDirection: "row",
-    });
+    expect(row?.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          alignItems: "center",
+          flexDirection: "row",
+        }),
+      ]),
+    );
     expect(
       liveNodes.some(
         (node) =>

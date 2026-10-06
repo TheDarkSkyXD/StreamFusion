@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BackHandler,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -125,6 +126,7 @@ export function SettingsWorkspace({
   }, [session]);
 
   const openPanel = (panel: SettingsPanelId) => {
+    Keyboard.dismiss();
     void session.search("");
     setActivePanel(panel);
   };

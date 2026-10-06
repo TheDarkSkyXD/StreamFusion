@@ -355,6 +355,7 @@ const kickAccountFollows = createKickAccountFollowMembership({
 const localLiveAlertPresenter = createExpoLocalNotificationPresenter();
 
 const followingSession = createFollowingRuntime({
+  kickLiveCatalog,
   activity: persistenceRuntime.productState.activity,
   accountFollows: [twitchAccountFollows, kickAccountFollows],
   accountLiveStreams: [twitchAccountLiveStreams],
@@ -562,6 +563,7 @@ export function MobileRuntime() {
   const chatRuntime = useMemo(
     () =>
       createChatRuntime({
+        display: chatDisplaySession,
         access: platformAccess,
         fetch: connectivitySession.fetch,
         openUrl: async (url) => {
@@ -571,10 +573,24 @@ export function MobileRuntime() {
     [platformAccess],
   );
   const moderationChatRuntime = useMemo(
-    () => createChatRuntime({ access: platformAccess, fetch: connectivitySession.fetch, openUrl: async (url) => { await Linking.openURL(url); } }),
+    () =>
+      createChatRuntime({
+        display: chatDisplaySession,
+        access: platformAccess,
+        fetch: connectivitySession.fetch,
+        openUrl: async (url) => {
+          await Linking.openURL(url);
+        },
+      }),
     [platformAccess],
   );
-  useEffect(() => () => { moderationChatRuntime.chat.dispose(); moderationChatRuntime.interactions.dispose(); }, [moderationChatRuntime]);
+  useEffect(
+    () => () => {
+      moderationChatRuntime.chat.dispose();
+      moderationChatRuntime.interactions.dispose();
+    },
+    [moderationChatRuntime],
+  );
   const moderation = useMemo(
     () =>
       createModerationRuntime({
@@ -598,6 +614,26 @@ export function MobileRuntime() {
         await Linking.openURL(url);
       }),
     [],
+  );
+  const inlineEngagementController = useMemo(
+    () =>
+      createEngagementRuntime({
+        access: platformAccess,
+        fetch: connectivitySession.fetch,
+      }),
+    [platformAccess],
+  );
+  const inlineEngagement = useMemo(
+    () => ({
+      controller: inlineEngagementController,
+      displaySession: chatDisplaySession,
+      predictionSession,
+    }),
+    [inlineEngagementController],
+  );
+  useEffect(
+    () => () => inlineEngagementController.dispose(),
+    [inlineEngagementController],
   );
   useEffect(
     () => () => {
@@ -696,6 +732,7 @@ export function MobileRuntime() {
             moderation={moderation}
             moderationChat={moderationChatRuntime}
             engagement={engagement}
+            inlineEngagement={inlineEngagement}
             workflowNavigation={workflowNavigation}
             onRequestPlatformScopes={(platform, scopes) => {
               if (platform === "twitch") {

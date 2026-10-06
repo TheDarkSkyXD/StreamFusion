@@ -44,7 +44,7 @@ export function composePredictionSettingsView(
   return {
     preferences,
     disclosure:
-      "Style is saved with the desktop-compatible predictions preference. It applies when the mobile predictions widget lands.",
+      "Style applies to prediction widgets in mobile chat. Polls and predictions use available channel data; provider voting and wagering open the platform.",
   };
 }
 

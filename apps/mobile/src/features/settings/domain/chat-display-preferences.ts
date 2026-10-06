@@ -92,7 +92,10 @@ export function parseChatDisplayPreferences(
   }
   try {
     const parsed = JSON.parse(raw) as Partial<ChatDisplayPreferences>;
-    return mergeChatDisplayPreferences(DEFAULT_CHAT_DISPLAY_PREFERENCES, parsed);
+    return mergeChatDisplayPreferences(
+      DEFAULT_CHAT_DISPLAY_PREFERENCES,
+      parsed,
+    );
   } catch {
     return DEFAULT_CHAT_DISPLAY_PREFERENCES;
   }
@@ -184,7 +187,7 @@ export function composeChatDisplaySettingsView(
   return {
     preferences,
     disclosure:
-      "Appearance, emote, and event choices apply to Watch chat when that renderer honors them. Desktop-only chrome (panel width, hover pause, pin duration) is saved for sync but not shown here.",
+      "Appearance, emotes, badges, paints, notices, and moderation display apply to mobile chat. History and emote providers apply on the next channel load. Poll and prediction widgets use available channel data.",
   };
 }
 

@@ -72,6 +72,7 @@ import { WatchRecordingBar } from "./watch-recording-bar";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
 import { WatchTabs } from "./watch-tabs";
+import type { ChatEngagementInlineBindings } from "@mobile/features/engagement/components/chat-engagement-inline";
 
 export type PlayerSurfaceProps = {
   readonly sessionId: string;
@@ -114,6 +115,7 @@ export function WatchScreen({
   chat,
   chatSession,
   chatInteractions,
+  inlineEngagement,
   chrome,
   download,
   recording,
@@ -158,6 +160,7 @@ export function WatchScreen({
   readonly chat: WatchChatAvailability;
   readonly chatSession?: WatchChatSession;
   readonly chatInteractions?: ChatInteractions;
+  readonly inlineEngagement?: ChatEngagementInlineBindings;
   readonly chrome?: {
     readonly showFullscreen: boolean;
     readonly showQuality: boolean;
@@ -550,6 +553,8 @@ export function WatchScreen({
           ) : null}
           <WatchTabs
             chat={chat}
+            {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
+            {...(chatSession === undefined ? {} : { chatSession })}
             chatTarget={target}
             {...(chatInteractions === undefined ? {} : { chatInteractions })}
             info={inspection?.info ?? null}

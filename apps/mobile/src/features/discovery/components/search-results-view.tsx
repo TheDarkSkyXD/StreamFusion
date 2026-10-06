@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import type { Clip, Video, Channel } from "@streamfusion/core/content";
+import type { Clip, Video, Channel, Stream } from "@streamfusion/core/content";
 import type { SearchResultType } from "@streamfusion/core/discovery";
 
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
@@ -17,11 +17,13 @@ import {
 export function SearchResultsView({
   onOpenChannel,
   onWatchClip,
+  onWatchStream,
   onWatchVideo,
   view,
 }: {
   readonly onOpenChannel?: (channel: Channel) => void;
   readonly onWatchClip?: (clip: Clip) => void;
+  readonly onWatchStream?: (stream: Stream) => void;
   readonly onWatchVideo?: (video: Video) => void;
   readonly view: UnifiedSearchView;
 }) {
@@ -34,7 +36,10 @@ export function SearchResultsView({
           <SearchChannelCard
             channel={channel}
             key={`${channel.platform}:${channel.id}`}
-            {...watchProp("onOpen", onOpenChannel ? () => onOpenChannel(channel) : undefined)}
+            {...watchProp(
+              "onOpen",
+              onOpenChannel ? () => onOpenChannel(channel) : undefined,
+            )}
           />
         ))}
       </Section>
@@ -43,23 +48,22 @@ export function SearchResultsView({
   if (tab === "streams") {
     return (
       <Section title="Streams">
-        {collection.streams.map((stream) => (
-          <HomeStreamCard
-            key={`${stream.platform}:${stream.id}`}
-            stream={stream}
-          />
-        ))}
+        {streamCards(collection.streams, onWatchStream)}
       </Section>
     );
   }
   if (tab === "videos") {
     return (
-      <Section title="Videos">{videoCards(collection.videos, onWatchVideo)}</Section>
+      <Section title="Videos">
+        {videoCards(collection.videos, onWatchVideo)}
+      </Section>
     );
   }
   if (tab === "clips") {
     return (
-      <Section title="Clips">{clipCards(collection.clips, onWatchClip)}</Section>
+      <Section title="Clips">
+        {clipCards(collection.clips, onWatchClip)}
+      </Section>
     );
   }
   if (tab === "categories") {
@@ -94,12 +98,7 @@ export function SearchResultsView({
       ) : null}
       {collection.streams.length > 0 ? (
         <Section title="Live streams">
-          {collection.streams.map((stream) => (
-            <HomeStreamCard
-              key={`${stream.platform}:${stream.id}`}
-              stream={stream}
-            />
-          ))}
+          {streamCards(collection.streams, onWatchStream)}
         </Section>
       ) : null}
       {collection.videos.length > 0 ? (
@@ -126,6 +125,22 @@ export function SearchResultsView({
   );
 }
 
+function streamCards(
+  streams: readonly Stream[],
+  onWatchStream?: (stream: Stream) => void,
+) {
+  return streams.map((stream) => (
+    <HomeStreamCard
+      key={`${stream.platform}:${stream.id}`}
+      stream={stream}
+      {...watchProp(
+        "onOpen",
+        onWatchStream ? () => onWatchStream(stream) : undefined,
+      )}
+    />
+  ));
+}
+
 function videoCards(
   videos: readonly Video[],
   onWatchVideo?: (video: Video) => void,
@@ -139,10 +154,7 @@ function videoCards(
   ));
 }
 
-function clipCards(
-  clips: readonly Clip[],
-  onWatchClip?: (clip: Clip) => void,
-) {
+function clipCards(clips: readonly Clip[], onWatchClip?: (clip: Clip) => void) {
   return clips.map((clip) => (
     <SearchClipCard
       clip={clip}
@@ -156,7 +168,9 @@ function watchProp<K extends string, V>(
   key: K,
   value: V | undefined,
 ): { readonly [P in K]: V } | Record<string, never> {
-  return value === undefined ? {} : ({ [key]: value } as { readonly [P in K]: V });
+  return value === undefined
+    ? {}
+    : ({ [key]: value } as { readonly [P in K]: V });
 }
 
 function Section({

@@ -1,14 +1,14 @@
 import {
-  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
+  type ReactNode,
 } from "react";
 import {
   FlatList,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,10 +16,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileButton } from "@mobile/design/button";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileTextField } from "@mobile/design/text-input";
+import { MobileEmoteImage } from "@mobile/design/emote-image";
 import {
   mobileColors,
   mobileRadii,
@@ -27,7 +29,6 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 import type {
-  ChatEmote,
   ChatInteractions,
   ChatInteractionView,
 } from "../capabilities/chat-interactions";
@@ -36,8 +37,7 @@ import type {
   WatchChatConnectInput,
   WatchChatMessage,
 } from "../capabilities/watch-chat";
-import { resolveMessageParts } from "../domain/message-parts";
-import { resolveChatUsernameColor } from "../domain/resolve-chat-username-color";
+import { ChatMessageRow } from "./chat-message-row";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/domain/chat-display-preferences";
 
 const READ_ONLY: ChatInteractionView = {
@@ -57,6 +57,7 @@ export function ChatPanel(props: Parameters<typeof ChatPanelBody>[0]) {
     props.target?.platform,
     props.target?.channelId,
     props.target?.channelName,
+    props.target?.media?.id,
     props.recorded ?? false,
   ]);
   return <ChatPanelBody key={identity} {...props} />;
@@ -73,6 +74,7 @@ function ChatPanelBody({
   onModerateMessage,
   testID = "watch-chat",
   title = "Chat",
+  engagementHeader,
 }: {
   readonly chat: WatchChatAvailability;
   readonly platform: Platform;
@@ -84,6 +86,7 @@ function ChatPanelBody({
   readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly testID?: string;
   readonly title?: string;
+  readonly engagementHeader?: ReactNode;
 }) {
   const view = useSyncExternalStore(
     interactions
@@ -91,12 +94,22 @@ function ChatPanelBody({
       : noopSubscribe,
     interactions ? () => interactions.snapshot() : () => READ_ONLY,
   );
+  const { t } = useTranslation();
+  const list = useRef<FlatList<WatchChatMessage>>(null);
+  const readingGesture = useRef(false);
+  const [pausedMessages, setPausedMessages] = useState<
+    readonly WatchChatMessage[] | null
+  >(null);
+  const preferences =
+    view.displayPreferences ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const [draft, setDraft] = useState("");
   const [sendNotice, setSendNotice] = useState<string | null>(null);
   const composerEpoch = useRef(0);
   const [reply, setReply] = useState<WatchChatMessage | null>(null);
   const [selected, setSelected] = useState<WatchChatMessage | null>(null);
   const [picker, setPicker] = useState(false);
+  const [pickerMessages, setPickerMessages] =
+    useState<readonly WatchChatMessage[]>(EMPTY_MESSAGES);
   const [query, setQuery] = useState("");
   const channelId = target?.channelId;
   const channelName = target?.channelName;
@@ -139,12 +152,115 @@ function ChatPanelBody({
     }
   };
   const messages = chat.kind === "live" ? chat.messages : EMPTY_MESSAGES;
-  const newestFirst = useMemo(() => [...messages].reverse(), [messages]);
-  const matches = view.emotes
-    .filter((emote) =>
-      emote.name.toLowerCase().includes(query.trim().toLowerCase()),
-    )
-    .slice(0, 60);
+  const visibleMessages =
+    pausedMessages ?? (picker ? pickerMessages : messages);
+  const newestFirst = useMemo(
+    () => [...visibleMessages].reverse(),
+    [visibleMessages],
+  );
+  const emotes = useMemo(
+    () =>
+      view.emotes.filter((emote) =>
+        emote.provider === "7tv"
+          ? preferences.enable7tv
+          : emote.provider === "bttv"
+            ? preferences.enableBttv
+            : emote.provider === "ffz"
+              ? preferences.enableFfz
+              : true,
+      ),
+    [
+      view.emotes,
+      preferences.enable7tv,
+      preferences.enableBttv,
+      preferences.enableFfz,
+    ],
+  );
+  const matches = useMemo(
+    () =>
+      picker
+        ? emotes
+            .filter((emote) =>
+              emote.name.toLowerCase().includes(query.trim().toLowerCase()),
+            )
+            .slice(0, 60)
+        : [],
+    [emotes, picker, query],
+  );
+  const renderMessage = useCallback(
+    ({ item }: { readonly item: WatchChatMessage }) => (
+      <ChatMessageRow
+        message={item}
+        platform={platform}
+        emotes={emotes}
+        preferences={preferences}
+        cosmetics={item.userId ? view.cosmetics?.get(item.userId) : undefined}
+        roleBadges={view.cosmeticRoleBadges}
+        onSelect={setSelected}
+      />
+    ),
+    [platform, emotes, preferences, view.cosmetics, view.cosmeticRoleBadges],
+  );
+  const onVisibleMessages = useCallback(
+    (event: {
+      readonly viewableItems: readonly { readonly item: WatchChatMessage }[];
+    }) => {
+      interactions?.loadCosmetics?.(
+        event.viewableItems.flatMap(({ item }) =>
+          item.userId ? [item.userId] : [],
+        ),
+      );
+    },
+    [interactions],
+  );
+  const moderationRevision =
+    chat.kind === "live" || chat.kind === "empty"
+      ? (chat.moderationRevision ?? 0)
+      : 0;
+  const replayLoading = recorded && chat.kind === "connecting";
+  const [appliedSource, setAppliedSource] = useState({
+    moderationRevision,
+    replayLoading,
+  });
+  if (
+    appliedSource.moderationRevision !== moderationRevision ||
+    appliedSource.replayLoading !== replayLoading
+  ) {
+    setAppliedSource({ moderationRevision, replayLoading });
+    if (replayLoading) {
+      setPausedMessages(null);
+      setPickerMessages(EMPTY_MESSAGES);
+      setSelected(null);
+      setReply(null);
+    } else if (appliedSource.moderationRevision !== moderationRevision) {
+      const current = new Map(messages.map((message) => [message.id, message]));
+      const reconcile = (held: readonly WatchChatMessage[]) =>
+        held.flatMap((message) => {
+          const updated = current.get(message.id);
+          return updated ? [updated] : [];
+        });
+      setPausedMessages((held) => (held ? reconcile(held) : null));
+      setPickerMessages(reconcile);
+      const reconcileSelection = (held: WatchChatMessage | null) => {
+        const updated = held ? current.get(held.id) : undefined;
+        return updated && updated.deletedAt === undefined ? updated : null;
+      };
+      setSelected(reconcileSelection);
+      setReply(reconcileSelection);
+    }
+  }
+  const handleScroll = useCallback(
+    (event: {
+      readonly nativeEvent: { readonly contentOffset: { readonly y: number } };
+    }) => {
+      const readingHistory = event.nativeEvent.contentOffset.y > 24;
+      if (readingGesture.current || !readingHistory)
+        setPausedMessages((previous) =>
+          readingHistory ? (previous ?? messages) : null,
+        );
+    },
+    [messages],
+  );
   return (
     <View style={styles.panel} testID={testID}>
       <Text selectable style={mobileType.title}>
@@ -169,7 +285,27 @@ function ChatPanelBody({
           Retry chat
         </MobileButton>
       ) : null}
+      {engagementHeader}
+      {(chat.kind === "live" || chat.kind === "empty") && chat.historyDetail ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={mobileType.caption}
+          testID="chat-history-detail"
+        >
+          {chat.historyDetail}
+        </Text>
+      ) : null}
       <FlatList
+        ref={list}
+        onViewableItemsChanged={onVisibleMessages}
+        onScroll={handleScroll}
+        onScrollBeginDrag={() => {
+          readingGesture.current = true;
+        }}
+        onScrollEndDrag={() => {
+          readingGesture.current = false;
+        }}
+        scrollEventThrottle={64}
         style={styles.messages}
         contentContainerStyle={styles.messageList}
         testID={`${testID}-scroll`}
@@ -183,15 +319,22 @@ function ChatPanelBody({
         initialNumToRender={12}
         maxToRenderPerBatch={8}
         windowSize={3}
-        renderItem={({ item }) => (
-          <ChatMessageRow
-            message={item}
-            platform={platform}
-            emotes={view.emotes}
-            onSelect={setSelected}
-          />
-        )}
+        renderItem={renderMessage}
       />
+      {pausedMessages ? (
+        <MobileButton
+          accessibilityLabel={t("chat.chatPausedDueToScroll")}
+          testID="chat-resume"
+          variant="secondary"
+          onPress={() => {
+            readingGesture.current = false;
+            setPausedMessages(null);
+            list.current?.scrollToOffset({ offset: 0, animated: false });
+          }}
+        >
+          {t("chat.chatPausedDueToScroll")}
+        </MobileButton>
+      ) : null}
       {selected ? (
         <MobileBottomSheet
           visible
@@ -303,6 +446,15 @@ function ChatPanelBody({
           <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
             {view.detail}
           </Text>
+          {view.cosmeticsDetail ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={mobileType.caption}
+              testID="chat-cosmetics-detail"
+            >
+              {view.cosmeticsDetail}
+            </Text>
+          ) : null}
           {sendNotice ? (
             <Text
               accessibilityLiveRegion="polite"
@@ -346,9 +498,14 @@ function ChatPanelBody({
                       }}
                       style={styles.emoteChoice}
                     >
-                      <Image
-                        accessibilityLabel={emote.name}
-                        source={{ uri: emote.imageUrl }}
+                      <MobileEmoteImage
+                        name={emote.name}
+                        uri={
+                          preferences.animatedEmotes
+                            ? (emote.animatedImageUrl ?? emote.imageUrl)
+                            : (emote.staticImageUrl ?? emote.imageUrl)
+                        }
+                        animated={preferences.animatedEmotes}
                         style={styles.emote}
                       />
                       <Text style={mobileType.caption}>{emote.name}</Text>
@@ -375,7 +532,10 @@ function ChatPanelBody({
           <View style={styles.actions}>
             <MobileButton
               accessibilityLabel={picker ? "Close emotes" : "Open emotes"}
-              onPress={() => setPicker((value) => !value)}
+              onPress={() => {
+                setPickerMessages(messages);
+                setPicker((value) => !value);
+              }}
               testID="chat-emotes"
               variant="secondary"
             >
@@ -400,90 +560,6 @@ function ChatPanelBody({
   );
 }
 
-const ChatMessageRow = memo(function ChatMessageRow({
-  message,
-  platform,
-  emotes,
-  onSelect,
-}: {
-  readonly message: WatchChatMessage;
-  readonly platform: Platform;
-  readonly emotes: readonly ChatEmote[];
-  readonly onSelect: (message: WatchChatMessage) => void;
-}) {
-  return (
-    <Pressable
-      key={message.id}
-      onLongPress={() => onSelect(message)}
-      style={styles.messageRow}
-      testID={`watch-chat-message-${message.id}`}
-    >
-      <View
-        style={styles.messageChrome}
-        testID={`watch-chat-chrome-${message.id}`}
-      >
-        {message.badges.map((badge) =>
-          badge.imageUrl ? (
-            <Image
-              key={`${badge.setId}-${badge.version}`}
-              accessibilityLabel={badge.title}
-              resizeMode="contain"
-              source={{ uri: badge.imageUrl }}
-              style={styles.badge}
-              testID={`watch-chat-badge-${message.id}-${badge.setId}`}
-            />
-          ) : null,
-        )}
-        <Pressable
-          accessibilityLabel={`Actions for ${message.displayName}`}
-          accessibilityRole="button"
-          onPress={() => onSelect(message)}
-          hitSlop={8}
-        >
-          <Text
-            style={[
-              styles.name,
-              {
-                color: resolveChatUsernameColor({
-                  ...(message.color === undefined
-                    ? {}
-                    : { color: message.color }),
-                  platform,
-                  readableColorForUncolored:
-                    DEFAULT_CHAT_DISPLAY_PREFERENCES.readableColorForUncolored,
-                  themeAdaptUsernameColor:
-                    DEFAULT_CHAT_DISPLAY_PREFERENCES.themeAdaptUsernameColor,
-                  username: message.username || message.displayName,
-                }),
-              },
-            ]}
-            testID={`watch-chat-username-${message.id}`}
-          >
-            {message.displayName}
-          </Text>
-        </Pressable>
-      </View>
-      <Text style={styles.messageText}>{": "}</Text>
-      {resolveMessageParts(message.text, emotes, message.parts).map(
-        (part, index) =>
-          part.kind === "text" ? (
-            <Text key={index} selectable style={styles.messageText}>
-              {part.text}
-            </Text>
-          ) : (
-            <Image
-              key={index}
-              accessibilityLabel={part.text}
-              source={{ uri: part.imageUrl }}
-              style={styles.emote}
-              resizeMode="contain"
-            />
-          ),
-      )}
-    </Pressable>
-  );
-});
-
 const styles = StyleSheet.create({
   panel: { flex: 1, minHeight: 0, gap: mobileSpacing.small },
   messages: { flex: 1, minHeight: 0 },
@@ -491,22 +567,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.xSmall,
     paddingBottom: mobileSpacing.small,
   },
-  messageRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
-  messageChrome: { flexDirection: "row", alignItems: "center", gap: 4 },
-  name: {
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 18,
-    includeFontPadding: false,
-    transform: [{ translateY: -1 }],
-  },
-  messageText: {
-    color: mobileColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 22,
-  },
-  badge: { width: 18, height: 18 },
   emote: { width: 28, height: 28 },
   composer: { gap: mobileSpacing.xSmall, paddingBottom: mobileSpacing.small },
   input: {

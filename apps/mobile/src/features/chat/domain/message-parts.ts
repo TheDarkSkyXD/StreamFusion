@@ -1,12 +1,37 @@
 import type { ChatEmote } from "../capabilities/chat-interactions";
 import type { WatchChatMessagePart } from "../capabilities/watch-chat";
 
+const catalogs = new WeakMap<
+  readonly ChatEmote[],
+  ReadonlyMap<string, ChatEmote>
+>();
+
+function emoteCatalog(
+  emotes: readonly ChatEmote[],
+): ReadonlyMap<string, ChatEmote> {
+  const cached = catalogs.get(emotes);
+  if (cached) return cached;
+  const catalog = new Map(emotes.map((emote) => [emote.name, emote]));
+  catalogs.set(emotes, catalog);
+  return catalog;
+}
+
+type EmotePart = Extract<WatchChatMessagePart, { kind: "emote" }>;
+export type RenderChatMessagePart =
+  | WatchChatMessagePart
+  | { readonly kind: "emote-stack"; readonly emotes: readonly EmotePart[] };
+
 export function resolveMessageParts(
   text: string,
   emotes: readonly ChatEmote[],
   nativeParts?: readonly WatchChatMessagePart[],
-): readonly WatchChatMessagePart[] {
-  const catalog = new Map(emotes.map((emote) => [emote.name, emote]));
+  options: {
+    readonly animatedEmotes?: boolean;
+    readonly overlayEmotes?: boolean;
+    readonly renderEmotesAsText?: boolean;
+  } = {},
+): readonly RenderChatMessagePart[] {
+  const catalog = emoteCatalog(emotes);
   const source: readonly WatchChatMessagePart[] = nativeParts ?? [
     { kind: "text", text },
   ];
@@ -29,8 +54,46 @@ export function resolveMessageParts(
           : { kind: "text", text: word };
       });
   });
-  const parts: WatchChatMessagePart[] = [];
-  for (const part of expanded) {
+  const parts: RenderChatMessagePart[] = [];
+  for (const original of expanded) {
+    const candidate =
+      original.kind === "emote" ? catalog.get(original.text) : undefined;
+    const emote =
+      original.kind === "emote" && candidate?.imageUrl === original.imageUrl
+        ? candidate
+        : undefined;
+    const part: WatchChatMessagePart =
+      original.kind === "emote"
+        ? options.renderEmotesAsText
+          ? { kind: "text", text: original.text }
+          : {
+              ...original,
+              imageUrl:
+                options.animatedEmotes === false
+                  ? (emote?.staticImageUrl ??
+                    original.imageUrl.replace("/default/", "/static/"))
+                  : (emote?.animatedImageUrl ?? original.imageUrl),
+            }
+        : original;
+    if (
+      part.kind === "emote" &&
+      emote?.zeroWidth &&
+      options.overlayEmotes !== false
+    ) {
+      const trailing = parts.at(-1);
+      const base =
+        trailing?.kind === "text" && !trailing.text.trim()
+          ? parts.at(-2)
+          : trailing;
+      if (base?.kind === "emote" || base?.kind === "emote-stack") {
+        if (trailing !== base) parts.pop();
+        parts[parts.length - 1] = {
+          kind: "emote-stack",
+          emotes: [...(base.kind === "emote" ? [base] : base.emotes), part],
+        };
+        continue;
+      }
+    }
     const previous = parts.at(-1);
     if (part.kind === "text" && previous?.kind === "text") {
       parts[parts.length - 1] = {

@@ -22,16 +22,17 @@ import {
   SettingsSwitch,
 } from "./settings-controls";
 
-const TIMESTAMP_OPTIONS: readonly { value: TimestampFormat; label: string }[] = [
-  { value: "H:mm", label: "24-hour (9:05)" },
-  { value: "HH:mm", label: "24-hour (09:05)" },
-  { value: "H:mm:ss", label: "24-hour (9:05:07)" },
-  { value: "HH:mm:ss", label: "24-hour (09:05:07)" },
-  { value: "h:mm a", label: "12-hour (9:05 AM)" },
-  { value: "hh:mm a", label: "12-hour (09:05 AM)" },
-  { value: "h:mm:ss a", label: "12-hour (9:05:07 AM)" },
-  { value: "hh:mm:ss a", label: "12-hour (09:05:07 AM)" },
-];
+const TIMESTAMP_OPTIONS: readonly { value: TimestampFormat; label: string }[] =
+  [
+    { value: "H:mm", label: "24-hour (9:05)" },
+    { value: "HH:mm", label: "24-hour (09:05)" },
+    { value: "H:mm:ss", label: "24-hour (9:05:07)" },
+    { value: "HH:mm:ss", label: "24-hour (09:05:07)" },
+    { value: "h:mm a", label: "12-hour (9:05 AM)" },
+    { value: "hh:mm a", label: "12-hour (09:05 AM)" },
+    { value: "h:mm:ss a", label: "12-hour (9:05:07 AM)" },
+    { value: "hh:mm:ss a", label: "12-hour (09:05:07 AM)" },
+  ];
 
 const DENSITY_OPTIONS: readonly { value: ChatDensity; label: string }[] = [
   { value: "compact", label: "Tight" },
@@ -307,6 +308,7 @@ function EventRows({
       ))}
       {prefs.recentMessagesOnJoin ? (
         <SettingsSlider
+          detail="Applies when joining the next channel. Live chat continues if history is unavailable."
           formatValue={(recentMessagesLimit) => String(recentMessagesLimit)}
           label="Recent messages to load"
           max={800}

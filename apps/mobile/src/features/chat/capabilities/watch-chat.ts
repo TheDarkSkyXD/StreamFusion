@@ -19,6 +19,42 @@ export type WatchChatMessage = {
   readonly userId?: string;
   readonly parts?: readonly WatchChatMessagePart[];
   readonly offsetSeconds?: number;
+  readonly receivedAt?: number;
+  readonly kind?: "chat" | "notice";
+  readonly noticeKind?: "subscription" | "resub" | "gift" | "raid" | "system";
+  readonly firstMessage?: boolean;
+  readonly isHistorical?: boolean;
+  readonly deletedAt?: number;
+  readonly deletedBy?: string;
+  readonly deletionKind?: "message" | "timeout" | "ban";
+};
+
+export type WatchChatEvent =
+  | { readonly kind: "message"; readonly message: WatchChatMessage }
+  | {
+      readonly kind: "delete";
+      readonly messageId: string;
+      readonly at: number;
+      readonly actor?: string;
+    }
+  | {
+      readonly kind: "clear-user";
+      readonly userId?: string;
+      readonly username?: string;
+      readonly at: number;
+      readonly durationSeconds?: number;
+      readonly actor?: string;
+    }
+  | { readonly kind: "clear-room"; readonly at: number };
+
+export type WatchChatEventPreferences = {
+  readonly showUserNotices: boolean;
+  readonly showClearMsg: boolean;
+  readonly showClearChat: boolean;
+  readonly firstMsgHighlight: boolean;
+  readonly recentMessagesOnJoin: boolean;
+  readonly recentMessagesLimit: number;
+  readonly deletedMessageDisplay: "tombstone" | "message" | "compact" | "audit";
 };
 
 export type WatchChatMessagePart =
@@ -53,11 +89,15 @@ export type WatchChatAvailability =
   | {
       readonly detail: string;
       readonly kind: "empty";
+      readonly moderationRevision?: number;
+      readonly historyDetail?: string;
     }
   | {
       readonly detail: string;
       readonly kind: "live";
       readonly messages: readonly WatchChatMessage[];
+      readonly moderationRevision?: number;
+      readonly historyDetail?: string;
     }
   | {
       readonly detail: string;

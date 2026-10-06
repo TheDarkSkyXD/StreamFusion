@@ -20,12 +20,11 @@ const PRIORITY_BADGE_SET_IDS = new Set([
 export function appendWatchChatMessage(
   messages: readonly WatchChatMessage[],
   next: WatchChatMessage,
+  limit = MAX_MESSAGES,
 ): readonly WatchChatMessage[] {
   if (messages.some((message) => message.id === next.id)) return messages;
   const combined = [...messages, next];
-  return combined.length > MAX_MESSAGES
-    ? combined.slice(-MAX_MESSAGES)
-    : combined;
+  return combined.length > limit ? combined.slice(-limit) : combined;
 }
 
 export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
@@ -42,6 +41,7 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
   const badges = resolveTwitchBadges(badgeRefs);
   const userId = tagValue(trimmed, "user-id");
   const parts = twitchEmoteParts(text, tagValue(trimmed, "emotes"));
+  const sentAt = Number(tagValue(trimmed, "tmi-sent-ts"));
   return {
     badges,
     ...(color === undefined ? {} : { color }),
@@ -51,6 +51,8 @@ export function parseTwitchPrivmsg(line: string): WatchChatMessage | null {
     username,
     ...(userId ? { userId } : {}),
     ...(parts ? { parts } : {}),
+    ...(tagValue(trimmed, "first-msg") === "1" ? { firstMessage: true } : {}),
+    ...(Number.isFinite(sentAt) && sentAt > 0 ? { receivedAt: sentAt } : {}),
   };
 }
 
@@ -91,6 +93,10 @@ export function parseKickChatFrame(payload: unknown): WatchChatMessage | null {
     username,
     ...(typeof sender.id === "number" || typeof sender.id === "string"
       ? { userId: String(sender.id) }
+      : {}),
+    ...(typeof record.created_at === "string" &&
+    Number.isFinite(Date.parse(record.created_at))
+      ? { receivedAt: Date.parse(record.created_at) }
       : {}),
   };
 }

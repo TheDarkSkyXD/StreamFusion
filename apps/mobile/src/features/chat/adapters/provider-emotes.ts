@@ -4,6 +4,7 @@ import type {
   ChatEmoteReader,
 } from "../capabilities/chat-interactions";
 import type { WatchChatConnectInput } from "../capabilities/watch-chat";
+import type { ChatDisplaySettingsSession } from "@mobile/features/settings/capabilities/chat-display-settings";
 import { array, identifier, object, string } from "../utils/provider-json";
 
 function https(url: string): string {
@@ -62,25 +63,60 @@ export function parseProviderEmotes(
     const id = identifier(emote.id);
     const name = string(emote.name ?? emote.code);
     let imageUrl = "";
-    if (provider === "twitch")
+    let staticImageUrl: string | undefined;
+    let animatedImageUrl: string | undefined;
+    let zeroWidth = false;
+    if (provider === "twitch") {
+      const base = `https://static-cdn.jtvnw.net/emoticons/v2/${encodeURIComponent(id)}`;
+      staticImageUrl = `${base}/static/dark/2.0`;
+      const animated = array(emote.format).includes("animated");
+      animatedImageUrl = animated ? `${base}/animated/dark/2.0` : undefined;
       imageUrl =
+        animatedImageUrl ||
         string(object(emote.images).url_2x) ||
-        `https://static-cdn.jtvnw.net/emoticons/v2/${encodeURIComponent(id)}/default/dark/2.0`;
-    if (provider === "kick")
+        staticImageUrl;
+    }
+    if (provider === "kick") {
       imageUrl = `https://files.kick.com/emotes/${encodeURIComponent(id)}/fullsize`;
-    if (provider === "bttv")
+      staticImageUrl = imageUrl;
+    }
+    if (provider === "bttv") {
       imageUrl = `https://cdn.betterttv.net/emote/${encodeURIComponent(id)}/2x`;
-    if (provider === "ffz")
-      imageUrl = https(
-        string(object(emote.urls)["2"] ?? object(emote.urls)["1"]),
-      );
+      if (emote.animated === true || emote.imageType === "gif")
+        animatedImageUrl = imageUrl;
+      else staticImageUrl = imageUrl;
+    }
+    if (provider === "ffz") {
+      const urls = object(emote.urls);
+      staticImageUrl = https(string(urls["2"] ?? urls["1"]));
+      const animated = object(emote.animated);
+      animatedImageUrl =
+        https(string(animated["2"] ?? animated["1"])) || undefined;
+      imageUrl = animatedImageUrl ?? staticImageUrl;
+      zeroWidth = emote.modifier === true;
+    }
     if (provider === "7tv") {
       const host = object(object(emote.data).host);
       const files = array(host.files).map(object);
       const file =
         files.find((entry) => string(entry.name) === "2x.webp") ??
-        files.find((entry) => string(entry.format) === "WEBP");
-      if (file) imageUrl = `${https(string(host.url))}/${string(file.name)}`;
+        files.find((entry) => string(entry.name) === "2x.avif") ??
+        files.find((entry) => string(entry.format).toUpperCase() === "WEBP");
+      if (file) {
+        imageUrl = `${https(string(host.url))}/${string(file.name)}`;
+        const staticName = string(file.static_name);
+        if (staticName)
+          staticImageUrl = `${https(string(host.url))}/${staticName}`;
+        animatedImageUrl =
+          object(emote.data).animated === true ? imageUrl : undefined;
+      }
+      const flags =
+        typeof emote.flags === "number"
+          ? emote.flags
+          : object(emote.data).flags;
+      zeroWidth =
+        typeof flags === "number" &&
+        (flags & (typeof emote.flags === "number" ? 1 : 256)) !== 0;
     }
     if (!id || !name || !imageUrl.startsWith("https://")) return [];
     return [
@@ -88,6 +124,9 @@ export function parseProviderEmotes(
         id,
         name,
         imageUrl,
+        ...(staticImageUrl ? { staticImageUrl } : {}),
+        ...(animatedImageUrl ? { animatedImageUrl } : {}),
+        ...(zeroWidth ? { zeroWidth } : {}),
         provider,
         insertion: provider === "kick" ? `[emote:${id}:${name}]` : name,
       },
@@ -98,19 +137,40 @@ export function parseProviderEmotes(
 export function createProviderEmoteReader(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly access: AuthenticatedPlatformAccess;
+  readonly display?: Pick<ChatDisplaySettingsSession, "load">;
 }): ChatEmoteReader {
+  const inventory = new Map<
+    string,
+    { readonly expiresAt: number; readonly value: Promise<unknown> }
+  >();
   const readJson = async (
     url: string,
     signal: AbortSignal,
     headers?: Record<string, string>,
   ) => {
-    const response = await input.fetch(url, {
-      signal,
-      headers: { Accept: "application/json", ...headers },
+    if (signal.aborted) throw new Error("Emote request cancelled.");
+    const load = async (requestSignal: AbortSignal) => {
+      const response = await input.fetch(url, {
+        signal: requestSignal,
+        headers: { Accept: "application/json", ...headers },
+      });
+      if (!response.ok)
+        throw new Error(`Emote provider failed (${response.status}).`);
+      return response.json() as Promise<unknown>;
+    };
+    if (headers) return load(signal);
+    const cached = inventory.get(url);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const value = load(controller.signal).finally(() => clearTimeout(timeout));
+    inventory.set(url, { expiresAt: Date.now() + 10 * 60_000, value });
+    void value.catch(() => {
+      if (inventory.get(url)?.value === value) inventory.delete(url);
     });
-    if (!response.ok)
-      throw new Error(`Emote provider failed (${response.status}).`);
-    return response.json() as Promise<unknown>;
+    while (inventory.size > 32)
+      inventory.delete(inventory.keys().next().value!);
+    return value;
   };
   const twitchEmotes = async (
     target: WatchChatConnectInput,
@@ -179,6 +239,7 @@ export function createProviderEmoteReader(input: {
   };
   return {
     async read(target, signal) {
+      const preferences = (await input.display?.load())?.preferences;
       const requests: {
         readonly name: string;
         readonly read: () => Promise<readonly ChatEmote[]>;
@@ -256,14 +317,24 @@ export function createProviderEmoteReader(input: {
               ),
             ),
         });
-      const results = await Promise.allSettled(
-        requests.map((request) => request.read()),
+      const enabled = requests.filter((request) =>
+        request.name.startsWith("7TV")
+          ? preferences?.enable7tv !== false
+          : request.name.startsWith("BTTV")
+            ? preferences?.enableBttv !== false
+            : request.name.startsWith("FFZ")
+              ? preferences?.enableFfz !== false
+              : true,
       );
+      const results = await Promise.allSettled(
+        enabled.map((request) => request.read()),
+      );
+      if (signal.aborted) return { emotes: [], failures: [] };
       const emotes = new Map<string, ChatEmote>();
       const failures: string[] = [];
       results.forEach((result, index) => {
         if (result.status === "rejected") {
-          failures.push(requests[index]?.name ?? "Provider");
+          failures.push(enabled[index]?.name ?? "Provider");
           return;
         }
         for (const emote of result.value)

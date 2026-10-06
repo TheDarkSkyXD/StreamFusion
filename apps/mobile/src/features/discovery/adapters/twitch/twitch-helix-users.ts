@@ -7,7 +7,7 @@ import {
   attachHelixChannelVerification,
   attachHelixStreamVerification,
   helixChannels,
-  helixLiveStreamsFromSearch,
+  helixStreams,
   helixUserVerification,
   type HelixUserFlags,
 } from "./helix-catalog-map";
@@ -45,18 +45,48 @@ export async function completeHelixSearchCatalog(
   readonly streams: readonly Stream[];
 }> {
   const channels = helixChannels(input.payload);
-  const streams = helixLiveStreamsFromSearch(input.payload);
-  const users = await fetchHelixUserVerification({
-    ...input,
-    ids: uniqueIds([
-      ...channels.map((channel) => channel.id),
-      ...streams.map((stream) => stream.channelId),
-    ]),
-  });
+  const liveIds = uniqueIds(
+    channels.filter((channel) => channel.isLive).map((channel) => channel.id),
+  );
+  const [streams, users] = await Promise.all([
+    fetchHelixSearchStreams({ ...input, ids: liveIds }),
+    fetchHelixUserVerification({
+      ...input,
+      ids: uniqueIds(channels.map((channel) => channel.id)),
+    }),
+  ]);
   return {
     channels: attachHelixChannelVerification(channels, users),
     streams: attachHelixStreamVerification(streams, users),
   };
+}
+
+async function fetchHelixSearchStreams(
+  input: HelixAuth & {
+    readonly ids: readonly string[];
+    readonly signal?: AbortSignal;
+  },
+): Promise<readonly Stream[]> {
+  if (input.ids.length === 0 || input.clientId === null) return [];
+  const accessToken = await input.readAccessToken();
+  if (accessToken === null) return [];
+  try {
+    const params = new URLSearchParams({ first: "100" });
+    for (const id of input.ids) params.append("user_id", id);
+    const response = await input.fetch(
+      `${HELIX}/streams?${params}`,
+      requestInit(
+        {
+          Authorization: `Bearer ${accessToken}`,
+          "Client-Id": input.clientId,
+        },
+        input.signal,
+      ),
+    );
+    return response.ok ? helixStreams(await response.json()) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchHelixUserVerification(

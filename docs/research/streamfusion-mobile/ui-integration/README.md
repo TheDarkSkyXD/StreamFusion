@@ -31,3 +31,5 @@ Each implementation unit requires focused behavior checks, type checking, and li
 No production code imports mockup screens, fixtures, or test setup. Unsupported provider actions expose accurate limitations and supported handoffs. Account-only follows cannot use a guest mutation as an Unfollow operation.
 
 The [verification checkpoint](verification-checkpoint.md) records tests, native observations, and their limits. The [implementation evidence](implementation-evidence.json) records owners for the 13 initially missing workflows.
+
+The [chat parity verification](chat-parity-verification.md) records the subsequent chat events, provider badges and paints, emote rendering, 181-story coverage, and native guest regression checks.

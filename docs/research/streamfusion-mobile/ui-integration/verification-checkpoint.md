@@ -1,5 +1,7 @@
 # Mobile UI verification checkpoint
 
+This checkpoint describes the initial mockup integration at commit `67dd623`. The later [chat parity verification](chat-parity-verification.md) records the current chat publication cadence, saved retention limit, provider cosmetics, events, and additional verification.
+
 Desktop labels, icon families, and semantic colors are authoritative for equivalent controls. Android sheets, safe areas, touch targets, and capability notices follow the mobile host. The vocabulary audit records source comparisons. It does not prove every story pixel-identical.
 
 ## Implemented workflows

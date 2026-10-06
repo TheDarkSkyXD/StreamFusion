@@ -20,10 +20,17 @@ export type EngagementSnapshot = {
   readonly activity: WorkflowActivity;
   readonly sessionRevision: number;
 };
+export type EngagementReadSelection = {
+  readonly polls: boolean;
+  readonly predictions: boolean;
+};
 export interface EngagementController {
   getSnapshot(): EngagementSnapshot;
   subscribe(listener: () => void): () => void;
-  open(channel: ModerationChannel): Promise<void>;
+  open(
+    channel: ModerationChannel,
+    selection?: EngagementReadSelection,
+  ): Promise<void>;
   refresh(): Promise<void>;
   execute(command: EngagementCommand): Promise<void>;
   cancel(): void;
@@ -106,6 +113,10 @@ export function createEngagementController({
     sessionRevision: 0,
   };
   let active: AbortController | null = null;
+  let readSelection: EngagementReadSelection = {
+    polls: true,
+    predictions: true,
+  };
   const submittedMutations = new WeakSet<AbortSignal>();
   let disposed = false;
   const listeners = new Set<() => void>();
@@ -276,23 +287,30 @@ export function createEngagementController({
     }
   }
   async function refresh() {
+    const selection = readSelection;
     await run(
-      ["channel:read:polls", "channel:read:predictions"],
+      [
+        ...(selection.polls ? ["channel:read:polls"] : []),
+        ...(selection.predictions ? ["channel:read:predictions"] : []),
+      ],
       "Polls and predictions lookup",
       async (credential, signal, channel) => {
-        const polls = await gateway.polls(channel, credential, signal);
+        const polls = selection.polls
+          ? await gateway.polls(channel, credential, signal)
+          : { kind: "success" as const, value: [] as readonly ChannelPoll[] };
         if (polls.kind === "failure") return polls;
         if (signal.aborted)
           return {
-            kind: "failure",
-            reason: "network",
+            kind: "failure" as const,
+            reason: "network" as const,
             detail: "Request cancelled.",
           };
-        const predictions = await gateway.predictions(
-          channel,
-          credential,
-          signal,
-        );
+        const predictions = selection.predictions
+          ? await gateway.predictions(channel, credential, signal)
+          : {
+              kind: "success" as const,
+              value: [] as readonly ChannelPrediction[],
+            };
         return predictions.kind === "failure"
           ? predictions
           : {
@@ -315,8 +333,9 @@ export function createEngagementController({
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    async open(channel) {
+    async open(channel, selection = { polls: true, predictions: true }) {
       cancel();
+      readSelection = selection;
       publish({
         ...snapshot,
         channel,

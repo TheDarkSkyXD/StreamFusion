@@ -47,16 +47,30 @@ vi.mock("react-native", async () => {
     ScrollView: host("div"),
     FlatList: (
       props: HostProps & {
+        readonly onScrollBeginDrag?: () => void;
+        readonly onScroll?: (event: {
+          nativeEvent: { contentOffset: { y: number } };
+        }) => void;
         readonly data: readonly WatchChatMessage[];
         readonly renderItem: (entry: { item: WatchChatMessage }) => ReactNode;
       },
     ) =>
-      host("div")({
-        ...props,
-        children: props.data.map((item) =>
+      createElement(
+        "div",
+        {
+          "data-testid": props.testID,
+          onMouseDown: props.onScrollBeginDrag,
+          onScroll: (event: { currentTarget: HTMLDivElement }) =>
+            props.onScroll?.({
+              nativeEvent: {
+                contentOffset: { y: event.currentTarget.scrollTop },
+              },
+            }),
+        },
+        props.data.map((item) =>
           createElement("div", { key: item.id }, props.renderItem({ item })),
         ),
-      }),
+      ),
     Image: host("img"),
     TextInput: (
       props: HostProps & {
@@ -270,6 +284,151 @@ describe("chat panel target identity", () => {
       expect(panel.draft()).toBe("");
     } finally {
       await panel.unmount();
+    }
+  });
+});
+
+describe("chat reading position", () => {
+  it("reconciles paused rows and closes selected actions when a room is cleared", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const render = (
+      messages: readonly WatchChatMessage[],
+      moderationRevision: number,
+    ) =>
+      act(async () =>
+        root.render(
+          createElement(ChatPanel, {
+            platform: "twitch",
+            target: channelA,
+            chat: {
+              kind: "live",
+              detail: "Chat live.",
+              messages,
+              moderationRevision,
+            },
+          }),
+        ),
+      );
+    try {
+      await render([messageA], 0);
+      const scroller = container.querySelector(
+        '[data-testid="watch-chat-scroll"]',
+      );
+      if (!(scroller instanceof HTMLDivElement))
+        throw new Error("Missing chat list");
+      await act(async () => {
+        scroller.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        scroller.scrollTop = 160;
+        scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      const actions = container.querySelector(
+        '[aria-label="Actions for Alpha viewer"]',
+      );
+      if (!(actions instanceof HTMLButtonElement))
+        throw new Error("Missing user actions");
+      await act(async () => actions.click());
+      expect(
+        container.querySelector('[data-testid="chat-user-actions"]'),
+      ).not.toBeNull();
+      await render([], 1);
+      expect(container.textContent).not.toContain("Alpha message");
+      expect(
+        container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+
+  it("clears paused recorded comments on seek and on media change", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const render = (mediaId: string, connecting = false) =>
+      act(async () =>
+        root.render(
+          createElement(ChatPanel, {
+            platform: "twitch",
+            target: { ...channelA, media: { id: mediaId, kind: "video" } },
+            recorded: true,
+            chat: connecting
+              ? { kind: "connecting", detail: "Loading recorded comments." }
+              : { kind: "live", detail: "Comments", messages: [messageA] },
+          }),
+        ),
+      );
+    const pause = async () => {
+      const scroller = container.querySelector(
+        '[data-testid="watch-chat-scroll"]',
+      );
+      if (!(scroller instanceof HTMLDivElement))
+        throw new Error("Missing comments");
+      await act(async () => {
+        scroller.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        scroller.scrollTop = 160;
+        scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+    };
+    try {
+      await render("video-a");
+      await pause();
+      await render("video-a", true);
+      expect(container.textContent).not.toContain("Alpha message");
+      expect(container.querySelector('[data-testid="chat-resume"]')).toBeNull();
+      await render("video-a");
+      await pause();
+      await render("video-b");
+      expect(container.querySelector('[data-testid="chat-resume"]')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+
+  it("holds older messages during arrivals, resumes, and clears the pause on channel change", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const render = (
+      target: WatchChatConnectInput,
+      messages: readonly WatchChatMessage[],
+    ) =>
+      act(async () =>
+        root.render(
+          createElement(ChatPanel, {
+            platform: target.platform,
+            target,
+            chat: { kind: "live", detail: "Chat live.", messages },
+          }),
+        ),
+      );
+    try {
+      await render(channelA, [messageA]);
+      const scroller = container.querySelector(
+        `[data-testid="watch-chat-scroll"]`,
+      );
+      if (!(scroller instanceof HTMLDivElement))
+        throw new Error("Missing chat list.");
+      await act(async () => {
+        scroller.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        scroller.scrollTop = 160;
+        scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      const next = { ...messageA, id: "latest", text: "Newest message" };
+      await render(channelA, [next]);
+      expect(container.textContent).toContain("Alpha message");
+      expect(container.textContent).not.toContain("Newest message");
+      const resume = container.querySelector(`[data-testid="chat-resume"]`);
+      if (!(resume instanceof HTMLButtonElement))
+        throw new Error("Missing resume action.");
+      await act(async () => resume.click());
+      expect(container.textContent).toContain("Newest message");
+      expect(container.querySelector(`[data-testid="chat-resume"]`)).toBeNull();
+      await render(channelB, [messageA]);
+      expect(container.querySelector(`[data-testid="chat-resume"]`)).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
     }
   });
 });

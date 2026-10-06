@@ -4,8 +4,11 @@ import type {
   ChatInteractions,
   ChatInteractionView,
   ChatCommandResult,
+  ChatCosmeticsReader,
+  ChatUserCosmetics,
 } from "../capabilities/chat-interactions";
 import type { WatchChatConnectInput } from "../capabilities/watch-chat";
+import type { ChatDisplaySettingsSession } from "@mobile/features/settings/capabilities/chat-display-settings";
 
 const INITIAL: ChatInteractionView = {
   access: "checking",
@@ -19,6 +22,8 @@ const INITIAL: ChatInteractionView = {
 export function createChatInteractions(
   commands: ChatCommands,
   emotes: ChatEmoteReader,
+  display?: Pick<ChatDisplaySettingsSession, "load" | "peek" | "subscribe">,
+  cosmetics?: ChatCosmeticsReader,
 ): ChatInteractions {
   let view = INITIAL;
   let target: WatchChatConnectInput | null = null;
@@ -26,7 +31,31 @@ export function createChatInteractions(
   let generation = 0;
   let abort = new AbortController();
   let unsubscribe: (() => void) | null = null;
+  let unsubscribeDisplay: (() => void) | null = null;
   const listeners = new Set<() => void>();
+  let cosmeticGeneration = 0;
+  let cosmeticAbort = new AbortController();
+  let cosmeticPreferenceKey = "";
+  let visibleUserIds: readonly string[] = [];
+  let cosmeticsTimer: ReturnType<typeof setTimeout> | undefined;
+  let cosmeticsRetryTimer: ReturnType<typeof setTimeout> | undefined;
+  const retryCosmetics = new Set<string>();
+  const queuedCosmetics = new Set<string>();
+  const loadedCosmetics = new Set<string>();
+  const pendingCosmetics = new Set<string>();
+  const resetCosmetics = () => {
+    cosmeticGeneration += 1;
+    cosmeticAbort.abort();
+    cosmeticAbort = new AbortController();
+    clearTimeout(cosmeticsTimer);
+    cosmeticsTimer = undefined;
+    clearTimeout(cosmeticsRetryTimer);
+    cosmeticsRetryTimer = undefined;
+    retryCosmetics.clear();
+    queuedCosmetics.clear();
+    loadedCosmetics.clear();
+    pendingCosmetics.clear();
+  };
   const update = (next: Partial<ChatInteractionView>) => {
     view = { ...view, ...next };
     for (const listener of listeners) listener();
@@ -80,7 +109,100 @@ export function createChatInteractions(
           });
       });
   };
+  const loadCosmetics = (userIds: readonly string[], updateVisible = true) => {
+    if (updateVisible) {
+      visibleUserIds = [...new Set(userIds)];
+      const visible = new Set(visibleUserIds);
+      for (const id of queuedCosmetics)
+        if (!visible.has(id)) queuedCosmetics.delete(id);
+      for (const id of retryCosmetics)
+        if (!visible.has(id)) retryCosmetics.delete(id);
+    }
+    if (!cosmetics || !target) return;
+    for (const id of userIds)
+      if (
+        id &&
+        !loadedCosmetics.has(id) &&
+        !pendingCosmetics.has(id) &&
+        !retryCosmetics.has(id)
+      )
+        queuedCosmetics.add(id);
+    if (
+      !queuedCosmetics.size ||
+      cosmeticsTimer !== undefined ||
+      pendingCosmetics.size
+    )
+      return;
+    const current = generation;
+    const cosmeticRevision = cosmeticGeneration;
+    cosmeticsTimer = setTimeout(() => {
+      cosmeticsTimer = undefined;
+      if (
+        current !== generation ||
+        cosmeticRevision !== cosmeticGeneration ||
+        !target
+      )
+        return;
+      const ids = [...queuedCosmetics].slice(0, 120);
+      ids.forEach((id) => queuedCosmetics.delete(id));
+      ids.forEach((id) => pendingCosmetics.add(id));
+      void cosmetics
+        .read(target, ids, cosmeticAbort.signal)
+        .then((result) => {
+          if (current !== generation || cosmeticRevision !== cosmeticGeneration)
+            return;
+          ids.forEach((id) => {
+            pendingCosmetics.delete(id);
+            if (result.failures.length) retryCosmetics.add(id);
+            else loadedCosmetics.add(id);
+          });
+          const merged = new Map<string, ChatUserCosmetics>(view.cosmetics);
+          for (const [id, value] of result.byUserId) merged.set(id, value);
+          while (loadedCosmetics.size > 1000) {
+            const oldest = loadedCosmetics.values().next().value;
+            if (oldest === undefined) break;
+            loadedCosmetics.delete(oldest);
+            merged.delete(oldest);
+          }
+          while (merged.size > 1000) {
+            const oldest = merged.keys().next().value;
+            if (oldest === undefined) break;
+            merged.delete(oldest);
+            loadedCosmetics.delete(oldest);
+          }
+          update({
+            cosmetics: merged,
+            cosmeticRoleBadges: result.roleBadges ?? [],
+            cosmeticsDetail: result.failures.length
+              ? `Unavailable cosmetics: ${result.failures.join(", ")}.`
+              : "",
+          });
+          if (result.failures.length) scheduleCosmeticsRetry();
+          loadCosmetics([], false);
+        })
+        .catch(() => {
+          if (current !== generation || cosmeticRevision !== cosmeticGeneration)
+            return;
+          ids.forEach((id) => {
+            pendingCosmetics.delete(id);
+            retryCosmetics.add(id);
+          });
+          update({ cosmeticsDetail: "Badges and paints could not be loaded." });
+          scheduleCosmeticsRetry();
+          loadCosmetics([], false);
+        });
+    }, 100);
+  };
+  const scheduleCosmeticsRetry = () => {
+    if (cosmeticsRetryTimer !== undefined) return;
+    cosmeticsRetryTimer = setTimeout(() => {
+      cosmeticsRetryTimer = undefined;
+      retryCosmetics.clear();
+      loadCosmetics(visibleUserIds);
+    }, 30_000);
+  };
   const invalidate = () => {
+    resetCosmetics();
     generation += 1;
     abort.abort();
     abort = new AbortController();
@@ -97,14 +219,44 @@ export function createChatInteractions(
   };
   return {
     attach(next, isRecorded) {
+      visibleUserIds = [];
+      cosmeticPreferenceKey = "";
+      resetCosmetics();
       generation += 1;
       abort.abort();
       abort = new AbortController();
       unsubscribe?.();
+      unsubscribeDisplay?.();
       unsubscribe = commands.subscribe(invalidate);
       target = next;
       recorded = isRecorded;
       view = INITIAL;
+      if (display) {
+        const revision = generation;
+        const applyDisplay = () => {
+          const preferences = display.peek().preferences;
+          const key = JSON.stringify([
+            preferences.enable7tvBadges,
+            preferences.enable7tvUsernamePaints,
+            preferences.enableBttvBadges,
+            preferences.enableFfzBadges,
+          ]);
+          update({ displayPreferences: preferences });
+          if (key !== cosmeticPreferenceKey) {
+            cosmeticPreferenceKey = key;
+            resetCosmetics();
+            loadCosmetics(visibleUserIds);
+          }
+        };
+        unsubscribeDisplay = display.subscribe(applyDisplay);
+        applyDisplay();
+        void display
+          .load()
+          .then(() => {
+            if (revision === generation) applyDisplay();
+          })
+          .catch(() => undefined);
+      }
       update({});
       void checkAccess();
       loadEmotes();
@@ -171,6 +323,7 @@ export function createChatInteractions(
       update({ detail: "detail" in result ? result.detail : "Completed." });
       return result;
     },
+    loadCosmetics,
     snapshot: () => view,
     subscribe(listener) {
       listeners.add(listener);
@@ -179,10 +332,14 @@ export function createChatInteractions(
       };
     },
     dispose() {
+      visibleUserIds = [];
+      resetCosmetics();
       generation += 1;
       abort.abort();
       unsubscribe?.();
       unsubscribe = null;
+      unsubscribeDisplay?.();
+      unsubscribeDisplay = null;
       target = null;
       view = INITIAL;
     },

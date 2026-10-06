@@ -23,6 +23,26 @@ export function useWatchChat(
   session: WatchChatSession | null,
   target: WatchTarget,
 ): WatchChatAvailability {
+  useWatchChatConnection(session, target);
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      session === null ? subscribeNoop() : session.subscribe(listener),
+    [session],
+  );
+  const getSnapshot = useCallback(
+    () =>
+      session === null ? CONNECTING_WATCH_CHAT_SNAPSHOT : session.snapshot(),
+    [session],
+  );
+  const live = useSyncExternalStore(subscribe, getSnapshot);
+  if (session === null) return UNAVAILABLE_WATCH_CHAT_SNAPSHOT;
+  return live;
+}
+
+export function useWatchChatConnection(
+  session: WatchChatSession | null,
+  target: WatchTarget,
+): void {
   const recorded = target.media !== undefined;
   const mediaId = target.media?.id;
   const mediaKind = target.media?.kind;
@@ -56,19 +76,6 @@ export function useWatchChat(
     mediaKind,
     resumePositionSeconds,
   ]);
-  const subscribe = useCallback(
-    (listener: () => void) =>
-      session === null ? subscribeNoop() : session.subscribe(listener),
-    [session],
-  );
-  const getSnapshot = useCallback(
-    () =>
-      session === null ? CONNECTING_WATCH_CHAT_SNAPSHOT : session.snapshot(),
-    [session],
-  );
-  const live = useSyncExternalStore(subscribe, getSnapshot);
-  if (session === null) return UNAVAILABLE_WATCH_CHAT_SNAPSHOT;
-  return live;
 }
 
 function subscribeNoop(): () => void {

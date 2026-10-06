@@ -1,7 +1,10 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
+import {
+  DEFAULT_PRODUCT_PREFERENCES,
+  type ProductPreferences,
+} from "@streamfusion/core/settings";
 
 import {
   BufferSettingsPanel,
@@ -47,6 +50,9 @@ type ElementProps = Readonly<{
   maximumValue?: number;
   step?: number;
   value?: number;
+  current?: string;
+  options?: readonly { readonly value: string }[];
+  onSelect?: (value: ProductPreferences["quality"]) => void;
 }>;
 type Element = ReactElement<ElementProps>;
 
@@ -72,6 +78,30 @@ function descendants(node: unknown): readonly Element[] {
 }
 
 describe("settings panel sliders", () => {
+  it("shows one 1440p option and accepts a saved 2k preference", () => {
+    let quality: ProductPreferences["quality"] = "2k";
+    const nodes = descendants(
+      PlaybackSettingsPanel({
+        onChange: (patch) => {
+          if (patch.quality) quality = patch.quality;
+        },
+        view: composeSettingsView({
+          preferences: { ...DEFAULT_PRODUCT_PREFERENCES, quality },
+        }),
+      }),
+    );
+    const picker = nodes.find((node) => node.props.testID === "quality");
+    expect(picker?.props.current).toBe("1440p");
+    expect(
+      picker?.props.options?.filter((option) => option.value === "1440p"),
+    ).toHaveLength(1);
+    expect(picker?.props.options?.some((option) => option.value === "2k")).toBe(
+      false,
+    );
+    picker?.props.onSelect?.("1440p");
+    expect(quality).toBe("1440p");
+  });
+
   it("matches desktop carousel and buffer slider ranges", () => {
     let carouselSeconds = DEFAULT_PRODUCT_PREFERENCES.carouselSeconds;
     let liveSyncDurationCount =

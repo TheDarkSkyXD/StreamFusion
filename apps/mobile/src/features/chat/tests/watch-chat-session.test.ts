@@ -166,7 +166,9 @@ describe("busy chat publication", () => {
           data: `@display-name=Ada;id=m${index} :ada!ada@ada.tmi.twitch.tv PRIVMSG #alice :message ${index}`,
         });
       expect(publish).toHaveBeenCalledTimes(1);
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(99);
+      expect(publish).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
       expect(publish).toHaveBeenCalledTimes(2);
       const view = session.snapshot();
       expect(view.kind).toBe("live");

@@ -14,6 +14,7 @@ import type {
   SettingsEffectiveCopy,
   SettingsView,
 } from "../capabilities/settings";
+import { SETTINGS_CATEGORIES } from "./settings-categories";
 
 export function composeSettingsView(input: {
   readonly preferences: ProductPreferences;
@@ -25,9 +26,13 @@ export function composeSettingsView(input: {
   const matches = searchSettingsControls(query).filter(
     (match) => match.panel !== "multiview",
   );
-  const panels = settingsPanelsFor(matches).filter(
-    (panel) => panel !== "multiview",
-  );
+  const needle = query.trim().toLowerCase();
+  const categoryPanels = SETTINGS_CATEGORIES.filter((category) =>
+    `${category.title} ${category.description}`.toLowerCase().includes(needle),
+  ).map((category) => category.id);
+  const panels = [
+    ...new Set([...settingsPanelsFor(matches), ...categoryPanels]),
+  ].filter((panel) => panel !== "multiview");
   return {
     effective: composeEffectiveCopy(input.preferences),
     matches,

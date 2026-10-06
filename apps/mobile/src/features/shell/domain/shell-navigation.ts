@@ -425,13 +425,14 @@ export function shellNavigationReducer(
       };
     }
     case "navigate": {
-      const route = SHELL_ROUTES[action.location.route];
+      const location = navigationLocation(action.location);
+      const route = SHELL_ROUTES[location.route];
       const history = state.histories[route.destination];
       const watchReturnDestination =
         route.destination === "watch" && state.activeDestination !== "watch"
           ? state.activeDestination
           : state.watchReturnDestination;
-      if (action.location.route === history.root) {
+      if (location.route === history.root) {
         return {
           ...state,
           activeDestination: route.destination,
@@ -443,7 +444,7 @@ export function shellNavigationReducer(
         };
       }
       const current = history.trail.at(-1);
-      if (current && locationsMatch(current, action.location))
+      if (current && locationsMatch(current, location))
         return {
           ...state,
           activeDestination: route.destination,
@@ -452,11 +453,11 @@ export function shellNavigationReducer(
       // Replace an existing Watch session tip so Watch now / related open always
       // lands on the new target (feed → session) instead of stacking previews.
       const replaceWatchSession =
-        action.location.route === "watch/session-preview" &&
+        location.route === "watch/session-preview" &&
         current?.route === "watch/session-preview";
       const nextTrail = replaceWatchSession
-        ? [...history.trail.slice(0, -1), action.location]
-        : [...history.trail, action.location];
+        ? [...history.trail.slice(0, -1), location]
+        : [...history.trail, location];
       return {
         ...state,
         activeDestination: route.destination,
@@ -498,6 +499,24 @@ export function shellNavigationReducer(
       };
     }
   }
+}
+
+function navigationLocation(location: ShellLocation): ShellLocation {
+  if (
+    location.route === "more/channel" ||
+    location.route === "search/result-preview" ||
+    location.route === "following/channel-preview"
+  ) {
+    return {
+      route: location.route,
+      channel: {
+        id: location.channel.id,
+        platform: location.channel.platform,
+        username: location.channel.username,
+      },
+    };
+  }
+  return location;
 }
 
 export function serializeShellNavigationState(

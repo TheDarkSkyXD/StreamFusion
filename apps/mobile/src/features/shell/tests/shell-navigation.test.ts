@@ -517,6 +517,44 @@ describe("adaptive app shell", () => {
     },
   );
 
+  it("restores Search channel navigation with a catalog avatar followed by Watch", () => {
+    const channel = {
+      avatarUrl: "https://example.test/xqc.png",
+      id: "71092938",
+      platform: "twitch" as const,
+      username: "xqc",
+    };
+    let state = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "navigate",
+      location: { route: "search/result-preview", channel },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          channelId: "71092938",
+          channelLogin: "xqc",
+          kind: "channel",
+          platform: "twitch",
+        },
+      },
+    });
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(restored.state.histories.search.trail).toEqual([
+      {
+        channel: { id: "71092938", platform: "twitch", username: "xqc" },
+        route: "search/result-preview",
+      },
+    ]);
+    expect(restored.state.histories.watch.trail).toMatchObject([
+      { target: { channelId: "71092938", channelLogin: "xqc" } },
+    ]);
+  });
+
   it("rejects a restored channel preview without its selected channel", () => {
     const restored = restoreShellNavigationState(
       JSON.stringify({

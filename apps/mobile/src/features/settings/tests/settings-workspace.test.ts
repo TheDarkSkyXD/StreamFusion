@@ -11,6 +11,7 @@ import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
 import { composeSettingsView } from "../domain/settings-view";
 import {
+  SETTINGS_CATEGORIES,
   settingsCategoriesForPanels,
   settingsCategoryTitleKey,
 } from "../domain/settings-categories";
@@ -210,6 +211,20 @@ describe("settings panels", () => {
 });
 
 describe("settings hub navigation", () => {
+  it.each(SETTINGS_CATEGORIES)(
+    "finds the visible $title category by its label",
+    (category) => {
+      const view = composeSettingsView({
+        preferences: DEFAULT_PRODUCT_PREFERENCES,
+        query: category.title,
+      });
+      const nodes = descendants(
+        SettingsHub({ onOpenPanel: () => undefined, view }),
+      );
+      expect(hasTestId(nodes, `settings-category-${category.id}`)).toBe(true);
+    },
+  );
+
   it("lists category tiles instead of dumping every panel", () => {
     const view = composeSettingsView({
       preferences: DEFAULT_PRODUCT_PREFERENCES,

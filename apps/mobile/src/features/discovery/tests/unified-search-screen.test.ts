@@ -1,5 +1,6 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import { SEARCH_PROOF_SOURCE } from "../components/search-proof-controls";
 import { UnifiedSearchView } from "../components/unified-search-screen";
@@ -32,11 +33,11 @@ const i18nTest = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
 }));
-
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
@@ -77,7 +78,8 @@ function render(
     readonly loading?: boolean;
     readonly mode?: "search" | "categories";
     readonly idle?: boolean;
-    readonly resultType?: "all" | "videos";
+    readonly onWatch?: (target: WatchTarget) => void;
+    readonly resultType?: "all" | "streams" | "videos";
   } = {},
 ) {
   const retried: string[] = [];
@@ -104,6 +106,7 @@ function render(
     onSelectTab: () => undefined,
     onSubmit: () => undefined,
     onToggleLiveOnly: () => undefined,
+    ...(extras.onWatch === undefined ? {} : { onWatch: extras.onWatch }),
     platform: "all",
     tab: extras.resultType ?? "all",
     view: composeUnifiedSearch({
@@ -130,6 +133,30 @@ function render(
 
 // Guards: typed search draft stays in the field with a regular-weight white glyph so Android API 30 does not hide input text
 describe("Unified search screen", () => {
+  it.each(["all", "streams"] as const)(
+    "opens a live stream from the %s tab through Watch",
+    (resultType) => {
+      const watched: WatchTarget[] = [];
+      const { nodes } = render(
+        fixtureSearchOutcome("twitch", "ready"),
+        fixtureSearchOutcome("kick", "ready"),
+        { onWatch: (target) => watched.push(target), resultType },
+      );
+      const card = nodes.find(
+        (node) => node.props.testID === "home-stream-twitch-twitch-ready",
+      );
+      expect(card?.props.onPress).toBeTypeOf("function");
+      card?.props.onPress?.();
+      expect(watched).toEqual([
+        {
+          channelId: "twitch-twitch-ready",
+          channelName: "twitch-live",
+          platform: "twitch",
+        },
+      ]);
+    },
+  );
+
   it("keeps the typed search draft visible in the field", () => {
     const { nodes } = render();
     const field = nodes.find((node) => node.props.testID === "search-field");
@@ -169,7 +196,9 @@ describe("Unified search screen", () => {
     });
     const nodes = descendants(root);
     expect(
-      nodes.some((node) => node.props.testID === "search-video-twitch-twitch-video"),
+      nodes.some(
+        (node) => node.props.testID === "search-video-twitch-twitch-video",
+      ),
     ).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "search-clip-kick-kick-clip"),
@@ -202,7 +231,9 @@ describe("Unified search screen", () => {
       idle: true,
     });
     expect(
-      confirm.nodes.some((node) => node.props.testID === "search-clear-confirm"),
+      confirm.nodes.some(
+        (node) => node.props.testID === "search-clear-confirm",
+      ),
     ).toBe(true);
   });
 
@@ -211,10 +242,12 @@ describe("Unified search screen", () => {
       fixtureSearchOutcome("twitch", "twitch-fail"),
       fixtureSearchOutcome("kick", "ready"),
     );
-    expect(nodes.some((node) => node.props.testID === "search-retry-twitch")).toBe(
-      true,
+    expect(
+      nodes.some((node) => node.props.testID === "search-retry-twitch"),
+    ).toBe(true);
+    const retry = nodes.find(
+      (node) => node.props.testID === "search-retry-twitch",
     );
-    const retry = nodes.find((node) => node.props.testID === "search-retry-twitch");
     retry?.props.onPress?.();
     expect(retried).toEqual(["twitch"]);
     const idle = UnifiedSearchView({
@@ -257,7 +290,9 @@ describe("Unified search screen", () => {
       false,
     );
     expect(
-      idleNodes.some((node) => node.props.testID === "search-history-avatar-arcade"),
+      idleNodes.some(
+        (node) => node.props.testID === "search-history-avatar-arcade",
+      ),
     ).toBe(true);
   });
 
@@ -266,15 +301,15 @@ describe("Unified search screen", () => {
     expect(nodes.some((node) => node.props.testID === "search-mode-tabs")).toBe(
       true,
     );
-    expect(nodes.some((node) => node.props.testID === "search-mode-search")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "search-mode-search"),
+    ).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "search-mode-categories"),
     ).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "search-mode-history")).toBe(
-      false,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "search-mode-history"),
+    ).toBe(false);
     expect(nodes.some((node) => node.props.testID === "search-history")).toBe(
       false,
     );
@@ -293,10 +328,12 @@ describe("Unified search screen", () => {
       fixtureSearchOutcome("kick", "stale-cache"),
     );
     expect(
-      stale.nodes.some((node) => node.props.testID === "search-cache-age-twitch"),
+      stale.nodes.some(
+        (node) => node.props.testID === "search-cache-age-twitch",
+      ),
     ).toBe(true);
-    expect(stale.nodes.some((node) => node.props.testID === "search-login-twitch")).toBe(
-      false,
-    );
+    expect(
+      stale.nodes.some((node) => node.props.testID === "search-login-twitch"),
+    ).toBe(false);
   });
 });

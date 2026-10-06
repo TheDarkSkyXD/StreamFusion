@@ -18,6 +18,7 @@ import {
   appendWatchChatMessage,
 } from "../domain/watch-chat-messages";
 import { resolveMessageParts } from "../domain/message-parts";
+import { defaultChatDisplaySettingsView } from "@mobile/features/settings/domain/chat-display-preferences";
 
 const twitch = {
   channelId: "123",
@@ -40,6 +41,31 @@ const access = (): AuthenticatedPlatformAccess => ({
 });
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status });
+
+it("replaces an emote inventory without retaining stale image URLs", () => {
+  const emote = {
+    id: "wave",
+    name: "Wave",
+    imageUrl: "https://example.test/old.png",
+    insertion: "Wave",
+    provider: "7tv",
+  } satisfies import("../capabilities/chat-interactions").ChatEmote;
+  const catalog = [emote];
+  expect(resolveMessageParts("Wave unknown", catalog)).toEqual([
+    { kind: "emote", text: "Wave", imageUrl: emote.imageUrl },
+    { kind: "text", text: " unknown" },
+  ]);
+  expect(
+    resolveMessageParts("Wave", [
+      { ...emote, imageUrl: "https://example.test/new.png" },
+    ]),
+  ).toEqual([
+    { kind: "emote", text: "Wave", imageUrl: "https://example.test/new.png" },
+  ]);
+  expect(resolveMessageParts("Wave unknown", [])).toEqual([
+    { kind: "text", text: "Wave unknown" },
+  ]);
+});
 
 describe("authenticated chat requests", () => {
   it("posts Twitch sender identity, grants and reply ID with exact headers", async () => {
@@ -295,6 +321,31 @@ describe("chat interaction lifecycle", () => {
 });
 
 describe("provider emotes and message parts", () => {
+  it("does not request disabled third-party emote providers", async () => {
+    const fetch = vi.fn(async () => json({ data: [], pagination: {} }));
+    const view = defaultChatDisplaySettingsView();
+    const reader = createProviderEmoteReader({
+      access: access(),
+      fetch,
+      display: {
+        load: async () => ({
+          ...view,
+          preferences: {
+            ...view.preferences,
+            enable7tv: false,
+            enableBttv: false,
+            enableFfz: false,
+          },
+        }),
+      },
+    });
+    expect(await reader.read(twitch, new AbortController().signal)).toEqual({
+      emotes: [],
+      failures: [],
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]?.[0]).toContain("api.twitch.tv/");
+  });
   it("rejects malformed successful payloads and accepts genuine empty inventories", () => {
     expect(() => parseProviderEmotes("twitch", {})).toThrow("Invalid Twitch");
     expect(() => parseProviderEmotes("7tv", {})).toThrow("Invalid 7TV");

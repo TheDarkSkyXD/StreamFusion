@@ -67,6 +67,7 @@ vi.mock("react", async () => {
     ...actual,
     useEffect: vi.fn(),
     useMemo: (factory: () => unknown) => factory(),
+    useCallback: (callback: unknown) => callback,
     useRef: () => ({ current: null }),
     useState: (initial: unknown) => [
       typeof initial === "function" ? initial() : initial,

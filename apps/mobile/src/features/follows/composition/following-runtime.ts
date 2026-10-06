@@ -16,8 +16,10 @@ import type {
 } from "@mobile/features/storage/capabilities/persistence";
 import { createGuestLiveAlertReconciler } from "@mobile/features/activity/domain/guest-live-alert-reconciler";
 import { unionFollowMembership } from "@mobile/features/activity/domain/union-follow-membership";
+import type { LiveStreamCatalog } from "@mobile/features/discovery/capabilities/live-stream-catalog";
 
 import { createPlatformFollowedContentReader } from "../adapters/composite/platform-followed-content-reader";
+import { createKickGuestFollowedContentReader } from "../adapters/kick/kick-guest-followed-content-reader";
 import { createRelayFollowedContentReader } from "../adapters/relay/relay-followed-content-reader";
 import { createTwitchGuestFollowedContentReader } from "../adapters/twitch/twitch-guest-followed-content-reader";
 import { createExpoProviderPageOpener } from "../adapters/expo-provider-page";
@@ -52,6 +54,7 @@ export function createFollowingRuntime(input: {
     | { readonly kind: "none" }
     | { readonly kind: "ready"; readonly credential: string }
   >;
+  readonly kickLiveCatalog?: LiveStreamCatalog;
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly network: () => Promise<"online" | "offline">;
   readonly now?: () => number;
@@ -94,6 +97,14 @@ export function createFollowingRuntime(input: {
       twitchGuest: createTwitchGuestFollowedContentReader({
         fetch: input.fetch ?? globalThis.fetch,
       }),
+      ...(input.kickLiveCatalog === undefined
+        ? {}
+        : {
+            kickGuest: createKickGuestFollowedContentReader({
+              fetch: input.fetch ?? globalThis.fetch,
+              liveCatalog: input.kickLiveCatalog,
+            }),
+          }),
     }),
   });
 }
@@ -211,9 +222,6 @@ async function hydrateLive(
   const accountMembership = await readAccountFollows(deps.accountFollows);
   const membership = unionFollowMembership(guestMembership, accountMembership);
   const extra = signal === undefined ? {} : { signal };
-  // Twitch account live status uses Helix streams/followed (accountLiveStreams).
-  // Kick has no official live-followed API — hydrate Kick via relay using the
-  // Guest ∪ Kick-account membership union so Activity go-lives include them.
   const [twitch, kick, accountLive] = await Promise.all([
     hydratePlatform({
       liveCache: deps.liveCache,

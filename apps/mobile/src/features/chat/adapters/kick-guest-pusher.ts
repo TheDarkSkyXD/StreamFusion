@@ -7,9 +7,11 @@ import { requestInit } from "@mobile/features/discovery/utils/optional";
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
+  WatchChatEvent,
   WatchChatSocketFactory,
 } from "../capabilities/watch-chat";
 import { parseKickChatFrame } from "../domain/watch-chat-messages";
+import { parseKickChatEvent } from "../domain/watch-chat-events";
 
 const PUSHER_URL =
   "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0&flash=false";
@@ -19,6 +21,7 @@ export async function connectKickGuestChat(input: {
   readonly onClose: () => void;
   readonly onError: (detail: string) => void;
   readonly onMessage: (message: WatchChatMessage) => void;
+  readonly onEvent?: (event: WatchChatEvent) => void;
   readonly onOpen: () => void;
   readonly signal: AbortSignal;
   readonly socketFactory: WatchChatSocketFactory;
@@ -52,11 +55,19 @@ export async function connectKickGuestChat(input: {
       socket.send(JSON.stringify({ event: "pusher:pong", data: {} }));
       return;
     }
-    if (frame.event !== "App\\Events\\ChatMessageEvent") return;
     const payload =
       typeof frame.data === "string" ? parseJson(frame.data) : frame.data;
-    const message = parseKickChatFrame(payload);
-    if (message) input.onMessage(message);
+    if (frame.event === "App\\Events\\ChatMessageEvent") {
+      const message = parseKickChatFrame(payload);
+      if (message) {
+        if (input.onEvent) input.onEvent({ kind: "message", message });
+        else input.onMessage(message);
+      }
+      return;
+    }
+    if (typeof frame.event !== "string") return;
+    const chatEvent = parseKickChatEvent(frame.event, payload);
+    if (chatEvent) input.onEvent?.(chatEvent);
   };
   socket.onerror = () => {
     if (disposed || input.signal.aborted) return;

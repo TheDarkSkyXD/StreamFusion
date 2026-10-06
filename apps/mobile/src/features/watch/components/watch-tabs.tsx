@@ -29,10 +29,13 @@ import type {
 } from "../capabilities/watch";
 import type { Platform } from "@streamfusion/core/platform";
 import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
+import { SubscribedChatPanel } from "@mobile/features/chat/components/subscribed-chat-panel";
+import type { ChatEngagementInlineBindings } from "@mobile/features/engagement/components/chat-engagement-inline";
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
+  WatchChatSession,
 } from "@mobile/features/chat/capabilities/watch-chat";
 
 import { formatWatchViewerCount } from "../domain/watch-live-meta";
@@ -46,7 +49,9 @@ import { formatWatchViewerCount } from "../domain/watch-live-meta";
  */
 export function WatchTabs({
   chat,
+  chatSession,
   chatInteractions,
+  inlineEngagement,
   chatTarget,
   info,
   onChatRetry,
@@ -59,7 +64,9 @@ export function WatchTabs({
   tab,
 }: {
   readonly chat: WatchChatAvailability;
+  readonly chatSession?: WatchChatSession;
   readonly chatInteractions?: ChatInteractions;
+  readonly inlineEngagement?: ChatEngagementInlineBindings;
   readonly chatTarget?: WatchChatConnectInput;
   readonly info: WatchInfo | null;
   readonly onChatRetry?: () => void;
@@ -98,9 +105,10 @@ export function WatchTabs({
         </Pressable>
       ) : null}
       {tab === "chat" || tab === "comments" ? (
-        <ChatPanel
+        <WatchChatRegion
           key={`${platform}:${chatTarget?.channelId}:${chatTarget?.media?.id ?? "live"}`}
           chat={chat}
+          {...(chatSession === undefined ? {} : { session: chatSession })}
           platform={platform}
           recorded={recorded}
           title={
@@ -110,6 +118,7 @@ export function WatchTabs({
           {...(chatInteractions === undefined
             ? {}
             : { interactions: chatInteractions })}
+          {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
           {...(chatTarget === undefined ? {} : { target: chatTarget })}
           {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })}
           {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
@@ -126,6 +135,26 @@ export function WatchTabs({
         </ScrollView>
       ) : null}
     </View>
+  );
+}
+
+function WatchChatRegion({
+  session,
+  chat,
+  inlineEngagement,
+  ...props
+}: Parameters<typeof ChatPanel>[0] & {
+  readonly session?: WatchChatSession;
+  readonly inlineEngagement?: ChatEngagementInlineBindings;
+}) {
+  return session ? (
+    <SubscribedChatPanel
+      {...props}
+      session={session}
+      {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
+    />
+  ) : (
+    <ChatPanel {...props} chat={chat} />
   );
 }
 

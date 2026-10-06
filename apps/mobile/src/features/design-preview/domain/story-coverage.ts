@@ -48,6 +48,7 @@ export const settingsStoryCoverage = {
 };
 
 export const componentStoryCoverage = {
+  "emote-image": "features-chat-parity--animation-disabled",
   "settings-icon": "android-components-primitives--icon-buttons",
   avatar: "android-components-feature-cards--avatar-fallbacks",
   "media-card": "android-components-feature-cards--stream-cards",
@@ -73,6 +74,7 @@ export const componentStoryCoverage = {
 };
 
 export const componentExportStoryCoverage = {
+  MobileEmoteImage: "features-chat-parity--animation-disabled",
   MobileSettingsIcon: "android-components-primitives--icon-buttons",
   MobileAvatar: "android-components-feature-cards--avatar-fallbacks",
   MobileMediaCardContent: "android-components-feature-cards--stream-cards",

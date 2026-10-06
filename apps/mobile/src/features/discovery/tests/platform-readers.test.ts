@@ -105,7 +105,9 @@ describe("platform catalog readers", () => {
       items: [{ id: "g1", name: "Just Chatting" }],
     });
     await expect(reader.getFollowedStreams()).resolves.toMatchObject({
-      items: [{ channelIsVerified: true, tags: ["English"], title: "Followed" }],
+      items: [
+        { channelIsVerified: true, tags: ["English"], title: "Followed" },
+      ],
     });
     await expect(reader.getFollowedChannels()).resolves.toMatchObject({
       items: [
@@ -147,6 +149,22 @@ describe("platform catalog readers", () => {
         if (url.includes("/search/categories")) {
           return json({ data: [] });
         }
+        if (url.includes("/streams?")) {
+          return json({
+            data: [
+              {
+                id: "live-1",
+                type: "live",
+                user_id: "u1",
+                user_login: "alice",
+                user_name: "Alice",
+                title: "Live search",
+                tags: ["English"],
+                viewer_count: 58000,
+              },
+            ],
+          });
+        }
         if (url.includes("/users")) {
           return json({
             data: [
@@ -168,8 +186,10 @@ describe("platform catalog readers", () => {
         streams: [
           {
             channelIsVerified: true,
+            id: "live-1",
             tags: ["English"],
             title: "Live search",
+            viewerCount: 58000,
           },
         ],
       },

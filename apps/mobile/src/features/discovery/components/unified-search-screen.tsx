@@ -28,6 +28,7 @@ import {
 } from "../domain/search-history";
 import {
   watchTargetFromClip,
+  watchTargetFromStream,
   watchTargetFromVideo,
 } from "../domain/channel-watch-target";
 
@@ -247,6 +248,8 @@ export function UnifiedSearchView({
             ? {}
             : {
                 onWatchClip: (clip) => onWatch(watchTargetFromClip(clip)),
+                onWatchStream: (stream) =>
+                  onWatch(watchTargetFromStream(stream)),
                 onWatchVideo: (video) => onWatch(watchTargetFromVideo(video)),
               })}
         />

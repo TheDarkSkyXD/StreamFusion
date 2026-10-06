@@ -5,7 +5,7 @@ import type {
   PlatformReadOutcome,
   SearchReadOutcome,
 } from "../../capabilities/platform-reads";
-import { emptySearchCatalog, streamsFromLiveChannels } from "../../domain/search-catalog";
+import { emptySearchCatalog } from "../../domain/search-catalog";
 import {
   gqlBroadcasterPartner,
   gqlBroadcasterVerified,
@@ -22,9 +22,11 @@ export function createTwitchGqlGuestReader(input: {
   readonly fetch: typeof globalThis.fetch;
 }) {
   return {
-    async getTopStreams(read: {
-      readonly signal?: AbortSignal;
-    } = {}): Promise<PlatformReadOutcome<Stream>> {
+    async getTopStreams(
+      read: {
+        readonly signal?: AbortSignal;
+      } = {},
+    ): Promise<PlatformReadOutcome<Stream>> {
       return gqlCollection({
         fetchImpl: input.fetch,
         map: streamsFromPayload,
@@ -36,9 +38,11 @@ export function createTwitchGqlGuestReader(input: {
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
-    async getCategories(read: {
-      readonly signal?: AbortSignal;
-    } = {}): Promise<PlatformReadOutcome<Category>> {
+    async getCategories(
+      read: {
+        readonly signal?: AbortSignal;
+      } = {},
+    ): Promise<PlatformReadOutcome<Category>> {
       return gqlCollection({
         fetchImpl: input.fetch,
         map: gamesFromPayload,
@@ -103,13 +107,26 @@ export function createTwitchGqlGuestReader(input: {
       const matchedCategories = categories.items.filter((item) =>
         item.name.toLowerCase().includes(read.query.trim().toLowerCase()),
       );
+      const liveChannels = channels.items.filter((channel) => channel.isLive);
+      const details = await Promise.all(
+        liveChannels.map((channel) =>
+          this.getChannel({
+            login: channel.username,
+            ...(read.signal === undefined ? {} : { signal: read.signal }),
+          }),
+        ),
+      );
       return {
         cache: { kind: "miss" },
         catalog: {
           categories: matchedCategories,
           channels: channels.items,
           clips: [],
-          streams: streamsFromLiveChannels(channels.items),
+          streams: details.flatMap((detail) =>
+            detail.status === "complete" && detail.live !== null
+              ? [detail.live]
+              : [],
+          ),
           videos: [],
         },
         path: { kind: "guest", platform: "twitch" },
@@ -138,9 +155,7 @@ export function createTwitchGqlGuestReader(input: {
         cache: { kind: "miss" },
         channel,
         live:
-          streamNode === undefined
-            ? null
-            : streamFromNode(streamNode, channel),
+          streamNode === undefined ? null : streamFromNode(streamNode, channel),
         path: { kind: "guest", platform: "twitch" },
         platform: "twitch",
         status: "complete",
@@ -193,17 +208,14 @@ async function gqlJson(input: {
 > {
   if (input.signal?.aborted) return { code: "cancelled", kind: "failed" };
   try {
-    const response = await input.fetchImpl(
-      GQL,
-      {
-        ...requestInit(
-          { "Client-Id": CLIENT_ID, "Content-Type": "application/json" },
-          input.signal,
-        ),
-        body: JSON.stringify({ query: input.query, variables: input.variables }),
-        method: "POST",
-      },
-    );
+    const response = await input.fetchImpl(GQL, {
+      ...requestInit(
+        { "Client-Id": CLIENT_ID, "Content-Type": "application/json" },
+        input.signal,
+      ),
+      body: JSON.stringify({ query: input.query, variables: input.variables }),
+      method: "POST",
+    });
     if (!response.ok) {
       return {
         code: response.status === 401 ? "auth-lost" : "twitch-failed",
@@ -212,7 +224,10 @@ async function gqlJson(input: {
     }
     return { kind: "ready", value: await response.json() };
   } catch (error) {
-    if (input.signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+    if (
+      input.signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
       return { code: "cancelled", kind: "failed" };
     }
     return { code: "twitch-failed", kind: "failed" };
@@ -269,16 +284,12 @@ function streamFromNode(
   const gameNode = asRecord(node.game) ?? game ?? null;
   return {
     channelAvatar:
-      channel?.avatarUrl ||
-      stringField(broadcaster ?? {}, "profileImageURL"),
+      channel?.avatarUrl || stringField(broadcaster ?? {}, "profileImageURL"),
     channelDisplayName:
       channel?.displayName ||
       stringField(broadcaster ?? {}, "displayName") ||
       login,
-    channelId:
-      channel?.id ||
-      identifier(broadcaster ?? {}, "id") ||
-      login,
+    channelId: channel?.id || identifier(broadcaster ?? {}, "id") || login,
     channelName: login,
     id,
     isLive: true,
@@ -297,7 +308,8 @@ function streamFromNode(
       : {
           categoryId: identifier(gameNode, "id"),
           categoryName:
-            stringField(gameNode, "displayName") || stringField(gameNode, "name"),
+            stringField(gameNode, "displayName") ||
+            stringField(gameNode, "name"),
         }),
   };
 }
@@ -366,7 +378,7 @@ function failedPage(code: string): ChannelPageOutcome {
 
 function dataRecord(value: unknown): Record<string, unknown> | null {
   const root = asRecord(value);
-  return root === null ? null : asRecord(root.data) ?? root;
+  return root === null ? null : (asRecord(root.data) ?? root);
 }
 
 function edges(value: unknown): readonly Record<string, unknown>[] {

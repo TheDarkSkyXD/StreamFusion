@@ -20,7 +20,10 @@ import type {
   WatchTab,
   WatchTarget,
 } from "../capabilities/watch";
-import { useWatchChat } from "@mobile/features/chat/components/use-watch-chat";
+import {
+  CONNECTING_WATCH_CHAT_SNAPSHOT,
+  useWatchChatConnection,
+} from "@mobile/features/chat/components/use-watch-chat";
 import { useChannelFollow } from "@mobile/features/discovery/components/use-channel-follow";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import {
@@ -54,6 +57,7 @@ import type {
 } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
 import { i18n } from "@mobile/i18n";
 import type { WatchChatMessage } from "@mobile/features/chat/capabilities/watch-chat";
+import type { ChatEngagementInlineBindings } from "@mobile/features/engagement/components/chat-engagement-inline";
 
 export type WatchDownloadSession = {
   readonly busy: boolean;
@@ -92,6 +96,7 @@ const INERT_FOLLOWING_SESSION: Pick<
 };
 
 export function WatchRoute({
+  inlineEngagement,
   onOpenEngagement,
   onModerateMessage,
   captions,
@@ -107,6 +112,7 @@ export function WatchRoute({
   screen,
   target,
 }: {
+  readonly inlineEngagement?: ChatEngagementInlineBindings;
   readonly onOpenEngagement?: () => void;
   readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly captions?: WatchCaptionSession;
@@ -149,6 +155,7 @@ export function WatchRoute({
   }
   return (
     <WatchSessionRoute
+      {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
       {...(onOpenEngagement === undefined ? {} : { onOpenEngagement })}
       {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
       onOpenRelated={onOpenRelated}
@@ -166,6 +173,7 @@ export function WatchRoute({
 }
 
 function WatchSessionRoute({
+  inlineEngagement,
   onOpenEngagement,
   onModerateMessage,
   captions,
@@ -179,6 +187,7 @@ function WatchSessionRoute({
   screen,
   target,
 }: {
+  readonly inlineEngagement?: ChatEngagementInlineBindings;
   readonly onOpenEngagement?: () => void;
   readonly onModerateMessage?: (message: WatchChatMessage) => void;
   readonly captions?: WatchCaptionSession;
@@ -207,7 +216,7 @@ function WatchSessionRoute({
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
-  const chat = useWatchChat(screen.chat, target);
+  useWatchChatConnection(screen.chat, target);
   const channelFollow = useChannelFollow({
     channel: {
       id: target.channelId,
@@ -280,6 +289,7 @@ function WatchSessionRoute({
   const showControls = controlsForcedVisible || controlsVisible;
   return (
     <WatchScreen
+      {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
       chatSession={screen.chat}
       {...(screen.chatInteractions === undefined
         ? {}
@@ -289,7 +299,7 @@ function WatchSessionRoute({
       PlayerSurface={screen.PlayerSurface}
       playerTools={session}
       adblockView={adblockView}
-      chat={chat}
+      chat={CONNECTING_WATCH_CHAT_SNAPSHOT}
       followBusy={channelFollow.follow.kind === "pending"}
       followed={channelFollow.follow.kind === "guest-present"}
       inspection={inspection.data ?? null}
