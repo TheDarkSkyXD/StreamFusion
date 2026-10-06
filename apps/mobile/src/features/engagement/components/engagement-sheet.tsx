@@ -1,8 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
+import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileProgress } from "@mobile/design/feedback";
 import { MobileDialog } from "@mobile/design/dialog";
 import { MobileTextField } from "@mobile/design/text-input";
 import { mobileColors, mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -18,6 +21,7 @@ type EngagementSheetProps = {
   readonly channel: ModerationChannel;
   readonly controller: EngagementController;
   readonly visible: boolean;
+  readonly initialTool?: "poll" | "prediction";
   readonly onDismiss: () => void;
   readonly onOpenProvider: (channel: ModerationChannel) => void;
   readonly onRequestScopes: (
@@ -32,6 +36,12 @@ export function EngagementSheet(props: EngagementSheetProps) {
     controller.getSnapshot,
     controller.getSnapshot,
   );
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", (state) => {
+      if (state !== "active") controller.cancel();
+    });
+    return () => listener.remove();
+  }, [controller]);
   useEffect(() => {
     if (visible)
       void controller.open({
@@ -65,7 +75,10 @@ function EngagementSheetBody({
   onOpenProvider,
   onRequestScopes,
   snapshot,
+  initialTool = "poll",
 }: EngagementSheetProps & { readonly snapshot: EngagementSnapshot }) {
+  const { t } = useTranslation();
+  const [selectedTool, setSelectedTool] = useState(initialTool);
   const [form, setForm] = useState<"poll" | "prediction" | null>(null);
   const [confirmation, setConfirmation] = useState<{
     readonly title: string;
@@ -99,7 +112,9 @@ function EngagementSheetBody({
     <>
       <MobileBottomSheet
         visible={visible}
-        title="Polls and predictions"
+        title={t("moderation.activeEngagement", {
+          defaultValue: "Active engagement",
+        })}
         size="expanded"
         onDismiss={dismiss}
       >
@@ -115,6 +130,24 @@ function EngagementSheetBody({
             }
           />
         ) : null}
+        <View style={styles.row}>
+          {(["poll", "prediction"] as const).map((tool) => (
+            <MobileFilterChip
+              key={tool}
+              accessibilityLabel={`Show ${tool}s`}
+              label={t(
+                `moderation.tools.${tool === "poll" ? "polls" : "predictions"}`,
+                { defaultValue: tool === "poll" ? "Polls" : "Predictions" },
+              )}
+              selected={selectedTool === tool}
+              onPress={() => {
+                setSelectedTool(tool);
+                setForm(null);
+              }}
+              testID={`engagement-tab-${tool}`}
+            />
+          ))}
+        </View>
         {!owner && !pending ? (
           <Text style={mobileType.body}>
             {channel.platform === "kick"
@@ -131,7 +164,10 @@ function EngagementSheetBody({
                   pending ||
                   snapshot.polls.some((poll) => poll.status === "ACTIVE")
                 }
-                onPress={() => setForm("poll")}
+                onPress={() => {
+                  setSelectedTool("poll");
+                  setForm("poll");
+                }}
                 testID="engagement-create-poll"
                 variant="secondary"
               >
@@ -147,7 +183,10 @@ function EngagementSheetBody({
                       prediction.status === "LOCKED",
                   )
                 }
-                onPress={() => setForm("prediction")}
+                onPress={() => {
+                  setSelectedTool("prediction");
+                  setForm("prediction");
+                }}
                 testID="engagement-create-prediction"
                 variant="secondary"
               >
@@ -172,140 +211,173 @@ function EngagementSheetBody({
                 }}
               />
             ) : null}
-            <Text accessibilityRole="header" style={mobileType.title}>
-              Polls
-            </Text>
-            {snapshot.polls.length === 0 ? (
-              <Text style={mobileType.body}>No recent polls.</Text>
-            ) : null}
-            {snapshot.polls.map((poll) => (
-              <View key={poll.id} style={styles.card}>
-                <Text style={mobileType.title}>{poll.title}</Text>
-                <Text style={mobileType.label}>
-                  {poll.status.toLowerCase()}
+            {selectedTool === "poll" ? (
+              <>
+                <Text accessibilityRole="header" style={mobileType.title}>
+                  Polls
                 </Text>
-                {poll.choices.map((choice) => (
-                  <Text key={choice.id} style={mobileType.body}>
-                    {choice.title} · {choice.votes} votes
-                  </Text>
-                ))}
-                {poll.status === "ACTIVE" ? (
-                  <View style={styles.row}>
-                    <MobileButton
-                      accessibilityLabel={`End poll ${poll.title}`}
-                      disabled={pending}
-                      onPress={() =>
-                        review(
-                          "End poll",
-                          `End "${poll.title}" now? Results will remain visible.`,
-                          { kind: "end-poll", id: poll.id, archive: false },
-                        )
-                      }
-                      testID={`poll-end-${poll.id}`}
-                      variant="outline"
-                    >
-                      End poll
-                    </MobileButton>
-                    <MobileButton
-                      accessibilityLabel={`Archive poll ${poll.title}`}
-                      disabled={pending}
-                      onPress={() =>
-                        review(
-                          "Archive poll",
-                          `End and hide "${poll.title}" from the channel?`,
-                          { kind: "end-poll", id: poll.id, archive: true },
-                        )
-                      }
-                      testID={`poll-archive-${poll.id}`}
-                      variant="destructive"
-                    >
-                      Archive
-                    </MobileButton>
-                  </View>
+                {snapshot.polls.length === 0 ? (
+                  <Text style={mobileType.body}>No recent polls.</Text>
                 ) : null}
-              </View>
-            ))}
-            <Text accessibilityRole="header" style={mobileType.title}>
-              Predictions
-            </Text>
-            {snapshot.predictions.length === 0 ? (
-              <Text style={mobileType.body}>No recent predictions.</Text>
-            ) : null}
-            {snapshot.predictions.map((prediction) => (
-              <View key={prediction.id} style={styles.card}>
-                <Text style={mobileType.title}>{prediction.title}</Text>
-                <Text style={mobileType.label}>
-                  {prediction.status.toLowerCase()}
-                </Text>
-                {prediction.outcomes.map((outcome) => (
-                  <View key={outcome.id} style={styles.outcome}>
-                    <Text style={mobileType.body}>
-                      {outcome.title} · {outcome.votes} participants
-                      {outcome.id === prediction.winningOutcomeId
-                        ? " · Winner"
-                        : ""}
+                {snapshot.polls.map((poll) => (
+                  <View key={poll.id} style={styles.card}>
+                    <Text style={mobileType.title}>{poll.title}</Text>
+                    <Text style={mobileType.label}>
+                      {poll.status.toLowerCase()}
                     </Text>
-                    {prediction.status === "ACTIVE" ||
-                    prediction.status === "LOCKED" ? (
+                    {poll.choices.map((choice) => (
+                      <View key={choice.id} style={styles.outcome}>
+                        <Text style={mobileType.body}>
+                          {choice.title}, {choice.votes} votes
+                        </Text>
+                        {poll.choices.reduce(
+                          (sum, item) => sum + item.votes,
+                          0,
+                        ) > 0 ? (
+                          <MobileProgress
+                            label={`${choice.title} vote share`}
+                            value={
+                              choice.votes /
+                              poll.choices.reduce(
+                                (sum, item) => sum + item.votes,
+                                0,
+                              )
+                            }
+                          />
+                        ) : null}
+                      </View>
+                    ))}
+                    {poll.status === "ACTIVE" ? (
+                      <View style={styles.row}>
+                        <MobileButton
+                          accessibilityLabel={`End poll ${poll.title}`}
+                          disabled={pending}
+                          onPress={() =>
+                            review(
+                              "End poll",
+                              `End "${poll.title}" now? Results will remain visible.`,
+                              { kind: "end-poll", id: poll.id, archive: false },
+                            )
+                          }
+                          testID={`poll-end-${poll.id}`}
+                          variant="outline"
+                        >
+                          {t("moderation.tools.actions.TERMINATED", {
+                            defaultValue: "End poll",
+                          })}
+                        </MobileButton>
+                        <MobileButton
+                          accessibilityLabel={`Archive poll ${poll.title}`}
+                          disabled={pending}
+                          onPress={() =>
+                            review(
+                              "Archive poll",
+                              `End and hide "${poll.title}" from the channel?`,
+                              { kind: "end-poll", id: poll.id, archive: true },
+                            )
+                          }
+                          testID={`poll-archive-${poll.id}`}
+                          variant="destructive"
+                        >
+                          {t("moderation.tools.actions.ARCHIVED", {
+                            defaultValue: "Archive poll",
+                          })}
+                        </MobileButton>
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </>
+            ) : null}
+            {selectedTool === "prediction" ? (
+              <>
+                <Text accessibilityRole="header" style={mobileType.title}>
+                  Predictions
+                </Text>
+                {snapshot.predictions.length === 0 ? (
+                  <Text style={mobileType.body}>No recent predictions.</Text>
+                ) : null}
+                {snapshot.predictions.map((prediction) => (
+                  <View key={prediction.id} style={styles.card}>
+                    <Text style={mobileType.title}>{prediction.title}</Text>
+                    <Text style={mobileType.label}>
+                      {prediction.status.toLowerCase()}
+                    </Text>
+                    {prediction.outcomes.map((outcome) => (
+                      <View key={outcome.id} style={styles.outcome}>
+                        <Text style={mobileType.body}>
+                          {outcome.title} · {outcome.votes} participants
+                          {outcome.id === prediction.winningOutcomeId
+                            ? " · Winner"
+                            : ""}
+                        </Text>
+                        {prediction.status === "ACTIVE" ||
+                        prediction.status === "LOCKED" ? (
+                          <MobileButton
+                            accessibilityLabel={`Resolve prediction with ${outcome.title} as winner`}
+                            disabled={pending}
+                            onPress={() =>
+                              review(
+                                "Resolve prediction",
+                                `Select "${outcome.title}" as the winner of "${prediction.title}"? Twitch will distribute Channel Points. This cannot be changed afterward.`,
+                                {
+                                  kind: "resolve-prediction",
+                                  id: prediction.id,
+                                  winningOutcomeId: outcome.id,
+                                },
+                              )
+                            }
+                            testID={`prediction-resolve-${outcome.id}`}
+                            variant="outline"
+                          >
+                            {t("moderation.tools.chooseWinner", {
+                              defaultValue: "Choose winner",
+                            })}
+                          </MobileButton>
+                        ) : null}
+                      </View>
+                    ))}
+                    {prediction.status === "ACTIVE" ? (
                       <MobileButton
-                        accessibilityLabel={`Resolve prediction with ${outcome.title} as winner`}
+                        accessibilityLabel={`Lock prediction ${prediction.title}`}
                         disabled={pending}
                         onPress={() =>
                           review(
-                            "Resolve prediction",
-                            `Select "${outcome.title}" as the winner of "${prediction.title}"? Twitch will distribute Channel Points. This cannot be changed afterward.`,
-                            {
-                              kind: "resolve-prediction",
-                              id: prediction.id,
-                              winningOutcomeId: outcome.id,
-                            },
+                            "Lock prediction",
+                            `Stop new predictions for "${prediction.title}"?`,
+                            { kind: "lock-prediction", id: prediction.id },
                           )
                         }
-                        testID={`prediction-resolve-${outcome.id}`}
-                        variant="outline"
+                        testID={`prediction-lock-${prediction.id}`}
+                        variant="secondary"
                       >
-                        Select winner
+                        {t("moderation.tools.actions.LOCKED", {
+                          defaultValue: "Lock prediction",
+                        })}
+                      </MobileButton>
+                    ) : null}
+                    {prediction.status === "ACTIVE" ||
+                    prediction.status === "LOCKED" ? (
+                      <MobileButton
+                        accessibilityLabel={`Cancel prediction ${prediction.title}`}
+                        disabled={pending}
+                        onPress={() =>
+                          review(
+                            "Cancel prediction",
+                            `Cancel "${prediction.title}" and refund all participants' Channel Points?`,
+                            { kind: "cancel-prediction", id: prediction.id },
+                          )
+                        }
+                        testID={`prediction-cancel-${prediction.id}`}
+                        variant="destructive"
+                      >
+                        Cancel and refund
                       </MobileButton>
                     ) : null}
                   </View>
                 ))}
-                {prediction.status === "ACTIVE" ? (
-                  <MobileButton
-                    accessibilityLabel={`Lock prediction ${prediction.title}`}
-                    disabled={pending}
-                    onPress={() =>
-                      review(
-                        "Lock prediction",
-                        `Stop new predictions for "${prediction.title}"?`,
-                        { kind: "lock-prediction", id: prediction.id },
-                      )
-                    }
-                    testID={`prediction-lock-${prediction.id}`}
-                    variant="secondary"
-                  >
-                    Lock prediction
-                  </MobileButton>
-                ) : null}
-                {prediction.status === "ACTIVE" ||
-                prediction.status === "LOCKED" ? (
-                  <MobileButton
-                    accessibilityLabel={`Cancel prediction ${prediction.title}`}
-                    disabled={pending}
-                    onPress={() =>
-                      review(
-                        "Cancel prediction",
-                        `Cancel "${prediction.title}" and refund all participants' Channel Points?`,
-                        { kind: "cancel-prediction", id: prediction.id },
-                      )
-                    }
-                    testID={`prediction-cancel-${prediction.id}`}
-                    variant="destructive"
-                  >
-                    Cancel and refund
-                  </MobileButton>
-                ) : null}
-              </View>
-            ))}
+              </>
+            ) : null}
           </>
         ) : null}
         <MobileButton

@@ -1,5 +1,7 @@
 import type { AuthenticatedPlatformAccess } from "@mobile/features/auth/capabilities/platform-access";
 import type { Platform } from "@streamfusion/core/platform";
+import type { ModerationLogRepository } from "../capabilities/moderation-log";
+import type { ProviderToolsController } from "./provider-tools-controller";
 import type {
   BannedPage,
   ChatSettings,
@@ -36,6 +38,7 @@ export type ModerationSnapshot = {
   readonly sessionRevision: number;
 };
 export interface ModerationController {
+  readonly providerTools?: ProviderToolsController;
   getSnapshot(): ModerationSnapshot;
   subscribe(listener: () => void): () => void;
   loadChannels(platform: Platform): Promise<void>;
@@ -134,10 +137,13 @@ function commandProblem(
 export function createModerationController({
   access,
   gateway,
+  log,
 }: {
   readonly access: AuthenticatedPlatformAccess;
   readonly gateway: ModerationGateway;
+  readonly log?: ModerationLogRepository;
 }): ModerationController {
+  let logSequence = 0;
   let snapshot: ModerationSnapshot = {
     platform: "twitch",
     channels: [],
@@ -428,9 +434,52 @@ export function createModerationController({
           ? `${command.action === "ALLOW" ? "Allow" : "Deny"} held message`
           : command.kind.replaceAll("-", " "),
         (credential, signal) =>
-          authorized(credential, signal, channel, () => {
+          authorized(credential, signal, channel, async () => {
             submittedMutations.add(signal);
-            return gateway.execute(channel, command, credential, signal);
+            const entry = {
+              id: `moderation:${Date.now()}:${++logSequence}`,
+              at: Date.now(),
+              channel,
+              actorId: credential.userId,
+              userId: "userId" in command ? command.userId : null,
+              action: command.kind,
+              detail:
+                "reason" in command
+                  ? command.reason
+                  : command.kind.replaceAll("-", " "),
+              source: "app-issued" as const,
+            };
+            const result = await gateway.execute(
+              channel,
+              command,
+              credential,
+              signal,
+            );
+            if (log) {
+              try {
+                await log.record({
+                  ...entry,
+                  outcome:
+                    result.kind === "success"
+                      ? "confirmed"
+                      : result.reason === "network" ||
+                          result.reason === "provider"
+                        ? "uncertain"
+                        : "rejected",
+                });
+              } catch {
+                if (!signal.aborted)
+                  return {
+                    kind: "failure",
+                    reason: "provider",
+                    detail:
+                      result.kind === "success"
+                        ? "The provider confirmed the action, but its local moderation history could not be saved. Do not repeat the action."
+                        : `${result.detail} Local history could not be saved.`,
+                  };
+              }
+            }
+            return result;
           }),
         () => {
           snapshot = {

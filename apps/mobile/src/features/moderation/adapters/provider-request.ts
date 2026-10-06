@@ -13,7 +13,7 @@ export function createProviderRequest(fetcher: typeof globalThis.fetch) {
   }: {
     readonly credential: ProviderCredential;
     readonly path: string;
-    readonly method?: "GET" | "POST" | "PATCH" | "DELETE";
+    readonly method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
     readonly body?: unknown;
     readonly signal: AbortSignal;
   }): Promise<ProviderResult<unknown>> {

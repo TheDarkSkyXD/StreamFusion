@@ -1,10 +1,15 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
 import { MobileDialog } from "@mobile/design/dialog";
-import { MobileListRow, MobileSwitchRow } from "@mobile/design/list-row";
+import { MobileSwitchRow } from "@mobile/design/list-row";
 import { MobileTextField } from "@mobile/design/text-input";
 import { mobileColors, mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
@@ -17,6 +22,13 @@ import type {
   ModerationSnapshot,
 } from "../domain/moderation-controller";
 import { WorkflowFeedback } from "./workflow-feedback";
+import { ModWorkspaceHome, type WorkspaceTool } from "./mod-workspace-home";
+import {
+  ProviderToolSheet,
+  LocalModerationHistory,
+  TimeoutDurationPicker,
+  type ProviderWorkspaceTool,
+} from "./provider-tool-sheet";
 
 type Tool =
   | "actions"
@@ -26,6 +38,10 @@ type Tool =
   | "unban-requests"
   | "moderators"
   | "vips";
+export type ModerationScopeReturn = {
+  readonly channel: ModerationChannel | null;
+  readonly tool: WorkspaceTool | null;
+};
 type ModWorkspaceProps = {
   readonly controller: ModerationController;
   readonly onOpenChannel: (channel: ModerationChannel) => void;
@@ -36,10 +52,13 @@ type ModWorkspaceProps = {
   readonly onRequestScopes: (
     platform: Platform,
     scopes: readonly string[],
+    returnTo?: ModerationScopeReturn,
   ) => void;
   readonly initialPlatform?: Platform;
   readonly initialChannel?: ModerationChannel;
   readonly initialUserId?: string;
+  readonly initialTool?: WorkspaceTool;
+  readonly renderChat?: (channel: ModerationChannel) => ReactNode;
   readonly onOpenEngagement?: (channel: ModerationChannel) => void;
 };
 export function ModWorkspace(props: ModWorkspaceProps) {
@@ -67,8 +86,20 @@ export function ModWorkspace(props: ModWorkspaceProps) {
     return () => {
       mounted = false;
       controller.cancel();
+      controller.providerTools?.cancel();
+      controller.providerTools?.stopFeed();
     };
   }, [controller, initialPlatform, initialChannel]);
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        controller.cancel();
+        controller.providerTools?.cancel();
+        controller.providerTools?.stopFeed();
+      }
+    });
+    return () => listener.remove();
+  }, [controller]);
   return (
     <ModWorkspaceBody
       key={`${snapshot.sessionRevision}:${snapshot.selection?.channel.id ?? "none"}`}
@@ -85,7 +116,9 @@ function ModWorkspaceBody({
   snapshot,
   initialChannel,
   initialUserId = "",
+  initialTool,
   onOpenEngagement,
+  renderChat,
 }: ModWorkspaceProps & { readonly snapshot: ModerationSnapshot }) {
   const initialTarget =
     initialChannel?.login === snapshot.selection?.channel.login &&
@@ -93,7 +126,16 @@ function ModWorkspaceBody({
       ? initialUserId
       : "";
   const [tool, setTool] = useState<Tool | null>(
-    initialTarget ? "actions" : null,
+    initialTarget
+      ? "actions"
+      : initialTool === "actions" ||
+          initialTool === "settings" ||
+          initialTool === "banned" ||
+          initialTool === "unban-requests" ||
+          initialTool === "moderators" ||
+          initialTool === "vips"
+        ? initialTool
+        : null,
   );
   const [confirm, setConfirm] = useState<{
     readonly title: string;
@@ -101,16 +143,36 @@ function ModWorkspaceBody({
   } | null>(null);
   const [userId, setUserId] = useState(initialTarget);
   const [messageId, setMessageId] = useState("");
+  const [providerTool, setProviderTool] =
+    useState<ProviderWorkspaceTool | null>(
+      initialTool === "stream" ||
+        initialTool === "logs" ||
+        initialTool === "retention" ||
+        initialTool === "activity" ||
+        initialTool === "community" ||
+        initialTool === "rewards" ||
+        initialTool === "suspicious" ||
+        initialTool === "whispers" ||
+        initialTool === "provider" ||
+        initialTool === "automod"
+        ? initialTool
+        : null,
+    );
+  const [chatOpen, setChatOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState("600");
   const selection = snapshot.selection;
   const pending = snapshot.activity.kind === "pending";
+  useEffect(() => {
+    if (tool === "settings") void controller.readSettings();
+    if (tool === "banned") void controller.readBanned();
+    if (tool === "unban-requests" || tool === "moderators" || tool === "vips")
+      void controller.readReview(tool);
+    if (tool === "actions") void controller.providerTools?.readHistory();
+  }, [controller, tool]);
   function open(next: Tool) {
     setTool(next);
-    if (next === "settings") void controller.readSettings();
-    if (next === "banned") void controller.readBanned();
-    if (next === "unban-requests" || next === "moderators" || next === "vips")
-      void controller.readReview(next);
   }
   function ask(title: string, command: ModerationCommand) {
     setConfirm({ title, command });
@@ -119,167 +181,114 @@ function ModWorkspaceBody({
     <WorkflowFeedback
       activity={snapshot.activity}
       onCancel={controller.cancel}
-      onRequestScopes={(scopes) => onRequestScopes(snapshot.platform, scopes)}
+      onRequestScopes={(scopes) =>
+        onRequestScopes(snapshot.platform, scopes, {
+          channel: selection?.channel ?? null,
+          tool: providerTool ?? tool,
+        })
+      }
     />
   );
   return (
     <>
-      <ScrollView
-        contentContainerStyle={styles.page}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text accessibilityRole="header" style={mobileType.display}>
-          Moderation
-        </Text>
-        <Text style={mobileType.body}>
-          Choose a channel. Your provider role is checked before each action.
-        </Text>
-        <View style={styles.row}>
-          {(["twitch", "kick"] satisfies readonly Platform[]).map(
-            (platform) => (
-              <MobileButton
-                key={platform}
-                accessibilityLabel={`Load ${platform} moderated channels`}
-                busy={pending && snapshot.platform === platform}
-                onPress={() => void controller.loadChannels(platform)}
-                testID={`mod-${platform}`}
-                variant={
-                  snapshot.platform === platform ? platform : "secondary"
-                }
-              >
-                {platform === "twitch" ? "Twitch" : "Kick"}
-              </MobileButton>
-            ),
-          )}
-        </View>
-        {feedback}
-        {snapshot.channels.length === 0 && !pending ? (
-          <Text style={mobileType.body}>
-            No channels loaded. Connect an account or grant the requested
-            permissions, then refresh.
-          </Text>
-        ) : null}
-        {snapshot.channels.map((channel) => (
-          <MobileListRow
-            key={`${channel.platform}:${channel.id}`}
-            title={channel.name}
-            description={
-              selection?.channel.id === channel.id
-                ? `Verified ${selection.role}`
-                : `@${channel.login}`
-            }
-            onPress={() => void controller.selectChannel(channel)}
-          />
-        ))}
-        <MobileButton
-          accessibilityLabel="Refresh moderated channels"
-          disabled={pending}
-          onPress={() => void controller.loadChannels(snapshot.platform)}
-          testID="mod-refresh"
-          variant="outline"
-        >
-          Refresh channels
-        </MobileButton>
-        {selection ? (
-          <View style={styles.panel}>
-            <Text accessibilityRole="header" style={mobileType.title}>
-              {selection.channel.name}
-            </Text>
-            <Text style={mobileType.label}>
-              {selection.role === "broadcaster"
-                ? "Verified broadcaster"
-                : "Verified moderator"}
-            </Text>
-            <MobileButton
-              accessibilityLabel={`Watch ${selection.channel.name}`}
-              onPress={() => onOpenChannel(selection.channel)}
-              testID="mod-watch"
-              variant="secondary"
-            >
-              Watch channel
-            </MobileButton>
-            <MobileListRow
-              title="User and message actions"
-              description="Timeout, ban, unban, or delete a message"
-              onPress={() => open("actions")}
-            />
-            {snapshot.platform === "twitch" ? (
-              <>
-                <MobileListRow
-                  title="Chat settings"
-                  description="Slow, followers, subscribers, emotes, and unique chat"
-                  onPress={() => open("settings")}
-                />
-                <MobileListRow
-                  title="AutoMod review"
-                  description="Allow or deny a held message by its provider ID"
-                  onPress={() => open("automod")}
-                />
-                <MobileListRow
-                  title="Unban requests"
-                  description="Review pending appeals and approve or deny them"
-                  onPress={() => open("unban-requests")}
-                />
-                {selection.role === "broadcaster" ? (
-                  <MobileListRow
-                    title="Banned users"
-                    description="Read the provider list and remove bans"
-                    onPress={() => open("banned")}
-                  />
-                ) : null}
-                {selection.role === "broadcaster" ? (
-                  <>
-                    <MobileListRow
-                      title="Moderators"
-                      description="Review, add, and remove channel moderators"
-                      onPress={() => open("moderators")}
-                    />
-                    <MobileListRow
-                      title="VIPs"
-                      description="Review, add, and remove VIP status"
-                      onPress={() => open("vips")}
-                    />
-                    {onOpenEngagement ? (
-                      <MobileListRow
-                        title="Polls and predictions"
-                        description="Create and manage broadcaster engagement"
-                        onPress={() => onOpenEngagement(selection.channel)}
-                      />
-                    ) : null}
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <Text style={mobileType.body}>
-                Kick&apos;s official API supports bans and message deletion for
-                your broadcaster channel. Open Kick for role management, chat
-                settings, retention, and banned-user lists.
-              </Text>
-            )}
-          </View>
-        ) : null}
-        {snapshot.platform === "kick" ? (
-          <Text style={mobileType.body}>
-            Kick does not expose a moderated-channel or moderator-role lookup.
-            Only your verified broadcaster channel appears here.
-          </Text>
-        ) : null}
-        <Text style={mobileType.body}>
-          Open provider tools for moderation logs, active moderators, channel
-          activity, and retention history. These records are not exposed by the
-          official APIs.
-        </Text>
-        <MobileButton
-          accessibilityLabel={`Open ${snapshot.platform} moderation tools`}
-          onPress={() =>
-            onOpenProvider(selection?.channel ?? null, snapshot.platform)
+      <ModWorkspaceHome
+        snapshot={snapshot}
+        feedback={feedback}
+        onLoadPlatform={(platform) => void controller.loadChannels(platform)}
+        onSelectChannel={(channel) => void controller.selectChannel(channel)}
+        onOpenTool={(next: WorkspaceTool) => {
+          if (!selection) return;
+          if (next === "chat") {
+            if (renderChat) setChatOpen(true);
+            else onOpenChannel(selection.channel);
+            return;
           }
-          testID="mod-provider"
-          variant="outline"
+          if (next === "engagement") {
+            if (onOpenEngagement) onOpenEngagement(selection.channel);
+            else onOpenProvider(selection.channel, snapshot.platform);
+            return;
+          }
+          if (
+            next === "automod" &&
+            controller.providerTools &&
+            snapshot.platform === "twitch"
+          ) {
+            setProviderTool("automod");
+            return;
+          }
+          if (
+            next === "actions" ||
+            next === "settings" ||
+            next === "banned" ||
+            next === "automod" ||
+            next === "unban-requests" ||
+            next === "moderators" ||
+            next === "vips"
+          ) {
+            if (snapshot.platform === "kick" && next !== "actions") {
+              setProviderTool(next);
+              return;
+            }
+            open(next);
+            return;
+          }
+          setProviderTool(next);
+        }}
+      />
+      {chatOpen && selection && renderChat ? (
+        <MobileBottomSheet
+          visible
+          title="Live chat"
+          size="expanded"
+          onDismiss={() => setChatOpen(false)}
         >
-          Open provider tools
-        </MobileButton>
-      </ScrollView>
+          <Text style={mobileType.label}>
+            {selection.channel.name}, select a message to open its moderation
+            actions.
+          </Text>
+          {renderChat(selection.channel)}
+        </MobileBottomSheet>
+      ) : null}
+      {providerTool && selection && controller.providerTools ? (
+        <ProviderToolSheet
+          key={providerTool}
+          controller={controller.providerTools}
+          moderation={controller}
+          channel={selection.channel}
+          tool={providerTool}
+          onDismiss={() => setProviderTool(null)}
+          onOpenProvider={() =>
+            onOpenProvider(selection.channel, snapshot.platform)
+          }
+          onRequestScopes={(scopes) =>
+            onRequestScopes(snapshot.platform, scopes, {
+              channel: selection.channel,
+              tool: providerTool,
+            })
+          }
+        />
+      ) : null}
+      {providerTool && selection && !controller.providerTools ? (
+        <MobileBottomSheet
+          visible
+          title="Provider tools"
+          size="expanded"
+          onDismiss={() => setProviderTool(null)}
+        >
+          <Text style={mobileType.body}>
+            This host does not provide the selected tool. Open the provider to
+            use its available controls.
+          </Text>
+          <MobileButton
+            accessibilityLabel="Open selected provider tools"
+            variant="outline"
+            onPress={() => onOpenProvider(selection.channel, snapshot.platform)}
+            testID="mod-unavailable-provider"
+          >
+            Open provider tools
+          </MobileButton>
+        </MobileBottomSheet>
+      ) : null}
       <MobileBottomSheet
         visible={tool !== null && selection !== null}
         title={
@@ -312,6 +321,12 @@ function ModWorkspaceBody({
         {feedback}
         {tool === "actions" ? (
           <>
+            {controller.providerTools ? (
+              <ActionHistory
+                controller={controller.providerTools}
+                userId={userId}
+              />
+            ) : null}
             <MobileTextField
               label="Provider user ID"
               hint="Use the numeric Twitch or Kick user ID from chat."
@@ -325,16 +340,10 @@ function ModWorkspaceBody({
               onChange={setReason}
               disabled={pending}
             />
-            <MobileTextField
-              label="Timeout duration in seconds"
-              hint={
-                snapshot.platform === "kick"
-                  ? "Whole minutes only. 600 seconds is 10 minutes."
-                  : "From 1 second to 14 days."
-              }
+            <TimeoutDurationPicker
               value={duration}
               onChange={setDuration}
-              disabled={pending}
+              pending={pending}
             />
             <View style={styles.row}>
               <MobileButton
@@ -456,36 +465,47 @@ function ModWorkspaceBody({
         ) : null}
         {tool === "banned" && snapshot.banned ? (
           <>
+            <MobileTextField
+              label="Search loaded banned users"
+              value={search}
+              onChange={setSearch}
+            />
             {snapshot.banned.users.length === 0 ? (
               <Text style={mobileType.body}>No banned or timed-out users.</Text>
             ) : null}
-            {snapshot.banned.users.map((user) => (
-              <View key={user.id} style={styles.panel}>
-                <Text style={mobileType.title}>{user.name}</Text>
-                <Text style={mobileType.body}>
-                  {user.reason || "No reason provided"}
-                </Text>
-                <Text style={mobileType.label}>
-                  {user.expiresAt
-                    ? `Timeout ends ${user.expiresAt}`
-                    : "Permanent ban"}
-                </Text>
-                <MobileButton
-                  accessibilityLabel={`Review unban for ${user.name}`}
-                  disabled={pending}
-                  onPress={() =>
-                    ask(`Unban ${user.name}`, {
-                      kind: "unban",
-                      userId: user.id,
-                    })
-                  }
-                  testID={`unban-${user.id}`}
-                  variant="outline"
-                >
-                  Unban
-                </MobileButton>
-              </View>
-            ))}
+            {snapshot.banned.users
+              .filter((user) =>
+                `${user.name} ${user.reason} ${user.id}`
+                  .toLowerCase()
+                  .includes(search.toLowerCase()),
+              )
+              .map((user) => (
+                <View key={user.id} style={styles.panel}>
+                  <Text style={mobileType.title}>{user.name}</Text>
+                  <Text style={mobileType.body}>
+                    {user.reason || "No reason provided"}
+                  </Text>
+                  <Text style={mobileType.label}>
+                    {user.expiresAt
+                      ? `Timeout ends ${user.expiresAt}`
+                      : "Permanent ban"}
+                  </Text>
+                  <MobileButton
+                    accessibilityLabel={`Review unban for ${user.name}`}
+                    disabled={pending}
+                    onPress={() =>
+                      ask(`Unban ${user.name}`, {
+                        kind: "unban",
+                        userId: user.id,
+                      })
+                    }
+                    testID={`unban-${user.id}`}
+                    variant="outline"
+                  >
+                    Unban
+                  </MobileButton>
+                </View>
+              ))}
             {snapshot.banned.cursor ? (
               <MobileButton
                 accessibilityLabel="Load more banned users"
@@ -553,68 +573,79 @@ function ModWorkspaceBody({
                     No {tool === "unban-requests" ? "pending requests" : tool}.
                   </Text>
                 ) : null}
-                {snapshot.review.items.map((item) => (
-                  <View
-                    key={item.kind === "unban" ? item.id : item.userId}
-                    style={styles.panel}
-                  >
-                    <Text style={mobileType.title}>{item.name}</Text>
-                    {item.kind === "unban" ? (
-                      <>
-                        <Text style={mobileType.body}>{item.text}</Text>
-                        <View style={styles.row}>
-                          {(
-                            ["approved", "denied"] satisfies readonly (
-                              "approved" | "denied"
-                            )[]
-                          ).map((status) => (
-                            <MobileButton
-                              key={status}
-                              accessibilityLabel={`${status === "approved" ? "Approve" : "Deny"} appeal from ${item.name}`}
-                              disabled={pending}
-                              onPress={() =>
-                                ask(
-                                  `${status === "approved" ? "Approve" : "Deny"} appeal from ${item.name}`,
-                                  {
-                                    kind: "resolve-unban",
-                                    requestId: item.id,
-                                    status,
-                                    resolutionText: reason,
-                                  },
-                                )
-                              }
-                              testID={`appeal-${status}-${item.id}`}
-                              variant={
-                                status === "approved"
-                                  ? "secondary"
-                                  : "destructive"
-                              }
-                            >
-                              {status === "approved" ? "Approve" : "Deny"}
-                            </MobileButton>
-                          ))}
-                        </View>
-                      </>
-                    ) : tool === "moderators" || tool === "vips" ? (
-                      <MobileButton
-                        accessibilityLabel={`Review removing ${item.name} from ${tool}`}
-                        disabled={pending}
-                        onPress={() =>
-                          ask(`Remove ${item.name}`, {
-                            kind: "membership",
-                            group: tool,
-                            operation: "remove",
-                            userId: item.userId,
-                          })
-                        }
-                        testID={`member-remove-${item.userId}`}
-                        variant="destructive"
-                      >
-                        Remove
-                      </MobileButton>
-                    ) : null}
-                  </View>
-                ))}
+                <MobileTextField
+                  label="Search loaded records"
+                  value={search}
+                  onChange={setSearch}
+                />
+                {snapshot.review.items
+                  .filter((item) =>
+                    `${item.name} ${item.userId}`
+                      .toLowerCase()
+                      .includes(search.toLowerCase()),
+                  )
+                  .map((item) => (
+                    <View
+                      key={item.kind === "unban" ? item.id : item.userId}
+                      style={styles.panel}
+                    >
+                      <Text style={mobileType.title}>{item.name}</Text>
+                      {item.kind === "unban" ? (
+                        <>
+                          <Text style={mobileType.body}>{item.text}</Text>
+                          <View style={styles.row}>
+                            {(
+                              ["approved", "denied"] satisfies readonly (
+                                "approved" | "denied"
+                              )[]
+                            ).map((status) => (
+                              <MobileButton
+                                key={status}
+                                accessibilityLabel={`${status === "approved" ? "Approve" : "Deny"} appeal from ${item.name}`}
+                                disabled={pending}
+                                onPress={() =>
+                                  ask(
+                                    `${status === "approved" ? "Approve" : "Deny"} appeal from ${item.name}`,
+                                    {
+                                      kind: "resolve-unban",
+                                      requestId: item.id,
+                                      status,
+                                      resolutionText: reason,
+                                    },
+                                  )
+                                }
+                                testID={`appeal-${status}-${item.id}`}
+                                variant={
+                                  status === "approved"
+                                    ? "secondary"
+                                    : "destructive"
+                                }
+                              >
+                                {status === "approved" ? "Approve" : "Deny"}
+                              </MobileButton>
+                            ))}
+                          </View>
+                        </>
+                      ) : tool === "moderators" || tool === "vips" ? (
+                        <MobileButton
+                          accessibilityLabel={`Review removing ${item.name} from ${tool}`}
+                          disabled={pending}
+                          onPress={() =>
+                            ask(`Remove ${item.name}`, {
+                              kind: "membership",
+                              group: tool,
+                              operation: "remove",
+                              userId: item.userId,
+                            })
+                          }
+                          testID={`member-remove-${item.userId}`}
+                          variant="destructive"
+                        >
+                          Remove
+                        </MobileButton>
+                      ) : null}
+                    </View>
+                  ))}
                 {snapshot.review.cursor ? (
                   <MobileButton
                     accessibilityLabel="Load more records"
@@ -759,3 +790,23 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.small,
   },
 });
+
+function ActionHistory({
+  controller,
+  userId,
+}: {
+  readonly controller: import("../domain/provider-tools-controller").ProviderToolsController;
+  readonly userId: string;
+}) {
+  const snapshot = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    controller.getSnapshot,
+  );
+  return (
+    <LocalModerationHistory
+      state={snapshot.history}
+      {...(userId ? { userId } : {})}
+    />
+  );
+}
