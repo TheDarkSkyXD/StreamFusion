@@ -1,10 +1,8 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Category } from "@streamfusion/core/content";
 
-import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
-  mobilePressRing,
   mobileRadii,
   mobileSpacing,
   mobileType,
@@ -25,26 +23,24 @@ export function FollowingCategoryCard({
         {category.boxArtUrl ? (
           <Image
             accessibilityIgnoresInvertColors
+            resizeMode="cover"
             source={{ uri: category.boxArtUrl }}
             style={styles.art}
           />
         ) : (
           <View style={styles.artFallback}>
-            <Text selectable style={styles.fallbackLabel}>
+            <Text numberOfLines={3} style={styles.fallbackLabel}>
               {category.name}
             </Text>
           </View>
         )}
       </View>
-      <View style={styles.copy}>
-        <Text selectable style={styles.title}>
-          {category.name}
-        </Text>
-        <Text selectable style={styles.meta}>
-          {viewersLabel}
-        </Text>
-        <MobilePlatformBadge platform={category.platform} />
-      </View>
+      <Text numberOfLines={2} selectable style={styles.title}>
+        {category.name}
+      </Text>
+      <Text selectable style={styles.meta}>
+        {viewersLabel}
+      </Text>
     </>
   );
   const label = `${category.name} on ${category.platform}`;
@@ -72,49 +68,31 @@ export function FollowingCategoryCard({
 
 const styles = StyleSheet.create({
   card: {
-    ...mobilePressRing.rest,
-    backgroundColor: mobileColors.surface,
-    borderRadius: mobileRadii.large,
-    flexDirection: "row",
-    gap: mobileSpacing.medium,
-    overflow: "hidden",
-    padding: mobileSpacing.medium,
+    gap: mobileSpacing.xSmall,
+    width: "48%",
   },
-  pressed: {
-    ...mobilePressRing.pressed,
-  },
+  pressed: { opacity: 0.76 },
   artWrap: {
     aspectRatio: 3 / 4,
     backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.small,
+    borderRadius: mobileRadii.large,
     overflow: "hidden",
-    width: 72,
+    width: "100%",
   },
   art: { height: "100%", width: "100%" },
   artFallback: {
     alignItems: "center",
     flex: 1,
     justifyContent: "center",
-    padding: mobileSpacing.xSmall,
+    padding: mobileSpacing.small,
   },
   fallbackLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "700",
+    ...mobileType.title,
     textAlign: "center",
   },
-  copy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
-    justifyContent: "center",
-  },
-  title: {
-    ...mobileType.title,
-  },
+  title: mobileType.title,
   meta: {
+    ...mobileType.label,
     color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
   },
 });

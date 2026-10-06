@@ -1,10 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MobileAvatar } from "@mobile/design/avatar";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
-  mobilePressRing,
   mobileRadii,
   mobileSpacing,
   mobileType,
@@ -29,7 +29,9 @@ export function FollowingChannelCard({
   return (
     <Pressable
       accessibilityHint={
-        row.isLive ? "Opens this live channel in Watch" : "Opens channel details"
+        row.isLive
+          ? "Opens this live channel in Watch"
+          : "Opens channel details"
       }
       accessibilityLabel={label}
       accessibilityRole="button"
@@ -38,15 +40,11 @@ export function FollowingChannelCard({
       testID={`following-channel-${row.follow.platform}-${row.follow.channelId}`}
     >
       <View style={styles.heading}>
-        {avatarUrl ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: avatarUrl }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View style={styles.avatar} />
-        )}
+        <MobileAvatar
+          name={row.follow.displayName}
+          size={48}
+          uri={avatarUrl ?? null}
+        />
         <View style={styles.copy}>
           <View style={styles.nameRow}>
             <Text selectable style={styles.title}>
@@ -81,27 +79,15 @@ export function FollowingChannelCard({
 
 const styles = StyleSheet.create({
   card: {
-    ...mobilePressRing.rest,
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
   },
   pressed: {
-    ...mobilePressRing.pressed,
+    opacity: 0.76,
   },
   heading: {
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.small,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 48,
-    width: 48,
   },
   copy: {
     flex: 1,

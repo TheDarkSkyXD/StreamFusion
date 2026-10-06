@@ -1,14 +1,18 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
-import { MobileCatalogTags } from "@mobile/design/tag";
 import {
   mobileColors,
-  mobilePressRing,
   mobileRadii,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
 import type { CatalogCategory } from "../domain/category-identity";
+
+const viewerFormatter = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 export function CategoryCard({
   category,
@@ -17,6 +21,7 @@ export function CategoryCard({
   readonly category: CatalogCategory;
   readonly onPress: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Pressable
       accessibilityHint="Opens category detail"
@@ -31,51 +36,46 @@ export function CategoryCard({
         {category.boxArtUrl ? (
           <Image
             accessibilityIgnoresInvertColors
+            resizeMode="cover"
             source={{ uri: category.boxArtUrl }}
             style={styles.art}
           />
         ) : (
           <View style={styles.artFallback}>
-            <Text selectable style={styles.fallbackLabel}>
+            <Text numberOfLines={3} style={styles.fallbackLabel}>
               {category.name}
             </Text>
           </View>
         )}
       </View>
-      <Text selectable style={styles.name}>
+      <Text numberOfLines={2} selectable style={styles.name}>
         {category.name}
       </Text>
-      <View style={styles.tags}>
-        <MobileCatalogTags
-          {...(category.tags === undefined ? {} : { tags: category.tags })}
-        />
-      </View>
-      <Text selectable style={styles.viewers}>
-        {category.viewerCount === undefined
-          ? "Viewers unavailable"
-          : `${category.viewerCount} viewers`}
-      </Text>
+      {category.viewerCount !== undefined ? (
+        <Text selectable style={styles.viewers}>
+          {t("discovery.viewers", {
+            count: category.viewerCount,
+            formattedCount: viewerFormatter.format(category.viewerCount),
+          })}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    ...mobilePressRing.rest,
-    backgroundColor: mobileColors.surface,
-    borderRadius: mobileRadii.large,
-    overflow: "hidden",
-    width: "47%",
+    gap: mobileSpacing.xSmall,
+    width: "48%",
   },
   artWrap: {
     aspectRatio: 3 / 4,
     backgroundColor: mobileColors.surfaceMuted,
+    borderRadius: mobileRadii.large,
+    overflow: "hidden",
     width: "100%",
   },
-  art: {
-    height: "100%",
-    width: "100%",
-  },
+  art: { height: "100%", width: "100%" },
   artFallback: {
     alignItems: "center",
     flex: 1,
@@ -83,26 +83,13 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.small,
   },
   fallbackLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
+    ...mobileType.title,
     textAlign: "center",
   },
-  name: {
-    ...mobileType.title,
-    paddingHorizontal: mobileSpacing.small,
-    paddingTop: mobileSpacing.small,
-  },
-  tags: {
-    paddingHorizontal: mobileSpacing.small,
-  },
+  name: mobileType.title,
   viewers: {
+    ...mobileType.label,
     color: mobileColors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    padding: mobileSpacing.small,
   },
-  pressed: {
-    ...mobilePressRing.pressed,
-  },
+  pressed: { opacity: 0.76 },
 });

@@ -31,13 +31,12 @@ const i18nTest = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
   initReactI18next: { type: "3rdParty", init: () => undefined },
 }));
-
-
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
@@ -82,6 +81,26 @@ describe("Following screen", () => {
       i18n.t(key, options as never);
   });
 
+  it("shows three shared placeholders while followed live content loads", () => {
+    const view = composeFollowingView({
+      chip: "all",
+      loadingLive: true,
+      loadingRecorded: false,
+      membership: [twitchFollow],
+      notifications: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      query: "",
+      tab: "live",
+    });
+    const nodes = descendants(FollowingTabBody({ view }));
+    expect(
+      nodes.filter(
+        (node) => node.props.accessibilityLabel === "Loading content",
+      ),
+    ).toHaveLength(3);
+    expect(
+      nodes.some((node) => node.props.testID === "following-loading"),
+    ).toBe(true);
+  });
 
   it("renders live Guest Follow cards", () => {
     const stream = followedStream({
@@ -109,12 +128,13 @@ describe("Following screen", () => {
     );
     expect(
       nodes.some(
-        (node) =>
-          node.props.testID === "following-stream-twitch-twitch-stream",
+        (node) => node.props.testID === "following-stream-twitch-twitch-stream",
       ),
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
-    expect(nodes.some((node) => node.props.children === stream.channelDisplayName)).toBe(true);
+    expect(
+      nodes.some((node) => node.props.children === stream.channelDisplayName),
+    ).toBe(true);
     const phase = nodes.find((node) => node.props.testID === "following-phase");
     expect(phase?.props.children).toMatch(/Live Guest Follows/);
   });
@@ -160,9 +180,10 @@ describe("Following screen", () => {
       nodes.some((node) => node.props.testID === "following-retry-twitch"),
     ).toBe(false);
     expect(
-      nodes.some((node) =>
-        typeof node.props.children === "string" &&
-        /Retry twitch/i.test(node.props.children),
+      nodes.some(
+        (node) =>
+          typeof node.props.children === "string" &&
+          /Retry twitch/i.test(node.props.children),
       ),
     ).toBe(false);
   });
@@ -194,7 +215,6 @@ describe("Following screen", () => {
     expect(phase?.props.children).toMatch(/Kick does not offer videos/);
   });
 
-
   it("opens Watch from rich Following video cards", () => {
     const watched: string[] = [];
     const view = composeFollowingView({
@@ -224,8 +244,15 @@ describe("Following screen", () => {
         (node) => node.props.testID === "following-video-twitch-twitch-video",
       ),
     ).toBe(true);
+    expect(nodes.some((node) => node.props.children === "1:00")).toBe(true);
+    expect(nodes.some((node) => node.props.children === "12 views")).toBe(true);
+    expect(
+      nodes.some((node) => node.props.accessibilityLabel === "Alice"),
+    ).toBe(true);
     nodes
-      .find((node) => node.props.testID === "following-video-twitch-twitch-video")
+      .find(
+        (node) => node.props.testID === "following-video-twitch-twitch-video",
+      )
       ?.props.onPress?.();
     expect(watched).toEqual(["twitch-video"]);
   });
@@ -317,8 +344,7 @@ describe("Following screen", () => {
     );
     expect(
       nodes.some(
-        (node) =>
-          node.props.testID === "following-channel-twitch-twitch-1",
+        (node) => node.props.testID === "following-channel-twitch-twitch-1",
       ),
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "Live")).toBe(true);
@@ -333,5 +359,4 @@ describe("Following screen", () => {
     expect(source).toContain("discovery.following.findChannelsInSearch");
     expect(source).toContain("onOpenSearch");
   });
-
 });

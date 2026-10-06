@@ -1,4 +1,9 @@
-import { createElement, Fragment, isValidElement, type ReactElement } from "react";
+import {
+  createElement,
+  Fragment,
+  isValidElement,
+  type ReactElement,
+} from "react";
 import type { FlatListProps } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import { describe, expect, it, vi } from "vitest";
@@ -75,12 +80,14 @@ const i18nTest = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
 }));
 
 type ElementProps = Readonly<{
+  accessibilityLabel?: string;
   children?: unknown;
   onPress?: () => void;
   testID?: string;
@@ -110,7 +117,10 @@ function descendants(node: unknown): readonly Element[] {
     }
   }
   const children = element.props.children;
-  return [element, ...(Array.isArray(children) ? children : [children]).flatMap(descendants)];
+  return [
+    element,
+    ...(Array.isArray(children) ? children : [children]).flatMap(descendants),
+  ];
 }
 
 function press(nodes: readonly Element[], testID: string): void {
@@ -141,12 +151,12 @@ describe("catalog UI journeys", () => {
         }),
       }),
     );
-    expect(ready.some((node) => node.props.testID === "home-live-discovery")).toBe(
-      true,
-    );
-    expect(ready.some((node) => node.props.testID === "home-featured-carousel")).toBe(
-      true,
-    );
+    expect(
+      ready.some((node) => node.props.testID === "home-live-discovery"),
+    ).toBe(true);
+    expect(
+      ready.some((node) => node.props.testID === "home-featured-carousel"),
+    ).toBe(true);
     expect(ready.some((node) => node.props.testID === "home-categories")).toBe(
       false,
     );
@@ -213,12 +223,75 @@ describe("catalog UI journeys", () => {
     expect(retried).toEqual(["twitch"]);
   });
 
+  it("filters merged categories to the selected provider identity", () => {
+    const opened: string[] = [];
+    const selected: string[] = [];
+    const nodes = descendants(
+      CategoriesView({
+        onChangeLanguage: () => undefined,
+        onChangePlatform: (platform) => selected.push(platform),
+        onChangeQuery: () => undefined,
+        onOpenAccounts: () => undefined,
+        onOpenCategory: (category) =>
+          opened.push(`${category.platform}:${category.id}`),
+        onRetry: () => undefined,
+        platform: "kick",
+        view: composeCategoryCatalog({
+          kick: {
+            ...fixtureOutcome("kick", "ready"),
+            items: [fixtureCategory("kick", "15", "Just Chatting", 10)],
+          },
+          language: "all",
+          loading: false,
+          query: "",
+          twitch: {
+            ...fixtureOutcome("twitch", "ready"),
+            items: [fixtureCategory("twitch", "509658", "Just Chatting", 30)],
+          },
+        }),
+      }),
+    );
+    press(nodes, "category-card-kick-15");
+    press(nodes, "categories-platform-twitch");
+    expect(opened).toEqual(["kick:15"]);
+    expect(selected).toEqual(["twitch"]);
+    expect(
+      nodes.some((node) => node.props.testID === "category-card-twitch-509658"),
+    ).toBe(false);
+  });
+
+  it("shows the shared loading cards while the popular catalog is pending", () => {
+    const nodes = descendants(
+      CategoriesView({
+        onChangeLanguage: () => undefined,
+        onChangeQuery: () => undefined,
+        onOpenAccounts: () => undefined,
+        onOpenCategory: () => undefined,
+        onRetry: () => undefined,
+        view: composeCategoryCatalog({
+          language: "all",
+          loading: true,
+          query: "",
+        }),
+      }),
+    );
+    expect(
+      nodes.filter(
+        (node) => node.props.accessibilityLabel === "Loading content",
+      ),
+    ).toHaveLength(3);
+  });
+
   it("follows a live channel and retries a failed category detail", () => {
     const followed: string[] = [];
     const retried: string[] = [];
     const channel = descendants(
       ChannelDetailBody({
-        channel: { id: "twitch-c1", platform: "twitch", username: "twitch-live" },
+        channel: {
+          id: "twitch-c1",
+          platform: "twitch",
+          username: "twitch-live",
+        },
         onFollow: () => followed.push("follow"),
         onOpenProviderPage: () => undefined,
         onRetry: () => retried.push("channel"),
@@ -264,7 +337,8 @@ describe("catalog UI journeys", () => {
         onConfirmClear: () => undefined,
         onOpenAccounts: () => undefined,
         onRemoveHistory: () => undefined,
-        onRepeatHistory: (entry) => repeated.push(typeof entry === "string" ? entry : entry.label),
+        onRepeatHistory: (entry) =>
+          repeated.push(typeof entry === "string" ? entry : entry.label),
         onRequestClear: () => undefined,
         onRetry: () => undefined,
         onSelectMode: () => undefined,

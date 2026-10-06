@@ -1,14 +1,9 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { Clip, Video } from "@streamfusion/core/content";
 
+import { MobileAvatar } from "@mobile/design/avatar";
+import { MobileMediaCardContent } from "@mobile/design/media-card";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
-import {
-  mobileColors,
-  mobilePressRing,
-  mobileRadii,
-  mobileSpacing,
-  mobileType,
-} from "@mobile/design/tokens";
 
 export function FollowingMediaCard({
   item,
@@ -20,56 +15,32 @@ export function FollowingMediaCard({
   readonly testID: string;
 }) {
   const body = (
-    <>
-      <View style={styles.thumbWrap}>
-        {item.thumbnailUrl ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: item.thumbnailUrl }}
-            style={styles.thumb}
+    <MobileMediaCardContent
+      avatarUri={item.channelAvatar}
+      category={`${item.viewCount.toLocaleString()} views`}
+      channel={item.channelDisplayName}
+      compact
+      metadata={
+        <View style={styles.channelMeta}>
+          <MobileAvatar
+            name={item.channelDisplayName}
+            size={20}
+            uri={item.channelAvatar}
           />
-        ) : (
-          <View style={styles.thumb} />
-        )}
-        <View style={styles.durationBadge}>
-          <Text selectable style={styles.durationLabel}>
-            {formatDuration(item.duration)}
-          </Text>
+          <MobilePlatformBadge platform={item.platform} variant="icon" />
         </View>
-        {item.viewCount > 0 ? (
-          <View style={styles.viewsBadge}>
-            <Text selectable style={styles.durationLabel}>
-              {`${item.viewCount} views`}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.meta}>
-        {item.channelAvatar ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: item.channelAvatar }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View style={styles.avatar} />
-        )}
-        <View style={styles.copy}>
-          <Text selectable style={styles.title}>
-            {item.title}
-          </Text>
-          <Text selectable style={styles.channel}>
-            {item.channelDisplayName}
-          </Text>
-        </View>
-        <MobilePlatformBadge platform={item.platform} />
-      </View>
-    </>
+      }
+      platform={item.platform}
+      thumbnailUri={item.thumbnailUrl}
+      title={item.title}
+      viewerAccessibilityLabel={`${formatDuration(item.duration)} duration`}
+      viewerLabel={formatDuration(item.duration)}
+    />
   );
   const label = `Watch ${item.title} by ${item.channelDisplayName} on ${item.platform}`;
   if (!onPress) {
     return (
-      <View accessibilityLabel={label} style={styles.card} testID={testID}>
+      <View accessibilityLabel={label} testID={testID}>
         {body}
       </View>
     );
@@ -79,7 +50,7 @@ export function FollowingMediaCard({
       accessibilityLabel={label}
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+      style={({ pressed }) => (pressed ? styles.pressed : null)}
       testID={testID}
     >
       {body}
@@ -98,63 +69,6 @@ function formatDuration(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    ...mobilePressRing.rest,
-    backgroundColor: mobileColors.surface,
-    borderRadius: mobileRadii.large,
-    overflow: "hidden",
-  },
-  pressed: {
-    ...mobilePressRing.pressed,
-  },
-  thumbWrap: {
-    aspectRatio: 16 / 9,
-    backgroundColor: mobileColors.surfaceMuted,
-    width: "100%",
-  },
-  thumb: { height: "100%", width: "100%" },
-  durationBadge: {
-    backgroundColor: mobileColors.overlay,
-    borderRadius: mobileRadii.small,
-    bottom: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-    position: "absolute",
-    right: mobileSpacing.small,
-  },
-  viewsBadge: {
-    backgroundColor: mobileColors.overlay,
-    borderRadius: mobileRadii.small,
-    bottom: mobileSpacing.small,
-    left: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-    position: "absolute",
-  },
-  durationLabel: {
-    ...mobileType.caption,
-    fontWeight: "600",
-  },
-  meta: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.medium,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 40,
-    width: 40,
-  },
-  copy: { flex: 1, gap: mobileSpacing.xSmall },
-  title: {
-    ...mobileType.title,
-  },
-  channel: {
-    color: mobileColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
+  channelMeta: { alignItems: "center", flexDirection: "row", gap: 4 },
+  pressed: { opacity: 0.76 },
 });

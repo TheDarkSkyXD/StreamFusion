@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { Category, Clip, Stream, Video } from "@streamfusion/core/content";
 import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
 
+import { MobileSkeleton } from "@mobile/design/feedback";
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import {
   watchTargetFromClip,
@@ -47,9 +48,17 @@ export function FollowingTabBody({
   const items = itemsFor(view);
   return (
     <View style={styles.stack} testID={`following-tab-body-${view.tab}`}>
-      <Text selectable style={styles.copy} testID="following-phase">
-        {tabItemsCopy(view.tab, items, translate)}
-      </Text>
+      {items.kind === "loading" ? (
+        <View style={styles.loading} testID="following-loading">
+          <MobileSkeleton kind="card" />
+          <MobileSkeleton kind="card" />
+          <MobileSkeleton kind="card" />
+        </View>
+      ) : (
+        <Text selectable style={styles.copy} testID="following-phase">
+          {tabItemsCopy(view.tab, items, translate)}
+        </Text>
+      )}
       {view.tab === "live" && items.kind !== "loading" && items.kind !== "empty"
         ? (items.items as readonly Stream[]).map((stream) => (
             <FollowingStreamCard
@@ -123,27 +132,31 @@ function categoryRows(
   onOpenCategory?: (category: FollowingCategoryTarget) => void,
 ) {
   if (items.kind === "loading" || items.kind === "empty") return null;
-  return (items.items as readonly Category[]).map((category) => (
-    <FollowingCategoryCard
-      key={`${category.platform}:${category.id}`}
-      category={category}
-      viewersLabel={t("discovery.following.viewersMeta", {
-        count: category.viewerCount ?? 0,
-        platform: category.platform,
-      })}
-      {...(onOpenCategory === undefined
-        ? {}
-        : {
-            onPress: () =>
-              onOpenCategory({
-                boxArtUrl: category.boxArtUrl,
-                id: category.id,
-                name: category.name,
-                platform: category.platform,
-              }),
+  return (
+    <View style={styles.grid}>
+      {(items.items as readonly Category[]).map((category) => (
+        <FollowingCategoryCard
+          key={`${category.platform}:${category.id}`}
+          category={category}
+          viewersLabel={t("discovery.following.viewersMeta", {
+            count: category.viewerCount ?? 0,
+            platform: category.platform,
           })}
-    />
-  ));
+          {...(onOpenCategory === undefined
+            ? {}
+            : {
+                onPress: () =>
+                  onOpenCategory({
+                    boxArtUrl: category.boxArtUrl,
+                    id: category.id,
+                    name: category.name,
+                    platform: category.platform,
+                  }),
+              })}
+        />
+      ))}
+    </View>
+  );
 }
 
 function videoRows(
@@ -182,6 +195,13 @@ function clipRows(
 
 const styles = StyleSheet.create({
   stack: { gap: mobileSpacing.medium },
+  grid: {
+    columnGap: "4%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: mobileSpacing.medium,
+  },
+  loading: { gap: mobileSpacing.medium },
   copy: {
     color: mobileColors.textCategory,
     fontSize: 16,
