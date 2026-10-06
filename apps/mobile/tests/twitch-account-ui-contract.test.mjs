@@ -47,13 +47,12 @@ test("disconnect copy is targeted and preserves unrelated local data", () => {
   );
 });
 
-test("the account avatar opens More instead of bypassing its parent", () => {
+test("the account shortcut opens Accounts inside More", () => {
   const header = shell.slice(
     shell.indexOf("function ShellHeader"),
     shell.indexOf("function ShellScreen"),
   );
-  assert.match(header, /location: \{ route: "more" \}/);
-  assert.doesNotMatch(header, /more\/accounts/);
+  assert.match(header, /location: \{ route: "more\/accounts" \}/);
 });
 
 test("the development fixture is explicit and normal missing configuration stays unavailable", () => {

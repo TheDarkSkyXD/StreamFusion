@@ -132,10 +132,10 @@ describe("Home live discovery screen", () => {
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children === "40" && node.props.accessibilityLabel === "40 viewers",
+          node.props.children === "40 viewers" && node.props.accessibilityLabel === "40 viewers",
       ),
     ).toBe(true);
-    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(false);
+    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
     expect(nodes.some((node) => node.props.children === "proof")).toBe(true);
     expect(nodes.some((node) => node.props.testID === "home-stream-tags-kick-ready")).toBe(
       true,

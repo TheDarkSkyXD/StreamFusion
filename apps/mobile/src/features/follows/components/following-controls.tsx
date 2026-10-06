@@ -14,7 +14,10 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 
-import type { FollowingChip, FollowingTab } from "../capabilities/following-session";
+import type {
+  FollowingChip,
+  FollowingTab,
+} from "../capabilities/following-session";
 
 const TABS: readonly FollowingTab[] = [
   "live",
@@ -45,30 +48,6 @@ export function FollowingControls({
     values === undefined ? t(key) : t(key, values);
   return (
     <View style={styles.stack}>
-      <TextInput
-        {...mobileTextFieldProps}
-        accessibilityLabel={t("discovery.following.searchPlaceholder")}
-        autoCapitalize="none"
-        autoCorrect={false}
-        onChangeText={onQuery}
-        placeholder={t("discovery.following.searchPlaceholder")}
-        placeholderTextColor={mobileColors.textMuted}
-        style={styles.search}
-        testID="following-search"
-        value={query}
-      />
-      <View accessibilityLabel={t("discovery.following.filtersA11y")} style={styles.row}>
-        {CHIPS.map((value) => (
-          <MobileFilterChip
-            accessibilityLabel={chipLabel(value, translate)}
-            key={value}
-            label={chipLabel(value, translate)}
-            onPress={() => onChip(value)}
-            selected={chip === value}
-            testID={`following-chip-${value}`}
-          />
-        ))}
-      </View>
       <MobileUnderlineTabs
         accessibilityLabel={t("discovery.following.contentA11y")}
         onSelect={onTab}
@@ -81,6 +60,33 @@ export function FollowingControls({
         }))}
         testID="following-content-tabs"
       />
+      <TextInput
+        {...mobileTextFieldProps}
+        accessibilityLabel={t("discovery.following.searchPlaceholder")}
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={onQuery}
+        placeholder={t("discovery.following.searchPlaceholder")}
+        placeholderTextColor={mobileColors.textMuted}
+        style={styles.search}
+        testID="following-search"
+        value={query}
+      />
+      <View
+        accessibilityLabel={t("discovery.following.filtersA11y")}
+        style={styles.row}
+      >
+        {CHIPS.map((value) => (
+          <MobileFilterChip
+            accessibilityLabel={chipLabel(value, translate)}
+            key={value}
+            label={chipLabel(value, translate)}
+            onPress={() => onChip(value)}
+            selected={chip === value}
+            testID={`following-chip-${value}`}
+          />
+        ))}
+      </View>
     </View>
   );
 }

@@ -20,14 +20,20 @@ vi.mock("lucide-react-native", () => ({
   Bell: "Bell",
   CircleUserRound: "CircleUserRound",
   Download: "Download",
+  Ellipsis: "Ellipsis",
   Heart: "Heart",
+  House: "House",
+  Grid3X3: "Grid3X3",
+  LayoutDashboard: "LayoutDashboard",
   History: "History",
   LayoutGrid: "LayoutGrid",
   Menu: "Menu",
   Play: "Play",
+  Radio: "Radio",
   Search: "Search",
   Settings: "Settings",
   Shield: "Shield",
+  Users: "Users",
 }));
 
 type ElementProps = Readonly<{

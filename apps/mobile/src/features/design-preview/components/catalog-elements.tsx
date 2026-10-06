@@ -2,7 +2,8 @@ import { Play } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
-import { MobilePlatformBadge } from "@mobile/design/platform-badge";
+import { MobileAvatar } from "@mobile/design/avatar";
+import { MobileMediaCardContent } from "@mobile/design/media-card";
 import {
   mobileColors as colors,
   mobileRadii,
@@ -115,16 +116,7 @@ export function PreviewAvatar({
   readonly name: string;
   readonly size?: number;
 }) {
-  return (
-    <View
-      accessibilityLabel={name}
-      style={[styles.avatar, { width: size, height: size }]}
-    >
-      <Text style={[styles.initial, { fontSize: size * 0.4 }]}>
-        {name.slice(0, 1).toUpperCase()}
-      </Text>
-    </View>
-  );
+  return <MobileAvatar name={name} size={size} />;
 }
 
 export function PreviewStreamCard({
@@ -143,44 +135,24 @@ export function PreviewStreamCard({
       accessibilityLabel={`Watch ${stream.name}, ${stream.title}, ${media === "live" ? `${stream.viewers} viewers` : media}`}
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        compact ? styles.compact : null,
-        pressed ? styles.pressed : null,
-      ]}
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
     >
-      <View style={[styles.thumbnail, compact ? styles.smallThumbnail : null]}>
-        <PreviewArtwork scene={stream.scene} />
-        {media === "live" ? (
-          <View style={styles.live}>
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        ) : null}
-        <View style={styles.viewers}>
-          <Text style={styles.viewerText}>
-            {media === "live"
-              ? `${stream.viewers} viewers`
-              : media === "clip"
-                ? "00:42"
-                : "2:18:05"}
-          </Text>
-        </View>
-        {!compact ? (
-          <View style={styles.platform}>
-            <MobilePlatformBadge platform={stream.platform} variant="icon" />
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.metadata}>
-        {!compact ? <PreviewAvatar name={stream.name} /> : null}
-        <View style={styles.copy}>
-          <Text style={styles.name}>{stream.name}</Text>
-          <Text numberOfLines={2} style={styles.title}>
-            {stream.title}
-          </Text>
-          <Text style={styles.category}>{stream.category}</Text>
-        </View>
-      </View>
+      <MobileMediaCardContent
+        compact={compact}
+        live={media === "live"}
+        channel={stream.name}
+        title={stream.title}
+        category={stream.category}
+        platform={stream.platform}
+        thumbnail={<PreviewArtwork scene={stream.scene} />}
+        viewerLabel={
+          media === "live"
+            ? `${stream.viewers} viewers`
+            : media === "clip"
+              ? "00:42"
+              : "2:18:05"
+        }
+      />
     </Pressable>
   );
 }
@@ -243,63 +215,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "transparent",
   },
-  compact: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: mobileSpacing.medium,
-  },
   pressed: { borderColor: colors.border, backgroundColor: colors.surface },
-  thumbnail: {
-    aspectRatio: 16 / 9,
-    borderRadius: mobileRadii.large,
-    overflow: "hidden",
-  },
-  smallThumbnail: { width: 116, aspectRatio: 16 / 9 },
-  live: {
-    backgroundColor: colors.live,
-    borderRadius: mobileRadii.small,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    position: "absolute",
-    top: 8,
-    left: 8,
-  },
   liveText: { ...mobileType.caption, color: colors.textPrimary },
-  viewers: {
-    position: "absolute",
-    bottom: 8,
-    left: 8,
-    backgroundColor: colors.overlay,
-    borderRadius: mobileRadii.small,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
   viewerText: { ...mobileType.caption },
-  platform: { position: "absolute", top: 8, right: 8 },
-  metadata: {
-    flexDirection: "row",
-    gap: mobileSpacing.small,
-    paddingVertical: mobileSpacing.xSmall,
-    flex: 1,
-  },
-  copy: { flex: 1, gap: 3 },
-  name: { ...mobileType.title, fontSize: 14 },
-  title: {
-    ...mobileType.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textPrimary,
-  },
-  category: { ...mobileType.label, color: colors.textCategory },
-  avatar: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  initial: { color: colors.textPrimary, fontWeight: "600" },
   player: {
     width: "100%",
     aspectRatio: 16 / 9,

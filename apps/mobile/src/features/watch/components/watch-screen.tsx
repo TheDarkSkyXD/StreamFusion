@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Heart,
-  Settings2,
   Maximize,
   Captions,
   Download,
@@ -22,6 +21,7 @@ import type {
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
+import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -436,12 +436,12 @@ export function WatchScreen({
             testID="watch-tools"
           >
             <MobileIconButton
-              label="Player settings"
+              label={t("settings.title")}
               testID="watch-tool-quality"
               disabled={!onQualityPress}
               onPress={() => onQualityPress?.()}
             >
-              <Settings2 color={mobileColors.textPrimary} size={22} />
+              <MobileSettingsIcon color={mobileColors.textPrimary} size={22} />
             </MobileIconButton>
             <MobileIconButton
               label="Fullscreen"

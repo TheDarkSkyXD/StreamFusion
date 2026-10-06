@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   ChevronRight,
   CircleUserRound,
-  Settings,
 } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
 import { useTranslation } from "react-i18next";
@@ -49,9 +48,11 @@ import type {
   ShellRestorationRepository,
 } from "@mobile/features/storage/capabilities/persistence";
 import { MobileConnectivityBanner } from "@mobile/design/connectivity-banner";
+import { MobileSettingsIcon } from "@mobile/design/settings-icon";
+import { MobileIconButton } from "@mobile/design/icon-button";
+import { MobileListRow } from "@mobile/design/list-row";
 import {
   mobileColors,
-  mobileHitSlop,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
@@ -191,8 +192,6 @@ import {
 const previewRoutes: Readonly<
   Partial<Record<ShellDestination["id"], ShellLocation>>
 > = {
-  search: { route: "search/result-preview" },
-  following: { route: "following/channel-preview" },
   watch: { route: "watch/session-preview", target: { kind: "preview" } },
 };
 
@@ -555,6 +554,7 @@ export function AppShell({
                 : { onRequestPlatformScopes })}
               {...(multistream === undefined ? {} : { multistream })}
               activity={activity}
+              offline={networkStatus.status === "offline"}
               capabilityProfile={capabilityProfile}
               installationPolicy={installationPolicy}
               developmentStatus={developmentStatus}
@@ -640,9 +640,7 @@ export function AppShell({
             />
           </View>
         </View>
-        {placement === "bottom" &&
-        !playerOnlySurface &&
-        !keyboard.open ? (
+        {placement === "bottom" && !playerOnlySurface && !keyboard.open ? (
           <View style={{ flexShrink: 0 }}>
             {navigationView(bottomNavigationSafeInset(insets.bottom))}
           </View>
@@ -710,17 +708,10 @@ function ShellHeader({
   return (
     <View style={styles.header}>
       {showsBack ? (
-        <Pressable
-          accessibilityHint={`Returns to ${SHELL_ROUTES[state.activeDestination].title}`}
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          android_ripple={{
-            color: mobileColors.surfaceRaised,
-            borderless: true,
-          }}
-          hitSlop={mobileHitSlop}
+        <MobileIconButton
+          hint={`Returns to ${SHELL_ROUTES[state.activeDestination].title}`}
+          label="Back"
           onPress={() => dispatch({ type: "back" })}
-          style={styles.headerAction}
           testID="shell-back"
         >
           <ArrowLeft
@@ -728,53 +719,34 @@ function ShellHeader({
             color={mobileColors.textPrimary}
             size={mobileSizing.icon}
           />
-        </Pressable>
-      ) : (
-        <View style={styles.headerActionSpacer} />
-      )}
+        </MobileIconButton>
+      ) : null}
       <View accessible style={styles.headerTitle}>
-        <Text selectable style={styles.headerEyebrow}>
-          {header.eyebrow}
-        </Text>
         <Text accessibilityRole="header" selectable style={styles.headerText}>
           {header.title}
         </Text>
       </View>
       <View style={styles.headerTrailing}>
-        <Pressable
-          accessibilityHint="Opens Settings inside More"
-          accessibilityLabel="Settings"
-          accessibilityRole="button"
-          android_ripple={{
-            color: mobileColors.surfaceRaised,
-            borderless: true,
-          }}
-          hitSlop={mobileHitSlop}
+        <MobileIconButton
+          hint="Opens Settings inside More"
+          label="Settings"
           onPress={() =>
             dispatch({ type: "navigate", location: { route: "more/settings" } })
           }
-          style={styles.headerAction}
           testID="shell-settings"
         >
-          <Settings
+          <MobileSettingsIcon
             accessibilityElementsHidden
             color={mobileColors.textPrimary}
             size={mobileSizing.icon}
           />
-        </Pressable>
-        <Pressable
-          accessibilityHint="Opens Accounts and maintenance inside More"
-          accessibilityLabel="Accounts"
-          accessibilityRole="button"
-          android_ripple={{
-            color: mobileColors.surfaceRaised,
-            borderless: true,
-          }}
-          hitSlop={mobileHitSlop}
+        </MobileIconButton>
+        <MobileIconButton
+          hint="Opens Accounts inside More"
+          label="Connected Accounts"
           onPress={() =>
-            dispatch({ type: "navigate", location: { route: "more" } })
+            dispatch({ type: "navigate", location: { route: "more/accounts" } })
           }
-          style={styles.headerAction}
           testID="shell-accounts"
         >
           <CircleUserRound
@@ -782,13 +754,14 @@ function ShellHeader({
             color={mobileColors.textPrimary}
             size={mobileSizing.icon}
           />
-        </Pressable>
+        </MobileIconButton>
       </View>
     </View>
   );
 }
 
 function ShellScreen({
+  offline,
   multistream,
   moderation,
   engagement,
@@ -844,6 +817,7 @@ function ShellScreen({
   supportSession,
   watch,
 }: {
+  readonly offline: boolean;
   readonly multistream?: MultistreamWorkspaceProps;
   readonly moderation?: ModerationController;
   readonly engagement?: EngagementController;
@@ -916,7 +890,9 @@ function ShellScreen({
     readonly channel: ModerationChannel;
     readonly userId: string;
   } | null>(null);
-  const [previousWorkflowRoute, setPreviousWorkflowRoute] = useState(location.route);
+  const [previousWorkflowRoute, setPreviousWorkflowRoute] = useState(
+    location.route,
+  );
   if (previousWorkflowRoute !== location.route) {
     setPreviousWorkflowRoute(location.route);
     if (previousWorkflowRoute === "more/moderation") setModerationTarget(null);
@@ -1154,7 +1130,7 @@ function ShellScreen({
           onOpenChannel={(channel) =>
             dispatch({
               type: "navigate",
-              location: { channel, route: "more/channel" },
+              location: { channel, route: "following/channel-preview" },
             })
           }
           onOpenManage={() =>
@@ -1206,7 +1182,7 @@ function ShellScreen({
           onOpenChannel={(channel) =>
             dispatch({
               type: "navigate",
-              location: { channel, route: "more/channel" },
+              location: { channel, route: "search/result-preview" },
             })
           }
           onWatch={openWatch}
@@ -1216,9 +1192,16 @@ function ShellScreen({
     );
   }
 
-  if (location.route === "more/channel") {
+  if (
+    location.route === "more/channel" ||
+    location.route === "search/result-preview" ||
+    location.route === "following/channel-preview"
+  ) {
     return (
-      <View style={styles.activityWorkspace} testID="screen-more-channel">
+      <View
+        style={styles.activityWorkspace}
+        testID={`screen-${SHELL_ROUTES[location.route].reviewId}`}
+      >
         <ChannelDetailScreen
           channel={location.channel}
           following={followingSession}
@@ -1283,6 +1266,7 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-more-downloads">
         <DownloadsScreen
+          offline={offline}
           jobs={mediaJobsController.model.jobs}
           onOpenJob={(jobId) =>
             dispatch({
@@ -1493,20 +1477,20 @@ function ShellScreen({
       testID={`screen-${route.reviewId}`}
     >
       <View style={styles.contentColumn}>
-        <View style={styles.intro}>
-          <Text
-            accessibilityRole="header"
-            selectable
-            style={styles.screenTitle}
-          >
-            {route.title}
-          </Text>
-          {route.id === "more" ? null : (
+        {route.id !== "more" ? (
+          <View style={styles.intro}>
+            <Text
+              accessibilityRole="header"
+              selectable
+              style={styles.screenTitle}
+            >
+              {route.title}
+            </Text>
             <Text selectable style={styles.screenSummary}>
               {route.summary}
             </Text>
-          )}
-        </View>
+          </View>
+        ) : null}
         {route.id === "more" ? (
           <MoreMenu dispatch={dispatch} />
         ) : state.histories[state.activeDestination].trail.length === 0 ? (
@@ -1878,6 +1862,9 @@ function watchCaptionSession(
     onInstall: () => {
       void controller.installModel();
     },
+    onCancelInstall: () => {
+      void controller.cancelInstall();
+    },
     onRemove: () => {
       void controller.removeModel();
     },
@@ -1898,21 +1885,21 @@ function watchMediaJobSession(
     busy: controller.model.busy,
     jobs: controller.model.jobs,
     status: controller.model.status,
-    onCommand: (command) => {
-      void controller.apply(command).then(() => {
+    onCommand: (command, jobId) => {
+      void controller.apply(command, jobId).then(() => {
         void refreshActivity();
       });
     },
-    onDelete: () => {
-      void controller.deleteJob().then(() => {
+    onDelete: (jobId) => {
+      void controller.deleteJob(jobId).then(() => {
         void refreshActivity();
       });
     },
-    onExport: () => {
-      void controller.exportJob();
+    onExport: (jobId) => {
+      void controller.exportJob(jobId);
     },
-    onOpenArtifact: () => {
-      void controller.openArtifact();
+    onOpenArtifact: (jobId) => {
+      void controller.openArtifact(jobId);
     },
     onStartIntent: async (intent, requestHeaders) => {
       await controller.startWithIntent(intent, requestHeaders);
@@ -1981,6 +1968,17 @@ function NestedRouteState({ location }: { readonly location: ShellLocation }) {
   );
 }
 
+const moreDestinationDescriptions = {
+  "more/categories": "Browse live streams by category.",
+  "more/history": "Pick up where you left off.",
+  "more/downloads": "Saved videos, clips, and recordings.",
+  "more/moderation": "Manage your channels and communities.",
+  "more/multistream": "Watch several live streams together.",
+  "more/accounts": "Connect Twitch and Kick.",
+  "more/settings": "Appearance, playback, chat, and notifications.",
+  "more/diagnostics": "Device checks, logs, and recovery.",
+} satisfies Record<(typeof MORE_ROUTE_IDS)[number], string>;
+
 function MoreMenu({
   dispatch,
 }: {
@@ -1991,31 +1989,23 @@ function MoreMenu({
       {MORE_ROUTE_IDS.map((routeId) => {
         const route = SHELL_ROUTES[routeId];
         return (
-          <Pressable
-            accessibilityHint={`Opens ${route.title} inside More`}
-            accessibilityLabel={route.title}
-            accessibilityRole="button"
-            android_ripple={{ color: mobileColors.surfaceRaised }}
+          <MobileListRow
+            hint={`Opens ${route.title} inside More`}
+            title={route.title}
+            description={moreDestinationDescriptions[routeId]}
             key={route.id}
             onPress={() =>
               dispatch({ type: "navigate", location: { route: routeId } })
             }
-            style={({ pressed }) => [
-              styles.card,
-              styles.menuCard,
-              pressed ? styles.pressed : null,
-            ]}
             testID={`open-${route.reviewId}`}
-          >
-            <MoreRouteIcon
-              color={mobileColors.textCategory}
-              routeId={routeId}
-              size={mobileSizing.icon}
-            />
-            <Text selectable style={styles.menuCardTitle}>
-              {route.title}
-            </Text>
-          </Pressable>
+            leading={
+              <MoreRouteIcon
+                color={mobileColors.textCategory}
+                routeId={routeId}
+                size={mobileSizing.icon}
+              />
+            }
+          />
         );
       })}
     </View>
@@ -2060,7 +2050,7 @@ function PrimaryNavigation({
 }) {
   const { t } = useTranslation();
   const destinationLabel = (id: (typeof SHELL_DESTINATIONS)[number]["id"]) =>
-    t(`navigation.${id}`);
+    t(`navigation.${id === "watch" ? "home" : id}`);
   const measurementActive = useRef(true);
   const [layout, setLayout] = useState<CompactNavigationLayout>("row");
 
@@ -2104,7 +2094,7 @@ function PrimaryNavigation({
         const selected = destination.id === state.activeDestination;
         const color = selected
           ? mobileColors.textPrimary
-          : mobileColors.textMuted;
+          : mobileColors.textSecondary;
         return (
           <Pressable
             accessibilityHint={`Opens the ${destinationLabel(destination.id)} main screen`}
@@ -2136,19 +2126,31 @@ function PrimaryNavigation({
             ]}
             testID={`nav-${destination.id}`}
           >
-            <DestinationIcon
-              color={color}
-              destination={destination.id}
-              unreadCount={
-                destination.id === "activity" ? activityUnreadCount : 0
-              }
-            />
+            <View
+              style={[
+                styles.navigationIcon,
+                selected ? styles.navigationIconSelected : null,
+              ]}
+            >
+              <DestinationIcon
+                color={color}
+                destination={destination.id}
+                selected={selected}
+                unreadCount={
+                  destination.id === "activity" ? activityUnreadCount : 0
+                }
+              />
+            </View>
             <Text
               onTextLayout={
                 placement === "bottom" ? onTextLayout(layout) : undefined
               }
               selectable
-              style={[styles.navigationLabel, { color }]}
+              style={[
+                styles.navigationLabel,
+                { color },
+                selected ? styles.navigationLabelSelected : null,
+              ]}
             >
               {destinationLabel(destination.id)}
             </Text>
@@ -2182,6 +2184,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   activityWorkspace: {
+    backgroundColor: mobileColors.background,
     flex: 1,
   },
   restorationNotice: {
@@ -2197,41 +2200,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     minHeight: 64,
-    paddingHorizontal: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
   },
   headerTrailing: {
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.xSmall,
   },
-  headerAction: {
-    alignItems: "center",
-    borderRadius: mobileRadii.full,
-    height: mobileSizing.minimumTouchTarget,
-    justifyContent: "center",
-    width: mobileSizing.minimumTouchTarget,
-  },
-  headerActionSpacer: {
-    height: mobileSizing.minimumTouchTarget,
-    width: mobileSizing.minimumTouchTarget,
-  },
   headerTitle: {
     flex: 1,
     gap: mobileSpacing.xSmall,
     paddingHorizontal: mobileSpacing.small,
   },
-  headerEyebrow: {
-    color: mobileColors.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    lineHeight: 14,
-  },
   headerText: {
-    color: mobileColors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 22,
+    ...mobileType.display,
   },
   screenContent: {
     alignItems: "center",
@@ -2240,6 +2222,7 @@ const styles = StyleSheet.create({
     paddingBottom: mobileSpacing.xLarge,
   },
   screenScroll: {
+    backgroundColor: mobileColors.background,
     flex: 1,
     minHeight: 0,
   },
@@ -2319,24 +2302,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   menu: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.medium,
-  },
-  menuCard: {
-    alignItems: "center",
-    flexDirection: "column",
     gap: mobileSpacing.small,
-    justifyContent: "center",
-    minHeight: 96,
-    width: "47%",
-  },
-  menuCardTitle: {
-    color: mobileColors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 20,
-    textAlign: "center",
   },
   statusPanel: {
     backgroundColor: mobileColors.surfaceMuted,
@@ -2397,8 +2363,18 @@ const styles = StyleSheet.create({
   },
   navigationLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "500",
     lineHeight: 14,
     textAlign: "center",
   },
+  navigationLabelSelected: { fontWeight: "700" },
+  navigationIcon: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 56,
+    height: 36,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  navigationIconSelected: { backgroundColor: mobileColors.navigationSelected },
 });

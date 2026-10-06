@@ -18,6 +18,7 @@ import { createChatInteractions } from "../domain/chat-interactions";
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
   type HostProps = {
+    readonly visible?: boolean;
     readonly children?: ReactNode;
     readonly testID?: string;
     readonly accessibilityLabel?: string;
@@ -36,6 +37,9 @@ vi.mock("react-native", async () => {
       props.children,
     );
   return {
+    Platform: { OS: "android" },
+    Modal: (props: HostProps) => (props.visible ? host("div")(props) : null),
+    KeyboardAvoidingView: host("div"),
     View: host("div"),
     Text: host("span"),
     Pressable: (props: HostProps) =>
@@ -61,6 +65,10 @@ vi.mock("react-native", async () => {
     StyleSheet: { create: (styles: unknown) => styles },
   };
 });
+
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 24, bottom: 24, left: 0, right: 0 }),
+}));
 
 const channelA: WatchChatConnectInput = {
   channelId: "channel-a",

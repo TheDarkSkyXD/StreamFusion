@@ -59,8 +59,11 @@ vi.mock("react-native", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  Bell: "Bell",
+  BellOff: "BellOff",
   Check: "Check",
   ChevronDown: "ChevronDown",
+  ChevronRight: "ChevronRight",
 }));
 
 const i18nTest = vi.hoisted(() => ({

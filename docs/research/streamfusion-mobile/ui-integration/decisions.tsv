@@ -1,0 +1,7 @@
+﻿ts	phase	decision	why	evidence	result
+2026-10-05T23:36:08.9841987Z	architecture	Retain existing feature controllers and use shared presentation components	Avoid replacing protected playback and authorization owners with preview state	docs/research/streamfusion-mobile/ui-integration/README.md	Selected after two candidates and independent cross-judgment
+2026-10-05T23:36:08.9841987Z	android	Capture the real app after cold restarting the existing AVD without wiping data	Observe native layout before changes	E:/Codex/artifacts/mobile-ui-before.png	Baseline captured
+2026-10-05T23:36:08.9841987Z	shell	Render shared More list rows and route Accounts directly to Accounts	Match the approved hierarchy and fix the incorrect shortcut	E:/Codex/artifacts/mobile-ui-more-rounded.png	Observed after app relaunch
+2026-10-05T23:36:08.9841987Z	navigation	Use an 18 dp radius for the 36 dp selected icon well	The Android render flattened the previous oversized radius	E:/Codex/artifacts/mobile-ui-more-rounded.png	Rounded pill observed
+2026-10-05T23:36:08.9841987Z	verification	Add an exact RGBA pixel comparison script	Make screenshot differences reproducible	apps/mobile/scripts/compare-ui-screenshots.mjs	Self-check found zero differences for the same file and one for a one-pixel edit
+2026-10-05T23:36:08.9841987Z	emulator	Shut down the emulator between verification sessions	Follow the user request and avoid idle device processes	ADB emulator-5554 emu kill	Confirmed killed

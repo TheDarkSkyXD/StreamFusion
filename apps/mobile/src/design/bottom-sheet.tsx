@@ -24,13 +24,15 @@ export function MobileBottomSheet({
   footer,
   onDismiss,
   size = "content",
+  testID,
   title,
   visible,
 }: {
   readonly children: ReactNode;
   readonly footer?: ReactNode;
   readonly onDismiss: () => void;
-  readonly size?: "content" | "expanded";
+  readonly size?: "content" | "expanded" | "selection";
+  readonly testID?: string;
   readonly title: string;
   readonly visible: boolean;
 }) {
@@ -52,14 +54,20 @@ export function MobileBottomSheet({
           accessibilityRole="button"
           onPress={onDismiss}
           style={StyleSheet.absoluteFill}
+          testID={testID ? `${testID}-dismiss` : undefined}
         />
         <View
           accessibilityViewIsModal
           accessibilityLabel={title}
           role="dialog"
+          testID={testID ? `${testID}-menu` : undefined}
           style={[
             styles.sheet,
-            size === "expanded" ? styles.expanded : styles.content,
+            size === "expanded"
+              ? styles.expanded
+              : size === "selection"
+                ? styles.selection
+                : styles.content,
             {
               paddingBottom: Math.max(insets.bottom, mobileSpacing.medium),
               marginTop: insets.top + mobileSpacing.large,
@@ -119,6 +127,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   content: { maxHeight: "60%" },
+  selection: { maxHeight: mobileSizing.selectSheetMaxHeight },
   expanded: { maxHeight: "90%" },
   handle: {
     alignSelf: "center",

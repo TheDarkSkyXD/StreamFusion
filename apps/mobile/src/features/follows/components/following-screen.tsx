@@ -127,14 +127,16 @@ function FollowingScreenBody({
       style={styles.scroll}
       testID="following-screen"
     >
-      <MobileButton
-        accessibilityLabel={t("discovery.following.manageTitle")}
-        onPress={onOpenManage}
-        testID="following-open-manage"
-        variant="secondary"
-      >
-        {t("discovery.following.manageTitle")}
-      </MobileButton>
+      <View style={styles.manage}>
+        <MobileButton
+          accessibilityLabel={t("discovery.following.manageTitle")}
+          onPress={onOpenManage}
+          testID="following-open-manage"
+          variant="ghost"
+        >
+          {t("discovery.following.manageTitle")}
+        </MobileButton>
+      </View>
       <FollowingControls
         chip={chip}
         onChip={onChip}
@@ -246,6 +248,7 @@ function periodLabel(period: FollowedClipPeriod, t: Translate): string {
 }
 
 const styles = StyleSheet.create({
+  manage: { alignItems: "flex-end" },
   scroll: { flex: 1, minHeight: 0 },
   content: {
     gap: mobileSpacing.medium,

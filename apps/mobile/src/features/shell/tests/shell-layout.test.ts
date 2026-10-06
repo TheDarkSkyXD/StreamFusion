@@ -63,8 +63,8 @@ describe("shell layout", () => {
     expect(source).toContain("const keyboard = useKeyboardInset()");
     expect(source).toContain("safeFrameBottomInset({");
     expect(source).toContain("applyKeyboardOverlay: Platform.OS !== \"android\"");
-    expect(source).toContain(
-      "placement === \"bottom\" &&\n        !playerOnlySurface &&\n        !keyboard.open",
+    expect(source).toMatch(
+      /placement === "bottom"\s*&&\s*!playerOnlySurface\s*&&\s*!keyboard\.open/u,
     );
   });
 
@@ -81,7 +81,7 @@ describe("shell layout", () => {
   it("keeps portrait workspace scroll bounds explicit", () => {
     expect(source).toContain("style={styles.screenScroll}");
     expect(source).toMatch(
-      /screenScroll:\s*\{\s*flex:\s*1,\s*minHeight:\s*0,/u,
+      /screenScroll:\s*\{[^}]*flex:\s*1,[^}]*minHeight:\s*0,/u,
     );
   });
 

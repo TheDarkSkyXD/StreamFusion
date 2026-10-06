@@ -1,0 +1,1442 @@
+[
+  {
+    "storyId": "android-screens-accounts--connected-and-guest",
+    "productionOwner": "apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx",
+    "route": "more/accounts",
+    "stateOwner": "Auth controller; SecureStore credentials; Product Store guest follows",
+    "operation": "Read connected Twitch/Kick sessions; connect or disconnect through OAuth controllers",
+    "status": "partial",
+    "gap": "Preview account and avatar are fixtures; compose the approved cards from actual account and guest-follow state."
+  },
+  {
+    "storyId": "android-screens-accounts--pending-authorization",
+    "productionOwner": "apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx",
+    "route": "more/accounts",
+    "stateOwner": "Twitch device-code controller",
+    "operation": "Begin device authorization; display code, expiry, copy/open, and cancel",
+    "status": "partial",
+    "gap": "Production has a pending phase, but the preview hardcodes its code and connects locally. Bind the layout to the live controller phase."
+  },
+  {
+    "storyId": "android-screens-accounts--session-expired",
+    "productionOwner": "apps/mobile/src/features/auth/components/twitch-accounts-panel.tsx",
+    "route": "more/accounts",
+    "stateOwner": "Twitch/Kick account controllers; SecureStore credentials",
+    "operation": "Show lost authorization and reconnect",
+    "status": "partial",
+    "gap": "Preview expiry is a local flag. Render the actual auth-lost or refresh-failure state."
+  },
+  {
+    "storyId": "android-screens-discovery--home",
+    "productionOwner": "apps/mobile/src/features/discovery/components/home-live-discovery-screen.tsx",
+    "route": "watch",
+    "stateOwner": "TanStack Query; discovery Cache Store",
+    "operation": "Read featured/live streams and open a selected stream",
+    "status": "partial",
+    "gap": "Real provider data and retry exist; preview artwork, carousel content, and shell layout differ."
+  },
+  {
+    "storyId": "android-screens-discovery--search",
+    "productionOwner": "apps/mobile/src/features/discovery/components/unified-search-screen.tsx",
+    "route": "search",
+    "stateOwner": "TanStack Query; search history Product Store",
+    "operation": "Search provider catalogs and open results",
+    "status": "partial",
+    "gap": "Production uses SearchDock, mode tabs, and provider banners; align the approved composition with real query and history state."
+  },
+  {
+    "storyId": "android-screens-discovery--search-result-preview",
+    "productionOwner": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "route": "search/result-preview",
+    "stateOwner": "No production preview state",
+    "operation": "Proposed result preview, follow, and watch navigation",
+    "status": "missing",
+    "gap": "Declared route falls through to generic SAVED PLACE; ordinary result selection opens more/channel or Watch. Implement real selected-channel preview or align the story to the existing channel route."
+  },
+  {
+    "storyId": "android-screens-discovery--categories",
+    "productionOwner": "apps/mobile/src/features/discovery/components/categories-screen.tsx",
+    "route": "more/categories",
+    "stateOwner": "TanStack Query; discovery Cache Store",
+    "operation": "Read categories and open a category",
+    "status": "partial",
+    "gap": "Real catalog is reachable; proposed Popular/Followed grid and artwork do not match its current composition."
+  },
+  {
+    "storyId": "android-screens-discovery--category-detail",
+    "productionOwner": "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
+    "route": "more/category-detail",
+    "stateOwner": "TanStack Query; provider discovery readers",
+    "operation": "Read category live streams, clips, and videos",
+    "status": "partial",
+    "gap": "Production data exists; Kick clips/videos can be unsupported. Preserve provider-specific availability while matching the layout."
+  },
+  {
+    "storyId": "android-screens-discovery--channel-detail",
+    "productionOwner": "apps/mobile/src/features/discovery/components/channel-detail-screen.tsx",
+    "route": "more/channel",
+    "stateOwner": "TanStack Query; follow membership Product Store/provider",
+    "operation": "Read channel, follow, watch, or open provider",
+    "status": "partial",
+    "gap": "Production lacks preview banner and live-alert action; avatar and action geometry differ. Existing follow/watch/handoff actions are real."
+  },
+  {
+    "storyId": "android-screens-discovery--following",
+    "productionOwner": "apps/mobile/src/features/follows/components/following-screen.tsx",
+    "route": "following",
+    "stateOwner": "TanStack Query; Product Store guest follows; provider membership",
+    "operation": "Read union following feed, sort/filter, and open channel or Watch",
+    "status": "partial",
+    "gap": "Real membership and filters exist; preview cards and Manage placement differ."
+  },
+  {
+    "storyId": "android-screens-discovery--following-channel-preview",
+    "productionOwner": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "route": "following/channel-preview",
+    "stateOwner": "No production preview state",
+    "operation": "Proposed following-channel preview and watch action",
+    "status": "missing",
+    "gap": "Declared route reaches generic SAVED PLACE; real row action opens Watch when live or more/channel otherwise."
+  },
+  {
+    "storyId": "android-screens-discovery--manage-guest-follows",
+    "productionOwner": "apps/mobile/src/features/follows/components/following-manage-screen.tsx",
+    "route": "following/manage",
+    "stateOwner": "Product Store guest follows; provider account-follow membership",
+    "operation": "List follows, mutate guest follow, and toggle alerts",
+    "status": "partial",
+    "gap": "Add form exists but is unmounted. Unfollow on an account-only row calls guest-only mutation and can add a guest follow. Separate row sources and mount the real Add flow."
+  },
+  {
+    "storyId": "android-screens-discovery--loading",
+    "productionOwner": "apps/mobile/src/features/follows/components/following-screen.tsx",
+    "route": "following",
+    "stateOwner": "TanStack Query loading state",
+    "operation": "Show loading while following data resolves",
+    "status": "partial",
+    "gap": "Query loading exists; the exact three-block skeleton composition is absent."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--more",
+    "productionOwner": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "route": "more",
+    "stateOwner": "Shell navigation state",
+    "operation": "Navigate to More destinations",
+    "status": "partial",
+    "gap": "Production has eight real route cards including Multistream and Categories; preview has six and stale moderation placeholder text."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--history",
+    "productionOwner": "apps/mobile/src/features/media-library/components/history-screen.tsx",
+    "route": "more/history",
+    "stateOwner": "Product Store watch history",
+    "operation": "Search history and resume/replay a target",
+    "status": "partial",
+    "gap": "Real persistence, search, retry, and clear exist; media-kind filter and approved row layout are absent."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--history-empty",
+    "productionOwner": "apps/mobile/src/features/media-library/components/history-screen.tsx",
+    "route": "more/history",
+    "stateOwner": "Product Store watch history",
+    "operation": "Render empty history",
+    "status": "partial",
+    "gap": "Empty state exists; exact preview copy and composition need production comparison."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--history-error",
+    "productionOwner": "apps/mobile/src/features/media-library/components/history-screen.tsx",
+    "route": "more/history",
+    "stateOwner": "Product Store watch history",
+    "operation": "Show read failure and retry",
+    "status": "partial",
+    "gap": "Retry exists; preview error is a fixture and approved layout is not yet integrated."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--downloads",
+    "productionOwner": "apps/mobile/src/features/media-jobs/components/downloads-screen.tsx",
+    "route": "more/downloads",
+    "stateOwner": "Product Store job snapshots; Android native journal/files",
+    "operation": "List active and saved media jobs; open details",
+    "status": "partial",
+    "gap": "Production has real jobs/progress but no search or media-kind filter; title is derived from source URI."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--downloads-offline",
+    "productionOwner": "apps/mobile/src/features/media-jobs/components/downloads-screen.tsx",
+    "route": "more/downloads",
+    "stateOwner": "Product Store job snapshots; connectivity state",
+    "operation": "Show jobs while offline and open retained files",
+    "status": "partial",
+    "gap": "Production lists jobs, but lacks a distinct offline banner/state and truthful retained-file availability projection."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--download-detail",
+    "productionOwner": "apps/mobile/src/features/media-jobs/components/media-job-screen.tsx",
+    "route": "activity/job-preview",
+    "stateOwner": "Product Store job snapshot; Android native journal/files",
+    "operation": "Read job detail; open, export, finalize, or delete where phase permits",
+    "status": "partial",
+    "gap": "Real commands exist; display metadata, measured speed, and ETA are absent."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--activity",
+    "productionOwner": "apps/mobile/src/features/activity/components/activity-screen.tsx",
+    "route": "activity",
+    "stateOwner": "Product Store Activity inbox",
+    "operation": "Read, refresh, mark, dismiss, and open Activity items",
+    "status": "partial",
+    "gap": "Real inbox exists; preview grouped rows and filter chips are absent."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--activity-empty",
+    "productionOwner": "apps/mobile/src/features/activity/components/activity-screen.tsx",
+    "route": "activity",
+    "stateOwner": "Product Store Activity inbox",
+    "operation": "Show empty Activity",
+    "status": "partial",
+    "gap": "Production empty state exists; preview presentation still needs integration and visual comparison."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--activity-detail",
+    "productionOwner": "apps/mobile/src/features/activity/components/activity-screen.tsx",
+    "route": "activity/alert-preview",
+    "stateOwner": "Product Store Activity inbox",
+    "operation": "Read an alert and navigate to linked job or source",
+    "status": "partial",
+    "gap": "Production detail is reachable; preview content is fixture-only and production job navigation adds a detail step."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--diagnostics-workspace",
+    "productionOwner": "apps/mobile/src/features/diagnostics/components/diagnostics-workspace.tsx",
+    "route": "more/diagnostics",
+    "stateOwner": "Native diagnostics and injected storage/connectivity/media/log services",
+    "operation": "Run checks and inspect diagnostic panels",
+    "status": "partial",
+    "gap": "Production has six functional tabs; preview summary/recovery is simplified and cannot replace real diagnostics."
+  },
+  {
+    "storyId": "android-screens-library-and-activity--moderation-placeholder",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider gateways",
+    "operation": "Open live moderation workspace",
+    "status": "partial",
+    "gap": "The preview labels moderation a placeholder, but production ModWorkspace is reachable and functional. Replace stale preview copy and compare real layout."
+  },
+  {
+    "storyId": "android-screens-settings--hub",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; SettingsHub",
+    "operation": "Navigate or search settings categories",
+    "status": "partial",
+    "gap": "Production has category search, distinct icon wells, and section tiles; preview rows differ."
+  },
+  {
+    "storyId": "android-screens-settings--appearance",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; AppearanceSettingsPanel",
+    "operation": "Persist density, language, session restore, and resume preferences",
+    "status": "partial",
+    "gap": "Preview static Theme and Save controls do not represent production immediate persistence or full fields."
+  },
+  {
+    "storyId": "android-screens-settings--playback",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; PlaybackSettingsPanel",
+    "operation": "Persist playback preferences",
+    "status": "partial",
+    "gap": "Production includes carousel interval, token player, and device ID; preview field set differs."
+  },
+  {
+    "storyId": "android-screens-settings--player-controls",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; PlayerControlsSettingsPanel",
+    "operation": "Persist player chrome toggles and rewind/forward intervals",
+    "status": "partial",
+    "gap": "Preview viewer count and one seek interval differ from six toggles and distinct production intervals."
+  },
+  {
+    "storyId": "android-screens-settings--buffer",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; BufferSettingsPanel",
+    "operation": "Persist bounded buffer sliders and low-latency option",
+    "status": "partial",
+    "gap": "Preview text fields and Restore defaults do not match production bounded sliders."
+  },
+  {
+    "storyId": "android-screens-settings--chat",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; ChatSettingsPanel",
+    "operation": "Persist chat display preferences",
+    "status": "partial",
+    "gap": "Production has more real controls; preview generic rows and Save state are local."
+  },
+  {
+    "storyId": "android-screens-settings--predictions",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; PredictionsSettingsPanel",
+    "operation": "Persist prediction preference and open supported provider path",
+    "status": "partial",
+    "gap": "Production preference exists; viewer participation remains provider handoff. Preview must not claim local wager success."
+  },
+  {
+    "storyId": "android-screens-settings--notifications",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; NotificationsSettingsPanel",
+    "operation": "Read permission and persist alert/delivery preferences",
+    "status": "partial",
+    "gap": "Production includes Android permission and settings action; preview simplifies live status."
+  },
+  {
+    "storyId": "android-screens-settings--ad-blocking",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; AdBlockSettingsWorkspace",
+    "operation": "Persist custom blocker and playlist proxy preferences",
+    "status": "partial",
+    "gap": "Native custom blocker and Expo Go constraints require actual capability state; preview is simpler."
+  },
+  {
+    "storyId": "android-screens-settings--proxy",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; ProxySettingsPanel",
+    "operation": "Set proxy host, port, credentials, and read network status",
+    "status": "partial",
+    "gap": "Preview URL and Test connection controls differ from production host/port workflow."
+  },
+  {
+    "storyId": "android-screens-settings--integrations",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; IntegrationsSettingsPanel",
+    "operation": "Read account connection status and open Accounts",
+    "status": "partial",
+    "gap": "Preview account values are fixtures."
+  },
+  {
+    "storyId": "android-screens-settings--api-tokens",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; ApiTokensSettingsPanel",
+    "operation": "Read redacted token status",
+    "status": "partial",
+    "gap": "Preview active token expiry is fixture data."
+  },
+  {
+    "storyId": "android-screens-settings--updates",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; UpdatesSettingsPanel",
+    "operation": "Check GitHub release and persist update preferences",
+    "status": "partial",
+    "gap": "Preview fixed version and launch toggle differ from release check and frequency controls."
+  },
+  {
+    "storyId": "android-screens-settings--diagnostics",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; DiagnosticsSettingsPanel",
+    "operation": "Open diagnostics workspace",
+    "status": "partial",
+    "gap": "Preview runtime/cache figures and Clear cache row are fixtures; production diagnostics has real services."
+  },
+  {
+    "storyId": "android-screens-settings--logs",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; LogsSettingsPanel",
+    "operation": "Read and share support log buffer",
+    "status": "partial",
+    "gap": "Preview log entries are fixtures."
+  },
+  {
+    "storyId": "android-screens-settings--report-bug",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; ReportBugSettingsPanel",
+    "operation": "Build redacted support report",
+    "status": "partial",
+    "gap": "Preview sample fields are local; production support report service owns content."
+  },
+  {
+    "storyId": "android-screens-settings--about",
+    "productionOwner": "apps/mobile/src/features/settings/components/settings-workspace.tsx",
+    "route": "more/settings",
+    "stateOwner": "Settings session; Product Store preferences; AboutSettingsPanel",
+    "operation": "Read app metadata, links, and reset action",
+    "status": "partial",
+    "gap": "Preview fixed version is fixture data."
+  },
+  {
+    "storyId": "android-screens-watch--live",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-route.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session; provider source readers",
+    "operation": "Resolve selected live source and control playback",
+    "status": "partial",
+    "gap": "Real source/player and session preview exist; preview uses a fixture player and different metadata/toolbar hierarchy."
+  },
+  {
+    "storyId": "android-screens-watch--session-preview",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-route.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session; provider source readers",
+    "operation": "Resolve selected live source and control playback",
+    "status": "partial",
+    "gap": "Real source/player and session preview exist; preview uses a fixture player and different metadata/toolbar hierarchy."
+  },
+  {
+    "storyId": "android-screens-watch--video",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-route.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session; provider VOD/clip readers",
+    "operation": "Resolve recorded source, play, seek, and offer eligible media actions",
+    "status": "partial",
+    "gap": "Real VOD/clip paths exist; match approved recorded-media layout with actual provider availability."
+  },
+  {
+    "storyId": "android-screens-watch--clip",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-route.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session; provider VOD/clip readers",
+    "operation": "Resolve recorded source, play, seek, and offer eligible media actions",
+    "status": "partial",
+    "gap": "Real VOD/clip paths exist; match approved recorded-media layout with actual provider availability."
+  },
+  {
+    "storyId": "android-screens-watch--quality-sheet",
+    "productionOwner": "apps/mobile/src/features/watch/components/player-controls.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session",
+    "operation": "Choose actual rendition and volume",
+    "status": "partial",
+    "gap": "Production uses a bespoke quality/volume modal; approved bottom-sheet composition is not mounted."
+  },
+  {
+    "storyId": "android-screens-watch--fullscreen",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-screen.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session; orientation controller",
+    "operation": "Enter and leave fullscreen playback",
+    "status": "partial",
+    "gap": "Fullscreen is functional; exact control placement and safe-area layout need parity work."
+  },
+  {
+    "storyId": "android-screens-watch--mini-player",
+    "productionOwner": "apps/mobile/src/features/watch/components/mini-player.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session; Zustand presentation geometry",
+    "operation": "Collapse, drag, resize, and restore mini-player",
+    "status": "partial",
+    "gap": "Real floating player exists; preview geometry and shell placement have not been matched on Android."
+  },
+  {
+    "storyId": "android-screens-watch--recording",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-route.tsx",
+    "route": "watch",
+    "stateOwner": "Media jobs Product Store and Android journal",
+    "operation": "Start a recording from resolved real stream URI",
+    "status": "partial",
+    "gap": "Production media job is real; preview recording bar is fixture state and differs in layout."
+  },
+  {
+    "storyId": "android-screens-watch--playback-failure",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-screen.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session",
+    "operation": "Render playback failure and retry/open source",
+    "status": "partial",
+    "gap": "Real failure state exists; preview error is deterministic fixture."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--composer",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Chat session; provider emote catalog; presentation state",
+    "operation": "Compose/send chat, select emote, and open user actions",
+    "status": "partial",
+    "gap": "Authenticated send, emotes, and actions exist; preview sheets and compact composer are not mounted. Provider writes must use current account scopes."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--emote-picker-sheet",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Chat session; provider emote catalog; presentation state",
+    "operation": "Compose/send chat, select emote, and open user actions",
+    "status": "partial",
+    "gap": "Authenticated send, emotes, and actions exist; preview sheets and compact composer are not mounted. Provider writes must use current account scopes."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--user-actions-sheet",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Chat session; provider emote catalog; presentation state",
+    "operation": "Compose/send chat, select emote, and open user actions",
+    "status": "partial",
+    "gap": "Authenticated send, emotes, and actions exist; preview sheets and compact composer are not mounted. Provider writes must use current account scopes."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--recorded-chat-replay",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Recorded chat reader and replay session",
+    "operation": "Read timed recorded chat alongside VOD",
+    "status": "partial",
+    "gap": "Replay reader/session exists; preview transcript is fixture and controls/source coverage need comparison."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--prediction-sheet",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; Twitch Helix",
+    "operation": "Manage broadcaster prediction or hand off viewer wager to Twitch",
+    "status": "partial",
+    "gap": "Broadcaster management exists; preview viewer points submission is local-only. Viewer action must open provider."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--poll-sheet",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; Twitch Helix",
+    "operation": "Manage broadcaster poll or hand off viewer vote to Twitch",
+    "status": "partial",
+    "gap": "Broadcaster management exists; preview viewer vote success is local-only. Viewer action must open provider."
+  },
+  {
+    "storyId": "android-proposed-chat-and-engagement--live-captions",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-caption-overlay.tsx",
+    "route": "watch",
+    "stateOwner": "Native caption session for focused playback",
+    "operation": "Display real offline recognized cues",
+    "status": "partial",
+    "gap": "Native Vosk PCM path exists in rebuilt client; preview transcript is literal fixture and Expo Go lacks the native tap."
+  },
+  {
+    "storyId": "android-proposed-media-workflows--recording-recovery",
+    "productionOwner": "apps/mobile/src/features/media-jobs/components/media-job-screen.tsx",
+    "route": "activity/job-preview",
+    "stateOwner": "Android native journal/files; Product Store job snapshot",
+    "operation": "Finalize or delete recoverable partial recording",
+    "status": "partial",
+    "gap": "Recovery commands exist; approved Keep/Delete card and verified playable-artifact semantics are not integrated."
+  },
+  {
+    "storyId": "android-proposed-media-workflows--duplicate-download-dialog",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-route.tsx",
+    "route": null,
+    "stateOwner": "No second-copy job identity or storage policy",
+    "operation": "Proposed duplicate download confirmation",
+    "status": "missing",
+    "gap": "Deterministic job ID returns ignored/conflict on repeat; a true second copy needs distinct job/file identity before this dialog can promise Download again."
+  },
+  {
+    "storyId": "android-proposed-media-workflows--caption-model-management",
+    "productionOwner": "apps/mobile/src/features/local-captions/components/local-captions-diagnostics-panel.tsx",
+    "route": "more/diagnostics",
+    "stateOwner": "Native pinned Vosk model store",
+    "operation": "Install, verify, or remove the English caption model",
+    "status": "partial",
+    "gap": "Management is reachable only in Diagnostics. Preview invents 75 MiB and progress/cancel; actual model is 39.30 MiB and native contract lacks progress event/cancel."
+  },
+  {
+    "storyId": "android-proposed-moderation--home",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider gateways",
+    "operation": "Select channel, verify role, and open provider tools",
+    "status": "partial",
+    "gap": "Real workspace exists for Twitch/Kick, but approved persistent channel picker and focused tool-page composition are absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--twitch-workspace",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider gateways",
+    "operation": "Select channel, verify role, and open provider tools",
+    "status": "partial",
+    "gap": "Real workspace exists for Twitch/Kick, but approved persistent channel picker and focused tool-page composition are absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--kick-workspace",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider gateways",
+    "operation": "Select channel, verify role, and open provider tools",
+    "status": "partial",
+    "gap": "Real workspace exists for Twitch/Kick, but approved persistent channel picker and focused tool-page composition are absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--live-chat",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Watch chat session; moderation controller",
+    "operation": "Open channel chat and moderate selected message",
+    "status": "partial",
+    "gap": "Production links from ModWorkspace to Watch chat; it does not embed the proposed feed/history page."
+  },
+  {
+    "storyId": "android-proposed-moderation--auto-mod-queue",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; proposed live held-message feed",
+    "operation": "Allow or deny a Twitch held message",
+    "status": "partial",
+    "gap": "Production requires pasted message ID; no live EventSub queue. Add a bounded feed with connecting, live-since, permission, disconnect, and error states."
+  },
+  {
+    "storyId": "android-proposed-moderation--kick-retention",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "No mobile moderation-log retention store; no Kick provider retention contract",
+    "operation": "Proposed retention policy control",
+    "status": "missing",
+    "gap": "Preview calls local state Apply retention. Desktop precedent is local StreamFusion mod-log retention, not Kick retention. Require a local store or honest unsupported/handoff state."
+  },
+  {
+    "storyId": "android-proposed-moderation--mod-actions",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "No mobile persisted moderation log",
+    "operation": "Proposed searchable recent moderation actions",
+    "status": "missing",
+    "gap": "Production action feedback is ephemeral. A local log needs source and collection-period labels; it cannot imply full provider history."
+  },
+  {
+    "storyId": "android-proposed-moderation--banned-users",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; Twitch/Kick provider gateways",
+    "operation": "Read eligible lists and perform scoped moderation mutations",
+    "status": "partial",
+    "gap": "Twitch reads/pagination and confirmed mutations exist; Kick list and role reads lack documented support and hand off. Preview avatar/search/user-sheet layout is absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--unban-requests",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; Twitch/Kick provider gateways",
+    "operation": "Read eligible lists and perform scoped moderation mutations",
+    "status": "partial",
+    "gap": "Twitch reads/pagination and confirmed mutations exist; Kick list and role reads lack documented support and hand off. Preview avatar/search/user-sheet layout is absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--moderators",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; Twitch/Kick provider gateways",
+    "operation": "Read eligible lists and perform scoped moderation mutations",
+    "status": "partial",
+    "gap": "Twitch reads/pagination and confirmed mutations exist; Kick list and role reads lack documented support and hand off. Preview avatar/search/user-sheet layout is absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--vips",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; Twitch/Kick provider gateways",
+    "operation": "Read eligible lists and perform scoped moderation mutations",
+    "status": "partial",
+    "gap": "Twitch reads/pagination and confirmed mutations exist; Kick list and role reads lack documented support and hand off. Preview avatar/search/user-sheet layout is absent."
+  },
+  {
+    "storyId": "android-proposed-moderation--stream-tools",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; proposed channel-tools gateway",
+    "operation": "Read or change broadcaster stream and moderation tools",
+    "status": "partial",
+    "gap": "Twitch chat settings exist. Title/category/tags, Shield Mode, AutoMod policy, blocked terms, and raid UI are absent; add scoped provider ports before claiming them."
+  },
+  {
+    "storyId": "android-proposed-moderation--channel-activity",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "Proposed provider feed/panel gateway; no mobile production feed owner",
+    "operation": "Proposed activity, community, rewards, suspicious, or whispers panel",
+    "status": "missing",
+    "gap": "No matching mobile data/feed panel. EventSub coverage starts on connection; provider results need permission/unsupported/error states and account/channel cancellation."
+  },
+  {
+    "storyId": "android-proposed-moderation--community",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "Proposed provider feed/panel gateway; no mobile production feed owner",
+    "operation": "Proposed activity, community, rewards, suspicious, or whispers panel",
+    "status": "missing",
+    "gap": "No matching mobile data/feed panel. EventSub coverage starts on connection; provider results need permission/unsupported/error states and account/channel cancellation."
+  },
+  {
+    "storyId": "android-proposed-moderation--rewards",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "Proposed provider feed/panel gateway; no mobile production feed owner",
+    "operation": "Proposed activity, community, rewards, suspicious, or whispers panel",
+    "status": "missing",
+    "gap": "No matching mobile data/feed panel. EventSub coverage starts on connection; provider results need permission/unsupported/error states and account/channel cancellation."
+  },
+  {
+    "storyId": "android-proposed-moderation--suspicious-activity",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "Proposed provider feed/panel gateway; no mobile production feed owner",
+    "operation": "Proposed activity, community, rewards, suspicious, or whispers panel",
+    "status": "missing",
+    "gap": "No matching mobile data/feed panel. EventSub coverage starts on connection; provider results need permission/unsupported/error states and account/channel cancellation."
+  },
+  {
+    "storyId": "android-proposed-moderation--whispers",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "Proposed provider feed/panel gateway; no mobile production feed owner",
+    "operation": "Proposed activity, community, rewards, suspicious, or whispers panel",
+    "status": "missing",
+    "gap": "No matching mobile data/feed panel. EventSub coverage starts on connection; provider results need permission/unsupported/error states and account/channel cancellation."
+  },
+  {
+    "storyId": "android-proposed-moderation--provider-tools",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; provider workflow navigation",
+    "operation": "Open Twitch Mod View or Kick channel",
+    "status": "partial",
+    "gap": "Real handoff exists; preview per-tool explanation and return affordance are absent. Kick channel link is not a verified tool-specific URL."
+  },
+  {
+    "storyId": "android-proposed-moderation--user-history-sheet",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; selected chat user",
+    "operation": "Read available user actions and confirm timeout/ban",
+    "status": "partial",
+    "gap": "Channel-scoped user ID and confirmed timeout exist; proposed profile/history and avatar sheet do not. Any local history must identify its coverage."
+  },
+  {
+    "storyId": "android-proposed-moderation--timeout-sheet",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; selected chat user",
+    "operation": "Read available user actions and confirm timeout/ban",
+    "status": "partial",
+    "gap": "Channel-scoped user ID and confirmed timeout exist; proposed profile/history and avatar sheet do not. Any local history must identify its coverage."
+  },
+  {
+    "storyId": "android-proposed-moderation--raid-target-picker",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": null,
+    "stateOwner": "Proposed Twitch raid gateway and pending raid state",
+    "operation": "Proposed choose/start/cancel raid",
+    "status": "missing",
+    "gap": "Mobile has no raid target read or command. Twitch start schedules a pending raid; add scope checks, target revalidation, pending/cancel, and Kick handoff."
+  },
+  {
+    "storyId": "android-proposed-multistream--stream-grid",
+    "productionOwner": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+    "route": "more/multistream",
+    "stateOwner": "Multistream session; focused playback sessions",
+    "operation": "Add real streams and render player grid",
+    "status": "partial",
+    "gap": "Real player tiles and chat exist; preview illustrated grid/card composition is not mounted."
+  },
+  {
+    "storyId": "android-proposed-multistream--add-stream-sheet",
+    "productionOwner": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+    "route": "more/multistream",
+    "stateOwner": "Multistream session; provider discovery",
+    "operation": "Search and add validated stream",
+    "status": "partial",
+    "gap": "Real add admission exists, but production uses inline input/actions instead of approved sheet."
+  },
+  {
+    "storyId": "android-proposed-multistream--audio-owner-sheet",
+    "productionOwner": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+    "route": "more/multistream",
+    "stateOwner": "Multistream session; audio owner",
+    "operation": "Mute other sessions before switching audio owner",
+    "status": "partial",
+    "gap": "Real mute-before-unmute behavior exists; production uses inline selection rather than approved sheet."
+  },
+  {
+    "storyId": "android-proposed-multistream--constrained-device",
+    "productionOwner": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+    "route": "more/multistream",
+    "stateOwner": "Native resource observation; multistream session",
+    "operation": "Gate add under current low-memory/thermal facts",
+    "status": "partial",
+    "gap": "Admission checks current facts only; no continuous post-start pressure recovery or proposed constrained-device notice. Capacity is not qualified."
+  },
+  {
+    "storyId": "android-proposed-multistream--merged-chat",
+    "productionOwner": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+    "route": "more/multistream",
+    "stateOwner": "Multistream merged/selected chat sessions",
+    "operation": "Read merged chat and keep stream identity",
+    "status": "partial",
+    "gap": "Real merged and selected chat exists; proposed layout and avatars are fixtures."
+  },
+  {
+    "storyId": "android-proposed-player-tools--playback-speed-sheet",
+    "productionOwner": "apps/mobile/src/features/watch/capabilities/watch.ts",
+    "route": null,
+    "stateOwner": "No playback-rate contract",
+    "operation": "Proposed set recorded-media playback speed",
+    "status": "missing",
+    "gap": "Focused playback and Android Media3 ports expose no rate operation; add typed supported rates and host capability result before mounting sheet."
+  },
+  {
+    "storyId": "android-proposed-player-tools--video-stats-sheet",
+    "productionOwner": "apps/mobile/src/features/native-contracts/capabilities/android-capability-contracts.ts",
+    "route": null,
+    "stateOwner": "No current-session decoder/statistics snapshot",
+    "operation": "Proposed read video statistics",
+    "status": "missing",
+    "gap": "Preview metrics are invented. Add observed native-session stats and explicit Expo fallback capability before showing numbers."
+  },
+  {
+    "storyId": "android-proposed-player-tools--volume-controls",
+    "productionOwner": "apps/mobile/src/features/watch/components/player-controls.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session",
+    "operation": "Adjust active-player volume",
+    "status": "partial",
+    "gap": "Real volume callback exists inside bespoke quality modal; approved volume sheet/controls are not mounted."
+  },
+  {
+    "storyId": "features-chat--guest",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Guest/provider chat session",
+    "operation": "Read live guest chat",
+    "status": "partial",
+    "gap": "Real Twitch/Kick guest reads exist; Storybook guest transcript and exact layout are fixture states."
+  },
+  {
+    "storyId": "features-chat--composer-and-user-actions",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Authenticated chat session; provider interactions",
+    "operation": "Send, select emote, reply, or open user action",
+    "status": "partial",
+    "gap": "Real actions exist; proposed shared sheet composition is absent."
+  },
+  {
+    "storyId": "features-chat--send-failure",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Authenticated chat session result",
+    "operation": "Show provider send failure",
+    "status": "partial",
+    "gap": "Production command result has failure state; story uses deterministic failure transport. Match production error presentation."
+  },
+  {
+    "storyId": "features-chat--replay",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Recorded chat session and reader",
+    "operation": "Replay timed chat with recorded media",
+    "status": "partial",
+    "gap": "Production reader exists; story transcript is deterministic. Verify actual provider coverage and controls."
+  },
+  {
+    "storyId": "features-chat--replay-failure",
+    "productionOwner": "apps/mobile/src/features/chat/components/chat-panel.tsx",
+    "route": "watch",
+    "stateOwner": "Recorded chat session and reader",
+    "operation": "Show replay read failure",
+    "status": "partial",
+    "gap": "Failure state exists in feature path; story injects a deterministic failure. Match retry/error UI."
+  },
+  {
+    "storyId": "android-implemented-local-captions--download-and-start",
+    "productionOwner": "apps/mobile/src/features/local-captions/components/local-captions-diagnostics-panel.tsx",
+    "route": "more/diagnostics",
+    "stateOwner": "Native caption model store; caption controller",
+    "operation": "Download/verify model and start focused captions",
+    "status": "partial",
+    "gap": "Production commands exist, but management is in Diagnostics and recognition needs rebuilt native client. Preview state is deterministic."
+  },
+  {
+    "storyId": "android-implemented-local-captions--ready-offline",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-caption-bar.tsx",
+    "route": "watch",
+    "stateOwner": "Native caption model store; focused caption session",
+    "operation": "Use installed model offline for focused playback",
+    "status": "partial",
+    "gap": "Offline native path exists; preview ready/transcript state is deterministic and must be paired with a real session."
+  },
+  {
+    "storyId": "android-implemented-local-captions--expo-go-unavailable",
+    "productionOwner": "apps/mobile/src/features/watch/components/watch-caption-bar.tsx",
+    "route": "watch",
+    "stateOwner": "Host capability result",
+    "operation": "Show Expo Go native-caption unavailability",
+    "status": "partial",
+    "gap": "Host limitation is modeled; exact UI needs Android comparison. Expo Go cannot provide decoded PCM tap."
+  },
+  {
+    "storyId": "android-workflows-engagement--broadcaster",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; Twitch Helix; current account generation",
+    "operation": "Create/manage poll or prediction and report provider result",
+    "status": "partial",
+    "gap": "Real broadcaster operations and denial handling exist; Storybook transport is deterministic and approved composition differs."
+  },
+  {
+    "storyId": "android-workflows-engagement--creation",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; Twitch Helix; current account generation",
+    "operation": "Create/manage poll or prediction and report provider result",
+    "status": "partial",
+    "gap": "Real broadcaster operations and denial handling exist; Storybook transport is deterministic and approved composition differs."
+  },
+  {
+    "storyId": "android-workflows-engagement--provider-denied",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; Twitch Helix; current account generation",
+    "operation": "Create/manage poll or prediction and report provider result",
+    "status": "partial",
+    "gap": "Real broadcaster operations and denial handling exist; Storybook transport is deterministic and approved composition differs."
+  },
+  {
+    "storyId": "android-workflows-engagement--twitch-viewer",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; provider handoff",
+    "operation": "Open Twitch for viewer vote or prediction",
+    "status": "partial",
+    "gap": "Viewer provider handoff exists. Preview must not claim an in-app saved vote or wager."
+  },
+  {
+    "storyId": "android-workflows-engagement--kick-handoff",
+    "productionOwner": "apps/mobile/src/features/engagement/components/engagement-sheet.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Engagement controller; provider handoff",
+    "operation": "Explain unsupported Kick engagement and open provider",
+    "status": "partial",
+    "gap": "Kick handoff exists; preview provider state is deterministic and layout needs comparison."
+  },
+  {
+    "storyId": "android-workflows-moderation--broadcaster",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider access",
+    "operation": "Verify role/scope, read lists, and execute eligible moderation action",
+    "status": "partial",
+    "gap": "Real broadcaster/moderator actions, user actions, and denial paths exist; Storybook values and approved layout are deterministic."
+  },
+  {
+    "storyId": "android-workflows-moderation--moderator",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider access",
+    "operation": "Verify role/scope, read lists, and execute eligible moderation action",
+    "status": "partial",
+    "gap": "Real broadcaster/moderator actions, user actions, and denial paths exist; Storybook values and approved layout are deterministic."
+  },
+  {
+    "storyId": "android-workflows-moderation--user-actions",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider access",
+    "operation": "Verify role/scope, read lists, and execute eligible moderation action",
+    "status": "partial",
+    "gap": "Real broadcaster/moderator actions, user actions, and denial paths exist; Storybook values and approved layout are deterministic."
+  },
+  {
+    "storyId": "android-workflows-moderation--provider-denied",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; authenticated provider access",
+    "operation": "Verify role/scope, read lists, and execute eligible moderation action",
+    "status": "partial",
+    "gap": "Real broadcaster/moderator actions, user actions, and denial paths exist; Storybook values and approved layout are deterministic."
+  },
+  {
+    "storyId": "android-workflows-moderation--kick-broadcaster",
+    "productionOwner": "apps/mobile/src/features/moderation/components/mod-workspace.tsx",
+    "route": "more/moderation",
+    "stateOwner": "Moderation controller; Kick provider gateway",
+    "operation": "Execute supported Kick ban/unban/chat moderation or hand off unsupported tool",
+    "status": "partial",
+    "gap": "Kick supported writes exist; list/role/history operations lack documented read contracts. Preserve explicit unsupported state."
+  },
+  {
+    "storyId": "android-workflows-multistream--workspace",
+    "productionOwner": "apps/mobile/src/features/multistream/components/multistream-workspace.tsx",
+    "route": "more/multistream",
+    "stateOwner": "Multistream session; native playback; chat",
+    "operation": "Add/remove streams, switch audio owner, and read merged chat",
+    "status": "partial",
+    "gap": "Real workflow exists; Storybook workspace is deterministic and visual parity is unverified."
+  },
+  {
+    "storyId": "android-components-bottom-sheet--selection",
+    "productionOwner": "apps/mobile/src/design/bottom-sheet.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Open/close a selection, scroll a long list, or submit a sheet form",
+    "status": "present",
+    "gap": "Shared component exists; screen integrations and Android keyboard/safe-area behavior need separate checks."
+  },
+  {
+    "storyId": "android-components-bottom-sheet--closed",
+    "productionOwner": "apps/mobile/src/design/bottom-sheet.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Open/close a selection, scroll a long list, or submit a sheet form",
+    "status": "present",
+    "gap": "Shared component exists; screen integrations and Android keyboard/safe-area behavior need separate checks."
+  },
+  {
+    "storyId": "android-components-bottom-sheet--long-scrollable-list",
+    "productionOwner": "apps/mobile/src/design/bottom-sheet.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Open/close a selection, scroll a long list, or submit a sheet form",
+    "status": "present",
+    "gap": "Shared component exists; screen integrations and Android keyboard/safe-area behavior need separate checks."
+  },
+  {
+    "storyId": "android-components-bottom-sheet--form-with-footer",
+    "productionOwner": "apps/mobile/src/design/bottom-sheet.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Open/close a selection, scroll a long list, or submit a sheet form",
+    "status": "present",
+    "gap": "Shared component exists; screen integrations and Android keyboard/safe-area behavior need separate checks."
+  },
+  {
+    "storyId": "android-components-button--primary",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--secondary",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--outline",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--ghost",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--twitch",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--kick",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--destructive",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--disabled",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--busy",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--all-variants",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-button--interactive",
+    "productionOwner": "apps/mobile/src/design/button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render and press the named button variant",
+    "status": "present",
+    "gap": "Shared variants exist; interactive story uses preview-local follow state."
+  },
+  {
+    "storyId": "android-components-dialog--destructive-confirmation",
+    "productionOwner": "apps/mobile/src/design/dialog.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Confirm destructive action or explain permission",
+    "status": "present",
+    "gap": "Shared dialog exists; particular screen commands must bind to real workflow results."
+  },
+  {
+    "storyId": "android-components-dialog--permission-rationale",
+    "productionOwner": "apps/mobile/src/design/dialog.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Confirm destructive action or explain permission",
+    "status": "present",
+    "gap": "Shared dialog exists; particular screen commands must bind to real workflow results."
+  },
+  {
+    "storyId": "android-components-primitives--filter-chips",
+    "productionOwner": "apps/mobile/src/design/chip.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Select filter chip",
+    "status": "present",
+    "gap": "Component exists; some production filter sets differ from preview."
+  },
+  {
+    "storyId": "android-components-primitives--tags",
+    "productionOwner": "apps/mobile/src/design/tag.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render status tag",
+    "status": "present",
+    "gap": "Component exists; actual status comes from owning feature."
+  },
+  {
+    "storyId": "android-components-primitives--radio-choices",
+    "productionOwner": "apps/mobile/src/design/choice-group.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Select radio choice",
+    "status": "present",
+    "gap": "Component exists; choices require real feature state."
+  },
+  {
+    "storyId": "android-components-primitives--select-sheet",
+    "productionOwner": "apps/mobile/src/design/select.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Open selection sheet and choose item",
+    "status": "present",
+    "gap": "Component exists; it uses its own modal and differs from shared bottom-sheet styling."
+  },
+  {
+    "storyId": "android-components-primitives--long-select-sheet",
+    "productionOwner": "apps/mobile/src/design/select.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Open selection sheet and choose item",
+    "status": "present",
+    "gap": "Component exists; it uses its own modal and differs from shared bottom-sheet styling."
+  },
+  {
+    "storyId": "android-components-primitives--switch-rows",
+    "productionOwner": "apps/mobile/src/design/list-row.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render/toggle switch or navigate list row",
+    "status": "present",
+    "gap": "Component exists; Following and Settings still have hand-built equivalents."
+  },
+  {
+    "storyId": "android-components-primitives--list-rows",
+    "productionOwner": "apps/mobile/src/design/list-row.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render/toggle switch or navigate list row",
+    "status": "present",
+    "gap": "Component exists; Following and Settings still have hand-built equivalents."
+  },
+  {
+    "storyId": "android-components-primitives--icon-buttons",
+    "productionOwner": "apps/mobile/src/design/icon-button.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Press icon action",
+    "status": "present",
+    "gap": "Component exists; shell header draws independent Pressable controls."
+  },
+  {
+    "storyId": "android-components-primitives--text-field",
+    "productionOwner": "apps/mobile/src/design/text-input.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Edit text in named field state",
+    "status": "present",
+    "gap": "Field variants exist; several production forms use raw TextInput."
+  },
+  {
+    "storyId": "android-components-primitives--invalid-text-field",
+    "productionOwner": "apps/mobile/src/design/text-input.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Edit text in named field state",
+    "status": "present",
+    "gap": "Field variants exist; several production forms use raw TextInput."
+  },
+  {
+    "storyId": "android-components-primitives--disabled-text-field",
+    "productionOwner": "apps/mobile/src/design/text-input.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Edit text in named field state",
+    "status": "present",
+    "gap": "Field variants exist; several production forms use raw TextInput."
+  },
+  {
+    "storyId": "android-components-primitives--secure-text-field",
+    "productionOwner": "apps/mobile/src/design/text-input.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Edit text in named field state",
+    "status": "present",
+    "gap": "Field variants exist; several production forms use raw TextInput."
+  },
+  {
+    "storyId": "android-components-primitives--multiline-text-field",
+    "productionOwner": "apps/mobile/src/design/text-input.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Edit text in named field state",
+    "status": "present",
+    "gap": "Field variants exist; several production forms use raw TextInput."
+  },
+  {
+    "storyId": "android-components-primitives--scrollable-tabs",
+    "productionOwner": "apps/mobile/src/design/underline-tabs.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Select scrollable tab",
+    "status": "present",
+    "gap": "Component exists and Search/Following use it."
+  },
+  {
+    "storyId": "android-components-primitives--platform-badges",
+    "productionOwner": "apps/mobile/src/design/platform-badge.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render provider badge",
+    "status": "present",
+    "gap": "Component exists; provider identity comes from feature data."
+  },
+  {
+    "storyId": "android-components-primitives--verified-badges",
+    "productionOwner": "apps/mobile/src/design/verified-badge.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render verification badge",
+    "status": "present",
+    "gap": "Component exists; verification comes from provider data."
+  },
+  {
+    "storyId": "android-components-primitives--screen-header",
+    "productionOwner": "apps/mobile/src/design/screen-header.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render screen title and action",
+    "status": "present",
+    "gap": "Component exists; shell also renders its own header, so composed screens can have two headers."
+  },
+  {
+    "storyId": "android-components-primitives--status-panel",
+    "productionOwner": "apps/mobile/src/design/status-panel.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render current status",
+    "status": "present",
+    "gap": "Component exists; live status must come from the owning controller."
+  },
+  {
+    "storyId": "android-components-primitives--empty-state",
+    "productionOwner": "apps/mobile/src/design/list-state.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render empty, error/retry, or loading state",
+    "status": "present",
+    "gap": "Component exists; preview retry is local sample state."
+  },
+  {
+    "storyId": "android-components-primitives--error-with-retry",
+    "productionOwner": "apps/mobile/src/design/list-state.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render empty, error/retry, or loading state",
+    "status": "present",
+    "gap": "Component exists; preview retry is local sample state."
+  },
+  {
+    "storyId": "android-components-primitives--loading-state",
+    "productionOwner": "apps/mobile/src/design/list-state.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render empty, error/retry, or loading state",
+    "status": "present",
+    "gap": "Component exists; preview retry is local sample state."
+  },
+  {
+    "storyId": "android-components-primitives--offline-banner",
+    "productionOwner": "apps/mobile/src/design/connectivity-banner.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render offline or checking connectivity state",
+    "status": "present",
+    "gap": "Component exists; real network status must come from connectivity owner."
+  },
+  {
+    "storyId": "android-components-primitives--checking-connectivity",
+    "productionOwner": "apps/mobile/src/design/connectivity-banner.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render offline or checking connectivity state",
+    "status": "present",
+    "gap": "Component exists; real network status must come from connectivity owner."
+  },
+  {
+    "storyId": "android-components-primitives--skeletons",
+    "productionOwner": "apps/mobile/src/design/feedback.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render skeleton, progress, or snackbar/undo",
+    "status": "present",
+    "gap": "Component exists; preview progress and undo are local. Undo requires a reversible production command."
+  },
+  {
+    "storyId": "android-components-primitives--progress",
+    "productionOwner": "apps/mobile/src/design/feedback.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render skeleton, progress, or snackbar/undo",
+    "status": "present",
+    "gap": "Component exists; preview progress and undo are local. Undo requires a reversible production command."
+  },
+  {
+    "storyId": "android-components-primitives--snackbar-with-undo",
+    "productionOwner": "apps/mobile/src/design/feedback.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Render skeleton, progress, or snackbar/undo",
+    "status": "present",
+    "gap": "Component exists; preview progress and undo are local. Undo requires a reversible production command."
+  },
+  {
+    "storyId": "android-components-primitives--native-scroll-area",
+    "productionOwner": "apps/mobile/src/design/refreshable.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Scroll or trigger pull-to-refresh",
+    "status": "present",
+    "gap": "Component exists; Home/Search/Following use real refresh functions."
+  },
+  {
+    "storyId": "android-components-primitives--pull-to-refresh",
+    "productionOwner": "apps/mobile/src/design/refreshable.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Scroll or trigger pull-to-refresh",
+    "status": "present",
+    "gap": "Component exists; Home/Search/Following use real refresh functions."
+  },
+  {
+    "storyId": "android-components-primitives--refreshable-flat-list",
+    "productionOwner": "apps/mobile/src/design/refreshable.tsx",
+    "route": "shared component; no screen route",
+    "stateOwner": "Caller-owned props/presentation state",
+    "operation": "Scroll or trigger pull-to-refresh",
+    "status": "present",
+    "gap": "Component exists; Home/Search/Following use real refresh functions."
+  },
+  {
+    "storyId": "android-components-feature-cards--stream-cards",
+    "productionOwner": "apps/mobile/src/features/discovery/components/home-stream-card.tsx",
+    "route": "watch",
+    "stateOwner": "TanStack Query discovery result",
+    "operation": "Render real live stream card and navigate to Watch",
+    "status": "partial",
+    "gap": "Preview uses fixture artwork and catalog-elements sample; production card composition differs."
+  },
+  {
+    "storyId": "android-components-feature-cards--compact-media-rows",
+    "productionOwner": "apps/mobile/src/features/follows/components/following-tab-body.tsx",
+    "route": "following",
+    "stateOwner": "Following query and membership state",
+    "operation": "Render compact media row and open actual target",
+    "status": "partial",
+    "gap": "Preview catalog row is fixture-only; production analogue needs parity comparison."
+  },
+  {
+    "storyId": "android-components-feature-cards--avatar-fallbacks",
+    "productionOwner": "apps/mobile/src/features/discovery/components/live-stream-card-content.tsx",
+    "route": "watch",
+    "stateOwner": "Discovery stream data; caller-owned image fallback",
+    "operation": "Render avatar fallback when provider artwork is absent",
+    "status": "partial",
+    "gap": "Preview-only sample composition; production cards render fallback locally and need alignment if the exact shared avatar design is required."
+  },
+  {
+    "storyId": "android-components-feature-cards--player-controls",
+    "productionOwner": "apps/mobile/src/features/watch/components/player-controls.tsx",
+    "route": "watch",
+    "stateOwner": "Focused playback session",
+    "operation": "Play/pause, seek, quality, volume, and fullscreen where eligible",
+    "status": "partial",
+    "gap": "Real controls exist, but preview catalog controls are a different composition."
+  },
+  {
+    "storyId": "android-components-feature-cards--adaptive-navigation",
+    "productionOwner": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "route": "all primary destinations",
+    "stateOwner": "Shell navigation state; viewport sizing",
+    "operation": "Switch bottom navigation or rail by width",
+    "status": "partial",
+    "gap": "Production breakpoint is 600 dp, while story text claims 840 dp. Selected pill and synthetic system chrome also differ."
+  }
+]

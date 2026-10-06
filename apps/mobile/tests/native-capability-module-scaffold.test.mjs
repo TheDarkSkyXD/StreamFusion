@@ -125,9 +125,9 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
         className === "MediaJobs"
         ? /Function\("getContractVersion"\) \{ 3 \}/u
         : className === "Captions"
-          ? /Function\("getContractVersion"\) \{ 3 \}/u
+          ? /Function\("getContractVersion"\) \{ 4 \}/u
           : className === "Playback"
-            ? /Function\("getContractVersion"\) \{ 4 \}/u
+            ? /Function\("getContractVersion"\) \{ 5 \}/u
           : /Function\("getContractVersion"\) \{ 1 \}/u,
     );
     if (className === "Diagnostics") {

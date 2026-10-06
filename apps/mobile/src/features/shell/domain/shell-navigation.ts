@@ -32,6 +32,8 @@ type StaticShellRouteId = Exclude<
   | "activity/alert-preview"
   | "activity/job-preview"
   | "more/channel"
+  | "search/result-preview"
+  | "following/channel-preview"
   | "more/category-detail"
 >;
 
@@ -52,7 +54,8 @@ export type ShellLocation =
   | { readonly route: "activity/alert-preview"; readonly eventId: string }
   | { readonly route: "activity/job-preview"; readonly jobId: string }
   | {
-      readonly route: "more/channel";
+      readonly route:
+        "more/channel" | "search/result-preview" | "following/channel-preview";
       readonly channel: {
         readonly platform: Platform;
         readonly id: string;
@@ -113,7 +116,7 @@ export type ShellRestorationResult =
 export const SHELL_DESTINATIONS = [
   { id: "search", label: "Search", rootRoute: "search" },
   { id: "following", label: "Following", rootRoute: "following" },
-  { id: "watch", label: "Watch", rootRoute: "watch" },
+  { id: "watch", label: "Home", rootRoute: "watch" },
   { id: "activity", label: "Activity", rootRoute: "activity" },
   { id: "more", label: "More", rootRoute: "more" },
 ] as const satisfies readonly ShellDestination[];
@@ -126,9 +129,9 @@ export const MORE_ROUTE_IDS = [
   "more/downloads",
   "more/moderation",
   "more/multistream",
+  "more/accounts",
   "more/settings",
   "more/diagnostics",
-  "more/accounts",
 ] as const satisfies readonly ShellRouteId[];
 
 export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
@@ -177,7 +180,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "NOW PLAYING",
     "watch-root",
     "Live streams, videos, clips, and chat share one focused workspace.",
-    "Watch",
+    "Home",
     "watch",
   ),
   "watch/session-preview": route(
@@ -212,14 +215,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "Media job",
     "activity",
   ),
-  more: route(
-    "more",
-    "STREAMFUSION",
-    "more-root",
-    "",
-    "More",
-    "more",
-  ),
+  more: route("more", "STREAMFUSION", "more-root", "", "More", "more"),
   "more/channel": route(
     "more/channel",
     "MORE",
@@ -261,8 +257,12 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "more",
   ),
   "more/multistream": route(
-    "more/multistream", "MORE", "more-multistream",
-    "Watch live channels together and choose one audio source.", "Multistream", "more",
+    "more/multistream",
+    "MORE",
+    "more-multistream",
+    "Watch live channels together and choose one audio source.",
+    "MultiView",
+    "more",
   ),
   "more/settings": route(
     "more/settings",
@@ -285,7 +285,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "MORE",
     "more-accounts",
     "Connect Platforms and manage account state without making identity a sixth destination.",
-    "Accounts and maintenance",
+    "Connected Accounts",
     "more",
   ),
   "more/category-detail": route(
@@ -354,6 +354,13 @@ export function resolveShellHeaderCopy(
   if (location.route === "more/category-detail") {
     return { eyebrow: route.eyebrow, title: location.category.name };
   }
+  if (
+    location.route === "more/channel" ||
+    location.route === "search/result-preview" ||
+    location.route === "following/channel-preview"
+  ) {
+    return { eyebrow: route.eyebrow, title: location.channel.username };
+  }
   if (location.route === "watch/session-preview") {
     return shellWatchSessionHeader(location.target, route);
   }
@@ -375,8 +382,6 @@ function shellWatchSessionHeader(
   }
   return { eyebrow: "LIVE", title: target.channelLogin };
 }
-
-
 
 export function canNavigateBack(state: ShellNavigationState): boolean {
   return state.histories[state.activeDestination].trail.length > 0;
@@ -548,6 +553,8 @@ function isStaticRoute(value: unknown): value is StaticShellRouteId {
     value !== "activity/alert-preview" &&
     value !== "activity/job-preview" &&
     value !== "more/channel" &&
+    value !== "search/result-preview" &&
+    value !== "following/channel-preview" &&
     value !== "more/category-detail"
   );
 }
@@ -567,7 +574,11 @@ function isShellLocation(value: unknown): value is ShellLocation {
       typeof value.jobId === "string" &&
       identifierPattern.test(value.jobId)
     );
-  if (value.route === "more/channel") {
+  if (
+    value.route === "more/channel" ||
+    value.route === "search/result-preview" ||
+    value.route === "following/channel-preview"
+  ) {
     return (
       hasOnlyKeys(value, ["route", "channel"]) &&
       isRecord(value.channel) &&

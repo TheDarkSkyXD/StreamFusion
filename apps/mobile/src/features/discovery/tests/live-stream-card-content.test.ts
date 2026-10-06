@@ -28,7 +28,7 @@ function descendants(node: unknown): readonly ReactElement<ElementProps>[] {
 }
 
 describe("live stream card content", () => {
-  it("shows a compact count, readable language, maturity, and one-line title", () => {
+  it("shows a compact count, readable language, maturity, and a two-line title", () => {
     const stream = {
       ...fixtureStream("twitch", "large", 10_400),
       channelIsVerified: true,
@@ -40,7 +40,7 @@ describe("live stream card content", () => {
     const viewers = nodes.find(
       (node) => node.props.testID === "stream-viewer-count",
     );
-    expect(viewers?.props.children).toBe("10.4K");
+    expect(viewers?.props.children).toBe("10.4K viewers");
     expect(viewers?.props.accessibilityLabel).toBe("10400 viewers");
     expect(nodes.some((node) => node.props.children === "English")).toBe(true);
     expect(nodes.some((node) => node.props.children === "18+")).toBe(true);
@@ -54,8 +54,8 @@ describe("live stream card content", () => {
     expect(
       nodes.find((node) => node.props.children === stream.title)?.props
         .numberOfLines,
-    ).toBe(1);
-    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(false);
+    ).toBe(2);
+    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
   });
 
   it("uses the Kick badge only for verified streams and keeps the card action", () => {

@@ -23,7 +23,7 @@ function CardsSample({
     return (
       <PreviewFrame title="StreamFusion" destination="watch">
         <Text style={mobileType.body}>
-          Bottom navigation becomes a rail at 840 dp. The selection is local to
+          Bottom navigation becomes a rail at 600 dp. The selection is local to
           this preview.
         </Text>
       </PreviewFrame>

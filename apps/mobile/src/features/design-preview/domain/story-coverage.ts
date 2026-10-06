@@ -19,8 +19,7 @@ export const routeStoryCoverage = {
   "more/categories": "android-screens-discovery--categories",
   "more/history": "android-screens-library-and-activity--history",
   "more/downloads": "android-screens-library-and-activity--downloads",
-  "more/moderation":
-    "android-workflows-moderation--broadcaster",
+  "more/moderation": "android-workflows-moderation--broadcaster",
   "more/multistream": "android-workflows-multistream--workspace",
   "more/settings": "android-screens-settings--hub",
   "more/diagnostics":
@@ -49,6 +48,8 @@ export const settingsStoryCoverage = {
 };
 
 export const componentStoryCoverage = {
+  avatar: "android-components-feature-cards--avatar-fallbacks",
+  "media-card": "android-components-feature-cards--stream-cards",
   button: "android-components-button--all-variants",
   chip: "android-components-primitives--filter-chips",
   tag: "android-components-primitives--tags",
@@ -71,6 +72,8 @@ export const componentStoryCoverage = {
 };
 
 export const componentExportStoryCoverage = {
+  MobileAvatar: "android-components-feature-cards--avatar-fallbacks",
+  MobileMediaCardContent: "android-components-feature-cards--stream-cards",
   MobileButton: "android-components-button--all-variants",
   MobileFilterChip: "android-components-primitives--filter-chips",
   MobileTag: "android-components-primitives--tags",

@@ -4,15 +4,17 @@ import {
   CircleUserRound,
   Download,
   Heart,
+  House,
+  Grid3X3,
+  LayoutDashboard,
   History,
-  LayoutGrid,
-  Menu,
-  Play,
+  Ellipsis,
   Search,
-  Settings,
   Shield,
   type LucideIcon,
 } from "lucide-react-native";
+import type { ComponentType } from "react";
+import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 import { StyleSheet, Text, View } from "react-native";
 
 import { mobileColors, mobileRadii, mobileSizing } from "@mobile/design/tokens";
@@ -23,23 +25,23 @@ import { MORE_ROUTE_IDS } from "../domain/shell-navigation";
 const destinationIcons: Readonly<Record<ShellDestinationId, LucideIcon>> = {
   search: Search,
   following: Heart,
-  watch: Play,
+  watch: House,
   activity: Bell,
-  more: Menu,
+  more: Ellipsis,
 };
 
 /** Electron sidebar / settings iconography mirrored for the More hub cards. */
 export const moreRouteIcons = {
-  "more/categories": LayoutGrid,
+  "more/categories": Grid3X3,
   "more/history": History,
   "more/downloads": Download,
   "more/moderation": Shield,
-  "more/multistream": LayoutGrid,
-  "more/settings": Settings,
+  "more/multistream": LayoutDashboard,
+  "more/settings": MobileSettingsIcon,
   "more/diagnostics": Activity,
   "more/accounts": CircleUserRound,
 } as const satisfies Readonly<
-  Record<(typeof MORE_ROUTE_IDS)[number], LucideIcon>
+  Record<(typeof MORE_ROUTE_IDS)[number], ComponentType<{ readonly color: string; readonly size: number }>>
 >;
 
 export type MoreHubRouteId = (typeof MORE_ROUTE_IDS)[number];
@@ -59,7 +61,6 @@ export function MoreRouteIcon({
       accessibilityElementsHidden
       color={color}
       size={size}
-      strokeWidth={2}
     />
   );
 }
@@ -71,10 +72,12 @@ export function formatActivityUnreadBadge(unreadCount: number): string {
 export function DestinationIcon({
   color,
   destination,
+  selected = false,
   unreadCount = 0,
 }: {
   readonly color: string;
   readonly destination: ShellDestinationId;
+  readonly selected?: boolean;
   readonly unreadCount?: number;
 }) {
   const Icon = destinationIcons[destination];
@@ -84,8 +87,8 @@ export function DestinationIcon({
       <Icon
         accessibilityElementsHidden
         color={color}
-        size={mobileSizing.icon}
-        strokeWidth={2}
+        size={22}
+        strokeWidth={selected ? 2.4 : 1.7}
       />
       {showBadge ? (
         <View

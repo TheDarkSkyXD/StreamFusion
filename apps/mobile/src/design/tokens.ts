@@ -7,7 +7,7 @@ export const mobileColors = {
   surfaceRaised: "#2d2d2d",
   navigationSelected: "#404040",
   border: "#333333",
-  live: "#dc143c",
+  live: "#dc2626",
   danger: "#dc143c",
   textPrimary: "#ffffff",
   textSecondary: "#a0a0a0",

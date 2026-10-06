@@ -1,13 +1,7 @@
 import { useState } from "react";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
+import { MobileBottomSheet } from "./bottom-sheet";
 
 import { selectionHaptic } from "./haptics";
 import {
@@ -76,78 +70,59 @@ export function MobileSelect<T extends string>({
         >
           {selectedLabel}
         </Text>
-        <ChevronDown color={mobileColors.textSecondary} size={inline ? 16 : 18} />
+        <ChevronDown
+          color={mobileColors.textSecondary}
+          size={inline ? 16 : 18}
+        />
       </Pressable>
-      <Modal
-        animationType="slide"
-        onRequestClose={() => setOpen(false)}
-        transparent
+      <MobileBottomSheet
+        onDismiss={() => setOpen(false)}
+        size="selection"
+        title={accessibilityLabel}
+        testID={testID}
         visible={open}
       >
-        <View style={styles.backdrop}>
-          <Pressable
-            accessibilityLabel={`Dismiss ${accessibilityLabel}`}
-            onPress={() => setOpen(false)}
-            style={StyleSheet.absoluteFill}
-            testID={`${testID}-dismiss`}
-          />
-          <View
-            accessibilityLabel={accessibilityLabel}
-            style={styles.sheet}
-            testID={`${testID}-menu`}
-          >
-            <View style={styles.sheetHandle} />
-            <Text selectable style={styles.menuTitle}>
-              {accessibilityLabel}
-            </Text>
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              style={styles.menuScroll}
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <Pressable
+              accessibilityLabel={option.label}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              key={option.value}
+              onPress={() => {
+                if (option.value !== value) {
+                  void selectionHaptic();
+                }
+                onChange(option.value);
+                setOpen(false);
+              }}
+              style={({ pressed }) => [
+                styles.option,
+                active ? styles.optionActive : null,
+                pressed ? styles.optionPressed : null,
+              ]}
+              testID={`${testID}-option-${option.value}`}
             >
-              {options.map((option) => {
-                const active = option.value === value;
-                return (
-                  <Pressable
-                    accessibilityLabel={option.label}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    key={option.value}
-                    onPress={() => {
-                      if (option.value !== value) {
-                        void selectionHaptic();
-                      }
-                      onChange(option.value);
-                      setOpen(false);
-                    }}
-                    style={({ pressed }) => [
-                      styles.option,
-                      active ? styles.optionActive : null,
-                      pressed ? styles.optionPressed : null,
-                    ]}
-                    testID={`${testID}-option-${option.value}`}
-                  >
-                    <Text
-                      selectable
-                      style={[
-                        styles.optionLabel,
-                        active ? styles.optionLabelActive : null,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    {active ? (
-                      <View
-                        accessibilityLabel="Selected"
-                        style={styles.selectedDot}
-                      />
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+              <Text
+                selectable
+                style={[
+                  styles.optionLabel,
+                  active ? styles.optionLabelActive : null,
+                ]}
+              >
+                {option.label}
+              </Text>
+              {active ? (
+                <View
+                  accessibilityLabel="Selected"
+                  style={styles.selectedDot}
+                />
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </MobileBottomSheet>
     </View>
   );
 }
@@ -162,7 +137,7 @@ const styles = StyleSheet.create({
   },
   trigger: {
     alignItems: "center",
-    backgroundColor: mobileColors.surface,
+    backgroundColor: mobileColors.surfaceMuted,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.medium,
     borderWidth: 1,
@@ -205,41 +180,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "right",
   },
-  backdrop: {
-    backgroundColor: mobileColors.overlay,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderTopLeftRadius: mobileRadii.large,
-    borderTopRightRadius: mobileRadii.large,
-    borderTopWidth: 1,
-    maxHeight: mobileSelectSheetMaxHeight,
-    paddingBottom: mobileSpacing.large,
-    paddingTop: mobileSpacing.small,
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    backgroundColor: mobileColors.border,
-    borderRadius: 999,
-    height: 4,
-    marginBottom: mobileSpacing.small,
-    width: 36,
-  },
-  menuTitle: {
-    color: mobileColors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-    lineHeight: 16,
-    paddingBottom: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.medium,
-  },
-  menuScroll: {
-    flexGrow: 0,
-  },
   option: {
     alignItems: "center",
     flexDirection: "row",
@@ -270,7 +210,7 @@ const styles = StyleSheet.create({
   selectedDot: {
     // Keep module-init styles on direct colors/literals so HMR cannot observe a nested token as undefined.
     backgroundColor: mobileColors.textPrimary,
-    borderRadius: mobileRadii.full,
+    borderRadius: 5,
     height: 10,
     width: 10,
   },

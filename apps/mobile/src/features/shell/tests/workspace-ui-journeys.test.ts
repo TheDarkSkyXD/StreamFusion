@@ -131,9 +131,9 @@ describe("workspace UI journeys", () => {
       "more/downloads",
       "more/moderation",
       "more/multistream",
+      "more/accounts",
       "more/settings",
       "more/diagnostics",
-      "more/accounts",
     ]);
     expect(MORE_ROUTE_IDS.includes("more/categories")).toBe(true);
     expect(SHELL_ROUTES.watch.id).toBe("watch");

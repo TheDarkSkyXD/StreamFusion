@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileButton } from "@mobile/design/button";
+import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
+import { MobileTextField } from "@mobile/design/text-input";
 import {
   mobileColors,
   mobileRadii,
@@ -248,90 +250,95 @@ function ChatPanelBody({
         ))}
       </ScrollView>
       {selected ? (
-        <View style={styles.menu} testID="chat-user-actions">
-          <Text style={mobileType.title}>{selected.displayName}</Text>
-          <View style={styles.actions}>
-            {!recorded && !readOnly ? (
+        <MobileBottomSheet
+          visible
+          title={selected.displayName}
+          onDismiss={() => setSelected(null)}
+        >
+          <View style={styles.menu} testID="chat-user-actions">
+            <View style={styles.actions}>
+              {!recorded && !readOnly ? (
+                <MobileButton
+                  accessibilityLabel="Reply to message"
+                  disabled={view.access !== "ready"}
+                  onPress={() => {
+                    setReply(selected);
+                    setSelected(null);
+                  }}
+                  testID="chat-reply"
+                  variant="secondary"
+                >
+                  Reply
+                </MobileButton>
+              ) : null}
+              {!recorded && !readOnly ? (
+                <MobileButton
+                  accessibilityLabel="Mention user"
+                  onPress={() => {
+                    setDraft(
+                      (value) =>
+                        `${value}${value ? " " : ""}@${selected.username ?? selected.displayName} `,
+                    );
+                    setSelected(null);
+                  }}
+                  testID="chat-mention"
+                  variant="secondary"
+                >
+                  Mention
+                </MobileButton>
+              ) : null}
+              {interactions && !readOnly ? (
+                <MobileButton
+                  accessibilityLabel={
+                    platform === "kick" ? "Block on Kick" : "Block user"
+                  }
+                  onPress={() => {
+                    void interactions.userAction(selected, "block");
+                    setSelected(null);
+                  }}
+                  testID="chat-block"
+                  variant="secondary"
+                >
+                  {platform === "kick" ? "Block on Kick" : "Block user"}
+                </MobileButton>
+              ) : null}
+              {interactions ? (
+                <MobileButton
+                  accessibilityLabel="Report on platform"
+                  onPress={() => {
+                    void interactions.userAction(selected, "report");
+                    setSelected(null);
+                  }}
+                  testID="chat-report"
+                  variant="secondary"
+                >
+                  Report on platform
+                </MobileButton>
+              ) : null}
+              {onModerateMessage && !readOnly ? (
+                <MobileButton
+                  accessibilityLabel="Open moderation for user"
+                  onPress={() => {
+                    onModerateMessage(selected);
+                    setSelected(null);
+                  }}
+                  testID="chat-moderate"
+                  variant="secondary"
+                >
+                  Moderate
+                </MobileButton>
+              ) : null}
               <MobileButton
-                accessibilityLabel="Reply to message"
-                disabled={view.access !== "ready"}
-                onPress={() => {
-                  setReply(selected);
-                  setSelected(null);
-                }}
-                testID="chat-reply"
-                variant="secondary"
+                accessibilityLabel="Close user actions"
+                onPress={() => setSelected(null)}
+                testID="chat-user-close"
+                variant="ghost"
               >
-                Reply
+                Close
               </MobileButton>
-            ) : null}
-            {!recorded && !readOnly ? (
-              <MobileButton
-                accessibilityLabel="Mention user"
-                onPress={() => {
-                  setDraft(
-                    (value) =>
-                      `${value}${value ? " " : ""}@${selected.username ?? selected.displayName} `,
-                  );
-                  setSelected(null);
-                }}
-                testID="chat-mention"
-                variant="secondary"
-              >
-                Mention
-              </MobileButton>
-            ) : null}
-            {interactions && !readOnly ? (
-              <MobileButton
-                accessibilityLabel={
-                  platform === "kick" ? "Block on Kick" : "Block user"
-                }
-                onPress={() => {
-                  void interactions.userAction(selected, "block");
-                  setSelected(null);
-                }}
-                testID="chat-block"
-                variant="secondary"
-              >
-                {platform === "kick" ? "Block on Kick" : "Block user"}
-              </MobileButton>
-            ) : null}
-            {interactions ? (
-              <MobileButton
-                accessibilityLabel="Report on platform"
-                onPress={() => {
-                  void interactions.userAction(selected, "report");
-                  setSelected(null);
-                }}
-                testID="chat-report"
-                variant="secondary"
-              >
-                Report on platform
-              </MobileButton>
-            ) : null}
-            {onModerateMessage && !readOnly ? (
-              <MobileButton
-                accessibilityLabel="Open moderation for user"
-                onPress={() => {
-                  onModerateMessage(selected);
-                  setSelected(null);
-                }}
-                testID="chat-moderate"
-                variant="secondary"
-              >
-                Moderate
-              </MobileButton>
-            ) : null}
-            <MobileButton
-              accessibilityLabel="Close user actions"
-              onPress={() => setSelected(null)}
-              testID="chat-user-close"
-              variant="ghost"
-            >
-              Close
-            </MobileButton>
+            </View>
           </View>
-        </View>
+        </MobileBottomSheet>
       ) : null}
       {recorded && interactions ? (
         <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
@@ -363,45 +370,50 @@ function ChatPanelBody({
             </Text>
           ) : null}
           {picker ? (
-            <View style={styles.menu} testID="chat-emote-picker">
-              <TextInput
-                accessibilityLabel="Search emotes"
-                placeholder="Search emotes"
-                placeholderTextColor={mobileColors.textSecondary}
-                value={query}
-                onChangeText={setQuery}
-                style={styles.input}
-                testID="chat-emote-search"
-              />
-              <Text style={mobileType.caption}>{view.emoteDetail}</Text>
-              <ScrollView
-                style={styles.picker}
-                contentContainerStyle={styles.emoteGrid}
-              >
-                {matches.map((emote) => (
-                  <Pressable
-                    key={`${emote.provider}:${emote.id}:${emote.name}`}
-                    accessibilityLabel={`${emote.name} (${emote.provider})`}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setDraft(
-                        (value) =>
-                          `${value}${value ? " " : ""}${emote.insertion} `,
-                      );
-                      setPicker(false);
-                    }}
-                    style={styles.emoteChoice}
-                  >
-                    <Image
-                      accessibilityLabel={emote.name}
-                      source={{ uri: emote.imageUrl }}
-                      style={styles.emote}
-                    />
-                    <Text style={mobileType.caption}>{emote.name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
+            <MobileBottomSheet
+              visible
+              title="Emotes"
+              size="expanded"
+              onDismiss={() => setPicker(false)}
+            >
+              <View style={styles.menu} testID="chat-emote-picker">
+                <MobileTextField
+                  label="Search emotes"
+                  placeholder="Search emotes"
+                  value={query}
+                  onChange={setQuery}
+                  testID="chat-emote-search"
+                />
+                <Text style={mobileType.caption}>{view.emoteDetail}</Text>
+                <ScrollView
+                  style={styles.picker}
+                  contentContainerStyle={styles.emoteGrid}
+                >
+                  {matches.map((emote) => (
+                    <Pressable
+                      key={`${emote.provider}:${emote.id}:${emote.name}`}
+                      accessibilityLabel={`${emote.name} (${emote.provider})`}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setDraft(
+                          (value) =>
+                            `${value}${value ? " " : ""}${emote.insertion} `,
+                        );
+                        setPicker(false);
+                      }}
+                      style={styles.emoteChoice}
+                    >
+                      <Image
+                        accessibilityLabel={emote.name}
+                        source={{ uri: emote.imageUrl }}
+                        style={styles.emote}
+                      />
+                      <Text style={mobileType.caption}>{emote.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            </MobileBottomSheet>
           ) : null}
           <TextInput
             accessibilityLabel="Chat message"

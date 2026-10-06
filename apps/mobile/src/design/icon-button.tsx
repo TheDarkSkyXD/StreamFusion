@@ -6,23 +6,29 @@ import { mobileColors, mobileRadii, mobileSizing } from "./tokens";
 export function MobileIconButton({
   children,
   disabled = false,
+  hint,
   label,
   onPress,
   selected = false,
+  testID,
 }: {
   readonly children: ReactNode;
   readonly disabled?: boolean;
+  readonly hint?: string;
   readonly label: string;
   readonly onPress: () => void;
   readonly selected?: boolean;
+  readonly testID?: string;
 }) {
   return (
     <Pressable
+      accessibilityHint={hint}
       accessibilityLabel={label}
       accessibilityRole="button"
       accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
+      testID={testID}
       style={({ pressed }) => [
         styles.button,
         pressed || selected ? styles.active : null,

@@ -1,4 +1,10 @@
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
+} from "react-native";
 
 import {
   mobileColors,
@@ -10,29 +16,41 @@ import {
 
 export function MobileTextField({
   disabled = false,
+  autoCapitalize,
+  autoCorrect,
   error,
   hint,
   label,
+  keyboardType,
   multiline = false,
   onChange,
   placeholder,
   secure = false,
+  testID,
   value,
 }: {
   readonly disabled?: boolean;
+  readonly autoCapitalize?: TextInputProps["autoCapitalize"];
+  readonly autoCorrect?: boolean;
   readonly error?: string;
   readonly hint?: string;
   readonly label: string;
+  readonly keyboardType?: TextInputProps["keyboardType"];
   readonly multiline?: boolean;
   readonly onChange: (value: string) => void;
   readonly placeholder?: string;
   readonly secure?: boolean;
+  readonly testID?: string;
   readonly value: string;
 }) {
   return (
     <View style={styles.wrap}>
       <Text style={mobileType.label}>{label}</Text>
       <TextInput
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        keyboardType={keyboardType}
+        testID={testID}
         accessibilityLabel={label}
         {...(error || hint ? { accessibilityHint: error ?? hint } : {})}
         editable={!disabled}

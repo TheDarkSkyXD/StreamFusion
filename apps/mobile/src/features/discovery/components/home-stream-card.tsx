@@ -49,7 +49,6 @@ export function HomeStreamCard({
 const styles = StyleSheet.create({
   card: {
     ...mobilePressRing.rest,
-    backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
     overflow: "hidden",
   },

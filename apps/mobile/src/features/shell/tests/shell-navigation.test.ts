@@ -17,6 +17,12 @@ import {
   shellNavigationReducer,
 } from "@mobile/features/shell/domain/shell-navigation";
 
+const previewChannel = {
+  platform: "twitch",
+  id: "123",
+  username: "aurora",
+} as const;
+
 describe("adaptive app shell", () => {
   it("defines exactly the approved static destinations in order", () => {
     expect(SHELL_DESTINATIONS.map(({ id }) => id)).toEqual([
@@ -50,7 +56,7 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      location: { route: "search/result-preview" },
+      location: { route: "search/result-preview", channel: previewChannel },
     });
     state = shellNavigationReducer(state, {
       type: "navigate",
@@ -109,7 +115,7 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      location: { route: "search/result-preview" },
+      location: { route: "search/result-preview", channel: previewChannel },
     });
     state = shellNavigationReducer(state, { type: "back" });
 
@@ -122,7 +128,7 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      location: { route: "following/channel-preview" },
+      location: { route: "following/channel-preview", channel: previewChannel },
     });
     state = shellNavigationReducer(state, {
       type: "navigate",
@@ -157,6 +163,7 @@ describe("adaptive app shell", () => {
 
     expect(getActiveShellLocation(state)).toEqual({
       route: "following/channel-preview",
+      channel: previewChannel,
     });
     expect(state.histories.watch.trail).toMatchObject([
       { route: "watch/session-preview", target: { channelLogin: "second" } },
@@ -249,7 +256,7 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      location: { route: "following/channel-preview" },
+      location: { route: "following/channel-preview", channel: previewChannel },
     });
     state = shellNavigationReducer(state, {
       type: "select",
@@ -477,6 +484,57 @@ describe("adaptive app shell", () => {
     });
   });
 
+  it.each(["search/result-preview", "following/channel-preview"] as const)(
+    "restores %s with the selected channel and its destination",
+    (route) => {
+      const opened = shellNavigationReducer(
+        createInitialShellNavigationState(),
+        {
+          type: "navigate",
+          location: {
+            route,
+            channel: { platform: "kick", id: "42", username: "atlas" },
+          },
+        },
+      );
+      const restored = restoreShellNavigationState(
+        serializeShellNavigationState(opened),
+      );
+      expect(restored.kind).toBe("restored");
+      expect(getActiveShellLocation(restored.state)).toEqual({
+        route,
+        channel: { platform: "kick", id: "42", username: "atlas" },
+      });
+      expect(
+        resolveShellHeaderCopy(
+          getActiveShellLocation(restored.state),
+          getActiveShellRoute(restored.state),
+        ).title,
+      ).toBe("atlas");
+      expect(restored.state.activeDestination).toBe(
+        route === "search/result-preview" ? "search" : "following",
+      );
+    },
+  );
+
+  it("rejects a restored channel preview without its selected channel", () => {
+    const restored = restoreShellNavigationState(
+      JSON.stringify({
+        version: 1,
+        activeDestination: "search",
+        watchReturnDestination: "search",
+        histories: {
+          search: [{ route: "search/result-preview" }],
+          following: [],
+          watch: [],
+          activity: [],
+          more: [],
+        },
+      }),
+    );
+    expect(restored).toMatchObject({ kind: "fallback", reason: "corrupt" });
+  });
+
   it("restores category detail including names with spaces", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
@@ -544,16 +602,16 @@ describe("adaptive app shell", () => {
     ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
-  it("keeps Categories on More cards while Accounts stay last without a Home entry", () => {
+  it("groups Accounts before app settings and diagnostics in More", () => {
     expect(MORE_ROUTE_IDS).toEqual([
       "more/categories",
       "more/history",
       "more/downloads",
       "more/moderation",
       "more/multistream",
+      "more/accounts",
       "more/settings",
       "more/diagnostics",
-      "more/accounts",
     ]);
     expect(MORE_ROUTE_IDS.includes("more/categories")).toBe(true);
     expect(MORE_ROUTE_IDS.includes("more/home" as never)).toBe(false);

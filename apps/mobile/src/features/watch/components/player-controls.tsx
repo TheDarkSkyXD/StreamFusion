@@ -30,7 +30,7 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 
-import { PlayerSettingsIcon } from "./player-icons";
+import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 
 const RAIL_ICON = 26;
 const RAIL_HIT = 48;
@@ -271,7 +271,7 @@ export function PlayerControls({
                   ]}
                   testID="player-quality"
                 >
-                  <PlayerSettingsIcon />
+                  <MobileSettingsIcon />
                 </Pressable>
                 {showFullscreen ? (
                   <IconControl
