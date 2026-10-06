@@ -3,9 +3,9 @@ import {
   ArrowLeft,
   Bell,
   Ellipsis,
-  Radio,
+  House,
   Search,
-  Users,
+  Heart,
 } from "lucide-react-native";
 import {
   KeyboardAvoidingView,
@@ -30,8 +30,8 @@ import {
 
 const destinations = [
   { id: "search", label: "Search", icon: Search },
-  { id: "following", label: "Following", icon: Users },
-  { id: "watch", label: "Watch", icon: Radio },
+  { id: "following", label: "Following", icon: Heart },
+  { id: "watch", label: "Home", icon: House },
   { id: "activity", label: "Activity", icon: Bell },
   { id: "more", label: "More", icon: Ellipsis },
 ] as const;

@@ -1,6 +1,9 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { asMediaJobId, createQueuedMediaJobSnapshot } from "@streamfusion/core/media-jobs";
+import {
+  asMediaJobId,
+  createQueuedMediaJobSnapshot,
+} from "@streamfusion/core/media-jobs";
 import { toSerializedTimestamp } from "@streamfusion/core/activity";
 import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
@@ -17,7 +20,10 @@ import {
   SHELL_DESTINATIONS,
   SHELL_ROUTES,
 } from "@mobile/features/shell/domain/shell-navigation";
-import { WatchEmptyState, WatchScreen } from "@mobile/features/watch/components/watch-screen";
+import {
+  WatchEmptyState,
+  WatchScreen,
+} from "@mobile/features/watch/components/watch-screen";
 
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, options?: Record<string, unknown>) => {
@@ -32,7 +38,8 @@ vi.mock("@mobile/design/select", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => i18nTest.t(key, options),
+    t: (key: string, options?: Record<string, unknown>) =>
+      i18nTest.t(key, options),
     i18n: { language: "en", resolvedLanguage: "en" },
   }),
 }));
@@ -43,6 +50,12 @@ vi.mock("react-native-safe-area-context", () => ({
 
 vi.mock("lucide-react-native", () => ({
   Bell: "Bell",
+  Maximize: "Maximize",
+  Captions: "Captions",
+  Download: "Download",
+  Ellipsis: "Ellipsis",
+  Heart: "Heart",
+  ArrowLeft: "ArrowLeft",
   BriefcaseBusiness: "BriefcaseBusiness",
   ChevronRight: "ChevronRight",
   CircleAlert: "CircleAlert",
@@ -53,9 +66,14 @@ vi.mock("react", async () => {
   return {
     ...actual,
     useEffect: vi.fn(),
+    useMemo: (factory: () => unknown) => factory(),
     useRef: () => ({ current: null }),
-    useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
-    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
+    useState: (initial: unknown) => [
+      typeof initial === "function" ? initial() : initial,
+      vi.fn(),
+    ],
+    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
+      snapshot(),
   };
 });
 
@@ -82,7 +100,10 @@ function descendants(node: unknown): readonly Element[] {
         : null;
   if (component) return [element, ...descendants(component(element.props))];
   const children = element.props.children;
-  return [element, ...(Array.isArray(children) ? children : [children]).flatMap(descendants)];
+  return [
+    element,
+    ...(Array.isArray(children) ? children : [children]).flatMap(descendants),
+  ];
 }
 
 function press(nodes: readonly Element[], testID: string): void {
@@ -138,7 +159,9 @@ describe("workspace UI journeys", () => {
     expect(MORE_ROUTE_IDS.includes("more/categories")).toBe(true);
     expect(SHELL_ROUTES.watch.id).toBe("watch");
     expect(SHELL_ROUTES["following/manage"].id).toBe("following/manage");
-    expect(SHELL_ROUTES["activity/job-preview"].id).toBe("activity/job-preview");
+    expect(SHELL_ROUTES["activity/job-preview"].id).toBe(
+      "activity/job-preview",
+    );
   });
 
   it("retries Following live failure and starts Watch plus live chat retry", () => {
@@ -167,7 +190,9 @@ describe("workspace UI journeys", () => {
     press(watch, "watch-chat-retry");
     expect(started).toEqual(["chat"]);
     expect(
-      descendants(WatchEmptyState()).some((node) => node.props.testID === "watch-empty"),
+      descendants(WatchEmptyState()).some(
+        (node) => node.props.testID === "watch-empty",
+      ),
     ).toBe(true);
   });
 
@@ -257,9 +282,9 @@ describe("workspace UI journeys", () => {
     press(job, "media-job-command-cancel");
     expect(commands).toEqual(["cancel"]);
     expect(
-      descendants(MediaJobScreen({ onCommand: () => undefined, snapshot: null })).some(
-        (node) => node.props.testID === "media-job-missing",
-      ),
+      descendants(
+        MediaJobScreen({ onCommand: () => undefined, snapshot: null }),
+      ).some((node) => node.props.testID === "media-job-missing"),
     ).toBe(true);
     const diagnostics = descendants(
       DiagnosticsWorkspace({

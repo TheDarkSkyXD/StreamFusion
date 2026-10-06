@@ -130,7 +130,7 @@ function TabRow({
           accessibilityLabel={`${tab} tab`}
           accessibilityRole="tab"
           key={tab}
-          label={tab.toUpperCase()}
+          label={tab === "live" ? "Live Streams" : tab === "clips" ? "Clips" : "Videos"}
           onPress={() =>
             onChangeIdentity({
               ...defaultCategoryRequest(

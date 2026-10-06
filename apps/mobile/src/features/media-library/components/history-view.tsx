@@ -80,7 +80,7 @@ export function HistoryView({
           testID="history-clear"
           variant="ghost"
         >
-          Clear
+          Clear History
         </MobileButton>
       ) : null}
       <MobileTextField
@@ -158,7 +158,7 @@ function HistoryConfirmation({
 }) {
   const message =
     confirmation.kind === "clear"
-      ? "Clear Watch History on this device?"
+      ? "Are you sure you want to clear your watch history?"
       : `Remove ${confirmation.title} from History?`;
   return (
     <View style={styles.confirm} testID="history-confirmation">
@@ -172,7 +172,7 @@ function HistoryConfirmation({
           testID="history-confirm"
           variant="primary"
         >
-          Confirm
+          {confirmation.kind === "clear" ? "Clear History" : "Remove from history"}
         </MobileButton>
         <MobileButton
           accessibilityLabel="Cancel history change"
@@ -216,7 +216,7 @@ function HistoryStatusNotice({
     return (
       <MobileStatusPanel testID="history-empty" tone="empty">
         <Text selectable style={styles.summary}>
-          Nothing watched yet.
+          No watch history yet
         </Text>
       </MobileStatusPanel>
     );

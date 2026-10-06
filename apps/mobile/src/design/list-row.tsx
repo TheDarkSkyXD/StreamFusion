@@ -120,9 +120,7 @@ export function MobileSwitchRow({
         disabled={disabled}
         onValueChange={onChange}
         value={value}
-        thumbColor={
-          value ? "#121214" : mobileColors.textPrimary
-        }
+        thumbColor={value ? "#121214" : mobileColors.textPrimary}
         trackColor={{
           false: "#18181b",
           true: "#e4e4e7",

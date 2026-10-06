@@ -2,6 +2,9 @@ import type { TextStyle } from "react-native";
 
 export const mobileColors = {
   background: "#0f0f0f",
+  moderationBackground: "#0e0e10",
+  moderationSurface: "#18181b",
+  moderationHeader: "#252529",
   surface: "#1a1a1a",
   surfaceMuted: "#252525",
   surfaceRaised: "#2d2d2d",

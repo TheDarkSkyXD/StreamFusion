@@ -3,10 +3,9 @@ import {
   Captions,
   Download,
   Ellipsis,
-  Expand,
+  Maximize,
   Heart,
   MessageCircle,
-  Settings,
   Smile,
   Volume2,
   X,
@@ -25,6 +24,7 @@ import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileDialog } from "@mobile/design/dialog";
+import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileListRow } from "@mobile/design/list-row";
 import { MobileListState } from "@mobile/design/list-state";
@@ -304,16 +304,16 @@ export function WatchMockup({
       </View>
       <View style={styles.toolbar}>
         <MobileIconButton
-          label="Volume and quality"
+          label="Settings"
           onPress={() => setSheet("controls")}
         >
-          <Settings color={colors.textPrimary} size={22} />
+          <MobileSettingsIcon color={colors.textPrimary} size={22} />
         </MobileIconButton>
         <MobileIconButton
           label="Fullscreen"
           onPress={() => setFullscreen(true)}
         >
-          <Expand color={colors.textPrimary} size={22} />
+          <Maximize color={colors.textPrimary} size={22} />
         </MobileIconButton>
         <MobileIconButton
           label="Captions"
@@ -376,12 +376,12 @@ export function WatchMockup({
               onPlay={() => setPlaying(!playing)}
             />
             <MobileButton
-              accessibilityLabel="Expand mini-player"
+              accessibilityLabel="Maximize mini-player"
               onPress={() => setMinimized(false)}
               testID="expand-mini"
               variant="ghost"
             >
-              Expand aurora
+              Maximize aurora
             </MobileButton>
           </View>
         </PreviewFrame>
@@ -420,7 +420,7 @@ export function WatchMockup({
               label="Minimize player"
               onPress={() => setMinimized(true)}
             >
-              <Expand color={colors.textPrimary} size={22} />
+              <Maximize color={colors.textPrimary} size={22} />
             </MobileIconButton>
           }
         >
@@ -459,7 +459,7 @@ export function WatchMockup({
       <MobileBottomSheet
         title={
           sheet === "controls"
-            ? "Player settings"
+            ? "Settings"
             : sheet === "emotes"
               ? "Emotes"
               : sheet === "user"

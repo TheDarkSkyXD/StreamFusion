@@ -40,6 +40,8 @@ export function MobileBottomSheet({
   return (
     <Modal
       animationType="none"
+      hardwareAccelerated
+      navigationBarTranslucent
       onRequestClose={onDismiss}
       transparent
       visible={visible}

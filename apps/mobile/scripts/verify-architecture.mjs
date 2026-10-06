@@ -37,6 +37,7 @@ const cases = [
   ["src/design/architecture-proof-component.ts", "export const proof = true;\n", true],
   ["src/features/design-preview/components/architecture-proof-preview.ts", 'import "../../../design/architecture-proof-component";\n', true],
   ["src/design/architecture-proof.stories.tsx", 'import "../features/design-preview/components/architecture-proof-preview";\n', true],
+  [".storybook/architecture-proof-translations.tsx", 'import "../src/i18n";\n', true],
   [".storybook/architecture-proof.tsx", 'import "../src/design/architecture-proof-component";\n', true],
   ["src/design/architecture-proof-story-alias.ts", 'import "@mobile/design/architecture-proof.stories";\n', false],
   ["src/design/architecture-proof-story-relative.ts", 'import "./architecture-proof.stories";\n', false],

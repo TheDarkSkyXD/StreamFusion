@@ -570,9 +570,15 @@ export function MobileRuntime() {
       }),
     [platformAccess],
   );
+  const moderationChatRuntime = useMemo(
+    () => createChatRuntime({ access: platformAccess, fetch: connectivitySession.fetch, openUrl: async (url) => { await Linking.openURL(url); } }),
+    [platformAccess],
+  );
+  useEffect(() => () => { moderationChatRuntime.chat.dispose(); moderationChatRuntime.interactions.dispose(); }, [moderationChatRuntime]);
   const moderation = useMemo(
     () =>
       createModerationRuntime({
+        productSettings: persistenceRuntime.productState.settings,
         access: platformAccess,
         fetch: connectivitySession.fetch,
       }),
@@ -688,12 +694,13 @@ export function MobileRuntime() {
         >
           <AppShell
             moderation={moderation}
+            moderationChat={moderationChatRuntime}
             engagement={engagement}
             workflowNavigation={workflowNavigation}
-            onRequestPlatformScopes={(platform) => {
+            onRequestPlatformScopes={(platform, scopes) => {
               if (platform === "twitch") {
                 setUseDevelopmentTwitchFixture(false);
-                void productionTwitchController.connect();
+                void productionTwitchController.connect(scopes);
               } else {
                 setUseDevelopmentKickFixture(false);
                 void productionKickController.connect();

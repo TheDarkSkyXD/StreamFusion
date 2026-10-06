@@ -38,6 +38,7 @@ export function createWatchChatSession(input: {
   let snapshot: WatchChatAvailability = CONNECTING;
   let messages: readonly WatchChatMessage[] = [];
   let disposeConnection: (() => void) | null = null;
+  let publicationTimer: ReturnType<typeof setTimeout> | undefined;
   let generation = 0;
   let attached: WatchChatConnectInput | null = null;
   const listeners = new Set<() => void>();
@@ -54,6 +55,8 @@ export function createWatchChatSession(input: {
     emit();
   };
   const disconnect = () => {
+    clearTimeout(publicationTimer);
+    publicationTimer = undefined;
     disposeConnection?.();
     disposeConnection = null;
   };
@@ -98,14 +101,20 @@ export function createWatchChatSession(input: {
               ),
             };
       messages = appendWatchChatMessage(messages, resolved);
-      setSnapshot({
-        detail: "Chat is live.",
-        kind: "live",
-        messages,
-      });
+      if (publicationTimer !== undefined) return;
+      if (snapshot.kind !== "live") {
+        setSnapshot({ detail: "Chat is live.", kind: "live", messages });
+      }
+      publicationTimer = setTimeout(() => {
+        publicationTimer = undefined;
+        if (current !== generation) return;
+        setSnapshot({ detail: "Chat is live.", kind: "live", messages });
+      }, 250);
     };
     const onError = (detail: string) => {
       if (current !== generation) return;
+      clearTimeout(publicationTimer);
+      publicationTimer = undefined;
       setSnapshot({ detail, kind: "failed", retry: "manual" });
     };
     if (target.platform === "twitch") {

@@ -146,6 +146,9 @@ export function PlayerControls({
           >
             {seekable && progress ? (
               <ProgressScrubber
+                color={
+                  platform === "kick" ? mobileColors.kick : mobileColors.twitch
+                }
                 durationMs={progress.durationMs}
                 positionMs={progress.positionMs}
                 {...(onSeekTo === undefined ? {} : { onSeekTo })}
@@ -434,10 +437,12 @@ function IconControl({
 }
 
 function ProgressScrubber({
+  color,
   durationMs,
   onSeekTo,
   positionMs,
 }: {
+  readonly color: string;
   readonly durationMs: number;
   readonly onSeekTo?: (positionMs: number) => void;
   readonly positionMs: number;
@@ -472,7 +477,12 @@ function ProgressScrubber({
         testID="player-scrubber"
       >
         <View style={styles.scrubberTrack}>
-          <View style={[styles.scrubberFill, { width: `${ratio * 100}%` }]} />
+          <View
+            style={[
+              styles.scrubberFill,
+              { backgroundColor: color, width: `${ratio * 100}%` },
+            ]}
+          />
         </View>
         <View
           pointerEvents="none"
@@ -577,7 +587,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   scrubberFill: {
-    backgroundColor: mobileColors.twitchBright,
     height: "100%",
   },
   scrubberThumb: {

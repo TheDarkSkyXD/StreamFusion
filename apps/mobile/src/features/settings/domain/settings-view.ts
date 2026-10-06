@@ -25,7 +25,9 @@ export function composeSettingsView(input: {
   const matches = searchSettingsControls(query).filter(
     (match) => match.panel !== "multiview",
   );
-  const panels = settingsPanelsFor(matches).filter((panel) => panel !== "multiview");
+  const panels = settingsPanelsFor(matches).filter(
+    (panel) => panel !== "multiview",
+  );
   return {
     effective: composeEffectiveCopy(input.preferences),
     matches,
@@ -55,7 +57,9 @@ export function playbackSessionPolicy(
 export function composeEffectiveCopy(
   preferences: ProductPreferences,
 ): SettingsEffectiveCopy {
-  const language = getDisplayLanguage(resolveDisplayLanguage(preferences.language));
+  const language = getDisplayLanguage(
+    resolveDisplayLanguage(preferences.language),
+  );
   // Prefer the self-named / native label so Appearance clearly shows the active language.
   const languageLabel = language.nativeLabel;
   return {
@@ -64,11 +68,10 @@ export function composeEffectiveCopy(
       "Android maps these knobs to ExoPlayer LoadControl and live target offset. HLS.js buffer counts stay desktop-only.",
     captions: enabledCopy(
       preferences.captionsEnabled,
-      "Watch player does not show a closed-captions control yet.",
-      "Caption preference is saved; player CC chrome stays hidden until track-based CC ships.",
+      "Use Local captions in the player to install the English model and start captions.",
+      "Use Local captions in the player to start captions.",
     ),
-    carousel:
-      "Home carousel is not on this build. The interval is saved for when it ships.",
+    carousel: "Choose how long each featured stream appears on Home.",
     hevc: enabledCopy(
       preferences.allowHevc,
       "HEVC is preferred when the device decoder supports it.",
@@ -76,17 +79,16 @@ export function composeEffectiveCopy(
     ),
     language: `Interface language: ${languageLabel}.`,
     theme:
-      "Dark mode is the only appearance on this build. Light and system themes stay desktop-only until mobile light tokens ship.",
+      "Dark mode is available on mobile. Light and System are unavailable.",
     multiviewCap: `Configured cap is ${preferences.multiviewCap}. Measured active video can be lower.`,
     playerChrome:
-      "Speed, theater, and video stats stay unavailable until those capabilities ship. Hidden controls stay off Watch chrome.",
+      "Choose the player controls to display. Playback speed applies to videos and clips. Theater mode is unavailable on mobile.",
     restoreSession: enabledCopy(
       preferences.restoreSession,
-      "Prior More and Watch routes restore after relaunch. Watch still waits for Start watching.",
-      "Startup opens Home. Saved routes stay unused until restore is on.",
+      "Reopen your last screen. Playback starts when you select Start watching.",
+      "Open Home when starting StreamFusion.",
     ),
-    resumePlayback:
-      "Watch never autoplays after restore. Start watching stays explicit.",
+    resumePlayback: "Playback starts when you select Start watching.",
     tokenPlayer: "Native ExoPlayer is the only eligible player.",
   };
 }

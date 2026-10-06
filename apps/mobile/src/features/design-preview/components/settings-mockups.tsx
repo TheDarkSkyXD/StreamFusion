@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { ChevronRight, Settings } from "lucide-react-native";
 import { Text, View } from "react-native";
 
+import { SettingsTileRoute } from "@mobile/features/settings/components/settings-workspace";
 import { MobileButton } from "@mobile/design/button";
 import { MobileDialog } from "@mobile/design/dialog";
 import { MobileProgress, MobileSnackbar } from "@mobile/design/feedback";
 import { MobileListRow, MobileSwitchRow } from "@mobile/design/list-row";
 import { MobileSelect } from "@mobile/design/select";
 import { MobileTextField } from "@mobile/design/text-input";
-import { mobileColors as colors, mobileType } from "@mobile/design/tokens";
+import { mobileType } from "@mobile/design/tokens";
 import {
   SETTINGS_CATEGORIES,
   SETTINGS_CATEGORY_SECTIONS,
@@ -562,13 +562,9 @@ export function SettingsMockup({
                 {SETTINGS_CATEGORIES.filter(
                   (item) => item.section === section.id,
                 ).map((item) => (
-                  <MobileListRow
+                  <SettingsTileRoute
                     key={item.id}
-                    title={item.title}
-                    description={item.description}
-                    leading={
-                      <Settings color={colors.textSecondary} size={22} />
-                    }
+                    category={item}
                     onPress={() => {
                       if (item.id in panels) {
                         const match = Object.keys(panels).find(
@@ -577,9 +573,6 @@ export function SettingsMockup({
                         if (match) setSelected(match);
                       }
                     }}
-                    trailing={
-                      <ChevronRight color={colors.textSecondary} size={20} />
-                    }
                   />
                 ))}
               </View>

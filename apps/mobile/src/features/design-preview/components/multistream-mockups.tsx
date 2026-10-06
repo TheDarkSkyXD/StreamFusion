@@ -34,7 +34,7 @@ export function MultistreamMockup({
   return (
     <>
       <PreviewFrame
-        title="Multistream"
+        title="MultiView"
         subtitle="Android design proposal"
         destination="watch"
         headerAction={

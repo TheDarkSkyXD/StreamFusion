@@ -17,7 +17,10 @@ export function useChannelFollow(input: {
   readonly channel: ChannelIdentity;
   readonly displayName?: string;
   readonly enabled?: boolean;
-  readonly following: FollowingSession;
+  readonly following: Pick<
+    FollowingSession,
+    "listMembership" | "mutateFollow" | "openProviderPage"
+  >;
 }): {
   readonly follow: FollowView;
   readonly openProviderPage: () => void;
@@ -59,7 +62,9 @@ export function useChannelFollow(input: {
         queryClient,
         setError,
         setPending,
-        ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
+        ...(input.displayName === undefined
+          ? {}
+          : { displayName: input.displayName }),
       });
     },
   };
@@ -68,7 +73,10 @@ export function useChannelFollow(input: {
 async function mutateFollow(input: {
   readonly channel: ChannelIdentity;
   readonly displayName?: string;
-  readonly following: FollowingSession;
+  readonly following: Pick<
+    FollowingSession,
+    "listMembership" | "mutateFollow" | "openProviderPage"
+  >;
   readonly queryClient: ReturnType<typeof useQueryClient>;
   readonly setError: (reason: string | null) => void;
   readonly setPending: (pending: boolean) => void;

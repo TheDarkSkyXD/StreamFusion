@@ -82,22 +82,14 @@ export type WatchCaptionSession = {
   readonly status: string | null;
 };
 
-const INERT_FOLLOWING_SESSION = {
+const INERT_FOLLOWING_SESSION: Pick<
+  FollowingSession,
+  "listMembership" | "mutateFollow" | "openProviderPage"
+> = {
   listMembership: async () => [],
-  mutateFollow: async () => ({
-    kind: "rejected" as const,
-    reason: "invalid" as const,
-  }),
-  resolveChannel: async () => null,
-  hydrateLive: async () => ({
-    kick: { kind: "empty" },
-    twitch: { kind: "empty" },
-  }),
-  hydrateRecorded: async () => ({ kind: "empty" }),
-  readNotifications: async () => ({}) as never,
-  writeNotifications: async () => ({}) as never,
+  mutateFollow: async () => ({ kind: "rejected", reason: "invalid" }),
   openProviderPage: async () => {},
-} as unknown as FollowingSession;
+};
 
 export function WatchRoute({
   onOpenEngagement,
@@ -146,6 +138,9 @@ export function WatchRoute({
                 onOpenAccounts: discovery.onOpenAccounts,
                 onSelectStream: onOpenRelated,
                 session: discovery.session,
+                ...(playerPrefs === undefined
+                  ? {}
+                  : { carouselSeconds: playerPrefs.carouselSeconds }),
               },
             })}
         {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
@@ -385,6 +380,8 @@ function WatchSessionRoute({
               showFullscreen: playerPrefs.showFullscreen,
               showQuality: playerPrefs.showQuality,
               showVolume: playerPrefs.showVolume,
+              showSpeed: playerPrefs.showSpeed,
+              showVideoStats: playerPrefs.showVideoStats,
             },
             fastForwardSeconds: playerPrefs.fastForwardSeconds,
             rewindSeconds: playerPrefs.rewindSeconds,

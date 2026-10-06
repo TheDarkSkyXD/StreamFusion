@@ -4,6 +4,7 @@ import {
   SafeAreaProvider,
 } from "react-native-safe-area-context";
 import "./preview.css";
+import "@mobile/i18n";
 
 const androidInsets = { top: 24, right: 0, bottom: 24, left: 0 };
 

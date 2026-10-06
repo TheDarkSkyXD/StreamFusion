@@ -41,6 +41,8 @@ type Tool =
 export type ModerationScopeReturn = {
   readonly channel: ModerationChannel | null;
   readonly tool: WorkspaceTool | null;
+  readonly userId?: string;
+  readonly messageId?: string;
 };
 type ModWorkspaceProps = {
   readonly controller: ModerationController;
@@ -57,6 +59,7 @@ type ModWorkspaceProps = {
   readonly initialPlatform?: Platform;
   readonly initialChannel?: ModerationChannel;
   readonly initialUserId?: string;
+  readonly initialMessageId?: string;
   readonly initialTool?: WorkspaceTool;
   readonly renderChat?: (channel: ModerationChannel) => ReactNode;
   readonly onOpenEngagement?: (channel: ModerationChannel) => void;
@@ -116,6 +119,7 @@ function ModWorkspaceBody({
   snapshot,
   initialChannel,
   initialUserId = "",
+  initialMessageId = "",
   initialTool,
   onOpenEngagement,
   renderChat,
@@ -142,7 +146,9 @@ function ModWorkspaceBody({
     readonly command: ModerationCommand;
   } | null>(null);
   const [userId, setUserId] = useState(initialTarget);
-  const [messageId, setMessageId] = useState("");
+  const [messageId, setMessageId] = useState(
+    initialTarget ? initialMessageId : "",
+  );
   const [providerTool, setProviderTool] =
     useState<ProviderWorkspaceTool | null>(
       initialTool === "stream" ||
@@ -185,6 +191,8 @@ function ModWorkspaceBody({
         onRequestScopes(snapshot.platform, scopes, {
           channel: selection?.channel ?? null,
           tool: providerTool ?? tool,
+          userId,
+          messageId,
         })
       }
     />
@@ -778,13 +786,13 @@ function ChatSettingsForm({
 }
 const styles = StyleSheet.create({
   page: {
-    backgroundColor: mobileColors.background,
+    backgroundColor: mobileColors.moderationBackground,
     padding: mobileSpacing.medium,
     gap: mobileSpacing.medium,
   },
   row: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
   panel: {
-    backgroundColor: mobileColors.surface,
+    backgroundColor: mobileColors.moderationSurface,
     padding: mobileSpacing.medium,
     borderRadius: 12,
     gap: mobileSpacing.small,

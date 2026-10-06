@@ -1,4 +1,7 @@
-import { MOBILE_TWITCH_SCOPES } from "./mobile-twitch-scopes";
+import {
+  DEFAULT_MOBILE_TWITCH_SCOPES,
+  MOBILE_TWITCH_SCOPES,
+} from "./mobile-twitch-scopes";
 import {
   missingScopes,
   twitchAttemptId,
@@ -63,7 +66,8 @@ export type TwitchAccountSessionSnapshot =
 type CancelSignal = TwitchCancellationSignal & { cancel(): void };
 type Lease = {
   readonly epoch: number;
-  readonly kind: "restore" | "connect" | "poll" | "refresh" | "cancel" | "disconnect";
+  readonly kind:
+    "restore" | "connect" | "poll" | "refresh" | "cancel" | "disconnect";
   readonly attemptId?: TwitchAttemptId;
   readonly generation?: TwitchCredentialGeneration;
   readonly signal: CancelSignal;
@@ -71,7 +75,7 @@ type Lease = {
 
 export interface TwitchAccountSessionController {
   cancel(): Promise<void>;
-  connect(): Promise<void>;
+  connect(additionalScopes?: readonly string[]): Promise<void>;
   copyCode(): Promise<void>;
   disconnect(): Promise<void>;
   getSnapshot(): TwitchAccountSessionSnapshot;
@@ -154,7 +158,10 @@ export function createTwitchAccountSessionController(options: {
     return next;
   };
   const current = (owner: Lease) =>
-    foreground && lease === owner && owner.epoch === epoch && !owner.signal.aborted;
+    foreground &&
+    lease === owner &&
+    owner.epoch === epoch &&
+    !owner.signal.aborted;
   const projectCredential = (
     credential: TwitchCredential,
     owner: Lease,
@@ -191,11 +198,17 @@ export function createTwitchAccountSessionController(options: {
       () => {
         if (current(owner)) void reconcile();
       },
-      Math.max(0, Math.min(60 * 60 * 1_000, credential.expiresAtEpochMs - now())),
+      Math.max(
+        0,
+        Math.min(60 * 60 * 1_000, credential.expiresAtEpochMs - now()),
+      ),
     );
   };
   const fail = (
-    failure: Extract<TwitchAccountSessionSnapshot, { kind: "failed" }>["failure"],
+    failure: Extract<
+      TwitchAccountSessionSnapshot,
+      { kind: "failed" }
+    >["failure"],
     message: string,
     owner: Lease,
   ) => emit({ kind: "failed", failure, message }, owner);
@@ -284,10 +297,14 @@ export function createTwitchAccountSessionController(options: {
           return;
         }
         if (
-          (durable.kind === "connecting" || durable.kind === "poll-in-flight") &&
+          (durable.kind === "connecting" ||
+            durable.kind === "poll-in-flight") &&
           durable.attempt.attemptId === id
         ) {
-          if (snapshot.kind === "validating" || snapshot.kind === "committing") {
+          if (
+            snapshot.kind === "validating" ||
+            snapshot.kind === "committing"
+          ) {
             const cleared = await options.repository.clearAttempt(id);
             if (!current(owner)) return;
             if (!cleared) {
@@ -305,7 +322,11 @@ export function createTwitchAccountSessionController(options: {
           schedulePoll(owner, id, durable.attempt.nextPollAtEpochMs);
         }
       } catch {
-        fail("restore", "Account state could not be reconciled after the network failure.", owner);
+        fail(
+          "restore",
+          "Account state could not be reconciled after the network failure.",
+          owner,
+        );
       }
     }
   };
@@ -315,18 +336,26 @@ export function createTwitchAccountSessionController(options: {
       emit(
         {
           kind: "unavailable",
-          guidance: "A qualified public Twitch client ID is required. The encrypted credential remains preserved.",
+          guidance:
+            "A qualified public Twitch client ID is required. The encrypted credential remains preserved.",
         },
         owner,
       );
       return;
     }
     if (credential.expiresAtEpochMs <= now()) {
-      await refreshWithLease(owner, credential.generation, "Cached access expired; refreshing safely.");
+      await refreshWithLease(
+        owner,
+        credential.generation,
+        "Cached access expired; refreshing safely.",
+      );
       return;
     }
     emit({ kind: "validating" }, owner);
-    const validation = await options.gateway.validate(credential.accessToken, owner.signal);
+    const validation = await options.gateway.validate(
+      credential.accessToken,
+      owner.signal,
+    );
     if (!current(owner)) return;
     if (validation.kind === "transient-failure") {
       if (credential.expiresAtEpochMs <= now()) {
@@ -371,7 +400,11 @@ export function createTwitchAccountSessionController(options: {
         const durable = await options.repository.read();
         if (!current(owner)) return;
         if (durable.kind !== "auth-lost") {
-          fail("restore", "Invalid Twitch identity was detected, but the fenced auth-loss update was superseded. Reload account state.", owner);
+          fail(
+            "restore",
+            "Invalid Twitch identity was detected, but the fenced auth-loss update was superseded. Reload account state.",
+            owner,
+          );
           return;
         }
       }
@@ -382,7 +415,11 @@ export function createTwitchAccountSessionController(options: {
     const expiresAtEpochMs =
       validatedAtEpochMs + validation.validation.expiresInSeconds * 1_000;
     if (expiresAtEpochMs <= validatedAtEpochMs) {
-      fail("restore", "Twitch returned an invalid access expiry. Retry account validation.", owner);
+      fail(
+        "restore",
+        "Twitch returned an invalid access expiry. Retry account validation.",
+        owner,
+      );
       return;
     }
     emit({ kind: "committing" }, owner);
@@ -410,7 +447,11 @@ export function createTwitchAccountSessionController(options: {
         durable.kind === "ready" &&
         durable.credential.generation === credential.generation
       ) {
-        fail("restore", "Validated Twitch metadata could not be committed. Retry loading account state.", owner);
+        fail(
+          "restore",
+          "Validated Twitch metadata could not be committed. Retry loading account state.",
+          owner,
+        );
         return;
       }
       await reconcile();
@@ -436,17 +477,24 @@ export function createTwitchAccountSessionController(options: {
             ? { kind: "disconnected" }
             : {
                 kind: "unavailable",
-                guidance: "A qualified public Twitch client ID is required before connection can start. Guest mode remains available.",
+                guidance:
+                  "A qualified public Twitch client ID is required before connection can start. Guest mode remains available.",
               },
           owner,
         );
         return;
       }
       if (durable.kind === "requesting") {
-        const cleared = await options.repository.clearAttempt(durable.attemptId);
+        const cleared = await options.repository.clearAttempt(
+          durable.attemptId,
+        );
         if (!current(owner)) return;
         if (!cleared) {
-          fail("restore", "The interrupted code request could not be cleared. Retry loading account state.", owner);
+          fail(
+            "restore",
+            "The interrupted code request could not be cleared. Retry loading account state.",
+            owner,
+          );
           return;
         }
         await reconcile();
@@ -470,10 +518,16 @@ export function createTwitchAccountSessionController(options: {
         return;
       }
       if (durable.kind === "refresh-in-flight") {
-        const recovered = await recoverInterruptedTwitchRefresh(options.repository);
+        const recovered = await recoverInterruptedTwitchRefresh(
+          options.repository,
+        );
         if (!current(owner)) return;
         if (recovered !== "recovered") {
-          fail("restore", "Interrupted refresh recovery could not be confirmed.", owner);
+          fail(
+            "restore",
+            "Interrupted refresh recovery could not be confirmed.",
+            owner,
+          );
           return;
         }
         await reconcile();
@@ -494,7 +548,11 @@ export function createTwitchAccountSessionController(options: {
       generation = durable.credential.generation;
       await validateReady(durable.credential, owner);
     } catch {
-      fail("restore", "Encrypted account state could not be loaded or validated. Retry loading account state.", owner);
+      fail(
+        "restore",
+        "Encrypted account state could not be loaded or validated. Retry loading account state.",
+        owner,
+      );
     }
   };
 
@@ -521,7 +579,16 @@ export function createTwitchAccountSessionController(options: {
     await reconcile();
   };
 
-  const connect = async () => {
+  const connect = async (additionalScopes: readonly string[] = []) => {
+    const existingScopes = snapshot.kind === "connected" ? snapshot.scopes : [];
+    const allowed = new Set<string>(MOBILE_TWITCH_SCOPES);
+    const scopes = [
+      ...new Set([
+        ...DEFAULT_MOBILE_TWITCH_SCOPES,
+        ...existingScopes,
+        ...additionalScopes.filter((scope) => allowed.has(scope)),
+      ]),
+    ];
     if (!foreground || !options.gateway) return;
     const owner = begin("connect", { generation });
     const id = twitchAttemptId(`mobile-${now()}-${++operationSequence}`);
@@ -533,7 +600,7 @@ export function createTwitchAccountSessionController(options: {
         gateway: options.gateway,
         attemptId: id,
         expectedGeneration: generation,
-        scopes: [...MOBILE_TWITCH_SCOPES],
+        scopes,
         nowEpochMs: now,
         signal: owner.signal,
       });
@@ -555,7 +622,11 @@ export function createTwitchAccountSessionController(options: {
       );
       schedulePoll(pollOwner, id, result.attempt.nextPollAtEpochMs);
     } catch {
-      fail("connection", "Twitch is unavailable. Check your connection and retry.", owner);
+      fail(
+        "connection",
+        "Twitch is unavailable. Check your connection and retry.",
+        owner,
+      );
     }
   };
 
@@ -581,13 +652,21 @@ export function createTwitchAccountSessionController(options: {
         const cleared = await options.repository.clearAttempt(target);
         if (!current(owner)) return;
         if (!cleared) {
-          fail("cancellation", "Cancellation could not be confirmed. Retry cancellation or reload account state.", owner);
+          fail(
+            "cancellation",
+            "Cancellation could not be confirmed. Retry cancellation or reload account state.",
+            owner,
+          );
           return;
         }
         attemptId = undefined;
         await reconcile();
       } catch {
-        fail("cancellation", "Cancellation failed. The connection attempt may still be active.", owner);
+        fail(
+          "cancellation",
+          "Cancellation failed. The connection attempt may still be active.",
+          owner,
+        );
       }
     },
     async copyCode() {
@@ -598,10 +677,18 @@ export function createTwitchAccountSessionController(options: {
       if (!owner) return;
       try {
         await options.copy(code);
-        if (current(owner) && attemptId === target && snapshot.kind === "pending")
+        if (
+          current(owner) &&
+          attemptId === target &&
+          snapshot.kind === "pending"
+        )
           emit({ ...snapshot, feedback: "Code copied." }, owner);
       } catch {
-        if (current(owner) && attemptId === target && snapshot.kind === "pending")
+        if (
+          current(owner) &&
+          attemptId === target &&
+          snapshot.kind === "pending"
+        )
           emit({ ...snapshot, feedback: "Code could not be copied." }, owner);
       }
     },
@@ -614,8 +701,18 @@ export function createTwitchAccountSessionController(options: {
       try {
         await options.open(uri);
       } catch {
-        if (current(owner) && attemptId === target && snapshot.kind === "pending")
-          emit({ ...snapshot, feedback: "The verification page could not be opened." }, owner);
+        if (
+          current(owner) &&
+          attemptId === target &&
+          snapshot.kind === "pending"
+        )
+          emit(
+            {
+              ...snapshot,
+              feedback: "The verification page could not be opened.",
+            },
+            owner,
+          );
       }
     },
     manage() {
@@ -639,7 +736,11 @@ export function createTwitchAccountSessionController(options: {
         const disconnected = await options.repository.disconnect(generation);
         if (!current(owner)) return;
         if (!disconnected) {
-          fail("restore", "Disconnect was superseded. Reload account state.", owner);
+          fail(
+            "restore",
+            "Disconnect was superseded. Reload account state.",
+            owner,
+          );
           return;
         }
         await reconcile();
@@ -648,7 +749,11 @@ export function createTwitchAccountSessionController(options: {
       }
     },
     async refresh() {
-      if (snapshot.kind !== "connected" || snapshot.refreshing || !readyCredential)
+      if (
+        snapshot.kind !== "connected" ||
+        snapshot.refreshing ||
+        !readyCredential
+      )
         return;
       const fallback = readyCredential;
       const owner = begin("refresh", { generation });
@@ -682,7 +787,10 @@ export function createTwitchAccountSessionController(options: {
       if (snapshot.kind === "auth-lost") await connect();
       else if (snapshot.kind === "failed" && snapshot.failure === "connection")
         await connect();
-      else if (snapshot.kind === "failed" && snapshot.failure === "cancellation")
+      else if (
+        snapshot.kind === "failed" &&
+        snapshot.failure === "cancellation"
+      )
         await this.cancel();
       else await reconcile();
     },

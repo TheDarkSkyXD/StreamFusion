@@ -41,7 +41,7 @@ export default defineConfig([
         { from: { file: { path: ".storybook/main.ts" } }, allow: { dependency: { source: "node:url" } } },
         { from: { file: { categories: "storybook" } }, allow: { to: { module: { origin: "external" } } } },
         { from: { file: { categories: "storybook" } }, allow: { to: { file: { categories: "storybook" } } } },
-        { from: { file: { categories: "storybook" } }, allow: { to: { element: { types: { anyOf: ["mobile-design", "mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils"] } } } } },
+        { from: { file: { categories: "storybook" } }, allow: { to: { element: { types: { anyOf: ["mobile-design", "mobile-components", "mobile-domain", "mobile-capabilities", "mobile-utils", "mobile-i18n"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-entry", "mobile-design", "mobile-runtime-composition", "mobile-i18n", "mobile-native-module", ...featureLayers, "mobile-tests"] } } }, allow: { to: { module: { origin: "external" } } } },
         { from: { element: { types: { anyOf: ["mobile-entry"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-entry", "mobile-runtime-composition"] } } } } },
         { from: { element: { types: { anyOf: ["mobile-design"] } } }, allow: { to: { element: { types: { anyOf: ["mobile-design"] } } } } },

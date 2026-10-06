@@ -23,6 +23,9 @@ export function MobileDialog({
   return (
     <Modal
       animationType="none"
+      hardwareAccelerated
+      navigationBarTranslucent
+      statusBarTranslucent
       onRequestClose={onCancel}
       transparent
       visible={visible}

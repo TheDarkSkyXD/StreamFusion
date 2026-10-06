@@ -10,7 +10,7 @@ export function resolveMessageParts(
   const source: readonly WatchChatMessagePart[] = nativeParts ?? [
     { kind: "text", text },
   ];
-  return source.flatMap((part): WatchChatMessagePart[] => {
+  const expanded = source.flatMap((part): WatchChatMessagePart[] => {
     if (part.kind === "emote") return [part];
     return part.text
       .split(/(\[emote:\d+:[^\]]+\]|\s+)/)
@@ -29,6 +29,19 @@ export function resolveMessageParts(
           : { kind: "text", text: word };
       });
   });
+  const parts: WatchChatMessagePart[] = [];
+  for (const part of expanded) {
+    const previous = parts.at(-1);
+    if (part.kind === "text" && previous?.kind === "text") {
+      parts[parts.length - 1] = {
+        kind: "text",
+        text: previous.text + part.text,
+      };
+    } else {
+      parts.push(part);
+    }
+  }
+  return parts;
 }
 
 export function twitchEmoteParts(

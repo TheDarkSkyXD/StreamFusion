@@ -68,7 +68,7 @@ export function WatchDownloadBar({
   return (
     <View style={styles.panel} testID="watch-download">
       <MobileDialog
-        title="Download again?"
+        title="Already in Downloads"
         visible={copyDialog}
         confirmLabel="Download again"
         message="A separate copy will use additional storage. Your existing file will be kept."

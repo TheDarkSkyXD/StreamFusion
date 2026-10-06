@@ -112,7 +112,7 @@ export function ChannelHeader({
             disabled={followBusy}
             onPress={onFollow}
             testID="channel-follow"
-            variant="primary"
+            variant={follow.kind === "guest-present" ? "secondary" : channel.platform}
           >
             {followLabel}
           </MobileButton>

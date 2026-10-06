@@ -29,6 +29,7 @@ import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
+  mobileHitSlop,
   mobileColors,
   mobileRadii,
   mobileSpacing,
@@ -161,6 +162,8 @@ export function WatchScreen({
     readonly showFullscreen: boolean;
     readonly showQuality: boolean;
     readonly showVolume: boolean;
+    readonly showSpeed?: boolean;
+    readonly showVideoStats?: boolean;
   };
   readonly controlsVisible?: boolean;
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
@@ -199,7 +202,7 @@ export function WatchScreen({
   readonly target: WatchTarget;
 }) {
   const [toolSheet, setToolSheet] = useState<
-    "media" | "captions" | "more" | null
+    "media" | "captions" | "more" | "speed" | "stats" | null
   >(null);
   const positionMs = peek?.kind === "active" ? peek.progress.positionMs : null;
   useEffect(() => {
@@ -388,9 +391,13 @@ export function WatchScreen({
               accessibilityRole="button"
               accessibilityState={{ busy: followBusy, selected: followed }}
               disabled={followBusy}
+              hitSlop={mobileHitSlop}
               onPress={onFollow}
               style={({ pressed }) => [
                 styles.followButton,
+                !followed && target.platform === "kick"
+                  ? styles.followButtonKick
+                  : null,
                 followed ? styles.followButtonActive : null,
                 pressed ? styles.followButtonPressed : null,
                 followBusy ? styles.followButtonBusy : null,
@@ -399,10 +406,24 @@ export function WatchScreen({
             >
               <Heart
                 accessibilityElementsHidden
-                color={mobileColors.textPrimary}
+                color={
+                  !followed && target.platform === "kick"
+                    ? mobileColors.background
+                    : mobileColors.textPrimary
+                }
                 fill={followed ? mobileColors.textPrimary : "transparent"}
                 size={18}
               />
+              {!followed ? (
+                <Text
+                  style={[
+                    styles.followLabel,
+                    target.platform === "kick" ? styles.followLabelKick : null,
+                  ]}
+                >
+                  {t("discovery.following.follow")}
+                </Text>
+              ) : null}
             </Pressable>
           ) : null}
         </View>
@@ -436,7 +457,7 @@ export function WatchScreen({
             testID="watch-tools"
           >
             <MobileIconButton
-              label={t("settings.title")}
+              label={t("navigation.settings")}
               testID="watch-tool-quality"
               disabled={!onQualityPress}
               onPress={() => onQualityPress?.()}
@@ -481,7 +502,11 @@ export function WatchScreen({
                 ? "Local captions"
                 : toolSheet === "media"
                   ? "Downloads and recordings"
-                  : "Player tools"
+                  : toolSheet === "speed"
+                    ? "Playback speed"
+                    : toolSheet === "stats"
+                      ? "Video Stats"
+                      : "Player tools"
             }
             visible={toolSheet !== null}
             onDismiss={() => setToolSheet(null)}
@@ -496,11 +521,20 @@ export function WatchScreen({
                 {recording ? <WatchRecordingBar {...recording} /> : null}
               </>
             ) : null}
-            {toolSheet === "more" && playerTools && peek?.kind === "active" ? (
+            {(toolSheet === "more" ||
+              toolSheet === "speed" ||
+              toolSheet === "stats") &&
+            playerTools &&
+            peek?.kind === "active" ? (
               <PlayerTools
                 session={playerTools}
+                tool={toolSheet === "more" ? "menu" : toolSheet}
+                onSelectTool={setToolSheet}
                 sessionId={peek.state.session.sessionId}
-                recorded={target.media !== undefined}
+                recorded={
+                  target.media !== undefined && chrome?.showSpeed !== false
+                }
+                showStats={chrome?.showVideoStats !== false}
               />
             ) : null}
           </MobileBottomSheet>
@@ -638,6 +672,7 @@ export function WatchEmptyState({
   readonly discovery?: {
     readonly onOpenAccounts: () => void;
     readonly onSelectStream: (stream: Stream) => void;
+    readonly carouselSeconds?: number;
     readonly session: DiscoverySession;
   };
   readonly onOpenSearch?: () => void;
@@ -662,6 +697,9 @@ export function WatchEmptyState({
           onOpenAccounts={discovery.onOpenAccounts}
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
+          {...(discovery.carouselSeconds === undefined
+            ? {}
+            : { carouselSeconds: discovery.carouselSeconds })}
           showTitle={false}
           title={t("navigation.watch")}
         />
@@ -793,6 +831,8 @@ const styles = StyleSheet.create({
     width: 36,
   },
   followButton: {
+    flexDirection: "row",
+    gap: mobileSpacing.small,
     alignItems: "center",
     backgroundColor: mobileColors.twitch,
     borderRadius: mobileRadii.full,
@@ -801,6 +841,13 @@ const styles = StyleSheet.create({
     minWidth: 56,
     paddingHorizontal: mobileSpacing.medium,
   },
+  followButtonKick: { backgroundColor: mobileColors.kick },
+  followLabel: {
+    color: mobileColors.textPrimary,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  followLabelKick: { color: mobileColors.background },
   followButtonActive: {
     backgroundColor: mobileColors.surfaceRaised,
   },

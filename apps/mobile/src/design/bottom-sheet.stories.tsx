@@ -26,7 +26,7 @@ function SheetExample({
         gap: mobileSpacing.medium,
       }}
     >
-      <Text style={mobileType.display}>Player settings</Text>
+      <Text style={mobileType.display}>Settings</Text>
       <Text style={mobileType.body}>Selected quality · {choice}</Text>
       <MobileButton
         accessibilityLabel="Open sheet"

@@ -1,4 +1,4 @@
-export const MOBILE_TWITCH_SCOPES = [
+export const DEFAULT_MOBILE_TWITCH_SCOPES = [
   "chat:read",
   "user:read:chat",
   "user:write:chat",
@@ -20,6 +20,12 @@ export const MOBILE_TWITCH_SCOPES = [
   "channel:manage:moderators",
   "channel:read:vips",
   "channel:manage:vips",
+] as const;
+
+export const MOBILE_TWITCH_SCOPES = [
+  ...DEFAULT_MOBILE_TWITCH_SCOPES,
+  "channel:read:subscriptions",
+  "bits:read",
   "channel:manage:broadcast",
   "channel:manage:raids",
   "channel:read:redemptions",

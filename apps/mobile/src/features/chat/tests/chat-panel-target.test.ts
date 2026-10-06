@@ -45,6 +45,18 @@ vi.mock("react-native", async () => {
     Pressable: (props: HostProps) =>
       host(props.onPress ? "button" : "div")(props),
     ScrollView: host("div"),
+    FlatList: (
+      props: HostProps & {
+        readonly data: readonly WatchChatMessage[];
+        readonly renderItem: (entry: { item: WatchChatMessage }) => ReactNode;
+      },
+    ) =>
+      host("div")({
+        ...props,
+        children: props.data.map((item) =>
+          createElement("div", { key: item.id }, props.renderItem({ item })),
+        ),
+      }),
     Image: host("img"),
     TextInput: (
       props: HostProps & {

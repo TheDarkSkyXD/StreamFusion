@@ -41,7 +41,10 @@ export const moreRouteIcons = {
   "more/diagnostics": Activity,
   "more/accounts": CircleUserRound,
 } as const satisfies Readonly<
-  Record<(typeof MORE_ROUTE_IDS)[number], ComponentType<{ readonly color: string; readonly size: number }>>
+  Record<
+    (typeof MORE_ROUTE_IDS)[number],
+    ComponentType<{ readonly color: string; readonly size: number }>
+  >
 >;
 
 export type MoreHubRouteId = (typeof MORE_ROUTE_IDS)[number];
@@ -56,13 +59,7 @@ export function MoreRouteIcon({
   readonly size?: number;
 }) {
   const Icon = moreRouteIcons[routeId];
-  return (
-    <Icon
-      accessibilityElementsHidden
-      color={color}
-      size={size}
-    />
-  );
+  return <Icon accessibilityElementsHidden color={color} size={size} />;
 }
 
 export function formatActivityUnreadBadge(unreadCount: number): string {

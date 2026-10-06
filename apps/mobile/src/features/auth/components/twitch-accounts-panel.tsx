@@ -135,7 +135,7 @@ function TwitchState({
   if (model.kind === "disconnected")
     return (
       <>
-        <Status text={model.message ?? "Not connected"} />
+        <Status text={model.message ?? "Not signed in."} />
         <Action
           id="connect-account"
           label="Connect Twitch"
@@ -276,7 +276,7 @@ function TwitchState({
       <Text style={styles.detail}>
         {model.missingScopes.length
           ? `Connected with limited features. Missing: ${model.missingScopes.join(", ")}`
-          : "Connected. Required features are available."}
+          : `Connected as ${model.displayName}.`}
       </Text>
       <Text style={styles.detail}>
         Account permissions available:{" "}
@@ -305,7 +305,7 @@ function TwitchState({
             label={
               model.refreshing
                 ? "Validating and refreshing…"
-                : "Validate and refresh now"
+                : "Validate now"
             }
             onPress={actions.refresh}
           />

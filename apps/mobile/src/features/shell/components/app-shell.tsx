@@ -2,18 +2,21 @@ import {
   MultistreamWorkspace,
   type MultistreamWorkspaceProps,
 } from "@mobile/features/multistream/components/multistream-workspace";
-import { ModWorkspace } from "@mobile/features/moderation/components/mod-workspace";
+import {
+  ConnectedChatPanel,
+  type ConnectedChatRuntime,
+} from "@mobile/features/chat/components/connected-chat-panel";
+import {
+  ModWorkspace,
+  type ModerationScopeReturn,
+} from "@mobile/features/moderation/components/mod-workspace";
 import { EngagementSheet } from "@mobile/features/engagement/components/engagement-sheet";
 import type { ModerationController } from "@mobile/features/moderation/domain/moderation-controller";
 import type { EngagementController } from "@mobile/features/engagement/domain/engagement-controller";
 import type { ModerationChannel } from "@mobile/features/moderation/capabilities/moderation";
 import type { PlatformWorkflowNavigation } from "@mobile/features/moderation/capabilities/workflow-navigation";
 import type { Platform as StreamPlatform } from "@streamfusion/core/platform";
-import {
-  ArrowLeft,
-  ChevronRight,
-  CircleUserRound,
-} from "lucide-react-native";
+import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
 import { useTranslation } from "react-i18next";
 import {
@@ -49,6 +52,7 @@ import type {
 } from "@mobile/features/storage/capabilities/persistence";
 import { MobileConnectivityBanner } from "@mobile/design/connectivity-banner";
 import { MobileSettingsIcon } from "@mobile/design/settings-icon";
+import { MobileButton } from "@mobile/design/button";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileListRow } from "@mobile/design/list-row";
 import {
@@ -235,6 +239,7 @@ export function AppShell({
   engagement,
   workflowNavigation,
   onRequestPlatformScopes,
+  moderationChat,
   activityRepository,
   developmentActivityProof,
   appLinks,
@@ -288,7 +293,11 @@ export function AppShell({
   readonly moderation?: ModerationController;
   readonly engagement?: EngagementController;
   readonly workflowNavigation?: PlatformWorkflowNavigation;
-  readonly onRequestPlatformScopes?: (platform: StreamPlatform) => void;
+  readonly onRequestPlatformScopes?: (
+    platform: StreamPlatform,
+    scopes: readonly string[],
+  ) => void;
+  readonly moderationChat?: ConnectedChatRuntime;
   readonly activityRepository: ActivityRepository;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
   readonly appLinks: AppLinkSource;
@@ -544,6 +553,7 @@ export function AppShell({
               />
             ) : null}
             <ShellScreen
+              {...(moderationChat ? { moderationChat } : {})}
               {...(moderation === undefined ? {} : { moderation })}
               {...(engagement === undefined ? {} : { engagement })}
               {...(workflowNavigation === undefined
@@ -586,10 +596,10 @@ export function AppShell({
               onEnableTwitchDevelopmentFixture={
                 onEnableTwitchDevelopmentFixture
               }
+              onEnableKickDevelopmentFixture={onEnableKickDevelopmentFixture}
               kickAccount={kickAccount}
               kickAccountActions={kickAccountActions}
               kickAccountDevelopmentFixture={kickAccountDevelopmentFixture}
-              onEnableKickDevelopmentFixture={onEnableKickDevelopmentFixture}
               onDisableKickDevelopmentFixture={onDisableKickDevelopmentFixture}
               onDisableTwitchDevelopmentFixture={
                 onDisableTwitchDevelopmentFixture
@@ -767,6 +777,7 @@ function ShellScreen({
   engagement,
   workflowNavigation,
   onRequestPlatformScopes,
+  moderationChat,
   activity,
   developmentActivityProof,
   capabilityProfile,
@@ -822,7 +833,11 @@ function ShellScreen({
   readonly moderation?: ModerationController;
   readonly engagement?: EngagementController;
   readonly workflowNavigation?: PlatformWorkflowNavigation;
-  readonly onRequestPlatformScopes?: (platform: StreamPlatform) => void;
+  readonly onRequestPlatformScopes?: (
+    platform: StreamPlatform,
+    scopes: readonly string[],
+  ) => void;
+  readonly moderationChat?: ConnectedChatRuntime;
   readonly activity: ReturnType<typeof useActivityController>;
   readonly developmentActivityProof: DevelopmentActivityProofViewModel | null;
   readonly capabilityProfile: CapabilityProfileViewModel;
@@ -889,18 +904,55 @@ function ShellScreen({
   const [moderationTarget, setModerationTarget] = useState<{
     readonly channel: ModerationChannel;
     readonly userId: string;
+    readonly messageId: string;
+  } | null>(null);
+  const [restoredModeration, setRestoredModeration] =
+    useState<ModerationScopeReturn | null>(null);
+  const [scopeReturn, setScopeReturn] = useState<{
+    readonly platform: StreamPlatform;
+    readonly scopes: readonly string[];
+    readonly context: ModerationScopeReturn;
   } | null>(null);
   const [previousWorkflowRoute, setPreviousWorkflowRoute] = useState(
     location.route,
   );
   if (previousWorkflowRoute !== location.route) {
     setPreviousWorkflowRoute(location.route);
-    if (previousWorkflowRoute === "more/moderation") setModerationTarget(null);
+    if (previousWorkflowRoute === "more/accounts") setScopeReturn(null);
+    if (previousWorkflowRoute === "more/moderation") {
+      setModerationTarget(null);
+      setRestoredModeration(null);
+    }
   }
-  const requestScopes = (platform: StreamPlatform) => {
+  const requestScopes = (
+    platform: StreamPlatform,
+    scopes: readonly string[],
+    returnTo?: ModerationScopeReturn,
+  ) => {
+    if (returnTo) setScopeReturn({ platform, scopes, context: returnTo });
     dispatch({ type: "navigate", location: { route: "more/accounts" } });
-    onRequestPlatformScopes?.(platform);
+    onRequestPlatformScopes?.(platform, scopes);
   };
+  useEffect(() => {
+    if (!scopeReturn || location.route !== "more/accounts") return;
+    const account =
+      scopeReturn.platform === "twitch" ? twitchAccount : kickAccount;
+    if (
+      account.kind !== "connected" ||
+      !scopeReturn.scopes.every((scope) => account.scopes.includes(scope))
+    )
+      return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setRestoredModeration(scopeReturn.context);
+      setScopeReturn(null);
+      dispatch({ type: "navigate", location: { route: "more/moderation" } });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeReturn, twitchAccount, kickAccount, location.route, dispatch]);
   const engagementSheet =
     engagement && engagementChannel && workflowNavigation ? (
       <EngagementSheet
@@ -967,6 +1019,7 @@ function ShellScreen({
                       name: target.channelName,
                     },
                     userId: message.userId ?? "",
+                    messageId: message.id,
                   });
                   dispatch({
                     type: "navigate",
@@ -1158,6 +1211,7 @@ function ShellScreen({
           {...(launchSearchQuery ? { initialQuery: launchSearchQuery } : {})}
           categoriesPanel={
             <CategoriesScreen
+              followingSession={followingSession}
               embedded
               onOpenAccounts={() =>
                 dispatch({
@@ -1216,6 +1270,7 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-more-categories">
         <CategoriesScreen
+          followingSession={followingSession}
           onOpenAccounts={() =>
             dispatch({ type: "navigate", location: { route: "more/accounts" } })
           }
@@ -1298,9 +1353,7 @@ function ShellScreen({
             kickAccountDevelopmentFixture={kickAccountDevelopmentFixture}
             model={twitchAccount}
             onDisableDevelopmentFixture={onDisableTwitchDevelopmentFixture}
-            onEnableDevelopmentFixture={onEnableTwitchDevelopmentFixture}
             onDisableKickDevelopmentFixture={onDisableKickDevelopmentFixture}
-            onEnableKickDevelopmentFixture={onEnableKickDevelopmentFixture}
             onOpenNotificationSettings={() =>
               dispatch({
                 type: "navigate",
@@ -1359,6 +1412,8 @@ function ShellScreen({
             onStartDevelopmentActivityProof,
             persistenceStatus,
             supportSession,
+            onEnableTwitchDevelopmentFixture,
+            onEnableKickDevelopmentFixture,
           })}
         />
       </View>
@@ -1373,11 +1428,49 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-more-moderation">
         <ModWorkspace
+          key={`${moderationTarget?.channel.id ?? "home"}:${moderationTarget?.userId ?? ""}:${moderationTarget?.messageId ?? ""}`}
           controller={moderation}
+          {...(restoredModeration?.channel
+            ? { initialChannel: restoredModeration.channel }
+            : {})}
+          {...(restoredModeration?.userId
+            ? { initialUserId: restoredModeration.userId }
+            : {})}
+          {...(restoredModeration?.messageId
+            ? { initialMessageId: restoredModeration.messageId }
+            : {})}
+          {...(restoredModeration?.tool
+            ? { initialTool: restoredModeration.tool }
+            : {})}
+          {...(moderationChat
+            ? {
+                renderChat: (channel: ModerationChannel) => (
+                  <ConnectedChatPanel
+                    runtime={moderationChat}
+                    target={{
+                      platform: channel.platform,
+                      channelId: channel.id,
+                      channelName: channel.login,
+                    }}
+                    onModerateMessage={(message) => {
+                      setModerationTarget({
+                        channel,
+                        messageId: message.id,
+                        userId:
+                          message.userId ??
+                          message.username ??
+                          message.displayName,
+                      });
+                    }}
+                  />
+                ),
+              }
+            : {})}
           {...(moderationTarget
             ? {
                 initialChannel: moderationTarget.channel,
                 initialUserId: moderationTarget.userId,
+                initialMessageId: moderationTarget.messageId,
               }
             : {})}
           onOpenChannel={(channel) =>
@@ -1507,6 +1600,8 @@ function ShellScreen({
 }
 
 type DiagnosticsSlotsInput = {
+  readonly onEnableTwitchDevelopmentFixture?: (() => void) | undefined;
+  readonly onEnableKickDevelopmentFixture?: (() => void) | undefined;
   readonly activity: ReturnType<typeof useActivityController>;
   readonly capabilityProfile: CapabilityProfileViewModel;
   readonly captionsController: ReturnType<typeof useLocalCaptionsController>;
@@ -1623,6 +1718,38 @@ function diagnosticsDeveloperToolsSlot(
               onRetryCleanup={input.onRetryDevelopmentActivityProofCleanup}
               onStart={input.onStartDevelopmentActivityProof}
             />
+          ) : null}
+          {input.onEnableTwitchDevelopmentFixture ? (
+            <MobileButton
+              accessibilityLabel="Run development auth fixture"
+              testID="development-twitch-auth-fixture"
+              variant="secondary"
+              onPress={() => {
+                input.onEnableTwitchDevelopmentFixture?.();
+                input.dispatch({
+                  type: "navigate",
+                  location: { route: "more/accounts" },
+                });
+              }}
+            >
+              Run development auth fixture
+            </MobileButton>
+          ) : null}
+          {input.onEnableKickDevelopmentFixture ? (
+            <MobileButton
+              accessibilityLabel="Run development Kick auth fixture"
+              testID="development-kick-auth-fixture"
+              variant="secondary"
+              onPress={() => {
+                input.onEnableKickDevelopmentFixture?.();
+                input.dispatch({
+                  type: "navigate",
+                  location: { route: "more/accounts" },
+                });
+              }}
+            >
+              Run development Kick auth fixture
+            </MobileButton>
           ) : null}
           <DevelopmentResourceFailureProofControl
             onQueue={input.onRunCapabilityProfileDevelopmentProof}

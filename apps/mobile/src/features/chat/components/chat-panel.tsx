@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import {
+  FlatList,
   Image,
   Pressable,
   ScrollView,
@@ -19,6 +27,7 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 import type {
+  ChatEmote,
   ChatInteractions,
   ChatInteractionView,
 } from "../capabilities/chat-interactions";
@@ -39,6 +48,7 @@ const READ_ONLY: ChatInteractionView = {
   emoteStatus: "ready",
   emoteDetail: "",
 };
+const EMPTY_MESSAGES: readonly WatchChatMessage[] = [];
 const noopSubscribe = () => () => undefined;
 
 export function ChatPanel(props: Parameters<typeof ChatPanelBody>[0]) {
@@ -88,8 +98,6 @@ function ChatPanelBody({
   const [selected, setSelected] = useState<WatchChatMessage | null>(null);
   const [picker, setPicker] = useState(false);
   const [query, setQuery] = useState("");
-  const list = useRef<ScrollView>(null);
-  const followsBottom = useRef(true);
   const channelId = target?.channelId;
   const channelName = target?.channelName;
   const targetPlatform = target?.platform;
@@ -130,7 +138,8 @@ function ChatPanelBody({
       setReply(null);
     }
   };
-  const messages = chat.kind === "live" ? chat.messages : [];
+  const messages = chat.kind === "live" ? chat.messages : EMPTY_MESSAGES;
+  const newestFirst = useMemo(() => [...messages].reverse(), [messages]);
   const matches = view.emotes
     .filter((emote) =>
       emote.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -157,98 +166,32 @@ function ChatPanelBody({
           testID={`${testID}-retry`}
           variant="secondary"
         >
-          Retry
+          Retry chat
         </MobileButton>
       ) : null}
-      <ScrollView
-        ref={list}
+      <FlatList
         style={styles.messages}
         contentContainerStyle={styles.messageList}
         testID={`${testID}-scroll`}
-        scrollEventThrottle={100}
-        onScroll={({ nativeEvent }) => {
-          followsBottom.current =
-            nativeEvent.contentOffset.y +
-              nativeEvent.layoutMeasurement.height >=
-            nativeEvent.contentSize.height - 40;
+        inverted
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+          autoscrollToTopThreshold: 24,
         }}
-        onContentSizeChange={() => {
-          if (followsBottom.current)
-            list.current?.scrollToEnd({ animated: false });
-        }}
-      >
-        {messages.map((message) => (
-          <Pressable
-            key={message.id}
-            onLongPress={() => setSelected(message)}
-            style={styles.messageRow}
-            testID={`watch-chat-message-${message.id}`}
-          >
-            <View
-              style={styles.messageChrome}
-              testID={`watch-chat-chrome-${message.id}`}
-            >
-              {message.badges.map((badge) =>
-                badge.imageUrl ? (
-                  <Image
-                    key={`${badge.setId}-${badge.version}`}
-                    accessibilityLabel={badge.title}
-                    resizeMode="contain"
-                    source={{ uri: badge.imageUrl }}
-                    style={styles.badge}
-                    testID={`watch-chat-badge-${message.id}-${badge.setId}`}
-                  />
-                ) : null,
-              )}
-              <Pressable
-                accessibilityLabel={`Actions for ${message.displayName}`}
-                accessibilityRole="button"
-                onPress={() => setSelected(message)}
-                hitSlop={8}
-              >
-                <Text
-                  style={[
-                    styles.name,
-                    {
-                      color: resolveChatUsernameColor({
-                        ...(message.color === undefined
-                          ? {}
-                          : { color: message.color }),
-                        platform,
-                        readableColorForUncolored:
-                          DEFAULT_CHAT_DISPLAY_PREFERENCES.readableColorForUncolored,
-                        themeAdaptUsernameColor:
-                          DEFAULT_CHAT_DISPLAY_PREFERENCES.themeAdaptUsernameColor,
-                        username: message.username || message.displayName,
-                      }),
-                    },
-                  ]}
-                  testID={`watch-chat-username-${message.id}`}
-                >
-                  {message.displayName}
-                </Text>
-              </Pressable>
-            </View>
-            <Text style={styles.messageText}>{": "}</Text>
-            {resolveMessageParts(message.text, view.emotes, message.parts).map(
-              (part, index) =>
-                part.kind === "text" ? (
-                  <Text key={index} selectable style={styles.messageText}>
-                    {part.text}
-                  </Text>
-                ) : (
-                  <Image
-                    key={index}
-                    accessibilityLabel={part.text}
-                    source={{ uri: part.imageUrl }}
-                    style={styles.emote}
-                    resizeMode="contain"
-                  />
-                ),
-            )}
-          </Pressable>
-        ))}
-      </ScrollView>
+        data={newestFirst}
+        keyExtractor={(message) => message.id}
+        initialNumToRender={12}
+        maxToRenderPerBatch={8}
+        windowSize={3}
+        renderItem={({ item }) => (
+          <ChatMessageRow
+            message={item}
+            platform={platform}
+            emotes={view.emotes}
+            onSelect={setSelected}
+          />
+        )}
+      />
       {selected ? (
         <MobileBottomSheet
           visible
@@ -379,7 +322,7 @@ function ChatPanelBody({
               <View style={styles.menu} testID="chat-emote-picker">
                 <MobileTextField
                   label="Search emotes"
-                  placeholder="Search emotes"
+                  placeholder="Search emotes..."
                   value={query}
                   onChange={setQuery}
                   testID="chat-emote-search"
@@ -421,9 +364,7 @@ function ChatPanelBody({
             multiline
             maxLength={1000}
             placeholder={
-              view.access === "ready"
-                ? "Send a message"
-                : "Connect an account to chat"
+              view.access === "ready" ? "Send a message..." : "Log in to chat"
             }
             placeholderTextColor={mobileColors.textSecondary}
             value={draft}
@@ -458,6 +399,90 @@ function ChatPanelBody({
     </View>
   );
 }
+
+const ChatMessageRow = memo(function ChatMessageRow({
+  message,
+  platform,
+  emotes,
+  onSelect,
+}: {
+  readonly message: WatchChatMessage;
+  readonly platform: Platform;
+  readonly emotes: readonly ChatEmote[];
+  readonly onSelect: (message: WatchChatMessage) => void;
+}) {
+  return (
+    <Pressable
+      key={message.id}
+      onLongPress={() => onSelect(message)}
+      style={styles.messageRow}
+      testID={`watch-chat-message-${message.id}`}
+    >
+      <View
+        style={styles.messageChrome}
+        testID={`watch-chat-chrome-${message.id}`}
+      >
+        {message.badges.map((badge) =>
+          badge.imageUrl ? (
+            <Image
+              key={`${badge.setId}-${badge.version}`}
+              accessibilityLabel={badge.title}
+              resizeMode="contain"
+              source={{ uri: badge.imageUrl }}
+              style={styles.badge}
+              testID={`watch-chat-badge-${message.id}-${badge.setId}`}
+            />
+          ) : null,
+        )}
+        <Pressable
+          accessibilityLabel={`Actions for ${message.displayName}`}
+          accessibilityRole="button"
+          onPress={() => onSelect(message)}
+          hitSlop={8}
+        >
+          <Text
+            style={[
+              styles.name,
+              {
+                color: resolveChatUsernameColor({
+                  ...(message.color === undefined
+                    ? {}
+                    : { color: message.color }),
+                  platform,
+                  readableColorForUncolored:
+                    DEFAULT_CHAT_DISPLAY_PREFERENCES.readableColorForUncolored,
+                  themeAdaptUsernameColor:
+                    DEFAULT_CHAT_DISPLAY_PREFERENCES.themeAdaptUsernameColor,
+                  username: message.username || message.displayName,
+                }),
+              },
+            ]}
+            testID={`watch-chat-username-${message.id}`}
+          >
+            {message.displayName}
+          </Text>
+        </Pressable>
+      </View>
+      <Text style={styles.messageText}>{": "}</Text>
+      {resolveMessageParts(message.text, emotes, message.parts).map(
+        (part, index) =>
+          part.kind === "text" ? (
+            <Text key={index} selectable style={styles.messageText}>
+              {part.text}
+            </Text>
+          ) : (
+            <Image
+              key={index}
+              accessibilityLabel={part.text}
+              source={{ uri: part.imageUrl }}
+              style={styles.emote}
+              resizeMode="contain"
+            />
+          ),
+      )}
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   panel: { flex: 1, minHeight: 0, gap: mobileSpacing.small },

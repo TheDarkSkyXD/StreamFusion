@@ -232,7 +232,7 @@ export function ModWorkspaceHome({
   const pending = snapshot.activity.kind === "pending";
   const visible = tools.filter((tool) =>
     snapshot.platform === "twitch"
-      ? tool.id !== "retention"
+      ? true
       : !["automod", "vips", "whispers", "rewards"].includes(tool.id),
   );
   return (
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   page: {
     padding: mobileSpacing.medium,
     gap: mobileSpacing.medium,
-    backgroundColor: mobileColors.background,
+    backgroundColor: mobileColors.moderationBackground,
   },
   row: { flexDirection: "row", alignItems: "center", gap: mobileSpacing.small },
   copy: { flex: 1, gap: mobileSpacing.xSmall },
@@ -420,13 +420,13 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     gap: mobileSpacing.small,
     borderRadius: 12,
-    backgroundColor: mobileColors.surface,
+    backgroundColor: mobileColors.moderationSurface,
     borderWidth: 1,
     borderColor: mobileColors.border,
   },
   tools: {
     borderRadius: 12,
-    backgroundColor: mobileColors.surface,
+    backgroundColor: mobileColors.moderationSurface,
     borderWidth: 1,
     borderColor: mobileColors.border,
   },

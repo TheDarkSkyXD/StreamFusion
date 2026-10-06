@@ -78,7 +78,7 @@ describe("mobile design tokens", () => {
     expect(mobileColors.surface).toBe("#1a1a1a");
     expect(mobileColors.surfaceMuted).toBe("#252525");
     expect(mobileColors.surfaceRaised).toBe("#2d2d2d");
-    expect(mobileColors.live).toBe("#dc143c");
+    expect(mobileColors.live).toBe("#dc2626");
     expect(mobileColors.tagSurface).toBe("#4a4d55");
     expect(mobileColors.tagText).toBe("#efeff1");
     expect(mobileColors.twitch).toBe("#9146ff");

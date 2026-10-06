@@ -616,11 +616,29 @@ export function ProviderToolSheet({
               pending={pending}
             />
             {tool === "activity" ? (
-              <Text style={mobileType.label}>
-                Follows, raids, and stream state are observed here. Subscription
-                and Bits events are included only when the broadcaster granted
-                their additional scopes.
-              </Text>
+              <>
+                {moderationSnapshot.selection?.role === "broadcaster" ? (
+                  <MobileButton
+                    accessibilityLabel="Subscription and Bits permissions"
+                    testID="mod-activity-optional-scopes"
+                    variant="ghost"
+                    disabled={pending}
+                    onPress={() =>
+                      onRequestScopes([
+                        "channel:read:subscriptions",
+                        "bits:read",
+                      ])
+                    }
+                  >
+                    Subscription and Bits permissions
+                  </MobileButton>
+                ) : null}
+                <Text style={mobileType.label}>
+                  Follows, raids, and stream state are observed here.
+                  Subscription and Bits events are included only when the
+                  broadcaster granted their additional scopes.
+                </Text>
+              </>
             ) : null}
             {tool === "whispers" ? (
               <>
@@ -1332,7 +1350,7 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.small,
     gap: mobileSpacing.small,
     borderRadius: 12,
-    backgroundColor: mobileColors.surface,
+    backgroundColor: mobileColors.moderationSurface,
   },
   initial: {
     width: 40,

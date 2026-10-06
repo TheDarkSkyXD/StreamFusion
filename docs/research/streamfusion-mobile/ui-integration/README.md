@@ -6,7 +6,7 @@ The mobile application adopts the approved Android layouts through its existing 
 
 Candidate A retains the current controller and route structure. Candidate B introduces a bound screen registry and per-screen presentation models. A is the selected base because the current controllers already protect playback lifecycle, provider authorization, and persistence. A registry migration would add unrelated coordination before the UI changes work.
 
-The independent cross-judge also selected A. B contributes exact manifest validation and deterministic Storybook adapters for production components. New ports remain feature-owned. Missing native or provider observations cannot use preview values as real results.
+The [independent cross-judgment](architecture-judgment.md) also selected A. B contributes exact manifest validation and deterministic Storybook adapters for production components. New ports remain feature-owned. Missing native or provider observations cannot use preview values as real results.
 
 ## Coverage
 
@@ -22,8 +22,12 @@ node apps/mobile/scripts/compare-ui-screenshots.mjs pairs.json output-directory
 
 Each pair contains `id`, `baseline`, and `actual` paths. Optional `baselineCrop` and `actualCrop` contain Sharp extraction bounds. Optional masks contain integer `left`, `top`, `width`, `height`, and an explicit `reason`. The output includes a diff image and exact changed-pixel counts. A nonzero result requires inspection and does not pass as parity.
 
+The [desktop vocabulary audit](desktop-vocabulary-audit.md) makes desktop labels, icons, and colors authoritative where the mobile host supports the same action. Android sheets and touch targets remain mobile layouts. Host-specific limitations describe actual behavior.
+
 ## Delivery checks
 
 Each implementation unit requires focused behavior checks, type checking, and lint. Native contract changes also require a rebuilt Android client. Emulator journeys verify actual entry controls, keyboard and safe areas, playback lifecycle, persisted preferences, and recovery where affected. The emulator is restarted for updated builds and closed whenever device verification is idle.
 
 No production code imports mockup screens, fixtures, or test setup. Unsupported provider actions expose accurate limitations and supported handoffs. Account-only follows cannot use a guest mutation as an Unfollow operation.
+
+The [verification checkpoint](verification-checkpoint.md) records tests, native observations, and their limits. The [implementation evidence](implementation-evidence.json) records owners for the 13 initially missing workflows.

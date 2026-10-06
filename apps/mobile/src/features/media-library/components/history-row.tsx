@@ -105,7 +105,7 @@ export function HistoryRow({
           label={`Remove ${item.title} from history`}
           onPress={onRemove}
           testID={`history-remove-${item.id}`}
-          text="Remove"
+          text="Remove from history"
         />
       </View>
     </View>

@@ -37,7 +37,7 @@ export function ApiTokensSettingsView({
   readonly view: ApiTokenSettingsView;
 }) {
   return (
-    <SettingsSection testID="panel-api-tokens" title="API AND TOKENS">
+    <SettingsSection testID="panel-api-tokens" title="API / Tokens">
       <SettingsCopy testID="api-token-disclosure" value={view.disclosure} />
       <PlatformTokenCard platform={view.twitch} />
       <PlatformTokenCard platform={view.kick} />

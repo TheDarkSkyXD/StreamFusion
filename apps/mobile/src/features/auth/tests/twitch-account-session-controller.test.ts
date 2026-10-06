@@ -47,9 +47,15 @@ async function persistedReady(
   store = secrets(),
   readyCredential = credential(),
 ) {
-  const repo = createSecureTwitchCredentialRepository({ secrets: store, key: `session-${Math.random()}` });
+  const repo = createSecureTwitchCredentialRepository({
+    secrets: store,
+    key: `session-${Math.random()}`,
+  });
   const id = twitchAttemptId("seed");
-  await repo.beginRequest({ attemptId: id, expectedGeneration: twitchCredentialGeneration(0) });
+  await repo.beginRequest({
+    attemptId: id,
+    expectedGeneration: twitchCredentialGeneration(0),
+  });
   await repo.beginAttempt({
     expectedGeneration: twitchCredentialGeneration(0),
     attempt: {
@@ -73,9 +79,15 @@ async function persistedReady(
 }
 
 async function persistedAttempt(store = secrets()) {
-  const repo = createSecureTwitchCredentialRepository({ secrets: store, key: `attempt-${Math.random()}` });
+  const repo = createSecureTwitchCredentialRepository({
+    secrets: store,
+    key: `attempt-${Math.random()}`,
+  });
   const id = twitchAttemptId("live-attempt");
-  await repo.beginRequest({ attemptId: id, expectedGeneration: twitchCredentialGeneration(0) });
+  await repo.beginRequest({
+    attemptId: id,
+    expectedGeneration: twitchCredentialGeneration(0),
+  });
   await repo.beginAttempt({
     expectedGeneration: twitchCredentialGeneration(0),
     attempt: {
@@ -120,7 +132,10 @@ function repository(
     beginRequest: vi.fn(async () => true),
     beginAttempt: vi.fn(async () => true),
     clearAttempt: vi.fn(async () => {
-      repo.state = { kind: "disconnected", generation: twitchCredentialGeneration(0) };
+      repo.state = {
+        kind: "disconnected",
+        generation: twitchCredentialGeneration(0),
+      };
       return true;
     }),
     claimDevicePoll: vi.fn(async () => ({ kind: "not-due" as const })),
@@ -144,7 +159,8 @@ function repository(
     markAuthLost: vi.fn(async (input) => {
       repo.state = {
         kind: "auth-lost",
-        account: repo.state.kind === "ready" ? repo.state.credential.account : null,
+        account:
+          repo.state.kind === "ready" ? repo.state.credential.account : null,
         generation: twitchCredentialGeneration(input.expectedGeneration + 1),
         reason: input.reason,
       };
@@ -189,16 +205,61 @@ function session(input: {
 
 async function foreground(controller: ReturnType<typeof session>) {
   controller.setForeground(true);
-  await vi.waitFor(() => expect(controller.getSnapshot().kind).not.toBe("restoring"));
+  await vi.waitFor(() =>
+    expect(controller.getSnapshot().kind).not.toBe("restoring"),
+  );
 }
 
 describe("Twitch account session controller", () => {
+  it("requests only the selected additional permissions from the mobile allowlist", async () => {
+    const repo = repository({
+      kind: "disconnected",
+      generation: twitchCredentialGeneration(0),
+    });
+    const request = vi.fn<TwitchDeviceAuthorizationGateway["request"]>(
+      async () => ({
+        deviceCode: "secret",
+        userCode: "CODE",
+        verificationUri: "https://www.twitch.tv/activate",
+        expiresInSeconds: 600,
+        intervalSeconds: 5,
+      }),
+    );
+    const controller = session({ repo, api: gateway({ request }) });
+    await foreground(controller);
+    await controller.connect([
+      "channel:manage:raids",
+      "channel:read:subscriptions",
+      "bits:read",
+      "not:a:twitch:scope",
+    ]);
+    expect(request).toHaveBeenCalledOnce();
+    const scopes = request.mock.calls[0]?.[0];
+    expect(scopes).toEqual(
+      expect.arrayContaining([
+        "chat:read",
+        "channel:manage:raids",
+        "channel:read:subscriptions",
+        "bits:read",
+      ]),
+    );
+    expect(scopes).not.toContain("user:manage:whispers");
+    expect(scopes).not.toContain("not:a:twitch:scope");
+    controller.setForeground(false);
+  });
+
   it("retries reconciliation after a storage read failure instead of starting OAuth", async () => {
-    const repo = repository({ kind: "disconnected", generation: twitchCredentialGeneration(0) });
+    const repo = repository({
+      kind: "disconnected",
+      generation: twitchCredentialGeneration(0),
+    });
     vi.mocked(repo.read).mockRejectedValueOnce(new Error("locked"));
     const controller = session({ repo, api: null });
     await foreground(controller);
-    expect(controller.getSnapshot()).toMatchObject({ kind: "failed", failure: "restore" });
+    expect(controller.getSnapshot()).toMatchObject({
+      kind: "failed",
+      failure: "restore",
+    });
     await controller.retry();
     expect(controller.getSnapshot().kind).toBe("unavailable");
     expect(repo.beginRequest).not.toHaveBeenCalled();
@@ -239,27 +300,44 @@ describe("Twitch account session controller", () => {
   it.each([
     ["wrong client", "other", twitchAccountId("account-1")],
     ["wrong account", "client", twitchAccountId("account-2")],
-  ])("fences %s validation without projecting connected", async (_name, clientId, userId) => {
-    const repo = repository({ kind: "ready", credential: credential() });
-    const controller = session({
-      repo,
-      api: gateway({
-        validate: vi.fn(async () => ({
-          kind: "valid",
-          validation: { clientId, userId, login: "streamer", scopes: [], expiresInSeconds: 30 },
-        })),
-      }),
-    });
-    await foreground(controller);
-    expect(repo.markAuthLost).toHaveBeenCalledWith({ expectedGeneration: 1, reason: "revoked" });
-    expect(controller.getSnapshot().kind).not.toBe("connected");
-  });
+  ])(
+    "fences %s validation without projecting connected",
+    async (_name, clientId, userId) => {
+      const repo = repository({ kind: "ready", credential: credential() });
+      const controller = session({
+        repo,
+        api: gateway({
+          validate: vi.fn(async () => ({
+            kind: "valid",
+            validation: {
+              clientId,
+              userId,
+              login: "streamer",
+              scopes: [],
+              expiresInSeconds: 30,
+            },
+          })),
+        }),
+      });
+      await foreground(controller);
+      expect(repo.markAuthLost).toHaveBeenCalledWith({
+        expectedGeneration: 1,
+        reason: "revoked",
+      });
+      expect(controller.getSnapshot().kind).not.toBe("connected");
+    },
+  );
 
   it("shows an unexpired cached credential as explicitly stale when validation is offline", async () => {
     const repo = repository({ kind: "ready", credential: credential() });
     const controller = session({
       repo,
-      api: gateway({ validate: vi.fn(async () => ({ kind: "transient-failure", cause: "offline" })) }),
+      api: gateway({
+        validate: vi.fn(async () => ({
+          kind: "transient-failure",
+          cause: "offline",
+        })),
+      }),
     });
     await foreground(controller);
     expect(controller.getSnapshot()).toMatchObject({
@@ -271,34 +349,55 @@ describe("Twitch account session controller", () => {
   it("uses the durable refresh claim for expired access instead of deleting credentials", async () => {
     const expired = credential({ expiresAtEpochMs: 9_999 });
     const repo = repository({ kind: "ready", credential: expired });
-    repo.claimRefresh = vi.fn(async (input) => ({ kind: "claimed", credential: expired, operationId: input.operationId }));
-    const api = gateway({ refresh: vi.fn(async () => ({ kind: "not-sent", cause: "offline" })) });
+    repo.claimRefresh = vi.fn(async (input) => ({
+      kind: "claimed",
+      credential: expired,
+      operationId: input.operationId,
+    }));
+    const api = gateway({
+      refresh: vi.fn(async () => ({ kind: "not-sent", cause: "offline" })),
+    });
     const controller = session({ repo, api });
     await foreground(controller);
     expect(repo.claimRefresh).toHaveBeenCalled();
     expect(repo.markAuthLost).not.toHaveBeenCalled();
-    expect(controller.getSnapshot()).toMatchObject({ kind: "failed", failure: "restore" });
+    expect(controller.getSnapshot()).toMatchObject({
+      kind: "failed",
+      failure: "restore",
+    });
   });
 
   it("does not project connected when access expires during slow offline validation", async () => {
     let now = 10_000;
-    let resolveValidation!: (value: Awaited<ReturnType<TwitchDeviceAuthorizationGateway["validate"]>>) => void;
+    let resolveValidation!: (
+      value: Awaited<ReturnType<TwitchDeviceAuthorizationGateway["validate"]>>,
+    ) => void;
     const current = credential({ expiresAtEpochMs: 11_000 });
     const repo = repository({ kind: "ready", credential: current });
-    repo.claimRefresh = vi.fn(async (input) => ({ kind: "claimed", credential: current, operationId: input.operationId }));
+    repo.claimRefresh = vi.fn(async (input) => ({
+      kind: "claimed",
+      credential: current,
+      operationId: input.operationId,
+    }));
     const controller = session({
       repo,
       now: () => now,
       api: gateway({
-        validate: vi.fn(() => new Promise((resolve) => (resolveValidation = resolve))),
+        validate: vi.fn(
+          () => new Promise((resolve) => (resolveValidation = resolve)),
+        ),
         refresh: vi.fn(async () => ({ kind: "not-sent", cause: "offline" })),
       }),
     });
     controller.setForeground(true);
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("validating"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("validating"),
+    );
     now = 12_000;
     resolveValidation({ kind: "transient-failure", cause: "offline" });
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("failed"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("failed"),
+    );
     expect(controller.getSnapshot().kind).not.toBe("connected");
   });
 
@@ -328,7 +427,9 @@ describe("Twitch account session controller", () => {
   it("suppresses duplicate refresh and treats a thrown post-claim response as uncertain", async () => {
     const { repo } = await persistedReady();
     let rejectRefresh!: (reason: unknown) => void;
-    const refresh = vi.fn(() => new Promise<never>((_resolve, reject) => (rejectRefresh = reject)));
+    const refresh = vi.fn(
+      () => new Promise<never>((_resolve, reject) => (rejectRefresh = reject)),
+    );
     const api = gateway({
       validate: vi.fn(async () => ({
         kind: "valid",
@@ -438,24 +539,36 @@ describe("Twitch account session controller", () => {
     controller.setForeground(false);
     controller.setForeground(true);
     await vi.waitFor(() => expect(validate).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("connected"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("connected"),
+    );
   });
 
   it("does not restore connected after slow typed not-sent refresh crosses expiry", async () => {
     let now = 10_000;
-    const prepared = await persistedReady(secrets(), credential({ expiresAtEpochMs: 11_000 }));
+    const prepared = await persistedReady(
+      secrets(),
+      credential({ expiresAtEpochMs: 11_000 }),
+    );
     let finishRefresh!: () => void;
     const refresh = vi.fn(
       () =>
-        new Promise<Awaited<ReturnType<TwitchDeviceAuthorizationGateway["refresh"]>>>((resolve) =>
-          (finishRefresh = () => resolve({ kind: "not-sent", cause: "offline" })),
+        new Promise<
+          Awaited<ReturnType<TwitchDeviceAuthorizationGateway["refresh"]>>
+        >(
+          (resolve) =>
+            (finishRefresh = () =>
+              resolve({ kind: "not-sent", cause: "offline" })),
         ),
     );
     const controller = session({
       repo: prepared.repo,
       now: () => now,
       api: gateway({
-        validate: vi.fn(async () => ({ kind: "transient-failure", cause: "offline" })),
+        validate: vi.fn(async () => ({
+          kind: "transient-failure",
+          cause: "offline",
+        })),
         refresh,
       }),
     });
@@ -465,8 +578,13 @@ describe("Twitch account session controller", () => {
     now = 12_000;
     finishRefresh();
     await refreshing;
-    expect(controller.getSnapshot()).toMatchObject({ kind: "failed", failure: "restore" });
-    await expect(prepared.repo.read()).resolves.toMatchObject({ kind: "ready" });
+    expect(controller.getSnapshot()).toMatchObject({
+      kind: "failed",
+      failure: "restore",
+    });
+    await expect(prepared.repo.read()).resolves.toMatchObject({
+      kind: "ready",
+    });
   });
 
   it("treats same-identity zero validation lifetime as refreshable access expiry", async () => {
@@ -488,7 +606,10 @@ describe("Twitch account session controller", () => {
       }),
     });
     await foreground(controller);
-    expect(controller.getSnapshot()).toMatchObject({ kind: "failed", failure: "restore" });
+    expect(controller.getSnapshot()).toMatchObject({
+      kind: "failed",
+      failure: "restore",
+    });
     expect((await prepared.repo.read()).kind).toBe("ready");
   });
 
@@ -523,9 +644,13 @@ describe("Twitch account session controller", () => {
       }),
     });
     await foreground(controller);
-    await vi.waitFor(() => expect(controller.getSnapshot().kind).toBe("connected"));
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().kind).toBe("connected"),
+    );
     expect(poll).toHaveBeenCalledOnce();
-    await expect(prepared.repo.read()).resolves.toMatchObject({ kind: "ready" });
+    await expect(prepared.repo.read()).resolves.toMatchObject({
+      kind: "ready",
+    });
   });
 
   it("clears a consumed Device Code after post-authorization validation throws without hot-looping", async () => {
@@ -546,15 +671,22 @@ describe("Twitch account session controller", () => {
     });
     await foreground(controller);
     await vi.waitFor(() =>
-      expect(controller.getSnapshot()).toMatchObject({ kind: "failed", failure: "connection" }),
+      expect(controller.getSnapshot()).toMatchObject({
+        kind: "failed",
+        failure: "connection",
+      }),
     );
     expect(poll).toHaveBeenCalledOnce();
-    await expect(prepared.repo.read()).resolves.toMatchObject({ kind: "disconnected" });
+    await expect(prepared.repo.read()).resolves.toMatchObject({
+      kind: "disconnected",
+    });
   });
 
   it("drops delayed Copy completion after background invalidates the attempt lease", async () => {
     let finish!: () => void;
-    const copy = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const copy = vi.fn(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
     const attempt = {
       attemptId: twitchAttemptId("attempt-a"),
       generation: twitchCredentialGeneration(0),
@@ -678,9 +810,7 @@ describe("Twitch account session controller", () => {
       .fn<(value: string) => Promise<void>>()
       .mockRejectedValueOnce(new Error("clipboard unavailable"))
       .mockResolvedValue(undefined);
-    const request = vi.fn(
-      () => new Promise<never>(() => undefined),
-    );
+    const request = vi.fn(() => new Promise<never>(() => undefined));
     const controller = session({ repo, copy, api: gateway({ request }) });
     await foreground(controller);
 
@@ -763,8 +893,11 @@ describe("Twitch account session controller", () => {
     await foreground(controller);
     await controller.cancel();
     expect(repo.clearAttempt).toHaveBeenCalledWith("attempt-a");
-    expect(vi.mocked(repo.clearAttempt).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(repo.read).mock.invocationCallOrder[1] ?? Number.MAX_SAFE_INTEGER,
+    expect(
+      vi.mocked(repo.clearAttempt).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(repo.read).mock.invocationCallOrder[1] ??
+        Number.MAX_SAFE_INTEGER,
     );
   });
 });

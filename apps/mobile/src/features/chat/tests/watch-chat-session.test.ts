@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WatchChatSocket } from "../capabilities/watch-chat";
 import { createWatchChatSession } from "../adapters/create-watch-chat-session";
@@ -48,7 +48,16 @@ describe("watch chat session", () => {
     });
     expect(session.snapshot()).toMatchObject({
       kind: "live",
-      messages: [{ badges: [], color: "#ff7f50", displayName: "Ada", id: "m1", text: "hello", username: "ada" }],
+      messages: [
+        {
+          badges: [],
+          color: "#ff7f50",
+          displayName: "Ada",
+          id: "m1",
+          text: "hello",
+          username: "ada",
+        },
+      ],
     });
   });
 
@@ -102,20 +111,83 @@ describe("watch chat session", () => {
         data: JSON.stringify({
           content: "yo",
           id: "k1",
-          sender: { identity: { color: "#53FC18" }, slug: "ada", username: "Ada" },
+          sender: {
+            identity: { color: "#53FC18" },
+            slug: "ada",
+            username: "Ada",
+          },
         }),
         event: "App\\Events\\ChatMessageEvent",
       }),
     });
     expect(kickSession.snapshot()).toMatchObject({
       kind: "live",
-      messages: [{ badges: [], color: "#53fc18", displayName: "Ada", id: "k1", text: "yo", username: "ada" }],
+      messages: [
+        {
+          badges: [],
+          color: "#53fc18",
+          displayName: "Ada",
+          id: "k1",
+          text: "yo",
+          username: "ada",
+        },
+      ],
     });
   });
 
   it("normalizes Twitch JOINs to lowercase login without a leading hash", () => {
     expect(normalizeTwitchLogin(" #CaseOh_ ")).toBe("caseoh_");
   });
+});
 
-
+describe("busy chat publication", () => {
+  it("batches bursts, retains the newest 100 messages, and cancels old-channel updates", () => {
+    vi.useFakeTimers();
+    try {
+      const sockets: WatchChatSocket[] = [];
+      const session = createWatchChatSession({
+        fetch: async () => json({}),
+        socketFactory: () => {
+          const socket = memorySocket();
+          sockets.push(socket);
+          return socket;
+        },
+      });
+      session.attach({
+        platform: "twitch",
+        channelId: "1",
+        channelName: "alice",
+      });
+      sockets[0]?.onopen?.(undefined as never);
+      const publish = vi.fn();
+      session.subscribe(publish);
+      for (let index = 0; index < 200; index += 1)
+        sockets[0]?.onmessage?.({
+          data: `@display-name=Ada;id=m${index} :ada!ada@ada.tmi.twitch.tv PRIVMSG #alice :message ${index}`,
+        });
+      expect(publish).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(250);
+      expect(publish).toHaveBeenCalledTimes(2);
+      const view = session.snapshot();
+      expect(view.kind).toBe("live");
+      if (view.kind === "live") {
+        expect(view.messages).toHaveLength(100);
+        expect(view.messages.at(-1)?.id).toBe("m199");
+      }
+      sockets[0]?.onmessage?.({
+        data: "@id=old :ada!ada@ada.tmi.twitch.tv PRIVMSG #alice :old",
+      });
+      session.attach({
+        platform: "twitch",
+        channelId: "2",
+        channelName: "bob",
+      });
+      vi.advanceTimersByTime(250);
+      expect(session.snapshot().kind).toBe("connecting");
+      session.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

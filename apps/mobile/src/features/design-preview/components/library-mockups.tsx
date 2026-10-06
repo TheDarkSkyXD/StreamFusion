@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  Bell,
-  Download,
-  Ellipsis,
-  FileVideo,
-  History,
-  Shield,
-  Users,
-} from "lucide-react-native";
+import { Download, Ellipsis } from "lucide-react-native";
 import { Text, View } from "react-native";
 
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
@@ -35,6 +27,12 @@ import {
   PreviewSection,
   previewStyles as ui,
 } from "./preview-frame";
+import {
+  MoreRouteIcon,
+  type MoreHubRouteId,
+} from "@mobile/features/shell/components/destination-icon";
+import { DiscoveryMockup } from "./discovery-mockups";
+import { MultistreamMockup } from "./multistream-mockups";
 import { SettingsMockup } from "./settings-mockups";
 
 export type LibraryMockupKind =
@@ -60,7 +58,9 @@ export function LibraryMockup({
   readonly kind?: LibraryMockupKind;
   readonly phase?: "ready" | "empty" | "error" | "offline";
 }) {
-  const [screen, setScreen] = useState<LibraryMockupKind | "settings">(kind);
+  const [screen, setScreen] = useState<
+    LibraryMockupKind | "settings" | "categories" | "multistream"
+  >(kind);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [notice, setNotice] = useState("");
@@ -74,17 +74,19 @@ export function LibraryMockup({
   );
   const [items, setItems] = useState([...fixtureStreams]);
   if (screen === "settings") return <SettingsMockup />;
+  if (screen === "categories") return <DiscoveryMockup kind="categories" />;
+  if (screen === "multistream") return <MultistreamMockup />;
   const titles: Record<LibraryMockupKind, string> = {
     more: "More",
-    history: "Watch history",
+    history: "History",
     downloads: "Downloads",
     job: "Download details",
     activity: "Activity",
     "activity-detail": "Live alert",
     diagnostics: "Diagnostics",
-    accounts: "Accounts",
+    accounts: "Connected Accounts",
     authorization: "Connect Twitch",
-    expired: "Accounts",
+    expired: "Connected Accounts",
     "moderation-placeholder": "Moderation",
     "recording-recovery": "Recover recording",
     "download-duplicate": "Downloads",
@@ -99,44 +101,57 @@ export function LibraryMockup({
   const routes: readonly {
     readonly label: string;
     readonly description: string;
-    readonly kind: LibraryMockupKind | "settings";
-    readonly icon: typeof Bell;
+    readonly kind:
+      LibraryMockupKind | "settings" | "categories" | "multistream";
+    readonly routeId: MoreHubRouteId;
   }[] = [
     {
-      label: "Accounts",
-      description: "Twitch and Kick connections",
-      kind: "accounts",
-      icon: Users,
+      label: "Categories",
+      description: "Browse live streams by category.",
+      kind: "categories",
+      routeId: "more/categories",
     },
     {
-      label: "Watch history",
+      label: "MultiView",
+      description: "Watch several live streams together.",
+      kind: "multistream",
+      routeId: "more/multistream",
+    },
+    {
+      label: "Connected Accounts",
+      description: "Twitch and Kick connections",
+      kind: "accounts",
+      routeId: "more/accounts",
+    },
+    {
+      label: "History",
       description: "Pick up where you left off",
       kind: "history",
-      icon: History,
+      routeId: "more/history",
     },
     {
       label: "Downloads",
       description: "Videos and recordings on this device",
       kind: "downloads",
-      icon: Download,
+      routeId: "more/downloads",
     },
     {
       label: "Moderation",
       description: "Channel moderation availability",
       kind: "moderation-placeholder",
-      icon: Shield,
+      routeId: "more/moderation",
     },
     {
       label: "Settings",
       description: "Appearance, playback, and support",
       kind: "settings",
-      icon: Ellipsis,
+      routeId: "more/settings",
     },
     {
       label: "Diagnostics",
       description: "Device capabilities and recovery",
       kind: "diagnostics",
-      icon: FileVideo,
+      routeId: "more/diagnostics",
     },
   ];
   const ready = phase === "ready";
@@ -178,17 +193,21 @@ export function LibraryMockup({
               </View>
             </View>
             <View style={ui.card}>
-              {routes.map(
-                ({ icon: Icon, kind: target, label, description }) => (
-                  <MobileListRow
-                    key={label}
-                    title={label}
-                    description={description}
-                    leading={<Icon color={colors.textSecondary} size={22} />}
-                    onPress={() => setScreen(target)}
-                  />
-                ),
-              )}
+              {routes.map(({ routeId, kind: target, label, description }) => (
+                <MobileListRow
+                  key={label}
+                  title={label}
+                  description={description}
+                  leading={
+                    <MoreRouteIcon
+                      routeId={routeId}
+                      color={colors.textSecondary}
+                      size={22}
+                    />
+                  }
+                  onPress={() => setScreen(target)}
+                />
+              ))}
             </View>
           </>
         ) : null}
@@ -610,7 +629,7 @@ export function LibraryMockup({
         <MobileListRow
           title={
             screen === "history"
-              ? "Clear watch history"
+              ? "Clear History"
               : screen === "activity"
                 ? "Clear completed activity"
                 : "Clear completed downloads"

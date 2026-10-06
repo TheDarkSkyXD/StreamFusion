@@ -1,0 +1,93 @@
+[
+  {
+    "storyId": "android-screens-discovery--search-result-preview",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "verification": "Feature workflow and component tests"
+  },
+  {
+    "storyId": "android-screens-discovery--following-channel-preview",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "verification": "Feature workflow and component tests"
+  },
+  {
+    "storyId": "android-proposed-media-workflows--duplicate-download-dialog",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/watch/components/watch-download-bar.tsx",
+    "verification": "Feature workflow and component tests"
+  },
+  {
+    "storyId": "android-proposed-moderation--kick-retention",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--mod-actions",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--channel-activity",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--community",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--rewards",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--suspicious-activity",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--whispers",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-moderation--raid-target-picker",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/moderation/components/provider-tool-sheet.tsx",
+    "verification": "Provider-port tests and production-component Storybook. Authenticated device writes not exercised."
+  },
+  {
+    "storyId": "android-proposed-player-tools--playback-speed-sheet",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/watch/components/player-tools.tsx",
+    "verification": "Feature workflow and component tests"
+  },
+  {
+    "storyId": "android-proposed-player-tools--video-stats-sheet",
+    "initialStatus": "missing",
+    "implementation": "implemented",
+    "owner": "apps/mobile/src/features/watch/components/player-tools.tsx",
+    "verification": "Native observations and component lifecycle tests"
+  }
+]

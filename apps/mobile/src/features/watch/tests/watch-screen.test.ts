@@ -1,4 +1,9 @@
-import { isValidElement, type ReactElement } from "react";
+import {
+  createElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +23,15 @@ vi.mock("react-native", () => ({
   TextInput: "TextInput",
   RefreshControl: "RefreshControl",
   ScrollView: "ScrollView",
+  FlatList: (props: {
+    data: readonly unknown[];
+    renderItem: (entry: { item: unknown }) => ReactNode;
+  }) =>
+    createElement(
+      "FlatList",
+      props,
+      ...props.data.map((item) => props.renderItem({ item })),
+    ),
   View: "View",
 }));
 
@@ -63,7 +77,9 @@ vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return {
     ...actual,
+    memo: <P>(component: (props: P) => ReactNode) => component,
     useEffect: () => undefined,
+    useMemo: (factory: () => unknown) => factory(),
     useRef: (initial: unknown) => ({ current: initial }),
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) =>
       getSnapshot(),

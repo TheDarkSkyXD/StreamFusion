@@ -25,7 +25,6 @@ import { HomeStreamCard } from "./home-stream-card";
 import { useHomeLiveDiscovery } from "./use-home-live-discovery";
 
 /** Match Electron HOME_CAROUSEL_INTERVAL_DEFAULT_MS (15s). */
-const HOME_FEATURED_ROTATE_MS = 15_000;
 
 type HomeStreamRowProps = {
   readonly stream: Stream;
@@ -57,6 +56,7 @@ function HomeStreamSeparator() {
 }
 
 export function HomeLiveDiscoveryScreen({
+  carouselSeconds = 15,
   footer,
   onOpenAccounts,
   onOpenChannel,
@@ -66,6 +66,7 @@ export function HomeLiveDiscoveryScreen({
   title = "Home",
   topShelf,
 }: {
+  readonly carouselSeconds?: number;
   readonly footer?: ReactNode;
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
@@ -97,9 +98,9 @@ export function HomeLiveDiscoveryScreen({
       setFeaturedIndex((current) =>
         current >= featured.length - 1 ? 0 : current + 1,
       );
-    }, HOME_FEATURED_ROTATE_MS);
+    }, carouselSeconds * 1000);
     return () => clearInterval(timer);
-  }, [featured.length, featuredIdentity]);
+  }, [featured.length, featuredIdentity, carouselSeconds]);
 
   return (
     <HomeLiveDiscoveryView
@@ -187,7 +188,9 @@ export function HomeLiveDiscoveryView({
         <View
           style={[
             styles.header,
-            rows.length > 0 || footer != null ? styles.headerBeforeContent : null,
+            rows.length > 0 || footer != null
+              ? styles.headerBeforeContent
+              : null,
           ]}
         >
           {showTitle ? <MobileScreenHeader title={title} /> : null}
@@ -204,7 +207,9 @@ export function HomeLiveDiscoveryView({
             Live Channels
           </Text>
           {view.phase === "empty" || view.phase === "failed" ? (
-            <MobileStatusPanel tone={view.phase === "failed" ? "error" : "empty"}>
+            <MobileStatusPanel
+              tone={view.phase === "failed" ? "error" : "empty"}
+            >
               {phase}
             </MobileStatusPanel>
           ) : (

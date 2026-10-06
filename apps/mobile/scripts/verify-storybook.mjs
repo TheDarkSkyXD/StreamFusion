@@ -138,6 +138,43 @@ for (const [name, expected] of [
   }
 }
 
+const ledgerRoot = path.resolve(
+  root,
+  "../../docs/research/streamfusion-mobile/ui-integration",
+);
+const approvedIds = JSON.parse(
+  await readFile(path.join(ledgerRoot, "approved-story-ids.json"), "utf8"),
+);
+const ledger = JSON.parse(
+  await readFile(path.join(ledgerRoot, "runtime-ledger.json"), "utf8"),
+);
+assert.equal(
+  approvedIds.length,
+  160,
+  "Approved inventory must contain 160 stories",
+);
+assert.equal(
+  new Set(approvedIds).size,
+  160,
+  "Approved story IDs must be unique",
+);
+assert.deepEqual(
+  ledger.map((row) => row.storyId).sort(),
+  approvedIds,
+  "Runtime ledger differs from the approved inventory",
+);
+for (const row of ledger) {
+  assert.equal(
+    index.entries[row.storyId]?.type,
+    "story",
+    `Approved story missing: ${row.storyId}`,
+  );
+  assert(
+    row.productionOwner && row.stateOwner && row.operation,
+    `Incomplete ownership: ${row.storyId}`,
+  );
+  await readFile(path.resolve(root, "../..", row.productionOwner), "utf8");
+}
 const stories = Object.values(index.entries).filter(
   (entry) => entry.type === "story",
 );

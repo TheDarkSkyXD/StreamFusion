@@ -109,7 +109,7 @@ function KickState({
   if (model.kind === "disconnected")
     return (
       <>
-        <Status text={model.message ?? "Not connected"} />
+        <Status text={model.message ?? "Not signed in."} />
         <Action id="connect-kick-account" label="Connect Kick" onPress={actions.connect} variant="kick" />
       </>
     );
@@ -214,7 +214,7 @@ function KickState({
       <Text style={styles.detail}>
         {model.missingScopes.length
           ? `Connected with limited features. Missing: ${model.missingScopes.join(", ")}`
-          : "Connected. Required features are available."}
+          : `Connected as ${model.displayName}.`}
       </Text>
       {model.notice ? <Text style={styles.detail}>{model.notice}</Text> : null}
       {model.view === "manage" ? (
@@ -229,7 +229,7 @@ function KickState({
             busy={model.refreshing}
             disabled={model.refreshing}
             id="manage-kick-account"
-            label={model.refreshing ? "Refreshing…" : "Validate and refresh now"}
+            label={model.refreshing ? "Refreshing…" : "Validate now"}
             onPress={actions.refresh}
           />
         </>

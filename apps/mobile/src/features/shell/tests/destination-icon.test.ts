@@ -1,3 +1,4 @@
+import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -113,11 +114,11 @@ describe("More hub route icons", () => {
   });
 
   it("uses Electron-aligned icon names for the hub", () => {
-    expect(moreRouteIcons["more/categories"]).toBe("LayoutGrid");
+    expect(moreRouteIcons["more/categories"]).toBe("Grid3X3");
     expect(moreRouteIcons["more/history"]).toBe("History");
     expect(moreRouteIcons["more/downloads"]).toBe("Download");
     expect(moreRouteIcons["more/moderation"]).toBe("Shield");
-    expect(moreRouteIcons["more/settings"]).toBe("Settings");
+    expect(moreRouteIcons["more/settings"]).toBe(MobileSettingsIcon);
     expect(moreRouteIcons["more/diagnostics"]).toBe("Activity");
     expect(moreRouteIcons["more/accounts"]).toBe("CircleUserRound");
   });

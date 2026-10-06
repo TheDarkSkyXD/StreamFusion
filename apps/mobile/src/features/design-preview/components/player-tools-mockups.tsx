@@ -25,7 +25,7 @@ export function PlayerToolsMockup({
     kind === "speed"
       ? "Playback speed"
       : kind === "stats"
-        ? "Video stats"
+        ? "Video Stats"
         : "Volume";
   return (
     <>
@@ -81,11 +81,11 @@ export function PlayerToolsMockup({
             </Text>
             {[
               ["Resolution", "1920 × 1080"],
-              ["Frame rate", "60 fps"],
-              ["Dropped frames", "2 / 4,320"],
-              ["Buffered", "12 seconds"],
+              ["FPS", "60 fps"],
+              ["Skipped Frames", "2 / 4,320"],
+              ["Buffer Size", "12 seconds"],
               ["Bitrate", "6.2 Mbps"],
-              ["Codec", "H.264"],
+              ["Codecs", "H.264"],
             ].map(([label, value]) => (
               <MobileListRow
                 key={label}

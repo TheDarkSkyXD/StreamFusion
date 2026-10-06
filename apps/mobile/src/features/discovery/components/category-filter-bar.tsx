@@ -42,7 +42,7 @@ export function CategoryFilterBar({
       />
       {identity.tab === "live" ? (
         <ChipRow
-          label="Tags"
+          label="Tag"
           options={tagOptions(identity)}
           selected={identity.tag}
           testID="category-tag"
@@ -58,7 +58,7 @@ export function CategoryFilterBar({
       />
       {identity.tab === "clips" ? (
         <ChipRow
-          label="Clip time"
+          label="Time"
           options={clipTimeOptions()}
           selected={identity.clipTimeRange}
           testID="category-clip-time"
@@ -152,18 +152,18 @@ function sortOptions(tab: CategoryTab): readonly {
 }[] {
   if (tab === "live") {
     return [
-      { label: "Viewers", value: "viewers-desc" },
-      { label: "Viewers (low)", value: "viewers-asc" },
+      { label: "Most viewers", value: "viewers-desc" },
+      { label: "Fewest viewers", value: "viewers-asc" },
     ];
   }
   if (tab === "clips") {
     return [
       { label: "Views", value: "views" },
-      { label: "Recent", value: "recent" },
+      { label: "Most Recent", value: "recent" },
     ];
   }
   return [
-    { label: "Recent", value: "recent" },
+    { label: "Most Recent", value: "recent" },
     { label: "Views", value: "views" },
   ];
 }
@@ -173,10 +173,10 @@ function clipTimeOptions(): readonly {
   readonly value: ClipTimeRange;
 }[] {
   return [
-    { label: "All time", value: "all" },
-    { label: "Day", value: "day" },
-    { label: "Week", value: "week" },
-    { label: "Month", value: "month" },
+    { label: "All Time", value: "all" },
+    { label: "Last Day", value: "day" },
+    { label: "Last Week", value: "week" },
+    { label: "Last Month", value: "month" },
   ];
 }
 

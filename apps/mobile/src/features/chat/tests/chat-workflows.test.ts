@@ -391,9 +391,13 @@ describe("provider emotes and message parts", () => {
       },
       { kind: "text", text: " :ok" },
     ]);
+    expect(
+      resolveMessageParts("One long sentence with all its spaces", []),
+    ).toEqual([
+      { kind: "text", text: "One long sentence with all its spaces" },
+    ]);
     expect(resolveMessageParts("Hi [emote:42:Smile]", [])).toEqual([
-      { kind: "text", text: "Hi" },
-      { kind: "text", text: " " },
+      { kind: "text", text: "Hi " },
       {
         kind: "emote",
         text: "Smile",

@@ -324,7 +324,7 @@ export function MultistreamWorkspace({
           </Text>
         ) : null}
         <Text style={mobileType.label}>
-          Streams start muted. Players stop when you leave Multistream.
+          Streams start muted. Players stop when you leave MultiView.
         </Text>
       </MobileBottomSheet>
       <MobileBottomSheet

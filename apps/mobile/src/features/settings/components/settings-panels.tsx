@@ -26,18 +26,36 @@ type SettingsPanelProps = {
 };
 
 const PLAYER_CHROME_TOGGLES = [
-  { field: "showQuality", label: "Quality control", testID: "control-0" },
-  { field: "showSpeed", label: "Speed control", testID: "control-1" },
-  { field: "showVolume", label: "Volume control", testID: "control-2" },
-  { field: "showFullscreen", label: "Fullscreen control", testID: "control-3" },
-  { field: "showTheater", label: "Theater control", testID: "control-4" },
-  { field: "showVideoStats", label: "Video stats control", testID: "control-5" },
+  { field: "showQuality", labelKey: "settings.quality", testID: "control-0" },
+  {
+    field: "showSpeed",
+    labelKey: "settings.playbackSpeed",
+    testID: "control-1",
+  },
+  { field: "showVolume", labelKey: "settings.volume", testID: "control-2" },
+  {
+    field: "showFullscreen",
+    labelKey: "settings.fullscreen",
+    testID: "control-3",
+  },
+  { field: "showTheater", labelKey: "settings.theater", testID: "control-4" },
+  {
+    field: "showVideoStats",
+    labelKey: "settings.videoStats",
+    testID: "control-5",
+  },
 ] as const;
 
-export function AppearanceSettingsPanel({ onChange, view }: SettingsPanelProps) {
+export function AppearanceSettingsPanel({
+  onChange,
+  view,
+}: SettingsPanelProps) {
   const { t } = useTranslation();
   return (
-    <SettingsSection testID="panel-appearance" title={t("settings.general").toUpperCase()}>
+    <SettingsSection
+      testID="panel-appearance"
+      title={t("settings.general").toUpperCase()}
+    >
       <AppearanceLookRows onChange={onChange} view={view} />
       <AppearanceSessionRows onChange={onChange} view={view} />
     </SettingsSection>
@@ -66,7 +84,10 @@ function AppearanceLookRows({ onChange, view }: SettingsPanelProps) {
         onSelect={(language) => onChange({ language })}
         testID="language"
       />
-      <SettingsCopy testID="language-effective" value={view.effective.language} />
+      <SettingsCopy
+        testID="language-effective"
+        value={view.effective.language}
+      />
     </>
   );
 }
@@ -129,7 +150,10 @@ function PlaybackQualityRows({ onChange, view }: SettingsPanelProps) {
         testID="carousel"
         value={prefs.carouselSeconds}
       />
-      <SettingsCopy testID="carousel-effective" value={view.effective.carousel} />
+      <SettingsCopy
+        testID="carousel-effective"
+        value={view.effective.carousel}
+      />
       <PreferenceSwitch
         checked={prefs.captionsEnabled}
         copy={view.effective.captions}
@@ -148,7 +172,9 @@ function PlaybackCodecRows({ onChange, view }: SettingsPanelProps) {
     <>
       <SettingsSelect
         current={prefs.tokenPlayer}
-        detail={t("settings.playerTypeUsedWhenRequestingTheAdBlockStreamTokenLeaveOnDefaultU")}
+        detail={t(
+          "settings.playerTypeUsedWhenRequestingTheAdBlockStreamTokenLeaveOnDefaultU",
+        )}
         label={t("settings.accessTokenPlayerType")}
         onSelect={(tokenPlayer) => onChange({ tokenPlayer })}
         options={[
@@ -159,7 +185,10 @@ function PlaybackCodecRows({ onChange, view }: SettingsPanelProps) {
         ]}
         testID="token-player"
       />
-      <SettingsCopy testID="token-player-effective" value={view.effective.tokenPlayer} />
+      <SettingsCopy
+        testID="token-player-effective"
+        value={view.effective.tokenPlayer}
+      />
       <PreferenceSwitch
         checked={prefs.allowHevc}
         copy={view.effective.hevc}
@@ -175,7 +204,10 @@ function PlaybackCodecRows({ onChange, view }: SettingsPanelProps) {
   );
 }
 
-export function PlayerControlsSettingsPanel({ onChange, view }: SettingsPanelProps) {
+export function PlayerControlsSettingsPanel({
+  onChange,
+  view,
+}: SettingsPanelProps) {
   const { t } = useTranslation();
   const prefs = view.preferences;
   return (
@@ -183,13 +215,17 @@ export function PlayerControlsSettingsPanel({ onChange, view }: SettingsPanelPro
       {PLAYER_CHROME_TOGGLES.map((toggle) => (
         <SettingsSwitch
           checked={prefs[toggle.field]}
+          disabled={toggle.field === "showTheater"}
           key={toggle.testID}
-          label={toggle.label}
+          label={t(toggle.labelKey)}
           onToggle={() => onChange({ [toggle.field]: !prefs[toggle.field] })}
           testID={toggle.testID}
         />
       ))}
-      <SettingsCopy testID="player-chrome-effective" value={view.effective.playerChrome} />
+      <SettingsCopy
+        testID="player-chrome-effective"
+        value={view.effective.playerChrome}
+      />
       <SettingsSelect
         current={prefs.rewindSeconds}
         label={t("settings.rewind")}
