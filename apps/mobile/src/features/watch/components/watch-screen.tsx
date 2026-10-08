@@ -6,7 +6,7 @@ import {
   Download,
   Ellipsis,
 } from "lucide-react-native";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState, type ComponentType } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Stream } from "@streamfusion/core/content";
@@ -21,6 +21,7 @@ import type {
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
+import { MobileAvatar } from "@mobile/design/avatar";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -240,6 +241,7 @@ export function WatchScreen({
     onToggleControls;
   const avatarUrl = channelAvatarUrl(inspection);
   const displayName = channelDisplayName(inspection, target.channelName);
+  const channelInfo = inspection?.info;
   const liveMeta = liveMetaStream(inspection);
   return (
     <View
@@ -405,18 +407,21 @@ export function WatchScreen({
             ]}
             testID="watch-open-channel"
           >
-            {avatarUrl ? (
-              <Image
-                accessibilityIgnoresInvertColors
-                source={{ uri: avatarUrl }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View
-                style={styles.avatar}
-                testID="watch-channel-avatar-placeholder"
-              />
-            )}
+            <MobileAvatar
+              livePlatform={
+                channelInfo &&
+                channelInfo.kind !== "unavailable" &&
+                channelInfo.channel.isLive
+                  ? channelInfo.channel.platform
+                  : null
+              }
+              name={displayName}
+              size={36}
+              {...(avatarUrl
+                ? {}
+                : { testID: "watch-channel-avatar-placeholder" })}
+              uri={avatarUrl}
+            />
             <View style={styles.metaCopy}>
               <View style={styles.metaNameRow}>
                 <Text selectable style={styles.metaName} testID="watch-target">
@@ -608,10 +613,6 @@ function liveMetaStream(
   };
 }
 
-/**
- * Isolated ticking viewers · uptime line (desktop UptimeCounter pattern).
- * Twitch-style red live dot sits immediately before uptime when present.
- */
 function WatchMetaViewers({
   startedAt,
   viewerCount,
@@ -840,12 +841,6 @@ const styles = StyleSheet.create({
     borderRadius: mobileRadii.full,
     height: 6,
     width: 6,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 36,
-    width: 36,
   },
   followButton: {
     flexDirection: "row",

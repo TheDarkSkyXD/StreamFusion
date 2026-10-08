@@ -6,6 +6,7 @@ import type {
   Clip,
   Video,
 } from "@streamfusion/core/content";
+import { MobileAvatar } from "@mobile/design/avatar";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileCatalogTags } from "@mobile/design/tag";
 import {
@@ -27,15 +28,12 @@ export function SearchChannelCard({
 }) {
   const body = (
     <>
-      {channel.avatarUrl ? (
-        <Image
-          accessibilityIgnoresInvertColors
-          source={{ uri: channel.avatarUrl }}
-          style={styles.avatar}
-        />
-      ) : (
-        <View style={styles.avatar} />
-      )}
+      <MobileAvatar
+        livePlatform={channel.isLive ? channel.platform : null}
+        name={channel.displayName}
+        size={40}
+        uri={channel.avatarUrl}
+      />
       <View style={styles.copy}>
         <View style={styles.channelRow}>
           <Text selectable style={styles.title}>
@@ -174,12 +172,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.small,
     overflow: "hidden",
     paddingBottom: mobileSpacing.medium,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 40,
-    width: 40,
   },
   copy: {
     flex: 1,

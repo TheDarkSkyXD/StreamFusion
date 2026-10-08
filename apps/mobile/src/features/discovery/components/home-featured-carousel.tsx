@@ -1,6 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
+import { MobileAvatar } from "@mobile/design/avatar";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
@@ -11,7 +12,6 @@ import {
 } from "@mobile/design/tokens";
 import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 
-/** Match Electron FeaturedStage / FeaturedStream: up to 10 top live streams. */
 export const HOME_FEATURED_CAROUSEL_LIMIT = 10;
 
 export function featuredCarouselStreams(
@@ -20,7 +20,6 @@ export function featuredCarouselStreams(
   return streams.slice(0, HOME_FEATURED_CAROUSEL_LIMIT);
 }
 
-/** Electron Live Now uses streams.slice(1) — first card stays in the carousel. */
 export function recommendedLiveStreams(
   streams: readonly Stream[],
 ): readonly Stream[] {
@@ -82,15 +81,12 @@ export function HomeFeaturedCarouselView({
         />
         <View style={styles.panel}>
           <View style={styles.panelRow}>
-            {active.channelAvatar ? (
-              <Image
-                accessibilityIgnoresInvertColors
-                source={{ uri: active.channelAvatar }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={styles.avatar} />
-            )}
+            <MobileAvatar
+              livePlatform={active.isLive ? active.platform : null}
+              name={active.channelDisplayName}
+              size={48}
+              uri={active.channelAvatar}
+            />
             <View style={styles.copy}>
               <View style={styles.channelRow}>
                 <Text numberOfLines={1} selectable style={styles.channel}>
@@ -213,12 +209,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.small,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 48,
-    width: 48,
   },
   copy: {
     flex: 1,

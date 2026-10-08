@@ -2,6 +2,7 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { Bell, BellOff } from "lucide-react-native";
 import type { Channel } from "@streamfusion/core/content";
 
+import { MobileAvatar } from "@mobile/design/avatar";
 import { MobileButton } from "@mobile/design/button";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
@@ -62,15 +63,12 @@ export function ChannelHeader({
         />
       ) : null}
       <View style={styles.identity}>
-        {channel.avatarUrl ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: channel.avatarUrl }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View style={styles.avatar} />
-        )}
+        <MobileAvatar
+          livePlatform={channel.isLive ? channel.platform : null}
+          name={channel.displayName}
+          size={64}
+          uri={channel.avatarUrl}
+        />
         <View style={styles.copy}>
           <View style={styles.nameRow}>
             <Text
@@ -112,7 +110,9 @@ export function ChannelHeader({
             disabled={followBusy}
             onPress={onFollow}
             testID="channel-follow"
-            variant={follow.kind === "guest-present" ? "secondary" : channel.platform}
+            variant={
+              follow.kind === "guest-present" ? "secondary" : channel.platform
+            }
           >
             {followLabel}
           </MobileButton>
@@ -169,12 +169,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: mobileSpacing.medium,
-  },
-  avatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 64,
-    width: 64,
   },
   copy: {
     flex: 1,

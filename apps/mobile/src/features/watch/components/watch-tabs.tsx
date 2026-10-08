@@ -1,14 +1,8 @@
 import { useTranslation } from "react-i18next";
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
+import { MobileAvatar } from "@mobile/design/avatar";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { MobileCatalogTags } from "@mobile/design/tag";
@@ -40,13 +34,6 @@ import type {
 
 import { formatWatchViewerCount } from "../domain/watch-live-meta";
 
-/**
- * Under-player surface while watching.
- *
- * Default: live chat (or comments for VOD/clip). Stream info appears when the
- * player is tapped. Channel Home / Videos / Clips live on the channel surface
- * opened from the profile row — not as Info/Related/Chat chips here.
- */
 export function WatchTabs({
   chat,
   chatSession,
@@ -180,10 +167,23 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
       </MobileStatusPanel>
     );
   }
+  const avatar = (
+    <MobileAvatar
+      livePlatform={info.channel.isLive ? info.channel.platform : null}
+      name={info.channel.displayName}
+      size={64}
+      testID={
+        info.channel.avatarUrl === ""
+          ? "watch-info-avatar-placeholder"
+          : "watch-info-avatar"
+      }
+      uri={info.channel.avatarUrl}
+    />
+  );
   if (info.kind === "recorded") {
     return (
       <View style={styles.infoCard} testID="watch-info">
-        <ChannelAvatar url={info.channel.avatarUrl} />
+        {avatar}
         <View style={styles.infoCopy}>
           <View style={styles.identity}>
             <Text
@@ -210,7 +210,7 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
   if (info.kind === "ended") {
     return (
       <View style={styles.infoCard} testID="watch-info">
-        <ChannelAvatar url={info.channel.avatarUrl} />
+        {avatar}
         <View style={styles.infoCopy}>
           <View style={styles.identity}>
             <Text
@@ -233,7 +233,7 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
   }
   return (
     <View style={styles.infoCard} testID="watch-info">
-      <ChannelAvatar url={info.channel.avatarUrl} />
+      {avatar}
       <View style={styles.infoCopy}>
         <View style={styles.identity}>
           <Text
@@ -265,22 +265,6 @@ function InfoPane({ info }: { readonly info: WatchInfo | null }) {
         />
       </View>
     </View>
-  );
-}
-
-function ChannelAvatar({ url }: { readonly url: string }) {
-  if (url === "") {
-    return (
-      <View style={styles.infoAvatar} testID="watch-info-avatar-placeholder" />
-    );
-  }
-  return (
-    <Image
-      accessibilityIgnoresInvertColors
-      source={{ uri: url }}
-      style={styles.infoAvatar}
-      testID="watch-info-avatar"
-    />
   );
 }
 
@@ -396,12 +380,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     flexDirection: "row",
     gap: mobileSpacing.medium,
-  },
-  infoAvatar: {
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.full,
-    height: 64,
-    width: 64,
   },
   infoCopy: {
     flex: 1,

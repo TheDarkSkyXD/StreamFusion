@@ -41,6 +41,7 @@ export function FollowingChannelCard({
     >
       <View style={styles.heading}>
         <MobileAvatar
+          livePlatform={row.isLive ? row.follow.platform : null}
           name={row.follow.displayName}
           size={48}
           uri={avatarUrl ?? null}

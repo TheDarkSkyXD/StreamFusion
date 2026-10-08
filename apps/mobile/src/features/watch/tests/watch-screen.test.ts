@@ -94,9 +94,12 @@ vi.mock("react", async (importOriginal) => {
 });
 
 type ElementProps = Readonly<{
+  accessibilityLabel?: string;
+  accessibilityRole?: string;
   children?: unknown;
   disabled?: boolean;
   onPress?: () => void;
+  style?: unknown;
   testID?: string;
 }>;
 type Element = ReactElement<ElementProps>;
@@ -1368,6 +1371,70 @@ describe("watch screen", () => {
     expect(nodes.some((node) => node.props.testID === "watch-show-chat")).toBe(
       true,
     );
+  });
+
+  it("rings the current live channel while watching its recording", () => {
+    const recordedTarget: WatchTarget = {
+      ...target,
+      media: {
+        durationSeconds: 120,
+        id: "video-1",
+        kind: "video",
+        title: "Earlier recording",
+      },
+    };
+    const nodes = descendants(
+      WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
+        PlayerSurface: () => null,
+        chat: { detail: "Comments unavailable.", kind: "unavailable" },
+        inspection: {
+          info: {
+            channel: {
+              avatarUrl: "https://cdn.example/ada.png",
+              displayName: "Ada",
+              id: "1",
+              isLive: true,
+              isPartner: false,
+              isVerified: false,
+              platform: "twitch",
+              username: "ada",
+            },
+            durationSeconds: 120,
+            kind: "recorded",
+            mediaKind: "video",
+            title: "Earlier recording",
+          },
+          related: { kind: "empty" },
+          target: recordedTarget,
+        },
+        onOpenRelated: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        playback: { kind: "ready", target: recordedTarget },
+        tab: "info",
+        target: recordedTarget,
+      }),
+    );
+    const avatars = nodes.filter(
+      (node) =>
+        node.props.accessibilityLabel === "Ada" &&
+        node.props.accessibilityRole === "image",
+    );
+    expect(
+      avatars.map((node) => {
+        const style = Array.isArray(node.props.style)
+          ? Object.assign({}, ...node.props.style)
+          : {};
+        return [style.width, style.borderColor];
+      }),
+    ).toEqual([
+      [36, "#9146ff"],
+      [64, "#9146ff"],
+    ]);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-info-avatar"),
+    ).toBe(true);
   });
 
   it("renders Twitch-like top channel chrome with avatar name and Follow", () => {

@@ -77,7 +77,11 @@ export function MobileMediaCardContent({
       </View>
       <View style={styles.metadata}>
         {!compact ? (
-          <MobileAvatar name={channel} uri={avatarUri ?? null} />
+          <MobileAvatar
+            livePlatform={live ? platform : null}
+            name={channel}
+            uri={avatarUri ?? null}
+          />
         ) : null}
         <View style={styles.copy}>
           <View style={styles.channel}>
