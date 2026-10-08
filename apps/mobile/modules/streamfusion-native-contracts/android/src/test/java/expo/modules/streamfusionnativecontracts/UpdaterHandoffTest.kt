@@ -6,7 +6,10 @@ import android.content.ContextWrapper
 import java.io.File
 import java.lang.ref.WeakReference
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -15,6 +18,35 @@ import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class UpdaterHandoffTest {
+  @Test fun lifecycleCallbacksDoNotWaitForUpdaterWorkLock() = withEngine { engine, _ ->
+    val guard = UpdaterEngine::class.java.getDeclaredField("guard").apply { isAccessible = true }.get(engine)
+      ?: error("Updater guard is missing")
+    val held = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val holder = Thread {
+      synchronized(guard) {
+        held.countDown()
+        release.await(5, TimeUnit.SECONDS)
+      }
+    }
+    holder.start()
+    assertTrue(held.await(5, TimeUnit.SECONDS))
+    val completed = CountDownLatch(1)
+    val callback = Thread {
+      engine.onBackground()
+      engine.onForeground(null)
+      completed.countDown()
+    }
+    callback.start()
+    try {
+      assertTrue("Lifecycle callbacks waited for updater work", completed.await(1, TimeUnit.SECONDS))
+    } finally {
+      release.countDown()
+      holder.join(5_000)
+      callback.join(5_000)
+    }
+  }
+
   @Test fun backgroundAndLaterForegroundCannotResumeAnOldVerifiedHandoff() = withEngine { engine, journal ->
     val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     engine.onForeground(activity)
