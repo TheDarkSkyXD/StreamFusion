@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createWatchChatSession } from "../adapters/create-watch-chat-session";
 import type { WatchChatSocket } from "../capabilities/watch-chat";
@@ -98,13 +98,14 @@ describe("watch chat event session", () => {
         }),
       ),
     );
-    for (let step = 0; step < 10; step += 1) await Promise.resolve();
-    expect(session.snapshot()).toMatchObject({
-      kind: "live",
-      moderationRevision: 1,
-      messages: [
-        { id: "old", isHistorical: true, receivedAt: 100, deletedAt: 200 },
-      ],
+    await vi.waitFor(() => {
+      expect(session.snapshot()).toMatchObject({
+        kind: "live",
+        moderationRevision: 1,
+        messages: [
+          { id: "old", isHistorical: true, receivedAt: 100, deletedAt: 200 },
+        ],
+      });
     });
     session.dispose();
   });
