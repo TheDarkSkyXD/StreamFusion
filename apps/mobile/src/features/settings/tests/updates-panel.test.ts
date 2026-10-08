@@ -3,8 +3,10 @@ import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SupportSettingsSession, UpdateCheckState } from "../capabilities/support-settings";
+import type { AndroidUpdaterPort } from "@mobile/features/app-update/capabilities/android-updater";
+import { createSupportSettingsSession } from "../composition/support-settings-runtime";
 import { DEFAULT_SUPPORT_SETTINGS, composeSupportSettingsView } from "../domain/support-settings";
-import { UpdateAvailableNotice, UpdatesSettingsPanel } from "../components/support-settings-panels";
+import { UpdateAvailableNotice, UpdateDialogHost, UpdatesSettingsPanel } from "../components/support-settings-panels";
 
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
@@ -14,6 +16,8 @@ vi.mock("react-native", async () => {
     readonly disabled?: boolean;
   }) => createElement(tag, { "data-testid": props.testID, disabled: props.disabled }, props.children);
   return {
+    Modal: (props: { readonly children?: ReactNode; readonly visible: boolean }) =>
+      props.visible ? createElement("dialog", { open: true }, props.children) : null,
     Pressable: host("button"),
     Switch: host("input"),
     Text: host("span"),
@@ -91,5 +95,45 @@ describe("mobile Updates panel", () => {
     const html = renderToStaticMarkup(createElement(UpdatesSettingsPanel, { session: session({ status: "current", release: null }) }));
     expect(html).toContain("No stable Android release has been published yet.");
     expect(html).not.toContain("Open update");
+  });
+
+  it("shows a rejected native install action in the update popup and keeps Install available", async () => {
+    const operation = "11111111-1111-4111-8111-111111111111";
+    let receivedCommand: unknown = null;
+    const updater: AndroidUpdaterPort = {
+      snapshot: async () => ({ revision: 1, phase: { kind: "ready", operation, release } }),
+      command: async (command) => {
+        receivedCommand = command;
+        throw new Error("native install command rejected");
+      },
+      subscribe: () => () => {},
+    };
+    const settings = createSupportSettingsSession({
+      logs: { list: () => [] },
+      maintenance: {
+        clearHistory: async () => "",
+        disconnectAccounts: async () => "",
+        removeCompletedMedia: async () => "",
+        resetApp: async () => "",
+      },
+      metadata: { read: () => ({ name: "StreamFusion", runtimeHost: "development-client", version: "0.1.0-alpha" }) },
+      releases: { check: async () => ({ status: "available", release }) },
+      open: { open: async () => {} },
+      share: { share: async () => "" },
+      store: { read: async () => DEFAULT_SUPPORT_SETTINGS, write: async (next) => next },
+      updater,
+    });
+
+    await settings.load();
+    expect(settings.peek().updatePopupVisible).toBe(true);
+    await settings.installUpdate();
+    expect(receivedCommand).toEqual({ kind: "install", operation });
+    expect(settings.peek().updater.kind).toBe("ready");
+    expect(settings.peek().updateOperationError).toBe("The Android update action failed. Try again.");
+
+    const html = renderToStaticMarkup(createElement(UpdateDialogHost, { session: settings }));
+    expect(html).toContain('data-testid="update-dialog"');
+    expect(html).toContain('data-testid="update-action-install"');
+    expect(html).toContain("The Android update action failed. Try again.");
   });
 });
