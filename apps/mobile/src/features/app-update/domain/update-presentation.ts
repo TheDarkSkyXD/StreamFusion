@@ -22,7 +22,7 @@ export function updatePresentation(
           title: `Android ${offered.version} is available`,
           detail: phase.kind === "unsupported"
             ? phase.message
-            : "Download and verify the update in StreamFusion.",
+            : "Download and verify the update. Android will then ask you to approve installation.",
           progress: null,
           actions: phase.kind === "unsupported" ? ["later"] : ["download", "later"],
         }

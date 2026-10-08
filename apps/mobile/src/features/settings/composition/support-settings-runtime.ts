@@ -209,6 +209,8 @@ export function createSupportSettingsSession(input: {
     if (kind !== "download" && !operation) return;
     try {
       updateOperationError = null;
+      cached = { ...cached, updateOperationError };
+      notify();
       let next: UpdateSnapshot;
       if (kind === "download") {
         if (!release) return;

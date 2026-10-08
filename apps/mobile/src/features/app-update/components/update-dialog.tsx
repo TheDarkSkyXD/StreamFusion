@@ -20,10 +20,12 @@ const LABELS: Record<UpdateAction, string> = {
 export function UpdateDialog({
   model,
   onAction,
+  operationError,
   visible,
 }: {
   readonly model: UpdatePresentation | null;
   readonly onAction: (action: UpdateAction) => void;
+  readonly operationError?: string | null;
   readonly visible: boolean;
 }) {
   if (!model) return null;
@@ -41,6 +43,11 @@ export function UpdateDialog({
         <View accessibilityViewIsModal style={styles.card} testID="update-dialog">
           <Text style={styles.title} testID="update-dialog-title">{model.title}</Text>
           <Text style={styles.detail} testID="update-dialog-detail">{model.detail}</Text>
+          {operationError ? (
+            <Text accessibilityRole="alert" style={styles.error} testID="update-dialog-operation-error">
+              {operationError}
+            </Text>
+          ) : null}
           {model.progress ? (
             <View testID="update-progress">
               <Text style={styles.progressCopy} testID="update-progress-copy">
@@ -103,6 +110,7 @@ const styles = StyleSheet.create({
   },
   title: { ...mobileType.title },
   detail: { ...mobileType.body },
+  error: { ...mobileType.body, color: mobileColors.danger },
   progressCopy: { ...mobileType.label, marginBottom: mobileSpacing.small },
   track: {
     backgroundColor: mobileColors.border,

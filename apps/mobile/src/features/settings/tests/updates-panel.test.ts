@@ -100,11 +100,13 @@ describe("mobile Updates panel", () => {
   it("shows a rejected native install action in the update popup and keeps Install available", async () => {
     const operation = "11111111-1111-4111-8111-111111111111";
     let receivedCommand: unknown = null;
+    let reject = true;
     const updater: AndroidUpdaterPort = {
       snapshot: async () => ({ revision: 1, phase: { kind: "ready", operation, release } }),
       command: async (command) => {
         receivedCommand = command;
-        throw new Error("native install command rejected");
+        if (reject) throw new Error("native install command rejected");
+        return { revision: 2, phase: { kind: "ready", operation, release } };
       },
       subscribe: () => () => {},
     };
@@ -135,5 +137,11 @@ describe("mobile Updates panel", () => {
     expect(html).toContain('data-testid="update-dialog"');
     expect(html).toContain('data-testid="update-action-install"');
     expect(html).toContain("The Android update action failed. Try again.");
+
+    reject = false;
+    await settings.installUpdate();
+    const retried = renderToStaticMarkup(createElement(UpdateDialogHost, { session: settings }));
+    expect(retried).toContain('data-testid="update-action-install"');
+    expect(retried).not.toContain("The Android update action failed. Try again.");
   });
 });

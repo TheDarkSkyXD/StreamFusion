@@ -12,11 +12,12 @@ const release: UpdateRelease = {
   releaseUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v0.1.4-alpha.1",
 };
 
-function Story({ phase }: { readonly phase: UpdatePhase }) {
+function Story({ phase, operationError }: { readonly phase: UpdatePhase; readonly operationError?: string }) {
   return (
     <UpdateDialog
       model={updatePresentation(phase, release)}
       onAction={() => {}}
+      operationError={operationError ?? null}
       visible
     />
   );
@@ -42,6 +43,12 @@ export const Verifying: StoryCase = {
 };
 export const Ready: StoryCase = {
   args: { phase: { kind: "ready", operation: "story-1", release } },
+};
+export const ReadyWithActionError: StoryCase = {
+  args: {
+    phase: { kind: "ready", operation: "story-1", release },
+    operationError: "The Android update action failed. Try again.",
+  },
 };
 export const PermissionNeeded: StoryCase = {
   args: { phase: { kind: "permission-needed", operation: "story-1", release } },

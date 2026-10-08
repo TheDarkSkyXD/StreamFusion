@@ -190,7 +190,7 @@ export function UpdateDialogHost({ session }: { readonly session: SupportSetting
       case "install": void session.installUpdate(); return;
     }
   }
-  return <UpdateDialog model={model} onAction={onAction} visible={view.updatePopupVisible} />;
+  return <UpdateDialog model={model} onAction={onAction} operationError={view.updateOperationError} visible={view.updatePopupVisible} />;
 }
 
 export function DiagnosticsSettingsPanel({

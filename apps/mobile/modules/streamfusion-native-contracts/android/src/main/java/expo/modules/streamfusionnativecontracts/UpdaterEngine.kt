@@ -34,6 +34,9 @@ internal class UpdaterEngine private constructor(
   private var servicePending = false
   private var firstReconciliation = true
   @Volatile private var foregroundActivity: WeakReference<Activity>? = null
+  private data class VerifiedHandoff(val operation: String, val generation: Long, val activity: WeakReference<Activity>)
+  private data class PermissionReturn(val operation: String, val generation: Long)
+  private var permissionReturn: PermissionReturn? = null
 
   fun listen(listener: (Long) -> Unit) { listeners.add(listener) }
   fun unlisten(listener: (Long) -> Unit) { listeners.remove(listener) }
@@ -46,6 +49,7 @@ internal class UpdaterEngine private constructor(
     val kind = input["kind"] as? String ?: error("Invalid update command")
     return when (kind) {
       "download" -> {
+        rememberActivity(activity)
         val release = UpdateRelease.parse(input["release"] as? Map<*, *> ?: error("Missing release"))
         val current = synchronized(guard) { reconcileLocked() }
         if (current.kind in ACTIVE_KINDS) return current.wire()
@@ -99,6 +103,7 @@ internal class UpdaterEngine private constructor(
   }
 
   private fun retry(operation: String, activity: Activity?): Map<String, Any> {
+    rememberActivity(activity)
     val observed = synchronized(guard) { reconcileLocked() }
     if (observed.operation != operation || observed.kind in setOf("downloading", "verifying", "staging", "awaiting-approval", "installed")) {
       return observed.wire()
@@ -133,7 +138,7 @@ internal class UpdaterEngine private constructor(
   }
 
   private fun install(operation: String, activity: Activity?): Map<String, Any> = synchronized(guard) {
-    if (activity != null) foregroundActivity = WeakReference(activity)
+    rememberActivity(activity)
     val current = reconcileLocked()
     if (current.operation != operation) return@synchronized current.wire()
     if (current.kind == "awaiting-approval") return@synchronized continueApprovalLocked(current).wire()
@@ -155,9 +160,24 @@ internal class UpdaterEngine private constructor(
     try { verifier.verify(journal.verified, release, manifest) }
     catch (error: UpdateFailureException) { return failLocked(current, error.code, "download") }
     if (!context.packageManager.canRequestPackageInstalls()) {
-      val waiting = saveLocked(current.copy(kind = "permission-needed", installIntent = true, code = null, retry = null))
-      activity?.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-        Uri.parse("package:${context.packageName}")))
+      val waiting = saveLocked(current.copy(kind = "permission-needed", installIntent = false, code = null, retry = null))
+      val operation = waiting.operation ?: return waiting
+      val lease = foregroundActivity?.takeIf { it.get() === activity }
+      if (lease != null && activity != null) activity.runOnUiThread {
+        synchronized(guard) {
+          val latest = journal.read()
+          if (foreground(lease) == null || latest.operation != waiting.operation ||
+            latest.generation != waiting.generation || latest.kind != "permission-needed") return@synchronized
+          try {
+            activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+              Uri.parse("package:${context.packageName}")))
+            permissionReturn = PermissionReturn(operation, waiting.generation)
+            saveLocked(latest.copy(installIntent = true))
+          } catch (_: Exception) {
+            failLocked(latest, "install-failed", "install")
+          }
+        }
+      }
       return waiting
     }
     abandonLocked(current)
@@ -172,17 +192,32 @@ internal class UpdaterEngine private constructor(
   }
 
   fun onForeground(activity: Activity?) {
-    foregroundActivity = activity?.let(::WeakReference)
+    val lease = activity?.let(::WeakReference)
+    val request = synchronized(guard) {
+      foregroundActivity = lease
+      permissionReturn.also { permissionReturn = null }
+    } ?: return
     executor.submit {
       synchronized(guard) {
         val current = reconcileLocked()
-        if (current.kind == "permission-needed" && current.installIntent &&
-          context.packageManager.canRequestPackageInstalls()) installLocked(current, activity)
+        if (current.operation != request.operation || current.generation != request.generation ||
+          current.kind != "permission-needed") return@synchronized
+        val returned = saveLocked(current.copy(installIntent = false))
+        if (lease != null && foreground(lease) != null) {
+          try {
+            if (context.packageManager.canRequestPackageInstalls()) installLocked(returned, activity)
+          }
+          catch (_: Exception) {
+            val latest = journal.read()
+            if (latest.operation == request.operation && latest.generation == request.generation &&
+              latest.kind == "permission-needed") failLocked(latest, "install-failed", "install")
+          }
+        }
       }
     }
   }
 
-  fun onBackground() { foregroundActivity = null }
+  fun onBackground() { synchronized(guard) { foregroundActivity = null } }
 
   fun startTransferFromService() {
     synchronized(guard) {
@@ -195,7 +230,10 @@ internal class UpdaterEngine private constructor(
       )) else current
       val exit = CountDownLatch(1)
       workerExit = exit
-      worker = executor.submit { try { transfer(next.generation) } finally { staleCleanup(next.generation); exit.countDown() } }
+      worker = executor.submit {
+        val handoff = try { transfer(next.generation) } finally { staleCleanup(next.generation); exit.countDown() }
+        if (handoff != null) executor.submit { continueVerifiedUpdate(handoff) }
+      }
     }
   }
 
@@ -210,15 +248,16 @@ internal class UpdaterEngine private constructor(
     }
   }
 
-  private fun transfer(generation: Long) {
-    val current = synchronized(guard) { journal.read().takeIf { it.generation == generation && it.kind == "downloading" } } ?: return
-    val release = current.release ?: return
+  private fun transfer(generation: Long): VerifiedHandoff? {
+    val current = synchronized(guard) { journal.read().takeIf { it.generation == generation && it.kind == "downloading" } } ?: return null
+    val release = current.release ?: return null
+    var handoff: VerifiedHandoff? = null
     try {
       val manifest = transport.manifest(release) { !isCurrent(generation, "downloading") }
       if (manifest.versionCode <= verifier.installedVersion()) throw UpdateFailureException("version")
       synchronized(guard) {
         val latest = journal.read()
-        if (latest.generation != generation || latest.kind != "downloading") return
+        if (latest.generation != generation || latest.kind != "downloading") return null
         saveLocked(latest.copy(versionCode = manifest.versionCode, minSdk = manifest.minSdk))
       }
       if ((journal.partial.parentFile?.usableSpace ?: 0L) < release.apkBytes + 16L * 1024 * 1024) {
@@ -240,16 +279,20 @@ internal class UpdaterEngine private constructor(
       }
       synchronized(guard) {
         val latest = journal.read()
-        if (latest.generation != generation || latest.kind != "downloading") return
+        if (latest.generation != generation || latest.kind != "downloading") return null
         saveLocked(latest.copy(kind = "verifying", bytes = release.apkBytes))
       }
       verifier.verify(journal.partial, release, manifest)
       synchronized(guard) {
         val latest = journal.read()
-        if (latest.generation != generation || latest.kind != "verifying") return
+        if (latest.generation != generation || latest.kind != "verifying") return null
         if (journal.verified.exists()) journal.verified.delete()
         if (!journal.partial.renameTo(journal.verified)) throw UpdateFailureException("storage")
-        saveLocked(latest.copy(kind = "ready"))
+        val ready = saveLocked(latest.copy(kind = "ready"))
+        val lease = foregroundActivity
+        if (lease != null && foreground(lease) != null && ready.operation != null) {
+          handoff = VerifiedHandoff(ready.operation, ready.generation, lease)
+        }
       }
     } catch (_: UpdateCanceledException) {
       pauseIfCurrent(generation, "network")
@@ -267,6 +310,34 @@ internal class UpdaterEngine private constructor(
       }
     } finally {
       context.stopService(Intent(context, UpdaterForegroundService::class.java))
+    }
+    return handoff
+  }
+
+  private fun foreground(lease: WeakReference<Activity>): Activity? {
+    if (foregroundActivity !== lease) return null
+    return lease.get()?.takeUnless { it.isFinishing || it.isDestroyed }
+  }
+
+  private fun rememberActivity(activity: Activity?) {
+    if (activity == null) return
+    synchronized(guard) {
+      if (foregroundActivity?.get() !== activity) foregroundActivity = WeakReference(activity)
+    }
+  }
+
+  private fun continueVerifiedUpdate(handoff: VerifiedHandoff) {
+    synchronized(guard) {
+      val current = journal.read()
+      val activity = foreground(handoff.activity) ?: return
+      if (current.operation != handoff.operation || current.generation != handoff.generation ||
+        current.kind != "ready") return
+      try { installLocked(current, activity) }
+      catch (_: Exception) {
+        val latest = journal.read()
+        if (latest.operation == handoff.operation && latest.generation == handoff.generation &&
+          latest.kind in setOf("ready", "permission-needed")) failLocked(latest, "install-failed", "install")
+      }
     }
   }
 
@@ -346,9 +417,16 @@ internal class UpdaterEngine private constructor(
           saveLocked(current.copy(kind = "awaiting-approval"))
           if (approval != null) {
             val pending = showConsentNotification(sessionId, approval)
-            val activity = foregroundActivity?.get()?.takeUnless { it.isFinishing }
-            if (activity != null) activity.runOnUiThread {
-              try { pending.send() } catch (_: PendingIntent.CanceledException) { }
+            val lease = foregroundActivity
+            val activity = lease?.let(::foreground)
+            if (lease != null && activity != null) activity.runOnUiThread {
+              synchronized(guard) {
+                val latest = journal.read()
+                if (foreground(lease) == null || latest.sessionId != sessionId ||
+                  latest.generation != current.generation || latest.kind != "awaiting-approval") return@synchronized
+                try { pending.send() }
+                catch (_: Exception) { failLocked(latest, "install-failed", "install") }
+              }
             }
           } else failLocked(current, "install-failed", "install")
         }
