@@ -1,0 +1,536 @@
+{
+  "device": "emulator-5558 / Medium_Phone_API_36.1",
+  "app": "com.thedarkskyxd.streamfusion.dev / 0.1.4-alpha.1 (6)",
+  "checks": {
+    "liveWithoutSeeking": true,
+    "recordedPortraitAndFullscreenCentered": true,
+    "spacingDp": 72,
+    "vodForwardAndBackSeconds": 10,
+    "clipForwardAndBackSeconds": 10,
+    "searchKeyboardToFullscreen": true
+  },
+  "screenshots": {
+    "live-controls": "f31a775973332b2d849d620e2343ab93474834e86d9db405f3b13714e184d9c2",
+    "vod-controls": "2bdd73fcc6570c52e538f08e58d3f2bd393fd24f5a7a002dc41e77e457d8f4ff",
+    "vod-fullscreen": "619e6706e9aaecea99d723cffa11c25efe72dd0ad3ce1b93ab629cc01a3e8171",
+    "clip-controls": "1cb6342d1c835ec2ae279bbb4aa77574a6783e922cc6f67cdeca718fa3dcd01d",
+    "twitch-vod-controls": "aedae1fbfdb5448546438088c04b5d0e46824ec026b2aa3263ff8cb7f49af99f",
+    "twitch-vod-fullscreen": "fbb4ba44ef400ae1f5f6f2c6de65a062e586b75e2e07342bfb6ec1e03c97a09c"
+  },
+  "controls": {
+    "live": [
+      {
+        "res": "watch-player-stage",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 63,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 367
+      },
+      {
+        "res": "player-chrome-toggle",
+        "desc": "Hide player controls",
+        "text": "",
+        "left": 0,
+        "top": 63,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 367
+      },
+      {
+        "res": "player-controls-rail",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 482,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 576.5
+      },
+      {
+        "res": "player-play-pause",
+        "desc": "Play",
+        "text": "",
+        "left": 21,
+        "top": 524,
+        "right": 147,
+        "bottom": 650,
+        "x": 84,
+        "y": 587
+      },
+      {
+        "res": "player-mute",
+        "desc": "Mute",
+        "text": "",
+        "left": 158,
+        "top": 524,
+        "right": 284,
+        "bottom": 650,
+        "x": 221,
+        "y": 587
+      },
+      {
+        "res": "player-live-badge",
+        "desc": "",
+        "text": "",
+        "left": 294,
+        "top": 558,
+        "right": 433,
+        "bottom": 616,
+        "x": 363.5,
+        "y": 587
+      },
+      {
+        "res": "player-adblock-shield",
+        "desc": "Ad-block active",
+        "text": "",
+        "left": 443,
+        "top": 524,
+        "right": 569,
+        "bottom": 650,
+        "x": 506,
+        "y": 587
+      },
+      {
+        "res": "player-refresh",
+        "desc": "Refresh stream",
+        "text": "",
+        "left": 681,
+        "top": 524,
+        "right": 807,
+        "bottom": 650,
+        "x": 744,
+        "y": 587
+      },
+      {
+        "res": "player-quality",
+        "desc": "Settings",
+        "text": "",
+        "left": 807,
+        "top": 524,
+        "right": 933,
+        "bottom": 650,
+        "x": 870,
+        "y": 587
+      },
+      {
+        "res": "player-fullscreen",
+        "desc": "Fullscreen",
+        "text": "",
+        "left": 933,
+        "top": 524,
+        "right": 1059,
+        "bottom": 650,
+        "x": 996,
+        "y": 587
+      }
+    ],
+    "vod": [
+      {
+        "res": "watch-player-stage",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 63,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 367
+      },
+      {
+        "res": "player-chrome-toggle",
+        "desc": "Hide player controls",
+        "text": "",
+        "left": 0,
+        "top": 63,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 367
+      },
+      {
+        "res": "player-recorded-transport",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 286,
+        "right": 1080,
+        "bottom": 412,
+        "x": 540,
+        "y": 349
+      },
+      {
+        "res": "player-seek-back",
+        "desc": "Back 10 seconds",
+        "text": "",
+        "left": 289,
+        "top": 286,
+        "right": 415,
+        "bottom": 412,
+        "x": 352,
+        "y": 349
+      },
+      {
+        "res": "player-play-pause",
+        "desc": "Pause",
+        "text": "",
+        "left": 478,
+        "top": 286,
+        "right": 604,
+        "bottom": 412,
+        "x": 541,
+        "y": 349
+      },
+      {
+        "res": "player-seek-forward",
+        "desc": "Forward 10 seconds",
+        "text": "",
+        "left": 667,
+        "top": 286,
+        "right": 793,
+        "bottom": 412,
+        "x": 730,
+        "y": 349
+      },
+      {
+        "res": "player-controls-rail",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 345,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 508
+      },
+      {
+        "res": "player-mute",
+        "desc": "Mute",
+        "text": "",
+        "left": 21,
+        "top": 387,
+        "right": 147,
+        "bottom": 513,
+        "x": 84,
+        "y": 450
+      },
+      {
+        "res": "player-quality",
+        "desc": "Settings",
+        "text": "",
+        "left": 807,
+        "top": 387,
+        "right": 933,
+        "bottom": 513,
+        "x": 870,
+        "y": 450
+      },
+      {
+        "res": "player-fullscreen",
+        "desc": "Fullscreen",
+        "text": "",
+        "left": 933,
+        "top": 387,
+        "right": 1059,
+        "bottom": 513,
+        "x": 996,
+        "y": 450
+      },
+      {
+        "res": "player-progress",
+        "desc": "",
+        "text": "0:21 / 1:06:31",
+        "left": 21,
+        "top": 524,
+        "right": 1059,
+        "bottom": 561,
+        "x": 540,
+        "y": 542.5
+      },
+      {
+        "res": "player-scrubber",
+        "desc": "Seek",
+        "text": "",
+        "left": 21,
+        "top": 577,
+        "right": 1059,
+        "bottom": 640,
+        "x": 540,
+        "y": 608.5
+      }
+    ],
+    "fullscreen": [
+      {
+        "res": "watch-player-stage",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 0,
+        "right": 2400,
+        "bottom": 1080,
+        "x": 1200,
+        "y": 540
+      },
+      {
+        "res": "player-chrome-toggle",
+        "desc": "Hide player controls",
+        "text": "",
+        "left": 0,
+        "top": 0,
+        "right": 2400,
+        "bottom": 1080,
+        "x": 1200,
+        "y": 540
+      },
+      {
+        "res": "player-recorded-transport",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 445,
+        "right": 2400,
+        "bottom": 571,
+        "x": 1200,
+        "y": 508
+      },
+      {
+        "res": "player-seek-back",
+        "desc": "Back 10 seconds",
+        "text": "",
+        "left": 949,
+        "top": 445,
+        "right": 1075,
+        "bottom": 571,
+        "x": 1012,
+        "y": 508
+      },
+      {
+        "res": "player-play-pause",
+        "desc": "Play",
+        "text": "",
+        "left": 1138,
+        "top": 445,
+        "right": 1264,
+        "bottom": 571,
+        "x": 1201,
+        "y": 508
+      },
+      {
+        "res": "player-seek-forward",
+        "desc": "Forward 10 seconds",
+        "text": "",
+        "left": 1327,
+        "top": 445,
+        "right": 1453,
+        "bottom": 571,
+        "x": 1390,
+        "y": 508
+      },
+      {
+        "res": "player-controls-rail",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 754,
+        "right": 2400,
+        "bottom": 1080,
+        "x": 1200,
+        "y": 917
+      },
+      {
+        "res": "player-mute",
+        "desc": "Mute",
+        "text": "",
+        "left": 21,
+        "top": 796,
+        "right": 147,
+        "bottom": 922,
+        "x": 84,
+        "y": 859
+      },
+      {
+        "res": "player-quality",
+        "desc": "Settings",
+        "text": "",
+        "left": 2127,
+        "top": 796,
+        "right": 2253,
+        "bottom": 922,
+        "x": 2190,
+        "y": 859
+      },
+      {
+        "res": "player-fullscreen",
+        "desc": "Exit fullscreen",
+        "text": "",
+        "left": 2253,
+        "top": 796,
+        "right": 2379,
+        "bottom": 922,
+        "x": 2316,
+        "y": 859
+      },
+      {
+        "res": "player-progress",
+        "desc": "",
+        "text": "0:51 / 1:06:31",
+        "left": 21,
+        "top": 933,
+        "right": 2379,
+        "bottom": 970,
+        "x": 1200,
+        "y": 951.5
+      },
+      {
+        "res": "player-scrubber",
+        "desc": "Seek",
+        "text": "",
+        "left": 21,
+        "top": 986,
+        "right": 2379,
+        "bottom": 1049,
+        "x": 1200,
+        "y": 1017.5
+      }
+    ],
+    "clip": [
+      {
+        "res": "watch-player-stage",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 63,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 367
+      },
+      {
+        "res": "player-chrome-toggle",
+        "desc": "Hide player controls",
+        "text": "",
+        "left": 0,
+        "top": 63,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 367
+      },
+      {
+        "res": "player-recorded-transport",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 286,
+        "right": 1080,
+        "bottom": 412,
+        "x": 540,
+        "y": 349
+      },
+      {
+        "res": "player-seek-back",
+        "desc": "Back 10 seconds",
+        "text": "",
+        "left": 289,
+        "top": 286,
+        "right": 415,
+        "bottom": 412,
+        "x": 352,
+        "y": 349
+      },
+      {
+        "res": "player-play-pause",
+        "desc": "Play",
+        "text": "",
+        "left": 478,
+        "top": 286,
+        "right": 604,
+        "bottom": 412,
+        "x": 541,
+        "y": 349
+      },
+      {
+        "res": "player-seek-forward",
+        "desc": "Forward 10 seconds",
+        "text": "",
+        "left": 667,
+        "top": 286,
+        "right": 793,
+        "bottom": 412,
+        "x": 730,
+        "y": 349
+      },
+      {
+        "res": "player-controls-rail",
+        "desc": "",
+        "text": "",
+        "left": 0,
+        "top": 345,
+        "right": 1080,
+        "bottom": 671,
+        "x": 540,
+        "y": 508
+      },
+      {
+        "res": "player-mute",
+        "desc": "Mute",
+        "text": "",
+        "left": 21,
+        "top": 387,
+        "right": 147,
+        "bottom": 513,
+        "x": 84,
+        "y": 450
+      },
+      {
+        "res": "player-quality",
+        "desc": "Settings",
+        "text": "",
+        "left": 807,
+        "top": 387,
+        "right": 933,
+        "bottom": 513,
+        "x": 870,
+        "y": 450
+      },
+      {
+        "res": "player-fullscreen",
+        "desc": "Fullscreen",
+        "text": "",
+        "left": 933,
+        "top": 387,
+        "right": 1059,
+        "bottom": 513,
+        "x": 996,
+        "y": 450
+      },
+      {
+        "res": "player-progress",
+        "desc": "",
+        "text": "0:06 / 0:23",
+        "left": 21,
+        "top": 524,
+        "right": 1059,
+        "bottom": 561,
+        "x": 540,
+        "y": 542.5
+      },
+      {
+        "res": "player-scrubber",
+        "desc": "Seek",
+        "text": "",
+        "left": 21,
+        "top": 577,
+        "right": 1059,
+        "bottom": 640,
+        "x": 540,
+        "y": 608.5
+      }
+    ]
+  }
+}

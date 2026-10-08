@@ -1,0 +1,111 @@
+
+> @streamfusion/mobile@0.1.4-alpha.1 test
+> node --test tests/*.test.mjs && vitest run --config vitest.config.mts && node scripts/verify-architecture.mjs
+
+✔ Diagnostics queues an Activity read failure only through the selected proof control (1.8735ms)
+✔ coverage matrix reconciles prototype, contract, and shell routes (204.6881ms)
+✔ Media Job ids reject path traversal before journal and artifact IO (1.9349ms)
+✔ the Media Job engine fences generation, writes journals atomically, and stops empty sticky restarts (1.6142ms)
+✔ the Expo module keeps contained stubs plus measured diagnostics and connectivity (5.0163ms)
+✔ the no-draw-over-apps plugin strips SYSTEM_ALERT_WINDOW from main (1.7541ms)
+✔ the no-draw-over-apps plugin is a no-op when overlay is absent (0.2555ms)
+✔ the PiP plugin declares Picture-in-Picture on every Android activity (1.3295ms)
+✔ Expo Router receives the query-string CommonJS API (2.8966ms)
+✔ Metro redirects only Expo Router query-string imports (0.605ms)
+✔ Metro resolves public core subpaths inside a mapped Android workspace (0.243ms)
+✔ Metro loads TanStack Query from the modern build instead of the react-native TypeScript entry (0.2847ms)
+✔ Metro keeps Expo monorepo nodeModulesPaths (no manual overwrite) (15.2843ms)
+✔ Metro pins react-native resolution through the mobile workspace origin (0.4178ms)
+✔ the committed app.json stays the development identity (1.9514ms)
+✔ an unset release channel never resolves the production identity (2.6041ms)
+✔ a production build resolves the public application id and its own version (2.952ms)
+✔ the production build never inherits a development value (3.0181ms)
+✔ a malformed production value fails the build instead of shipping (2.761ms)
+✔ a prerelease suffix is accepted and a bare major is not (4.5914ms)
+✔ every version the mobile tag policy accepts is also buildable (6.4809ms)
+✔ a half-switched identity is rejected (0.7307ms)
+✔ a production build cannot present the development package to Android (0.4725ms)
+✔ an unknown application id is rejected (0.5478ms)
+✔ the committed certificate pins the production signer (0.4716ms)
+✔ a production build is refused when the pinned certificate is missing (5.9177ms)
+✔ a production build succeeds once the certificate is pinned (11.6367ms)
+✔ the production EAS profile is pinned and internal (0.2758ms)
+✔ the development and alpha profiles never select the production identity (0.2774ms)
+✔ subst output is parsed without changing mapped targets (3.5226ms)
+✔ real paths inside the repository remain on the leased drive (0.5125ms)
+✔ the mapped Expo process preloads consistent realpath handling (0.3183ms)
+✔ the mobile-local Expo CLI wins over a distinct hoisted version and maps to the leased drive (63.4392ms)
+✔ a hoisted Expo CLI remains valid when it resolves inside the task worktree (17.9992ms)
+✔ a resolved Expo CLI outside the task worktree is rejected before mapping (6.745ms)
+✔ the development build checks Java before prebuild can create Android output (0.7217ms)
+✔ the Java preflight uses JAVA_HOME on Windows and PATH on Linux (0.4786ms)
+✔ the Java preflight contains failed and timed-out commands (0.3297ms)
+✔ a lease releases when resolved CLI path mapping fails (9.4909ms)
+✔ an occupied drive is preserved and the next drive is leased (0.4337ms)
+✔ an unverified mapping is rolled back when it becomes visible (0.4586ms)
+✔ a mapping replaced during verification is never removed (0.3453ms)
+✔ a dead launcher's mapping is reconciled before the drive is reused (0.3696ms)
+✔ a live launcher lease is preserved (0.2874ms)
+✔ the drive is released after normal completion and child failure (0.5997ms)
+✔ a cancelled development build forwards the signal and releases its drive (78.4595ms)
+✔ the development client is Android-only and distinct from production (3.8652ms)
+✔ native app links stay in the single Mobile runtime (0.5311ms)
+✔ the Android build supports API 30 and custom development clients (0.2958ms)
+✔ the Android build enables SQLCipher and excludes all app data from backup (0.2578ms)
+✔ SQLCipher is proven in memory before a persistent database is opened (0.3316ms)
+✔ local Android commands stay owned by the Mobile workspace (0.33ms)
+✔ native animation peers match the Expo SDK and resolve without conflicts (4919.2815ms)
+✔ the release build is signed with the production keystore, never the debug key (70.0213ms)
+✔ a build script without a release signing reference is rejected (0.6528ms)
+✔ the production signing plugin is registered for prebuild (0.2071ms)
+✔ draw-over-apps stays off main so Search does not leave the app (0.5347ms)
+✔ SQLCipher OpenSSL Prefab libraries become app JNI inputs (1.7752ms)
+✔ SQLCipher OpenSSL plugin rejects an unknown app Gradle layout or version (0.6495ms)
+✔ the normal Android launcher opens the development client without a native build (2.5943ms)
+✔ missing and mismatched client versions give explicit build guidance (0.6856ms)
+✔ the launcher deep-links the installed development client over ADB (0.2626ms)
+✔ an exit-zero Android intent failure cannot be reported as opened (0.3942ms)
+✔ installed development-client identity must match the app configuration (0.4021ms)
+✔ only ready ADB devices are considered for launch (0.3653ms)
+✔ the installed Windows Android SDK is discovered without shell configuration (0.4176ms)
+✔ an explicit Android SDK is validated instead of silently ignored (0.2813ms)
+✔ Expo receives Android SDK tools while preserving the caller environment (0.3889ms)
+✔ Twitch Accounts uses one canonical action vocabulary (1.4439ms)
+✔ disconnect copy is targeted and preserves unrelated local data (0.2183ms)
+✔ the account shortcut opens Accounts inside More (0.2167ms)
+✔ the development fixture is explicit and normal missing configuration stays unavailable (0.3816ms)
+✔ Accounts uses the shared contained and restorable screen scroll contract (0.2679ms)
+ℹ tests 73
+ℹ suites 0
+ℹ pass 73
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5227.7732
+
+ RUN  v4.1.11 F:/My Github Repos/Open Source Repos/StreamFusion- kick, twitch desktop app/StreamFusion/apps/mobile
+
+node.exe : (node:77840) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\Admin\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:77840) Ex...nge at any time:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:72156) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22728) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:40764) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:77936) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  179 passed (179)
+      Tests  1033 passed (1033)
+   Start at  14:24:18
+   Duration  13.74s (transform 58.65s, setup 4.62s, import 69.02s, tests 14.88s, environment 24.98s)
+
+Feature architecture import proof passed.

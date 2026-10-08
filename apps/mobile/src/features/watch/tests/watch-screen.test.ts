@@ -402,6 +402,86 @@ describe("watch screen", () => {
     ).toBe(false);
   });
 
+  it.each(["live", "video", "clip"] as const)(
+    "reserves seeking chrome for %s media",
+    (kind) => {
+      const currentTarget: WatchTarget =
+        kind === "live"
+          ? target
+          : {
+              ...target,
+              media: {
+                durationSeconds: 90,
+                id: "recording-1",
+                kind,
+                title: "Recording",
+              },
+            };
+      const playback = {
+        integration: "twitch-gql-usher" as const,
+        kind: "active" as const,
+        phase: "playing" as const,
+        policySequence: 1,
+        protection: { kind: "normal" as const },
+        session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+        target: currentTarget,
+      };
+      const nodes = descendants(
+        WatchScreen({
+          toolSheet: { active: null, onChange: () => undefined },
+          PlayerSurface: () => null,
+          chat: { detail: "Connecting guest chat.", kind: "connecting" },
+          inspection: null,
+          onMute: () => undefined,
+          onOpenRelated: () => undefined,
+          onPlayPause: () => undefined,
+          onQualityPress: () => undefined,
+          onRefresh: () => undefined,
+          onRetry: () => undefined,
+          onSeekBack: () => undefined,
+          onSeekForward: () => undefined,
+          onSeekTo: () => undefined,
+          onSelectTab: () => undefined,
+          onToggleControls: () => undefined,
+          onToggleFullscreen: () => undefined,
+          peek: {
+            adsDetected: false,
+            kind: "active",
+            muted: false,
+            presentation: {
+              pip: "unavailable",
+              presentation: "watch",
+              previous: null,
+              snapRegion: "bottom-end",
+            },
+            quality: "auto",
+            qualities: ["auto"],
+            progress: {
+              durationMs: 90_000,
+              positionMs: 12_000,
+              seekable: true,
+            },
+            state: playback,
+            volume: 1,
+          },
+          playback,
+          tab: "info",
+          target: currentTarget,
+        }),
+      );
+      const has = (id: string) =>
+        nodes.some((node) => node.props.testID === id);
+      const recorded = kind !== "live";
+      expect(has("player-recorded-transport")).toBe(recorded);
+      expect(has("player-seek-back")).toBe(recorded);
+      expect(has("player-seek-forward")).toBe(recorded);
+      expect(has("player-scrubber")).toBe(recorded);
+      expect(has("player-progress")).toBe(recorded);
+      expect(has("player-live-badge")).toBe(!recorded);
+      expect(has("player-refresh")).toBe(!recorded);
+    },
+  );
+
   it.each(["watch", "fullscreen"] as const)(
     "opens each available stage tool in %s without tapping the video",
     (presentation) => {

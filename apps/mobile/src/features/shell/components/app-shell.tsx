@@ -30,7 +30,6 @@ import {
 } from "react";
 import {
   BackHandler,
-  KeyboardAvoidingView,
   type NativeSyntheticEvent,
   Platform,
   Pressable,
@@ -493,12 +492,7 @@ export function AppShell({
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "android" ? "height" : undefined}
-      enabled={Platform.OS === "android" && !playerOnlySurface}
-      style={styles.app}
-      testID="development-client-ready"
-    >
+    <View style={styles.app} testID="development-client-ready">
       <View
         accessibilityLabel="StreamFusion app shell"
         style={[
@@ -664,7 +658,7 @@ export function AppShell({
       <UpdateDialogHost session={supportSession} />
       <StatusBar hidden={fullscreen} style="light" />
       <AndroidNavigationBar hidden={fullscreen} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

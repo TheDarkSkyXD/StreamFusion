@@ -34,6 +34,7 @@ import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 
 const RAIL_ICON = 26;
 const RAIL_HIT = 48;
+const RECORDED_CONTROL_SPACING = 72;
 
 export function PlayerControls({
   adBlockStatus = null,
@@ -111,6 +112,7 @@ export function PlayerControls({
   const showVolume = chrome?.showVolume !== false;
   const showFullscreen = fullscreen || chrome?.showFullscreen !== false;
   const live = liveProp ?? !seekable;
+  const recordedSeekable = !live && seekable;
   const { t } = useTranslation();
 
   return (
@@ -131,7 +133,58 @@ export function PlayerControls({
       />
       {visible ? (
         <View pointerEvents="box-none" style={styles.railWrap}>
+          {!live ? (
+            <View
+              pointerEvents="box-none"
+              style={styles.recordedTransport}
+              testID="player-recorded-transport"
+            >
+              <View
+                pointerEvents="box-none"
+                style={styles.recordedTransportButtons}
+              >
+                <View pointerEvents="box-none" style={styles.transportSlot}>
+                  {recordedSeekable && onSeekBack ? (
+                    <IconControl
+                      Icon={RotateCcw}
+                      accessibilityLabel={t("playback.watch.seekBack", {
+                        seconds: rewindSeconds,
+                      })}
+                      badge={String(rewindSeconds)}
+                      onPress={onSeekBack}
+                      testID="player-seek-back"
+                    />
+                  ) : null}
+                </View>
+                <View pointerEvents="box-none" style={styles.transportSlot}>
+                  <IconControl
+                    Icon={paused ? Play : Pause}
+                    accessibilityLabel={
+                      paused ? t("playback.play") : t("playback.pause")
+                    }
+                    filled
+                    onPress={onPlayPause}
+                    testID="player-play-pause"
+                  />
+                </View>
+                <View pointerEvents="box-none" style={styles.transportSlot}>
+                  {recordedSeekable && onSeekForward ? (
+                    <IconControl
+                      Icon={RotateCw}
+                      accessibilityLabel={t("playback.watch.seekForward", {
+                        seconds: fastForwardSeconds,
+                      })}
+                      badge={String(fastForwardSeconds)}
+                      onPress={onSeekForward}
+                      testID="player-seek-forward"
+                    />
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ) : null}
           <View
+            pointerEvents="box-none"
             style={[
               styles.rail,
               fullscreen
@@ -144,47 +197,17 @@ export function PlayerControls({
             ]}
             testID="player-controls-rail"
           >
-            {seekable && progress ? (
-              <ProgressScrubber
-                color={
-                  platform === "kick" ? mobileColors.kick : mobileColors.twitch
-                }
-                durationMs={progress.durationMs}
-                positionMs={progress.positionMs}
-                {...(onSeekTo === undefined ? {} : { onSeekTo })}
-              />
-            ) : null}
             <View style={styles.row}>
               <View style={styles.left}>
-                {seekable && onSeekBack ? (
+                {live ? (
                   <IconControl
-                    Icon={RotateCcw}
-                    accessibilityLabel={t("playback.watch.seekBack", {
-                      seconds: rewindSeconds,
-                    })}
-                    badge={String(rewindSeconds)}
-                    onPress={onSeekBack}
-                    testID="player-seek-back"
-                  />
-                ) : null}
-                <IconControl
-                  Icon={paused ? Play : Pause}
-                  accessibilityLabel={
-                    paused ? t("playback.play") : t("playback.pause")
-                  }
-                  filled
-                  onPress={onPlayPause}
-                  testID="player-play-pause"
-                />
-                {seekable && onSeekForward ? (
-                  <IconControl
-                    Icon={RotateCw}
-                    accessibilityLabel={t("playback.watch.seekForward", {
-                      seconds: fastForwardSeconds,
-                    })}
-                    badge={String(fastForwardSeconds)}
-                    onPress={onSeekForward}
-                    testID="player-seek-forward"
+                    Icon={paused ? Play : Pause}
+                    accessibilityLabel={
+                      paused ? t("playback.play") : t("playback.pause")
+                    }
+                    filled
+                    onPress={onPlayPause}
+                    testID="player-play-pause"
                   />
                 ) : null}
                 {showVolume ? (
@@ -291,6 +314,16 @@ export function PlayerControls({
                 ) : null}
               </View>
             </View>
+            {recordedSeekable && progress ? (
+              <ProgressScrubber
+                color={
+                  platform === "kick" ? mobileColors.kick : mobileColors.twitch
+                }
+                durationMs={progress.durationMs}
+                positionMs={progress.positionMs}
+                {...(onSeekTo === undefined ? {} : { onSeekTo })}
+              />
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -516,12 +549,26 @@ const styles = StyleSheet.create({
   tapCatcher: {
     ...StyleSheet.absoluteFill,
   },
-  railWrap: {
-    bottom: 0,
-    justifyContent: "flex-end",
+  recordedTransport: {
+    alignItems: "center",
     left: 0,
+    marginTop: -RAIL_HIT / 2,
     position: "absolute",
     right: 0,
+    top: "47%",
+    zIndex: 1,
+  },
+  recordedTransportButtons: {
+    flexDirection: "row",
+    width: RECORDED_CONTROL_SPACING * 3,
+  },
+  transportSlot: {
+    alignItems: "center",
+    flex: 1,
+  },
+  railWrap: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: "flex-end",
   },
   rail: {
     gap: mobileSpacing.xSmall,

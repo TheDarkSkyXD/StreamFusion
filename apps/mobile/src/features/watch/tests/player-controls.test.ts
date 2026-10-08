@@ -168,7 +168,7 @@ describe("player controls chrome", () => {
     expect(findByTestId(nodes, "player-seek-forward")).toBeUndefined();
   });
 
-  it("flanks VOD play with seek icons and keeps scrub time on the rail", () => {
+  it("centers VOD transport above the rail and keeps scrub time on the rail", () => {
     const rendered = renderVodControls({
       ...base,
       onSeekBack: () => undefined,
@@ -178,20 +178,107 @@ describe("player controls chrome", () => {
     });
     try {
       const rail = findRendered(rendered.container, "player-controls-rail");
+      const transport = findRendered(
+        rendered.container,
+        "player-recorded-transport",
+      );
       expect(rail).toBeTruthy();
+      expect(transport).toBeTruthy();
       expect(
-        rail?.querySelector('[data-testid="player-seek-back"]'),
+        transport?.querySelector('[data-testid="player-seek-back"]'),
+      ).toBeTruthy();
+      expect(
+        transport?.querySelector('[data-testid="player-play-pause"]'),
+      ).toBeTruthy();
+      expect(
+        transport?.querySelector('[data-testid="player-seek-forward"]'),
       ).toBeTruthy();
       expect(
         rail?.querySelector('[data-testid="player-play-pause"]'),
-      ).toBeTruthy();
+      ).toBeNull();
       expect(
-        rail?.querySelector('[data-testid="player-seek-forward"]'),
-      ).toBeTruthy();
+        rendered.container.querySelectorAll(
+          '[data-testid="player-play-pause"]',
+        ),
+      ).toHaveLength(1);
       expect(
         findRendered(rendered.container, "player-progress")?.textContent,
       ).toContain("0:12 / 1:30");
       expect(findRendered(rendered.container, "player-live-badge")).toBeNull();
+    } finally {
+      rendered.unmount();
+    }
+  });
+
+  it("does not expose seek controls or a scrubber on a seekable live stream", () => {
+    const nodes = descendants(
+      PlayerControls({
+        ...base,
+        live: true,
+        onRefresh: () => undefined,
+        onSeekBack: () => undefined,
+        onSeekForward: () => undefined,
+        onSeekTo: () => undefined,
+        progress: { durationMs: 90_000, positionMs: 12_000 },
+        seekable: true,
+      }),
+    );
+    const rail = findByTestId(nodes, "player-controls-rail");
+    expect(findByTestId(nodes, "player-live-badge")).toBeTruthy();
+    expect(findByTestId(nodes, "player-refresh")).toBeTruthy();
+    expect(findByTestId(descendants(rail), "player-play-pause")).toBeTruthy();
+    expect(findByTestId(nodes, "player-recorded-transport")).toBeUndefined();
+    for (const id of [
+      "player-seek-back",
+      "player-seek-forward",
+      "player-scrubber",
+      "player-progress",
+    ]) {
+      expect(findByTestId(nodes, id), id).toBeUndefined();
+    }
+  });
+
+  it("keeps a single centered play button for recorded media before it becomes seekable", () => {
+    const nodes = descendants(PlayerControls({ ...base, live: false }));
+    const transport = findByTestId(nodes, "player-recorded-transport");
+    expect(
+      findByTestId(descendants(transport), "player-play-pause"),
+    ).toBeTruthy();
+    expect(findByTestId(nodes, "player-live-badge")).toBeUndefined();
+    expect(findByTestId(nodes, "player-seek-back")).toBeUndefined();
+    expect(findByTestId(nodes, "player-seek-forward")).toBeUndefined();
+  });
+
+  it("preserves configured recorded skip durations and press callbacks", () => {
+    const actions: string[] = [];
+    const rendered = renderVodControls({
+      ...base,
+      live: false,
+      seekable: true,
+      rewindSeconds: 30,
+      fastForwardSeconds: 45,
+      onSeekBack: () => actions.push("back"),
+      onPlayPause: () => actions.push("pause"),
+      onSeekForward: () => actions.push("forward"),
+    });
+    try {
+      const transport = findRendered(
+        rendered.container,
+        "player-recorded-transport",
+      );
+      expect(transport?.textContent).toContain("30");
+      expect(transport?.textContent).toContain("45");
+      for (const id of [
+        "player-seek-back",
+        "player-play-pause",
+        "player-seek-forward",
+      ]) {
+        const onPress = pressableProps.get(id)?.onPress;
+        if (typeof onPress !== "function")
+          throw new Error(`${id} is not pressable`);
+        onPress();
+      }
+      expect(actions).toEqual(["back", "pause", "forward"]);
     } finally {
       rendered.unmount();
     }
