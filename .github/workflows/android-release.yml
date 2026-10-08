@@ -221,6 +221,7 @@ jobs:
           done
 
       - name: Assemble the signed release APK
+        timeout-minutes: 40
         shell: bash
         env:
           ASSET_NAME: ${{ needs.verify.outputs.asset_name }}
@@ -228,7 +229,7 @@ jobs:
           set -euo pipefail
           pushd apps/mobile/android
           ./gradlew --no-daemon --stacktrace \
-            '-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=1536m' \
+            '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1536m' \
             app:assembleRelease
           popd
           mkdir -p android-release-set
