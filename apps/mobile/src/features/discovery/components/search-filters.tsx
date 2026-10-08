@@ -3,6 +3,7 @@ import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { mobileSpacing } from "@mobile/design/tokens";
 
 const TABS = [
@@ -34,25 +35,16 @@ export function SearchFilters({
   const selectedTab = tab === "videos" || tab === "clips" ? "all" : tab;
   return (
     <View style={styles.stack}>
-      <ScrollView
+      <MobileUnderlineTabs<SearchResultType>
         accessibilityLabel="Search result types"
-        accessibilityRole="tablist"
-        contentContainerStyle={styles.row}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-      >
-        {TABS.map((next) => (
-          <MobileFilterChip
-            accessibilityLabel={tabLabel(next)}
-            accessibilityRole="tab"
-            key={next}
-            label={tabLabel(next)}
-            onPress={() => onSelectTab(next)}
-            selected={selectedTab === next}
-            testID={`search-tab-${next}`}
-          />
-        ))}
-      </ScrollView>
+        onSelect={onSelectTab}
+        selectedId={selectedTab}
+        tabs={TABS.map((next) => ({
+          id: next,
+          label: tabLabel(next),
+          testID: `search-tab-${next}`,
+        }))}
+      />
       <ScrollView
         accessibilityLabel="Search filters"
         contentContainerStyle={styles.row}

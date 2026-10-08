@@ -1,0 +1,14 @@
+2026-10-08T16:37:48.204Z
+Device emulator-5558, Medium_Phone_API_36.1
+
+com.thedarkskyxd.streamfusion.dev
+versionCode=6 minSdk=30 targetSdk=36
+versionName=0.1.4-alpha.1
+
+com.thedarkskyxd.streamfusion
+versionCode=1 minSdk=30 targetSdk=36
+versionName=0.1.0-alpha
+
+tv.twitch.android.app
+versionCode=3105026 minSdk=32 targetSdk=36
+versionName=31.5.2

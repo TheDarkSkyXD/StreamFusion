@@ -1,0 +1,3 @@
+
+> @streamfusion/mobile@0.1.4-alpha.1 typecheck
+> tsc --noEmit

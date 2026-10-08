@@ -12,6 +12,7 @@ import { MobileUnderlineTabs } from "../underline-tabs";
 import { MobileVerifiedBadge } from "../verified-badge";
 
 vi.mock("react-native", () => ({
+  ActivityIndicator: "ActivityIndicator",
   Image: "Image",
   Pressable: "Pressable",
   ScrollView: "ScrollView",
@@ -159,7 +160,7 @@ describe("mobile design primitives", () => {
     ).toBe(true);
   });
 
-  it("uses pill tag chips and selected nav fill", () => {
+  it("makes selected filters distinct from passive tags", () => {
     const nodes = descendants(
       MobileFilterChip({
         accessibilityLabel: "Live tab",
@@ -173,7 +174,7 @@ describe("mobile design primitives", () => {
     const chip = nodes.find((node) => node.props.testID === "search-tab-streams");
     expect(resolveStyle(chip?.props.style).borderRadius).toBe(mobileRadii.full);
     expect(resolveStyle(chip?.props.style).backgroundColor).toBe(
-      mobileColors.navigationSelected,
+      mobileColors.textPrimary,
     );
     expect(chip?.props.accessibilityState?.selected).toBe(true);
   });

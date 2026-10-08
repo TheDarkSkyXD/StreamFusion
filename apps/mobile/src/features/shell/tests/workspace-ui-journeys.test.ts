@@ -49,6 +49,7 @@ vi.mock("react-native-safe-area-context", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  Smile: "Smile",
   Bell: "Bell",
   Maximize: "Maximize",
   Captions: "Captions",

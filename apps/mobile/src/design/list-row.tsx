@@ -96,6 +96,7 @@ export function MobileSwitchRow({
   return (
     <Pressable
       accessibilityLabel={title}
+      accessibilityHint={description}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
@@ -140,9 +141,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.medium,
     borderRadius: mobileRadii.medium,
   },
-  copy: { flex: 1, gap: mobileSpacing.xSmall },
+  copy: { flex: 1, gap: mobileSpacing.xSmall, minWidth: 0 },
   title: { color: mobileColors.textPrimary },
-  description: { ...mobileType.label, color: mobileColors.textSecondary },
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: mobileColors.textSecondary,
+  },
   danger: { color: "#ff8299" },
   pressed: { backgroundColor: mobileColors.surfaceRaised },
   disabled: { opacity: 0.5 },

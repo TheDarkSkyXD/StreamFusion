@@ -45,7 +45,7 @@ export function createAuthenticatedPlatformAccess(input: {
         return {
           kind: "blocked",
           reason: "configuration",
-          detail: `Configure the ${platform} client before connecting an account.`,
+          detail: `${platform === "twitch" ? "Twitch" : "Kick"} sign-in is unavailable in this build. You can still browse and watch streams.`,
         };
       let account = provider.controller.getSnapshot();
       if (account.kind !== "connected")

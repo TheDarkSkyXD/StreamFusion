@@ -41,6 +41,7 @@ vi.mock("lucide-react-native", () => ({
   Captions: "Captions",
   Download: "Download",
   Ellipsis: "Ellipsis",
+  Smile: "Smile",
   ChevronRight: "ChevronRight",
   Heart: "Heart",
   Maximize: "Maximize",

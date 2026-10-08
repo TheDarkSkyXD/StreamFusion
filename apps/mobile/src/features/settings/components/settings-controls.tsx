@@ -14,7 +14,6 @@ import {
 import {
   mobileColors,
   mobileRadii,
-  mobileSizing,
   mobileSpacing,
 } from "@mobile/design/tokens";
 
@@ -114,25 +113,11 @@ export function SettingsSelect<T extends string | number>({
     }),
   );
   return (
-    <View
-      // Plain-function Vitest walks keep this callback when MobileSelect hooks cannot expand.
-      {...{ onSelect }}
-      style={[styles.selectBlock, disabled ? styles.selectDisabled : null]}
-      testID={testID}
-    >
-      <View style={styles.selectCopy} accessible={false}>
-        <Text selectable style={styles.rowLabel}>
-          {label}
-        </Text>
-        {detail ? (
-          <Text selectable style={styles.detail}>
-            {detail}
-          </Text>
-        ) : null}
-      </View>
+    <View testID={testID}>
       <MobileSelect
         accessibilityLabel={label}
-        appearance="inline"
+        appearance="row"
+        {...(detail === undefined ? {} : { description: detail })}
         disabled={disabled}
         onChange={(next) => {
           const match = options.find((option) => String(option.value) === next);
@@ -396,22 +381,5 @@ const styles = StyleSheet.create({
     height: 40,
     marginHorizontal: -mobileSpacing.xSmall,
     width: "100%",
-  },
-  selectBlock: {
-    alignItems: "center",
-    backgroundColor: mobileColors.surfaceRaised,
-    borderRadius: mobileRadii.medium,
-    flexDirection: "row",
-    gap: mobileSpacing.medium,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-  },
-  selectDisabled: {
-    opacity: 0.55,
-  },
-  selectCopy: {
-    flex: 1,
-    gap: mobileSpacing.xSmall,
   },
 });

@@ -15,6 +15,8 @@ import type {
 } from "../capabilities/watch-chat";
 import { createChatInteractions } from "../domain/chat-interactions";
 
+vi.mock("lucide-react-native", () => ({ Smile: () => null }));
+
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
   type HostProps = {
@@ -37,6 +39,7 @@ vi.mock("react-native", async () => {
       props.children,
     );
   return {
+    ActivityIndicator: host("span"),
     Platform: { OS: "android" },
     Modal: (props: HostProps) => (props.visible ? host("div")(props) : null),
     KeyboardAvoidingView: host("div"),

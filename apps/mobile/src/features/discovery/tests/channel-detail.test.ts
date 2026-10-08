@@ -16,6 +16,7 @@ import {
 } from "../domain/channel-fixture";
 
 vi.mock("react-native", () => ({
+  ActivityIndicator: "ActivityIndicator",
   Image: "Image",
   Pressable: "Pressable",
   ScrollView: "ScrollView",

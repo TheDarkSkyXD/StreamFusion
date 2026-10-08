@@ -36,10 +36,7 @@ export function MobileFilterChip({
       ]}
       testID={testID}
     >
-      <Text
-        selectable
-        style={selected ? styles.labelSelected : styles.label}
-      >
+      <Text style={selected ? styles.labelSelected : styles.label}>
         {label}
       </Text>
     </Pressable>
@@ -49,7 +46,9 @@ export function MobileFilterChip({
 const styles = StyleSheet.create({
   chip: {
     alignItems: "center",
-    backgroundColor: mobileColors.tagSurface,
+    backgroundColor: mobileColors.surfaceMuted,
+    borderColor: mobileColors.border,
+    borderWidth: 1,
     borderRadius: mobileRadii.full,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
@@ -57,7 +56,8 @@ const styles = StyleSheet.create({
     paddingVertical: mobileSpacing.xSmall,
   },
   selected: {
-    backgroundColor: mobileColors.navigationSelected,
+    backgroundColor: mobileColors.textPrimary,
+    borderColor: mobileColors.textPrimary,
   },
   pressed: {
     backgroundColor: mobileColors.tagSurfaceHover,
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   labelSelected: {
-    color: mobileColors.textPrimary,
+    color: mobileColors.background,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.3,

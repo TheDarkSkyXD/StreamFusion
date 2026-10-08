@@ -1,0 +1,26 @@
+node.exe : The `--diff` flag is deprecated; use `--scope changed` (add `--base <ref>` to pin the base) instead.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\Admin\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (The `--diff` fl... base) instead.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+✔ Select projects › streamfusion, @streamfusion/mobile
+Scanning changes: main → origin/main
+
+No changed source files in F:\My Github Repos\Open Source Repos\StreamFusion- kick, twitch desktop app\StreamFusion\apps\desktop, skipping.
+
+✔ Scanned 22 files in 16.0s
+
+React Doctor — StreamFusion
+Score: 89 / 100 Great
+
+3 issues
+Maintainability: 3 warnings
+
+⚠ React function has high control-flow complexity ×3
+  react-doctor/no-high-complexity-react-function
+  src/features/chat/components/chat-panel.tsx:68
+  src/features/discovery/components/category-filter-bar.tsx:28
+  src/features/watch/components/watch-screen.tsx:110
+  Full diagnostics written to C:\Users\Admin\AppData\Local\Temp\react-doctor-b4c71170-d847-4fa7-9580-fa812dee41c9

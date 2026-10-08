@@ -1,8 +1,17 @@
-import { StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react-native";
 import type { ClipTimeRange } from "@streamfusion/core/discovery";
 
 import { MobileFilterChip } from "@mobile/design/chip";
-import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
+import { MobileSelect, type MobileSelectOption } from "@mobile/design/select";
+import {
+  mobileColors,
+  mobileRadii,
+  mobileSizing,
+  mobileSpacing,
+  mobileType,
+} from "@mobile/design/tokens";
 import {
   BROADCAST_LANGUAGES,
   languageLabel,
@@ -10,7 +19,6 @@ import {
 } from "../domain/broadcast-languages";
 import type {
   CategoryRequestIdentity,
-  CategoryTab,
   ClipSort,
   LiveSort,
   PlatformScope,
@@ -24,48 +32,135 @@ export function CategoryFilterBar({
   readonly identity: CategoryRequestIdentity;
   readonly onChange: (next: CategoryRequestIdentity) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const platform =
+    identity.platformScope === "all"
+      ? "All platforms"
+      : identity.platformScope === "twitch"
+        ? "Twitch"
+        : "Kick";
+  const language =
+    identity.language === "all"
+      ? "All languages"
+      : languageLabel(identity.language);
+  const sort =
+    identity.tab === "live"
+      ? liveSortOptions.find((option) => option.value === identity.liveSort)
+          ?.label
+      : identity.tab === "clips"
+        ? clipSortOptions.find((option) => option.value === identity.clipSort)
+            ?.label
+        : videoSortOptions.find((option) => option.value === identity.videoSort)
+            ?.label;
+  const summary = [
+    platform,
+    language,
+    sort,
+    ...(identity.tab === "live" && identity.tag !== "all"
+      ? [identity.tag]
+      : []),
+    ...(identity.tab === "clips"
+      ? [
+          clipTimeOptions().find(
+            (option) => option.value === identity.clipTimeRange,
+          )?.label,
+        ]
+      : []),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <View style={styles.stack}>
-      <ChipRow
-        label="Platform"
-        options={platformOptions(identity)}
-        selected={identity.platformScope}
-        testID="category-platform"
-        onSelect={(platformScope) => onChange({ ...identity, platformScope })}
-      />
-      <ChipRow
-        label="Language"
-        options={languageOptions()}
-        selected={identity.language}
-        testID="category-language"
-        onSelect={(language) => onChange({ ...identity, language })}
-      />
-      {identity.tab === "live" ? (
-        <ChipRow
-          label="Tag"
-          options={tagOptions(identity)}
-          selected={identity.tag}
-          testID="category-tag"
-          onSelect={(tag) => onChange({ ...identity, tag })}
-        />
-      ) : null}
-      <ChipRow
-        label="Sort"
-        options={sortOptions(identity.tab)}
-        selected={sortValue(identity)}
-        testID="category-sort"
-        onSelect={(value) => onChange(applySort(identity, value))}
-      />
-      {identity.tab === "clips" ? (
-        <ChipRow
-          label="Time"
-          options={clipTimeOptions()}
-          selected={identity.clipTimeRange}
-          testID="category-clip-time"
-          onSelect={(clipTimeRange) =>
-            onChange({ ...identity, clipTimeRange })
-          }
-        />
+      <Pressable
+        accessibilityLabel={`Filters, ${summary}`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((current) => !current)}
+        style={({ pressed }) => [
+          styles.toggle,
+          pressed ? styles.togglePressed : null,
+        ]}
+        testID="category-filters-toggle"
+      >
+        <SlidersHorizontal color={mobileColors.textSecondary} size={22} />
+        <View style={styles.toggleCopy}>
+          <Text style={styles.toggleTitle}>Filters</Text>
+          <Text style={styles.summary}>{summary}</Text>
+        </View>
+        {expanded ? (
+          <ChevronUp color={mobileColors.textSecondary} size={20} />
+        ) : (
+          <ChevronDown color={mobileColors.textSecondary} size={20} />
+        )}
+      </Pressable>
+      {expanded ? (
+        <View style={styles.stack}>
+          <ChipRow
+            label="Platform"
+            options={platformOptions(identity)}
+            selected={identity.platformScope}
+            testID="category-platform"
+            onSelect={(platformScope) =>
+              onChange({ ...identity, platformScope })
+            }
+          />
+          <MobileSelect<LanguageFilter>
+            accessibilityLabel="Language"
+            appearance="row"
+            options={languageOptions()}
+            value={identity.language}
+            testID="category-language"
+            onChange={(language) => onChange({ ...identity, language })}
+          />
+          {identity.tab === "live" && identity.tag !== "all" ? (
+            <ChipRow
+              label="Tag"
+              options={tagOptions(identity)}
+              selected={identity.tag}
+              testID="category-tag"
+              onSelect={(tag) => onChange({ ...identity, tag })}
+            />
+          ) : null}
+          {identity.tab === "live" ? (
+            <MobileSelect<LiveSort>
+              accessibilityLabel="Sort"
+              appearance="row"
+              options={liveSortOptions}
+              value={identity.liveSort}
+              testID="category-sort"
+              onChange={(liveSort) => onChange({ ...identity, liveSort })}
+            />
+          ) : identity.tab === "clips" ? (
+            <MobileSelect<ClipSort>
+              accessibilityLabel="Sort"
+              appearance="row"
+              options={clipSortOptions}
+              value={identity.clipSort}
+              testID="category-sort"
+              onChange={(clipSort) => onChange({ ...identity, clipSort })}
+            />
+          ) : (
+            <MobileSelect<VideoSort>
+              accessibilityLabel="Sort"
+              appearance="row"
+              options={videoSortOptions}
+              value={identity.videoSort}
+              testID="category-sort"
+              onChange={(videoSort) => onChange({ ...identity, videoSort })}
+            />
+          )}
+          {identity.tab === "clips" ? (
+            <ChipRow
+              label="Time"
+              options={clipTimeOptions()}
+              selected={identity.clipTimeRange}
+              testID="category-clip-time"
+              onSelect={(clipTimeRange) =>
+                onChange({ ...identity, clipTimeRange })
+              }
+            />
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -128,7 +223,7 @@ function languageOptions(): readonly {
   readonly value: LanguageFilter;
 }[] {
   return [
-    { label: "All", value: "all" },
+    { label: "All languages", value: "all" },
     ...BROADCAST_LANGUAGES.map((language) => ({
       label: languageLabel(language),
       value: language,
@@ -142,31 +237,26 @@ function tagOptions(identity: CategoryRequestIdentity): readonly {
 }[] {
   return [
     { label: "All tags", value: "all" },
-    ...(identity.tag === "all" ? [] : [{ label: identity.tag, value: identity.tag }]),
+    ...(identity.tag === "all"
+      ? []
+      : [{ label: identity.tag, value: identity.tag }]),
   ];
 }
 
-function sortOptions(tab: CategoryTab): readonly {
-  readonly label: string;
-  readonly value: string;
-}[] {
-  if (tab === "live") {
-    return [
-      { label: "Most viewers", value: "viewers-desc" },
-      { label: "Fewest viewers", value: "viewers-asc" },
-    ];
-  }
-  if (tab === "clips") {
-    return [
-      { label: "Views", value: "views" },
-      { label: "Most Recent", value: "recent" },
-    ];
-  }
-  return [
-    { label: "Most Recent", value: "recent" },
-    { label: "Views", value: "views" },
-  ];
-}
+const liveSortOptions: readonly MobileSelectOption<LiveSort>[] = [
+  { label: "Most viewers", value: "viewers-desc" },
+  { label: "Fewest viewers", value: "viewers-asc" },
+];
+
+const clipSortOptions: readonly MobileSelectOption<ClipSort>[] = [
+  { label: "Views", value: "views" },
+  { label: "Most Recent", value: "recent" },
+];
+
+const videoSortOptions: readonly MobileSelectOption<VideoSort>[] = [
+  { label: "Most Recent", value: "recent" },
+  { label: "Views", value: "views" },
+];
 
 function clipTimeOptions(): readonly {
   readonly label: string;
@@ -180,26 +270,22 @@ function clipTimeOptions(): readonly {
   ];
 }
 
-function sortValue(identity: CategoryRequestIdentity): string {
-  if (identity.tab === "live") return identity.liveSort;
-  if (identity.tab === "clips") return identity.clipSort;
-  return identity.videoSort;
-}
-
-function applySort(
-  identity: CategoryRequestIdentity,
-  value: string,
-): CategoryRequestIdentity {
-  if (identity.tab === "live") {
-    return { ...identity, liveSort: value as LiveSort };
-  }
-  if (identity.tab === "videos") {
-    return { ...identity, videoSort: value as VideoSort };
-  }
-  return { ...identity, clipSort: value as ClipSort };
-}
-
 const styles = StyleSheet.create({
+  toggle: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surface,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.medium,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    minHeight: mobileSizing.minimumTouchTarget,
+    padding: mobileSpacing.small,
+  },
+  toggleCopy: { flex: 1, minWidth: 0, gap: mobileSpacing.xSmall },
+  toggleTitle: { ...mobileType.body, color: mobileColors.textPrimary },
+  summary: { fontSize: 12, lineHeight: 18, color: mobileColors.textSecondary },
+  togglePressed: { backgroundColor: mobileColors.surfaceRaised },
   stack: {
     gap: mobileSpacing.medium,
   },

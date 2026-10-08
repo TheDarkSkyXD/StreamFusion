@@ -104,12 +104,12 @@ export function TwitchAccountsPanel({
         detail="Public browsing and Guest Follows stay available on this device."
       />
       <AccountCard
-        title="Account notifications"
-        detail="Status: not configured here. Notification delivery is managed by Notifications in Settings. Twitch connection does not change Guest Follow eligibility."
+        title="Live alerts"
+        detail="Manage live alerts for guest follows in Notifications settings."
       />
       <Action
         id="account-live-alerts"
-        label="Open Settings"
+        label="Notification settings"
         onPress={onOpenNotificationSettings}
       />
     </View>

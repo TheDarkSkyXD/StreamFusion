@@ -1,4 +1,11 @@
-import { Pressable, StyleSheet, Text, type TextStyle, type ViewStyle } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 
 import {
   mobileColors,
@@ -58,9 +65,10 @@ export function MobileButton({
       ]}
       testID={testID}
     >
-      <Text selectable style={[styles.label, look.label]}>
-        {children}
-      </Text>
+      {busy ? (
+        <ActivityIndicator color={look.label.color} size="small" />
+      ) : null}
+      <Text style={[styles.label, look.label]}>{children}</Text>
     </Pressable>
   );
 }
@@ -129,6 +137,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     borderRadius: mobileRadii.medium,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,

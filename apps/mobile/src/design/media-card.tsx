@@ -14,6 +14,7 @@ export function MobileMediaCardContent({
   platform,
   thumbnail,
   thumbnailUri,
+  tags,
   title,
   viewerLabel,
   viewerAccessibilityLabel,
@@ -28,6 +29,7 @@ export function MobileMediaCardContent({
   readonly platform: "twitch" | "kick";
   readonly thumbnail?: ReactNode;
   readonly thumbnailUri?: string;
+  readonly tags?: ReactNode;
   readonly title: string;
   readonly viewerLabel?: string;
   readonly viewerAccessibilityLabel?: string;
@@ -92,6 +94,7 @@ export function MobileMediaCardContent({
               {category}
             </Text>
           ) : null}
+          {tags}
         </View>
       </View>
     </View>

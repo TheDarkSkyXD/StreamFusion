@@ -17,8 +17,10 @@ import {
   View,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { Smile } from "lucide-react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileButton } from "@mobile/design/button";
+import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileTextField } from "@mobile/design/text-input";
 import { MobileEmoteImage } from "@mobile/design/emote-image";
@@ -532,32 +534,32 @@ function ChatPanelBody({
               </View>
             </MobileBottomSheet>
           ) : null}
-          <TextInput
-            accessibilityLabel="Chat message"
-            editable={view.access === "ready" && !view.sending}
-            multiline
-            maxLength={1000}
-            placeholder={
-              view.access === "ready" ? "Send a message..." : "Log in to chat"
-            }
-            placeholderTextColor={mobileColors.textSecondary}
-            value={draft}
-            onChangeText={setDraft}
-            style={styles.input}
-            testID="chat-draft"
-          />
           <View style={styles.actions}>
-            <MobileButton
-              accessibilityLabel={picker ? "Close emotes" : "Open emotes"}
+            <MobileIconButton
+              label={picker ? "Close emotes" : "Open emotes"}
+              selected={picker}
               onPress={() => {
                 setPickerMessages(messages);
                 setPicker((value) => !value);
               }}
               testID="chat-emotes"
-              variant="secondary"
             >
-              {picker ? "Close emotes" : "Emotes"}
-            </MobileButton>
+              <Smile color={mobileColors.textSecondary} size={24} />
+            </MobileIconButton>
+            <TextInput
+              accessibilityLabel="Chat message"
+              editable={view.access === "ready" && !view.sending}
+              multiline
+              maxLength={1000}
+              placeholder={
+                view.access === "ready" ? "Send a message..." : "Read-only chat"
+              }
+              placeholderTextColor={mobileColors.textSecondary}
+              value={draft}
+              onChangeText={setDraft}
+              style={styles.input}
+              testID="chat-draft"
+            />
             <MobileButton
               accessibilityLabel="Send chat message"
               busy={view.sending}
@@ -589,7 +591,9 @@ const styles = StyleSheet.create({
   input: {
     ...mobileType.body,
     color: mobileColors.textPrimary,
-    minHeight: 44,
+    minHeight: 48,
+    flex: 1,
+    minWidth: 0,
     maxHeight: 100,
     padding: mobileSpacing.small,
     backgroundColor: mobileColors.surface,
@@ -599,7 +603,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "flex-end",
     gap: mobileSpacing.xSmall,
   },
   menu: {

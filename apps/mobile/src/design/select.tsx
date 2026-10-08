@@ -24,6 +24,7 @@ export type MobileSelectOption<T extends string> = {
 export function MobileSelect<T extends string>({
   accessibilityLabel,
   appearance = "field",
+  description,
   disabled = false,
   onChange,
   options,
@@ -31,8 +32,9 @@ export function MobileSelect<T extends string>({
   value,
 }: {
   readonly accessibilityLabel: string;
-  /** `field` = bordered standalone control; `inline` = trailing value+chevron for settings rows. */
-  readonly appearance?: "field" | "inline";
+  /** Row includes the label and description in one touch target; inline shows the value only. */
+  readonly appearance?: "field" | "inline" | "row";
+  readonly description?: string;
   readonly disabled?: boolean;
   readonly onChange: (value: T) => void;
   readonly options: readonly MobileSelectOption<T>[];
@@ -43,17 +45,23 @@ export function MobileSelect<T extends string>({
   const selected = options.find((option) => option.value === value);
   const selectedLabel = selected?.valueLabel ?? selected?.label ?? value;
   const inline = appearance === "inline";
+  const row = appearance === "row";
 
   return (
     <View style={inline ? styles.wrapInline : styles.wrap} testID={testID}>
       <Pressable
         accessibilityLabel={`${accessibilityLabel}, ${selectedLabel}`}
+        accessibilityHint={description}
         accessibilityRole="button"
         accessibilityState={{ disabled, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
-          inline ? styles.triggerInline : styles.trigger,
+          row
+            ? styles.triggerRow
+            : inline
+              ? styles.triggerInline
+              : styles.trigger,
           disabled ? styles.triggerDisabled : null,
           pressed && !disabled
             ? inline
@@ -63,16 +71,26 @@ export function MobileSelect<T extends string>({
         ]}
         testID={`${testID}-trigger`}
       >
+        {row ? (
+          <View accessible={false} style={styles.rowCopy}>
+            <Text style={styles.rowLabel}>{accessibilityLabel}</Text>
+            {description ? (
+              <Text style={styles.description}>{description}</Text>
+            ) : null}
+          </View>
+        ) : null}
         <Text
-          selectable
-          style={inline ? styles.triggerLabelInline : styles.triggerLabel}
-          numberOfLines={1}
+          style={[
+            inline || row ? styles.triggerLabelInline : styles.triggerLabel,
+            row ? styles.rowValue : null,
+          ]}
+          numberOfLines={row ? 2 : 1}
         >
           {selectedLabel}
         </Text>
         <ChevronDown
           color={mobileColors.textSecondary}
-          size={inline ? 16 : 18}
+          size={inline || row ? 16 : 18}
         />
       </Pressable>
       <MobileBottomSheet
@@ -105,7 +123,6 @@ export function MobileSelect<T extends string>({
               testID={`${testID}-option-${option.value}`}
             >
               <Text
-                selectable
                 style={[
                   styles.optionLabel,
                   active ? styles.optionLabelActive : null,
@@ -156,6 +173,29 @@ const styles = StyleSheet.create({
     minHeight: mobileSizing.minimumTouchTarget,
     paddingLeft: mobileSpacing.small,
   },
+  triggerRow: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceRaised,
+    borderRadius: mobileRadii.medium,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.medium,
+  },
+  rowCopy: { flex: 1, gap: mobileSpacing.xSmall, minWidth: 0 },
+  rowLabel: {
+    color: mobileColors.textPrimary,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
+  },
+  description: {
+    color: mobileColors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  rowValue: { maxWidth: "45%" },
   triggerDisabled: {
     opacity: 0.45,
   },

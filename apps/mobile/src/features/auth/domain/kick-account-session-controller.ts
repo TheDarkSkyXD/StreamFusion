@@ -267,7 +267,7 @@ export function createKickAccountSessionController(options: {
             : {
                 kind: "unavailable",
                 guidance:
-                  "A qualified public Kick client ID is required before connection can start. Guest mode remains available.",
+                  "Kick sign-in is unavailable in this build. You can still browse, watch, and follow channels in guest mode.",
               },
           owner,
         );

@@ -460,12 +460,13 @@ export function WatchScreen({
             testID="watch-tools"
           >
             <MobileIconButton
-              label={t("navigation.settings")}
+              label={t("playback.quality")}
               testID="watch-tool-quality"
               disabled={!onQualityPress}
               onPress={() => onQualityPress?.()}
             >
               <MobileSettingsIcon color={mobileColors.textPrimary} size={22} />
+              <Text style={styles.toolLabel}>{t("playback.quality")}</Text>
             </MobileIconButton>
             <MobileIconButton
               label="Fullscreen"
@@ -474,6 +475,9 @@ export function WatchScreen({
               onPress={() => onToggleFullscreen?.()}
             >
               <Maximize color={mobileColors.textPrimary} size={22} />
+              <Text style={styles.toolLabel}>
+                {t("playback.watch.fullscreen")}
+              </Text>
             </MobileIconButton>
             <MobileIconButton
               label="Local captions"
@@ -482,6 +486,7 @@ export function WatchScreen({
               onPress={() => setToolSheet("captions")}
             >
               <Captions color={mobileColors.textPrimary} size={22} />
+              <Text style={styles.toolLabel}>{t("playback.captions")}</Text>
             </MobileIconButton>
             <MobileIconButton
               label={target.media ? "Downloads" : "Record stream"}
@@ -490,6 +495,11 @@ export function WatchScreen({
               onPress={() => setToolSheet("media")}
             >
               <Download color={mobileColors.textPrimary} size={22} />
+              <Text style={styles.toolLabel}>
+                {target.media
+                  ? t("playback.download")
+                  : t("mediaLibrary.record")}
+              </Text>
             </MobileIconButton>
             <MobileIconButton
               label="More player tools"
@@ -497,6 +507,7 @@ export function WatchScreen({
               onPress={() => setToolSheet("more")}
             >
               <Ellipsis color={mobileColors.textPrimary} size={22} />
+              <Text style={styles.toolLabel}>{t("navigation.more")}</Text>
             </MobileIconButton>
           </View>
           <MobileBottomSheet
@@ -512,9 +523,23 @@ export function WatchScreen({
                       : "Player tools"
             }
             visible={toolSheet !== null}
+            testID="watch-tools-sheet"
             onDismiss={() => setToolSheet(null)}
             size="expanded"
           >
+            {toolSheet === "more" && !target.media && onOpenEngagement ? (
+              <MobileButton
+                accessibilityLabel="Polls and predictions"
+                onPress={() => {
+                  setToolSheet(null);
+                  onOpenEngagement();
+                }}
+                testID="watch-engagement"
+                variant="secondary"
+              >
+                Polls and predictions
+              </MobileButton>
+            ) : null}
             {toolSheet === "captions" && captions ? (
               <WatchCaptionBar {...captions} session={captionSession} />
             ) : null}
@@ -541,16 +566,6 @@ export function WatchScreen({
               />
             ) : null}
           </MobileBottomSheet>
-          {!target.media && onOpenEngagement ? (
-            <MobileButton
-              accessibilityLabel="Polls and predictions"
-              onPress={onOpenEngagement}
-              testID="watch-engagement"
-              variant="secondary"
-            >
-              Polls and predictions
-            </MobileButton>
-          ) : null}
           <WatchTabs
             chat={chat}
             {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
@@ -733,6 +748,7 @@ export function WatchEmptyState({
 }
 
 const styles = StyleSheet.create({
+  toolLabel: { ...mobileType.label, color: mobileColors.textSecondary },
   scroll: { flex: 1, minHeight: 0 },
   screen: {
     flex: 1,

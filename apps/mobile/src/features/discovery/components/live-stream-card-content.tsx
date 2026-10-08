@@ -45,19 +45,19 @@ export function LiveStreamCardContent({
       viewerAccessibilityLabel={`${stream.viewerCount} viewers`}
       viewerTestID="stream-viewer-count"
       metadata={
-        <>
-          {stream.channelIsVerified ? (
-            <MobileVerifiedBadge platform={stream.platform} />
-          ) : null}
-          {tagLabels.length ? (
-            <View style={styles.tags} testID={tagsTestID}>
-              {tagLabels.map((tag) => (
-                <MobileTag key={tag} label={tag} />
-              ))}
-            </View>
-          ) : null}
-          {stream.isMature ? <MobileTag label="18+" /> : null}
-        </>
+        stream.channelIsVerified ? (
+          <MobileVerifiedBadge platform={stream.platform} />
+        ) : null
+      }
+      tags={
+        tagLabels.length || stream.isMature ? (
+          <View style={styles.tags} testID={tagsTestID}>
+            {tagLabels.map((tag) => (
+              <MobileTag key={tag} label={tag} />
+            ))}
+            {stream.isMature ? <MobileTag label="18+" /> : null}
+          </View>
+        ) : null
       }
     />
   );

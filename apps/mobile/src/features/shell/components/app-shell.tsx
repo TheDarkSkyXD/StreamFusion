@@ -2507,7 +2507,7 @@ const styles = StyleSheet.create({
     width: "50%",
   },
   navigationLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     lineHeight: 14,
     textAlign: "center",
