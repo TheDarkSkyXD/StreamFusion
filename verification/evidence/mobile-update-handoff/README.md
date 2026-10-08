@@ -18,7 +18,9 @@ Xtra starts installation after download. StreamFusion now continues after APK ve
 | Android 15 background completion | Ready phase remained after reopening; explicit Install opened approval |
 | Android 11 denied permission | Verified APK remained in permission-needed with Install available |
 | Android 11 process restoration | Granting permission after process termination did not auto-install; explicit Install opened approval |
-| Android 11 and 15 replacement | Version code changed from 1 to 2; private marker survived |
+| Android 16 foreground completion | Permission return opened Android approval without a second app Install tap |
+| Android 16 Play Protect block | Unfamiliar proof signing key triggered a system block; rejection appeared as install-blocked and kept retry available |
+| Android 11, 15, and 16 replacement | Version code changed from 1 to 2; private marker survived. Android 16 required per-app approval for the unfamiliar proof developer |
 
 The [proof build script](../../scripts/build-mobile-updater-native-proof.ps1) copies the production updater classes into an isolated Android app. Its test-only Activity injects a local file transport through the private constructor. It uses the real journal, APK verifier, foreground service, PackageInstaller, receiver, and consent Activity. The APKs use one proof signing key and an isolated package. This proves native handoff and replacement, while the official APK checks above exercise GitHub downloads.
 
@@ -31,7 +33,10 @@ The popup screenshot renders the production React Native component in Storybook.
 - [Popup with visible command error](popup-action-error.png)
 - [Android 11 installed version and retained data](android11-installed.png)
 - [Android 15 installed version and retained data](android15-installed.png)
+- [Android 16 installed version and retained data](android16-installed.png)
 - [Android 15 background completion waiting for Install](android15-background-ready.png)
 - [Android 11 restored permission request waiting for Install](android11-restored-permission.png)
 
 Comparison source: [Xtra update download and installation](https://github.com/crackededed/Xtra/blob/a3cbb0325f3330573a6738f7d36a2c5b785f4d1c/app/src/main/java/com/github/andreyasadchy/xtra/ui/settings/SettingsViewModel.kt#L335-L417).
+
+The focused popup regression first reported `Tests 1 failed | 3 passed (4)` against the old host. With the fix, the same test and retry check pass. The complete suite reports `Tests 1038 passed (1038)`.
