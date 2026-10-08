@@ -27,12 +27,26 @@ export function interpretGithubReleases(input: {
   }
 
   let latest: { release: AndroidRelease; version: Version } | null = null;
+  let malformedNewer: Version | null = null;
   for (const item of input.payload) {
     const candidate = parseAndroidRelease(item);
+    if (!candidate && isRecord(item) && typeof item.tag_name === "string") {
+      const tag = ANDROID_TAG.exec(item.tag_name);
+      const version = tag?.[1] ? parseVersion(tag[1]) : null;
+      if (version && compareVersions(version, installed) > 0 &&
+        (input.allowPrerelease || version.stage === 3) && item.draft !== true) {
+        if (!malformedNewer || compareVersions(version, malformedNewer) > 0) {
+          malformedNewer = version;
+        }
+      }
+    }
     if (!candidate || (!input.allowPrerelease && candidate.version.stage < 3)) continue;
     if (!latest || compareVersions(candidate.version, latest.version) > 0) {
       latest = candidate;
     }
+  }
+  if (malformedNewer && (!latest || compareVersions(malformedNewer, latest.version) >= 0)) {
+    return { status: "error", message: "A newer Android release has invalid update metadata. Try again later." };
   }
   if (!latest) {
     return { status: "current", release: null };
@@ -59,14 +73,25 @@ function parseAndroidRelease(value: unknown): { release: AndroidRelease; version
       entry.browser_download_url === `${RELEASE_BASE}/download/${tag}/${entry.name}`;
   });
   if (!isRecord(asset) || typeof asset.browser_download_url !== "string") return null;
+  const digest = typeof asset.digest === "string" && /^sha256:[a-fA-F0-9]{64}$/.test(asset.digest)
+    ? asset.digest.slice(7).toLowerCase()
+    : null;
+  if (!digest || typeof asset.size !== "number" || !Number.isSafeInteger(asset.size) ||
+    asset.size <= 0 || asset.size > 1_000_000_000) return null;
+  const manifestName = "android-update.json";
+  const hasManifest = value.assets.some((entry: unknown) =>
+    isRecord(entry) && entry.name === manifestName &&
+    entry.browser_download_url === `${RELEASE_BASE}/download/${tag}/${manifestName}`);
+  if (!hasManifest) return null;
   return {
     version,
     release: {
       version: versionText,
       tag,
-      notes: typeof value.body === "string" ? value.body.trim() : "",
+      notes: typeof value.body === "string" ? value.body.trim().slice(0, 32_768) : "",
       releaseUrl,
-      apkUrl: asset.browser_download_url,
+      apkBytes: asset.size,
+      apkSha256: digest,
     },
   };
 }

@@ -74,6 +74,7 @@ import { createAndroidNotificationPermissionPort } from "@mobile/features/settin
 import { createExpoLocalNotificationPresenter } from "@mobile/features/notifications/adapters/expo-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
+import { createExpoAndroidUpdaterPort } from "@mobile/features/app-update/adapters/expo-android-updater";
 import { createGithubReleaseOpenPort } from "@mobile/features/settings/adapters/github-release-open";
 import { createSupportLogPort } from "@mobile/features/settings/adapters/support-log-buffer";
 import { createSupportMaintenancePort } from "@mobile/features/settings/adapters/support-maintenance";
@@ -426,6 +427,7 @@ const supportStore = createSupportPreferenceStore(
   persistenceRuntime.productState.settings,
 );
 const supportSession = createSupportSettingsSession({
+  updater: createExpoAndroidUpdaterPort(),
   logs: createSupportLogPort(),
   maintenance: createSupportMaintenancePort({
     cacheClear: () => persistenceRuntime.disposableCache.clear(),

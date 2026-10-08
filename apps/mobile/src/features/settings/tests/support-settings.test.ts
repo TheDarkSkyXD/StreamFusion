@@ -65,6 +65,11 @@ describe("github latest release", () => {
       assets: [{
         name: `StreamFusion-${tag}.apk`,
         browser_download_url: `https://github.com/TheDarkSkyXD/StreamFusion/releases/download/${tag}/StreamFusion-${tag}.apk`,
+        size: 178185644,
+        digest: `sha256:${"a".repeat(64)}`,
+      }, {
+        name: "android-update.json",
+        browser_download_url: `https://github.com/TheDarkSkyXD/StreamFusion/releases/download/${tag}/android-update.json`,
       }],
     });
     const result = interpretGithubReleases({

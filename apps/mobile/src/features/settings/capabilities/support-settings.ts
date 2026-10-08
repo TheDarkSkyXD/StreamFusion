@@ -1,3 +1,5 @@
+import type { UpdatePhase, UpdateRelease } from "@mobile/features/app-update/capabilities/android-updater";
+
 export const SUPPORT_SETTINGS_KEY = "support-settings.v1";
 
 export const DIAGNOSTIC_WINDOWS = [
@@ -47,17 +49,13 @@ export type SupportSettings = {
   readonly logLevel: LogLevel;
   readonly logSource: LogSource;
   readonly reportDescription: string;
+  readonly postponedUpdate: { readonly tag: string; readonly until: number } | null;
+  readonly acknowledgedUpdateOperation: string | null;
 };
 
 export type SupportPreferencePatch = Partial<SupportSettings>;
 
-export type AndroidRelease = {
-  readonly version: string;
-  readonly tag: string;
-  readonly notes: string;
-  readonly releaseUrl: string;
-  readonly apkUrl: string;
-};
+export type AndroidRelease = UpdateRelease;
 
 export type GithubReleaseCheck =
   | { readonly status: "available"; readonly release: AndroidRelease }
@@ -91,6 +89,9 @@ export type SupportSettingsView = {
   readonly updateCopy: string;
   readonly update: UpdateCheckState;
   readonly releaseOpenError: string | null;
+  readonly updater: UpdatePhase;
+  readonly updatePopupVisible: boolean;
+  readonly updateOperationError: string | null;
 };
 
 export interface SupportReleaseCheckPort {
@@ -134,7 +135,13 @@ export interface SupportSettingsSession {
   confirmMaintenance(): Promise<SupportSettingsView>;
   load(): Promise<SupportSettingsView>;
   peek(): SupportSettingsView;
-  openApk(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  cancelUpdate(): Promise<void>;
+  retryUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
+  hideUpdate(): Promise<void>;
+  laterUpdate(): Promise<void>;
+  openUpdate(): void;
   openRelease(): Promise<void>;
   requestMaintenance(kind: SupportMaintenanceKind): Promise<SupportSettingsView>;
   shareReport(): Promise<SupportSettingsView>;

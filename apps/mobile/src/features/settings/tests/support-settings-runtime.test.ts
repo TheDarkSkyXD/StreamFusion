@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createSupportSettingsSession } from "../composition/support-settings-runtime";
 import { DEFAULT_SUPPORT_SETTINGS } from "../domain/support-settings";
+import type { AndroidUpdaterPort, UpdateSnapshot } from "@mobile/features/app-update/capabilities/android-updater";
 import type {
   SupportReleaseCheckPort,
   SupportReleaseOpenPort,
@@ -14,7 +15,8 @@ const AVAILABLE_RELEASE = {
   tag: "android-v1.2.0",
   notes: "New player controls.",
   releaseUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v1.2.0",
-  apkUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/download/android-v1.2.0/StreamFusion-android-v1.2.0.apk",
+  apkBytes: 1024,
+  apkSha256: "a".repeat(64),
 };
 
 function memoryStore(initial: SupportSettings = DEFAULT_SUPPORT_SETTINGS) {
@@ -34,6 +36,7 @@ function session(overrides?: {
   readonly releases?: SupportReleaseCheckPort;
   readonly open?: SupportReleaseOpenPort;
   readonly store?: SupportSettingsStore;
+  readonly updater?: AndroidUpdaterPort;
 }) {
   const historyRows = Array.from({ length: overrides?.historyCount ?? 2 }, (_, i) => i);
   return createSupportSettingsSession({
@@ -62,11 +65,92 @@ function session(overrides?: {
       share: async () => "Android share opened for the redacted local report.",
     },
     store: overrides?.store ?? memoryStore(),
+    updater: overrides?.updater ?? {
+      snapshot: async () => ({ revision: 0, phase: { kind: "idle" } }),
+      command: async () => ({ revision: 0, phase: { kind: "idle" } }),
+      subscribe: () => () => {},
+    },
   });
 }
 
 // Guards: Check now persists GitHub copy; destructive actions require confirm; guest disconnect does not start OAuth
 describe("support settings runtime", () => {
+  it("downloads in app, hides active progress, and restores it from native state", async () => {
+    let snapshot: UpdateSnapshot = { revision: 0, phase: { kind: "idle" } };
+    const commands: string[] = [];
+    const updater: AndroidUpdaterPort = {
+      snapshot: async () => snapshot,
+      subscribe: () => () => {},
+      command: async (command) => {
+        commands.push(command.kind);
+        if (command.kind !== "download") throw new Error("unexpected command");
+        snapshot = {
+          revision: 1,
+          phase: {
+            kind: "downloading",
+            operation: "operation-1",
+            release: command.release,
+            bytes: 512,
+            total: command.release.apkBytes,
+          },
+        };
+        return snapshot;
+      },
+    };
+    const settings = session({ updater });
+    await settings.checkOnLaunch();
+    expect(settings.peek().updatePopupVisible).toBe(true);
+    await settings.downloadUpdate();
+    expect(commands).toEqual(["download"]);
+    expect(settings.peek().updater).toMatchObject({ kind: "downloading", bytes: 512 });
+    await settings.hideUpdate();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    expect(settings.peek().updater.kind).toBe("downloading");
+
+    const restored = session({ updater });
+    await restored.load();
+    expect(restored.peek().updatePopupVisible).toBe(true);
+    expect(restored.peek().updater).toMatchObject({ kind: "downloading", bytes: 512 });
+  });
+
+  it("postpones one offer until tomorrow while allowing explicit reopen", async () => {
+    const store = memoryStore();
+    const settings = session({ store });
+    await settings.checkOnLaunch();
+    await settings.laterUpdate();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    expect((await store.read()).postponedUpdate?.tag).toBe(AVAILABLE_RELEASE.tag);
+    await settings.checkForUpdates();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    settings.openUpdate();
+    expect(settings.peek().updatePopupVisible).toBe(true);
+  });
+
+  it("shows installation success once across app relaunches", async () => {
+    const operation = "11111111-1111-4111-8111-111111111111";
+    const store = memoryStore();
+    const updater: AndroidUpdaterPort = {
+      snapshot: async () => ({
+        revision: 4,
+        phase: {
+          kind: "installed",
+          operation,
+          release: AVAILABLE_RELEASE,
+        },
+      }),
+      command: async () => { throw new Error("no action"); },
+      subscribe: () => () => {},
+    };
+    const first = session({ store, updater });
+    await first.load();
+    expect(first.peek().updatePopupVisible).toBe(true);
+    await first.hideUpdate();
+    const restarted = session({ store, updater });
+    await restarted.load();
+    expect(restarted.peek().updater.kind).toBe("installed");
+    expect(restarted.peek().updatePopupVisible).toBe(false);
+  });
+
   it("persists a GitHub check result", async () => {
     const settings = session();
     await settings.load();

@@ -60,6 +60,7 @@
           }
         }
       ],
+      "./plugins/with-sqlcipher-openssl",
       [
         "expo-build-properties",
         {

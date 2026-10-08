@@ -144,6 +144,7 @@ import {
   ReportBugSettingsPanel,
   UpdatesSettingsPanel,
   UpdateAvailableNotice,
+  UpdateDialogHost,
 } from "@mobile/features/settings/components/support-settings-panels";
 import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
 import type { ProductPreferences } from "@streamfusion/core/settings";
@@ -660,6 +661,7 @@ export function AppShell({
           </View>
         ) : null}
       </View>
+      <UpdateDialogHost session={supportSession} />
       <StatusBar hidden={fullscreen} style="light" />
       <AndroidNavigationBar hidden={fullscreen} />
     </KeyboardAvoidingView>

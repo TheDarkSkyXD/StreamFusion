@@ -1,5 +1,9 @@
 import type { AppMetadataReader } from "@mobile/features/diagnostics/capabilities/app-metadata";
 import { redactDiagnosticExport } from "@mobile/features/diagnostics/domain/diagnostics-workspace";
+import type {
+  AndroidUpdaterPort,
+  UpdateSnapshot,
+} from "@mobile/features/app-update/capabilities/android-updater";
 
 import type {
   SupportLogPort,
@@ -45,6 +49,7 @@ export function createSupportSettingsSession(input: {
   readonly open: SupportReleaseOpenPort;
   readonly share: SupportSharePort;
   readonly store: SupportSettingsStore;
+  readonly updater: AndroidUpdaterPort;
 }): SupportSettingsSession {
   const listeners = new Set<() => void>();
   let cached = defaultSupportSettingsView(input.metadata.read().version);
@@ -55,10 +60,49 @@ export function createSupportSettingsSession(input: {
   let checkPromise: Promise<SupportSettingsView> | null = null;
   let launched = false;
   let writes: Promise<void> = Promise.resolve();
+  let updaterSnapshot: UpdateSnapshot = { revision: 0, phase: { kind: "idle" } };
+  let updatePopupVisible = false;
+  let updateOperationError: string | null = null;
 
   function notify(): void {
     listeners.forEach((listener) => listener());
   }
+
+  function acceptUpdaterSnapshot(next: UpdateSnapshot): void {
+    if (next.revision < updaterSnapshot.revision) return;
+    const prior = updaterSnapshot.phase;
+    updaterSnapshot = next;
+    const changed = next.phase.kind !== prior.kind ||
+      ("operation" in next.phase && "operation" in prior &&
+        next.phase.operation !== prior.operation);
+    if (changed && next.phase.kind !== "idle" &&
+      next.phase.kind !== "unsupported" && next.phase.kind !== "canceled" &&
+      (!("operation" in next.phase) ||
+        next.phase.operation !== cached.preferences.acknowledgedUpdateOperation)) {
+      updatePopupVisible = true;
+    }
+    cached = {
+      ...cached,
+      updater: next.phase,
+      updatePopupVisible,
+      updateOperationError,
+    };
+    notify();
+  }
+
+  async function refreshUpdater(): Promise<void> {
+    try {
+      acceptUpdaterSnapshot(await input.updater.snapshot());
+    } catch {
+      updateOperationError = "Could not read Android update progress. Try reopening Updates.";
+      cached = { ...cached, updateOperationError };
+      notify();
+    }
+  }
+
+  input.updater.subscribe(() => {
+    void refreshUpdater();
+  });
 
   async function hydrate(): Promise<SupportSettingsView> {
     const preferences = await input.store.read();
@@ -70,8 +114,12 @@ export function createSupportSettingsSession(input: {
       resultCopy,
       releaseOpenError,
       update,
+      updater: updaterSnapshot.phase,
+      updatePopupVisible,
+      updateOperationError,
     });
     notify();
+    await refreshUpdater();
     return cached;
   }
 
@@ -94,6 +142,17 @@ export function createSupportSettingsSession(input: {
       updateCopy: updateStatusCopy(update, cached.installedVersion, cached.preferences.lastCheckCopy),
       releaseOpenError,
     };
+    if (next.status === "available" &&
+      (updaterSnapshot.phase.kind === "idle" ||
+        updaterSnapshot.phase.kind === "unsupported" ||
+        updaterSnapshot.phase.kind === "canceled" ||
+        updaterSnapshot.phase.kind === "installed" ||
+        updaterSnapshot.phase.kind === "failed") &&
+      !(cached.preferences.postponedUpdate?.tag === next.release.tag &&
+        cached.preferences.postponedUpdate.until > Date.now())) {
+      updatePopupVisible = true;
+      cached = { ...cached, updatePopupVisible };
+    }
     notify();
   }
 
@@ -129,17 +188,41 @@ export function createSupportSettingsSession(input: {
     return running;
   }
 
-  async function openRelease(kind: "apkUrl" | "releaseUrl"): Promise<void> {
+  async function openRelease(): Promise<void> {
     if (update.status !== "available" && update.status !== "current") return;
-    if (!update.release || (kind === "apkUrl" && update.status !== "available")) return;
+    if (!update.release) return;
     try {
-      await input.open.open(update.release[kind]);
+      await input.open.open(update.release.releaseUrl);
       releaseOpenError = null;
     } catch {
       releaseOpenError = "Could not open the release in your browser. Try again.";
     }
     cached = { ...cached, releaseOpenError };
     notify();
+  }
+
+  async function command(kind: "download" | "cancel" | "retry" | "install"): Promise<void> {
+    const phase = updaterSnapshot.phase;
+    const release = update.status === "available" ? update.release : null;
+    const operation = "operation" in phase ? phase.operation : null;
+    if (kind === "download" && !release) return;
+    if (kind !== "download" && !operation) return;
+    try {
+      updateOperationError = null;
+      let next: UpdateSnapshot;
+      if (kind === "download") {
+        if (!release) return;
+        next = await input.updater.command({ kind, release });
+      } else {
+        if (!operation) return;
+        next = await input.updater.command({ kind, operation });
+      }
+      acceptUpdaterSnapshot(next);
+    } catch {
+      updateOperationError = "The Android update action failed. Try again.";
+      cached = { ...cached, updateOperationError };
+      notify();
+    }
   }
 
   return {
@@ -188,8 +271,35 @@ export function createSupportSettingsSession(input: {
         ? checkForUpdates()
         : cached;
     },
-    openApk: () => openRelease("apkUrl"),
-    openRelease: () => openRelease("releaseUrl"),
+    downloadUpdate: () => command("download"),
+    cancelUpdate: () => command("cancel"),
+    retryUpdate: () => command("retry"),
+    installUpdate: () => command("install"),
+    async hideUpdate() {
+      updatePopupVisible = false;
+      cached = { ...cached, updatePopupVisible };
+      notify();
+      const phase = updaterSnapshot.phase;
+      if ("operation" in phase && (phase.kind === "installed" ||
+        phase.kind === "canceled" || phase.kind === "failed")) {
+        await persist({ acknowledgedUpdateOperation: phase.operation });
+      }
+    },
+    async laterUpdate() {
+      const release = update.status === "available" ? update.release : null;
+      updatePopupVisible = false;
+      cached = { ...cached, updatePopupVisible };
+      notify();
+      if (release) await persist({
+        postponedUpdate: { tag: release.tag, until: Date.now() + 86_400_000 },
+      });
+    },
+    openUpdate() {
+      updatePopupVisible = true;
+      cached = { ...cached, updatePopupVisible };
+      notify();
+    },
+    openRelease,
     async buildReport() {
       const report = redactedLocalReport({
         installedVersion: cached.installedVersion,

@@ -112,7 +112,10 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
     readFileSync(path.join(moduleRoot, "expo-module.config.json"), "utf8"),
   );
   assert.deepEqual(config.platforms, ["android"]);
-  assert.equal(config.android.modules.length, modules.length);
+  assert.equal(config.android.modules.length, modules.length + 1);
+  assert.ok(config.android.modules.includes(
+    "expo.modules.streamfusionnativecontracts.StreamFusionUpdaterModule",
+  ));
   for (const [className, moduleName, operations] of modules) {
     const source = readFileSync(
       path.join(kotlinRoot, `StreamFusion${className}Module.kt`),

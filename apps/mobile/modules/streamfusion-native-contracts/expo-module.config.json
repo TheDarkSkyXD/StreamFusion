@@ -7,7 +7,8 @@
       "expo.modules.streamfusionnativecontracts.StreamFusionCaptionsModule",
       "expo.modules.streamfusionnativecontracts.StreamFusionDiagnosticsModule",
       "expo.modules.streamfusionnativecontracts.StreamFusionMaintenanceModule",
-      "expo.modules.streamfusionnativecontracts.StreamFusionConnectivityModule"
+      "expo.modules.streamfusionnativecontracts.StreamFusionConnectivityModule",
+      "expo.modules.streamfusionnativecontracts.StreamFusionUpdaterModule"
     ]
   }
 }

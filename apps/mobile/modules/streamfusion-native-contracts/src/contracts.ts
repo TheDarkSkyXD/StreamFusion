@@ -61,6 +61,12 @@ interface NativeMaintenanceModule {
   verifyDownloadedApk(request: unknown): Promise<unknown>;
 }
 
+export interface NativeUpdaterModule {
+  snapshot(): Promise<unknown>;
+  command(command: unknown): Promise<unknown>;
+  addListener(event: "onUpdateRevision", listener: (event: unknown) => void): { remove(): void };
+}
+
 export type NativeProxyRequestResult =
   | {
       readonly kind: "completed";
@@ -134,6 +140,10 @@ export function getMaintenanceModule(): NativeMaintenanceModule | null {
   return optionalNativeModule<NativeMaintenanceModule>(
     "StreamFusionMaintenance",
   );
+}
+
+export function getUpdaterModule(): NativeUpdaterModule | null {
+  return optionalNativeModule<NativeUpdaterModule>("StreamFusionUpdater");
 }
 
 /** Returns null when the native module is absent. Never throws. */

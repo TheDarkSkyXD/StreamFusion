@@ -57,6 +57,9 @@ export function composeSupportSettingsView(input: {
   readonly resultCopy: string;
   readonly releaseOpenError: string | null;
   readonly update: UpdateCheckState;
+  readonly updater?: SupportSettingsView["updater"];
+  readonly updatePopupVisible?: boolean;
+  readonly updateOperationError?: string | null;
 }): SupportSettingsView {
   const { installedVersion, logs, pending, preferences, releaseOpenError, resultCopy, update } = input;
   return {
@@ -75,6 +78,9 @@ export function composeSupportSettingsView(input: {
     releaseOpenError,
     updateCopy: updateStatusCopy(update, installedVersion, preferences.lastCheckCopy),
     update,
+    updater: input.updater ?? { kind: "idle" },
+    updatePopupVisible: input.updatePopupVisible ?? false,
+    updateOperationError: input.updateOperationError ?? null,
   };
 }
 

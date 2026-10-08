@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { mobileSpacing } from "@mobile/design/tokens";
+import { UpdateDialog } from "@mobile/features/app-update/components/update-dialog";
+import { updatePresentation, type UpdateAction } from "@mobile/features/app-update/domain/update-presentation";
 
 import {
   CHECK_FREQUENCIES,
@@ -115,10 +117,22 @@ export function UpdatesSettingsPanel({
       />
       {view.update.status === "available" ? (
         <SettingsAction
-          label="Download APK in browser"
-          onPress={() => { void session.openApk(); }}
-          testID="download-update-apk"
+          label={view.updater.kind === "idle" || view.updater.kind === "unsupported"
+            ? "Open update" : "Open update progress"}
+          onPress={() => { session.openUpdate(); }}
+          testID="open-update"
         />
+      ) : null}
+      {view.updater.kind !== "idle" && view.updater.kind !== "unsupported" &&
+        view.update.status !== "available" ? (
+          <SettingsAction
+            label="Open update progress"
+            onPress={() => { session.openUpdate(); }}
+            testID="open-update-progress"
+          />
+        ) : null}
+      {view.updateOperationError ? (
+        <SettingsCopy testID="update-operation-error" value={view.updateOperationError} />
       ) : null}
       {release ? (
         <>
@@ -154,12 +168,29 @@ export function UpdateAvailableNotice({
         <SettingsCopy testID="update-available-notice-error" value={view.releaseOpenError} />
       ) : null}
       <SettingsAction
-        label="View update on GitHub"
-        onPress={() => { void session.openRelease(); }}
+        label="Open update"
+        onPress={() => { session.openUpdate(); }}
         testID="open-available-update"
       />
     </View>
   );
+}
+
+export function UpdateDialogHost({ session }: { readonly session: SupportSettingsSession }) {
+  const view = useSupportView(session);
+  const offered = view.update.status === "available" ? view.update.release : null;
+  const model = updatePresentation(view.updater, offered);
+  function onAction(action: UpdateAction): void {
+    switch (action) {
+      case "download": void session.downloadUpdate(); return;
+      case "later": void session.laterUpdate(); return;
+      case "cancel": void session.cancelUpdate(); return;
+      case "hide": void session.hideUpdate(); return;
+      case "retry": void session.retryUpdate(); return;
+      case "install": void session.installUpdate(); return;
+    }
+  }
+  return <UpdateDialog model={model} onAction={onAction} visible={view.updatePopupVisible} />;
 }
 
 export function DiagnosticsSettingsPanel({

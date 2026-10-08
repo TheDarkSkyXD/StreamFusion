@@ -43,6 +43,8 @@ Storage adapters import Expo secret, random, file, and SQLite APIs. The `native-
 
 The [Mobile domain language](../../docs/research/streamfusion-mobile/CONTEXT.md) defines the parity and release terms used by this client.
 
+The [Android app updates reference](UPDATES.md) records the in-app update flow and release metadata contract.
+
 
 ## Expo Go testing
 

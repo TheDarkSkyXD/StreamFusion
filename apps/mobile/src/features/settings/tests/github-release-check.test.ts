@@ -14,6 +14,11 @@ function release(version: string, prerelease = true) {
     assets: [{
       name,
       browser_download_url: `https://github.com/TheDarkSkyXD/StreamFusion/releases/download/${tag}/${name}`,
+      size: 178185644,
+      digest: `sha256:${"a".repeat(64)}`,
+    }, {
+      name: "android-update.json",
+      browser_download_url: `https://github.com/TheDarkSkyXD/StreamFusion/releases/download/${tag}/android-update.json`,
     }],
   };
 }
@@ -68,7 +73,57 @@ describe("Android GitHub release checks", () => {
     })).toEqual({ status: "error", message: "GitHub returned an invalid releases list. Try again." });
   });
 
-  it("fetches the release list and returns a browser APK link", async () => {
+  it("reports invalid newer release metadata instead of claiming the app is current", () => {
+    const malformed = release("0.4.0", false);
+    malformed.assets[0]!.digest = "sha256:bad";
+    expect(interpretGithubReleases({
+      installedVersion: "0.3.0",
+      allowPrerelease: false,
+      payload: [malformed],
+    })).toEqual({
+      status: "error",
+      message: "A newer Android release has invalid update metadata. Try again later.",
+    });
+  });
+
+  it("uses a newer valid release when an older release has invalid metadata", () => {
+    const malformed = release("0.4.0", false);
+    malformed.assets[0]!.digest = "sha256:bad";
+    expect(interpretGithubReleases({
+      installedVersion: "0.3.0",
+      allowPrerelease: false,
+      payload: [malformed, release("0.5.0", false)],
+    })).toMatchObject({
+      status: "available",
+      release: { version: "0.5.0" },
+    });
+  });
+
+  it("blocks an older valid offer when a newer release has invalid metadata", () => {
+    const malformed = release("0.5.0", false);
+    malformed.assets[0]!.digest = "sha256:bad";
+    expect(interpretGithubReleases({
+      installedVersion: "0.3.0",
+      allowPrerelease: false,
+      payload: [release("0.4.0", false), malformed],
+    })).toEqual({
+      status: "error",
+      message: "A newer Android release has invalid update metadata. Try again later.",
+    });
+  });
+
+  it("bounds release notes to the native bridge limit", () => {
+    const candidate = { ...release("0.5.0", false), body: "x".repeat(40_000) };
+    const result = interpretGithubReleases({
+      installedVersion: "0.3.0",
+      allowPrerelease: false,
+      payload: [candidate],
+    });
+    expect(result.status).toBe("available");
+    if (result.status === "available") expect(result.release.notes.length).toBe(32_768);
+  });
+
+  it("fetches the release list and retains APK verification metadata", async () => {
     const fetchImpl: typeof fetch = async (url) => {
       expect(url).toBe("https://api.github.com/repos/TheDarkSkyXD/StreamFusion/releases?per_page=100");
       return new Response(JSON.stringify([release("0.1.1-alpha")]), { status: 200 });
@@ -80,7 +135,8 @@ describe("Android GitHub release checks", () => {
     expect(result).toMatchObject({
       status: "available",
       release: {
-        apkUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/download/android-v0.1.1-alpha/StreamFusion-android-v0.1.1-alpha.apk",
+        apkBytes: 178185644,
+        apkSha256: "a".repeat(64),
         notes: "Notes for 0.1.1-alpha",
       },
     });

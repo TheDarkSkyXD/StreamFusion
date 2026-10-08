@@ -21,6 +21,8 @@ export const DEFAULT_SUPPORT_SETTINGS: SupportSettings = {
   logLevel: "info",
   logSource: "all",
   reportDescription: "",
+  postponedUpdate: null,
+  acknowledgedUpdateOperation: null,
 };
 
 export function parseSupportSettings(value: unknown): SupportSettings {
@@ -73,6 +75,18 @@ export function parseSupportSettings(value: unknown): SupportSettings {
       typeof record.reportDescription === "string"
         ? record.reportDescription.slice(0, 4000)
         : "",
+    postponedUpdate: isRecord(record.postponedUpdate) &&
+      typeof record.postponedUpdate.tag === "string" &&
+      /^android-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)(?:\.\d+)?)?$/.test(record.postponedUpdate.tag) &&
+      typeof record.postponedUpdate.until === "number" &&
+      Number.isFinite(record.postponedUpdate.until)
+      ? { tag: record.postponedUpdate.tag, until: record.postponedUpdate.until }
+      : null,
+    acknowledgedUpdateOperation:
+      typeof record.acknowledgedUpdateOperation === "string" &&
+      /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(record.acknowledgedUpdateOperation)
+        ? record.acknowledgedUpdateOperation
+        : null,
   };
 }
 

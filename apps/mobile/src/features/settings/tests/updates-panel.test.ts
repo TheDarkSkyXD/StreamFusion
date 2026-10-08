@@ -32,7 +32,8 @@ const release = {
   tag: "android-v0.1.1-alpha",
   notes: "Player fixes and new controls.",
   releaseUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v0.1.1-alpha",
-  apkUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/download/android-v0.1.1-alpha/StreamFusion-android-v0.1.1-alpha.apk",
+  apkBytes: 1024,
+  apkSha256: "a".repeat(64),
 };
 
 function session(update: UpdateCheckState): SupportSettingsSession {
@@ -55,7 +56,13 @@ function session(update: UpdateCheckState): SupportSettingsSession {
     confirmMaintenance: async () => view,
     load: async () => view,
     peek: () => view,
-    openApk: async () => {},
+    downloadUpdate: async () => {},
+    cancelUpdate: async () => {},
+    retryUpdate: async () => {},
+    installUpdate: async () => {},
+    hideUpdate: async () => {},
+    laterUpdate: async () => {},
+    openUpdate: () => {},
     openRelease: async () => {},
     requestMaintenance: async () => view,
     shareReport: async () => view,
@@ -68,13 +75,13 @@ describe("mobile Updates panel", () => {
     const html = renderToStaticMarkup(createElement(UpdatesSettingsPanel, { session: session({ status: "checking" }) }));
     expect(html).toContain("Checking GitHub for Android releases");
     expect(html).toMatch(/<button[^>]*data-testid="check-for-updates"[^>]*disabled=""/);
-    expect(html).not.toContain("Download APK in browser");
+    expect(html).not.toContain("Open update");
   });
 
   it("keeps check controls before notes and shows the Android APK action", () => {
     const html = renderToStaticMarkup(createElement(UpdatesSettingsPanel, { session: session({ status: "available", release }) }));
     expect(html).toContain("Android 0.1.1-alpha is available");
-    expect(html).toContain("Download APK in browser");
+    expect(html).toContain("Open update");
     expect(html.indexOf("Check now")).toBeLessThan(html.indexOf("Player fixes and new controls"));
     expect(renderToStaticMarkup(createElement(UpdateAvailableNotice, { session: session({ status: "available", release }) })))
       .toContain("StreamFusion Android 0.1.1-alpha is available.");
@@ -83,6 +90,6 @@ describe("mobile Updates panel", () => {
   it("shows a current stable channel without an APK action", () => {
     const html = renderToStaticMarkup(createElement(UpdatesSettingsPanel, { session: session({ status: "current", release: null }) }));
     expect(html).toContain("No stable Android release has been published yet.");
-    expect(html).not.toContain("Download APK in browser");
+    expect(html).not.toContain("Open update");
   });
 });
