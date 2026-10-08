@@ -92,12 +92,15 @@ export function assembleReleaseSet({
     "sha256sum --check SHA256SUMS",
     "```",
     "",
-    "The APK is signed with the StreamFusion Mobile production key. Android only accepts an update whose signing certificate and `versionCode` match the installed app, so never uninstall before installing a newer release.",
+    "The APK is signed with the StreamFusion Mobile production key. Updates must use the installed app's signing certificate and a higher `versionCode`. Keep the app installed to preserve your data.",
+    "",
+    "## Update",
+    "",
+    "Open Settings > Updates in StreamFusion and select Check now. Download the available update in the app, follow its progress, then select Install. Android asks you to approve installation. If prompted, allow StreamFusion to install apps and return to finish the update.",
     "",
     "## Known issues",
     "",
     "- Twitch and Kick account sign-in is not complete in this release.",
-    "- Update checks run on launch and from Settings. Download the APK in your browser and install it with Android.",
   ].join("\n");
   writeFileSync(path.join(directory, "release-notes.md"), `${notes}\n`);
 
