@@ -95,6 +95,7 @@ vi.mock("react", async (importOriginal) => {
 
 type ElementProps = Readonly<{
   children?: unknown;
+  disabled?: boolean;
   onPress?: () => void;
   testID?: string;
 }>;
@@ -131,6 +132,7 @@ describe("watch screen", () => {
 
   it("requires an explicit start and shows connecting guest chat", () => {
     const root = WatchScreen({
+      toolSheet: { active: null, onChange: () => undefined },
       PlayerSurface: () => null,
       chat: {
         detail: "Connecting guest chat.",
@@ -162,6 +164,7 @@ describe("watch screen", () => {
     const retried: string[] = [];
     const liveNodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
@@ -254,6 +257,7 @@ describe("watch screen", () => {
     ).toBe(true);
     const failedNodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Twitch chat closed before messages arrived.",
@@ -279,6 +283,8 @@ describe("watch screen", () => {
   });
 
   it("renders icon transport chrome without verbose limitation copy", () => {
+    const selected: string[] = [];
+    const tapped: string[] = [];
     const playback = {
       integration: "twitch-gql-usher" as const,
       kind: "active" as const,
@@ -289,6 +295,10 @@ describe("watch screen", () => {
       target,
     };
     const root = WatchScreen({
+      toolSheet: {
+        active: null,
+        onChange: (next) => selected.push(String(next)),
+      },
       PlayerSurface: () => null,
       chat: {
         detail: "Connecting guest chat.",
@@ -297,6 +307,7 @@ describe("watch screen", () => {
       inspection: null,
       onMute: () => undefined,
       onOpenRelated: () => undefined,
+      onPlayerTap: () => tapped.push("video"),
       onPlayPause: () => undefined,
       onQualityPress: () => undefined,
       onRetry: () => undefined,
@@ -324,6 +335,42 @@ describe("watch screen", () => {
       target,
     });
     const nodes = descendants(root);
+    const stage = nodes.find(
+      (node) => node.props.testID === "watch-player-stage",
+    );
+    const stageNodes = descendants(stage);
+    expect(
+      stageNodes.filter((node) => node.props.testID === "watch-tools"),
+    ).toHaveLength(1);
+    expect(
+      stageNodes.filter((node) => node.props.testID === "player-quality"),
+    ).toHaveLength(1);
+    expect(
+      stageNodes.filter(
+        (node) =>
+          node.type === "Pressable" &&
+          node.props.testID === "player-fullscreen",
+      ),
+    ).toHaveLength(1);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-tool-quality"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-tool-fullscreen"),
+    ).toBe(false);
+    expect(
+      stageNodes.find((node) => node.props.testID === "watch-tool-captions")
+        ?.props.disabled,
+    ).toBe(true);
+    expect(
+      stageNodes.find((node) => node.props.testID === "watch-tool-media")?.props
+        .disabled,
+    ).toBe(true);
+    stageNodes
+      .find((node) => node.props.testID === "watch-tool-more")
+      ?.props.onPress?.();
+    expect(selected).toEqual(["more"]);
+    expect(tapped).toEqual([]);
     expect(
       nodes.some((node) => node.props.testID === "player-play-pause"),
     ).toBe(true);
@@ -355,6 +402,101 @@ describe("watch screen", () => {
     ).toBe(false);
   });
 
+  it.each(["watch", "fullscreen"] as const)(
+    "opens each available stage tool in %s without tapping the video",
+    (presentation) => {
+      const selected: string[] = [];
+      const tapped: string[] = [];
+      const playback = {
+        integration: "twitch-gql-usher" as const,
+        kind: "active" as const,
+        phase: "playing" as const,
+        policySequence: 1,
+        protection: { kind: "normal" as const },
+        session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+        target,
+      };
+      const nodes = descendants(
+        WatchScreen({
+          PlayerSurface: () => null,
+          captions: {
+            busy: false,
+            cueText: "",
+            eligibility: {
+              kind: "eligible",
+              label: "Captions",
+              sessionId: "watch:1",
+            },
+            model: null,
+            onInstall: () => undefined,
+            onRemove: () => undefined,
+            onStart: () => undefined,
+            onStop: () => undefined,
+            session: null,
+            status: null,
+          },
+          chat: { detail: "Connecting guest chat.", kind: "connecting" },
+          inspection: null,
+          onMute: () => undefined,
+          onOpenRelated: () => undefined,
+          onPlayerTap: () => tapped.push("video"),
+          onPlayPause: () => undefined,
+          onQualityPress: () => undefined,
+          onRetry: () => undefined,
+          onSelectTab: () => undefined,
+          onToggleControls: () => undefined,
+          onToggleFullscreen: () => undefined,
+          peek: {
+            adsDetected: false,
+            kind: "active",
+            muted: false,
+            presentation: {
+              pip: "idle",
+              presentation,
+              previous: presentation === "fullscreen" ? "watch" : null,
+              snapRegion: "bottom-end",
+            },
+            quality: "auto",
+            qualities: ["auto"],
+            progress: { durationMs: 0, positionMs: 0, seekable: false },
+            state: playback,
+            volume: 1,
+          },
+          playback,
+          recording: {
+            busy: false,
+            eligibility: { kind: "hidden" },
+            job: null,
+            onCommand: () => undefined,
+            onDelete: () => undefined,
+            onExport: () => undefined,
+            onOpenArtifact: () => undefined,
+            onStart: () => undefined,
+          },
+          tab: "info",
+          target,
+          toolSheet: {
+            active: null,
+            onChange: (next) => selected.push(String(next)),
+          },
+        }),
+      );
+      for (const [testID, sheet] of [
+        ["watch-tool-captions", "captions"],
+        ["watch-tool-media", "media"],
+        ["watch-tool-more", "more"],
+      ] as const) {
+        const control = nodes.find(
+          (node) => node.type === "Pressable" && node.props.testID === testID,
+        );
+        expect(control?.props.disabled).toBe(false);
+        control?.props.onPress?.();
+        expect(selected.at(-1)).toBe(sheet);
+      }
+      expect(tapped).toEqual([]);
+    },
+  );
+
   it("hides Watch chrome while Picture-in-Picture owns the surface", () => {
     const playback = {
       integration: "twitch-gql-usher" as const,
@@ -366,6 +508,7 @@ describe("watch screen", () => {
       target,
     };
     const root = WatchScreen({
+      toolSheet: { active: "more", onChange: () => undefined },
       PlayerSurface: () => null,
       chat: {
         detail: "Connecting guest chat.",
@@ -410,6 +553,12 @@ describe("watch screen", () => {
     expect(nodes.some((node) => node.props.testID === "watch-target")).toBe(
       false,
     );
+    expect(nodes.some((node) => node.props.testID === "watch-tools")).toBe(
+      false,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "watch-tools-sheet-menu"),
+    ).toBe(false);
   });
 
   it("shows only the player and its controls in fullscreen", () => {
@@ -424,6 +573,7 @@ describe("watch screen", () => {
     };
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: { detail: "Connecting guest chat.", kind: "connecting" },
         inspection: null,
@@ -482,6 +632,7 @@ describe("watch screen", () => {
     };
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         adblockView: {
           canary: false,
@@ -535,7 +686,7 @@ describe("watch screen", () => {
     ).toBe(false);
   });
 
-  it("shows a Video download control and hides download on live", () => {
+  it("keeps secondary tools off a player that is not active", () => {
     const video = {
       ...target,
       media: {
@@ -547,6 +698,7 @@ describe("watch screen", () => {
     };
     const liveNodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Connecting guest chat.",
@@ -588,9 +740,10 @@ describe("watch screen", () => {
     ).toBe(false);
     expect(
       liveNodes.some((node) => node.props.testID === "watch-tool-media"),
-    ).toBe(true);
+    ).toBe(false);
     const videoNodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Connecting guest chat.",
@@ -620,7 +773,7 @@ describe("watch screen", () => {
     );
     expect(
       videoNodes.some((node) => node.props.testID === "watch-tool-media"),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       videoNodes.some((node) => node.props.testID === "watch-recording-start"),
     ).toBe(false);
@@ -631,6 +784,7 @@ describe("watch screen", () => {
     (captionSessionId) => {
       const nodes = descendants(
         WatchScreen({
+          toolSheet: { active: null, onChange: () => undefined },
           PlayerSurface: () => null,
           captions: {
             busy: false,
@@ -695,7 +849,7 @@ describe("watch screen", () => {
       ).toBe(captionSessionId === "watch:1");
       expect(
         nodes.some((node) => node.props.testID === "watch-tool-captions"),
-      ).toBe(true);
+      ).toBe(false);
       expect(
         nodes.some((node) => node.props.testID === "watch-caption-stop"),
       ).toBe(false);
@@ -724,6 +878,7 @@ describe("watch screen", () => {
   it("defaults under-player to chat without Info/Related/Chat chips", () => {
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Guest chat is live. Sending stays locked.",
@@ -768,6 +923,7 @@ describe("watch screen", () => {
       target,
     };
     const root = WatchScreen({
+      toolSheet: { active: null, onChange: () => undefined },
       PlayerSurface: () => null,
       chat: {
         detail: "Connecting guest chat.",
@@ -812,6 +968,7 @@ describe("watch screen", () => {
     expect(tabs).toEqual(["info"]);
     const infoNodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Connecting guest chat.",
@@ -840,6 +997,7 @@ describe("watch screen", () => {
     const opened: string[] = [];
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Connecting guest chat.",
@@ -878,6 +1036,7 @@ describe("watch screen", () => {
     };
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Comments are unavailable offline.",
@@ -983,6 +1142,7 @@ describe("watch screen", () => {
   it("stacks the mounted player before channel metadata and chat", () => {
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         adblockView: {
           canary: false,
@@ -1050,7 +1210,7 @@ describe("watch screen", () => {
     expect(meta).toBeGreaterThan(player);
     expect(under).toBeGreaterThan(player);
     expect(chat).toBeGreaterThan(under);
-    expect(ids.includes("watch-tools")).toBe(true);
+    expect(ids.includes("watch-tools")).toBe(false);
     expect(ids.includes("watch-adblock-status")).toBe(false);
     expect(ids.includes("watch-captions-privacy")).toBe(false);
   });
@@ -1058,6 +1218,7 @@ describe("watch screen", () => {
   it("shows a Twitch-like channel identity card when info is under the player", () => {
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Connecting guest chat.",
@@ -1133,6 +1294,7 @@ describe("watch screen", () => {
     const followed: string[] = [];
     const nodes = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Connecting guest chat.",
@@ -1238,6 +1400,7 @@ describe("watch screen", () => {
   it("does not offer Open provider page on failed or ended Watch chrome", () => {
     const failed = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: { detail: "Connecting guest chat.", kind: "connecting" },
         inspection: null,
@@ -1269,6 +1432,7 @@ describe("watch screen", () => {
 
     const ended = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: { detail: "Connecting guest chat.", kind: "connecting" },
         inspection: null,

@@ -1,0 +1,58 @@
+{
+  "device": "emulator-5558",
+  "app": "com.thedarkskyxd.streamfusion.dev",
+  "stage": [
+    0,
+    63,
+    1080,
+    671
+  ],
+  "controls": [
+    {
+      "id": "player-quality",
+      "bounds": [
+        807,
+        524,
+        933,
+        650
+      ]
+    },
+    {
+      "id": "player-fullscreen",
+      "bounds": [
+        933,
+        524,
+        1059,
+        650
+      ]
+    },
+    {
+      "id": "watch-tool-captions",
+      "bounds": [
+        660,
+        84,
+        786,
+        210
+      ]
+    },
+    {
+      "id": "watch-tool-media",
+      "bounds": [
+        797,
+        84,
+        923,
+        210
+      ]
+    },
+    {
+      "id": "watch-tool-more",
+      "bounds": [
+        933,
+        84,
+        1059,
+        210
+      ]
+    }
+  ],
+  "duplicateExternalControls": false
+}

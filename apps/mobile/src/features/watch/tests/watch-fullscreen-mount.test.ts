@@ -4,7 +4,7 @@ import { act, createElement, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { WatchScreen } from "../components/watch-screen";
+import { WatchScreen, type WatchToolSheet } from "../components/watch-screen";
 import type {
   FocusedWatchState,
   WatchPeek,
@@ -113,14 +113,25 @@ describe("watch fullscreen player mount", () => {
       }, []);
       return createElement("div", { "data-testid": "player-surface" });
     }
-    const renderWatch = (presentation: "watch" | "fullscreen") =>
+    const renderWatch = (
+      presentation: "watch" | "fullscreen",
+      active: WatchToolSheet = null,
+      controlsVisible = true,
+    ) =>
       createElement(WatchScreen, {
+        toolSheet: { active, onChange: () => undefined },
+        controlsVisible,
         PlayerSurface,
         chat: { detail: "Connecting guest chat.", kind: "connecting" },
         inspection: null,
         onOpenRelated: () => undefined,
+        onMute: () => undefined,
+        onPlayPause: () => undefined,
+        onQualityPress: () => undefined,
         onRetry: () => undefined,
         onSelectTab: () => undefined,
+        onToggleControls: () => undefined,
+        onToggleFullscreen: () => undefined,
         peek: peek(presentation),
         playback,
         tab: "info",
@@ -128,7 +139,15 @@ describe("watch fullscreen player mount", () => {
       });
 
     await act(async () => root.render(renderWatch("watch")));
-    await act(async () => root.render(renderWatch("fullscreen")));
+    for (const sheet of ["captions", "media", "more"] as const) {
+      await act(async () => root.render(renderWatch("fullscreen", sheet)));
+      expect(
+        host.querySelector('[data-testid="watch-tools-sheet-menu"]'),
+      ).not.toBeNull();
+      expect(host.querySelector('[data-testid="watch-tools"]')).not.toBeNull();
+    }
+    await act(async () => root.render(renderWatch("fullscreen", null, false)));
+    expect(host.querySelector('[data-testid="watch-tools"]')).toBeNull();
     await act(async () => root.render(renderWatch("watch")));
 
     expect(host.querySelector('[data-testid="player-surface"]')).not.toBeNull();

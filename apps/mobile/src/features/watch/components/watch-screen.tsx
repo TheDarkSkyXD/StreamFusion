@@ -2,13 +2,13 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Heart,
-  Maximize,
   Captions,
   Download,
   Ellipsis,
 } from "lucide-react-native";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState, type ComponentType } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Stream } from "@streamfusion/core/content";
 import type {
   MediaJobCommandName,
@@ -21,7 +21,6 @@ import type {
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
-import { MobileSettingsIcon } from "@mobile/design/settings-icon";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -107,6 +106,14 @@ export type WatchMediaJobControls<Eligibility> = {
   readonly status?: string | null;
 };
 
+export type WatchToolSheet =
+  "captions" | "media" | "more" | "speed" | "stats" | null;
+
+export type WatchToolSheetControl = {
+  readonly active: WatchToolSheet;
+  readonly onChange: (next: WatchToolSheet) => void;
+};
+
 export function WatchScreen({
   PlayerSurface,
   playerTools,
@@ -152,6 +159,7 @@ export function WatchScreen({
   fastForwardSeconds,
   tab,
   target,
+  toolSheet,
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly playerTools?: FocusedWatchSession;
@@ -203,10 +211,9 @@ export function WatchScreen({
   readonly fastForwardSeconds?: number;
   readonly tab: WatchTab;
   readonly target: WatchTarget;
+  readonly toolSheet: WatchToolSheetControl;
 }) {
-  const [toolSheet, setToolSheet] = useState<
-    "media" | "captions" | "more" | "speed" | "stats" | null
-  >(null);
+  const insets = useSafeAreaInsets();
   const positionMs = peek?.kind === "active" ? peek.progress.positionMs : null;
   useEffect(() => {
     if (positionMs !== null) chatSession?.syncPlayback?.(positionMs);
@@ -314,6 +321,47 @@ export function WatchScreen({
             seekable={peek.progress.seekable}
             volume={peek.volume}
           />
+        ) : null}
+        {showControls && controlsVisible ? (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.stageTools,
+              fullscreen
+                ? {
+                    top: Math.max(insets.top, mobileSpacing.small),
+                    right: Math.max(insets.right, mobileSpacing.small),
+                  }
+                : null,
+            ]}
+            testID="watch-tools"
+          >
+            <MobileIconButton
+              label={t("playback.captions")}
+              testID="watch-tool-captions"
+              disabled={!captions}
+              onPress={() => toolSheet.onChange("captions")}
+            >
+              <Captions color={mobileColors.textPrimary} size={22} />
+            </MobileIconButton>
+            <MobileIconButton
+              label={
+                target.media ? t("playback.download") : t("mediaLibrary.record")
+              }
+              testID="watch-tool-media"
+              disabled={!download && !recording}
+              onPress={() => toolSheet.onChange("media")}
+            >
+              <Download color={mobileColors.textPrimary} size={22} />
+            </MobileIconButton>
+            <MobileIconButton
+              label={t("navigation.more")}
+              testID="watch-tool-more"
+              onPress={() => toolSheet.onChange("more")}
+            >
+              <Ellipsis color={mobileColors.textPrimary} size={22} />
+            </MobileIconButton>
+          </View>
         ) : null}
         {pipSurface ? null : (
           <WatchCaptionOverlay
@@ -455,117 +503,6 @@ export function WatchScreen({
               ? inspection.info.stream.title
               : (target.media?.title ?? "")}
           </Text>
-          <View
-            style={[styles.toolsRow, { justifyContent: "space-between" }]}
-            testID="watch-tools"
-          >
-            <MobileIconButton
-              label={t("playback.quality")}
-              testID="watch-tool-quality"
-              disabled={!onQualityPress}
-              onPress={() => onQualityPress?.()}
-            >
-              <MobileSettingsIcon color={mobileColors.textPrimary} size={22} />
-              <Text style={styles.toolLabel}>{t("playback.quality")}</Text>
-            </MobileIconButton>
-            <MobileIconButton
-              label="Fullscreen"
-              testID="watch-tool-fullscreen"
-              disabled={!onToggleFullscreen}
-              onPress={() => onToggleFullscreen?.()}
-            >
-              <Maximize color={mobileColors.textPrimary} size={22} />
-              <Text style={styles.toolLabel}>
-                {t("playback.watch.fullscreen")}
-              </Text>
-            </MobileIconButton>
-            <MobileIconButton
-              label="Local captions"
-              testID="watch-tool-captions"
-              disabled={!captions}
-              onPress={() => setToolSheet("captions")}
-            >
-              <Captions color={mobileColors.textPrimary} size={22} />
-              <Text style={styles.toolLabel}>{t("playback.captions")}</Text>
-            </MobileIconButton>
-            <MobileIconButton
-              label={target.media ? "Downloads" : "Record stream"}
-              testID="watch-tool-media"
-              disabled={!download && !recording}
-              onPress={() => setToolSheet("media")}
-            >
-              <Download color={mobileColors.textPrimary} size={22} />
-              <Text style={styles.toolLabel}>
-                {target.media
-                  ? t("playback.download")
-                  : t("mediaLibrary.record")}
-              </Text>
-            </MobileIconButton>
-            <MobileIconButton
-              label="More player tools"
-              testID="watch-tool-more"
-              onPress={() => setToolSheet("more")}
-            >
-              <Ellipsis color={mobileColors.textPrimary} size={22} />
-              <Text style={styles.toolLabel}>{t("navigation.more")}</Text>
-            </MobileIconButton>
-          </View>
-          <MobileBottomSheet
-            title={
-              toolSheet === "captions"
-                ? "Local captions"
-                : toolSheet === "media"
-                  ? "Downloads and recordings"
-                  : toolSheet === "speed"
-                    ? "Playback speed"
-                    : toolSheet === "stats"
-                      ? "Video Stats"
-                      : "Player tools"
-            }
-            visible={toolSheet !== null}
-            testID="watch-tools-sheet"
-            onDismiss={() => setToolSheet(null)}
-            size="expanded"
-          >
-            {toolSheet === "more" && !target.media && onOpenEngagement ? (
-              <MobileButton
-                accessibilityLabel="Polls and predictions"
-                onPress={() => {
-                  setToolSheet(null);
-                  onOpenEngagement();
-                }}
-                testID="watch-engagement"
-                variant="secondary"
-              >
-                Polls and predictions
-              </MobileButton>
-            ) : null}
-            {toolSheet === "captions" && captions ? (
-              <WatchCaptionBar {...captions} session={captionSession} />
-            ) : null}
-            {toolSheet === "media" ? (
-              <>
-                {download ? <WatchDownloadBar {...download} /> : null}
-                {recording ? <WatchRecordingBar {...recording} /> : null}
-              </>
-            ) : null}
-            {(toolSheet === "more" ||
-              toolSheet === "speed" ||
-              toolSheet === "stats") &&
-            playerTools &&
-            peek?.kind === "active" ? (
-              <PlayerTools
-                session={playerTools}
-                tool={toolSheet === "more" ? "menu" : toolSheet}
-                onSelectTool={setToolSheet}
-                sessionId={peek.state.session.sessionId}
-                recorded={
-                  target.media !== undefined && chrome?.showSpeed !== false
-                }
-                showStats={chrome?.showVideoStats !== false}
-              />
-            ) : null}
-          </MobileBottomSheet>
           <WatchTabs
             chat={chat}
             {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
@@ -583,6 +520,64 @@ export function WatchScreen({
             {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
           />
         </>
+      )}
+      {pipSurface ? null : (
+        <MobileBottomSheet
+          title={
+            toolSheet.active === "captions"
+              ? "Local captions"
+              : toolSheet.active === "media"
+                ? "Downloads and recordings"
+                : toolSheet.active === "speed"
+                  ? "Playback speed"
+                  : toolSheet.active === "stats"
+                    ? "Video Stats"
+                    : "Player tools"
+          }
+          visible={toolSheet.active !== null}
+          testID="watch-tools-sheet"
+          onDismiss={() => toolSheet.onChange(null)}
+          size="expanded"
+        >
+          {toolSheet.active === "more" && !target.media && onOpenEngagement ? (
+            <MobileButton
+              accessibilityLabel="Polls and predictions"
+              onPress={() => {
+                toolSheet.onChange(null);
+                onOpenEngagement();
+              }}
+              testID="watch-engagement"
+              variant="secondary"
+            >
+              Polls and predictions
+            </MobileButton>
+          ) : null}
+          {toolSheet.active === "captions" && captions ? (
+            <WatchCaptionBar {...captions} session={captionSession} />
+          ) : null}
+          {toolSheet.active === "media" ? (
+            <>
+              {download ? <WatchDownloadBar {...download} /> : null}
+              {recording ? <WatchRecordingBar {...recording} /> : null}
+            </>
+          ) : null}
+          {(toolSheet.active === "more" ||
+            toolSheet.active === "speed" ||
+            toolSheet.active === "stats") &&
+          playerTools &&
+          peek?.kind === "active" ? (
+            <PlayerTools
+              session={playerTools}
+              tool={toolSheet.active === "more" ? "menu" : toolSheet.active}
+              onSelectTool={toolSheet.onChange}
+              sessionId={peek.state.session.sessionId}
+              recorded={
+                target.media !== undefined && chrome?.showSpeed !== false
+              }
+              showStats={chrome?.showVideoStats !== false}
+            />
+          ) : null}
+        </MobileBottomSheet>
       )}
     </View>
   );
@@ -748,7 +743,6 @@ export function WatchEmptyState({
 }
 
 const styles = StyleSheet.create({
-  toolLabel: { ...mobileType.label, color: mobileColors.textSecondary },
   scroll: { flex: 1, minHeight: 0 },
   screen: {
     flex: 1,
@@ -768,14 +762,16 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "100%",
   },
-  toolsRow: {
+  stageTools: {
+    position: "absolute",
+    top: mobileSpacing.small,
+    right: mobileSpacing.small,
     alignItems: "center",
     flexDirection: "row",
-    flexShrink: 0,
-    flexWrap: "wrap",
-    gap: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingTop: mobileSpacing.small,
+    gap: mobileSpacing.xSmall,
+    backgroundColor: "rgba(15, 15, 15, 0.76)",
+    borderRadius: mobileRadii.medium,
+    zIndex: 2,
   },
   fullscreenStage: {
     ...StyleSheet.absoluteFill,

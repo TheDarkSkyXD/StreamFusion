@@ -172,6 +172,7 @@ describe("workspace UI journeys", () => {
     const started: string[] = [];
     const watch = descendants(
       WatchScreen({
+        toolSheet: { active: null, onChange: () => undefined },
         PlayerSurface: () => null,
         chat: {
           detail: "Twitch chat closed before messages arrived.",

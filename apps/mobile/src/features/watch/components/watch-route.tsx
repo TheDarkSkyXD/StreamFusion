@@ -36,7 +36,9 @@ import {
   type WatchCaptionControls,
   type WatchMediaJobControls,
   type WatchScreenRuntime,
+  type WatchToolSheet,
 } from "./watch-screen";
+import { isPictureInPictureSurface } from "../domain/player-presentation";
 import { watchDownloadCopyId } from "../domain/watch-download-copy";
 import { recordedWatchStartPositionMs } from "../domain/watch-target";
 import {
@@ -205,9 +207,11 @@ function WatchSessionRoute({
   const defaultTab: WatchTab = target.media ? "comments" : "chat";
   const [tab, setTab] = useState<WatchTab>(defaultTab);
   const [tabTarget, setTabTarget] = useState(tabTargetKey);
+  const [toolSheet, setToolSheet] = useState<WatchToolSheet>(null);
   if (tabTarget !== tabTargetKey) {
     setTabTarget(tabTargetKey);
     setTab(target.media ? "comments" : "chat");
+    setToolSheet(null);
   }
   const [adblockView, setAdblockView] = useState<AdBlockView | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -229,6 +233,18 @@ function WatchSessionRoute({
   });
   const playback = useFocusedWatchSession(session, target);
   const peek = useWatchPeek(session);
+  const sessionId =
+    peek.kind === "active" ? peek.state.session.sessionId : null;
+  const pipSurface =
+    peek.kind === "active" && isPictureInPictureSurface(peek.presentation);
+  const [sheetSession, setSheetSession] = useState({ sessionId, pipSurface });
+  if (
+    sheetSession.sessionId !== sessionId ||
+    sheetSession.pipSurface !== pipSurface
+  ) {
+    setSheetSession({ sessionId, pipSurface });
+    setToolSheet(null);
+  }
   useEffect(() => {
     if (playback.kind !== "ready") return;
     void startWatchThenResume(session, target);
@@ -278,7 +294,15 @@ function WatchSessionRoute({
     setControlsVisible(true);
     setIdleToken((token) => token + 1);
   }, []);
-  const controlsForcedVisible = !playing || qualityMenuOpen;
+  const selectToolSheet = useCallback(
+    (next: WatchToolSheet) => {
+      setToolSheet(next);
+      revealControls();
+    },
+    [revealControls],
+  );
+  const controlsForcedVisible =
+    !playing || qualityMenuOpen || toolSheet !== null;
   useEffect(() => {
     if (controlsForcedVisible) {
       return undefined;
@@ -305,6 +329,7 @@ function WatchSessionRoute({
       inspection={inspection.data ?? null}
       onChatRetry={() => screen.chat.retry()}
       controlsVisible={showControls}
+      toolSheet={{ active: toolSheet, onChange: selectToolSheet }}
       onCloseQualityMenu={() => setQualityMenuOpen(false)}
       {...(onBack === undefined ? {} : { onBack })}
       {...(following === undefined
