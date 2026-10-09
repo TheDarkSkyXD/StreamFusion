@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  kickAccountId,
+  kickCredentialGeneration,
   twitchAccountId,
   twitchCredentialGeneration,
   type TwitchCredentialRepository,
@@ -22,25 +24,23 @@ function setup() {
     view: "summary",
   };
   const repository = {
-    read: vi
-      .fn<TwitchCredentialRepository["read"]>()
-      .mockResolvedValue({
-        kind: "ready",
-        credential: {
-          account: {
-            id: twitchAccountId("42"),
-            login: "owner",
-            displayName: "Owner",
-            profileImageUrl: null,
-          },
-          accessToken: "secret",
-          refreshToken: "refresh-secret",
-          expiresAtEpochMs: 600_000,
-          validatedAtEpochMs: 0,
-          scopes: ["user:write:chat"],
-          generation: twitchCredentialGeneration(1),
+    read: vi.fn<TwitchCredentialRepository["read"]>().mockResolvedValue({
+      kind: "ready",
+      credential: {
+        account: {
+          id: twitchAccountId("42"),
+          login: "owner",
+          displayName: "Owner",
+          profileImageUrl: null,
         },
-      }),
+        accessToken: "secret",
+        refreshToken: "refresh-secret",
+        expiresAtEpochMs: 600_000,
+        validatedAtEpochMs: 0,
+        scopes: ["user:write:chat"],
+        generation: twitchCredentialGeneration(1),
+      },
+    }),
   };
   const refresh = vi.fn(async () => {});
   let fixture = false;
@@ -56,7 +56,7 @@ function setup() {
       },
     },
     kick: {
-      clientId: null,
+      clientId: async () => "kick-client",
       repository: { read: vi.fn<KickCredentialRepository["read"]>() },
       controller: {
         getSnapshot: () => ({ kind: "disconnected" }),
@@ -85,6 +85,137 @@ function setup() {
   };
 }
 describe("production platform access", () => {
+  it("resolves a connected Kick account's public ID when an action needs it", async () => {
+    const clientId = vi.fn(async () => "resolved-kick-client");
+    const account = {
+      kind: "connected" as const,
+      login: "kick-owner",
+      displayName: "Kick Owner",
+      profileImageUrl: null,
+      scopes: ["chat:write"],
+      missingScopes: [],
+      expiresAtEpochMs: 600_000,
+      validatedAtEpochMs: 0,
+      refreshing: false,
+      view: "summary" as const,
+    };
+    const access = createAuthenticatedPlatformAccess({
+      twitch: {
+        clientId: "twitch-client",
+        repository: { read: vi.fn<TwitchCredentialRepository["read"]>() },
+        controller: {
+          getSnapshot: () => ({ kind: "disconnected" }),
+          refresh: async () => {},
+          subscribe: () => () => {},
+        },
+      },
+      kick: {
+        clientId,
+        repository: {
+          read: async () => ({
+            kind: "ready",
+            credential: {
+              account: {
+                id: kickAccountId("kick-42"),
+                login: "kick-owner",
+                displayName: "Kick Owner",
+                profileImageUrl: null,
+              },
+              accessToken: "kick-secret",
+              refreshToken: "kick-refresh",
+              generation: kickCredentialGeneration(1),
+              scopes: ["chat:write"],
+              expiresAtEpochMs: 600_000,
+              validatedAtEpochMs: 0,
+            },
+          }),
+        },
+        controller: {
+          getSnapshot: () => account,
+          refresh: async () => {},
+          subscribe: () => () => {},
+        },
+      },
+      fixtureEnabled: () => false,
+      now: () => 100_000,
+    });
+    expect(clientId).not.toHaveBeenCalled();
+    expect(await access.read("kick", ["chat:write"])).toMatchObject({
+      kind: "ready",
+      clientId: "resolved-kick-client",
+      userId: "kick-42",
+      accessToken: "kick-secret",
+    });
+    expect(clientId).toHaveBeenCalledOnce();
+  });
+  it("does not return a Kick token after disconnect during public ID resolution", async () => {
+    const pendingId = Promise.withResolvers<string>();
+    const clientId = vi.fn(() => pendingId.promise);
+    let connected = true;
+    const credential = {
+      account: {
+        id: kickAccountId("kick-42"),
+        login: "kick-owner",
+        displayName: "Kick Owner",
+        profileImageUrl: null,
+      },
+      accessToken: "previous-token",
+      refreshToken: "kick-refresh",
+      generation: kickCredentialGeneration(1),
+      scopes: ["chat:write"],
+      expiresAtEpochMs: 600_000,
+      validatedAtEpochMs: 0,
+    };
+    const access = createAuthenticatedPlatformAccess({
+      twitch: {
+        clientId: "twitch-client",
+        repository: { read: vi.fn<TwitchCredentialRepository["read"]>() },
+        controller: {
+          getSnapshot: () => ({ kind: "disconnected" }),
+          refresh: async () => {},
+          subscribe: () => () => {},
+        },
+      },
+      kick: {
+        clientId,
+        repository: {
+          read: async () =>
+            connected
+              ? { kind: "ready" as const, credential }
+              : {
+                  kind: "disconnected" as const,
+                  generation: kickCredentialGeneration(2),
+                },
+        },
+        controller: {
+          getSnapshot: () =>
+            connected
+              ? {
+                  kind: "connected" as const,
+                  login: "kick-owner",
+                  displayName: "Kick Owner",
+                  profileImageUrl: null,
+                  scopes: ["chat:write"],
+                  missingScopes: [],
+                  expiresAtEpochMs: 600_000,
+                  validatedAtEpochMs: 0,
+                  refreshing: false,
+                  view: "summary" as const,
+                }
+              : { kind: "disconnected" as const },
+          refresh: async () => {},
+          subscribe: () => () => {},
+        },
+      },
+      fixtureEnabled: () => false,
+      now: () => 100_000,
+    });
+    const reading = access.read("kick", ["chat:write"]);
+    await vi.waitFor(() => expect(clientId).toHaveBeenCalledOnce());
+    connected = false;
+    pendingId.resolve("public-kick-client");
+    expect(await reading).toMatchObject({ kind: "blocked", reason: "sign-in" });
+  });
   it("returns only a current credential with the required grants", async () => {
     const { access } = setup();
     expect(await access.read("twitch", ["user:write:chat"])).toMatchObject({

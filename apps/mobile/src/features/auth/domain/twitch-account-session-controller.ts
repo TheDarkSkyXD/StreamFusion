@@ -621,6 +621,10 @@ export function createTwitchAccountSessionController(options: {
         pollOwner,
       );
       schedulePoll(pollOwner, id, result.attempt.nextPollAtEpochMs);
+      void options.open(result.attempt.verificationUri).catch(() => {
+        if (current(pollOwner) && snapshot.kind === "pending")
+          emit({ ...snapshot, feedback: "The verification page could not be opened. Use Open verification to retry." }, pollOwner);
+      });
     } catch {
       fail(
         "connection",

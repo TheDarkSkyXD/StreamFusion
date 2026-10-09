@@ -3,6 +3,7 @@ export const DEFAULT_MOBILE_TWITCH_SCOPES = [
   "user:read:chat",
   "user:write:chat",
   "user:read:emotes",
+  "user:read:follows",
   "user:manage:blocked_users",
   "user:read:moderated_channels",
   "moderator:manage:banned_users",

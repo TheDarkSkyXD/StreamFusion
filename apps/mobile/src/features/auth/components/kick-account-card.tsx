@@ -67,7 +67,10 @@ export function KickAccountCard({
         </View>
       ) : null}
       <KickState actions={actions} model={model} />
-      {model.kind === "unavailable" && onEnableDevelopmentFixture ? (
+      {!developmentFixture &&
+      onEnableDevelopmentFixture &&
+      (model.kind === "unavailable" ||
+        (model.kind === "failed" && model.failure === "connection")) ? (
         <Action
           id="development-kick-auth-fixture"
           label="Run development Kick auth fixture"

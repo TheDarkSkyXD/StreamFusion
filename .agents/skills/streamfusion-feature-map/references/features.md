@@ -83,6 +83,7 @@ Roots: `apps/mobile/src/features/`.
 - `follows`: Guest Follows, Following destination, followed-content hydration, and live-notification prefs.
 - `watch`: focused live and recorded playback, native Media3 and Expo player adapters, and player controls.
 - `ad-blocking`: custom Twitch filtering, mutually exclusive playlist proxy preferences, and source health settings. Native Twitch backup-token and playlist interception live in `modules/streamfusion-native-contracts/android/`; Expo Go supports playlist proxies but cannot run the custom filter.
+- `auth`: encrypted Twitch Device Code and Kick PKCE attempts, foreground account controllers, and callback intake. Mobile resolves the public Kick client ID on demand from the OAuth worker.
 
 Expo's `apps/mobile/app/` entries delegate to
 `apps/mobile/src/composition/mobile-runtime.tsx`. Shared design tokens stay under
@@ -92,7 +93,7 @@ remain in `apps/mobile/tests/`.
 ## OAuth worker
 
 `apps/worker/src/features/kick-oauth/` owns token exchange, refresh, grant
-validation, rate limiting, and Kick token transport. `apps/worker/src/index.ts`
+validation, rate limiting, public client configuration, a mobile callback landing page, and Kick token transport. `apps/worker/src/index.ts`
 is the required Wrangler entry. This worker does not proxy product reads or chat.
 
 ## Shared Core

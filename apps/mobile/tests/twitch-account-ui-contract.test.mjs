@@ -55,10 +55,10 @@ test("the account shortcut opens Accounts inside More", () => {
   assert.match(header, /location: \{ route: "more\/accounts" \}/);
 });
 
-test("the development fixture is explicit and normal missing configuration stays unavailable", () => {
+test("the development fixture is explicit beside production account configuration", () => {
   assert.match(runtime, /useState\(false\)/);
   assert.match(runtime, /__DEV__ && twitchClientId === null/);
-  assert.match(runtime, /__DEV__ && kickClientId === null/);
+  assert.match(runtime, /createKickPublicClientConfigurationResolver/);
   assert.match(panel, /Development fixture, not a live Twitch account/);
   assert.match(panel, /development-twitch-auth-fixture/);
   assert.match(panel, /exit-development-twitch-auth-fixture/);

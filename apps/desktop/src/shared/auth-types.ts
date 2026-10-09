@@ -7,6 +7,7 @@
 // ========== Platform Types ==========
 
 import type { Platform } from "@streamfusion/core/platform";
+export { TWITCH_APP_CLIENT_ID } from "@streamfusion/core/auth";
 import {
   DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES,
   type FollowSource,
@@ -15,7 +16,6 @@ import {
 import type { DisplayLanguage } from "./display-language";
 
 /** Public client ID for StreamFusion's registered Twitch Device Code app. */
-export const TWITCH_APP_CLIENT_ID = "blckgzwqbwms1gmz9l4dup88k7kqk5";
 
 // ========== Token Types ==========
 

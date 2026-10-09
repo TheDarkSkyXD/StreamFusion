@@ -434,6 +434,54 @@ describe("Kick Worker abuse protection", () => {
 });
 
 describe("Kick Worker route boundary", () => {
+  it("returns only the public Kick ID and fails closed when absent", async () => {
+    const configured = await dispatch(new Request("https://worker.test/auth/kick/config"), createEnv());
+    expect(configured.status).toBe(200);
+    expect(await configured.text()).toBe('{"clientId":"kick-client"}');
+    expectAuthHeaders(configured);
+    const missing = await dispatch(new Request("https://worker.test/auth/kick/config"), createEnv({ KICK_CLIENT_ID: " " }));
+    expect(missing.status).toBe(503);
+    expect(await missing.json()).toEqual({ error: "configuration_unavailable" });
+    const unsupported = await dispatch(new Request("https://worker.test/auth/kick/config", { method: "POST" }), createEnv());
+    expect(unsupported.status).toBe(404);
+    expectAuthHeaders(unsupported);
+  });
+
+  it("returns a bounded gesture landing page for each app channel", async () => {
+    const random = "A".repeat(43);
+    for (const [channel, scheme] of [["d", "streamfusion-development"], ["p", "streamfusion"]]) {
+      const state = `sf1.${channel}.${random}`;
+      const response = await dispatch(new Request(`https://worker.test/auth/kick/android/callback?code=abc%26def&state=${state}&scope=user%3Aread`), createEnv());
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+      expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
+      expect(html).toContain(`${scheme}://auth/kick/callback?code=abc%26def&amp;state=${state}`);
+      expect(html).not.toContain("kick-secret");
+      expect(html).not.toContain("scope=");
+      expect(html).toContain("Open StreamFusion");
+    }
+    const denial = await dispatch(new Request(`https://worker.test/auth/kick/android/callback?error=access_denied&error_description=No+thanks&state=sf1.d.${random}`), createEnv());
+    expect((await denial.text())).toContain("error=access_denied");
+  });
+
+  it("rejects duplicate, malformed, oversized, and unsupported callback requests", async () => {
+    const state = `sf1.d.${"A".repeat(43)}`;
+    for (const query of [
+      `code=x&code=y&state=${state}`,
+      `code=x&error=denied&state=${state}`,
+      `code=x&state=${state}&state=${state}`,
+      "code=x&state=unstructured",
+      `code=${"x".repeat(2049)}&state=${state}`,
+    ]) {
+      const response = await dispatch(new Request(`https://worker.test/auth/kick/android/callback?${query}`), createEnv());
+      expect(response.status).toBe(400);
+      expectAuthHeaders(response);
+    }
+    const unsupported = await dispatch(new Request(`https://worker.test/auth/kick/android/callback?code=x&state=${state}`, { method: "POST" }), createEnv());
+    expect(unsupported.status).toBe(404);
+    expectAuthHeaders(unsupported);
+  });
   it.each(["/auth/kick/token", "/auth/kick/refresh"])(
     "returns a no-store 404 without CORS for unsupported %s methods",
     async (path) => {

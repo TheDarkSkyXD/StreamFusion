@@ -23,6 +23,7 @@ function randomVerifier(): string {
 export async function createKickPkceAuthorization(input: {
   readonly clientId: string;
   readonly nowEpochMs: number;
+  readonly channel: "development" | "production";
 }): Promise<{
   readonly authorizeUrl: string;
   readonly codeVerifier: string;
@@ -37,7 +38,7 @@ export async function createKickPkceAuthorization(input: {
     { encoding: Crypto.CryptoEncoding.BASE64 },
   );
   const codeChallenge = digest.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
-  const state = encodeBase64Url(Crypto.getRandomBytes(32));
+  const state = `sf1.${input.channel === "development" ? "d" : "p"}.${encodeBase64Url(Crypto.getRandomBytes(32))}`;
   const authorize = new URL(KICK_AUTHORIZE_URL);
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("client_id", input.clientId);

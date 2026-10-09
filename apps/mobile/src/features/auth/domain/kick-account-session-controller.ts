@@ -122,14 +122,13 @@ const failureMessage: Record<
   "wrong-redirect": "Kick returned to an unexpected callback address.",
   superseded: "A newer Kick authorization replaced this return.",
   offline: "Kick is unavailable. Check your connection and retry.",
+  "account-unavailable":
+    "Kick account lookup is unavailable. Retry the connection.",
   rejected: "Kick rejected the authorization code.",
 };
 
 export function createKickAccountSessionController(options: {
-  readonly authorize: (input: {
-    readonly clientId: string;
-    readonly nowEpochMs: number;
-  }) => Promise<{
+  readonly authorize: (input: { readonly nowEpochMs: number }) => Promise<{
     readonly authorizeUrl: string;
     readonly codeVerifier: string;
     readonly expiresAtEpochMs: number;
@@ -137,7 +136,6 @@ export function createKickAccountSessionController(options: {
     readonly state: string;
   }>;
   readonly callbacks: KickCallbackSource;
-  readonly clientId: string | null;
   readonly fixture?: KickFixtureInjector;
   readonly gateway: KickAuthorizationGateway | null;
   readonly now?: () => number;
@@ -159,6 +157,8 @@ export function createKickAccountSessionController(options: {
     readonly state: string;
   } | null = null;
   const replacedAttempts: { attemptId: KickAttemptId; state: string }[] = [];
+  const callbackInbox: KickCallbackInput[] = [];
+  let callbackBusy = false;
   const emit = (next: KickAccountSessionSnapshot, owner?: Lease) => {
     if (
       owner &&
@@ -217,39 +217,75 @@ export function createKickAccountSessionController(options: {
     );
   };
 
-  const handleCallback = async (callback: KickCallbackInput) => {
-    if (!foreground || !options.gateway) return;
+  const handleCallback = async () => {
+    if (
+      callbackBusy ||
+      !foreground ||
+      !options.gateway ||
+      !liveState ||
+      !attemptId
+    )
+      return;
+    const index = callbackInbox.findIndex((input) => input.state === liveState);
+    const callback = callbackInbox[index];
+    if (!callback) return;
+    callbackBusy = true;
     const owner = begin("callback", {
       ...(attemptId ? { attemptId } : {}),
       generation,
     });
     emit({ kind: "validating" }, owner);
-    const result = await completeKickAuthorization({
-      callback,
-      consumed,
-      gateway: options.gateway,
-      nowEpochMs: now,
-      replacedAttempts,
-      requiredScopes: KICK_APP_SCOPES,
-      repository: options.repository,
-      signal: owner.signal,
-    });
-    if (!current(owner)) return;
-    if (result.kind === "connected") {
-      consumed =
-        liveState && attemptId ? { attemptId, state: liveState } : consumed;
-      liveState = undefined;
-      attemptId = undefined;
-      emit({ kind: "committing" }, owner);
-      projectCredential(result.credential, owner);
-      return;
+    try {
+      const result = await completeKickAuthorization({
+        callback,
+        consumed,
+        gateway: options.gateway,
+        nowEpochMs: now,
+        replacedAttempts,
+        requiredScopes: KICK_APP_SCOPES,
+        repository: options.repository,
+        signal: owner.signal,
+      });
+      if (!current(owner)) return;
+      callbackInbox.splice(index, 1);
+      if (result.kind === "connected") {
+        consumed =
+          liveState && attemptId ? { attemptId, state: liveState } : consumed;
+        liveState = undefined;
+        attemptId = undefined;
+        callbackInbox.length = 0;
+        emit({ kind: "committing" }, owner);
+        projectCredential(result.credential, owner);
+        return;
+      }
+      if (result.kind === "offline") callbackInbox.unshift(callback);
+      if (
+        ["denied", "expired", "rejected", "account-unavailable"].includes(
+          result.kind,
+        ) &&
+        attemptId
+      ) {
+        await options.repository.clearAttempt(attemptId);
+        attemptId = undefined;
+        liveState = undefined;
+      }
+      fail("connection", failureMessage[result.kind], owner);
+    } catch {
+      if (current(owner))
+        fail(
+          "connection",
+          "Kick is unavailable. Check your connection and retry.",
+          owner,
+        );
+    } finally {
+      callbackBusy = false;
+      if (
+        foreground &&
+        snapshot.kind === "pending" &&
+        callbackInbox.some((input) => input.state === liveState)
+      )
+        void reconcile();
     }
-    if (result.kind !== "offline" && attemptId) {
-      await options.repository.clearAttempt(attemptId);
-      attemptId = undefined;
-      liveState = undefined;
-    }
-    fail("connection", failureMessage[result.kind], owner);
   };
 
   const reconcile = async () => {
@@ -261,6 +297,8 @@ export function createKickAccountSessionController(options: {
       if (!current(owner)) return;
       if (durable.kind === "disconnected") {
         generation = durable.generation;
+        attemptId = undefined;
+        liveState = undefined;
         emit(
           options.gateway
             ? { kind: "disconnected" }
@@ -281,6 +319,9 @@ export function createKickAccountSessionController(options: {
         attemptId = durable.attempt.attemptId;
         generation = durable.attempt.generation;
         liveState = durable.attempt.state;
+        for (let index = callbackInbox.length - 1; index >= 0; index -= 1)
+          if (callbackInbox[index]?.state !== liveState)
+            callbackInbox.splice(index, 1);
         emit(
           {
             kind: "pending",
@@ -288,6 +329,7 @@ export function createKickAccountSessionController(options: {
           },
           owner,
         );
+        void handleCallback();
         return;
       }
       if (durable.kind === "refresh-in-flight") {
@@ -318,8 +360,10 @@ export function createKickAccountSessionController(options: {
         );
         return;
       }
-      if (durable.kind === "ready")
+      if (durable.kind === "ready") {
+        callbackInbox.length = 0;
         projectCredential(durable.credential, owner);
+      }
     } catch {
       fail(
         "restore",
@@ -330,18 +374,19 @@ export function createKickAccountSessionController(options: {
   };
 
   const connect = async () => {
-    if (!foreground || !options.gateway || !options.clientId) return;
+    if (!foreground || !options.gateway) return;
     const previous =
       liveState && attemptId ? { attemptId, state: liveState } : null;
     const owner = begin("connect", { generation });
+    callbackInbox.length = 0;
     const id = kickAttemptId(`mobile-kick-${now()}-${++operationSequence}`);
     attemptId = id;
     emit({ kind: "launching" }, owner);
     try {
       const authorization = await options.authorize({
-        clientId: options.clientId,
         nowEpochMs: now(),
       });
+      if (!current(owner)) return;
       const started = await startKickAuthorization({
         attempt: {
           attemptId: id,
@@ -354,7 +399,10 @@ export function createKickAccountSessionController(options: {
         expectedGeneration: generation,
         repository: options.repository,
       });
-      if (!current(owner)) return;
+      if (!current(owner)) {
+        await options.repository.clearAttempt(id);
+        return;
+      }
       if (started === "stale") {
         await reconcile();
         return;
@@ -365,15 +413,14 @@ export function createKickAccountSessionController(options: {
         { kind: "pending", expiresAtEpochMs: authorization.expiresAtEpochMs },
         owner,
       );
+      void handleCallback();
       try {
         await options.open(authorization.authorizeUrl);
       } catch {
         if (current(owner))
-          emit(
-            {
-              kind: "pending",
-              expiresAtEpochMs: authorization.expiresAtEpochMs,
-            },
+          fail(
+            "connection",
+            "The Kick browser could not be opened. Retry the connection.",
             owner,
           );
       }
@@ -387,7 +434,17 @@ export function createKickAccountSessionController(options: {
   };
 
   options.callbacks.subscribe((input) => {
-    void handleCallback(input);
+    if (
+      !callbackInbox.some(
+        (queued) =>
+          queued.state === input.state &&
+          queued.code === input.code &&
+          queued.error === input.error,
+      )
+    )
+      callbackInbox.push(input);
+    if (callbackInbox.length > 8) callbackInbox.shift();
+    void handleCallback();
   });
 
   return {
@@ -399,6 +456,7 @@ export function createKickAccountSessionController(options: {
     setForeground(active) {
       if (active === foreground) return;
       foreground = active;
+      if (callbackBusy && lease?.kind === "callback") return;
       invalidate();
       if (active) void reconcile();
     },
@@ -421,6 +479,7 @@ export function createKickAccountSessionController(options: {
         }
         attemptId = undefined;
         liveState = undefined;
+        callbackInbox.length = 0;
         await reconcile();
       } catch {
         fail(
@@ -499,9 +558,15 @@ export function createKickAccountSessionController(options: {
     },
     async retry() {
       if (snapshot.kind === "auth-lost") await connect();
-      else if (snapshot.kind === "failed" && snapshot.failure === "connection")
-        await connect();
       else if (
+        snapshot.kind === "failed" &&
+        snapshot.failure === "connection"
+      ) {
+        if (callbackInbox.some((input) => input.state === liveState)) {
+          await reconcile();
+          await handleCallback();
+        } else await connect();
+      } else if (
         snapshot.kind === "failed" &&
         snapshot.failure === "cancellation"
       )
@@ -520,12 +585,12 @@ export function createKickAccountSessionController(options: {
               replacedAttempts.push({ attemptId, state: liveState });
             if (kind === "duplicate" && attemptId && liveState)
               consumed = { attemptId, state: liveState };
-            await handleCallback(
-              options.fixture!.inject(
-                kind,
-                liveState ? { state: liveState } : null,
-              ),
+            const callback = options.fixture!.inject(
+              kind,
+              liveState ? { state: liveState } : null,
             );
+            callbackInbox.push(callback);
+            await handleCallback();
           },
         }
       : {}),

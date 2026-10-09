@@ -17,6 +17,7 @@ export type CompleteKickAuthorizationResult =
   | { readonly kind: "denied"; readonly reason: string }
   | { readonly kind: "expired" | "stale" | "duplicate" | "state-mismatch" | "wrong-redirect" | "superseded" }
   | { readonly kind: "offline" }
+  | { readonly kind: "account-unavailable" }
   | { readonly kind: "rejected" };
 
 export async function startKickAuthorization(input: {
@@ -78,7 +79,7 @@ export async function completeKickAuthorization(input: {
     return { kind: "rejected" };
   }
   const account = await input.gateway.loadAccount(exchanged.accessToken, input.signal);
-  if (account.kind === "transient-failure") return { kind: "offline" };
+  if (account.kind === "transient-failure") return { kind: "account-unavailable" };
   if (account.kind === "revoked") {
     await input.repository.markAuthLost({
       attemptId: claimed.attempt.attemptId,

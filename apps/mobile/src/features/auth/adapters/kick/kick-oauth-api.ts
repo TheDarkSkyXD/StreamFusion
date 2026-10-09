@@ -10,7 +10,7 @@ import {
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
 const KICK_USERS_URL = "https://api.kick.com/public/v1/users";
-const DEFAULT_WORKER_BASE =
+export const DEFAULT_WORKER_BASE =
   "https://streamfusion.leveluptogetherbiz.workers.dev";
 
 function isRecord(value: unknown): value is Record<string, unknown> {

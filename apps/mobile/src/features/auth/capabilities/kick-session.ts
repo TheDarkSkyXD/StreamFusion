@@ -14,6 +14,14 @@ export interface KickCallbackSource {
   subscribe(listener: (input: KickCallbackInput) => void): () => void;
 }
 
+export interface KickPublicClientConfiguration {
+  readonly clientId: string;
+}
+
+export interface KickPublicClientConfigurationResolver {
+  resolve(): Promise<KickPublicClientConfiguration>;
+}
+
 export interface KickFixtureInjector {
   inject(
     kind: KickFixtureCallbackKind,

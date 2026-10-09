@@ -20,7 +20,7 @@ export function createAuthenticatedPlatformAccess(input: {
     readonly repository: Pick<TwitchCredentialRepository, "read">;
   };
   readonly kick: {
-    readonly clientId: string | null;
+    readonly clientId: () => Promise<string>;
     readonly controller: Pick<
       KickAccountSessionController,
       "getSnapshot" | "refresh" | "subscribe"
@@ -41,7 +41,9 @@ export function createAuthenticatedPlatformAccess(input: {
             "Connect a real account to use platform actions. Development accounts cannot send requests.",
         };
       const provider = platform === "twitch" ? input.twitch : input.kick;
-      if (!provider.clientId)
+      const configuredClientId =
+        typeof provider.clientId === "string" ? provider.clientId : null;
+      if (platform === "twitch" && !configuredClientId)
         return {
           kind: "blocked",
           reason: "configuration",
@@ -89,11 +91,50 @@ export function createAuthenticatedPlatformAccess(input: {
           reason: "scope",
           detail: `Reconnect ${platform} to grant ${missing.join(", ")}.`,
         };
+      let clientId = configuredClientId;
+      if (platform === "kick") {
+        try {
+          clientId = await input.kick.clientId();
+        } catch {
+          return {
+            kind: "blocked",
+            reason: "configuration",
+            detail:
+              "Kick configuration is temporarily unavailable. Retry the action.",
+          };
+        }
+        const latest = await input.kick.repository.read();
+        const visible = input.kick.controller.getSnapshot();
+        if (
+          input.fixtureEnabled("kick") ||
+          latest.kind !== "ready" ||
+          visible.kind !== "connected" ||
+          latest.credential.generation !== credential.generation ||
+          latest.credential.accessToken !== credential.accessToken ||
+          latest.credential.account.id !== credential.account.id ||
+          visible.login !== credential.account.login ||
+          requiredScopes.some(
+            (scope) => !latest.credential.scopes.includes(scope),
+          ) ||
+          latest.credential.expiresAtEpochMs <= now()
+        )
+          return {
+            kind: "blocked",
+            reason: "sign-in",
+            detail: "The account changed. Try the action again.",
+          };
+      }
+      if (!clientId)
+        return {
+          kind: "blocked",
+          reason: "configuration",
+          detail: "Account configuration is unavailable.",
+        };
       return {
         kind: "ready",
         platform,
         accessToken: credential.accessToken,
-        clientId: provider.clientId,
+        clientId,
         userId: credential.account.id,
         username: credential.account.login,
         generation: credential.generation,

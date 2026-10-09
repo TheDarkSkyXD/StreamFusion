@@ -211,6 +211,35 @@ async function foreground(controller: ReturnType<typeof session>) {
 }
 
 describe("Twitch account session controller", () => {
+  it("opens verification only after the Device Code is durably stored", async () => {
+    const repo = createSecureTwitchCredentialRepository({
+      secrets: secrets(), key: `browser-${Math.random()}`,
+    });
+    const open = vi.fn(async (uri: string) => {
+      expect(uri).toBe("https://www.twitch.tv/activate");
+      const state = await repo.read();
+      expect(state.kind).toBe("connecting");
+      if (state.kind === "connecting") expect(state.attempt.userCode).toBe("LIVE-CODE");
+    });
+    const controller = createTwitchAccountSessionController({
+      clientId: "client",
+      copy: async () => undefined,
+      gateway: gateway({ request: async () => ({
+        deviceCode: "secret", userCode: "LIVE-CODE",
+        verificationUri: "https://www.twitch.tv/activate",
+        expiresInSeconds: 600, intervalSeconds: 5,
+      }) }),
+      now: () => 10_000,
+      open,
+      repository: repo,
+    });
+    await foreground(controller);
+    await controller.connect();
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce());
+    expect(controller.getSnapshot()).toMatchObject({ kind: "pending", code: "LIVE-CODE" });
+    controller.setForeground(false);
+  });
+
   it("requests only the selected additional permissions from the mobile allowlist", async () => {
     const repo = repository({
       kind: "disconnected",
