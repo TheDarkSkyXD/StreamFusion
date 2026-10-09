@@ -2,13 +2,24 @@ import type { UpdatePhase, UpdateRelease } from "../capabilities/android-updater
 
 export type UpdateAction = "download" | "later" | "cancel" | "hide" | "retry" | "install";
 
-export type UpdatePresentation = {
-  readonly title: string;
+type DialogPresentation = {
+  readonly kind: "offer" | "download" | "recovery";
+  readonly title: string | null;
   readonly detail: string;
   readonly progress: { readonly bytes: number; readonly total: number } | null;
   readonly actions: readonly UpdateAction[];
+  readonly dismissAction: "later" | "cancel" | "hide";
   readonly installLabel?: string;
+  readonly failureDetail?: string | null;
 };
+
+export type UpdatePresentation = DialogPresentation | {
+  readonly kind: "handoff";
+  readonly detail: string;
+  readonly installLabel: "Install" | "Open settings" | "Continue install" | null;
+};
+
+export type UpdateDialogModel = DialogPresentation;
 
 export function updatePresentation(
   phase: UpdatePhase,
@@ -18,52 +29,38 @@ export function updatePresentation(
     (offered !== null && "release" in phase && offered.tag !== phase.release.tag &&
       (phase.kind === "installed" || phase.kind === "canceled" || phase.kind === "failed"))) {
     return offered
-      ? {
-          title: `Android ${offered.version} is available`,
-          detail: phase.kind === "unsupported"
-            ? phase.message
-            : "Tap Update to download and verify the app. Android will then ask you to approve installation, even if you leave and return.",
-          progress: null,
-          actions: phase.kind === "unsupported" ? ["later"] : ["download", "later"],
-        }
+      ? phase.kind === "unsupported"
+        ? { kind: "recovery", title: "Update unavailable", detail: phase.message, progress: null, actions: ["hide"], dismissAction: "hide" }
+        : { kind: "offer", title: "Update available", detail: "Download latest update?", progress: null, actions: ["later", "download"], dismissAction: "later" }
       : null;
   }
   const title = `Android ${phase.release.version}`;
   switch (phase.kind) {
     case "downloading":
-      return {
-        title: `${title} is downloading`,
-        detail: "The download continues if you hide this window.",
-        progress: { bytes: phase.bytes, total: phase.total },
-        actions: ["cancel", "hide"],
-      };
-    case "paused":
-      return {
-        title: `${title} download paused`,
-        detail: "The transfer stopped. Retry starts it again from the beginning.",
-        progress: { bytes: phase.bytes, total: phase.release.apkBytes },
-        actions: ["retry", "cancel", "hide"],
-      };
+      return { kind: "download", title: null, detail: "", progress: { bytes: phase.bytes, total: phase.total }, actions: ["cancel"], dismissAction: "cancel" };
     case "verifying":
-      return { title: `Verifying ${title}`, detail: "Checking the APK and app signature.", progress: null, actions: ["hide"] };
+      return { kind: "download", title: null, detail: "", progress: { bytes: phase.release.apkBytes, total: phase.release.apkBytes }, actions: ["cancel"], dismissAction: "cancel" };
     case "ready":
-      return { title: `${title} is ready`, detail: "Opening Android approval. If it does not appear, tap Install.", progress: null, actions: ["install", "hide"] };
+      return { kind: "handoff", detail: "The verified update is ready for Android installation.", installLabel: "Install" };
     case "permission-needed":
-      return { title: "Allow updates from StreamFusion", detail: "Enable installation permission for this app, then return. Android approval will open automatically.", progress: null, actions: ["install", "hide"], installLabel: "Open settings" };
+      return { kind: "handoff", detail: "Allow updates from StreamFusion in Android settings, then return.", installLabel: "Open settings" };
     case "staging":
-      return { title: `Preparing ${title}`, detail: "Handing the verified APK to Android.", progress: null, actions: ["hide"] };
+      return { kind: "handoff", detail: "Preparing the verified update for Android.", installLabel: null };
     case "awaiting-approval":
-      return { title: "Approve the Android update", detail: "Review Android's installation prompt. If it closed, tap Continue install.", progress: null, actions: ["install", "hide"], installLabel: "Continue install" };
+      return { kind: "handoff", detail: "Review Android's installation prompt. If it closed, continue installation.", installLabel: "Continue install" };
+    case "paused":
+      return { kind: "recovery", title: `${title} download paused`, detail: "The transfer stopped. Retry starts it again from the beginning.", progress: { bytes: phase.bytes, total: phase.release.apkBytes }, actions: ["retry", "cancel", "hide"], dismissAction: "hide" };
     case "installed":
-      return { title: `${title} installed`, detail: "Android confirmed the new app version.", progress: null, actions: ["hide"] };
+      return { kind: "recovery", title: `${title} installed`, detail: "Android confirmed the new app version.", progress: null, actions: ["hide"], dismissAction: "hide" };
     case "canceled":
-      return { title: `${title} canceled`, detail: "You can start the download again.", progress: null, actions: ["retry", "hide"] };
+      return { kind: "recovery", title: `${title} canceled`, detail: "You can start the download again.", progress: null, actions: ["retry", "hide"], dismissAction: "hide" };
     case "failed":
       return {
-        title: `${title} could not finish`,
-        detail: failureCopy(phase.code),
-        progress: null,
-        actions: phase.retry === "none" ? ["hide"] : ["retry", "hide"],
+        kind: "recovery", title: `${title} could not finish`, detail: failureCopy(phase.code),
+        progress: null, actions: phase.retry === "none" ? ["hide"] : ["retry", "hide"], dismissAction: "hide",
+        failureDetail: phase.installerFailure
+          ? `${phase.installerFailure.message} (Android status ${phase.installerFailure.status})`
+          : null,
       };
   }
 }

@@ -54,6 +54,8 @@ export function UpdatesSettingsPanel({
   const release = view.update.status === "available" || view.update.status === "current"
     ? view.update.release
     : null;
+  const presentation = updatePresentation(view.updater, view.update.status === "available" ? view.update.release : null);
+  const handoff = presentation?.kind === "handoff" ? presentation : null;
   return (
     <SettingsSection testID="panel-updates" title="UPDATES">
       <SettingsCopy
@@ -115,7 +117,18 @@ export function UpdatesSettingsPanel({
         }}
         testID="check-for-updates"
       />
-      {view.update.status === "available" ? (
+      {handoff ? (
+        <>
+          <SettingsCopy testID="update-handoff-status" value={handoff.detail} />
+          {handoff.installLabel ? (
+            <SettingsAction
+              label={handoff.installLabel}
+              onPress={() => { void session.installUpdate(); }}
+              testID="update-handoff-install"
+            />
+          ) : null}
+        </>
+      ) : view.update.status === "available" ? (
         <SettingsAction
           label={view.updater.kind === "idle" || view.updater.kind === "unsupported"
             ? "Open update" : "Open update progress"}
@@ -123,7 +136,7 @@ export function UpdatesSettingsPanel({
           testID="open-update"
         />
       ) : null}
-      {view.updater.kind !== "idle" && view.updater.kind !== "unsupported" &&
+      {!handoff && view.updater.kind !== "idle" && view.updater.kind !== "unsupported" &&
         view.update.status !== "available" ? (
           <SettingsAction
             label="Open update progress"
@@ -158,20 +171,33 @@ export function UpdateAvailableNotice({
 }) {
   const view = useSupportView(session);
   if (view.update.status !== "available") return null;
+  const presentation = updatePresentation(view.updater, view.update.release);
+  const handoff = presentation?.kind === "handoff" ? presentation : null;
   return (
     <View style={styles.updateNotice} testID="update-available-notice">
       <SettingsCopy
         testID="update-available-notice-copy"
-        value={`StreamFusion Android ${view.update.release.version} is available.`}
+        value={handoff?.detail ?? `StreamFusion Android ${view.update.release.version} is available.`}
       />
       {view.releaseOpenError ? (
         <SettingsCopy testID="update-available-notice-error" value={view.releaseOpenError} />
       ) : null}
-      <SettingsAction
-        label="Open update"
-        onPress={() => { session.openUpdate(); }}
-        testID="open-available-update"
-      />
+      {view.updateOperationError ? (
+        <SettingsCopy testID="update-available-notice-operation-error" value={view.updateOperationError} />
+      ) : null}
+      {handoff ? handoff.installLabel ? (
+        <SettingsAction
+          label={handoff.installLabel}
+          onPress={() => { void session.installUpdate(); }}
+          testID="notice-handoff-install"
+        />
+      ) : null : (
+        <SettingsAction
+          label="Open update"
+          onPress={() => { session.openUpdate(); }}
+          testID="open-available-update"
+        />
+      )}
     </View>
   );
 }
@@ -180,6 +206,7 @@ export function UpdateDialogHost({ session }: { readonly session: SupportSetting
   const view = useSupportView(session);
   const offered = view.update.status === "available" ? view.update.release : null;
   const model = updatePresentation(view.updater, offered);
+  if (model?.kind === "handoff") return null;
   function onAction(action: UpdateAction): void {
     switch (action) {
       case "download": void session.downloadUpdate(); return;

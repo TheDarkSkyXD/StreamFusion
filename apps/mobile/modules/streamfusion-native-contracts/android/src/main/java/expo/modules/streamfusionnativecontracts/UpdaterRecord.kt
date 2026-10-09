@@ -53,6 +53,28 @@ data class UpdateRelease(
   }
 }
 
+internal data class InstallerFailureDetail(val status: Int, val message: String) {
+  fun wire(): Map<String, Any> = mapOf("status" to status, "message" to message)
+
+  fun json(): JSONObject = JSONObject().apply { put("status", status); put("message", message) }
+
+  companion object {
+    const val MAX_MESSAGE_LENGTH = 1024
+
+    fun fromCallback(status: Int, message: String?): InstallerFailureDetail? =
+      message?.trim()?.take(MAX_MESSAGE_LENGTH)?.trim()?.takeIf { status > 0 && it.isNotEmpty() }
+        ?.let { InstallerFailureDetail(status, it) }
+
+    fun fromJson(value: JSONObject): InstallerFailureDetail {
+      val status = value.get("status")
+      val message = value.get("message")
+      require(status is Int && status > 0)
+      require(message is String && message.isNotEmpty() && message.length <= MAX_MESSAGE_LENGTH && message == message.trim())
+      return InstallerFailureDetail(status, message)
+    }
+  }
+}
+
 internal data class UpdateRecord(
   val revision: Long = 0,
   val operation: String? = null,
@@ -67,6 +89,7 @@ internal data class UpdateRecord(
   val code: String? = null,
   val retry: String? = null,
   val reason: String? = null,
+  val installerFailure: InstallerFailureDetail? = null,
   val stageAt: Long = 0,
 ) {
   fun wire(): Map<String, Any> {
@@ -78,7 +101,10 @@ internal data class UpdateRecord(
     when (kind) {
       "downloading" -> { phase["bytes"] = bytes; phase["total"] = release?.apkBytes ?: 0 }
       "paused" -> { phase["bytes"] = bytes; phase["reason"] = reason ?: "process-interrupted" }
-      "failed" -> { phase["code"] = code ?: "interrupted"; phase["retry"] = retry ?: "none" }
+      "failed" -> {
+        phase["code"] = code ?: "interrupted"; phase["retry"] = retry ?: "none"
+        installerFailure?.let { phase["installerFailure"] = it.wire() }
+      }
       "unsupported" -> phase["message"] = "Android updater is unavailable."
     }
     return mapOf("revision" to revision, "phase" to phase)
@@ -90,6 +116,7 @@ internal data class UpdateRecord(
     put("bytes", bytes); put("versionCode", versionCode); put("minSdk", minSdk)
     put("sessionId", sessionId); put("installIntent", installIntent)
     put("code", code); put("retry", retry); put("reason", reason); put("stageAt", stageAt)
+    put("installerFailure", installerFailure?.json())
   }
 
   companion object {
@@ -108,6 +135,8 @@ internal data class UpdateRecord(
         sessionId = value.optInt("sessionId", -1), installIntent = value.optBoolean("installIntent"),
         code = nullableString(value, "code"), retry = nullableString(value, "retry"),
         reason = nullableString(value, "reason"), stageAt = value.optLong("stageAt"),
+        installerFailure = if (value.isNull("installerFailure")) null
+          else InstallerFailureDetail.fromJson(value.getJSONObject("installerFailure")),
       )
     }
 

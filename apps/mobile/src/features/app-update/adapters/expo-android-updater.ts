@@ -4,6 +4,7 @@ import type {
   AndroidUpdaterPort,
   NativeUpdateCommand,
   UpdateFailure,
+  InstallerFailureDetail,
   UpdatePhase,
   UpdateRelease,
   UpdateSnapshot,
@@ -28,6 +29,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFailure(value: unknown): value is UpdateFailure {
   return typeof value === "string" && FAILURE_CODES.has(value);
+}
+
+function failureDetail(value: unknown): InstallerFailureDetail | null {
+  const raw = record(value);
+  if (!raw || typeof raw.status !== "number" || !Number.isInteger(raw.status) ||
+    raw.status <= 0 || raw.status > 2_147_483_647 || typeof raw.message !== "string" ||
+    raw.message.length === 0 || raw.message.length > 1024 ||
+    raw.message !== raw.message.trim()) return null;
+  return { status: raw.status, message: raw.message };
 }
 
 function release(value: unknown): UpdateRelease | null {
@@ -99,11 +109,18 @@ export function parseUpdateSnapshot(value: unknown): UpdateSnapshot {
         if (!isFailure(phaseRaw.code) ||
           (phaseRaw.retry !== "download" && phaseRaw.retry !== "install" &&
             phaseRaw.retry !== "none")) throw new Error("Invalid update failure.");
+        const detail = phaseRaw.installerFailure === undefined
+          ? null
+          : failureDetail(phaseRaw.installerFailure);
+        if (phaseRaw.installerFailure !== undefined && detail === null) {
+          throw new Error("Invalid installer failure detail.");
+        }
         phase = {
           ...facts,
           kind: "failed",
           code: phaseRaw.code,
           retry: phaseRaw.retry,
+          installerFailure: detail,
         };
         break;
       default:

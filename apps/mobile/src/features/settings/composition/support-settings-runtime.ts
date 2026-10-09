@@ -4,6 +4,7 @@ import type {
   AndroidUpdaterPort,
   UpdateSnapshot,
 } from "@mobile/features/app-update/capabilities/android-updater";
+import { updatePresentation } from "@mobile/features/app-update/domain/update-presentation";
 
 import type {
   SupportLogPort,
@@ -75,8 +76,12 @@ export function createSupportSettingsSession(input: {
     const changed = next.phase.kind !== prior.kind ||
       ("operation" in next.phase && "operation" in prior &&
         next.phase.operation !== prior.operation);
-    if (changed && next.phase.kind !== "idle" &&
-      next.phase.kind !== "unsupported" && next.phase.kind !== "canceled" &&
+    const offered = update.status === "available" ? update.release : null;
+    const presentation = updatePresentation(next.phase, offered);
+    if (presentation === null || presentation.kind === "handoff" || next.phase.kind === "canceled") {
+      updatePopupVisible = false;
+    } else if (changed && next.phase.kind !== "idle" &&
+      next.phase.kind !== "unsupported" &&
       (!("operation" in next.phase) ||
         next.phase.operation !== cached.preferences.acknowledgedUpdateOperation)) {
       updatePopupVisible = true;
@@ -142,12 +147,12 @@ export function createSupportSettingsSession(input: {
       updateCopy: updateStatusCopy(update, cached.installedVersion, cached.preferences.lastCheckCopy),
       releaseOpenError,
     };
-    if (next.status === "available" &&
-      (updaterSnapshot.phase.kind === "idle" ||
-        updaterSnapshot.phase.kind === "unsupported" ||
-        updaterSnapshot.phase.kind === "canceled" ||
-        updaterSnapshot.phase.kind === "installed" ||
-        updaterSnapshot.phase.kind === "failed") &&
+    const presentation = updatePresentation(updaterSnapshot.phase,
+      next.status === "available" ? next.release : null);
+    if (presentation?.kind === "handoff") {
+      updatePopupVisible = false;
+      cached = { ...cached, updatePopupVisible };
+    } else if (next.status === "available" && presentation?.kind === "offer" &&
       !(cached.preferences.postponedUpdate?.tag === next.release.tag &&
         cached.preferences.postponedUpdate.until > Date.now())) {
       updatePopupVisible = true;
@@ -297,7 +302,9 @@ export function createSupportSettingsSession(input: {
       });
     },
     openUpdate() {
-      updatePopupVisible = true;
+      const offered = update.status === "available" ? update.release : null;
+      const presentation = updatePresentation(updaterSnapshot.phase, offered);
+      updatePopupVisible = presentation !== null && presentation.kind !== "handoff";
       cached = { ...cached, updatePopupVisible };
       notify();
     },

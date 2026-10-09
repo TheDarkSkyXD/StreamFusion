@@ -6,16 +6,21 @@ import {
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
-import type { UpdateAction, UpdatePresentation } from "../domain/update-presentation";
+import type { UpdateAction, UpdateDialogModel } from "../domain/update-presentation";
 
 const LABELS: Record<UpdateAction, string> = {
-  download: "Update",
-  later: "Later",
-  cancel: "Cancel download",
+  download: "Yes",
+  later: "No",
+  cancel: "Cancel",
   hide: "Hide",
   retry: "Retry",
   install: "Install",
 };
+
+const byteNumberFormatter = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 export function UpdateDialog({
   model,
@@ -23,7 +28,7 @@ export function UpdateDialog({
   operationError,
   visible,
 }: {
-  readonly model: UpdatePresentation | null;
+  readonly model: UpdateDialogModel | null;
   readonly onAction: (action: UpdateAction) => void;
   readonly operationError?: string | null;
   readonly visible: boolean;
@@ -34,15 +39,24 @@ export function UpdateDialog({
     : null;
   return (
     <Modal
-      animationType="fade"
-      onRequestClose={() => onAction(model.actions.includes("hide") ? "hide" : "later")}
+      animationType="none"
+      onRequestClose={() => onAction(model.dismissAction)}
       transparent
       visible={visible}
     >
       <View style={styles.scrim}>
         <View accessibilityViewIsModal style={styles.card} testID="update-dialog">
-          <Text style={styles.title} testID="update-dialog-title">{model.title}</Text>
-          <Text style={styles.detail} testID="update-dialog-detail">{model.detail}</Text>
+          {model.title ? <Text style={styles.title} testID="update-dialog-title">{model.title}</Text> : null}
+          {model.kind === "download" && model.progress ? (
+            <Text style={styles.detail} testID="update-dialog-detail">
+              {`Downloading update… ${formatBytes(model.progress.bytes)} / ${formatBytes(model.progress.total)}`}
+            </Text>
+          ) : <Text style={styles.detail} testID="update-dialog-detail">{model.detail}</Text>}
+          {model.failureDetail ? (
+            <Text accessibilityRole="alert" style={styles.error} testID="update-dialog-installer-failure">
+              {model.failureDetail}
+            </Text>
+          ) : null}
           {operationError ? (
             <Text accessibilityRole="alert" style={styles.error} testID="update-dialog-operation-error">
               {operationError}
@@ -50,9 +64,6 @@ export function UpdateDialog({
           ) : null}
           {model.progress ? (
             <View testID="update-progress">
-              <Text style={styles.progressCopy} testID="update-progress-copy">
-                {`${formatBytes(model.progress.bytes)} of ${formatBytes(model.progress.total)} · ${percent}%`}
-              </Text>
               <View
                 accessibilityLabel={`Download ${percent}%`}
                 accessibilityRole="progressbar"
@@ -69,12 +80,16 @@ export function UpdateDialog({
                 accessibilityRole="button"
                 key={action}
                 onPress={() => onAction(action)}
-                style={[styles.button, action === "download" || action === "install" || action === "retry"
-                  ? styles.primary : styles.secondary]}
+                style={[styles.button, model.kind === "offer" || model.kind === "download"
+                  ? styles.textButton
+                  : action === "download" || action === "install" || action === "retry"
+                    ? styles.primary : styles.secondary]}
                 testID={`update-action-${action}`}
               >
-                <Text style={action === "download" || action === "install" || action === "retry"
-                  ? styles.primaryLabel : styles.secondaryLabel}>
+                <Text style={model.kind === "offer" || model.kind === "download"
+                  ? styles.textButtonLabel
+                  : action === "download" || action === "install" || action === "retry"
+                    ? styles.primaryLabel : styles.secondaryLabel}>
                   {action === "install" ? model.installLabel ?? LABELS.install : LABELS[action]}
                 </Text>
               </Pressable>
@@ -87,7 +102,7 @@ export function UpdateDialog({
 }
 
 function formatBytes(bytes: number): string {
-  return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  return `${byteNumberFormatter.format(bytes / 1_000_000)} MB`;
 }
 
 const styles = StyleSheet.create({
@@ -111,7 +126,6 @@ const styles = StyleSheet.create({
   title: { ...mobileType.title },
   detail: { ...mobileType.body },
   error: { ...mobileType.body, color: mobileColors.danger },
-  progressCopy: { ...mobileType.label, marginBottom: mobileSpacing.small },
   track: {
     backgroundColor: mobileColors.border,
     borderRadius: mobileRadii.full,
@@ -119,7 +133,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   fill: { backgroundColor: mobileColors.textPrimary, height: "100%" },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small, justifyContent: "flex-end" },
   button: {
     borderRadius: mobileRadii.medium,
     minHeight: mobileSizing.minimumTouchTarget,
@@ -128,6 +142,8 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: mobileColors.textPrimary },
   secondary: { backgroundColor: mobileColors.surfaceMuted },
+  textButton: { backgroundColor: "transparent" },
+  textButtonLabel: { color: mobileColors.textPrimary, fontWeight: "600" },
   primaryLabel: { color: mobileColors.background, fontWeight: "700" },
   secondaryLabel: { color: mobileColors.textPrimary, fontWeight: "600" },
 });

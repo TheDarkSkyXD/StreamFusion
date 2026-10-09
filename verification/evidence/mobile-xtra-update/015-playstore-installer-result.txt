@@ -1,0 +1,10 @@
+10-08 21:02:32.002   759   759 I PackageManager: Update system package com.google.android.trichromelibrary_699813538 code path from /product/app/TrichromeLibrary-Stub to /data/app/~~NrGbYyMTdthA7Eha8oabZA==/com.google.android.trichromelibrary_699813538-l59bEVCuvUt9ZwKogIpNog==; Retain data and using new
+10-08 21:02:33.325   759   759 I PackageManager: Update system package com.android.chrome code path from /product/app/Chrome-Stub to /data/app/~~q9AA9Tl4bOXsJ0dtV574kg==/com.android.chrome-sz3pMxuQK41fUHyMesmfXw==; Retain data and using new
+10-08 21:02:37.366   759   759 I PackageManager: Update system package com.google.android.webview code path from /product/app/WebViewGoogle-Stub to /data/app/~~Peh1A87jmrGfB3HRcCxlag==/com.google.android.webview-JuX2AF3xgatr4rEtF7itQA==; Retain data and using new
+10-08 21:07:42.395   759   840 I PackageManager: installation completed for package:com.thedarkskyxd.streamfusion. Final code path: /data/app/~~iMLz0uAf9TGg-8YFirfd2w==/com.thedarkskyxd.streamfusion-5Bhlpy1IG7L-7BDsFNCrtg==
+10-08 21:10:35.268   759   840 I PackageManager: Update package com.thedarkskyxd.streamfusion code path from /data/app/~~iMLz0uAf9TGg-8YFirfd2w==/com.thedarkskyxd.streamfusion-5Bhlpy1IG7L-7BDsFNCrtg== to /data/app/vmdl1510110913.tmp; Retain data and using new
+10-08 21:10:41.386   759   840 I PackageManager: installation completed for package:com.thedarkskyxd.streamfusion. Final code path: /data/app/~~7vzx-5PWD8zS6DnFQARG1Q==/com.thedarkskyxd.streamfusion-ew5lcybOqwRRPR5fJ9xKjA==
+    versionCode=9 minSdk=30 targetSdk=36
+    versionName=0.1.6-alpha.3
+    installerPackageName=com.thedarkskyxd.streamfusion
+16

@@ -127,7 +127,7 @@ internal class UpdaterEngine private constructor(
       val next = saveLocked(current.copy(
         kind = "downloading", generation = current.generation + 1, bytes = 0,
         versionCode = 0, minSdk = 0, sessionId = -1, installIntent = true,
-        reason = null, code = null, retry = null, stageAt = System.currentTimeMillis(),
+        reason = null, code = null, retry = null, installerFailure = null, stageAt = System.currentTimeMillis(),
       ))
       startServiceLocked(next)
       journal.read().wire()
@@ -159,7 +159,7 @@ internal class UpdaterEngine private constructor(
   private fun installLocked(current: UpdateRecord, activity: Activity?, authorize: Boolean = false): UpdateRecord {
     if (current.kind !in setOf("ready", "permission-needed", "failed") ||
       (current.kind == "failed" && current.retry != "install")) return current
-    val authorized = if (authorize && !current.installIntent) saveLocked(current.copy(installIntent = true)) else current
+    val authorized = if (authorize && !current.installIntent) saveLocked(current.copy(installIntent = true, installerFailure = null)) else current
     val release = authorized.release ?: return authorized
     val manifest = UpdateManifest(authorized.versionCode, authorized.minSdk, "StreamFusion-${release.tag}.apk")
     try { verifier.verify(journal.verified, release, manifest) }
@@ -168,9 +168,9 @@ internal class UpdaterEngine private constructor(
       val lease = foregroundActivity?.takeIf { it.get() === activity }
       if (lease == null || activity == null || foreground(lease) == null) {
         return if (authorized.kind == "ready") authorized
-          else saveLocked(authorized.copy(kind = "ready", code = null, retry = null))
+          else saveLocked(authorized.copy(kind = "ready", code = null, retry = null, installerFailure = null))
       }
-      val waiting = saveLocked(authorized.copy(kind = "permission-needed", code = null, retry = null))
+      val waiting = saveLocked(authorized.copy(kind = "permission-needed", code = null, retry = null, installerFailure = null))
       val operation = waiting.operation ?: return waiting
       activity.runOnUiThread {
         synchronized(guard) {
@@ -196,7 +196,7 @@ internal class UpdaterEngine private constructor(
     abandonLocked(authorized)
     val next = saveLocked(authorized.copy(
       kind = "staging", generation = current.generation + 1, installIntent = false,
-      code = null, retry = null, sessionId = -1, stageAt = System.currentTimeMillis(),
+      code = null, retry = null, installerFailure = null, sessionId = -1, stageAt = System.currentTimeMillis(),
     ))
     val exit = CountDownLatch(1)
     workerExit = exit
@@ -437,7 +437,7 @@ internal class UpdaterEngine private constructor(
     }
   }
 
-  fun onInstallResult(sessionId: Int, status: Int, approval: Intent?) {
+  fun onInstallResult(sessionId: Int, status: Int, approval: Intent?, message: String?) {
     synchronized(guard) {
       val current = journal.read()
       if (current.sessionId != sessionId || current.kind !in setOf("awaiting-approval", "staging")) return
@@ -470,7 +470,8 @@ internal class UpdaterEngine private constructor(
         else -> {
           clearConsentNotification()
           failLocked(current, if (status == PackageInstaller.STATUS_FAILURE_BLOCKED ||
-            status == PackageInstaller.STATUS_FAILURE_ABORTED) "install-blocked" else "install-failed", "install")
+            status == PackageInstaller.STATUS_FAILURE_ABORTED) "install-blocked" else "install-failed", "install",
+            InstallerFailureDetail.fromCallback(status, message))
         }
       }
     }
@@ -534,8 +535,10 @@ internal class UpdaterEngine private constructor(
     current.generation == generation && current.kind == kind
   }
 
-  private fun failLocked(current: UpdateRecord, code: String, retry: String): UpdateRecord =
-    saveLocked(current.copy(kind = "failed", code = code, retry = retry, installIntent = false))
+  private fun failLocked(current: UpdateRecord, code: String, retry: String,
+    installerFailure: InstallerFailureDetail? = null): UpdateRecord =
+    saveLocked(current.copy(kind = "failed", code = code, retry = retry,
+      installerFailure = installerFailure, installIntent = false))
 
   private fun saveLocked(record: UpdateRecord): UpdateRecord {
     val next = journal.write(record.copy(revision = record.revision + 1))

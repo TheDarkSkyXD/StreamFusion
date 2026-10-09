@@ -13,9 +13,11 @@ const release: UpdateRelease = {
 };
 
 function Story({ phase, operationError }: { readonly phase: UpdatePhase; readonly operationError?: string }) {
+  const model = updatePresentation(phase, release);
+  if (model?.kind === "handoff") return null;
   return (
     <UpdateDialog
-      model={updatePresentation(phase, release)}
+      model={model}
       onAction={() => {}}
       operationError={operationError ?? null}
       visible
@@ -31,7 +33,7 @@ export default meta;
 
 type StoryCase = StoryObj<typeof meta>;
 
-export const Available: StoryCase = { name: "Available: Update starts both steps", args: { phase: { kind: "idle" } } };
+export const Available: StoryCase = { name: "Available: Yes downloads, No postpones", args: { phase: { kind: "idle" } } };
 export const Downloading: StoryCase = {
   args: { phase: { kind: "downloading", operation: "story-1", release, bytes: 89_000_000, total: release.apkBytes } },
 };
@@ -42,6 +44,7 @@ export const Verifying: StoryCase = {
   args: { phase: { kind: "verifying", operation: "story-1", release } },
 };
 export const Ready: StoryCase = {
+  name: "Ready: Android handoff closes the app dialog",
   args: { phase: { kind: "ready", operation: "story-1", release } },
 };
 export const ReadyWithActionError: StoryCase = {
@@ -54,9 +57,11 @@ export const PermissionNeeded: StoryCase = {
   args: { phase: { kind: "permission-needed", operation: "story-1", release } },
 };
 export const Staging: StoryCase = {
+  name: "Staging: Android handoff has no app dialog",
   args: { phase: { kind: "staging", operation: "story-1", release } },
 };
 export const AwaitingApproval: StoryCase = {
+  name: "Awaiting approval: Android handoff has no app dialog",
   args: { phase: { kind: "awaiting-approval", operation: "story-1", release } },
 };
 export const Installed: StoryCase = {
@@ -66,7 +71,7 @@ export const Canceled: StoryCase = {
   args: { phase: { kind: "canceled", operation: "story-1", release } },
 };
 export const Failed: StoryCase = {
-  args: { phase: { kind: "failed", operation: "story-1", release, code: "checksum", retry: "download" } },
+  args: { phase: { kind: "failed", operation: "story-1", release, code: "checksum", retry: "download", installerFailure: null } },
 };
 export const Unsupported: StoryCase = {
   args: { phase: { kind: "unsupported", message: "In-app updates require the Android app." } },

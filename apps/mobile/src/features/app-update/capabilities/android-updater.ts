@@ -25,6 +25,11 @@ export type ActiveUpdate = {
   readonly release: UpdateRelease;
 };
 
+export type InstallerFailureDetail = {
+  readonly status: number;
+  readonly message: string;
+};
+
 export type UpdatePhase =
   | { readonly kind: "idle" }
   | { readonly kind: "unsupported"; readonly message: string }
@@ -32,7 +37,7 @@ export type UpdatePhase =
   | (ActiveUpdate & { readonly kind: "paused"; readonly bytes: number; readonly reason: "network" | "service-limit" | "process-interrupted" })
   | (ActiveUpdate & { readonly kind: "verifying" | "ready" | "permission-needed" | "staging" | "awaiting-approval" })
   | (ActiveUpdate & { readonly kind: "installed" | "canceled" })
-  | (ActiveUpdate & { readonly kind: "failed"; readonly code: UpdateFailure; readonly retry: "download" | "install" | "none" });
+  | (ActiveUpdate & { readonly kind: "failed"; readonly code: UpdateFailure; readonly retry: "download" | "install" | "none"; readonly installerFailure: InstallerFailureDetail | null });
 
 export type UpdateSnapshot = {
   readonly revision: number;

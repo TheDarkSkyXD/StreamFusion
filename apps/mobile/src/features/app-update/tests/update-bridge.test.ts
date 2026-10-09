@@ -18,10 +18,12 @@ describe("Android updater bridge", () => {
       phase: { kind: "downloading", operation: "op-1", release, bytes: 500_000, total: 2_000_000 },
     });
     expect(updatePresentation(snapshot.phase, null)).toEqual({
-      title: "Android 0.1.4-alpha.1 is downloading",
-      detail: "The download continues if you hide this window.",
+      kind: "download",
+      title: null,
+      detail: "",
       progress: { bytes: 500_000, total: 2_000_000 },
-      actions: ["cancel", "hide"],
+      actions: ["cancel"],
+      dismissAction: "cancel",
     });
   });
 
@@ -43,16 +45,18 @@ describe("Android updater bridge", () => {
       operation: "op-old",
       release: previous,
     }, release)).toMatchObject({
-      title: "Android 0.1.4-alpha.1 is available",
-      detail: "Tap Update to download and verify the app. Android will then ask you to approve installation, even if you leave and return.",
-      actions: ["download", "later"],
+      kind: "offer",
+      title: "Update available",
+      detail: "Download latest update?",
+      actions: ["later", "download"],
     });
   });
 
   it("offers a recovery action while Android approval opens", () => {
     expect(updatePresentation({ kind: "ready", operation: "op-1", release }, null)).toMatchObject({
-      detail: "Opening Android approval. If it does not appear, tap Install.",
-      actions: ["install", "hide"],
+      kind: "handoff",
+      detail: "The verified update is ready for Android installation.",
+      installLabel: "Install",
     });
   });
 
@@ -65,5 +69,36 @@ describe("Android updater bridge", () => {
       detail: "Android did not approve installation. Your downloaded update is still ready.",
       actions: ["retry", "hide"],
     });
+    expect(snapshot.phase).toMatchObject({ kind: "failed", installerFailure: null });
+  });
+
+  it("preserves a bounded Android installer reason on a failed phase", () => {
+    const snapshot = parseUpdateSnapshot({
+      revision: 10,
+      phase: {
+        kind: "failed", operation: "op-1", release, code: "install-failed", retry: "install",
+        installerFailure: { status: 5, message: "INSTALL_FAILED_UPDATE_INCOMPATIBLE" },
+      },
+    });
+    expect(snapshot.phase).toMatchObject({
+      kind: "failed",
+      installerFailure: { status: 5, message: "INSTALL_FAILED_UPDATE_INCOMPATIBLE" },
+    });
+  });
+
+  it("rejects malformed installer detail at the native bridge", () => {
+    for (const installerFailure of [
+      { status: 0, message: "reason" },
+      { status: 5.5, message: "reason" },
+      { status: 5, message: "" },
+      { status: 5, message: " reason " },
+      { status: 5, message: "x".repeat(1025) },
+      { status: 5, message: 42 },
+    ]) {
+      expect(() => parseUpdateSnapshot({
+        revision: 11,
+        phase: { kind: "failed", operation: "op-1", release, code: "install-failed", retry: "install", installerFailure },
+      })).toThrow("Invalid installer failure detail.");
+    }
   });
 });

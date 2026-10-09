@@ -126,6 +126,63 @@ describe("support settings runtime", () => {
     expect(settings.peek().updatePopupVisible).toBe(true);
   });
 
+  it("closes before Android handoff and does not reopen on duplicate, older, or release snapshots", async () => {
+    const operation = "operation-handoff";
+    let current: UpdateSnapshot = { revision: 1, phase: { kind: "downloading", operation, release: AVAILABLE_RELEASE, bytes: 250, total: 1024 } };
+    const updater: AndroidUpdaterPort = {
+      snapshot: async () => current,
+      command: async () => { throw new Error("unexpected command"); },
+      subscribe: () => () => {},
+    };
+    const settings = session({ updater });
+    await settings.checkOnLaunch();
+    expect(settings.peek().updatePopupVisible).toBe(true);
+    current = { revision: 2, phase: { kind: "verifying", operation, release: AVAILABLE_RELEASE } };
+    await settings.load();
+    expect(settings.peek().updatePopupVisible).toBe(true);
+    current = { revision: 3, phase: { kind: "ready", operation, release: AVAILABLE_RELEASE } };
+    await settings.load();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    settings.openUpdate();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    for (const kind of ["staging", "awaiting-approval"] as const) {
+      current = { revision: current.revision + 1, phase: { kind, operation, release: AVAILABLE_RELEASE } };
+      await settings.load();
+      expect(settings.peek().updatePopupVisible).toBe(false);
+    }
+    await settings.checkForUpdates();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    await settings.load();
+    expect(settings.peek().updatePopupVisible).toBe(false);
+    current = { revision: 2, phase: { kind: "downloading", operation, release: AVAILABLE_RELEASE, bytes: 500, total: 1024 } };
+    await settings.load();
+    expect(settings.peek().updater.kind).toBe("awaiting-approval");
+    expect(settings.peek().updatePopupVisible).toBe(false);
+  });
+
+  it("rehydrates Android recovery without a modal and reuses the retained operation", async () => {
+    const operation = "operation-restart";
+    for (const kind of ["ready", "permission-needed", "staging", "awaiting-approval"] as const) {
+      const commands: unknown[] = [];
+      const updater: AndroidUpdaterPort = {
+        snapshot: async () => ({ revision: 8, phase: { kind, operation, release: AVAILABLE_RELEASE } }),
+        command: async (command) => {
+          commands.push(command);
+          return { revision: 8, phase: { kind, operation, release: AVAILABLE_RELEASE } };
+        },
+        subscribe: () => () => {},
+      };
+      const settings = session({ updater });
+      await settings.checkOnLaunch();
+      settings.openUpdate();
+      expect(settings.peek().updatePopupVisible).toBe(false);
+      if (kind !== "staging") {
+        await settings.installUpdate();
+        expect(commands).toEqual([{ kind: "install", operation }]);
+      }
+    }
+  });
+
   it("shows installation success once across app relaunches", async () => {
     const operation = "11111111-1111-4111-8111-111111111111";
     const store = memoryStore();
