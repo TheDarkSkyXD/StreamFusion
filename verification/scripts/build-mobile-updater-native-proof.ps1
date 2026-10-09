@@ -138,7 +138,7 @@ $env:Path = "$JavaDirectory/bin;$env:Path"
 Push-Location $proof
 try {
   foreach ($build in @(
-    @{ Code = 2; Name = "0.1.6-alpha.2"; Output = "candidate.apk" },
+    @{ Code = 2; Name = "0.1.6-alpha.3"; Output = "candidate.apk" },
     @{ Code = 1; Name = "0.1.5-alpha.1"; Output = "baseline-r.apk" }
   )) {
     $ErrorActionPreference = "Continue"
@@ -158,7 +158,7 @@ try {
   Write-Output "Install and launch baseline-r.apk once, then run: adb push candidate.apk /data/local/tmp/candidate.apk"
   Write-Output "Run: adb shell run-as expo.modules.streamfusionnativecontracts.updateproof cp /data/local/tmp/candidate.apk files/candidate.apk"
   Write-Output "Launch Updater native proof, tap Update, grant install permission and approve Android installation. Reopen it to observe versionCode=2 and marker=retained across APK replacement."
-  Write-Output "For background transfer, launch with --el chunkDelayMs 300, tap Update, press Home, and reopen after transfer completes. The ready state must wait for an explicit Install tap."
+  Write-Output "For background transfer, launch with --el chunkDelayMs 300, tap Update, press Home, and reopen after transfer completes. Android approval must open without an app Install tap."
   $ErrorActionPreference = "Continue"
   & ./gradlew.bat testDebugUnitTest --console=plain
   $ErrorActionPreference = "Stop"

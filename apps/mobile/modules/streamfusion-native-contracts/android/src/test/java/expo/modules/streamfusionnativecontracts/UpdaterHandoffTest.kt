@@ -174,7 +174,7 @@ class UpdaterHandoffTest {
   @Test fun currentForegroundHandoffReachesTheInstallerVerificationGate() = withEngine { engine, journal ->
     val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     engine.onForeground(activity)
-    val handoff = handoff(engine, journal)
+    val handoff = handoff(engine, journal, installIntent = true)
 
     continueHandoff(engine, handoff)
 
@@ -215,7 +215,7 @@ class UpdaterHandoffTest {
     }
   }
 
-  private fun handoff(engine: UpdaterEngine, journal: UpdateJournal): Any {
+  private fun handoff(engine: UpdaterEngine, journal: UpdateJournal, installIntent: Boolean = false): Any {
     val release = UpdateRelease.parse(mapOf(
       "tag" to "android-v0.1.4", "version" to "0.1.4", "apkBytes" to 64L,
       "apkSha256" to "a".repeat(64), "notes" to "",
@@ -223,7 +223,7 @@ class UpdaterHandoffTest {
     ))
     journal.write(UpdateRecord(
       revision = 1, operation = "verified-operation", release = release,
-      generation = 7, kind = "ready", versionCode = 100, minSdk = 30,
+      generation = 7, kind = "ready", versionCode = 100, minSdk = 30, installIntent = installIntent,
     ))
     val lease = UpdaterEngine::class.java.getDeclaredField("foregroundActivity")
       .apply { isAccessible = true }.get(engine) as WeakReference<*>

@@ -9,7 +9,7 @@ import {
 import type { UpdateAction, UpdatePresentation } from "../domain/update-presentation";
 
 const LABELS: Record<UpdateAction, string> = {
-  download: "Download",
+  download: "Update",
   later: "Later",
   cancel: "Cancel download",
   hide: "Hide",

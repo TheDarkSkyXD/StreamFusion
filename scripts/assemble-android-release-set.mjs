@@ -96,7 +96,7 @@ export function assembleReleaseSet({
     "",
     "## Update",
     "",
-    "Open Settings > Updates in StreamFusion and select Check now. Download the available update in the app, follow its progress, then select Install. Android asks you to approve installation. If prompted, allow StreamFusion to install apps and return to finish the update.",
+    "Open Settings > Updates in StreamFusion and select Check now, then Update. StreamFusion downloads and verifies the APK, then opens Android's installation approval. The update continues if you leave the app. If Android asks for installation permission, allow StreamFusion to install apps and return; the approval opens automatically. If the approval does not appear, reopen the update and select Install or Continue install.",
     "",
     "## Known issues",
     "",

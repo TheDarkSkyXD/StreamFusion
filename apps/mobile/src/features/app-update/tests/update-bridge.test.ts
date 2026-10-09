@@ -44,7 +44,15 @@ describe("Android updater bridge", () => {
       release: previous,
     }, release)).toMatchObject({
       title: "Android 0.1.4-alpha.1 is available",
+      detail: "Tap Update to download and verify the app. Android will then ask you to approve installation, even if you leave and return.",
       actions: ["download", "later"],
+    });
+  });
+
+  it("offers a recovery action while Android approval opens", () => {
+    expect(updatePresentation({ kind: "ready", operation: "op-1", release }, null)).toMatchObject({
+      detail: "Opening Android approval. If it does not appear, tap Install.",
+      actions: ["install", "hide"],
     });
   });
 

@@ -40,7 +40,7 @@ const release = {
   apkSha256: "a".repeat(64),
 };
 
-function session(update: UpdateCheckState): SupportSettingsSession {
+function session(update: UpdateCheckState, updatePopupVisible = false): SupportSettingsSession {
   const view = composeSupportSettingsView({
     installedVersion: "0.1.0-alpha",
     logs: [],
@@ -49,6 +49,7 @@ function session(update: UpdateCheckState): SupportSettingsSession {
     releaseOpenError: null,
     resultCopy: "",
     update,
+    updatePopupVisible,
   });
   return {
     apply: async () => view,
@@ -89,6 +90,15 @@ describe("mobile Updates panel", () => {
     expect(html.indexOf("Check now")).toBeLessThan(html.indexOf("Player fixes and new controls"));
     expect(renderToStaticMarkup(createElement(UpdateAvailableNotice, { session: session({ status: "available", release }) })))
       .toContain("StreamFusion Android 0.1.1-alpha is available.");
+  });
+
+  it("renders Update as the first step for an available release", () => {
+    const html = renderToStaticMarkup(createElement(UpdateDialogHost, {
+      session: session({ status: "available", release }, true),
+    }));
+    expect(html).toContain("Tap Update to download and verify the app.");
+    expect(html).toMatch(/<button[^>]*data-testid="update-action-download"[^>]*><span[^>]*>Update<\/span><\/button>/);
+    expect(html).not.toContain('data-testid="update-action-install"');
   });
 
   it("shows a current stable channel without an APK action", () => {

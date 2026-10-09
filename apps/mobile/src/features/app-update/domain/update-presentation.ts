@@ -22,7 +22,7 @@ export function updatePresentation(
           title: `Android ${offered.version} is available`,
           detail: phase.kind === "unsupported"
             ? phase.message
-            : "Download and verify the update. Android will then ask you to approve installation.",
+            : "Tap Update to download and verify the app. Android will then ask you to approve installation, even if you leave and return.",
           progress: null,
           actions: phase.kind === "unsupported" ? ["later"] : ["download", "later"],
         }
@@ -47,13 +47,13 @@ export function updatePresentation(
     case "verifying":
       return { title: `Verifying ${title}`, detail: "Checking the APK and app signature.", progress: null, actions: ["hide"] };
     case "ready":
-      return { title: `${title} is ready`, detail: "Android will ask you to approve installation.", progress: null, actions: ["install", "hide"] };
+      return { title: `${title} is ready`, detail: "Opening Android approval. If it does not appear, tap Install.", progress: null, actions: ["install", "hide"] };
     case "permission-needed":
-      return { title: "Allow updates from StreamFusion", detail: "Enable installation permission for this app, then return here.", progress: null, actions: ["install", "hide"], installLabel: "Open settings" };
+      return { title: "Allow updates from StreamFusion", detail: "Enable installation permission for this app, then return. Android approval will open automatically.", progress: null, actions: ["install", "hide"], installLabel: "Open settings" };
     case "staging":
       return { title: `Preparing ${title}`, detail: "Handing the verified APK to Android.", progress: null, actions: ["hide"] };
     case "awaiting-approval":
-      return { title: "Approve the Android update", detail: "Review Android's installation prompt. Reopen this update if you need to continue.", progress: null, actions: ["install", "hide"], installLabel: "Continue install" };
+      return { title: "Approve the Android update", detail: "Review Android's installation prompt. If it closed, tap Continue install.", progress: null, actions: ["install", "hide"], installLabel: "Continue install" };
     case "installed":
       return { title: `${title} installed`, detail: "Android confirmed the new app version.", progress: null, actions: ["hide"] };
     case "canceled":

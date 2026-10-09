@@ -31,7 +31,7 @@ export default meta;
 
 type StoryCase = StoryObj<typeof meta>;
 
-export const Available: StoryCase = { args: { phase: { kind: "idle" } } };
+export const Available: StoryCase = { name: "Available: Update starts both steps", args: { phase: { kind: "idle" } } };
 export const Downloading: StoryCase = {
   args: { phase: { kind: "downloading", operation: "story-1", release, bytes: 89_000_000, total: release.apkBytes } },
 };

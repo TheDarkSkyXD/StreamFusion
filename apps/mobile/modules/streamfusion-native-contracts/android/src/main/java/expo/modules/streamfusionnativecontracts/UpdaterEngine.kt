@@ -37,7 +37,9 @@ internal class UpdaterEngine private constructor(
   @Volatile private var foregroundActivity: WeakReference<Activity>? = null
   private data class VerifiedHandoff(val operation: String, val generation: Long, val activity: WeakReference<Activity>)
   private data class PermissionReturn(val operation: String, val generation: Long)
-  private val permissionReturn = AtomicReference<PermissionReturn?>(null)
+  private val permissionReturn = AtomicReference(journal.read().takeIf {
+    it.kind == "permission-needed" && it.installIntent && it.operation != null
+  }?.let { PermissionReturn(requireNotNull(it.operation), it.generation) })
 
   fun listen(listener: (Long) -> Unit) { listeners.add(listener) }
   fun unlisten(listener: (Long) -> Unit) { listeners.remove(listener) }
@@ -62,7 +64,8 @@ internal class UpdaterEngine private constructor(
           journal.partial.delete(); journal.verified.delete()
           val next = saveLocked(UpdateRecord(
             revision = latest.revision, operation = journal.newOperation(), release = release,
-            generation = latest.generation + 1, kind = "downloading", stageAt = System.currentTimeMillis(),
+            generation = latest.generation + 1, kind = "downloading", installIntent = true,
+            stageAt = System.currentTimeMillis(),
           ))
           startServiceLocked(next)
           journal.read().wire()
@@ -115,7 +118,7 @@ internal class UpdaterEngine private constructor(
       if (current.operation != operation) return@synchronized current.wire()
       if (current.kind == "ready" || current.kind == "permission-needed" ||
         (current.kind == "failed" && current.retry == "install")) {
-        return@synchronized installLocked(current, activity).wire()
+        return@synchronized installLocked(current, activity, authorize = true).wire()
       }
       if (current.kind != "paused" && current.kind != "canceled" &&
         !(current.kind == "failed" && current.retry == "download")) return@synchronized current.wire()
@@ -123,7 +126,7 @@ internal class UpdaterEngine private constructor(
       journal.partial.delete(); journal.verified.delete()
       val next = saveLocked(current.copy(
         kind = "downloading", generation = current.generation + 1, bytes = 0,
-        versionCode = 0, minSdk = 0, sessionId = -1, installIntent = false,
+        versionCode = 0, minSdk = 0, sessionId = -1, installIntent = true,
         reason = null, code = null, retry = null, stageAt = System.currentTimeMillis(),
       ))
       startServiceLocked(next)
@@ -143,7 +146,7 @@ internal class UpdaterEngine private constructor(
     val current = reconcileLocked()
     if (current.operation != operation) return@synchronized current.wire()
     if (current.kind == "awaiting-approval") return@synchronized continueApprovalLocked(current).wire()
-    installLocked(current, activity).wire()
+    installLocked(current, activity, authorize = true).wire()
   }
 
   private fun continueApprovalLocked(current: UpdateRecord): UpdateRecord {
@@ -153,27 +156,36 @@ internal class UpdaterEngine private constructor(
       catch (_: PendingIntent.CanceledException) { failLocked(current, "interrupted", "install") }
   }
 
-  private fun installLocked(current: UpdateRecord, activity: Activity?): UpdateRecord {
+  private fun installLocked(current: UpdateRecord, activity: Activity?, authorize: Boolean = false): UpdateRecord {
     if (current.kind !in setOf("ready", "permission-needed", "failed") ||
       (current.kind == "failed" && current.retry != "install")) return current
-    val release = current.release ?: return current
-    val manifest = UpdateManifest(current.versionCode, current.minSdk, "StreamFusion-${release.tag}.apk")
+    val authorized = if (authorize && !current.installIntent) saveLocked(current.copy(installIntent = true)) else current
+    val release = authorized.release ?: return authorized
+    val manifest = UpdateManifest(authorized.versionCode, authorized.minSdk, "StreamFusion-${release.tag}.apk")
     try { verifier.verify(journal.verified, release, manifest) }
-    catch (error: UpdateFailureException) { return failLocked(current, error.code, "download") }
+    catch (error: UpdateFailureException) { return failLocked(authorized, error.code, "download") }
     if (!context.packageManager.canRequestPackageInstalls()) {
-      val waiting = saveLocked(current.copy(kind = "permission-needed", installIntent = false, code = null, retry = null))
-      val operation = waiting.operation ?: return waiting
       val lease = foregroundActivity?.takeIf { it.get() === activity }
-      if (lease != null && activity != null) activity.runOnUiThread {
+      if (lease == null || activity == null || foreground(lease) == null) {
+        return if (authorized.kind == "ready") authorized
+          else saveLocked(authorized.copy(kind = "ready", code = null, retry = null))
+      }
+      val waiting = saveLocked(authorized.copy(kind = "permission-needed", code = null, retry = null))
+      val operation = waiting.operation ?: return waiting
+      activity.runOnUiThread {
         synchronized(guard) {
           val latest = journal.read()
-          if (foreground(lease) == null || latest.operation != waiting.operation ||
-            latest.generation != waiting.generation || latest.kind != "permission-needed") return@synchronized
+          if (latest.operation != waiting.operation || latest.generation != waiting.generation ||
+            latest.kind != "permission-needed" || !latest.installIntent) return@synchronized
+          val active = foreground(lease) ?: foregroundActivity?.let(::foreground)
+          if (active == null) {
+            saveLocked(latest.copy(kind = "ready"))
+            return@synchronized
+          }
           try {
-            activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            active.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
               Uri.parse("package:${context.packageName}")))
             permissionReturn.set(PermissionReturn(operation, waiting.generation))
-            saveLocked(latest.copy(installIntent = true))
           } catch (_: Exception) {
             failLocked(latest, "install-failed", "install")
           }
@@ -181,8 +193,8 @@ internal class UpdaterEngine private constructor(
       }
       return waiting
     }
-    abandonLocked(current)
-    val next = saveLocked(current.copy(
+    abandonLocked(authorized)
+    val next = saveLocked(authorized.copy(
       kind = "staging", generation = current.generation + 1, installIntent = false,
       code = null, retry = null, sessionId = -1, stageAt = System.currentTimeMillis(),
     ))
@@ -193,24 +205,42 @@ internal class UpdaterEngine private constructor(
   }
 
   fun onForeground(activity: Activity?) {
-    val lease = activity?.let(::WeakReference)
+    val lease = activity?.let { foregroundActivity?.takeIf { old -> old.get() === it } ?: WeakReference(it) }
     foregroundActivity = lease
-    val request = permissionReturn.getAndSet(null) ?: return
+    if (lease == null) return
+    val request = permissionReturn.getAndSet(null)
     executor.submit {
       synchronized(guard) {
+        if (request == null) {
+          val observed = journal.read()
+          if (observed.kind != "ready" || !observed.installIntent) return@synchronized
+        }
         val current = reconcileLocked()
-        if (current.operation != request.operation || current.generation != request.generation ||
-          current.kind != "permission-needed") return@synchronized
-        val returned = saveLocked(current.copy(installIntent = false))
-        if (lease != null && foreground(lease) != null) {
-          try {
-            if (context.packageManager.canRequestPackageInstalls()) installLocked(returned, activity)
+        if (request != null) {
+          val active = foreground(lease) ?: foregroundActivity?.let(::foreground)
+          if (active == null) {
+            permissionReturn.compareAndSet(null, request)
+            return@synchronized
           }
-          catch (_: Exception) {
+          if (current.operation != request.operation || current.generation != request.generation ||
+            current.kind != "permission-needed" || !current.installIntent) return@synchronized
+          try {
+            if (context.packageManager.canRequestPackageInstalls()) installLocked(current, active)
+            else saveLocked(current.copy(installIntent = false))
+          } catch (_: Exception) {
             val latest = journal.read()
             if (latest.operation == request.operation && latest.generation == request.generation &&
               latest.kind == "permission-needed") failLocked(latest, "install-failed", "install")
           }
+          return@synchronized
+        }
+        val foreground = foreground(lease) ?: return@synchronized
+        if (current.kind != "ready" || !current.installIntent) return@synchronized
+        try { installLocked(current, foreground) }
+        catch (_: Exception) {
+          val latest = journal.read()
+          if (latest.operation == current.operation && latest.generation == current.generation &&
+            latest.kind in setOf("ready", "permission-needed")) failLocked(latest, "install-failed", "install")
         }
       }
     }
@@ -330,7 +360,7 @@ internal class UpdaterEngine private constructor(
       val current = journal.read()
       val activity = foreground(handoff.activity) ?: return
       if (current.operation != handoff.operation || current.generation != handoff.generation ||
-        current.kind != "ready") return
+        current.kind != "ready" || !current.installIntent) return
       try { installLocked(current, activity) }
       catch (_: Exception) {
         val latest = journal.read()
@@ -451,7 +481,7 @@ internal class UpdaterEngine private constructor(
     if (current.kind == "unsupported" || current.kind == "idle" || current.release == null) return current
     if (current.versionCode > 0 && current.kind !in setOf("downloading", "paused", "verifying", "failed", "canceled") &&
       verifier.installedVersion() >= current.versionCode) {
-      if (current.kind != "installed") current = saveLocked(current.copy(kind = "installed", sessionId = -1))
+      if (current.kind != "installed") current = saveLocked(current.copy(kind = "installed", sessionId = -1, installIntent = false))
       journal.partial.delete(); journal.verified.delete()
       return current
     }

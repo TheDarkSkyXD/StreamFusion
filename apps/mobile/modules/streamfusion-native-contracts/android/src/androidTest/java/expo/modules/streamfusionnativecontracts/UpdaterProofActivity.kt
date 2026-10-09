@@ -146,9 +146,9 @@ class UpdaterProofActivity : Activity() {
       val file = File(filesDir, "candidate.apk")
       try {
         require(file.isFile) { "Copy candidate.apk into this app's private files directory" }
-        val tag = "android-v0.1.6-alpha.2"
+        val tag = "android-v0.1.6-alpha.3"
         val release = mapOf(
-          "tag" to tag, "version" to "0.1.6-alpha.2", "apkBytes" to file.length(),
+          "tag" to tag, "version" to "0.1.6-alpha.3", "apkBytes" to file.length(),
           "apkSha256" to sha256(file), "notes" to "Native installer proof",
           "releaseUrl" to "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/$tag",
         )
