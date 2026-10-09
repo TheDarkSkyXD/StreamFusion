@@ -26,7 +26,6 @@ import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
-import { createExpoWatchSubscriptionPageOpener } from "../adapters/expo/expo-watch-subscription-page";
 import { createWatchRuntime } from "./watch-runtime";
 
 export function createGuestWatchScreen(input: {
@@ -64,7 +63,6 @@ export function createGuestWatchScreen(input: {
     history: input.history,
     PlayerSurface,
     nativePlayback: useNativeMedia3,
-    subscriptionPage: createExpoWatchSubscriptionPageOpener(),
     runtime: createWatchRuntime({
       ...(filtering === undefined ? {} : { filtering }),
       ...(playbackSettings === undefined

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { setPerChannelLiveNotificationPreference } from "@streamfusion/core/follows";
 import type { Stream } from "@streamfusion/core/content";
 import { toSerializedTimestamp } from "@streamfusion/core/activity";
 import type {
@@ -220,14 +221,27 @@ function WatchSessionRoute({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [subscriptionError, setSubscriptionError] = useState<{
+  const queryClient = useQueryClient();
+  const notifications = useQuery({
+    enabled: following !== undefined,
+    queryFn: () => following?.readNotifications() ?? Promise.resolve(null),
+    queryKey: ["follows", "notifications"],
+  });
+  const liveAlerts =
+    notifications.data?.perChannelNotifications[
+      `${target.platform}:${target.channelId}`
+    ] ?? true;
+  const [notificationChange, setNotificationChange] = useState<{
     readonly targetKey: string;
-    readonly message: string;
+    readonly kind: "pending" | "failed";
   } | null>(null);
-  const subscriptionStatus =
-    subscriptionError?.targetKey === tabTargetKey
-      ? subscriptionError.message
-      : null;
+  const notificationStatus =
+    notificationChange?.targetKey === tabTargetKey &&
+    notificationChange.kind === "failed"
+      ? "Could not save live alerts. Try again."
+      : notifications.isError
+        ? "Could not load live alerts. Tap the bell to retry."
+        : null;
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
@@ -340,7 +354,11 @@ function WatchSessionRoute({
       inspection={inspection.data ?? null}
       onChatRetry={() => screen.chat.retry()}
       controlsVisible={showControls}
-      subscriptionStatus={subscriptionStatus}
+      liveAlerts={liveAlerts}
+      notificationsBusy={
+        notifications.isFetching || notificationChange?.kind === "pending"
+      }
+      notificationStatus={notificationStatus}
       toolSheet={{ active: toolSheet, onChange: selectToolSheet }}
       onCloseQualityMenu={() => setQualityMenuOpen(false)}
       {...(onBack === undefined ? {} : { onBack })}
@@ -361,19 +379,34 @@ function WatchSessionRoute({
       {...(onOpenChannel === undefined
         ? {}
         : { onOpenChannel: () => onOpenChannel(target) })}
-      {...(target.platform === "twitch" && screen.subscriptionPage
+      {...(following
         ? {
-            onSubscribe: () => {
-              setSubscriptionError(null);
+            onToggleLiveAlerts: () => {
+              if (notificationChange?.kind === "pending") return;
+              const preferences = notifications.data;
+              if (!preferences) {
+                void notifications.refetch();
+                return;
+              }
+              setNotificationChange({
+                targetKey: tabTargetKey,
+                kind: "pending",
+              });
               void (async () => {
                 try {
-                  await screen.subscriptionPage?.open({
-                    channelLogin: target.channelName,
-                  });
+                  const saved = await following.writeNotifications(
+                    setPerChannelLiveNotificationPreference(
+                      preferences,
+                      { platform: target.platform, id: target.channelId },
+                      !liveAlerts,
+                    ),
+                  );
+                  queryClient.setQueryData(["follows", "notifications"], saved);
+                  setNotificationChange(null);
                 } catch {
-                  setSubscriptionError({
+                  setNotificationChange({
                     targetKey: tabTargetKey,
-                    message: "Could not open Twitch subscriptions. Try again.",
+                    kind: "failed",
                   });
                 }
               })();

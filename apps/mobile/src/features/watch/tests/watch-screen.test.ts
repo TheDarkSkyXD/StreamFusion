@@ -48,6 +48,8 @@ vi.mock("lucide-react-native", () => ({
   Smile: "Smile",
   ChevronRight: "ChevronRight",
   Heart: "Heart",
+  Bell: "Bell",
+  BellOff: "BellOff",
   Maximize: "Maximize",
   Minimize: "Minimize",
   Pause: "Pause",
@@ -153,14 +155,14 @@ describe("watch screen", () => {
         followed: false,
         followBusy: false,
         onFollow: () => undefined,
-        onSubscribe: () => undefined,
+        onToggleLiveAlerts: () => undefined,
       }),
     );
     const row = card.find((node) => node.props.testID === "watch-card-actions");
     const actions = descendants(row).filter(
       (node) =>
         node.props.testID === "watch-follow" ||
-        node.props.testID === "watch-subscribe",
+        node.props.testID === "watch-live-alerts",
     );
     expect(actions).toHaveLength(2);
     expect(

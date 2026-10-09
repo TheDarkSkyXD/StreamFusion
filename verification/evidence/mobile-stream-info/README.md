@@ -1,5 +1,13 @@
 # Mobile stream information card
 
+## Notification button correction — 2026-10-09
+
+Subscribe has been replaced with a notification bell for Twitch and Kick. It reads and writes the existing per-channel live-alert preference through `FollowingSession`, preserves other notification settings, and reports failed saves. The subscription browser capability and Expo adapter have been removed.
+
+A fresh Android 11 development-client check on emulator-5580 confirmed that the bell changes from “Turn off live alerts” to “Turn on live alerts,” retains the disabled alert preference after an app restart, and restores the enabled preference when tapped again. Live chat stayed below the card throughout. The emulator's Arabic language preference was preserved. Focused interaction tests cover both platforms and failed saves. The screenshots and Subscribe observations below describe the original implementation before this correction.
+
+## Original implementation
+
 On Android, tapping a live player reveals channel metadata with the existing player controls. Chat remains underneath. Metadata collapses with the controls after three seconds, and stays expanded while paused or while player tools hold the controls open.
 
 The card renders the avatar, available verification badge, channel name, title, category, and horizontal language/tag pills. Follow retains guest and connected-account behavior. Subscribe opens the Twitch channel subscription page through a watch capability and an Expo adapter. Kick does not show this Twitch action. Channel navigation, fullscreen, recorded comments, and explicit Info/Related views remain available.

@@ -2,14 +2,39 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+  type LiveNotificationPreferences,
+} from "@streamfusion/core/follows";
+import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchTarget } from "../capabilities/watch";
 import { WatchRoute } from "../components/watch-route";
 
-const routeState = vi.hoisted(() => ({ paused: false }));
+const routeState = vi.hoisted(
+  (): {
+    paused: boolean;
+    notifications: LiveNotificationPreferences | null;
+  } => ({ paused: false, notifications: null }),
+);
 
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: null }) }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (options: { queryKey: readonly unknown[] }) => ({
+    data:
+      options.queryKey[1] === "notifications" ? routeState.notifications : null,
+    isFetching: false,
+    isError: false,
+  }),
+  useQueryClient: () => ({
+    setQueryData: (
+      _key: readonly unknown[],
+      value: LiveNotificationPreferences,
+    ) => {
+      routeState.notifications = value;
+    },
+  }),
+}));
 vi.mock(
   "@mobile/features/media-library/components/use-watch-history-capture",
   () => ({ useWatchHistoryCapture: () => undefined }),
@@ -45,8 +70,10 @@ vi.mock("../components/watch-screen", async () => {
     WatchScreen: (props: {
       controlsVisible: boolean;
       onToggleControls: () => void;
-      onSubscribe?: () => void;
-      subscriptionStatus?: string | null;
+      onToggleLiveAlerts?: () => void;
+      notificationStatus?: string | null;
+      liveAlerts: boolean;
+      notificationsBusy: boolean;
       tab: string;
     }) =>
       createElement(
@@ -55,16 +82,18 @@ vi.mock("../components/watch-screen", async () => {
           "data-testid": "watch-route",
           "data-controls": String(props.controlsVisible),
           "data-tab": props.tab,
-          "data-status": props.subscriptionStatus ?? "",
+          "data-status": props.notificationStatus ?? "",
         },
         createElement("button", {
           "data-testid": "stage-tap",
           onClick: props.onToggleControls,
         }),
-        props.onSubscribe
+        props.onToggleLiveAlerts
           ? createElement("button", {
-              "data-testid": "subscribe",
-              onClick: props.onSubscribe,
+              "data-testid": "notifications",
+              "aria-pressed": props.liveAlerts,
+              disabled: props.notificationsBusy,
+              onClick: props.onToggleLiveAlerts,
             })
           : null,
       ),
@@ -84,52 +113,154 @@ const screen = {
 } as unknown as WatchScreenRuntime;
 
 describe("watch route control timing", () => {
-  it("reports a failed Twitch subscription handoff and hides it for Kick", async () => {
+  it("saves live alerts for Twitch and Kick and shows a failed save", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const host = document.createElement("div");
     const root = createRoot(host);
-    const subscriptionScreen: WatchScreenRuntime = {
-      ...screen,
-      subscriptionPage: {
-        open: async () => {
-          throw new Error("No browser");
+    routeState.notifications = {
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      sound: false,
+      perChannelNotifications: { "kick:other": false },
+    };
+    const writeNotifications = vi
+      .fn<FollowingSession["writeNotifications"]>()
+      .mockResolvedValueOnce({
+        ...routeState.notifications,
+        perChannelNotifications: { "kick:other": false, "twitch:1": false },
+      })
+      .mockRejectedValueOnce(new Error("Storage unavailable"));
+    const following: FollowingSession = {
+      listMembership: async () => [],
+      listGuestMembership: async () => [],
+      removeGuestFollow: async () => ({ kind: "rejected", reason: "invalid" }),
+      mutateFollow: async () => ({ kind: "rejected", reason: "invalid" }),
+      resolveChannel: async () => null,
+      hydrateLive: async () => ({
+        twitch: {
+          platform: "twitch",
+          status: "complete",
+          items: [],
+          missing: [],
+          stale: false,
+          offline: false,
+          retryable: false,
         },
-      },
+        kick: {
+          platform: "kick",
+          status: "complete",
+          items: [],
+          missing: [],
+          stale: false,
+          offline: false,
+          retryable: false,
+        },
+      }),
+      hydrateRecorded: async ({ platform, channelId }) => ({
+        platform,
+        channelId,
+        supported: true,
+        items: [],
+        stale: false,
+        offline: false,
+        failed: false,
+      }),
+      readNotifications: async () => DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      writeNotifications,
+      openProviderPage: async () => undefined,
     };
     try {
       await act(async () =>
         root.render(
           createElement(WatchRoute, {
-            screen: subscriptionScreen,
+            screen,
+            following,
             target,
             onOpenRelated: () => undefined,
           }),
         ),
       );
-      expect(host.querySelector('[data-testid="subscribe"]')).not.toBeNull();
+      expect(
+        host.querySelector('[data-testid="notifications"]'),
+      ).not.toBeNull();
       await act(async () => {
         host
-          .querySelector<HTMLButtonElement>('[data-testid="subscribe"]')
+          .querySelector<HTMLButtonElement>('[data-testid="notifications"]')
+          ?.click();
+      });
+      expect(writeNotifications).toHaveBeenCalledWith({
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        sound: false,
+        perChannelNotifications: { "kick:other": false, "twitch:1": false },
+      });
+      await act(async () =>
+        root.render(
+          createElement(WatchRoute, {
+            screen,
+            following,
+            target,
+            onOpenRelated: () => undefined,
+          }),
+        ),
+      );
+      expect(
+        host
+          .querySelector('[data-testid="notifications"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("false");
+      await act(async () => {
+        host
+          .querySelector<HTMLButtonElement>('[data-testid="notifications"]')
           ?.click();
       });
       expect(
         host
           .querySelector('[data-testid="watch-route"]')
           ?.getAttribute("data-status"),
-      ).toBe("Could not open Twitch subscriptions. Try again.");
+      ).toBe("Could not save live alerts. Try again.");
       await act(async () =>
         root.render(
           createElement(WatchRoute, {
-            screen: subscriptionScreen,
+            screen,
+            following,
             target: { ...target, platform: "kick" },
             onOpenRelated: () => undefined,
           }),
         ),
       );
-      expect(host.querySelector('[data-testid="subscribe"]')).toBeNull();
+      expect(
+        host.querySelector('[data-testid="notifications"]'),
+      ).not.toBeNull();
+      expect(
+        host
+          .querySelector('[data-testid="watch-route"]')
+          ?.getAttribute("data-status"),
+      ).toBe("");
+      writeNotifications.mockResolvedValueOnce({
+        ...routeState.notifications,
+        perChannelNotifications: {
+          "kick:other": false,
+          "twitch:1": false,
+          "kick:1": false,
+        },
+      });
+      await act(async () => {
+        host
+          .querySelector<HTMLButtonElement>('[data-testid="notifications"]')
+          ?.click();
+      });
+      expect(writeNotifications).toHaveBeenLastCalledWith({
+        ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+        sound: false,
+        perChannelNotifications: {
+          "kick:other": false,
+          "twitch:1": false,
+          "kick:1": false,
+        },
+      });
     } finally {
       await act(async () => root.unmount());
       vi.unstubAllGlobals();
+      routeState.notifications = null;
     }
   });
 

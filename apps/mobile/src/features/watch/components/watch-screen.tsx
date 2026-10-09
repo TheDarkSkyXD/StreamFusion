@@ -59,7 +59,6 @@ import type { DiscoverySession } from "@mobile/features/discovery/capabilities/p
 import { HomeLiveDiscoveryScreen } from "@mobile/features/discovery/components/home-live-discovery-screen";
 import { WatchTabs } from "./watch-tabs";
 import { WatchChannelCard } from "./watch-channel-card";
-import type { WatchSubscriptionPageOpener } from "../capabilities/watch-subscription-page";
 import type { ChatEngagementInlineBindings } from "@mobile/features/engagement/components/chat-engagement-inline";
 
 export type PlayerSurfaceProps = {
@@ -76,7 +75,6 @@ export type WatchScreenRuntime = {
   readonly history: WatchHistoryRepository;
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly runtime: WatchRuntime;
-  readonly subscriptionPage?: WatchSubscriptionPageOpener;
 };
 
 export type WatchCaptionControls = WatchCaptionBarProps & {
@@ -121,12 +119,14 @@ export function WatchScreen({
   onModerateMessage,
   followBusy = false,
   followed = false,
+  liveAlerts = true,
+  notificationsBusy = false,
   onBack,
   onFollow,
   onOpenChannel,
   onOpenEngagement,
   onOpenRelated,
-  onSubscribe,
+  onToggleLiveAlerts,
   onRefresh,
   onRetry,
   onSelectTab,
@@ -142,7 +142,7 @@ export function WatchScreen({
   onToggleFullscreen,
   onToggleControls,
   controlsVisible = true,
-  subscriptionStatus,
+  notificationStatus,
   qualityMenuOpen = false,
   peek,
   playback,
@@ -168,7 +168,9 @@ export function WatchScreen({
     readonly showVideoStats?: boolean;
   };
   readonly controlsVisible?: boolean;
-  readonly subscriptionStatus?: string | null;
+  readonly liveAlerts?: boolean;
+  readonly notificationsBusy?: boolean;
+  readonly notificationStatus?: string | null;
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
@@ -182,7 +184,7 @@ export function WatchScreen({
   readonly onOpenChannel?: () => void;
   readonly onOpenEngagement?: () => void;
   readonly onOpenRelated: (stream: Stream) => void;
-  readonly onSubscribe?: () => void;
+  readonly onToggleLiveAlerts?: () => void;
   readonly onRefresh?: () => void;
   readonly onRetry: () => void;
   readonly onSelectQuality?: (quality: string) => void;
@@ -379,10 +381,12 @@ export function WatchScreen({
           expanded={controlsVisible}
           followed={followed}
           followBusy={followBusy}
-          {...(subscriptionStatus === undefined ? {} : { subscriptionStatus })}
+          {...(notificationStatus === undefined ? {} : { notificationStatus })}
+          liveAlerts={liveAlerts}
+          notificationsBusy={notificationsBusy}
           {...(onFollow === undefined ? {} : { onFollow })}
           {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
-          {...(onSubscribe === undefined ? {} : { onSubscribe })}
+          {...(onToggleLiveAlerts === undefined ? {} : { onToggleLiveAlerts })}
         />
       )}
       {pipSurface || fullscreen ? null : (

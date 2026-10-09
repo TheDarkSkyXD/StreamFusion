@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Heart } from "lucide-react-native";
+import { Bell, BellOff, Heart } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MobileAvatar } from "@mobile/design/avatar";
@@ -30,10 +30,12 @@ export type WatchChannelCardProps = {
   readonly expanded: boolean;
   readonly followed: boolean;
   readonly followBusy: boolean;
-  readonly subscriptionStatus?: string | null;
+  readonly liveAlerts?: boolean;
+  readonly notificationsBusy?: boolean;
+  readonly notificationStatus?: string | null;
   readonly onFollow?: () => void;
   readonly onOpenChannel?: () => void;
-  readonly onSubscribe?: () => void;
+  readonly onToggleLiveAlerts?: () => void;
 };
 
 export function WatchChannelCard({
@@ -42,10 +44,12 @@ export function WatchChannelCard({
   expanded,
   followed,
   followBusy,
-  subscriptionStatus,
+  liveAlerts = true,
+  notificationsBusy = false,
+  notificationStatus,
   onFollow,
   onOpenChannel,
-  onSubscribe,
+  onToggleLiveAlerts,
 }: WatchChannelCardProps) {
   const { i18n, t } = useTranslation();
   const name =
@@ -241,31 +245,46 @@ export function WatchChannelCard({
             </Text>
           </Pressable>
         ) : null}
-        {onSubscribe ? (
+        {onToggleLiveAlerts ? (
           <Pressable
-            accessibilityLabel="Subscribe on Twitch"
+            accessibilityLabel={
+              liveAlerts ? "Turn off live alerts" : "Turn on live alerts"
+            }
             accessibilityRole="button"
+            accessibilityState={{
+              selected: liveAlerts,
+              busy: notificationsBusy,
+            }}
+            disabled={notificationsBusy}
             hitSlop={4}
-            onPress={onSubscribe}
+            onPress={onToggleLiveAlerts}
             style={({ pressed }) => [
               styles.action,
-              styles.subscribe,
+              styles.notifications,
               expanded ? styles.expandedAction : null,
               pressed ? styles.pressed : null,
+              notificationsBusy ? styles.busy : null,
             ]}
-            testID="watch-subscribe"
+            testID="watch-live-alerts"
           >
-            <Text style={styles.actionLabel}>Subscribe</Text>
+            {liveAlerts ? (
+              <Bell color={mobileColors.textPrimary} size={18} />
+            ) : (
+              <BellOff color={mobileColors.textSecondary} size={18} />
+            )}
+            <Text style={styles.actionLabel}>
+              {expanded ? "Notifications" : "Notify"}
+            </Text>
           </Pressable>
         ) : null}
       </View>
-      {subscriptionStatus ? (
+      {notificationStatus ? (
         <Text
           accessibilityRole="alert"
           style={styles.status}
-          testID="watch-subscribe-status"
+          testID="watch-live-alerts-status"
         >
-          {subscriptionStatus}
+          {notificationStatus}
         </Text>
       ) : null}
     </View>
@@ -344,7 +363,7 @@ const styles = StyleSheet.create({
   follow: { backgroundColor: mobileColors.twitch },
   kickFollow: { backgroundColor: mobileColors.kick },
   followed: { backgroundColor: mobileColors.surfaceMuted },
-  subscribe: { backgroundColor: mobileColors.surfaceRaised },
+  notifications: { backgroundColor: mobileColors.surfaceRaised },
   actionLabel: {
     color: mobileColors.textPrimary,
     fontSize: 14,
