@@ -1,0 +1,184 @@
+[
+  {
+    "identifier": "watch-player-stage",
+    "coordinates": {
+      "x": 0,
+      "y": 63,
+      "width": 1080,
+      "height": 608
+    }
+  },
+  {
+    "identifier": "player-chrome-toggle",
+    "coordinates": {
+      "x": 0,
+      "y": 63,
+      "width": 1080,
+      "height": 608
+    },
+    "label": "Hide player controls"
+  },
+  {
+    "identifier": "watch-player",
+    "coordinates": {
+      "x": 0,
+      "y": 63,
+      "width": 1080,
+      "height": 608
+    }
+  },
+  {
+    "identifier": "player-play-pause",
+    "coordinates": {
+      "x": 21,
+      "y": 524,
+      "width": 126,
+      "height": 126
+    },
+    "label": "Play"
+  },
+  {
+    "identifier": "player-fullscreen",
+    "coordinates": {
+      "x": 933,
+      "y": 524,
+      "width": 126,
+      "height": 126
+    },
+    "label": "Fullscreen"
+  },
+  {
+    "identifier": "watch-channel-chrome",
+    "coordinates": {
+      "x": 0,
+      "y": 671,
+      "width": 1080,
+      "height": 497
+    }
+  },
+  {
+    "identifier": "watch-channel-expanded",
+    "coordinates": {
+      "x": 32,
+      "y": 692,
+      "width": 1017,
+      "height": 318
+    }
+  },
+  {
+    "identifier": "watch-channel-avatar",
+    "coordinates": {
+      "x": 32,
+      "y": 703,
+      "width": 126,
+      "height": 126
+    },
+    "label": "FirstTourGuardsman"
+  },
+  {
+    "identifier": "watch-target",
+    "coordinates": {
+      "x": 179,
+      "y": 703,
+      "width": 443,
+      "height": 58
+    },
+    "text": "FirstTourGuardsman"
+  },
+  {
+    "identifier": "watch-stream-title",
+    "coordinates": {
+      "x": 179,
+      "y": 771,
+      "width": 870,
+      "height": 100
+    },
+    "text": "[DROPS ENABLED] BADGE=SHIELD Year 3 ALL Day With FTG and True Solo stuff !discord !merch"
+  },
+  {
+    "identifier": "watch-info-category",
+    "coordinates": {
+      "x": 179,
+      "y": 882,
+      "width": 870,
+      "height": 50
+    },
+    "text": "Warhammer 40,000: Space Marine II"
+  },
+  {
+    "identifier": "watch-info-tags",
+    "coordinates": {
+      "x": 179,
+      "y": 953,
+      "width": 870,
+      "height": 48
+    }
+  },
+  {
+    "identifier": "watch-card-actions",
+    "coordinates": {
+      "x": 32,
+      "y": 1021,
+      "width": 1017,
+      "height": 126
+    }
+  },
+  {
+    "identifier": "watch-follow",
+    "coordinates": {
+      "x": 32,
+      "y": 1032,
+      "width": 500,
+      "height": 105
+    },
+    "label": "Follow"
+  },
+  {
+    "identifier": "watch-subscribe",
+    "coordinates": {
+      "x": 554,
+      "y": 1032,
+      "width": 496,
+      "height": 105
+    },
+    "label": "Subscribe on Twitch"
+  },
+  {
+    "identifier": "watch-under-player",
+    "coordinates": {
+      "x": 0,
+      "y": 1168,
+      "width": 1080,
+      "height": 932
+    }
+  },
+  {
+    "identifier": "watch-chat",
+    "coordinates": {
+      "x": 42,
+      "y": 1189,
+      "width": 996,
+      "height": 911
+    }
+  },
+  {
+    "identifier": "chat-composer",
+    "coordinates": {
+      "x": 42,
+      "y": 1906,
+      "width": 996,
+      "height": 195
+    }
+  },
+  {
+    "identifier": "chat-draft",
+    "coordinates": {
+      "x": 178,
+      "y": 1954,
+      "width": 669,
+      "height": 126
+    },
+    "enabled": false,
+    "label": "Chat message"
+  }
+]

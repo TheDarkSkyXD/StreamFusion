@@ -220,6 +220,14 @@ function WatchSessionRoute({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState<{
+    readonly targetKey: string;
+    readonly message: string;
+  } | null>(null);
+  const subscriptionStatus =
+    subscriptionError?.targetKey === tabTargetKey
+      ? subscriptionError.message
+      : null;
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
@@ -332,6 +340,7 @@ function WatchSessionRoute({
       inspection={inspection.data ?? null}
       onChatRetry={() => screen.chat.retry()}
       controlsVisible={showControls}
+      subscriptionStatus={subscriptionStatus}
       toolSheet={{ active: toolSheet, onChange: selectToolSheet }}
       onCloseQualityMenu={() => setQualityMenuOpen(false)}
       {...(onBack === undefined ? {} : { onBack })}
@@ -352,9 +361,25 @@ function WatchSessionRoute({
       {...(onOpenChannel === undefined
         ? {}
         : { onOpenChannel: () => onOpenChannel(target) })}
-      onPlayerTap={() => {
-        setTab("info");
-      }}
+      {...(target.platform === "twitch" && screen.subscriptionPage
+        ? {
+            onSubscribe: () => {
+              setSubscriptionError(null);
+              void (async () => {
+                try {
+                  await screen.subscriptionPage?.open({
+                    channelLogin: target.channelName,
+                  });
+                } catch {
+                  setSubscriptionError({
+                    targetKey: tabTargetKey,
+                    message: "Could not open Twitch subscriptions. Try again.",
+                  });
+                }
+              })();
+            },
+          }
+        : {})}
       onOpenRelated={onOpenRelated}
       onPlayPause={() => {
         revealControls();

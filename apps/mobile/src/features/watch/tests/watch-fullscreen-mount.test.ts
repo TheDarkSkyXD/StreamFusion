@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement, useEffect } from "react";
+import { act, createElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,11 @@ import type {
   WatchPeek,
   WatchTarget,
 } from "../capabilities/watch";
+import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
+
+const textInputs = vi.hoisted(
+  () => new Map<string, { onChangeText?: (text: string) => void }>(),
+);
 
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
@@ -24,6 +29,19 @@ vi.mock("react-native", async () => {
     Pressable: host("button"),
     RefreshControl: host("div"),
     ScrollView: host("div"),
+    FlatList: host("div"),
+    TextInput: (props: {
+      testID?: string;
+      value?: string;
+      onChangeText?: (text: string) => void;
+    }) => {
+      if (props.testID) textInputs.set(props.testID, props);
+      return createElement("input", {
+        "data-testid": props.testID,
+        value: props.value,
+        readOnly: true,
+      });
+    },
     StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
     Text: host("span"),
     View: host("div"),
@@ -31,7 +49,10 @@ vi.mock("react-native", async () => {
 });
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
 }));
 
 vi.mock("lucide-react-native", () => ({
@@ -40,6 +61,7 @@ vi.mock("lucide-react-native", () => ({
   Download: "Download",
   Ellipsis: "Ellipsis",
   Heart: "Heart",
+  Smile: "Smile",
   Maximize: "Maximize",
   Minimize: "Minimize",
   Pause: "Pause",
@@ -53,13 +75,13 @@ vi.mock("lucide-react-native", () => ({
   VolumeX: "VolumeX",
 }));
 
-vi.mock("../components/watch-tabs", () => ({
-  WatchTabs: () => createElement("div", { "data-testid": "watch-tabs" }),
-}));
-
 vi.mock("../components/player-controls", () => ({
-  PlayerControls: () =>
-    createElement("div", { "data-testid": "player-controls" }),
+  PlayerControls: (props: { onToggleVisible: () => void; visible: boolean }) =>
+    createElement(
+      "button",
+      { "data-testid": "player-controls", onClick: props.onToggleVisible },
+      String(props.visible),
+    ),
 }));
 
 const target: WatchTarget = {
@@ -98,6 +120,119 @@ function peek(presentation: "watch" | "fullscreen"): WatchPeek {
 }
 
 describe("watch fullscreen player mount", () => {
+  it("keeps the chat draft, subscription, and player across card expansion and expiry", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.useFakeTimers();
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    let playerMounts = 0;
+    let playerUnmounts = 0;
+    let chatSubscribes = 0;
+    let chatDisconnects = 0;
+    const chatSnapshot = {
+      kind: "live" as const,
+      detail: "Live",
+      messages: [],
+    };
+    const chatSession: WatchChatSession = {
+      attach: () => undefined,
+      dispose: () => undefined,
+      retry: () => undefined,
+      snapshot: () => chatSnapshot,
+      subscribe: () => {
+        chatSubscribes += 1;
+        return () => {
+          chatDisconnects += 1;
+        };
+      },
+    };
+    function PlayerSurface() {
+      useEffect(() => {
+        playerMounts += 1;
+        return () => {
+          playerUnmounts += 1;
+        };
+      }, []);
+      return createElement("div", { "data-testid": "player-surface" });
+    }
+    function WatchHarness() {
+      const [visible, setVisible] = useState(true);
+      useEffect(() => {
+        if (!visible) return;
+        const timer = setTimeout(() => setVisible(false), 3_000);
+        return () => clearTimeout(timer);
+      }, [visible]);
+      return createElement(WatchScreen, {
+        PlayerSurface,
+        chat: chatSnapshot,
+        chatSession,
+        controlsVisible: visible,
+        inspection: null,
+        onMute: () => undefined,
+        onOpenRelated: () => undefined,
+        onPlayPause: () => undefined,
+        onQualityPress: () => undefined,
+        onRetry: () => undefined,
+        onSelectTab: () => undefined,
+        onToggleControls: () => setVisible((current) => !current),
+        onToggleFullscreen: () => undefined,
+        peek: peek("watch"),
+        playback,
+        tab: "chat",
+        target,
+        toolSheet: { active: null, onChange: () => undefined },
+      });
+    }
+    try {
+      await act(async () => root.render(createElement(WatchHarness)));
+      await act(async () => {
+        textInputs.get("chat-draft")?.onChangeText?.("still here");
+      });
+      const playerNode = host.querySelector('[data-testid="player-surface"]');
+      const chatNode = host.querySelector('[data-testid="watch-chat"]');
+      expect(
+        host.querySelector('[data-testid="chat-draft"]')?.getAttribute("value"),
+      ).toBe("still here");
+      expect(
+        host.querySelector('[data-testid="watch-channel-expanded"]'),
+      ).not.toBeNull();
+      await act(async () => vi.advanceTimersByTime(2_999));
+      expect(
+        host.querySelector('[data-testid="watch-channel-expanded"]'),
+      ).not.toBeNull();
+      await act(async () => vi.advanceTimersByTime(1));
+      expect(
+        host.querySelector('[data-testid="watch-channel-expanded"]'),
+      ).toBeNull();
+      expect(
+        host.querySelector('[data-testid="watch-channel-chrome"]'),
+      ).not.toBeNull();
+      expect(host.querySelector('[data-testid="watch-chat"]')).toBe(chatNode);
+      expect(host.querySelector('[data-testid="player-surface"]')).toBe(
+        playerNode,
+      );
+      await act(async () => {
+        host
+          .querySelector<HTMLButtonElement>('[data-testid="player-controls"]')
+          ?.click();
+      });
+      expect(
+        host.querySelector('[data-testid="watch-channel-expanded"]'),
+      ).not.toBeNull();
+      expect(
+        host.querySelector('[data-testid="chat-draft"]')?.getAttribute("value"),
+      ).toBe("still here");
+      expect(playerMounts).toBe(1);
+      expect(playerUnmounts).toBe(0);
+      expect(chatSubscribes).toBe(1);
+      expect(chatDisconnects).toBe(0);
+    } finally {
+      await act(async () => root.unmount());
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("keeps the same player surface mounted on fullscreen entry and exit", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const host = document.createElement("div");

@@ -1,0 +1,50 @@
+[
+  {
+    "identifier": "watch-player-stage",
+    "coordinates": {
+      "x": 0,
+      "y": 0,
+      "width": 2400,
+      "height": 1080
+    }
+  },
+  {
+    "identifier": "player-chrome-toggle",
+    "coordinates": {
+      "x": 0,
+      "y": 0,
+      "width": 2400,
+      "height": 1080
+    },
+    "label": "Hide player controls"
+  },
+  {
+    "identifier": "watch-player",
+    "coordinates": {
+      "x": 0,
+      "y": 0,
+      "width": 2400,
+      "height": 1080
+    }
+  },
+  {
+    "identifier": "player-play-pause",
+    "coordinates": {
+      "x": 21,
+      "y": 933,
+      "width": 126,
+      "height": 126
+    },
+    "label": "Play"
+  },
+  {
+    "identifier": "player-fullscreen",
+    "coordinates": {
+      "x": 2253,
+      "y": 933,
+      "width": 126,
+      "height": 126
+    },
+    "label": "Exit fullscreen"
+  }
+]

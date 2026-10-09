@@ -26,6 +26,7 @@ import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
+import { createExpoWatchSubscriptionPageOpener } from "../adapters/expo/expo-watch-subscription-page";
 import { createWatchRuntime } from "./watch-runtime";
 
 export function createGuestWatchScreen(input: {
@@ -57,17 +58,21 @@ export function createGuestWatchScreen(input: {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     ...(playlistProxy === undefined ? {} : { playlistProxy }),
     chat: input.chat ?? createWatchChatSession({ fetch: input.fetch }),
-    ...(input.chatInteractions === undefined ? {} : { chatInteractions: input.chatInteractions }),
+    ...(input.chatInteractions === undefined
+      ? {}
+      : { chatInteractions: input.chatInteractions }),
     history: input.history,
     PlayerSurface,
     nativePlayback: useNativeMedia3,
+    subscriptionPage: createExpoWatchSubscriptionPageOpener(),
     runtime: createWatchRuntime({
       ...(filtering === undefined ? {} : { filtering }),
       ...(playbackSettings === undefined
         ? {}
         : {
             playbackSettings: {
-              snapshot: () => playbackSessionPolicy(playbackSettings.snapshot()),
+              snapshot: () =>
+                playbackSessionPolicy(playbackSettings.snapshot()),
             },
           }),
       ...(playlistProxy === undefined ? {} : { playlistProxy }),

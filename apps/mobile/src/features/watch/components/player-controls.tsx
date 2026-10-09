@@ -52,7 +52,6 @@ export function PlayerControls({
   onSeekForward,
   onSeekTo,
   onSelectQuality,
-  onPlayerTap,
   onToggleVisible,
   paused,
   progress,
@@ -91,7 +90,6 @@ export function PlayerControls({
   readonly onSeekForward?: () => void;
   readonly onSeekTo?: (positionMs: number) => void;
   readonly onSelectQuality?: (quality: string) => void;
-  readonly onPlayerTap?: () => void;
   readonly onToggleVisible: () => void;
   readonly paused: boolean;
   readonly platform?: "kick" | "twitch";
@@ -124,10 +122,7 @@ export function PlayerControls({
             : t("playback.watch.showControls")
         }
         accessibilityRole="button"
-        onPress={() => {
-          onPlayerTap?.();
-          onToggleVisible();
-        }}
+        onPress={onToggleVisible}
         style={styles.tapCatcher}
         testID="player-chrome-toggle"
       />

@@ -1,0 +1,116 @@
+[
+  {
+    "identifier": "watch-player-stage",
+    "coordinates": {
+      "x": 0,
+      "y": 63,
+      "width": 1080,
+      "height": 608
+    }
+  },
+  {
+    "identifier": "player-chrome-toggle",
+    "coordinates": {
+      "x": 0,
+      "y": 63,
+      "width": 1080,
+      "height": 608
+    },
+    "label": "Show player controls"
+  },
+  {
+    "identifier": "watch-player",
+    "coordinates": {
+      "x": 0,
+      "y": 63,
+      "width": 1080,
+      "height": 608
+    }
+  },
+  {
+    "identifier": "watch-channel-chrome",
+    "coordinates": {
+      "x": 0,
+      "y": 671,
+      "width": 1080,
+      "height": 178
+    }
+  },
+  {
+    "identifier": "watch-card-actions",
+    "coordinates": {
+      "x": 32,
+      "y": 703,
+      "width": 1017,
+      "height": 126
+    }
+  },
+  {
+    "identifier": "watch-target",
+    "coordinates": {
+      "x": 32,
+      "y": 721,
+      "width": 468,
+      "height": 53
+    },
+    "text": "FirstTourGuardsman"
+  },
+  {
+    "identifier": "watch-follow",
+    "coordinates": {
+      "x": 521,
+      "y": 714,
+      "width": 256,
+      "height": 105
+    },
+    "label": "Follow"
+  },
+  {
+    "identifier": "watch-subscribe",
+    "coordinates": {
+      "x": 798,
+      "y": 714,
+      "width": 251,
+      "height": 105
+    },
+    "label": "Subscribe on Twitch"
+  },
+  {
+    "identifier": "watch-under-player",
+    "coordinates": {
+      "x": 0,
+      "y": 849,
+      "width": 1080,
+      "height": 1251
+    }
+  },
+  {
+    "identifier": "watch-chat",
+    "coordinates": {
+      "x": 42,
+      "y": 870,
+      "width": 996,
+      "height": 1230
+    }
+  },
+  {
+    "identifier": "chat-composer",
+    "coordinates": {
+      "x": 42,
+      "y": 1905,
+      "width": 996,
+      "height": 195
+    }
+  },
+  {
+    "identifier": "chat-draft",
+    "coordinates": {
+      "x": 178,
+      "y": 1953,
+      "width": 669,
+      "height": 126
+    },
+    "enabled": false,
+    "label": "Chat message"
+  }
+]

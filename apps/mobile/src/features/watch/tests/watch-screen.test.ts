@@ -8,6 +8,10 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { WatchEmptyState, WatchScreen } from "../components/watch-screen";
+import {
+  streamTagLabels,
+  WatchChannelCard,
+} from "../components/watch-channel-card";
 import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
 import type { WatchTarget } from "../capabilities/watch";
 
@@ -98,6 +102,7 @@ type ElementProps = Readonly<{
   accessibilityRole?: string;
   children?: unknown;
   disabled?: boolean;
+  hitSlop?: number;
   onPress?: () => void;
   style?: unknown;
   testID?: string;
@@ -126,6 +131,44 @@ const target: WatchTarget = {
 };
 
 describe("watch screen", () => {
+  it("shows all distinct stream tags with a readable language label", () => {
+    expect(
+      streamTagLabels("en", [
+        "English",
+        "DropsEnabled",
+        "Music",
+        "Gaming",
+        "Cozy",
+        "music",
+      ]),
+    ).toEqual(["English", "DropsEnabled", "Music", "Gaming", "Cozy"]);
+  });
+
+  it("keeps both actions available below the expanded details", () => {
+    const card = descendants(
+      WatchChannelCard({
+        info: null,
+        target,
+        expanded: true,
+        followed: false,
+        followBusy: false,
+        onFollow: () => undefined,
+        onSubscribe: () => undefined,
+      }),
+    );
+    const row = card.find((node) => node.props.testID === "watch-card-actions");
+    const actions = descendants(row).filter(
+      (node) =>
+        node.props.testID === "watch-follow" ||
+        node.props.testID === "watch-subscribe",
+    );
+    expect(actions).toHaveLength(2);
+    expect(
+      descendants(row).some(
+        (node) => node.props.testID === "watch-open-channel",
+      ),
+    ).toBe(false);
+  });
   beforeAll(async () => {
     const { bootstrapMobileI18n, i18n } = await import("@mobile/i18n");
     await bootstrapMobileI18n();
@@ -994,7 +1037,7 @@ describe("watch screen", () => {
     );
   });
 
-  it("opens stream info under the player from a player tap", () => {
+  it("toggles player controls while keeping chat under the card", () => {
     const tabs: string[] = [];
     const playback = {
       integration: "twitch-gql-usher" as const,
@@ -1016,13 +1059,12 @@ describe("watch screen", () => {
       onMute: () => undefined,
       onOpenRelated: () => undefined,
       onPlayPause: () => undefined,
-      onPlayerTap: () => {
-        tabs.push("info");
-      },
       onQualityPress: () => undefined,
       onRetry: () => undefined,
       onSelectTab: () => undefined,
-      onToggleControls: () => undefined,
+      onToggleControls: () => {
+        tabs.push("controls");
+      },
       onToggleFullscreen: () => undefined,
       peek: {
         adsDetected: false,
@@ -1048,7 +1090,11 @@ describe("watch screen", () => {
     nodes
       .find((node) => node.props.testID === "player-chrome-toggle")
       ?.props.onPress?.();
-    expect(tabs).toEqual(["info"]);
+    expect(tabs).toEqual(["controls"]);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-channel-expanded"),
+    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "watch-chat")).toBe(true);
     const infoNodes = descendants(
       WatchScreen({
         toolSheet: { active: null, onChange: () => undefined },
@@ -1429,7 +1475,7 @@ describe("watch screen", () => {
         return [style.width, style.borderColor];
       }),
     ).toEqual([
-      [36, "#9146ff"],
+      [48, "#9146ff"],
       [64, "#9146ff"],
     ]);
     expect(
@@ -1520,22 +1566,14 @@ describe("watch screen", () => {
       .map((node) => node.props.testID)
       .filter((id): id is string => typeof id === "string");
     expect(
-      nodes.some((node) => node.props.testID === "watch-meta-viewers"),
+      nodes.some((node) => node.props.testID === "watch-channel-expanded"),
     ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.testID === "watch-meta-live-dot"),
-    ).toBe(true);
-    const uptimeNode = nodes.find(
-      (node) => node.props.testID === "watch-meta-uptime",
+    expect(nodes.some((node) => node.props.testID === "watch-info-tags")).toBe(
+      true,
     );
-    expect(uptimeNode).toBeTruthy();
     expect(
-      /\d+:\d{2}:\d{2}/u.test(String(uptimeNode?.props.children ?? "")),
+      nodes.some((node) => node.props.testID === "watch-info-category"),
     ).toBe(true);
-    const metaTexts = nodes
-      .filter((node) => typeof node.props.children === "string")
-      .map((node) => String(node.props.children));
-    expect(metaTexts.some((text) => text.includes("50.4K"))).toBe(true);
     expect(ids.indexOf("watch-channel-chrome")).toBeGreaterThan(
       ids.indexOf("watch-player-stage"),
     );
