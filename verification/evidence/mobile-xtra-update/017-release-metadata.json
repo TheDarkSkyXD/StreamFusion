@@ -1,0 +1,37 @@
+{
+    "observedTargetSdk":  36,
+    "verifiedSignerSha256":  "e84285558899c9eef61d5c8cd28f5fdb59ff70240246e7a073cb622642ef3c57",
+    "release":  {
+                    "schemaVersion":  1,
+                    "releaseTag":  "android-v0.1.7",
+                    "versionName":  "0.1.7",
+                    "versionCode":  10,
+                    "assetName":  "StreamFusion-android-v0.1.7.apk",
+                    "sha256":  "e571dba4ae26984b3627a5bf797595ea10e11ae73b6bff6e9ac380045023da28",
+                    "byteLength":  227160926,
+                    "minSdk":  30,
+                    "mandatory":  false
+                },
+    "releaseIsDraft":  false,
+    "verifiedApplicationId":  "com.thedarkskyxd.streamfusion",
+    "buildInfo":  {
+                      "releaseTag":  "android-v0.1.7",
+                      "commitSha":  "65026f9b9c3dfaf8baedf1aa4faa1c79ecc5a9ee",
+                      "buildRunUrl":  "https://github.com/TheDarkSkyXD/StreamFusion/actions/runs/37874638385",
+                      "buildProfile":  "production",
+                      "builder":  "github-actions",
+                      "toolchain":  "gradlew app:assembleRelease on ubuntu-latest",
+                      "expoSdk":  "57",
+                      "applicationId":  "com.thedarkskyxd.streamfusion",
+                      "versionName":  "0.1.7",
+                      "versionCode":  10,
+                      "minSdk":  30,
+                      "prerelease":  false,
+                      "assetName":  "StreamFusion-android-v0.1.7.apk",
+                      "sha256":  "e571dba4ae26984b3627a5bf797595ea10e11ae73b6bff6e9ac380045023da28",
+                      "byteLength":  227160926
+                  },
+    "checksummedFiles":  4,
+    "observedMinSdk":  30,
+    "releaseIsPrerelease":  false
+}

@@ -1,0 +1,7 @@
+Official 0.1.6-alpha.3 code 9 -> published stable 0.1.7 code 10.
+Android 16 Google Play emulator. Detected with Allow prerelease updates off.
+versionCode=10 minSdk=30 targetSdk=36
+versionName=0.1.7
+I/PackageManager(  759): Update package com.thedarkskyxd.streamfusion code path from /data/app/~~7vzx-5PWD8zS6DnFQARG1Q==/com.thedarkskyxd.streamfusion-ew5lcybOqwRRPR5fJ9xKjA== to /data/app/vmdl1409778138.tmp; Retain data and using new
+I/PackageManager(  759): installation completed for package:com.thedarkskyxd.streamfusion. Final code path: /data/app/~~T6hzuUGCuT4XmWHVgxR7rQ==/com.thedarkskyxd.streamfusion-XcXRJVgCdLfgjx6YYu42eQ==
+Old app PID 5937 was replaced. New process PID 10050. No manual app close after Android Update.
