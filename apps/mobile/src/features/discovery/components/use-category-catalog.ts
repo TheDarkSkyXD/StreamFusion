@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useInfiniteQuery,
   useQuery,
@@ -124,6 +124,46 @@ export function useCategoryCatalog(input: {
     twitch: twitch.hasNextPage && !twitch.isFetching,
     kick: kick.hasNextPage && !kick.isFetching,
   };
+  const twitchPages = twitch.data?.pages;
+  const kickPages = kick.data?.pages;
+  const twitchOutcome = useMemo(
+    () =>
+      twitchPages === undefined
+        ? undefined
+        : collapseCategoryPages(twitchPages),
+    [twitchPages],
+  );
+  const kickOutcome = useMemo(
+    () =>
+      kickPages === undefined ? undefined : collapseCategoryPages(kickPages),
+    [kickPages],
+  );
+  const loading = enabled && (twitch.isPending || kick.isPending);
+  const view = useMemo(
+    () =>
+      composeCategoryCatalog({
+        language,
+        loading,
+        query: input.query,
+        ...(kickOutcome === undefined ? {} : { kick: kickOutcome }),
+        ...(twitchOutcome === undefined ? {} : { twitch: twitchOutcome }),
+        ...(remoteKick.data === undefined
+          ? {}
+          : { remoteKick: remoteKick.data }),
+        ...(remoteTwitch.data === undefined
+          ? {}
+          : { remoteTwitch: remoteTwitch.data }),
+      }),
+    [
+      language,
+      loading,
+      input.query,
+      kickOutcome,
+      twitchOutcome,
+      remoteKick.data,
+      remoteTwitch.data,
+    ],
+  );
   return {
     canLoadMore,
     loadMore(platform: "all" | Platform) {
@@ -144,20 +184,6 @@ export function useCategoryCatalog(input: {
       setLanguage(next);
       await input.preferences.writeLanguage(next);
     },
-    view: composeCategoryCatalog({
-      language,
-      loading: enabled && (twitch.isPending || kick.isPending),
-      query: input.query,
-      ...(kick.data === undefined
-        ? {}
-        : { kick: collapseCategoryPages(kick.data.pages) }),
-      ...(twitch.data === undefined
-        ? {}
-        : { twitch: collapseCategoryPages(twitch.data.pages) }),
-      ...(remoteKick.data === undefined ? {} : { remoteKick: remoteKick.data }),
-      ...(remoteTwitch.data === undefined
-        ? {}
-        : { remoteTwitch: remoteTwitch.data }),
-    }),
+    view,
   };
 }

@@ -1,4 +1,11 @@
-import { useCallback, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import {
+  useCallback,
+  useState,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+} from "react";
 import {
   FlatList,
   RefreshControl,
@@ -68,7 +75,9 @@ export function MobileRefreshableScroll({
 }
 
 /** Optional local refreshing latch for screens without a query `isFetching`. */
-export function useMobileRefresh(onRefresh: MobileRefreshHandler | undefined | null): {
+export function useMobileRefresh(
+  onRefresh: MobileRefreshHandler | undefined | null,
+): {
   readonly refreshing: boolean;
   readonly onRefresh: (() => void) | undefined;
 } {
@@ -125,13 +134,15 @@ export function mobileRefreshControlProps(input: {
 
 export function MobileRefreshableFlatList<ItemT>(
   props: FlatListProps<ItemT> & {
+    readonly listRef?: Ref<FlatList<ItemT>> | undefined;
     readonly onRefresh?: MobileRefreshHandler | undefined;
   },
 ): ReactNode {
-  const { onRefresh, refreshing = false, ...rest } = props;
+  const { listRef, onRefresh, refreshing = false, ...rest } = props;
   return (
     <FlatList
       {...rest}
+      ref={listRef}
       {...(onRefresh === undefined
         ? {}
         : {

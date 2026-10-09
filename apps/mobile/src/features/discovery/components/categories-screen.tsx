@@ -1,18 +1,28 @@
-import { useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   StyleSheet,
   Text,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
+  type FlatList,
+  type ListRenderItem,
 } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileLoadingSpinner, MobileSkeleton } from "@mobile/design/feedback";
-import { MobileRefreshableScroll } from "@mobile/design/refreshable";
+import {
+  MobileRefreshableFlatList,
+  MobileRefreshableScroll,
+} from "@mobile/design/refreshable";
 import { MobileSelect } from "@mobile/design/select";
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
@@ -119,8 +129,8 @@ export function CategoriesView({
   readonly onChangeTab?: (tab: "popular" | "followed") => void;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategory: (category: CategoryIdentity) => void;
-  readonly onLoadMore?: () => void;
-  readonly onRefresh?: () => void | Promise<void>;
+  readonly onLoadMore?: (() => void) | undefined;
+  readonly onRefresh?: (() => void | Promise<void>) | undefined;
   readonly onRetry?: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly proofMode?: DiscoveryFixtureMode;
@@ -132,28 +142,8 @@ export function CategoriesView({
   const { t } = useTranslation();
   const translate = (key: string, values?: Record<string, unknown>) =>
     values === undefined ? t(key) : t(key, values);
-  const categories = visibleCategories(view, platform);
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (tab !== "popular" || !canLoadMore) return;
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    if (
-      contentOffset.y + layoutMeasurement.height >=
-      contentSize.height - 240
-    ) {
-      onLoadMore?.();
-    }
-  };
-  return (
-    <MobileRefreshableScroll
-      contentContainerStyle={styles.content}
-      contentInsetAdjustmentBehavior="automatic"
-      onRefresh={onRefresh}
-      onScroll={handleScroll}
-      refreshing={refreshing}
-      scrollEventThrottle={250}
-      style={styles.scroll}
-      testID="categories-screen"
-    >
+  const header = (
+    <View style={styles.header}>
       <DiscoverySearchDock
         onChangeQuery={onChangeQuery}
         placeholder={t("discovery.filterCategoriesPlaceholder")}
@@ -212,6 +202,135 @@ export function CategoriesView({
               onSelect={onSelectProofMode}
             />
           ) : null}
+        </>
+      ) : null}
+    </View>
+  );
+  if (tab === "popular") {
+    return (
+      <PopularCategories
+        canLoadMore={canLoadMore}
+        header={header}
+        onLoadMore={onLoadMore}
+        onOpenAccounts={onOpenAccounts}
+        onOpenCategory={onOpenCategory}
+        onRefresh={onRefresh}
+        platform={platform}
+        refreshing={refreshing}
+        translate={translate}
+        view={view}
+      />
+    );
+  }
+  return (
+    <MobileRefreshableScroll
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+      style={styles.scroll}
+      testID="categories-screen"
+    >
+      {header}
+      {followingSession ? (
+        <FollowedCategories
+          catalog={view.categories}
+          onOpenCategory={onOpenCategory}
+          platform={platform}
+          query={view.query}
+          session={followingSession}
+        />
+      ) : null}
+    </MobileRefreshableScroll>
+  );
+}
+
+function categoryKey(category: CatalogCategory): string {
+  return `${category.platform}:${category.id}`;
+}
+
+function CategoryRowGap() {
+  return <View style={styles.rowGap} />;
+}
+
+function PopularCategories({
+  canLoadMore,
+  header,
+  onLoadMore,
+  onOpenAccounts,
+  onOpenCategory,
+  onRefresh,
+  platform,
+  refreshing,
+  translate,
+  view,
+}: {
+  readonly canLoadMore: boolean;
+  readonly header: ReactNode;
+  readonly onLoadMore?: (() => void) | undefined;
+  readonly onOpenAccounts: () => void;
+  readonly onOpenCategory: (category: CategoryIdentity) => void;
+  readonly onRefresh?: (() => void | Promise<void>) | undefined;
+  readonly platform: "all" | Platform;
+  readonly refreshing: boolean;
+  readonly translate: (key: string, values?: Record<string, unknown>) => string;
+  readonly view: ReturnType<typeof composeCategoryCatalog>;
+}) {
+  const listRef = useRef<FlatList<CatalogCategory>>(null);
+  const providerItems =
+    platform === "all" ? undefined : view.providers[platform].items;
+  const categories = useMemo(
+    () => visibleCategories(view.categories, providerItems, platform),
+    [view.categories, providerItems, platform],
+  );
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [platform, view.query]);
+  const renderCategory = useCallback<ListRenderItem<CatalogCategory>>(
+    ({ item }) => (
+      <CategoryCard
+        category={item}
+        onPress={() => onOpenCategory(identityFromCategory(item))}
+      />
+    ),
+    [onOpenCategory],
+  );
+  const loadNextPage = useCallback(() => {
+    if (canLoadMore) onLoadMore?.();
+  }, [canLoadMore, onLoadMore]);
+  return (
+    <MobileRefreshableFlatList<CatalogCategory>
+      columnWrapperStyle={styles.columns}
+      contentContainerStyle={styles.listContent}
+      contentInsetAdjustmentBehavior="automatic"
+      data={categories}
+      initialNumToRender={6}
+      ItemSeparatorComponent={CategoryRowGap}
+      keyExtractor={categoryKey}
+      listRef={listRef}
+      ListEmptyComponent={view.phase === "loading" ? <LoadingCards /> : null}
+      ListFooterComponent={
+        refreshing || (canLoadMore && onLoadMore) ? (
+          <View style={styles.footer}>
+            {refreshing ? (
+              <MobileLoadingSpinner label="Loading categories" />
+            ) : null}
+            {canLoadMore && onLoadMore ? (
+              <MobileButton
+                accessibilityLabel="Load more categories"
+                onPress={onLoadMore}
+                testID="categories-load-more"
+                variant="secondary"
+              >
+                Load more categories
+              </MobileButton>
+            ) : null}
+          </View>
+        ) : null
+      }
+      ListHeaderComponent={
+        <View style={styles.listHeader}>
+          {header}
           {view.phase !== "loading" ? (
             <>
               <HomeProviderBanner
@@ -236,56 +355,35 @@ export function CategoriesView({
               </Text>
             </>
           ) : null}
-          <View style={styles.grid}>
-            {categories.map((category) => (
-              <CategoryCard
-                category={category}
-                key={`${category.platform}:${category.id}`}
-                onPress={() => onOpenCategory(identityFromCategory(category))}
-              />
-            ))}
-          </View>
-          {view.phase === "loading" && categories.length === 0 ? (
-            <LoadingCards />
-          ) : null}
-          {refreshing ? (
-            <MobileLoadingSpinner label="Loading categories" />
-          ) : null}
-          {canLoadMore && onLoadMore ? (
-            <MobileButton
-              accessibilityLabel="Load more categories"
-              onPress={onLoadMore}
-              testID="categories-load-more"
-              variant="secondary"
-            >
-              Load more categories
-            </MobileButton>
-          ) : null}
-        </>
-      ) : followingSession ? (
-        <FollowedCategories
-          catalog={view.categories}
-          onOpenCategory={onOpenCategory}
-          platform={platform}
-          query={view.query}
-          session={followingSession}
-        />
-      ) : null}
-    </MobileRefreshableScroll>
+        </View>
+      }
+      maxToRenderPerBatch={6}
+      numColumns={2}
+      onEndReached={loadNextPage}
+      onEndReachedThreshold={0.5}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+      renderItem={renderCategory}
+      style={styles.scroll}
+      testID="categories-screen"
+      windowSize={5}
+    />
   );
 }
 
 function visibleCategories(
-  view: ReturnType<typeof composeCategoryCatalog>,
+  catalog: readonly CatalogCategory[],
+  providerItems:
+    | ReturnType<typeof composeCategoryCatalog>["providers"][Platform]["items"]
+    | undefined,
   platform: "all" | Platform,
 ): readonly CatalogCategory[] {
-  if (platform === "all") return view.categories;
-  return view.categories.flatMap((category) => {
+  if (platform === "all") return catalog;
+  const providerById = new Map(providerItems?.map((item) => [item.id, item]));
+  return catalog.flatMap((category) => {
     const id = category.platform === platform ? category.id : category.otherId;
     if (id === undefined) return [];
-    const providerCategory = view.providers[platform].items.find(
-      (item) => item.id === id,
-    );
+    const providerCategory = providerById.get(id);
     const base = providerCategory ?? {
       boxArtUrl: category.boxArtUrl,
       id,
@@ -438,6 +536,15 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
+  listContent: {
+    padding: mobileSpacing.medium,
+    paddingBottom: mobileSpacing.xLarge,
+  },
+  header: { gap: mobileSpacing.medium },
+  listHeader: { gap: mobileSpacing.medium, marginBottom: mobileSpacing.medium },
+  footer: { gap: mobileSpacing.medium, marginTop: mobileSpacing.medium },
+  columns: { justifyContent: "space-between" },
+  rowGap: { height: mobileSpacing.medium },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",

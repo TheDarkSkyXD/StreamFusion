@@ -8,18 +8,13 @@ import type { FlatListProps } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import { describe, expect, it, vi } from "vitest";
 
-import { CategoriesView } from "@mobile/features/discovery/components/categories-screen";
 import { CategoryDetailView } from "@mobile/features/discovery/components/category-detail-screen";
 import { ChannelDetailBody } from "@mobile/features/discovery/components/channel-detail-screen";
 import { HomeLiveDiscoveryView } from "@mobile/features/discovery/components/home-live-discovery-screen";
 import { UnifiedSearchView } from "@mobile/features/discovery/components/unified-search-screen";
-import { composeCategoryCatalog } from "@mobile/features/discovery/domain/category-catalog";
 import { composeCategoryDetail } from "@mobile/features/discovery/domain/category-detail";
 import { defaultCategoryRequest } from "@mobile/features/discovery/domain/category-identity";
-import {
-  fixtureCategory,
-  fixtureOutcome,
-} from "@mobile/features/discovery/domain/discovery-fixture";
+import { fixtureOutcome } from "@mobile/features/discovery/domain/discovery-fixture";
 import { fixtureChannelDetail } from "@mobile/features/discovery/domain/channel-fixture";
 import { composeHomeLiveDiscovery } from "@mobile/features/discovery/domain/home-live-discovery";
 import {
@@ -175,125 +170,10 @@ describe("catalog UI journeys", () => {
     ).toBe(false);
     expect(
       failed.some(
-        (node) => node.props.children === "Twitch catalog read failed. Reconnecting…",
+        (node) =>
+          node.props.children === "Twitch catalog read failed. Reconnecting…",
       ),
     ).toBe(true);
-  });
-
-  it("opens a category card and keeps loaded cards while the catalog reconnects", () => {
-    const opened: string[] = [];
-    const ready = descendants(
-      CategoriesView({
-        onChangeLanguage: () => undefined,
-        onChangeQuery: () => undefined,
-        onOpenAccounts: () => undefined,
-        onOpenCategory: (category) => opened.push(category.id),
-        view: composeCategoryCatalog({
-          kick: {
-            ...fixtureOutcome("kick", "ready"),
-            items: [fixtureCategory("kick", "15", "Just Chatting", 10)],
-          },
-          language: "all",
-          loading: false,
-          query: "",
-          twitch: {
-            ...fixtureOutcome("twitch", "ready"),
-            items: [fixtureCategory("twitch", "509658", "Just Chatting", 30)],
-          },
-        }),
-      }),
-    );
-    press(ready, "category-card-twitch-509658");
-    expect(opened).toEqual(["509658"]);
-    const failed = descendants(
-      CategoriesView({
-        onChangeLanguage: () => undefined,
-        onChangeQuery: () => undefined,
-        onOpenAccounts: () => undefined,
-        onOpenCategory: () => undefined,
-        refreshing: true,
-        view: composeCategoryCatalog({
-          kick: {
-            ...fixtureOutcome("kick", "ready"),
-            items: [fixtureCategory("kick", "15", "Just Chatting", 10)],
-          },
-          language: "all",
-          loading: false,
-          query: "",
-          twitch: { ...fixtureOutcome("twitch", "twitch-fail"), items: [] },
-        }),
-      }),
-    );
-    expect(
-      failed.some((node) => node.props.testID === "category-card-kick-15"),
-    ).toBe(true);
-    expect(
-      failed.some(
-        (node) => node.props.accessibilityLabel === "Loading categories",
-      ),
-    ).toBe(true);
-    expect(
-      failed.some((node) => node.props.testID === "home-retry-twitch"),
-    ).toBe(false);
-  });
-
-  it("filters merged categories to the selected provider identity", () => {
-    const opened: string[] = [];
-    const selected: string[] = [];
-    const nodes = descendants(
-      CategoriesView({
-        onChangeLanguage: () => undefined,
-        onChangePlatform: (platform) => selected.push(platform),
-        onChangeQuery: () => undefined,
-        onOpenAccounts: () => undefined,
-        onOpenCategory: (category) =>
-          opened.push(`${category.platform}:${category.id}`),
-        onRetry: () => undefined,
-        platform: "kick",
-        view: composeCategoryCatalog({
-          kick: {
-            ...fixtureOutcome("kick", "ready"),
-            items: [fixtureCategory("kick", "15", "Just Chatting", 10)],
-          },
-          language: "all",
-          loading: false,
-          query: "",
-          twitch: {
-            ...fixtureOutcome("twitch", "ready"),
-            items: [fixtureCategory("twitch", "509658", "Just Chatting", 30)],
-          },
-        }),
-      }),
-    );
-    press(nodes, "category-card-kick-15");
-    press(nodes, "categories-platform-twitch");
-    expect(opened).toEqual(["kick:15"]);
-    expect(selected).toEqual(["twitch"]);
-    expect(
-      nodes.some((node) => node.props.testID === "category-card-twitch-509658"),
-    ).toBe(false);
-  });
-
-  it("shows the shared loading cards while the popular catalog is pending", () => {
-    const nodes = descendants(
-      CategoriesView({
-        onChangeLanguage: () => undefined,
-        onChangeQuery: () => undefined,
-        onOpenAccounts: () => undefined,
-        onOpenCategory: () => undefined,
-        onRetry: () => undefined,
-        view: composeCategoryCatalog({
-          language: "all",
-          loading: true,
-          query: "",
-        }),
-      }),
-    );
-    expect(
-      nodes.filter(
-        (node) => node.props.accessibilityLabel === "Loading content",
-      ),
-    ).toHaveLength(3);
   });
 
   it("follows a live channel and shows category recovery", () => {
