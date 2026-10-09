@@ -82,6 +82,40 @@ class CaptionPlaybackLifecycleTest {
   }
 
   @Test
+  fun behindLiveWindowKeepsTheOwnedPlayerAndCaptionsActive() = withCaptions { owner ->
+    val events = mutableListOf<Map<String, Any>>()
+    FocusedPlaybackSessionOwner.attachEmitter { events.add(it) }
+    startPlayback("caption-player")
+    val player = playbackPlayer("caption-player")
+    startCaptions(owner)
+
+    playbackListener(player).onPlayerError(behindLiveWindowError())
+    assertEquals(Player.STATE_BUFFERING, player.playbackState)
+    shadowOf(Looper.getMainLooper()).idle()
+
+    assertFalse(player.isReleased)
+    assertTrue(player === playbackPlayer("caption-player"))
+    assertTrue(player.playWhenReady)
+    assertEquals("active", owner.proof()["state"])
+    assertEquals("Diagnostic caption fixture is running.", owner.proof()["cueText"])
+    assertEquals(emptyList<String>(), terminalEvents(events))
+  }
+
+  @Test
+  fun behindLiveWindowKeepsAnAlreadyPausedSessionPaused() = withCaptions { owner ->
+    startPlayback("caption-player")
+    val player = playbackPlayer("caption-player")
+    startCaptions(owner)
+    FocusedPlaybackSessionOwner.setPlaying("caption-player", false)
+
+    playbackListener(player).onPlayerError(behindLiveWindowError())
+
+    assertFalse(player.isReleased)
+    assertFalse(player.playWhenReady)
+    assertEquals("active", owner.proof()["state"])
+  }
+
+  @Test
   fun repeatedTerminalCallbacksDisposeAndPublishOnlyOnce() = withCaptions { owner ->
     val events = mutableListOf<Map<String, Any>>()
     FocusedPlaybackSessionOwner.attachEmitter { events.add(it) }
@@ -112,6 +146,7 @@ class CaptionPlaybackLifecycleTest {
 
     previousListener.onPlaybackStateChanged(Player.STATE_ENDED)
     previousListener.onPlayerError(playbackError())
+    previousListener.onPlayerError(behindLiveWindowError())
     shadowOf(Looper.getMainLooper()).idle()
 
     assertTrue(previousPlayer.isReleased)
@@ -168,6 +203,12 @@ class CaptionPlaybackLifecycleTest {
     .map { it["kind"] as String }
 
   private fun playbackError() = PlaybackException("Fixture failure", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
+
+  private fun behindLiveWindowError() = PlaybackException(
+    "Fixture live-window failure",
+    null,
+    PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW,
+  )
 
   private fun playbackPlayer(id: String): ExoPlayer {
     val field = FocusedPlaybackSessionOwner.javaClass.getDeclaredField("sessions").apply { isAccessible = true }
