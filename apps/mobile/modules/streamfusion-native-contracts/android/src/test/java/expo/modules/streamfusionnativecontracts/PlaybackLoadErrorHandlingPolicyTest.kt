@@ -42,7 +42,7 @@ class PlaybackLoadErrorHandlingPolicyTest {
   @Test
   fun tlsFailuresStopAtTheOrdinaryLimit() {
     val failure = HttpDataSource.HttpDataSourceException(
-      SSLHandshakeException("certificate rejected"),
+      IOException("connection failed", SSLHandshakeException("certificate rejected")),
       dataSpec,
       PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
       HttpDataSource.HttpDataSourceException.TYPE_OPEN,
@@ -67,6 +67,24 @@ class PlaybackLoadErrorHandlingPolicyTest {
       assertEquals("HTTP $status", 2_000L, policy.getRetryDelayMsFor(info(failure, 3)))
       assertEquals("HTTP $status", C.TIME_UNSET, policy.getRetryDelayMsFor(info(failure, 4)))
     }
+  }
+
+  @Test
+  fun httpFallbackSelectionRemainsAvailable() {
+    val failure = HttpDataSource.InvalidResponseCodeException(
+      403,
+      "Forbidden",
+      null,
+      emptyMap(),
+      dataSpec,
+      byteArrayOf(),
+    )
+    val options = LoadErrorHandlingPolicy.FallbackOptions(2, 0, 1, 0)
+
+    val fallback = policy.getFallbackSelectionFor(options, info(failure, 1))
+
+    assertEquals(LoadErrorHandlingPolicy.FALLBACK_TYPE_LOCATION, fallback?.type)
+    assertEquals(300_000L, fallback?.exclusionDurationMs)
   }
 
   @Test
