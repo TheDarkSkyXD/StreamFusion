@@ -123,7 +123,10 @@ object FocusedPlaybackSessionOwner {
       }
     val dataSourceFactory = filteringFactory ?: httpFactory
     val exo = ExoPlayer.Builder(context.applicationContext)
-      .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+      .setMediaSourceFactory(
+        DefaultMediaSourceFactory(dataSourceFactory)
+          .setLoadErrorHandlingPolicy(PlaybackLoadErrorHandlingPolicy()),
+      )
       .setRenderersFactory(captionRenderers(context.applicationContext, sessionId))
       .setLoadControl(PlaybackPreferenceConfig.loadControl(request))
       .setTrackSelector(

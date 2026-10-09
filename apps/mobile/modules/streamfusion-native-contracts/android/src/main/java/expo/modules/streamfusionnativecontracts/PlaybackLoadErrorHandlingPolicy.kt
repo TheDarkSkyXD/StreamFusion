@@ -1,0 +1,5 @@
+package expo.modules.streamfusionnativecontracts
+
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+
+internal class PlaybackLoadErrorHandlingPolicy : DefaultLoadErrorHandlingPolicy()
