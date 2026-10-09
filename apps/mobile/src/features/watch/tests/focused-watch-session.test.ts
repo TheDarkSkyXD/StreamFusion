@@ -118,6 +118,48 @@ function playbackPort(
 }
 
 describe("focused watch session", () => {
+  it("restores portrait after fullscreen leaves Watch and after native PiP returns", async () => {
+    const locks: string[] = [];
+    setWatchOrientationControllerForTests({
+      lockAsync: async (lock) => {
+        locks.push(lock);
+      },
+    });
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const session = createFocusedWatchSession({
+      playback: playbackPort({
+        subscribe: (listener) => {
+          emit = listener;
+          return () => {
+            emit = undefined;
+          };
+        },
+      }),
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.enterFullscreen();
+    session.conceal();
+    await vi.waitFor(() => expect(locks.at(-1)).toBe("portrait-up"));
+    session.reveal();
+    session.enterFullscreen();
+    emit?.({ kind: "picture-in-picture-entered", sessionId: "watch:1" });
+    emit?.({ kind: "picture-in-picture-exited", sessionId: "watch:1" });
+    await vi.waitFor(() => expect(locks.at(-1)).toBe("portrait-up"));
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { presentation: "watch" },
+    });
+    session.enterFullscreen();
+    await vi.waitFor(() => expect(locks.at(-1)).toBe("landscape"));
+    session.exitFullscreen();
+    await vi.waitFor(() => expect(locks.at(-1)).toBe("portrait-up"));
+    session.dispose();
+  });
+
   it("fails closed when a signed policy omits the integration", async () => {
     const policy: PlaybackCompatibilityPolicy = {
       read: async () => ({ kind: "disabled", reason: "not-allowed" }),
