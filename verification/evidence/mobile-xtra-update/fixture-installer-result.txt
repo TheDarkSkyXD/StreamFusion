@@ -1,0 +1,6 @@
+Seeded debug handoff fixture, not a published release or network download test.
+Android 16 Google Play emulator.
+    versionCode=11 minSdk=30 targetSdk=36     versionName=0.1.8
+retained-handoff-fixture
+{"schema":1,"revision":13,"operation":"cdb8710f-bbd2-4fb3-9e2c-619133d74e5c","release":{"tag":"android-v0.1.8","version":"0.1.8","apkBytes":395707589,"apkSha256":"8483ec24eeeaf80fa036eff74860c463a4109c789f9d0afc499f04415edd5faa","notes":"Isolated emulator handoff fixture","releaseUrl":"https:\/\/github.com\/TheDarkSkyXD\/StreamFusion\/releases\/tag\/android-v0.1.8"},"generation":3,"kind":"installed","bytes":395707589,"versionCode":11,"minSdk":30,"sessionId":-1,"installIntent":false,"stageAt":1791513899960}
+No manual app close was performed after tapping Android Update.

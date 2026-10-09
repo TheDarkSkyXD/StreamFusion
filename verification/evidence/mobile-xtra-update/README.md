@@ -14,4 +14,10 @@ Validation: 181 mobile test files passed, with 1,049 tests, plus Node tests and 
 
 Sources: [Xtra update flow](https://github.com/crackededed/Xtra/blob/a3cbb0325f3330573a6738f7d36a2c5b785f4d1c/app/src/main/java/com/github/andreyasadchy/xtra/ui/settings/SettingsActivity.kt), [Android installer status message](https://developer.android.com/reference/android/content/pm/PackageInstaller.html#EXTRA_STATUS_MESSAGE), and [Android page-size verification](https://developer.android.com/guide/practices/page-sizes).
 
-Screenshots and `015-playstore-installer-result.txt` capture the published baseline upgrade. `016-elf-alignment.json` records the shared-library check. Further screenshots record the rebuilt development app and the stable release upgrade.
+Screenshots and `015-playstore-installer-result.txt` capture the published baseline upgrade. `016-elf-alignment.json` records the shared-library check.
+
+`xtra-offer.png` and `xtra-download.png` show the production React Native components in Storybook at a 412 by 915 viewport. The approval story renders no StreamFusion dialog.
+
+The original Android 16 emulator now runs Development 0.1.7, version code 10. Its SecureStore file has the same SHA-256 before and after replacement. `development-017-installed.png` shows the installed version in Settings.
+
+The separate Android 16 Google Play emulator exercised a seeded debug handoff from Development 0.1.7 to a local 0.1.8 fixture, version code 11. This fixture is not a public release and does not test the network download. Android source permission led to its Update prompt with no StreamFusion approval dialog. Cancel produced status 3 and `INSTALL_FAILED_ABORTED: User rejected permissions`. Retry reused the verified APK and returned to Android approval. Tapping Update replaced the package without manually closing the app and retained a private marker. `fixture-installer-result.txt` records the installed journal and package version. The fixture screenshots show approval and cancellation recovery.

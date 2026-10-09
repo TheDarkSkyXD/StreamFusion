@@ -145,11 +145,11 @@ describe("mobile Updates panel", () => {
     const html = renderToStaticMarkup(createElement(UpdateDialogHost, {
       session: session({ status: "available", release }, true, {
         kind: "failed", operation: "op", release, code: "install-failed", retry: "install",
-        installerFailure: { status: -2, message: "INSTALL_FAILED_UPDATE_INCOMPATIBLE" },
+        installerFailure: { status: 5, message: "INSTALL_FAILED_UPDATE_INCOMPATIBLE" },
       }),
     }));
     expect(html).toContain("Android could not install the update.");
-    expect(html).toContain("INSTALL_FAILED_UPDATE_INCOMPATIBLE (Android status -2)");
+    expect(html).toContain("INSTALL_FAILED_UPDATE_INCOMPATIBLE (Android status 5)");
     expect(html.indexOf("Android could not install the update.")).toBeLessThan(html.indexOf("INSTALL_FAILED_UPDATE_INCOMPATIBLE"));
     expect(html).toContain('data-testid="update-action-retry"');
     expect(html).not.toContain('data-testid="update-action-download"');
