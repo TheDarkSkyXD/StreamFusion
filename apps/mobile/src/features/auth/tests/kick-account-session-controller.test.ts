@@ -46,7 +46,7 @@ describe("Kick account session controller", () => {
       secrets: secrets(),
       key: `kick-late-background-${Math.random()}`,
     });
-    const open = vi.fn(async (_url: string) => undefined);
+    const open = vi.fn(async (_url: string, _signal: { readonly aborted: boolean }) => undefined);
     const controller = createKickAccountSessionController({
       authorize: () => deferred.promise,
       callbacks: { subscribe: () => () => undefined },
@@ -150,7 +150,7 @@ describe("Kick account session controller", () => {
       secrets: secrets(),
       key: `kick-late-replacement-${Math.random()}`,
     });
-    const open = vi.fn(async (_url: string) => undefined);
+    const open = vi.fn(async (_url: string, _signal: { readonly aborted: boolean }) => undefined);
     let authorizationCount = 0;
     const controller = createKickAccountSessionController({
       authorize: () =>
@@ -177,7 +177,11 @@ describe("Kick account session controller", () => {
     });
     expect(open).toHaveBeenCalledExactlyOnceWith(
       "https://id.kick.com/oauth/authorize?state=newer",
+      expect.objectContaining({ aborted: false }),
     );
+    const launchSignal = open.mock.calls[0]?.[1];
+    await controller.cancel();
+    expect(launchSignal?.aborted).toBe(true);
   });
 
   it("accepts a cold-start callback after restoring the encrypted attempt", async () => {
@@ -381,7 +385,7 @@ describe("Kick account session controller", () => {
     expect(controller.getSnapshot()).toMatchObject({
       kind: "failed",
       failure: "connection",
-      message: "The Kick browser could not be opened. Retry the connection.",
+      message: "In-app Kick sign-in could not open. Enable or update a compatible browser, then retry.",
     });
     controller.setForeground(false);
   });

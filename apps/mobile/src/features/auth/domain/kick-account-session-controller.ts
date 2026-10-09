@@ -17,6 +17,7 @@ import type {
   KickFixtureCallbackKind,
   KickFixtureInjector,
 } from "@mobile/features/auth/capabilities/kick-session";
+import type { OpenAccountAuthorization } from "@mobile/features/auth/capabilities/account-authorization-browser";
 import {
   completeKickAuthorization,
   startKickAuthorization,
@@ -139,7 +140,7 @@ export function createKickAccountSessionController(options: {
   readonly fixture?: KickFixtureInjector;
   readonly gateway: KickAuthorizationGateway | null;
   readonly now?: () => number;
-  readonly open: (value: string) => Promise<void>;
+  readonly open: OpenAccountAuthorization;
   readonly repository: KickCredentialRepository;
 }): KickAccountSessionController {
   const now = options.now ?? Date.now;
@@ -415,12 +416,12 @@ export function createKickAccountSessionController(options: {
       );
       void handleCallback();
       try {
-        await options.open(authorization.authorizeUrl);
+        await options.open(authorization.authorizeUrl, owner.signal);
       } catch {
         if (current(owner))
           fail(
             "connection",
-            "The Kick browser could not be opened. Retry the connection.",
+            "In-app Kick sign-in could not open. Enable or update a compatible browser, then retry.",
             owner,
           );
       }

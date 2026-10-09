@@ -38,6 +38,7 @@ import { createKickAuthorizer } from "@mobile/features/auth/adapters/kick/kick-a
 import { createKickLinkingCallbackSource } from "@mobile/features/auth/adapters/kick/kick-callback-source";
 import { createKickPublicClientConfigurationResolver } from "@mobile/features/auth/adapters/kick/kick-client-config";
 import { createTwitchDeviceAuthApi } from "@mobile/features/auth/adapters/twitch/twitch-device-auth-api";
+import { openAccountAuthorization } from "@mobile/features/auth/adapters/account-authorization-browser";
 import { parseTwitchClientConfiguration } from "@mobile/features/auth/adapters/twitch/twitch-client-config";
 import { useKickAccountController } from "@mobile/features/auth/components/use-kick-account-controller";
 import { useTwitchAccountController } from "@mobile/features/auth/components/use-twitch-account-controller";
@@ -196,14 +197,14 @@ const productionTwitchController = createTwitchAccountSessionController({
   clientId: twitchClientId,
   copy: async (value) => void (await Clipboard.setStringAsync(value)),
   gateway: productionTwitchGateway,
-  open: async (value) => void (await Linking.openURL(value)),
+  open: openAccountAuthorization,
   repository: productionTwitchRepository,
 });
 const developmentTwitchController = createTwitchAccountSessionController({
   clientId: DEVELOPMENT_TWITCH_CLIENT_ID,
   copy: async (value) => void (await Clipboard.setStringAsync(value)),
   gateway: developmentTwitchGateway,
-  open: async (value) => void (await Linking.openURL(value)),
+  open: openAccountAuthorization,
   repository: developmentTwitchRepository,
 });
 
@@ -235,7 +236,7 @@ const productionKickController = createKickAccountSessionController({
   authorize: createKickAuthorizer(kickConfiguration),
   callbacks: kickCallbacks,
   gateway: productionKickGateway,
-  open: async (value) => void (await Linking.openURL(value)),
+  open: openAccountAuthorization,
   repository: productionKickRepository,
 });
 const developmentKickController = createKickAccountSessionController({

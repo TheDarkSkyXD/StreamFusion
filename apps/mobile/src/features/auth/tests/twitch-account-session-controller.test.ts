@@ -215,8 +215,9 @@ describe("Twitch account session controller", () => {
     const repo = createSecureTwitchCredentialRepository({
       secrets: secrets(), key: `browser-${Math.random()}`,
     });
-    const open = vi.fn(async (uri: string) => {
+    const open = vi.fn(async (uri: string, signal: { readonly aborted: boolean }) => {
       expect(uri).toBe("https://www.twitch.tv/activate");
+      expect(signal.aborted).toBe(false);
       const state = await repo.read();
       expect(state.kind).toBe("connecting");
       if (state.kind === "connecting") expect(state.attempt.userCode).toBe("LIVE-CODE");
@@ -237,7 +238,9 @@ describe("Twitch account session controller", () => {
     await controller.connect();
     await vi.waitFor(() => expect(open).toHaveBeenCalledOnce());
     expect(controller.getSnapshot()).toMatchObject({ kind: "pending", code: "LIVE-CODE" });
-    controller.setForeground(false);
+    const launchSignal = open.mock.calls[0]?.[1];
+    await controller.cancel();
+    expect(launchSignal?.aborted).toBe(true);
   });
 
   it("requests only the selected additional permissions from the mobile allowlist", async () => {

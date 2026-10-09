@@ -172,6 +172,9 @@ function TwitchState({
           {model.verificationUri}
         </Text>
         <Text style={styles.detail}>
+          Approve in Twitch, then close the page to finish connecting.
+        </Text>
+        <Text style={styles.detail}>
           Code valid until {new Date(model.expiresAtEpochMs).toLocaleString()}
         </Text>
         {model.feedback ? <Status text={model.feedback} /> : null}

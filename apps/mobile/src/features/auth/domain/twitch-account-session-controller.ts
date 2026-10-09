@@ -23,6 +23,7 @@ import {
   recoverInterruptedTwitchRefresh,
   refreshTwitchCredential,
 } from "./twitch-refresh-coordinator";
+import type { OpenAccountAuthorization } from "../capabilities/account-authorization-browser";
 
 export type TwitchAccountSessionSnapshot =
   | { readonly kind: "restoring" }
@@ -119,7 +120,7 @@ export function createTwitchAccountSessionController(options: {
   readonly copy: (value: string) => Promise<void>;
   readonly gateway: TwitchDeviceAuthorizationGateway | null;
   readonly now?: () => number;
-  readonly open: (value: string) => Promise<void>;
+  readonly open: OpenAccountAuthorization;
   readonly repository: TwitchCredentialRepository;
 }): TwitchAccountSessionController {
   const now = options.now ?? Date.now;
@@ -621,9 +622,9 @@ export function createTwitchAccountSessionController(options: {
         pollOwner,
       );
       schedulePoll(pollOwner, id, result.attempt.nextPollAtEpochMs);
-      void options.open(result.attempt.verificationUri).catch(() => {
+      void options.open(result.attempt.verificationUri, pollOwner.signal).catch(() => {
         if (current(pollOwner) && snapshot.kind === "pending")
-          emit({ ...snapshot, feedback: "The verification page could not be opened. Use Open verification to retry." }, pollOwner);
+          emit({ ...snapshot, feedback: "In-app verification could not open. Enable or update a compatible browser, then retry with Open verification." }, pollOwner);
       });
     } catch {
       fail(
@@ -703,7 +704,7 @@ export function createTwitchAccountSessionController(options: {
       const uri = snapshot.verificationUri;
       if (!owner) return;
       try {
-        await options.open(uri);
+        await options.open(uri, owner.signal);
       } catch {
         if (
           current(owner) &&
@@ -713,7 +714,7 @@ export function createTwitchAccountSessionController(options: {
           emit(
             {
               ...snapshot,
-              feedback: "The verification page could not be opened.",
+              feedback: "In-app verification could not open. Enable or update a compatible browser, then retry.",
             },
             owner,
           );

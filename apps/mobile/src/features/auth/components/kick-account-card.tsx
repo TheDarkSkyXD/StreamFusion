@@ -119,16 +119,16 @@ function KickState({
   if (model.kind === "launching")
     return (
       <>
-        <Status text="Opening Kick in the system browser…" />
+        <Status text="Opening Kick sign-in in the app…" />
         <Action id="cancel-kick-account-connect" label="Cancel" onPress={actions.cancel} />
       </>
     );
   if (model.kind === "pending")
     return (
       <>
-        <Status text="Waiting for Kick authorization in the system browser" />
+        <Status text="Waiting for Kick sign-in" />
         <Text style={styles.detail}>
-          Complete sign-in in the browser. This attempt expires{" "}
+          Complete sign-in in the browser, then choose Open StreamFusion to return. This attempt expires{" "}
           {new Date(model.expiresAtEpochMs).toLocaleString()}.
         </Text>
         <Action id="cancel-kick-account-connect" label="Cancel" onPress={actions.cancel} />
