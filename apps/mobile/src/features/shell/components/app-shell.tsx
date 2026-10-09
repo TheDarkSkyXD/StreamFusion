@@ -168,6 +168,7 @@ import { resolveHardwareBack } from "../domain/hardware-back";
 import { safeFrameBottomInset } from "../domain/keyboard-overlay-inset";
 import {
   applyCompactNavigationTextMeasurement,
+  shouldShowBottomNavigation,
   type CompactNavigationLayout,
 } from "../domain/shell-layout";
 import {
@@ -425,7 +426,7 @@ export function AppShell({
     workflow: mediaJobs,
   });
   const captionsController = useLocalCaptionsController({ port: captions });
-  const { fontScale, width } = useWindowDimensions();
+  const { fontScale, height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardInset();
   const keyboardInset = keyboard.inset;
@@ -649,7 +650,13 @@ export function AppShell({
             />
           </View>
         </View>
-        {placement === "bottom" && !playerOnlySurface && !keyboard.open ? (
+        {shouldShowBottomNavigation({
+          height,
+          width,
+          placement,
+          playerOnlySurface,
+          keyboardOpen: keyboard.open,
+        }) ? (
           <View style={{ flexShrink: 0 }}>
             {navigationView(bottomNavigationSafeInset(insets.bottom))}
           </View>

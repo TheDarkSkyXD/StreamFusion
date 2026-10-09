@@ -27,6 +27,7 @@ describe("player presentation", () => {
   it("keeps one session across fullscreen, PiP, and return", () => {
     const fullscreen = enterFullscreen(INITIAL_PLAYER_PRESENTATION);
     expect(fullscreen.presentation).toBe("fullscreen");
+    expect(revealInWatch(fullscreen)).toBe(fullscreen);
     const requesting = requestPictureInPicture(fullscreen);
     expect(requesting).toMatchObject({
       pip: "requesting",
@@ -53,9 +54,9 @@ describe("player presentation", () => {
     const mini = concealFromWatch(failed);
     const moved = relocateMiniPlayer(mini, "top-start");
     expect(moved.snapRegion).toBe("top-start");
-    expect(miniPlayerSnapStyle(moved.snapRegion, { bottom: 12, top: 24 })).toEqual(
-      { left: 8, top: 32 },
-    );
+    expect(
+      miniPlayerSnapStyle(moved.snapRegion, { bottom: 12, top: 24 }),
+    ).toEqual({ left: 8, top: 32 });
     expect(exitFullscreen(enterFullscreen(mini)).presentation).toBe("mini");
     expect(revealInWatch(moved).presentation).toBe("watch");
     const returned = returnFromPictureInPicture(
@@ -73,16 +74,20 @@ describe("player presentation", () => {
   it("names every PiP phase and fullscreen restoration copy", () => {
     expect(pictureInPictureStatusCopy("idle")).toBeNull();
     expect(pictureInPictureStatusCopy("requesting")).toContain("requesting");
-    expect(pictureInPictureStatusCopy("active")).toContain("no duplicate audio");
+    expect(pictureInPictureStatusCopy("active")).toContain(
+      "no duplicate audio",
+    );
     expect(pictureInPictureStatusCopy("unavailable")).toContain("unavailable");
     expect(pictureInPictureStatusCopy("failed")).toContain("failed");
     expect(pictureInPictureStatusCopy("returned")).toContain("Returned");
     expect(FULLSCREEN_LIFECYCLE_COPY).toContain("Hardware Back");
     expect(FULLSCREEN_LIFECYCLE_COPY).toContain("landscape left and right");
     expect(FULLSCREEN_LIFECYCLE_COPY).toContain("portrait");
-    expect(isPictureInPictureSurface(requestPictureInPicture(INITIAL_PLAYER_PRESENTATION))).toBe(
-      true,
-    );
+    expect(
+      isPictureInPictureSurface(
+        requestPictureInPicture(INITIAL_PLAYER_PRESENTATION),
+      ),
+    ).toBe(true);
     expect(isPictureInPictureSurface(INITIAL_PLAYER_PRESENTATION)).toBe(false);
   });
 });

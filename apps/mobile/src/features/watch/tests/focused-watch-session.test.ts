@@ -160,6 +160,144 @@ describe("focused watch session", () => {
     session.dispose();
   });
 
+  it("keeps fullscreen and its landscape lock when Watch is revealed again", async () => {
+    const locks: string[] = [];
+    setWatchOrientationControllerForTests({
+      lockAsync: async (lock) => {
+        locks.push(lock);
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback: playbackPort(),
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.enterFullscreen();
+    session.reveal();
+    await vi.waitFor(() => expect(locks).toEqual(["landscape"]));
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { presentation: "fullscreen" },
+    });
+    await session.dispose();
+  });
+
+  it("restores portrait when native PiP exits after fullscreen", async () => {
+    const locks: string[] = [];
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    setWatchOrientationControllerForTests({
+      lockAsync: async (lock) => {
+        locks.push(lock);
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback: playbackPort({
+        subscribe: (listener) => {
+          emit = listener;
+          return () => {
+            emit = undefined;
+          };
+        },
+      }),
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.enterFullscreen();
+    emit?.({ kind: "picture-in-picture-entered", sessionId: "watch:1" });
+    await vi.waitFor(() => expect(locks).toEqual(["landscape"]));
+    emit?.({ kind: "picture-in-picture-exited", sessionId: "watch:1" });
+    await vi.waitFor(() => expect(locks).toEqual(["landscape", "portrait-up"]));
+    expect(session.peek()).toMatchObject({
+      kind: "active",
+      presentation: { pip: "returned", presentation: "watch" },
+    });
+    await session.dispose();
+  });
+
+  it("restores portrait when active PiP playback ends", async () => {
+    const locks: string[] = [];
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    setWatchOrientationControllerForTests({
+      lockAsync: async (lock) => {
+        locks.push(lock);
+      },
+    });
+    const session = createFocusedWatchSession({
+      playback: playbackPort({
+        subscribe: (listener) => {
+          emit = listener;
+          return () => {
+            emit = undefined;
+          };
+        },
+      }),
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => "watch:1" },
+      sources: sources(),
+    });
+    await session.start(target);
+    session.enterFullscreen();
+    emit?.({ kind: "picture-in-picture-entered", sessionId: "watch:1" });
+    await vi.waitFor(() => expect(locks).toEqual(["landscape"]));
+    emit?.({ kind: "ended", sessionId: "watch:1" });
+    expect(session.snapshot(target).kind).toBe("ended");
+    expect(session.peek().kind).toBe("idle");
+    await vi.waitFor(() => expect(locks).toEqual(["landscape", "portrait-up"]));
+    await session.dispose();
+  });
+
+  it.each(["ended", "failed"] as const)(
+    "clears fullscreen presentation on native %s",
+    async (kind) => {
+      const locks: string[] = [];
+      let emit: ((event: NativePlaybackEvent) => void) | undefined;
+      setWatchOrientationControllerForTests({
+        lockAsync: async (lock) => {
+          locks.push(lock);
+        },
+      });
+      const session = createFocusedWatchSession({
+        playback: playbackPort({
+          subscribe: (listener) => {
+            emit = listener;
+            return () => {
+              emit = undefined;
+            };
+          },
+        }),
+        policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+        protection: protection(),
+        sessionIds: { create: () => "watch:1" },
+        sources: sources(),
+      });
+      await session.start(target);
+      session.enterFullscreen();
+      emit?.(
+        kind === "failed"
+          ? {
+              kind,
+              sessionId: "watch:1",
+              code: "PLAYBACK_NETWORK_FAILED",
+              detail: "network dropped",
+            }
+          : { kind, sessionId: "watch:1" },
+      );
+      await vi.waitFor(() =>
+        expect(locks).toEqual(["landscape", "portrait-up"]),
+      );
+      expect(session.peek().kind).toBe("idle");
+      expect(session.snapshot(target).kind).toBe(kind);
+      await session.dispose();
+    },
+  );
+
   it("fails closed when a signed policy omits the integration", async () => {
     const policy: PlaybackCompatibilityPolicy = {
       read: async () => ({ kind: "disabled", reason: "not-allowed" }),
@@ -512,6 +650,12 @@ describe("focused watch session", () => {
   });
 
   it("marks Picture-in-Picture unavailable without ending the session", async () => {
+    const locks: string[] = [];
+    setWatchOrientationControllerForTests({
+      lockAsync: async (lock) => {
+        locks.push(lock);
+      },
+    });
     const playback = playbackPort();
     const session = createFocusedWatchSession({
       playback,
@@ -521,6 +665,7 @@ describe("focused watch session", () => {
       sources: sources(),
     });
     await session.start(target);
+    session.enterFullscreen();
     await expect(session.requestPictureInPicture()).resolves.toMatchObject({
       kind: "unsupported",
     });
@@ -529,6 +674,7 @@ describe("focused watch session", () => {
       presentation: { pip: "idle", presentation: "mini" },
     });
     expect(playback.ended).toEqual([]);
+    await vi.waitFor(() => expect(locks).toEqual(["landscape", "portrait-up"]));
   });
 
   // Guards: tapping a still-pinned PiP window must not restore Watch chrome inside the system surface

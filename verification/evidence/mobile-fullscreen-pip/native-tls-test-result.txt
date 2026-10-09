@@ -1,0 +1,6 @@
+
+expo.modules.streamfusionnativecontracts.TwitchBackupHttpTest:...
+
+Time: 10.88
+
+OK (3 tests)

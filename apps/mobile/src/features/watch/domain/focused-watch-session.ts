@@ -113,6 +113,23 @@ export function createFocusedWatchSession(input: {
     refreshViewCache();
     listeners.forEach((listener) => listener());
   };
+  function applyPresentation(next: PlayerPresentationState): boolean {
+    if (next === presentation) return false;
+    const previous = presentation;
+    presentation = next;
+    if (
+      next.presentation === "fullscreen" &&
+      previous.presentation !== "fullscreen"
+    ) {
+      void allowFullscreenLandscapeOrientation();
+    } else if (
+      (previous.presentation === "fullscreen" && next.presentation !== "pip") ||
+      (previous.presentation === "pip" && next.presentation !== "pip")
+    ) {
+      void restorePortraitOrientation();
+    }
+    return true;
+  }
   const unsubscribeNative = input.playback.subscribe((event) => {
     applyNativeEvent(event);
   });
@@ -154,7 +171,11 @@ export function createFocusedWatchSession(input: {
       current.lease.release();
     }
     current = next.current;
-    presentation = next.presentation;
+    applyPresentation(
+      next.current.kind === "active"
+        ? next.presentation
+        : INITIAL_PLAYER_PRESENTATION,
+    );
     progress = next.progress;
     adsDetected = next.adsDetected;
     notify();
@@ -170,13 +191,9 @@ export function createFocusedWatchSession(input: {
     generation += 1;
     const endingSessionId = refreshingSessionId;
     refreshingSessionId = null;
-    const wasFullscreen = presentation.presentation === "fullscreen";
-    presentation = INITIAL_PLAYER_PRESENTATION;
+    applyPresentation(INITIAL_PLAYER_PRESENTATION);
     adsDetected = false;
     progress = IDLE_PROGRESS;
-    if (wasFullscreen) {
-      void restorePortraitOrientation();
-    }
     if (current?.kind === "active") {
       const sessionId = current.session.sessionId;
       if (sessionId !== endingSessionId) current.lease.release();
@@ -202,6 +219,7 @@ export function createFocusedWatchSession(input: {
     if (intent === "refresh" && !refreshing) return { kind: "cancelled" };
 
     const attempt = ++generation;
+    if (!refreshing) applyPresentation(INITIAL_PLAYER_PRESENTATION);
     const endingSessionId = refreshingSessionId;
     refreshingSessionId = refreshing ? previous.session.sessionId : null;
     current = refreshing
@@ -245,10 +263,7 @@ export function createFocusedWatchSession(input: {
     if (outcome.kind === "cancelled") return { kind: "cancelled" };
     if (outcome.kind === "failed") {
       refreshingSessionId = null;
-      if (refreshing && presentation.presentation === "fullscreen") {
-        presentation = INITIAL_PLAYER_PRESENTATION;
-        void restorePortraitOrientation();
-      }
+      applyPresentation(INITIAL_PLAYER_PRESENTATION);
       current = { failure: outcome.failure, kind: "failed", target };
       notify();
       return startResultFrom(outcome);
@@ -267,7 +282,7 @@ export function createFocusedWatchSession(input: {
     };
     refreshingSessionId = null;
     if (!refreshing) {
-      presentation = INITIAL_PLAYER_PRESENTATION;
+      applyPresentation(INITIAL_PLAYER_PRESENTATION);
       muted = false;
       volume = 1;
       quality = "auto";
@@ -286,11 +301,7 @@ export function createFocusedWatchSession(input: {
         )
           return null;
         if (current?.kind === "failed") {
-          if (presentation.presentation === "fullscreen") {
-            presentation = INITIAL_PLAYER_PRESENTATION;
-            void restorePortraitOrientation();
-            notify();
-          }
+          if (applyPresentation(INITIAL_PLAYER_PRESENTATION)) notify();
           return { failure: current.failure, kind: "failed" };
         }
         return { kind: "cancelled" };
@@ -347,10 +358,7 @@ export function createFocusedWatchSession(input: {
           recovery: ["retry", "open-provider"],
         };
         current.lease.release();
-        if (presentation.presentation === "fullscreen") {
-          presentation = INITIAL_PLAYER_PRESENTATION;
-          void restorePortraitOrientation();
-        }
+        applyPresentation(INITIAL_PLAYER_PRESENTATION);
         current = { failure, kind: "failed", target };
         notify();
         await abandon(sessionId);
@@ -437,41 +445,25 @@ export function createFocusedWatchSession(input: {
     },
     conceal() {
       const next = concealFromWatch(presentation);
-      if (next === presentation) return;
-      presentation = next;
+      if (!applyPresentation(next)) return;
       notify();
     },
     reveal() {
       const next = revealInWatch(presentation);
-      if (next === presentation) return;
-      presentation = next;
+      if (!applyPresentation(next)) return;
       notify();
     },
     relocateMiniPlayer(region: MiniPlayerSnapRegion) {
-      presentation = moveMini(presentation, region);
+      applyPresentation(moveMini(presentation, region));
       notify();
     },
     enterFullscreen() {
-      const previous = presentation;
-      presentation = toFullscreen(presentation);
+      applyPresentation(toFullscreen(presentation));
       notify();
-      if (
-        previous.presentation !== "fullscreen" &&
-        presentation.presentation === "fullscreen"
-      ) {
-        void allowFullscreenLandscapeOrientation();
-      }
     },
     exitFullscreen() {
-      const previous = presentation;
-      presentation = fromFullscreen(presentation);
+      applyPresentation(fromFullscreen(presentation));
       notify();
-      if (
-        previous.presentation === "fullscreen" &&
-        presentation.presentation !== "fullscreen"
-      ) {
-        void restorePortraitOrientation();
-      }
     },
     async setPlaying(playing) {
       if (current?.kind !== "active") return;
@@ -514,7 +506,7 @@ export function createFocusedWatchSession(input: {
     > {
       if (current?.kind !== "active") return { kind: "idle" };
       const sessionId = current.session.sessionId;
-      presentation = requestPictureInPicture(presentation);
+      applyPresentation(requestPictureInPicture(presentation));
       notify();
       await afterPaint();
       if (current?.kind !== "active" || current.session.sessionId !== sessionId)
@@ -524,7 +516,9 @@ export function createFocusedWatchSession(input: {
         return result;
       if (result.kind === "entered") {
         if (presentation.presentation === "pip") {
-          presentation = applyPictureInPictureResult(presentation, "active");
+          applyPresentation(
+            applyPictureInPictureResult(presentation, "active"),
+          );
           notify();
         }
         return result;
@@ -532,12 +526,12 @@ export function createFocusedWatchSession(input: {
       // Expo Go and hosts without system PiP: floating mini-player is the
       // working Picture-in-Picture action. Playback continues without ending.
       if (presentation.presentation !== "pip") return result;
-      presentation = {
+      applyPresentation({
         pip: "idle",
         presentation: "mini",
         previous: "watch",
         snapRegion: presentation.snapRegion,
-      };
+      });
       notify();
       return result;
     },
@@ -545,7 +539,7 @@ export function createFocusedWatchSession(input: {
       if (presentation.pip !== "active" && presentation.pip !== "requesting") {
         return;
       }
-      presentation = returnFromPictureInPicture(presentation);
+      applyPresentation(returnFromPictureInPicture(presentation));
       notify();
     },
     refresh(target) {
@@ -566,9 +560,7 @@ export function createFocusedWatchSession(input: {
       generation += 1;
       const endingSessionId = refreshingSessionId;
       refreshingSessionId = null;
-      if (presentation.presentation === "fullscreen") {
-        void restorePortraitOrientation();
-      }
+      applyPresentation(INITIAL_PLAYER_PRESENTATION);
       unsubscribeNative();
       unsubscribeProtection();
       listeners.clear();

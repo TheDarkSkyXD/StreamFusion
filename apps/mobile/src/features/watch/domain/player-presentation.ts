@@ -39,7 +39,8 @@ export function revealInWatch(
   if (state.pip === "active") {
     return { ...state, presentation: "pip", previous: "watch" };
   }
-  if (state.presentation === "watch") return state;
+  if (state.presentation === "watch" || state.presentation === "fullscreen")
+    return state;
   return {
     ...state,
     pip: state.pip === "returned" ? "idle" : state.pip,
@@ -90,10 +91,7 @@ export function requestPictureInPicture(
 
 export function applyPictureInPictureResult(
   state: PlayerPresentationState,
-  result: Extract<
-    PictureInPicturePhase,
-    "active" | "unavailable" | "failed"
-  >,
+  result: Extract<PictureInPicturePhase, "active" | "unavailable" | "failed">,
 ): PlayerPresentationState {
   if (result === "active") {
     return { ...state, pip: "active", presentation: "pip" };
@@ -133,8 +131,10 @@ const PIP_STATUS_COPY: Record<PictureInPicturePhase, string | null> = {
   active:
     "Picture-in-Picture is active. Watch, mini-player, and PiP share one session with no duplicate audio.",
   unavailable: "Picture-in-Picture is unavailable on this device.",
-  failed: "Picture-in-Picture failed. Playback continues in the previous presentation.",
-  returned: "Returned from Picture-in-Picture. The same Watch session is restored.",
+  failed:
+    "Picture-in-Picture failed. Playback continues in the previous presentation.",
+  returned:
+    "Returned from Picture-in-Picture. The same Watch session is restored.",
 };
 
 export const FULLSCREEN_LIFECYCLE_COPY =

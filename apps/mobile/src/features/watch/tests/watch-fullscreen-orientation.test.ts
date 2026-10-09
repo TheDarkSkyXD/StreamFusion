@@ -33,6 +33,30 @@ describe("watch fullscreen orientation", () => {
     expect(await restorePortraitOrientation()).toBe(false);
   });
 
+  it("finishes a delayed landscape lock before restoring portrait", async () => {
+    const locks: string[] = [];
+    let finishLandscape: (() => void) | undefined;
+    setWatchOrientationControllerForTests({
+      lockAsync: (lock) => {
+        locks.push(lock);
+        if (lock === "landscape") {
+          return new Promise<void>((resolve) => {
+            finishLandscape = resolve;
+          });
+        }
+        return Promise.resolve();
+      },
+    });
+    const landscape = allowFullscreenLandscapeOrientation();
+    const portrait = restorePortraitOrientation();
+    await vi.waitFor(() => expect(locks).toEqual(["landscape"]));
+    expect(locks).toEqual(["landscape"]);
+    finishLandscape?.();
+    await expect(landscape).resolves.toBe(true);
+    await expect(portrait).resolves.toBe(true);
+    expect(locks).toEqual(["landscape", "portrait-up"]);
+  });
+
   it("maps landscape and portrait-up through the Expo controller", async () => {
     const lockAsync = vi.fn(async () => undefined);
     const supportsOrientationLockAsync = vi.fn(async () => true);

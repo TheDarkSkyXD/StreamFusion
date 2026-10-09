@@ -3,9 +3,7 @@
  * Expo Go supports expo-screen-orientation; unsupported environments are left unchanged.
  */
 
-export type WatchOrientationLock =
-  | "landscape"
-  | "portrait-up";
+export type WatchOrientationLock = "landscape" | "portrait-up";
 
 export type WatchOrientationController = {
   readonly lockAsync: (lock: WatchOrientationLock) => Promise<void>;
@@ -21,11 +19,13 @@ type ExpoOrientationModule = {
 };
 
 let controller: WatchOrientationController = createExpoOrientationController();
+let previousLock: Promise<void> = Promise.resolve();
 
 export function setWatchOrientationControllerForTests(
   next: WatchOrientationController | null,
 ): void {
   controller = next ?? createExpoOrientationController();
+  previousLock = Promise.resolve();
 }
 
 export function getWatchOrientationController(): WatchOrientationController {
@@ -33,21 +33,24 @@ export function getWatchOrientationController(): WatchOrientationController {
 }
 
 export async function allowFullscreenLandscapeOrientation(): Promise<boolean> {
-  try {
-    await controller.lockAsync("landscape");
-    return true;
-  } catch {
-    return false;
-  }
+  return requestOrientationLock("landscape");
 }
 
 export async function restorePortraitOrientation(): Promise<boolean> {
-  try {
-    await controller.lockAsync("portrait-up");
-    return true;
-  } catch {
-    return false;
-  }
+  return requestOrientationLock("portrait-up");
+}
+
+function requestOrientationLock(lock: WatchOrientationLock): Promise<boolean> {
+  const activeController = controller;
+  const requested = previousLock.then(() => activeController.lockAsync(lock));
+  previousLock = requested.then(
+    () => undefined,
+    () => undefined,
+  );
+  return requested.then(
+    () => true,
+    () => false,
+  );
 }
 
 function createExpoOrientationController(): WatchOrientationController {
@@ -61,7 +64,9 @@ function createExpoOrientationController(): WatchOrientationController {
         lock === "landscape"
           ? screenOrientation.OrientationLock.LANDSCAPE
           : screenOrientation.OrientationLock.PORTRAIT_UP;
-      if (typeof screenOrientation.supportsOrientationLockAsync === "function") {
+      if (
+        typeof screenOrientation.supportsOrientationLockAsync === "function"
+      ) {
         const supported =
           await screenOrientation.supportsOrientationLockAsync(target);
         if (!supported) {
