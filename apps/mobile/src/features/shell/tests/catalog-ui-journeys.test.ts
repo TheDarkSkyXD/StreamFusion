@@ -137,7 +137,7 @@ const chatting = {
 
 // Guards: catalog journeys keep navigation, retry, and empty/error distinct from ready cards
 describe("catalog UI journeys", () => {
-  it("shows Watch-home featured carousel and automatic Twitch recovery", () => {
+  it("shows Watch live cards and automatic Twitch recovery", () => {
     const ready = descendants(
       HomeLiveDiscoveryView({
         onOpenAccounts: () => undefined,
@@ -154,7 +154,7 @@ describe("catalog UI journeys", () => {
     ).toBe(true);
     expect(
       ready.some((node) => node.props.testID === "home-featured-carousel"),
-    ).toBe(true);
+    ).toBe(false);
     expect(ready.some((node) => node.props.testID === "home-categories")).toBe(
       false,
     );

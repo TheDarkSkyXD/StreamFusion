@@ -12,7 +12,6 @@ export type SettingsEffectiveCopy = {
   readonly backgroundQuality: string;
   readonly buffer: string;
   readonly captions: string;
-  readonly carousel: string;
   readonly hevc: string;
   readonly language: string;
   readonly multiviewCap: string;

@@ -65,8 +65,18 @@ export function createDiscoveryRuntime(input: {
           cache.readTopStreams(platform, language),
         readDirect: (platform, extra) =>
           platform === "twitch"
-            ? twitch.getTopStreams(extra)
-            : kick.getTopStreams(extra),
+            ? twitch.getTopStreams({
+                ...extra,
+                ...(read.language === undefined
+                  ? {}
+                  : { language: read.language }),
+              })
+            : kick.getTopStreams({
+                ...extra,
+                ...(read.language === undefined
+                  ? {}
+                  : { language: read.language }),
+              }),
         readRelay: (platform, extra) =>
           relay.getTopStreams({ platform, ...signalOf(extra) }),
         sources,

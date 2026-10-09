@@ -16,6 +16,7 @@ export async function readKickPublicTopStreams(
   fetchImpl: typeof globalThis.fetch,
   signal?: AbortSignal,
   liveCatalog?: LiveStreamCatalog,
+  language?: string,
 ): Promise<PlatformReadOutcome<Stream>> {
   if (liveCatalog) {
     const catalog = await liveCatalog.read(
@@ -37,19 +38,27 @@ export async function readKickPublicTopStreams(
     if (catalog.kind === "ready") {
       return {
         cache: { kind: "miss" },
-        items: catalog.entries.map((entry) => entry.stream),
+        items: catalog.entries
+          .map((entry) => entry.stream)
+          .filter((stream) => !language || stream.language === language),
         path: { kind: "guest", platform: "kick" },
         platform: "kick",
         status: "complete",
       };
     }
   }
-  return kickPublicCollection({
+  const outcome = await kickPublicCollection({
     fetchImpl,
     map: mapKickPublicStreams,
     url: KICK_FEATURED_LIVESTREAMS,
     ...(signal === undefined ? {} : { signal }),
   });
+  return {
+    ...outcome,
+    items: outcome.items.filter(
+      (stream) => !language || stream.language === language,
+    ),
+  };
 }
 
 export async function readKickPublicCategories(

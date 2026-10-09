@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
@@ -15,16 +15,9 @@ import type {
 import { channelFromStream } from "../domain/channel-detail";
 
 import { HomeDiscoveryProofControls } from "./home-discovery-proof-controls";
-import {
-  featuredCarouselStreams,
-  HomeFeaturedCarouselView,
-  recommendedLiveStreams,
-} from "./home-featured-carousel";
 import { HomeProviderBanner } from "./home-provider-banner";
 import { HomeStreamCard } from "./home-stream-card";
 import { useHomeLiveDiscovery } from "./use-home-live-discovery";
-
-/** Match Electron HOME_CAROUSEL_INTERVAL_DEFAULT_MS (15s). */
 
 type HomeStreamRowProps = {
   readonly stream: Stream;
@@ -56,18 +49,18 @@ function HomeStreamSeparator() {
 }
 
 export function HomeLiveDiscoveryScreen({
-  carouselSeconds = 15,
   footer,
+  language,
   onOpenAccounts,
   onOpenChannel,
   onSelectStream,
   session,
   showTitle = true,
-  title = "Home",
+  title = "Watch",
   topShelf,
 }: {
-  readonly carouselSeconds?: number;
   readonly footer?: ReactNode;
+  readonly language?: string;
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onSelectStream?: (stream: Stream) => void;
@@ -76,36 +69,12 @@ export function HomeLiveDiscoveryScreen({
   readonly title?: string;
   readonly topShelf?: ReactNode;
 }) {
-  const live = useHomeLiveDiscovery({ session });
-  const featured = useMemo(
-    () => featuredCarouselStreams(live.view.streams),
-    [live.view.streams],
-  );
-  const featuredIdentity = useMemo(
-    () => featured.map((stream) => `${stream.platform}:${stream.id}`).join("|"),
-    [featured],
-  );
-  const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [carouselIdentity, setCarouselIdentity] = useState(featuredIdentity);
-  if (featuredIdentity !== carouselIdentity) {
-    setCarouselIdentity(featuredIdentity);
-    setFeaturedIndex(0);
-  }
-
-  useEffect(() => {
-    if (featured.length < 2) return;
-    const timer = setInterval(() => {
-      setFeaturedIndex((current) =>
-        current >= featured.length - 1 ? 0 : current + 1,
-      );
-    }, carouselSeconds * 1000);
-    return () => clearInterval(timer);
-  }, [featured.length, featuredIdentity, carouselSeconds]);
-
+  const live = useHomeLiveDiscovery({
+    session,
+    ...(language === undefined ? {} : { language }),
+  });
   return (
     <HomeLiveDiscoveryView
-      featuredIndex={featuredIndex}
-      onFeaturedIndexChange={setFeaturedIndex}
       onOpenAccounts={onOpenAccounts}
       onRefresh={live.refresh}
       refreshing={live.refreshing}
@@ -121,9 +90,7 @@ export function HomeLiveDiscoveryScreen({
 }
 
 export function HomeLiveDiscoveryView({
-  featuredIndex = 0,
   footer,
-  onFeaturedIndexChange,
   onOpenAccounts,
   onOpenChannel,
   onRefresh,
@@ -132,13 +99,11 @@ export function HomeLiveDiscoveryView({
   proofMode,
   refreshing = false,
   showTitle = true,
-  title = "Home",
+  title = "Watch",
   topShelf,
   view,
 }: {
-  readonly featuredIndex?: number;
   readonly footer?: ReactNode;
-  readonly onFeaturedIndexChange?: (index: number) => void;
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onRefresh?: () => void | Promise<void>;
@@ -151,16 +116,7 @@ export function HomeLiveDiscoveryView({
   readonly topShelf?: ReactNode;
   readonly view: HomeLiveDiscoveryModel;
 }) {
-  const featured = featuredCarouselStreams(view.streams);
-  const recommended = recommendedLiveStreams(view.streams);
-  const openStream = (stream: Stream) => {
-    if (onSelectStream) {
-      onSelectStream(stream);
-      return;
-    }
-    onOpenChannel?.(channelFromStream(stream));
-  };
-  const rows = featured.length > 0 ? recommended : view.streams;
+  const rows = view.streams;
   const phase = (
     <Text selectable style={mobileType.body} testID="home-phase">
       {phaseCopy(view)}
@@ -192,14 +148,6 @@ export function HomeLiveDiscoveryView({
         >
           {showTitle ? <MobileScreenHeader title={title} /> : null}
           {topShelf ?? null}
-          {featured.length > 0 ? (
-            <HomeFeaturedCarouselView
-              activeIndex={featuredIndex}
-              onSelectIndex={(index) => onFeaturedIndexChange?.(index)}
-              onWatch={openStream}
-              streams={featured}
-            />
-          ) : null}
           <Text selectable style={mobileType.title}>
             Live Channels
           </Text>

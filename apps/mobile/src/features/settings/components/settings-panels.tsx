@@ -1,9 +1,6 @@
 import { useTranslation } from "react-i18next";
 
 import {
-  CAROUSEL_INTERVAL_MAX_SEC,
-  CAROUSEL_INTERVAL_MIN_SEC,
-  CAROUSEL_INTERVAL_STEP_SEC,
   DENSITY_OPTIONS,
   SEEK_INTERVAL_OPTIONS,
   VIDEO_QUALITY_OPTIONS,
@@ -140,21 +137,6 @@ function PlaybackQualityRows({ onChange, view }: SettingsPanelProps) {
           }),
         )}
         testID="quality"
-      />
-      <SettingsSlider
-        detail="How long each home featured stream stays active before rotating."
-        formatValue={(seconds) => `${seconds}s`}
-        label="Featured carousel timing"
-        max={CAROUSEL_INTERVAL_MAX_SEC}
-        min={CAROUSEL_INTERVAL_MIN_SEC}
-        onValueChange={(carouselSeconds) => onChange({ carouselSeconds })}
-        step={CAROUSEL_INTERVAL_STEP_SEC}
-        testID="carousel"
-        value={prefs.carouselSeconds}
-      />
-      <SettingsCopy
-        testID="carousel-effective"
-        value={view.effective.carousel}
       />
       <PreferenceSwitch
         checked={prefs.captionsEnabled}

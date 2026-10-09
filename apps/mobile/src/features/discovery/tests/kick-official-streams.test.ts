@@ -88,6 +88,63 @@ describe("Kick official V2 livestreams", () => {
     expect(outcome.items).toEqual([expectedStream]);
   });
 
+  it("requests and keeps only the selected language for top streams", async () => {
+    const urls: string[] = [];
+    const reader = createKickOfficialReader({
+      fetch: async (url) => {
+        urls.push(String(url));
+        return Response.json({
+          data: [officialStream, { ...officialStream, id: "live-tl", language_code: "tl" }],
+        });
+      },
+      readAccessToken: async () => "user-token",
+    });
+    const outcome = await reader.getTopStreams({ language: "tl" });
+    expect(urls).toEqual([
+      "https://api.kick.com/public/v2/livestreams?limit=20&language_code=tl",
+    ]);
+    expect(outcome.items.map((stream) => stream.id)).toEqual(["live-tl"]);
+  });
+
+  it("filters the guest live directory by selected language", async () => {
+    const streams = mapKickOfficialStreams({
+      data: [
+        officialStream,
+        { ...officialStream, id: "live-tl", language_code: "tl" },
+      ],
+    });
+    const liveCatalog: LiveStreamCatalog = {
+      async read() {
+        return {
+          kind: "ready",
+          entries: streams.map((stream) => ({
+            stream,
+            channel: {
+              avatarUrl: stream.channelAvatar,
+              displayName: stream.channelDisplayName,
+              id: stream.channelId,
+              isLive: true,
+              isPartner: false,
+              isVerified: false,
+              platform: "kick",
+              username: stream.channelName,
+            },
+            playbackUrl: null,
+          })),
+        };
+      },
+    };
+    const reader = createKickOfficialReader({
+      fetch: async () => {
+        throw new Error("Guest directory should supply streams");
+      },
+      liveCatalog,
+      readAccessToken: async () => null,
+    });
+    const outcome = await reader.getTopStreams({ language: "tl" });
+    expect(outcome.items.map((stream) => stream.id)).toEqual(["live-tl"]);
+  });
+
   it("rejects records with no usable stream ID, channel slug, or broadcaster identity", () => {
     expect(
       mapKickOfficialStreams({

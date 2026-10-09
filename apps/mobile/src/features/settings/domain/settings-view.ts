@@ -76,7 +76,6 @@ export function composeEffectiveCopy(
       "Use Local captions in the player to install the English model and start captions.",
       "Use Local captions in the player to start captions.",
     ),
-    carousel: "Choose how long each featured stream appears on Home.",
     hevc: enabledCopy(
       preferences.allowHevc,
       "HEVC is preferred when the device decoder supports it.",
@@ -91,7 +90,7 @@ export function composeEffectiveCopy(
     restoreSession: enabledCopy(
       preferences.restoreSession,
       "Reopen your last screen. Playback starts when you select Start watching.",
-      "Open Home when starting StreamFusion.",
+      "Open Watch when starting StreamFusion.",
     ),
     resumePlayback: "Playback starts when you select Start watching.",
     tokenPlayer: "Native ExoPlayer is the only eligible player.",

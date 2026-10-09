@@ -18,8 +18,6 @@ import {
   readKickPublicTopStreams,
 } from "./kick-public-reads";
 
-const KICK_LIVESTREAMS = "https://api.kick.com/public/v2/livestreams?limit=20";
-
 export function createKickOfficialReader(input: {
   readonly fetch: typeof globalThis.fetch;
   readonly readAccessToken: () => Promise<string | null>;
@@ -122,6 +120,7 @@ export function createKickOfficialReader(input: {
     },
     async getTopStreams(
       read: {
+        readonly language?: string;
         readonly signal?: AbortSignal;
       } = {},
     ): Promise<PlatformReadOutcome<Stream>> {
@@ -129,11 +128,18 @@ export function createKickOfficialReader(input: {
       const accessToken = await input.readAccessToken();
       if (read.signal?.aborted) return cancelled("kick");
       if (accessToken === null) {
-        return readKickPublicTopStreams(input.fetch, read.signal, liveCatalog);
+        return readKickPublicTopStreams(
+          input.fetch,
+          read.signal,
+          liveCatalog,
+          read.language,
+        );
       }
       try {
+        const params = new URLSearchParams({ limit: "20" });
+        if (read.language) params.set("language_code", read.language);
         const response = await input.fetch(
-          KICK_LIVESTREAMS,
+          `https://api.kick.com/public/v2/livestreams?${params}`,
           requestInit({ Authorization: `Bearer ${accessToken}` }, read.signal),
         );
         if (!response.ok) {
@@ -143,7 +149,9 @@ export function createKickOfficialReader(input: {
         if (read.signal?.aborted) return cancelled("kick");
         return {
           cache: { kind: "miss" },
-          items: mapKickOfficialStreams(payload),
+          items: mapKickOfficialStreams(payload).filter(
+            (stream) => !read.language || stream.language === read.language,
+          ),
           path: { kind: "direct", platform: "kick" },
           platform: "kick",
           status: "complete",

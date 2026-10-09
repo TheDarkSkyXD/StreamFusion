@@ -16,7 +16,7 @@ import { requestInit } from "../../utils/optional";
 
 const GQL = "https://gql.twitch.tv/gql";
 const CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
-const STREAM_FIELDS = `id title viewersCount createdAt previewImageURL(width: 440, height: 248) freeformTags { name } broadcaster { id login displayName profileImageURL(width: 70) roles { isPartner isAffiliate } } game { id name slug }`;
+const STREAM_FIELDS = `id title viewersCount createdAt previewImageURL(width: 440, height: 248) freeformTags { name } broadcaster { id login displayName profileImageURL(width: 70) broadcastSettings { language } roles { isPartner isAffiliate } } game { id name slug }`;
 
 export function createTwitchGqlGuestReader(input: {
   readonly fetch: typeof globalThis.fetch;
@@ -24,19 +24,42 @@ export function createTwitchGqlGuestReader(input: {
   return {
     async getTopStreams(
       read: {
+        readonly language?: string;
         readonly signal?: AbortSignal;
       } = {},
     ): Promise<PlatformReadOutcome<Stream>> {
-      return gqlCollection({
-        fetchImpl: input.fetch,
-        map: streamsFromPayload,
-        query:
-          "query GetTopStreams($limit: Int!) { streams(first: $limit) { edges { node { " +
-          STREAM_FIELDS +
-          " } } } }",
-        variables: { limit: 20 },
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+      const language = read.language?.trim().toLowerCase();
+      const items: Stream[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < (language ? 3 : 1); page += 1) {
+        const outcome = await gqlCollection({
+          fetchImpl: input.fetch,
+          map: streamsFromPayload,
+          nextCursor: topStreamsNextCursor,
+          query:
+            "query GetTopStreams($limit: Int!, $cursor: Cursor) { streams(first: $limit, after: $cursor) { edges { cursor node { " +
+            STREAM_FIELDS +
+            " } } pageInfo { hasNextPage } } }",
+          variables: { limit: 30, cursor: cursor ?? null },
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        });
+        if (outcome.status === "failed") return outcome;
+        items.push(
+          ...outcome.items.filter(
+            (stream) => !language || stream.language === language,
+          ),
+        );
+        cursor = outcome.cursor;
+        if (!cursor || items.length >= 10) break;
+      }
+      return {
+        cache: { kind: "miss" },
+        items,
+        path: { kind: "guest", platform: "twitch" },
+        platform: "twitch",
+        status: "complete",
+        ...(cursor === undefined ? {} : { cursor }),
+      };
     },
     async getCategories(
       read: {
@@ -167,6 +190,7 @@ export function createTwitchGqlGuestReader(input: {
 async function gqlCollection<T>(input: {
   readonly fetchImpl: typeof globalThis.fetch;
   readonly map: (value: unknown) => readonly T[];
+  readonly nextCursor?: (value: unknown) => string | undefined;
   readonly query: string;
   readonly signal?: AbortSignal;
   readonly variables: Record<string, unknown>;
@@ -188,13 +212,24 @@ async function gqlCollection<T>(input: {
       status: "failed",
     };
   }
+  const cursor = input.nextCursor?.(payload.value);
   return {
     cache: { kind: "miss" },
     items: input.map(payload.value),
     path: { kind: "guest", platform: "twitch" },
     platform: "twitch",
     status: "complete",
+    ...(cursor === undefined ? {} : { cursor }),
   };
+}
+
+function topStreamsNextCursor(value: unknown): string | undefined {
+  const connection = asRecord(dataRecord(value)?.streams);
+  if (asRecord(connection?.pageInfo)?.hasNextPage !== true) return undefined;
+  const edges = Array.isArray(connection?.edges) ? connection.edges : [];
+  const last = asRecord(edges.at(-1));
+  const cursor = last === null ? "" : stringField(last, "cursor");
+  return cursor || undefined;
 }
 
 async function gqlJson(input: {
@@ -293,7 +328,10 @@ function streamFromNode(
     channelName: login,
     id,
     isLive: true,
-    language: "",
+    language: stringField(
+      asRecord(broadcaster?.broadcastSettings) ?? {},
+      "language",
+    ).toLowerCase(),
     platform: "twitch",
     startedAt: canonicalTimestamp(stringField(node, "createdAt")) ?? null,
     tags: gqlTags(node),

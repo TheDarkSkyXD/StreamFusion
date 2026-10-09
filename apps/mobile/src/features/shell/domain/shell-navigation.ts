@@ -116,7 +116,7 @@ export type ShellRestorationResult =
 export const SHELL_DESTINATIONS = [
   { id: "search", label: "Search", rootRoute: "search" },
   { id: "following", label: "Following", rootRoute: "following" },
-  { id: "watch", label: "Home", rootRoute: "watch" },
+  { id: "watch", label: "Watch", rootRoute: "watch" },
   { id: "activity", label: "Activity", rootRoute: "activity" },
   { id: "more", label: "More", rootRoute: "more" },
 ] as const satisfies readonly ShellDestination[];
@@ -180,7 +180,7 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "NOW PLAYING",
     "watch-root",
     "Live streams, videos, clips, and chat share one focused workspace.",
-    "Home",
+    "Watch",
     "watch",
   ),
   "watch/session-preview": route(

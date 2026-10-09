@@ -13,6 +13,7 @@ import type { DisplayMediaJobIntent } from "@mobile/features/media-jobs/capabili
 import { useWatchHistoryCapture } from "@mobile/features/media-library/components/use-watch-history-capture";
 import type { AdBlockView } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { ProductPreferences } from "@streamfusion/core/settings";
+import { getDisplayLanguage } from "@streamfusion/core/display-language";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import type {
   FocusedWatchSession,
@@ -147,7 +148,10 @@ export function WatchRoute({
                 session: discovery.session,
                 ...(playerPrefs === undefined
                   ? {}
-                  : { carouselSeconds: playerPrefs.carouselSeconds }),
+                  : {
+                      language: getDisplayLanguage(playerPrefs.language)
+                        .streamLanguage,
+                    }),
               },
             })}
         {...(onOpenSearch === undefined ? {} : { onOpenSearch })}

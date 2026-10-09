@@ -8,6 +8,7 @@ import { fixtureStream } from "../domain/discovery-fixture";
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
   children?: unknown;
+  label?: string;
   numberOfLines?: number;
   onPress?: () => void;
   source?: unknown;
@@ -28,6 +29,18 @@ function descendants(node: unknown): readonly ReactElement<ElementProps>[] {
 }
 
 describe("live stream card content", () => {
+  it("shows the broadcast language once when a freeform tag repeats its label", () => {
+    const stream = {
+      ...fixtureStream("twitch", "english", 10),
+      tags: ["English", "IRL"],
+    };
+    const nodes = descendants(LiveStreamCardContent({ stream }));
+    expect(nodes.filter((node) => node.props.label === "English")).toHaveLength(
+      1,
+    );
+    expect(nodes.some((node) => node.props.label === "IRL")).toBe(true);
+  });
+
   it("shows a compact count, readable language, maturity, and a two-line title", () => {
     const stream = {
       ...fixtureStream("twitch", "large", 10_400),

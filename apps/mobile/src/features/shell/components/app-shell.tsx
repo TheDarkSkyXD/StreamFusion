@@ -2196,7 +2196,7 @@ function PrimaryNavigation({
 }) {
   const { t } = useTranslation();
   const destinationLabel = (id: (typeof SHELL_DESTINATIONS)[number]["id"]) =>
-    t(`navigation.${id === "watch" ? "home" : id}`);
+    t(`navigation.${id}`);
   const measurementActive = useRef(true);
   const [layout, setLayout] = useState<CompactNavigationLayout>("row");
 

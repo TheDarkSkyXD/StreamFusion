@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FlatListProps } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
+import { getDisplayLanguage } from "@streamfusion/core/display-language";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -205,6 +206,7 @@ async function mountDiscovery(streamsPerProvider = 4) {
 
 async function mountLiveReads(
   readTopStreams: DiscoverySession["readTopStreams"],
+  language?: string,
 ) {
   const unavailable = async (): Promise<never> => {
     throw new Error("Unexpected discovery read");
@@ -236,6 +238,7 @@ async function mountLiveReads(
           onOpenAccounts() {},
           session,
           title: "Watch",
+          ...(language === undefined ? {} : { language }),
         }),
       ),
     );
@@ -246,6 +249,7 @@ async function mountLiveReads(
   });
   return {
     container,
+    queryClient,
     dispose() {
       act(() => root.unmount());
       queryClient.clear();
@@ -254,6 +258,35 @@ async function mountLiveReads(
 }
 
 describe("Watch discovery recommendation rendering", () => {
+  it("uses the Settings display language for provider reads and cache keys", async () => {
+    for (const displayLanguage of ["fil", "zh-TW"] as const) {
+      const language = getDisplayLanguage(displayLanguage).streamLanguage;
+      const reads: { platform: Platform; language?: string }[] = [];
+      const screen = await mountLiveReads(
+        async (read) => {
+          reads.push(read);
+          return fixtureOutcome(read.platform, "ready");
+        },
+        language,
+      );
+      try {
+        expect(language).toBe(displayLanguage === "fil" ? "tl" : "zh");
+        expect(reads).toEqual([
+          { platform: "twitch", language, signal: expect.any(AbortSignal) },
+          { platform: "kick", language, signal: expect.any(AbortSignal) },
+        ]);
+        expect(
+          screen.queryClient.getQueryData(topStreamsQueryKey("twitch", language)),
+        ).toBeDefined();
+        expect(
+          screen.queryClient.getQueryData(topStreamsQueryKey("kick", language)),
+        ).toBeDefined();
+      } finally {
+        screen.dispose();
+      }
+    }
+  });
+
   it("shows loading without failure banners before reads settle, then shows the ready peer", async () => {
     let resolveTwitch: (value: PlatformReadOutcome<Stream>) => void = () =>
       undefined;
@@ -284,9 +317,8 @@ describe("Watch discovery recommendation rendering", () => {
       await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(
         screen.container
-          .querySelector('[data-testid="home-featured-stage"]')
-          ?.getAttribute("aria-label"),
-      ).toBe("Watch Twitch Live");
+          .querySelector('[data-testid="home-stream-twitch-twitch-ready"]'),
+      ).not.toBeNull();
       expect(
         screen.container.querySelector('[data-testid="home-banner-kick"]'),
       ).toBeNull();
@@ -319,9 +351,8 @@ describe("Watch discovery recommendation rendering", () => {
       expect(calls).toEqual({ twitch: 2, kick: 1 });
       expect(
         screen.container
-          .querySelector('[data-testid="home-featured-stage"]')
-          ?.getAttribute("aria-label"),
-      ).toBe("Watch Twitch Live");
+          .querySelector('[data-testid="home-stream-twitch-twitch-ready"]'),
+      ).not.toBeNull();
       expect(
         screen.container.querySelector('[data-testid="home-banner-twitch"]'),
       ).toBeNull();
@@ -399,9 +430,8 @@ describe("Watch discovery recommendation rendering", () => {
       expect(twitchReads).toBe(2);
       expect(
         screen.container
-          .querySelector('[data-testid="home-featured-stage"]')
-          ?.getAttribute("aria-label"),
-      ).toBe("Watch Twitch Live");
+          .querySelector('[data-testid="home-stream-twitch-twitch-ready"]'),
+      ).not.toBeNull();
     } finally {
       screen.dispose();
     }
@@ -410,62 +440,20 @@ describe("Watch discovery recommendation rendering", () => {
     listWindow.limit = 3;
     const screen = await mountDiscovery(50);
     try {
-      expect(listWindow.dataCount).toBe(99);
+      expect(listWindow.dataCount).toBe(100);
       expect(renderedCards).toEqual(
         new Map([
+          ["twitch:t0", 1],
           ["twitch:t1", 1],
           ["twitch:t2", 1],
-          ["twitch:t3", 1],
         ]),
       );
       expect(
-        screen.container.querySelector('[data-testid="home-stream-twitch-t3"]')
+        screen.container.querySelector('[data-testid="home-stream-twitch-t0"]')
           ?.textContent,
       ).toContain("Twitch catalog proof stream");
-      screen.click("home-stream-twitch-t3");
+      screen.click("home-stream-twitch-t0");
       expect(screen.selected).toEqual(["Twitch catalog proof stream"]);
-    } finally {
-      screen.dispose();
-    }
-  });
-
-  it("changes the featured stream without rendering unchanged recommendation content again", async () => {
-    const screen = await mountDiscovery();
-    try {
-      expect(renderedCards.size).toBe(7);
-      expect(
-        screen.container
-          .querySelector('[data-testid="home-featured-stage"]')
-          ?.getAttribute("aria-label"),
-      ).toBe("Watch Twitch Live");
-      const before = new Map(renderedCards);
-      screen.click("home-featured-dot-4");
-      expect(
-        screen.container
-          .querySelector('[data-testid="home-featured-stage"]')
-          ?.getAttribute("aria-label"),
-      ).toBe("Watch Kick Live");
-      expect(renderedCards).toEqual(before);
-    } finally {
-      screen.dispose();
-    }
-  });
-
-  it("rotates the featured stream on its timer without rendering unchanged recommendations again", async () => {
-    vi.useFakeTimers();
-    const screen = await mountDiscovery();
-    try {
-      expect(renderedCards.size).toBe(7);
-      const before = new Map(renderedCards);
-      for (let rotation = 0; rotation < 4; rotation += 1) {
-        await act(async () => vi.advanceTimersByTimeAsync(15_000));
-      }
-      expect(
-        screen.container
-          .querySelector('[data-testid="home-featured-stage"]')
-          ?.getAttribute("aria-label"),
-      ).toBe("Watch Kick Live");
-      expect(renderedCards).toEqual(before);
     } finally {
       screen.dispose();
     }

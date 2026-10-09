@@ -102,8 +102,7 @@ describe("settings panel sliders", () => {
     expect(quality).toBe("1440p");
   });
 
-  it("matches desktop carousel and buffer slider ranges", () => {
-    let carouselSeconds = DEFAULT_PRODUCT_PREFERENCES.carouselSeconds;
+  it("matches desktop buffer slider ranges without a mobile carousel control", () => {
     let liveSyncDurationCount =
       DEFAULT_PRODUCT_PREFERENCES.liveSyncDurationCount;
     let forwardBufferSec = DEFAULT_PRODUCT_PREFERENCES.forwardBufferSec;
@@ -115,22 +114,11 @@ describe("settings panel sliders", () => {
 
     const playbackNodes = descendants(
       PlaybackSettingsPanel({
-        onChange: (patch) => {
-          if (typeof patch.carouselSeconds === "number") {
-            carouselSeconds = patch.carouselSeconds;
-          }
-        },
+        onChange: () => undefined,
         view,
       }),
     );
-    const carousel = playbackNodes.find(
-      (node) => node.props.testID === "carousel-input",
-    );
-    expect(carousel?.props.minimumValue).toBe(15);
-    expect(carousel?.props.maximumValue).toBe(120);
-    expect(carousel?.props.step).toBe(5);
-    carousel?.props.onValueChange?.(45);
-    expect(carouselSeconds).toBe(45);
+    expect(playbackNodes.some((node) => node.props.testID === "carousel-input")).toBe(false);
 
     const bufferNodes = descendants(
       BufferSettingsPanel({

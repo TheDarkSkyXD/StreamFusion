@@ -37,6 +37,72 @@ function memoryCache(): DisposableCache {
 }
 
 describe("createDiscoveryRuntime", () => {
+  it("passes selected language through the runtime to Twitch Helix", async () => {
+    const urls: string[] = [];
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        urls.push(String(input));
+        return jsonResponse({ data: [] });
+      },
+      installation: { read: async () => ({ kind: "none" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: "client",
+      userTokens: {
+        read: async (platform) =>
+          platform === "twitch"
+            ? { accessToken: "user", kind: "ready" }
+            : { kind: "none" },
+      },
+    });
+    await session.readTopStreams({ platform: "twitch", language: "tl" });
+    expect(urls[0]).toContain("language=tl");
+  });
+
+  it("filters guest Twitch streams by broadcaster language across pages", async () => {
+    const cursors: unknown[] = [];
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (_input, init) => {
+        const request = JSON.parse(String(init?.body));
+        cursors.push(request.variables.cursor);
+        const second = request.variables.cursor === "next";
+        return jsonResponse({
+          data: {
+            streams: {
+              edges: [{
+                cursor: second ? "last" : "next",
+                node: {
+                  broadcaster: {
+                    broadcastSettings: { language: second ? "TL" : "EN" },
+                    displayName: "Alice",
+                    id: "c1",
+                    login: "alice",
+                  },
+                  id: second ? "tagalog" : "english",
+                  title: "Live",
+                  viewersCount: 5,
+                },
+              }],
+              pageInfo: { hasNextPage: !second },
+            },
+          },
+        });
+      },
+      installation: { read: async () => ({ kind: "none" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    const outcome = await session.readTopStreams({ platform: "twitch", language: "tl" });
+    expect(cursors).toEqual([null, "next"]);
+    expect(outcome.items.map((stream) => [stream.id, stream.language])).toEqual([["tagalog", "tl"]]);
+  });
+
   it("uses Helix for Home when a user token is present", async () => {
     const urls: string[] = [];
     const session = createDiscoveryRuntime({

@@ -688,7 +688,7 @@ export function WatchEmptyState({
   readonly discovery?: {
     readonly onOpenAccounts: () => void;
     readonly onSelectStream: (stream: Stream) => void;
-    readonly carouselSeconds?: number;
+    readonly language?: string;
     readonly session: DiscoverySession;
   };
   readonly onOpenSearch?: () => void;
@@ -713,9 +713,9 @@ export function WatchEmptyState({
           onOpenAccounts={discovery.onOpenAccounts}
           onSelectStream={discovery.onSelectStream}
           session={discovery.session}
-          {...(discovery.carouselSeconds === undefined
+          {...(discovery.language === undefined
             ? {}
-            : { carouselSeconds: discovery.carouselSeconds })}
+            : { language: discovery.language })}
           showTitle={false}
           title={t("navigation.watch")}
         />

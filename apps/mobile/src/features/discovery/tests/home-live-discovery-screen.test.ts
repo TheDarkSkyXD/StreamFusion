@@ -89,8 +89,6 @@ function render(
   kick: ReturnType<typeof fixtureOutcome>,
   loading = false,
   extras: {
-    readonly featuredIndex?: number;
-    readonly onFeaturedIndexChange?: (index: number) => void;
     readonly onSelectStream?: (stream: {
       readonly id: string;
       readonly platform: string;
@@ -99,8 +97,6 @@ function render(
   } = {},
 ) {
   const root = HomeLiveDiscoveryView({
-    featuredIndex: extras.featuredIndex ?? 0,
-    onFeaturedIndexChange: extras.onFeaturedIndexChange,
     onOpenAccounts: () => undefined,
     onOpenChannel: () => undefined,
     ...(extras.onSelectStream
@@ -113,17 +109,13 @@ function render(
 }
 
 describe("Home live discovery screen", () => {
-  it("renders featured carousel and ready stream cards without Categories", () => {
+  it("renders every live stream card without a carousel or Categories", () => {
     const { nodes } = render(
       fixtureOutcome("twitch", "ready"),
       fixtureOutcome("kick", "ready"),
     );
-    expect(
-      nodes.some((node) => node.props.testID === "home-featured-carousel"),
-    ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.testID === "home-featured-stage"),
-    ).toBe(true);
+    expect(nodes.some((node) => node.props.testID === "home-featured-carousel")).toBe(false);
+    expect(nodes.some((node) => node.props.testID === "home-stream-twitch-twitch-ready")).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "home-stream-kick-kick-ready"),
     ).toBe(true);
@@ -140,8 +132,8 @@ describe("Home live discovery screen", () => {
     expect(
       nodes.some((node) => node.props.testID === "home-stream-tags-kick-ready"),
     ).toBe(true);
-    const homeTitle = nodes.find((node) => node.props.children === "Home");
-    expect(homeTitle?.props.style).toMatchObject({
+    const watchTitle = nodes.find((node) => node.props.children === "Watch");
+    expect(watchTitle?.props.style).toMatchObject({
       fontSize: 24,
       fontWeight: "700",
     });
@@ -183,30 +175,20 @@ describe("Home live discovery screen", () => {
     );
   });
 
-  it("advances the featured carousel and watches the active slide", () => {
-    const indexes: number[] = [];
+  it("watches a stream from the full live list", () => {
     const selected: string[] = [];
     const { nodes } = render(
       fixtureOutcome("twitch", "ready"),
       fixtureOutcome("kick", "ready"),
       false,
       {
-        featuredIndex: 0,
-        onFeaturedIndexChange: (index) => indexes.push(index),
         onSelectStream: (stream) => {
           selected.push(`${stream.platform}:${stream.id}`);
         },
       },
     );
-    expect(
-      nodes.some((node) => node.props.testID === "home-featured-next"),
-    ).toBe(true);
     nodes
-      .find((node) => node.props.testID === "home-featured-next")
-      ?.props.onPress?.();
-    expect(indexes).toEqual([1]);
-    nodes
-      .find((node) => node.props.testID === "home-featured-stage")
+      .find((node) => node.props.testID === "home-stream-twitch-twitch-ready")
       ?.props.onPress?.();
     expect(selected).toEqual(["twitch:twitch-ready"]);
   });
@@ -296,7 +278,7 @@ describe("Home live discovery screen", () => {
     ).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "home-featured-carousel"),
-    ).toBe(true);
+    ).toBe(false);
     expect(nodes.some((node) => node.props.testID === "open-categories")).toBe(
       false,
     );

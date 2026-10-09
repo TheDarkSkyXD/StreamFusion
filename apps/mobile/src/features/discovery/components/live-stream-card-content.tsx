@@ -28,7 +28,10 @@ export function LiveStreamCardContent({
       : stream.language;
   const tagLabels = language ? [language] : [];
   const extraTag = stream.tags.find(
-    (tag) => tag.trim() !== "" && tag.toLowerCase() !== languageCode,
+    (tag) =>
+      tag.trim() !== "" &&
+      tag.trim().toLowerCase() !== languageCode &&
+      tag.trim().toLowerCase() !== language?.toLowerCase(),
   );
   if (extraTag) tagLabels.push(extraTag);
   return (
