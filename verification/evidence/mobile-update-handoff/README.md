@@ -21,6 +21,7 @@ Xtra starts installation after download. StreamFusion now continues after APK ve
 | Android 16 foreground completion | Permission return opened Android approval without a second app Install tap |
 | Android 16 Play Protect block | Unfamiliar proof signing key triggered a system block; rejection appeared as install-blocked and kept retry available |
 | Android 11, 15, and 16 replacement | Version code changed from 1 to 2; private marker survived. Android 16 required per-app approval for the unfamiliar proof developer |
+| Published production upgrade on Android 15 | The 0.1.5 app downloaded 0.1.6-alpha.2 from GitHub, opened Android approval, and upgraded from version code 6 to 8. The saved Weekly preference and both enabled update switches survived |
 
 The [proof build script](../../scripts/build-mobile-updater-native-proof.ps1) copies the production updater classes into an isolated Android app. Its test-only Activity injects a local file transport through the private constructor. It uses the real journal, APK verifier, foreground service, PackageInstaller, receiver, and consent Activity. The APKs use one proof signing key and an isolated package. This proves native handoff and replacement, while the official APK checks above exercise GitHub downloads.
 
@@ -28,7 +29,7 @@ Windows Robolectric cannot replace an existing file through the Android framewor
 
 ## Screenshots
 
-The popup screenshot renders the production React Native component in Storybook. The native screenshots show the isolated proof app on Android emulators.
+The error popup screenshot renders the production React Native component in Storybook. The Android 11, 15, and 16 screenshots show the isolated proof app. The production screenshots show the signed StreamFusion app updating through GitHub.
 
 - [Popup with visible command error](popup-action-error.png)
 - [Android 11 installed version and retained data](android11-installed.png)
@@ -36,6 +37,10 @@ The popup screenshot renders the production React Native component in Storybook.
 - [Android 16 installed version and retained data](android16-installed.png)
 - [Android 15 background completion waiting for Install](android15-background-ready.png)
 - [Android 11 restored permission request waiting for Install](android11-restored-permission.png)
+- [Production app before upgrade](production-before-upgrade.png)
+- [Production Android approval](production-android-approval.png)
+- [Production installed confirmation](production-installed-dialog.png)
+- [Production app after upgrade with saved preferences](production-after-upgrade.png)
 
 Comparison source: [Xtra update download and installation](https://github.com/crackededed/Xtra/blob/a3cbb0325f3330573a6738f7d36a2c5b785f4d1c/app/src/main/java/com/github/andreyasadchy/xtra/ui/settings/SettingsViewModel.kt#L335-L417).
 
@@ -43,4 +48,8 @@ The focused popup regression first reported `Tests 1 failed | 3 passed (4)` agai
 
 The unpublished 0.1.6-alpha.1 candidate made lifecycle callbacks acquire the updater work lock. A focused contention test reproduced callbacks waiting behind that lock with `1 test completed, 1 failed`. The 0.1.6-alpha.2 fix restores the volatile Activity reference and consumes permission return through an atomic reference. The same test passes, and all 11 native tests pass. APK verification remains serialized on the worker. The first candidate's release workflow was canceled before publication.
 
-The final native engine has SHA-256 `7236768D2DA57FDF5B437E836B834CC7AC2FFDB6CCCBAF2005368904F1541C52`. On Android 15, the rebuilt proof repeated foreground download, permission return, automatic approval, and replacement with the private marker retained. The Android 11 and 16 screenshots record the preceding candidate's broader permission and failure checks.
+The final native engine has SHA-256 `7236768D2DA57FDF5B437E836B834CC7AC2FFDB6CCCBAF2005368904F1541C52`. The rebuilt 0.1.6-alpha.2 proof repeated replacement with private data retained on Android 11, 15, and 16. Android 15 also repeated foreground permission return and background completion. Android 11 repeated permission denial; granting permission then restarted the app with `REQUEST_INSTALL_PACKAGES changed`, and the retained APK installed after an explicit Install tap. Android 16 repeated automatic permission return and required per-app Play Protect approval for the unfamiliar proof developer. The cancellation and forced process-restoration checks in the table used the preceding candidate.
+
+The [published 0.1.6-alpha.2 release](https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v0.1.6-alpha.2) passed [release CI](https://github.com/TheDarkSkyXD/StreamFusion/actions/runs/37862636882). Its 227,159,002-byte APK has SHA-256 `e1c814f870973bc003750b8f2b557fd631940e70936425218604d87c3cf1831c`. All four checksums passed after download. APK signature verification matched the pinned production certificate. The manifest reports version code 8, minimum SDK 30, and four CPU architectures. Build metadata identifies source commit `9c83b93efa51d0919229eca5f792d59e5ea419db`.
+
+An earlier frequency value changed before APK replacement. The final preference baseline was reset to Weekly and verified across an app restart before installation. The before-and-after production screenshots record that baseline and its retention. This check does not explain the earlier preference change or the reported phone failure.
