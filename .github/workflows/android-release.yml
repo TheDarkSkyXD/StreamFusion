@@ -269,6 +269,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          cp "apps/mobile/releases/$VERSION.md" android-release-set/release-notes.md
           node scripts/assemble-android-release-set.mjs \
             android-release-set \
             "$RELEASE_TAG" "$VERSION" "$PRERELEASE" "$VERSION_CODE" \

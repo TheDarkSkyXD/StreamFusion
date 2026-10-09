@@ -148,6 +148,31 @@ test("the release notes tell a first-time user how to install", () => {
   assert.match(notes, /not complete in this release/u);
 });
 
+test("release-specific notes survive assembly and have a matching checksum", () => {
+  const directory = releaseSetDirectory();
+  const notes = "# StreamFusion Android 0.1.8\n\nTwitch and Kick sign-in is available.\n";
+  writeFileSync(path.join(directory, "release-notes.md"), notes);
+
+  assembleReleaseSet({
+    directory,
+    releaseTag: "android-v0.1.8",
+    version: "0.1.8",
+    prerelease: "false",
+    versionCode: 11,
+    commitSha: "abc123",
+    runUrl: "https://github.com/o/r/actions/runs/1",
+    apkFileName: APK_NAME,
+  });
+
+  assert.equal(readFileSync(path.join(directory, "release-notes.md"), "utf8"), notes);
+  const digest = createHash("sha256").update(notes).digest("hex");
+  assert.ok(
+    readFileSync(path.join(directory, "SHA256SUMS"), "utf8")
+      .split("\n")
+      .includes(`${digest}  release-notes.md`),
+  );
+});
+
 test("the release helpers the workflow calls all exist", () => {
   for (const file of [
     "scripts/assemble-android-release-set.mjs",

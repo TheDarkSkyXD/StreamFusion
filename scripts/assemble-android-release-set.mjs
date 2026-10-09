@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -102,7 +102,10 @@ export function assembleReleaseSet({
     "",
     "- Twitch and Kick account sign-in is not complete in this release.",
   ].join("\n");
-  writeFileSync(path.join(directory, "release-notes.md"), `${notes}\n`);
+  const notesPath = path.join(directory, "release-notes.md");
+  if (!existsSync(notesPath)) {
+    writeFileSync(notesPath, `${notes}\n`);
+  }
 
   const checksummed = [
     apkFileName,

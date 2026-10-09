@@ -116,7 +116,9 @@ test("CLI resolves a mobile tag against the mobile package version", async () =>
     const output = await readFile(outputPath, "utf8");
     assert.match(output, new RegExp(`version=${version}`));
     assert.match(output, /product=mobile/);
-    assert.match(output, /prerelease=true/);
+    assert.ok(
+      output.split("\n").includes(`prerelease=${version.includes("-")}`),
+    );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
