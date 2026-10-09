@@ -8,7 +8,12 @@ import {
   defaultCategoryRequest,
   type CategoryRequestIdentity,
 } from "../domain/category-identity";
-import { fixtureOutcome } from "../domain/discovery-fixture";
+import {
+  fixtureClip,
+  fixtureOutcome,
+  fixtureStream,
+  fixtureVideo,
+} from "../domain/discovery-fixture";
 
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
@@ -28,15 +33,31 @@ vi.mock("lucide-react-native", () => ({
 }));
 
 vi.mock("@mobile/design/select", () => ({ MobileSelect: "MobileSelect" }));
+vi.mock("@mobile/design/bottom-sheet", () => ({
+  MobileBottomSheet: ({
+    children,
+    footer,
+    visible,
+  }: {
+    children: unknown;
+    footer: unknown;
+    visible: boolean;
+  }) => (visible ? [children, footer] : null),
+}));
 vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react")>()),
-  useState: () => [true, () => undefined],
+  useState: (initial: unknown) => [
+    typeof initial === "boolean" ? true : initial,
+    () => undefined,
+  ],
 }));
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
   children?: unknown;
   disabled?: boolean;
+  onOpen?: () => void;
+  onPress?: () => void;
   onChange?: (value: string) => void;
   options?: readonly { readonly label: string; readonly value: string }[];
   testID?: string;
@@ -72,12 +93,71 @@ const chatting = {
 };
 
 describe("Category detail screen", () => {
+  it("uses underline tabs and opens live and recorded items", () => {
+    const onWatch = vi.fn();
+    const live = CategoryDetailView({
+      onChangeIdentity: () => undefined,
+      onChangeQuery: () => undefined,
+      onOpenAccounts: () => undefined,
+      onWatch,
+      query: "",
+      view: composeCategoryDetail({
+        identity: defaultCategoryRequest(chatting, "all", "all"),
+        loading: false,
+        twitch: {
+          ...fixtureOutcome("twitch", "ready"),
+          items: [fixtureStream("twitch", "live", 10)],
+        },
+      }),
+    });
+    const liveNodes = descendants(live);
+    expect(
+      liveNodes.some((node) => node.props.testID === "category-tabs"),
+    ).toBe(true);
+    liveNodes
+      .find((node) => node.props.testID === "home-stream-twitch-live")
+      ?.props.onPress?.();
+    expect(onWatch).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: "twitch" }),
+    );
+
+    for (const tab of ["clips", "videos"] as const) {
+      const item =
+        tab === "clips"
+          ? fixtureClip("twitch", "clip", 10)
+          : fixtureVideo("twitch", "video", 10);
+      const recorded = CategoryDetailView({
+        onChangeIdentity: () => undefined,
+        onChangeQuery: () => undefined,
+        onOpenAccounts: () => undefined,
+        onWatch,
+        query: "",
+        view: composeCategoryDetail({
+          identity: { ...defaultCategoryRequest(chatting, "all", "all"), tab },
+          loading: false,
+          twitch: { ...fixtureOutcome("twitch", "ready"), items: [item] },
+        }),
+      });
+      descendants(recorded)
+        .find(
+          (node) => node.props.testID === `category-recorded-twitch-${item.id}`,
+        )
+        ?.props.onPress?.();
+      expect(onWatch).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          media: expect.objectContaining({
+            kind: tab === "clips" ? "clip" : "video",
+          }),
+        }),
+      );
+    }
+  });
+
   it("renders Follow as explained-unavailable and stamps the D07 token", () => {
     const root = CategoryDetailView({
       onChangeIdentity: () => undefined,
       onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
-      onRetry: () => undefined,
       onSelectProofMode: () => undefined,
       proofMode: "ready",
       query: "",
@@ -104,7 +184,6 @@ describe("Category detail screen", () => {
       onChangeIdentity: () => undefined,
       onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
-      onRetry: () => undefined,
       query: "",
       view: composeCategoryDetail({
         identity: {
@@ -125,7 +204,7 @@ describe("Category detail screen", () => {
     ).toBe(true);
   });
 
-  it("offers typed clip sort and language picker choices", () => {
+  it("offers clip sort choices without an inactive language filter", () => {
     const onChangeIdentity = vi.fn();
     const identity: CategoryRequestIdentity = {
       ...defaultCategoryRequest(chatting, "all", "all"),
@@ -135,7 +214,6 @@ describe("Category detail screen", () => {
       onChangeIdentity,
       onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
-      onRetry: () => undefined,
       query: "",
       view: composeCategoryDetail({
         identity,
@@ -149,12 +227,29 @@ describe("Category detail screen", () => {
       { label: "Views", value: "views" },
       { label: "Most Recent", value: "recent" },
     ]);
-    sort?.props.onChange?.("recent");
-    expect(onChangeIdentity).toHaveBeenCalledWith({
-      ...identity,
-      clipSort: "recent",
-    });
 
+    expect(
+      nodes.some((node) => node.props.testID === "category-language"),
+    ).toBe(false);
+    expect(onChangeIdentity).not.toHaveBeenCalled();
+    expect(
+      nodes.some((node) => node.props.testID === "category-filters-apply"),
+    ).toBe(true);
+  });
+
+  it("offers language choices for live streams", () => {
+    const root = CategoryDetailView({
+      onChangeIdentity: () => undefined,
+      onChangeQuery: () => undefined,
+      onOpenAccounts: () => undefined,
+      query: "",
+      view: composeCategoryDetail({
+        identity: defaultCategoryRequest(chatting, "all", "all"),
+        loading: false,
+        twitch: fixtureOutcome("twitch", "ready"),
+      }),
+    });
+    const nodes = descendants(root);
     const language = nodes.find(
       (node) => node.props.testID === "category-language",
     );
@@ -165,11 +260,6 @@ describe("Category detail screen", () => {
     expect(language?.props.options).toContainEqual({
       label: "English",
       value: "en",
-    });
-    language?.props.onChange?.("en");
-    expect(onChangeIdentity).toHaveBeenCalledWith({
-      ...identity,
-      language: "en",
     });
   });
 });

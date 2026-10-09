@@ -32,11 +32,14 @@ export function createRelaySignedOutReader(input: {
     ...createRelayChannelReader(input),
     ...createRelayCategoryReads(input),
     async getCategories(inputRead: {
+      readonly cursor?: string;
       readonly platform: Platform;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Category>> {
       return relayRead({
         input,
+        params:
+          inputRead.cursor === undefined ? {} : { cursor: inputRead.cursor },
         parse: relayCategoriesOutcome,
         path: "v1/discovery/categories",
         platform: inputRead.platform,

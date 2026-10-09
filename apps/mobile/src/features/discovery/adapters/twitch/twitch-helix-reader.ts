@@ -35,16 +35,22 @@ export function createTwitchHelixReader(input: {
     ...createTwitchHelixCategoryReads(input),
     ...createTwitchHelixChannelReader(input),
     platform: "twitch" as const,
-    async getCategories(read: {
-      readonly signal?: AbortSignal;
-    } = {}): Promise<PlatformReadOutcome<Category>> {
+    async getCategories(
+      read: {
+        readonly cursor?: string;
+        readonly signal?: AbortSignal;
+      } = {},
+    ): Promise<PlatformReadOutcome<Category>> {
       if ((await input.readAccessToken()) === null) {
         return guest.getCategories(read);
       }
+      const params = new URLSearchParams({ first: "60" });
+      if (read.cursor) params.set("after", read.cursor);
       return helixCollection({
         input,
         map: helixCategories,
-        path: "/games/top?first=20",
+        path: `/games/top?${params}`,
+        includeCursor: true,
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
@@ -232,6 +238,7 @@ async function helixCollection<T>(input: {
     readonly readAccessToken: () => Promise<string | null>;
   };
   readonly map: (value: unknown) => readonly T[];
+  readonly includeCursor?: boolean;
   readonly path: string;
   readonly signal?: AbortSignal;
 }): Promise<PlatformReadOutcome<T>> {
@@ -254,17 +261,39 @@ async function helixCollection<T>(input: {
     if (!response.ok) {
       return failed(response.status === 401 ? "auth-lost" : "twitch-failed");
     }
+    const payload: unknown = await response.json();
+    const cursor = input.includeCursor
+      ? helixPaginationCursor(payload)
+      : undefined;
     return {
       cache: { kind: "miss" },
-      items: input.map(await response.json()),
+      items: input.map(payload),
       path: { kind: "direct", platform: "twitch" },
       platform: "twitch",
       status: "complete",
+      ...(cursor === undefined ? {} : { cursor }),
     };
   } catch (error) {
     if (input.signal?.aborted || isAbort(error)) return cancelled("twitch");
     return failed("twitch-failed");
   }
+}
+
+function helixPaginationCursor(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || !("pagination" in value)) {
+    return undefined;
+  }
+  const pagination = value.pagination;
+  if (
+    typeof pagination !== "object" ||
+    pagination === null ||
+    !("cursor" in pagination)
+  ) {
+    return undefined;
+  }
+  return typeof pagination.cursor === "string" && pagination.cursor !== ""
+    ? pagination.cursor
+    : undefined;
 }
 
 function searchFromOutcome<T>(

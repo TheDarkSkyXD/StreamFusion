@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react-native";
+import { SlidersHorizontal } from "lucide-react-native";
 import type { ClipTimeRange } from "@streamfusion/core/discovery";
 
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
+import { MobileButton } from "@mobile/design/button";
 import { MobileSelect, type MobileSelectOption } from "@mobile/design/select";
 import {
   mobileColors,
   mobileRadii,
   mobileSizing,
   mobileSpacing,
-  mobileType,
 } from "@mobile/design/tokens";
 import {
   BROADCAST_LANGUAGES,
@@ -24,15 +25,19 @@ import type {
   PlatformScope,
   VideoSort,
 } from "../domain/category-identity";
+import { defaultCategoryRequest } from "../domain/category-identity";
 
 export function CategoryFilterBar({
+  availableTags = [],
   identity,
   onChange,
 }: {
+  readonly availableTags?: readonly string[];
   readonly identity: CategoryRequestIdentity;
   readonly onChange: (next: CategoryRequestIdentity) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState(identity);
   const platform =
     identity.platformScope === "all"
       ? "All platforms"
@@ -70,98 +75,130 @@ export function CategoryFilterBar({
     .filter(Boolean)
     .join(" · ");
   return (
-    <View style={styles.stack}>
+    <View style={styles.filterBar}>
       <Pressable
         accessibilityLabel={`Filters, ${summary}`}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        onPress={() => setExpanded((current) => !current)}
+        onPress={() => {
+          setDraft(identity);
+          setExpanded(true);
+        }}
         style={({ pressed }) => [
           styles.toggle,
           pressed ? styles.togglePressed : null,
         ]}
         testID="category-filters-toggle"
       >
-        <SlidersHorizontal color={mobileColors.textSecondary} size={22} />
-        <View style={styles.toggleCopy}>
-          <Text style={styles.toggleTitle}>Filters</Text>
-          <Text style={styles.summary}>{summary}</Text>
-        </View>
-        {expanded ? (
-          <ChevronUp color={mobileColors.textSecondary} size={20} />
-        ) : (
-          <ChevronDown color={mobileColors.textSecondary} size={20} />
-        )}
+        <SlidersHorizontal color={mobileColors.textPrimary} size={20} />
       </Pressable>
-      {expanded ? (
+      <Text numberOfLines={1} style={styles.summary}>
+        {summary}
+      </Text>
+      <MobileBottomSheet
+        footer={
+          <View style={styles.actions}>
+            <MobileButton
+              accessibilityLabel="Reset category filters"
+              onPress={() =>
+                setDraft({
+                  ...defaultCategoryRequest(draft.category, "all", "all"),
+                  tab: draft.tab,
+                })
+              }
+              testID="category-filters-reset"
+              variant="secondary"
+            >
+              Reset
+            </MobileButton>
+            <MobileButton
+              accessibilityLabel="Apply category filters"
+              onPress={() => {
+                onChange(draft);
+                setExpanded(false);
+              }}
+              testID="category-filters-apply"
+              variant="primary"
+            >
+              Apply
+            </MobileButton>
+          </View>
+        }
+        onDismiss={() => setExpanded(false)}
+        size="expanded"
+        testID="category-filters"
+        title="Filters"
+        visible={expanded}
+      >
         <View style={styles.stack}>
           <ChipRow
             label="Platform"
-            options={platformOptions(identity)}
-            selected={identity.platformScope}
+            options={platformOptions(draft)}
+            selected={draft.platformScope}
             testID="category-platform"
-            onSelect={(platformScope) =>
-              onChange({ ...identity, platformScope })
-            }
+            onSelect={(platformScope) => setDraft({ ...draft, platformScope })}
           />
-          <MobileSelect<LanguageFilter>
-            accessibilityLabel="Language"
-            appearance="row"
-            options={languageOptions()}
-            value={identity.language}
-            testID="category-language"
-            onChange={(language) => onChange({ ...identity, language })}
-          />
-          {identity.tab === "live" && identity.tag !== "all" ? (
-            <ChipRow
-              label="Tag"
-              options={tagOptions(identity)}
-              selected={identity.tag}
-              testID="category-tag"
-              onSelect={(tag) => onChange({ ...identity, tag })}
+          {draft.tab === "live" ? (
+            <MobileSelect<LanguageFilter>
+              accessibilityLabel="Language"
+              appearance="row"
+              options={languageOptions()}
+              value={draft.language}
+              testID="category-language"
+              onChange={(language) => setDraft({ ...draft, language })}
             />
           ) : null}
-          {identity.tab === "live" ? (
+          {draft.tab === "live" &&
+          (availableTags.length > 0 || draft.tag !== "all") ? (
+            <ChipRow
+              label="Tag"
+              options={tagOptions(draft, availableTags)}
+              selected={draft.tag}
+              testID="category-tag"
+              onSelect={(tag) => setDraft({ ...draft, tag })}
+            />
+          ) : null}
+          {draft.tab === "live" ? (
             <MobileSelect<LiveSort>
               accessibilityLabel="Sort"
               appearance="row"
               options={liveSortOptions}
-              value={identity.liveSort}
+              value={draft.liveSort}
               testID="category-sort"
-              onChange={(liveSort) => onChange({ ...identity, liveSort })}
+              onChange={(liveSort) => setDraft({ ...draft, liveSort })}
             />
-          ) : identity.tab === "clips" ? (
+          ) : draft.tab === "clips" ? (
             <MobileSelect<ClipSort>
               accessibilityLabel="Sort"
               appearance="row"
               options={clipSortOptions}
-              value={identity.clipSort}
+              value={draft.clipSort}
               testID="category-sort"
-              onChange={(clipSort) => onChange({ ...identity, clipSort })}
+              onChange={(clipSort) => setDraft({ ...draft, clipSort })}
             />
           ) : (
             <MobileSelect<VideoSort>
               accessibilityLabel="Sort"
               appearance="row"
               options={videoSortOptions}
-              value={identity.videoSort}
+              value={draft.videoSort}
               testID="category-sort"
-              onChange={(videoSort) => onChange({ ...identity, videoSort })}
+              onChange={(videoSort) => setDraft({ ...draft, videoSort })}
             />
           )}
-          {identity.tab === "clips" ? (
+          {draft.tab === "clips" ? (
             <ChipRow
               label="Time"
               options={clipTimeOptions()}
-              selected={identity.clipTimeRange}
+              selected={draft.clipTimeRange}
               testID="category-clip-time"
               onSelect={(clipTimeRange) =>
-                onChange({ ...identity, clipTimeRange })
+                setDraft({ ...draft, clipTimeRange })
               }
             />
           ) : null}
         </View>
-      ) : null}
+      </MobileBottomSheet>
     </View>
   );
 }
@@ -231,15 +268,23 @@ function languageOptions(): readonly {
   ];
 }
 
-function tagOptions(identity: CategoryRequestIdentity): readonly {
+function tagOptions(
+  identity: CategoryRequestIdentity,
+  availableTags: readonly string[],
+): readonly {
   readonly label: string;
   readonly value: string;
 }[] {
   return [
     { label: "All tags", value: "all" },
-    ...(identity.tag === "all"
-      ? []
-      : [{ label: identity.tag, value: identity.tag }]),
+    ...[
+      ...new Set([
+        ...availableTags,
+        ...(identity.tag === "all" ? [] : [identity.tag]),
+      ]),
+    ]
+      .sort((left, right) => left.localeCompare(right))
+      .map((tag) => ({ label: tag, value: tag })),
   ];
 }
 
@@ -271,6 +316,12 @@ function clipTimeOptions(): readonly {
 }
 
 const styles = StyleSheet.create({
+  filterBar: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+  },
+  actions: { flexDirection: "row", justifyContent: "space-between" },
   toggle: {
     alignItems: "center",
     backgroundColor: mobileColors.surface,
@@ -280,11 +331,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: mobileSpacing.small,
     minHeight: mobileSizing.minimumTouchTarget,
-    padding: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
   },
-  toggleCopy: { flex: 1, minWidth: 0, gap: mobileSpacing.xSmall },
-  toggleTitle: { ...mobileType.body, color: mobileColors.textPrimary },
-  summary: { fontSize: 12, lineHeight: 18, color: mobileColors.textSecondary },
+  summary: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: mobileColors.textSecondary,
+  },
   togglePressed: { backgroundColor: mobileColors.surfaceRaised },
   stack: {
     gap: mobileSpacing.medium,

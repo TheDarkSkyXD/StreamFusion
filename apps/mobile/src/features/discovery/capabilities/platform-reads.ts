@@ -131,6 +131,7 @@ export interface PlatformCatalogReader {
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Stream>>;
   getCategories(input?: {
+    readonly cursor?: string;
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Category>>;
   search(input: {

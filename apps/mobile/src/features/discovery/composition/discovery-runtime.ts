@@ -1,4 +1,5 @@
 import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
+import type { Platform } from "@streamfusion/core/platform";
 import type { LiveStreamCatalog } from "../capabilities/live-stream-catalog";
 
 import { createKickOfficialReader } from "../adapters/kick/kick-official-reader";
@@ -91,22 +92,32 @@ export function createDiscoveryRuntime(input: {
       });
     },
     readCategories(read) {
+      const page = read.cursor === undefined ? {} : { cursor: read.cursor };
+      const request = {
+        readDirect: (
+          platform: Platform,
+          extra: { readonly signal?: AbortSignal },
+        ) =>
+          platform === "twitch"
+            ? twitch.getCategories({ ...extra, ...page })
+            : kick.getCategories({ ...extra, ...page }),
+        readRelay: (
+          platform: Platform,
+          extra: { readonly signal?: AbortSignal },
+        ) => relay.getCategories({ platform, ...signalOf(extra), ...page }),
+        sources,
+        ...read,
+      };
+      if (read.cursor !== undefined) return liveRead(request);
       return cachedRead({
         cacheFallback: (platform) => cache.readCategories(platform),
-        readDirect: (platform, extra) =>
-          platform === "twitch"
-            ? twitch.getCategories(extra)
-            : kick.getCategories(extra),
-        readRelay: (platform, extra) =>
-          relay.getCategories({ platform, ...signalOf(extra) }),
-        sources,
+        ...request,
         writeCache: (outcome, platform) =>
           cache.writeCategories({
             items: outcome.items,
             platform,
             ...(outcome.cursor === undefined ? {} : { cursor: outcome.cursor }),
           }),
-        ...read,
       });
     },
     searchCategories(read) {
@@ -253,7 +264,9 @@ export function userTokenFromTwitchSnapshot(snapshot: {
 
 export function installationIdentityFromStore(read: {
   readonly kind: string;
-  readonly state?: { readonly credential: { readonly credential: string } | null };
+  readonly state?: {
+    readonly credential: { readonly credential: string } | null;
+  };
 }): InstallationIdentityRead {
   if (read.kind === "ready" && read.state?.credential) {
     return { credential: read.state.credential.credential, kind: "ready" };

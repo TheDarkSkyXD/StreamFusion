@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, Text, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
 import { MobileFilterChip } from "@mobile/design/chip";
-import { MobileSkeleton } from "@mobile/design/feedback";
+import { MobileLoadingSpinner, MobileSkeleton } from "@mobile/design/feedback";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileSelect } from "@mobile/design/select";
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
@@ -70,8 +76,15 @@ export function CategoriesScreen({
       onChangeTab={setTab}
       onOpenAccounts={onOpenAccounts}
       onOpenCategory={onOpenCategory}
-      onRetry={live.retry}
+      onLoadMore={() => live.loadMore(platform)}
+      onRefresh={live.refresh}
       platform={platform}
+      canLoadMore={
+        platform === "all"
+          ? live.canLoadMore.twitch || live.canLoadMore.kick
+          : live.canLoadMore[platform]
+      }
+      refreshing={live.refreshing}
       tab={tab}
       view={live.view}
     />
@@ -81,14 +94,15 @@ export function CategoriesScreen({
 export function CategoriesView({
   embedded = false,
   followingSession,
+  canLoadMore = false,
   onChangeLanguage,
   onChangePlatform,
   onChangeQuery,
   onChangeTab,
   onOpenAccounts,
   onOpenCategory,
+  onLoadMore,
   onRefresh,
-  onRetry,
   onSelectProofMode,
   proofMode,
   platform = "all",
@@ -97,6 +111,7 @@ export function CategoriesView({
   view,
 }: {
   readonly embedded?: boolean;
+  readonly canLoadMore?: boolean;
   readonly followingSession?: FollowingSession;
   readonly onChangeLanguage: (language: LanguageFilter) => void;
   readonly onChangePlatform?: (platform: "all" | Platform) => void;
@@ -104,8 +119,9 @@ export function CategoriesView({
   readonly onChangeTab?: (tab: "popular" | "followed") => void;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategory: (category: CategoryIdentity) => void;
+  readonly onLoadMore?: () => void;
   readonly onRefresh?: () => void | Promise<void>;
-  readonly onRetry: (platform: Platform) => void;
+  readonly onRetry?: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly proofMode?: DiscoveryFixtureMode;
   readonly platform?: "all" | Platform;
@@ -117,12 +133,24 @@ export function CategoriesView({
   const translate = (key: string, values?: Record<string, unknown>) =>
     values === undefined ? t(key) : t(key, values);
   const categories = visibleCategories(view, platform);
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (tab !== "popular" || !canLoadMore) return;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    if (
+      contentOffset.y + layoutMeasurement.height >=
+      contentSize.height - 240
+    ) {
+      onLoadMore?.();
+    }
+  };
   return (
     <MobileRefreshableScroll
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
       onRefresh={onRefresh}
+      onScroll={handleScroll}
       refreshing={refreshing}
+      scrollEventThrottle={250}
       style={styles.scroll}
       testID="categories-screen"
     >
@@ -188,12 +216,10 @@ export function CategoriesView({
             <>
               <HomeProviderBanner
                 onOpenAccounts={onOpenAccounts}
-                onRetry={onRetry}
                 outcome={view.providers.twitch}
               />
               <HomeProviderBanner
                 onOpenAccounts={onOpenAccounts}
-                onRetry={onRetry}
                 outcome={view.providers.kick}
               />
               <Text
@@ -221,6 +247,19 @@ export function CategoriesView({
           </View>
           {view.phase === "loading" && categories.length === 0 ? (
             <LoadingCards />
+          ) : null}
+          {refreshing ? (
+            <MobileLoadingSpinner label="Loading categories" />
+          ) : null}
+          {canLoadMore && onLoadMore ? (
+            <MobileButton
+              accessibilityLabel="Load more categories"
+              onPress={onLoadMore}
+              testID="categories-load-more"
+              variant="secondary"
+            >
+              Load more categories
+            </MobileButton>
           ) : null}
         </>
       ) : followingSession ? (

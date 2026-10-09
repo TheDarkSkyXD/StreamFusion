@@ -30,6 +30,7 @@ import { emptySearchHistory } from "@mobile/features/discovery/domain/search-his
 import { composeUnifiedSearch } from "@mobile/features/discovery/domain/unified-search";
 
 vi.mock("react-native", () => ({
+  ActivityIndicator: "ActivityIndicator",
   FlatList(props: FlatListProps<Stream>) {
     const slot = (value: FlatListProps<Stream>["ListHeaderComponent"]) =>
       typeof value === "function" ? createElement(value) : value;
@@ -179,16 +180,14 @@ describe("catalog UI journeys", () => {
     ).toBe(true);
   });
 
-  it("opens a category card and retries a failed category catalog", () => {
+  it("opens a category card and keeps loaded cards while the catalog reconnects", () => {
     const opened: string[] = [];
-    const retried: string[] = [];
     const ready = descendants(
       CategoriesView({
         onChangeLanguage: () => undefined,
         onChangeQuery: () => undefined,
         onOpenAccounts: () => undefined,
         onOpenCategory: (category) => opened.push(category.id),
-        onRetry: (platform) => retried.push(platform),
         view: composeCategoryCatalog({
           kick: {
             ...fixtureOutcome("kick", "ready"),
@@ -212,9 +211,12 @@ describe("catalog UI journeys", () => {
         onChangeQuery: () => undefined,
         onOpenAccounts: () => undefined,
         onOpenCategory: () => undefined,
-        onRetry: (platform) => retried.push(platform),
+        refreshing: true,
         view: composeCategoryCatalog({
-          kick: { ...fixtureOutcome("kick", "kick-fail"), items: [] },
+          kick: {
+            ...fixtureOutcome("kick", "ready"),
+            items: [fixtureCategory("kick", "15", "Just Chatting", 10)],
+          },
           language: "all",
           loading: false,
           query: "",
@@ -222,8 +224,17 @@ describe("catalog UI journeys", () => {
         }),
       }),
     );
-    press(failed, "home-retry-twitch");
-    expect(retried).toEqual(["twitch"]);
+    expect(
+      failed.some((node) => node.props.testID === "category-card-kick-15"),
+    ).toBe(true);
+    expect(
+      failed.some(
+        (node) => node.props.accessibilityLabel === "Loading categories",
+      ),
+    ).toBe(true);
+    expect(
+      failed.some((node) => node.props.testID === "home-retry-twitch"),
+    ).toBe(false);
   });
 
   it("filters merged categories to the selected provider identity", () => {
@@ -285,9 +296,8 @@ describe("catalog UI journeys", () => {
     ).toHaveLength(3);
   });
 
-  it("follows a live channel and retries a failed category detail", () => {
+  it("follows a live channel and shows category recovery", () => {
     const followed: string[] = [];
-    const retried: string[] = [];
     const channel = descendants(
       ChannelDetailBody({
         channel: {
@@ -296,7 +306,7 @@ describe("catalog UI journeys", () => {
           username: "twitch-live",
         },
         onFollow: () => followed.push("follow"),
-        onRetry: () => retried.push("channel"),
+        onRetry: () => undefined,
         onSelectTab: () => undefined,
         tab: "home",
         view: fixtureChannelDetail(
@@ -312,8 +322,8 @@ describe("catalog UI journeys", () => {
         onChangeIdentity: () => undefined,
         onChangeQuery: () => undefined,
         onOpenAccounts: () => undefined,
-        onRetry: (platform) => retried.push(platform),
         query: "",
+        recovering: true,
         view: composeCategoryDetail({
           identity: defaultCategoryRequest(chatting, "all", "all"),
           loading: false,
@@ -321,8 +331,15 @@ describe("catalog UI journeys", () => {
         }),
       }),
     );
-    press(detail, "home-retry-twitch");
-    expect(retried).toEqual(["twitch"]);
+    expect(
+      detail.some((node) => node.props.testID === "category-loading"),
+    ).toBe(true);
+    expect(
+      detail.some((node) => node.props.testID === "category-detail-phase"),
+    ).toBe(true);
+    expect(
+      detail.some((node) => node.props.testID === "home-retry-twitch"),
+    ).toBe(false);
   });
 
   it("repeats Search history and retries a failed Search catalog", () => {

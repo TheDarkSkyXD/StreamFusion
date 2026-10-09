@@ -64,11 +64,16 @@ export async function readKickPublicTopStreams(
 export async function readKickPublicCategories(
   fetchImpl: typeof globalThis.fetch,
   signal?: AbortSignal,
+  cursor?: string,
 ): Promise<PlatformReadOutcome<Category>> {
+  const url = new URL(KICK_PUBLIC_SUBCATEGORIES);
+  url.searchParams.set("limit", "60");
+  if (cursor !== undefined) url.searchParams.set("page", cursor);
   return kickPublicCollection({
     fetchImpl,
     map: mapKickPublicCategories,
-    url: KICK_PUBLIC_SUBCATEGORIES,
+    nextCursor: kickCategoryCursor,
+    url: url.toString(),
     ...(signal === undefined ? {} : { signal }),
   });
 }
@@ -111,6 +116,7 @@ export async function readKickPublicCategoryStreams(input: {
 async function kickPublicCollection<T>(input: {
   readonly fetchImpl: typeof globalThis.fetch;
   readonly map: (value: unknown) => readonly T[];
+  readonly nextCursor?: (value: unknown) => string | undefined;
   readonly signal?: AbortSignal;
   readonly url: string;
 }): Promise<PlatformReadOutcome<T>> {
@@ -139,12 +145,15 @@ async function kickPublicCollection<T>(input: {
         status: "failed",
       };
     }
+    const payload: unknown = await response.json();
+    const cursor = input.nextCursor?.(payload);
     return {
       cache: { kind: "miss" },
-      items: input.map(await response.json()),
+      items: input.map(payload),
       path: { kind: "guest", platform: "kick" },
       platform: "kick",
       status: "complete",
+      ...(cursor === undefined ? {} : { cursor }),
     };
   } catch (error) {
     if (
@@ -169,6 +178,18 @@ async function kickPublicCollection<T>(input: {
       status: "failed",
     };
   }
+}
+
+function kickCategoryCursor(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  if (!("current_page" in value) || !("last_page" in value)) return undefined;
+  const current = value.current_page;
+  const last = value.last_page;
+  return typeof current === "number" &&
+    typeof last === "number" &&
+    current < last
+    ? String(current + 1)
+    : undefined;
 }
 
 function uniqueStreams(items: readonly Stream[]): readonly Stream[] {

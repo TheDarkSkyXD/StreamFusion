@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Clip, Video } from "@streamfusion/core/content";
 
 import {
@@ -9,13 +9,18 @@ import {
 
 export function CategoryRecordedRow({
   item,
+  onPress,
 }: {
   readonly item: Clip | Video;
+  readonly onPress?: () => void;
 }) {
   const isClip = "clipUrl" in item;
   return (
-    <View
+    <Pressable
       accessibilityLabel={`${item.title} ${isClip ? "clip" : "video"}`}
+      accessibilityRole={onPress === undefined ? undefined : "button"}
+      disabled={onPress === undefined}
+      onPress={onPress}
       style={styles.row}
       testID={`category-recorded-${item.platform}-${item.id}`}
     >
@@ -45,7 +50,7 @@ export function CategoryRecordedRow({
           {isClip ? "CLIP" : item.type.toUpperCase()}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

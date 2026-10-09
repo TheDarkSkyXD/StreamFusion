@@ -63,15 +63,17 @@ export function createTwitchGqlGuestReader(input: {
     },
     async getCategories(
       read: {
+        readonly cursor?: string;
         readonly signal?: AbortSignal;
       } = {},
     ): Promise<PlatformReadOutcome<Category>> {
       return gqlCollection({
         fetchImpl: input.fetch,
         map: gamesFromPayload,
+        nextCursor: (value) => connectionNextCursor(value, "games"),
         query:
-          "query GetTopGames($limit: Int!) { games(first: $limit) { edges { node { id name slug boxArtURL displayName } } } }",
-        variables: { limit: 20 },
+          "query GetTopGames($limit: Int!, $cursor: Cursor) { games(first: $limit, after: $cursor) { edges { cursor node { id name slug boxArtURL displayName } } pageInfo { hasNextPage } } }",
+        variables: { limit: 60, cursor: read.cursor ?? null },
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
@@ -224,7 +226,14 @@ async function gqlCollection<T>(input: {
 }
 
 function topStreamsNextCursor(value: unknown): string | undefined {
-  const connection = asRecord(dataRecord(value)?.streams);
+  return connectionNextCursor(value, "streams");
+}
+
+function connectionNextCursor(
+  value: unknown,
+  field: "streams" | "games",
+): string | undefined {
+  const connection = asRecord(dataRecord(value)?.[field]);
   if (asRecord(connection?.pageInfo)?.hasNextPage !== true) return undefined;
   const edges = Array.isArray(connection?.edges) ? connection.edges : [];
   const last = asRecord(edges.at(-1));
@@ -257,7 +266,12 @@ async function gqlJson(input: {
         kind: "failed",
       };
     }
-    return { kind: "ready", value: await response.json() };
+    const value: unknown = await response.json();
+    const errors = asRecord(value)?.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return { code: "twitch-failed", kind: "failed" };
+    }
+    return { kind: "ready", value };
   } catch (error) {
     if (
       input.signal?.aborted ||

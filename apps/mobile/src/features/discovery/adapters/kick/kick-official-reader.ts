@@ -35,16 +35,19 @@ export function createKickOfficialReader(input: {
     platform: "kick" as const,
     async getCategories(
       read: {
+        readonly cursor?: string;
         readonly signal?: AbortSignal;
       } = {},
     ): Promise<PlatformReadOutcome<Category>> {
       if ((await input.readAccessToken()) === null) {
-        return readKickPublicCategories(input.fetch, read.signal);
+        return readKickPublicCategories(input.fetch, read.signal, read.cursor);
       }
+      const params = new URLSearchParams({ limit: "60" });
+      if (read.cursor !== undefined) params.set("after", read.cursor);
       return kickCollection({
         input,
         map: kickCategories,
-        path: "https://api.kick.com/public/v1/categories?limit=20",
+        path: `https://api.kick.com/public/v2/categories?${params}`,
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
@@ -240,15 +243,29 @@ async function kickCollection<T>(input: {
     if (!response.ok) {
       return failed(response.status === 401 ? "auth-lost" : "kick-failed");
     }
+    const payload: unknown = await response.json();
+    const pagination =
+      typeof payload === "object" && payload !== null && "pagination" in payload
+        ? payload.pagination
+        : undefined;
+    const cursor =
+      typeof pagination === "object" &&
+      pagination !== null &&
+      "next_cursor" in pagination &&
+      typeof pagination.next_cursor === "string" &&
+      pagination.next_cursor !== ""
+        ? pagination.next_cursor
+        : undefined;
     return {
       cache: { kind: "miss" },
-      items: input.map(await response.json()),
+      items: input.map(payload),
       path: {
         kind: input.guest === true ? "guest" : "direct",
         platform: "kick",
       },
       platform: "kick",
       status: "complete",
+      ...(cursor === undefined ? {} : { cursor }),
     };
   } catch (error) {
     if (input.signal?.aborted || isAbort(error)) return cancelled("kick");

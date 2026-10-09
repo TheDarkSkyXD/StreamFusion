@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
@@ -16,6 +16,12 @@ import {
   type CategoryIdentity,
   type CategoryRequestIdentity,
 } from "../domain/category-identity";
+
+class CategoryReadError extends Error {
+  constructor(readonly outcome: PlatformReadOutcome<CategoryMediaItem>) {
+    super(outcome.error?.code);
+  }
+}
 
 export function categoryMediaQueryKey(
   identity: CategoryRequestIdentity,
@@ -39,7 +45,6 @@ export function useCategoryDetail(input: {
   readonly preferences: DiscoveryPreferenceStore;
   readonly session: DiscoverySession;
 }) {
-  const queryClient = useQueryClient();
   const enabled = input.enabled !== false;
   const [identity, setIdentity] = useState<CategoryRequestIdentity>(() =>
     defaultCategoryRequest(input.category, "all", "all"),
@@ -62,22 +67,47 @@ export function useCategoryDetail(input: {
       cancelled = true;
     };
   }, [input.category, input.preferences]);
-  const scoped = platformsForScope(
-    identity.platformScope,
-    identity.category,
-  );
+  const scoped = platformsForScope(identity.platformScope, identity.category);
+  const readTwitch = enabled && scoped.includes("twitch");
+  const readKick =
+    enabled && scoped.includes("kick") && identity.tab === "live";
   const twitch = useQuery({
-    enabled: enabled && scoped.includes("twitch"),
-    queryFn: ({ signal }) =>
-      readMedia(input.session, identity, "twitch", signal),
+    enabled: readTwitch,
+    queryFn: async ({ signal }) => {
+      const outcome = await readMedia(
+        input.session,
+        identity,
+        "twitch",
+        signal,
+      );
+      if (shouldRetryCategoryRead(outcome))
+        throw new CategoryReadError(outcome);
+      return outcome;
+    },
     queryKey: categoryMediaQueryKey(identity, "twitch"),
+    refetchInterval: ({ state }) =>
+      shouldRetryCategoryRead(
+        state.error instanceof CategoryReadError
+          ? state.error.outcome
+          : state.data,
+      ),
     retry: false,
   });
   const kick = useQuery({
-    enabled: enabled && scoped.includes("kick") && identity.tab === "live",
-    queryFn: ({ signal }) =>
-      readMedia(input.session, identity, "kick", signal),
+    enabled: readKick,
+    queryFn: async ({ signal }) => {
+      const outcome = await readMedia(input.session, identity, "kick", signal);
+      if (shouldRetryCategoryRead(outcome))
+        throw new CategoryReadError(outcome);
+      return outcome;
+    },
     queryKey: categoryMediaQueryKey(identity, "kick"),
+    refetchInterval: ({ state }) =>
+      shouldRetryCategoryRead(
+        state.error instanceof CategoryReadError
+          ? state.error.outcome
+          : state.data,
+      ),
     retry: false,
   });
   return {
@@ -90,19 +120,44 @@ export function useCategoryDetail(input: {
         await input.preferences.writeClipTimeRange(next.clipTimeRange);
       }
     },
-    retry(platform: Platform) {
-      void queryClient.invalidateQueries({
-        queryKey: ["discovery", "category-media", platform],
-      });
-    },
     view: composeCategoryDetail({
       identity,
-      loading:
-        enabled &&
-        (twitch.isPending || (identity.tab === "live" && kick.isPending)),
-      ...detailOutcomes(identity, twitch.data, kick.data),
+      loading: (readTwitch && twitch.isPending) || (readKick && kick.isPending),
+      ...detailOutcomes(
+        identity,
+        readTwitch ? twitch.data : undefined,
+        readKick ? kick.data : undefined,
+      ),
     }),
+    recovering:
+      (readTwitch &&
+        (twitch.error instanceof CategoryReadError || twitch.isFetching)) ||
+      (readKick &&
+        (kick.error instanceof CategoryReadError || kick.isFetching)),
   };
+}
+
+export function shouldRetryCategoryRead(
+  outcome: PlatformReadOutcome<CategoryMediaItem> | undefined,
+): number | false {
+  if (outcome?.error?.retry !== "after" && outcome?.error?.retry !== "manual")
+    return false;
+  if (
+    outcome.error?.code === "offline" ||
+    outcome.error?.code === "auth-lost" ||
+    outcome.error?.code === "cancelled" ||
+    outcome.error?.code === "signed-out-login-required"
+  )
+    return false;
+  if (
+    outcome.path.kind === "unavailable" &&
+    (outcome.path.reason === "offline" ||
+      outcome.path.reason === "auth-lost" ||
+      outcome.path.reason === "cancelled" ||
+      outcome.path.reason === "signed-out-login-required")
+  )
+    return false;
+  return 5_000;
 }
 
 async function readMedia(
@@ -176,7 +231,10 @@ function detailOutcomes(
   ).includes("twitch");
   const kickUnavailable =
     identity.tab === "clips" && !twitchInScope
-      ? { kind: "unavailable" as const, reason: "kick-clips-unsupported" as const }
+      ? {
+          kind: "unavailable" as const,
+          reason: "kick-clips-unsupported" as const,
+        }
       : identity.tab === "videos" && !twitchInScope
         ? {
             kind: "unavailable" as const,

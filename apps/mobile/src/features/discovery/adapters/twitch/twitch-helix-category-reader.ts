@@ -4,13 +4,8 @@ import type { ClipTimeRange } from "@streamfusion/core/discovery";
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
 import { requestInit } from "../../utils/optional";
 
-import {
-  clipWindow,
-  helixCategories,
-  helixClips,
-  helixStreams,
-  helixVideos,
-} from "./twitch-helix-category-map";
+import { helixCategories, helixStreams } from "./twitch-helix-category-map";
+import { createTwitchGqlCategoryMediaReader } from "./twitch-gql-category-media";
 import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
 import { completeHelixStreams } from "./twitch-helix-users";
 
@@ -24,6 +19,7 @@ type TwitchInput = {
 
 export function createTwitchHelixCategoryReads(input: TwitchInput) {
   const guest = createTwitchGqlGuestReader({ fetch: input.fetch });
+  const categoryMedia = createTwitchGqlCategoryMediaReader({ fetch: input.fetch });
   return {
     async getCategory(read: {
       readonly categoryId: string;
@@ -72,38 +68,14 @@ export function createTwitchHelixCategoryReads(input: TwitchInput) {
       readonly signal?: AbortSignal;
       readonly timeRange: ClipTimeRange;
     }): Promise<PlatformReadOutcome<Clip>> {
-      const params = new URLSearchParams({
-        first: "20",
-        game_id: read.categoryId,
-      });
-      const window = clipWindow(read.timeRange);
-      if (window) {
-        params.set("started_at", window.startedAt);
-        params.set("ended_at", window.endedAt);
-      }
-      return helixCollection({
-        input,
-        map: helixClips,
-        path: `/clips?${params}`,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+      return categoryMedia.getCategoryClips(read);
     },
     async getCategoryVideos(read: {
       readonly categoryId: string;
       readonly signal?: AbortSignal;
       readonly sort: "views" | "recent";
     }): Promise<PlatformReadOutcome<Video>> {
-      const params = new URLSearchParams({
-        first: "20",
-        game_id: read.categoryId,
-        sort: read.sort === "recent" ? "time" : "views",
-      });
-      return helixCollection({
-        input,
-        map: helixVideos,
-        path: `/videos?${params}`,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
+      return categoryMedia.getCategoryVideos(read);
     },
     async searchCategories(read: {
       readonly query: string;

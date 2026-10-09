@@ -1,18 +1,28 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
 import type { DiscoverySession } from "../capabilities/platform-reads";
-import { composeCategoryCatalog } from "../domain/category-catalog";
+import {
+  collapseCategoryPages,
+  composeCategoryCatalog,
+  nextCategoryCursor,
+} from "../domain/category-catalog";
 import type { LanguageFilter } from "../domain/broadcast-languages";
+import { shouldAutoRetryHomeRead } from "../domain/home-live-discovery";
 
 const REMOTE_SEARCH_MIN = 2;
+const MAX_RETRY_DELAY_MS = 8_000;
 
 export function categoriesQueryKey(
   platform: Platform,
-): readonly ["discovery", "categories", Platform] {
-  return ["discovery", "categories", platform];
+): readonly ["discovery", "categories", "paged", Platform] {
+  return ["discovery", "categories", "paged", platform];
 }
 
 export function categorySearchQueryKey(
@@ -43,25 +53,45 @@ export function useCategoryCatalog(input: {
       cancelled = true;
     };
   }, [input.preferences]);
-  const twitch = useQuery({
+  const twitch = useInfiniteQuery({
     enabled,
-    queryFn: ({ signal }) =>
-      input.session.readCategories({
+    initialPageParam: "",
+    queryFn: async ({ pageParam, signal }) => {
+      const outcome = await input.session.readCategories({
         platform: "twitch",
+        ...(pageParam === "" ? {} : { cursor: pageParam }),
         ...(signal === undefined ? {} : { signal }),
-      }),
+      });
+      if (shouldAutoRetryHomeRead(outcome) && outcome.items.length === 0)
+        throw new Error(outcome.error?.code);
+      return outcome;
+    },
     queryKey: categoriesQueryKey("twitch"),
-    retry: false,
+    refetchInterval: ({ state }) =>
+      state.data?.pages.some(shouldAutoRetryHomeRead) ? 5_000 : false,
+    getNextPageParam: nextCategoryCursor,
+    retry: true,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, MAX_RETRY_DELAY_MS),
   });
-  const kick = useQuery({
+  const kick = useInfiniteQuery({
     enabled,
-    queryFn: ({ signal }) =>
-      input.session.readCategories({
+    initialPageParam: "",
+    queryFn: async ({ pageParam, signal }) => {
+      const outcome = await input.session.readCategories({
         platform: "kick",
+        ...(pageParam === "" ? {} : { cursor: pageParam }),
         ...(signal === undefined ? {} : { signal }),
-      }),
+      });
+      if (shouldAutoRetryHomeRead(outcome) && outcome.items.length === 0)
+        throw new Error(outcome.error?.code);
+      return outcome;
+    },
     queryKey: categoriesQueryKey("kick"),
-    retry: false,
+    refetchInterval: ({ state }) =>
+      state.data?.pages.some(shouldAutoRetryHomeRead) ? 5_000 : false,
+    getNextPageParam: nextCategoryCursor,
+    retry: true,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, MAX_RETRY_DELAY_MS),
   });
   const remoteEnabled = enabled && remoteQuery.length >= REMOTE_SEARCH_MIN;
   const remoteTwitch = useQuery({
@@ -73,6 +103,8 @@ export function useCategoryCatalog(input: {
         ...(signal === undefined ? {} : { signal }),
       }),
     queryKey: categorySearchQueryKey("twitch", remoteQuery),
+    refetchInterval: ({ state }) =>
+      shouldAutoRetryHomeRead(state.data) ? 5_000 : false,
     retry: false,
   });
   const remoteKick = useQuery({
@@ -84,9 +116,22 @@ export function useCategoryCatalog(input: {
         ...(signal === undefined ? {} : { signal }),
       }),
     queryKey: categorySearchQueryKey("kick", remoteQuery),
+    refetchInterval: ({ state }) =>
+      shouldAutoRetryHomeRead(state.data) ? 5_000 : false,
     retry: false,
   });
+  const canLoadMore = {
+    twitch: twitch.hasNextPage && !twitch.isFetching,
+    kick: kick.hasNextPage && !kick.isFetching,
+  };
   return {
+    canLoadMore,
+    loadMore(platform: "all" | Platform) {
+      if (platform !== "kick" && canLoadMore.twitch)
+        void twitch.fetchNextPage({ cancelRefetch: false });
+      if (platform !== "twitch" && canLoadMore.kick)
+        void kick.fetchNextPage({ cancelRefetch: false });
+    },
     refresh() {
       return queryClient.invalidateQueries({ queryKey: ["discovery"] });
     },
@@ -99,17 +144,16 @@ export function useCategoryCatalog(input: {
       setLanguage(next);
       await input.preferences.writeLanguage(next);
     },
-    retry(platform: Platform) {
-      void queryClient.invalidateQueries({
-        queryKey: ["discovery", "categories", platform],
-      });
-    },
     view: composeCategoryCatalog({
       language,
       loading: enabled && (twitch.isPending || kick.isPending),
       query: input.query,
-      ...(kick.data === undefined ? {} : { kick: kick.data }),
-      ...(twitch.data === undefined ? {} : { twitch: twitch.data }),
+      ...(kick.data === undefined
+        ? {}
+        : { kick: collapseCategoryPages(kick.data.pages) }),
+      ...(twitch.data === undefined
+        ? {}
+        : { twitch: collapseCategoryPages(twitch.data.pages) }),
       ...(remoteKick.data === undefined ? {} : { remoteKick: remoteKick.data }),
       ...(remoteTwitch.data === undefined
         ? {}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
 import type { DiscoverySession } from "../capabilities/platform-reads";
@@ -10,11 +11,13 @@ import { useCategoryDetail } from "./use-category-detail";
 export function CategoryDetailScreen({
   category,
   onOpenAccounts,
+  onWatch,
   preferences,
   session,
 }: {
   readonly category: CategoryIdentity;
   readonly onOpenAccounts: () => void;
+  readonly onWatch?: (target: WatchTarget) => void;
   readonly preferences: DiscoveryPreferenceStore;
   readonly session: DiscoverySession;
 }) {
@@ -29,8 +32,9 @@ export function CategoryDetailScreen({
       onChangeIdentity={live.change}
       onChangeQuery={setQuery}
       onOpenAccounts={onOpenAccounts}
-      onRetry={live.retry}
+      {...(onWatch === undefined ? {} : { onWatch })}
       query={query}
+      recovering={live.recovering}
       view={live.view}
     />
   );

@@ -82,11 +82,15 @@ const initialIdentity: CategoryRequestIdentity = {
   videoSort: "recent",
 };
 
-async function mountFilter(initial = initialIdentity) {
+async function mountFilter(
+  initial = initialIdentity,
+  availableTags: readonly string[] = [],
+) {
   const changes: CategoryRequestIdentity[] = [];
   function ControlledFilter() {
     const [identity, setIdentity] = useState(initial);
     return createElement(CategoryFilterBar, {
+      availableTags,
       identity,
       onChange: (next) => {
         changes.push(next);
@@ -140,12 +144,13 @@ describe("category filters", () => {
     ).toBeNull();
     await screen.click("category-language-trigger");
     await screen.click("category-language-option-en");
+    expect(screen.changes).toEqual([]);
+    await screen.click("category-filters-apply");
     expect(screen.changes).toEqual([{ ...initialIdentity, language: "en" }]);
     expect(toggle.getAttribute("aria-label")).toBe(
       "Filters, All platforms · English · Most viewers",
     );
 
-    await screen.click("category-filters-toggle");
     expect(
       screen.container.querySelector("[data-testid='category-language']"),
     ).toBeNull();
@@ -160,6 +165,8 @@ describe("category filters", () => {
     ).toBe("Language, English");
     await screen.click("category-sort-trigger");
     await screen.click("category-sort-option-viewers-asc");
+    expect(screen.changes).toHaveLength(1);
+    await screen.click("category-filters-apply");
     expect(screen.changes).toEqual([
       { ...initialIdentity, language: "en" },
       { ...initialIdentity, language: "en", liveSort: "viewers-asc" },
@@ -167,6 +174,7 @@ describe("category filters", () => {
     expect(toggle.getAttribute("aria-label")).toBe(
       "Filters, All platforms · English · Fewest viewers",
     );
+    await screen.click("category-filters-toggle");
     expect(
       screen.container
         .querySelector("[data-testid='category-sort-trigger']")
@@ -188,6 +196,8 @@ describe("category filters", () => {
       screen.container.querySelector("[data-testid='category-tag-Cozy']"),
     ).not.toBeNull();
     await screen.click("category-tag-all");
+    expect(screen.changes).toEqual([]);
+    await screen.click("category-filters-apply");
     expect(screen.changes).toEqual([{ ...initialIdentity, tag: "all" }]);
     expect(
       screen.container.querySelector("[data-testid='category-tag-all']"),
@@ -210,5 +220,17 @@ describe("category filters", () => {
     expect(
       screen.container.querySelector("[data-testid='category-clip-time-all']"),
     ).not.toBeNull();
+  });
+
+  it("offers real stream tags and resets pending choices", async () => {
+    const screen = await mountFilter(initialIdentity, ["Cozy", "English"]);
+    await screen.click("category-filters-toggle");
+    expect(
+      screen.container.querySelector("[data-testid='category-tag-Cozy']"),
+    ).not.toBeNull();
+    await screen.click("category-tag-Cozy");
+    await screen.click("category-filters-reset");
+    await screen.click("category-filters-apply");
+    expect(screen.changes).toEqual([initialIdentity]);
   });
 });

@@ -349,59 +349,45 @@ describe("platform catalog readers", () => {
     });
   });
 
-  it("drops live Helix videos and stamps clip windows as exact ISO", async () => {
-    const urls: string[] = [];
+  it("reads category clips and completed videos through Twitch GQL", async () => {
+    const requests: { query: string; variables: Record<string, unknown> }[] = [];
     const reader = createTwitchHelixReader({
       clientId: "client",
-      fetch: async (input) => {
-        urls.push(String(input));
-        if (String(input).includes("/videos")) {
+      fetch: async (input, init) => {
+        expect(String(input)).toBe("https://gql.twitch.tv/gql");
+        const request = JSON.parse(String(init?.body)) as {
+          query: string;
+          variables: Record<string, unknown>;
+        };
+        requests.push(request);
+        if (request.query.includes("CategoryVideos")) {
           return json({
-            data: [
-              {
-                id: "live-1",
-                published_at: "2026-09-11T00:00:00Z",
-                thumbnail_url: "https://example.com/{width}x{height}.jpg",
-                title: "Live leak",
-                type: "live",
-                url: "https://twitch.tv/videos/live-1",
-                user_id: "u1",
-                user_login: "alice",
-                user_name: "Alice",
-                view_count: 9,
-                duration: "1h2m3s",
-              },
-              {
-                id: "vod-1",
-                published_at: "2026-09-11T00:00:00Z",
-                thumbnail_url: "https://example.com/{width}x{height}.jpg",
-                title: "Archive",
-                type: "archive",
-                url: "https://twitch.tv/videos/vod-1",
-                user_id: "u1",
-                user_login: "alice",
-                user_name: "Alice",
-                view_count: 4,
-                duration: "1h2m3s",
-              },
-            ],
+            data: { game: { id: "509658", name: "Just Chatting", videos: { edges: [
+              { node: {
+                id: "live-1", status: "RECORDING", title: "Live leak",
+                publishedAt: "2026-09-11T00:00:00Z", previewThumbnailURL: "https://example.com/live.jpg",
+                broadcastType: "ARCHIVE", owner: { id: "u1", login: "alice", displayName: "Alice", profileImageURL: "" },
+                lengthSeconds: 3723, viewCount: 9,
+              } },
+              { node: {
+                id: "vod-1", status: "RECORDED", title: "Archive",
+                publishedAt: "2026-09-11T00:00:00Z", previewThumbnailURL: "https://example.com/vod.jpg",
+                broadcastType: "ARCHIVE", owner: { id: "u1", login: "alice", displayName: "Alice", profileImageURL: "" },
+                lengthSeconds: 3723, viewCount: 4,
+              } },
+            ] } } },
           });
         }
         return json({
-          data: [
-            {
-              broadcaster_id: "u1",
-              broadcaster_name: "Alice",
-              created_at: "2026-09-11T00:00:00Z",
-              creator_name: "Bob",
-              duration: 12,
-              id: "clip-1",
-              thumbnail_url: "https://example.com/clip.jpg",
-              title: "Clip",
-              url: "https://clips.twitch.tv/clip-1",
-              view_count: 3,
-            },
-          ],
+          data: { game: { id: "509658", name: "Just Chatting", clips: { edges: [
+            { node: {
+              slug: "clip-1", title: "Clip", durationSeconds: 12,
+              viewCount: 3, createdAt: "2026-09-11T00:00:00Z",
+              thumbnailURL: "https://example.com/clip.jpg",
+              broadcaster: { id: "u1", login: "alice", displayName: "Alice", profileImageURL: "" },
+              curator: { displayName: "Bob" },
+            } },
+          ] } } },
         });
       },
       readAccessToken: async () => "user",
@@ -417,12 +403,8 @@ describe("platform catalog readers", () => {
       timeRange: "day",
     });
     expect(clips.items[0]?.id).toBe("clip-1");
-    const clipUrl = new URL(urls.find((url) => url.includes("/clips")) ?? "");
-    expect(clipUrl.searchParams.get("started_at")?.endsWith("Z")).toBe(true);
-    expect(clipUrl.searchParams.get("ended_at")?.endsWith("Z")).toBe(true);
-    expect(clipUrl.searchParams.get("started_at")).toBe(
-      new Date(clipUrl.searchParams.get("started_at") ?? "").toISOString(),
-    );
+    expect(requests[0]?.variables.sort).toBe("TIME");
+    expect(requests[1]?.variables.filter).toBe("LAST_DAY");
   });
 
   it("does not invent Kick clips", async () => {

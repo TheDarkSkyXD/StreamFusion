@@ -19,9 +19,7 @@ export type CategoryCatalogView = {
   readonly retryablePlatforms: readonly Platform[];
 };
 
-const emptyOutcome = (
-  platform: Platform,
-): PlatformReadOutcome<Category> => ({
+const emptyOutcome = (platform: Platform): PlatformReadOutcome<Category> => ({
   cache: { kind: "miss" },
   items: [],
   path: { kind: "unavailable", platform, reason: "cancelled" },
@@ -73,7 +71,11 @@ export function mergeCategories(
   categories: readonly Category[],
 ): readonly CatalogCategory[] {
   const groups = new Map<string, Category[]>();
+  const seen = new Set<string>();
   for (const category of categories) {
+    const identity = `${category.platform}:${category.id}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     const key = normalizeCategoryName(category.name);
     const group = groups.get(key) ?? [];
     group.push(category);
@@ -83,6 +85,39 @@ export function mergeCategories(
     [...groups.entries()].map(([key, group]) => mergeGroup(key, group)),
     (left, right) => (right.viewerCount ?? 0) - (left.viewerCount ?? 0),
   );
+}
+
+export function collapseCategoryPages(
+  pages: readonly PlatformReadOutcome<Category>[],
+): PlatformReadOutcome<Category> {
+  const first = pages[0];
+  if (first === undefined) {
+    throw new Error("category catalog has no first page");
+  }
+  const items: Category[] = [];
+  const seen = new Set<string>();
+  for (const page of pages) {
+    for (const item of page.items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      items.push(item);
+    }
+  }
+  return { ...first, items };
+}
+
+export function nextCategoryCursor(
+  last: PlatformReadOutcome<Category>,
+  pages: readonly PlatformReadOutcome<Category>[],
+): string | undefined {
+  const cursor = last.cursor;
+  return last.status === "complete" &&
+    last.items.length > 0 &&
+    cursor !== undefined &&
+    cursor !== "" &&
+    !pages.slice(0, -1).some((page) => page.cursor === cursor)
+    ? cursor
+    : undefined;
 }
 
 function mergeGroup(key: string, group: readonly Category[]): CatalogCategory {

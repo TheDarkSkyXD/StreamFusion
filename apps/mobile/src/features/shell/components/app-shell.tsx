@@ -1314,6 +1314,7 @@ function ShellScreen({
       >
         <CategoryDetailScreen
           category={location.category}
+          onWatch={openWatch}
           onOpenAccounts={() =>
             dispatch({ type: "navigate", location: { route: "more/accounts" } })
           }
