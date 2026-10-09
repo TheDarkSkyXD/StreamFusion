@@ -4,12 +4,12 @@ import { updatePresentation } from "../domain/update-presentation";
 import type { UpdatePhase, UpdateRelease } from "../capabilities/android-updater";
 
 const release: UpdateRelease = {
-  tag: "android-v0.1.4-alpha.1",
-  version: "0.1.4-alpha.1",
+  tag: "android-v0.1.6-alpha.3",
+  version: "0.1.6-alpha.3",
   apkBytes: 178_185_644,
   apkSha256: "a".repeat(64),
   notes: "Player fixes.",
-  releaseUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v0.1.4-alpha.1",
+  releaseUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/tag/android-v0.1.6-alpha.3",
 };
 
 function Story({ phase, operationError }: { readonly phase: UpdatePhase; readonly operationError?: string }) {

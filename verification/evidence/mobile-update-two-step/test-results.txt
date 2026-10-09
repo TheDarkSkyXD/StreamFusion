@@ -1,0 +1,35 @@
+Old engine, initial handoff test suite:
+11 tests completed, 5 failed
+
+Old engine, final handoff test suite after stale callback assertion tightened:
+11 tests completed, 6 failed
+
+Final engine, exact-source native proof:
+UpdaterCancellationTest: 2 tests, 0 failures
+UpdaterHandoffTest: 11 tests, 0 failures
+UpdaterRecordTest: 3 tests, 0 failures
+UpdaterVerifierTest: 2 tests, 0 failures
+
+Stale-lease regression with the production guard removed in the isolated proof copy:
+1 test completed, 1 failed (expected).
+Production source restored; all 18 native tests passed again.
+
+Mobile Vitest:
+Test Files  180 passed (180)
+Tests  1040 passed (1040)
+Feature architecture import proof passed.
+
+Release identity: 15 tests passed.
+Release set: 6 tests passed.
+Mobile lint and typecheck passed.
+React Doctor: 100 / 100, no issues found.
+
+Published Android release workflow 37868412648: success.
+All four published SHA256SUMS entries match downloaded files.
+APK SHA256: cc265c765f31bc70ad0dfd76da4617c3b1477d2ca7f0b15e8e1f28a6d451be51
+APK bytes: 227160666
+apksigner verify: exit 0, pinned production certificate matched.
+Application ID: com.thedarkskyxd.streamfusion
+Version: 0.1.6-alpha.3, code 9.
+Production Android 15: GitHub download, automatic Android approval, code 8 to 9.
+Prerelease enabled, return checks enabled, Weekly retained after replacement.

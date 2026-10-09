@@ -162,13 +162,25 @@ class UpdaterHandoffTest {
   @Test fun backgroundAndLaterForegroundCannotResumeAnOldVerifiedHandoff() = withEngine { engine, journal ->
     val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     engine.onForeground(activity)
-    val handoff = handoff(engine, journal)
-    engine.onBackground()
-    engine.onForeground(activity)
+    awaitForegroundWork(engine)
+    val entered = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    updaterExecutor(engine).submit { entered.countDown(); release.await(5, TimeUnit.SECONDS) }
+    assertTrue(entered.await(5, TimeUnit.SECONDS))
+    val handoff = handoff(engine, journal, installIntent = true)
 
-    continueHandoff(engine, handoff)
+    try {
+      engine.onBackground()
+      engine.onForeground(activity)
+      continueHandoff(engine, handoff)
 
-    assertEquals("ready", journal.read().kind)
+      assertEquals("ready", journal.read().kind)
+      assertTrue(journal.read().installIntent)
+    } finally { release.countDown() }
+    awaitForegroundWork(engine)
+
+    assertEquals("failed", journal.read().kind)
+    assertEquals("checksum", journal.read().code)
   }
 
   @Test fun currentForegroundHandoffReachesTheInstallerVerificationGate() = withEngine { engine, journal ->
@@ -186,7 +198,8 @@ class UpdaterHandoffTest {
   @Test fun canceledGenerationCannotResumeAnOldVerifiedHandoff() = withEngine { engine, journal ->
     val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     engine.onForeground(activity)
-    val handoff = handoff(engine, journal)
+    awaitForegroundWork(engine)
+    val handoff = handoff(engine, journal, installIntent = true)
     journal.write(journal.read().copy(kind = "canceled", generation = 8))
 
     continueHandoff(engine, handoff)
