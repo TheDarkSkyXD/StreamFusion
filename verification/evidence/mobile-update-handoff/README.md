@@ -11,7 +11,7 @@ Xtra starts installation after download. StreamFusion now continues after APK ve
 | Check | Result |
 | --- | --- |
 | Mobile suite | 180 Vitest files, 1,038 tests passed; Node tests and architecture import proof passed |
-| Native updater suite | 10 tests passed in the isolated proof project |
+| Native updater suite | 11 tests passed in the isolated proof project |
 | Changed React UI | React Doctor 100/100, no issues; TypeScript and targeted ESLint passed |
 | Android 15 foreground completion | Android approval opened without a second app Install tap |
 | Android 15 cancelled approval | Visible install-blocked phase; retry reopened approval using the retained APK |
@@ -40,3 +40,7 @@ The popup screenshot renders the production React Native component in Storybook.
 Comparison source: [Xtra update download and installation](https://github.com/crackededed/Xtra/blob/a3cbb0325f3330573a6738f7d36a2c5b785f4d1c/app/src/main/java/com/github/andreyasadchy/xtra/ui/settings/SettingsViewModel.kt#L335-L417).
 
 The focused popup regression first reported `Tests 1 failed | 3 passed (4)` against the old host. With the fix, the same test and retry check pass. The complete suite reports `Tests 1038 passed (1038)`.
+
+The unpublished 0.1.6-alpha.1 candidate made lifecycle callbacks acquire the updater work lock. A focused contention test reproduced callbacks waiting behind that lock with `1 test completed, 1 failed`. The 0.1.6-alpha.2 fix restores the volatile Activity reference and consumes permission return through an atomic reference. The same test passes, and all 11 native tests pass. APK verification remains serialized on the worker. The first candidate's release workflow was canceled before publication.
+
+The final native engine has SHA-256 `7236768D2DA57FDF5B437E836B834CC7AC2FFDB6CCCBAF2005368904F1541C52`. On Android 15, the rebuilt proof repeated foreground download, permission return, automatic approval, and replacement with the private marker retained. The Android 11 and 16 screenshots record the preceding candidate's broader permission and failure checks.

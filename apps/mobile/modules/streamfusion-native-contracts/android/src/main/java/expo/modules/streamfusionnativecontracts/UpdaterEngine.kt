@@ -19,6 +19,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 internal class UpdaterEngine private constructor(
   private val context: Context,
@@ -36,7 +37,7 @@ internal class UpdaterEngine private constructor(
   @Volatile private var foregroundActivity: WeakReference<Activity>? = null
   private data class VerifiedHandoff(val operation: String, val generation: Long, val activity: WeakReference<Activity>)
   private data class PermissionReturn(val operation: String, val generation: Long)
-  private var permissionReturn: PermissionReturn? = null
+  private val permissionReturn = AtomicReference<PermissionReturn?>(null)
 
   fun listen(listener: (Long) -> Unit) { listeners.add(listener) }
   fun unlisten(listener: (Long) -> Unit) { listeners.remove(listener) }
@@ -171,7 +172,7 @@ internal class UpdaterEngine private constructor(
           try {
             activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
               Uri.parse("package:${context.packageName}")))
-            permissionReturn = PermissionReturn(operation, waiting.generation)
+            permissionReturn.set(PermissionReturn(operation, waiting.generation))
             saveLocked(latest.copy(installIntent = true))
           } catch (_: Exception) {
             failLocked(latest, "install-failed", "install")
@@ -193,10 +194,8 @@ internal class UpdaterEngine private constructor(
 
   fun onForeground(activity: Activity?) {
     val lease = activity?.let(::WeakReference)
-    val request = synchronized(guard) {
-      foregroundActivity = lease
-      permissionReturn.also { permissionReturn = null }
-    } ?: return
+    foregroundActivity = lease
+    val request = permissionReturn.getAndSet(null) ?: return
     executor.submit {
       synchronized(guard) {
         val current = reconcileLocked()
@@ -217,7 +216,7 @@ internal class UpdaterEngine private constructor(
     }
   }
 
-  fun onBackground() { synchronized(guard) { foregroundActivity = null } }
+  fun onBackground() { foregroundActivity = null }
 
   fun startTransferFromService() {
     synchronized(guard) {

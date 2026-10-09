@@ -2,7 +2,7 @@
   "expo": {
     "name": "StreamFusion Development",
     "slug": "streamfusion-development",
-    "version": "0.1.6-alpha.1",
+    "version": "0.1.6-alpha.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,7 +15,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "allowBackup": false,
       "package": "com.thedarkskyxd.streamfusion.dev",
-      "versionCode": 7,
+      "versionCode": 8,
       "intentFilters": [
         {
           "action": "VIEW",

@@ -138,7 +138,7 @@ $env:Path = "$JavaDirectory/bin;$env:Path"
 Push-Location $proof
 try {
   foreach ($build in @(
-    @{ Code = 2; Name = "0.1.6-alpha.1"; Output = "candidate.apk" },
+    @{ Code = 2; Name = "0.1.6-alpha.2"; Output = "candidate.apk" },
     @{ Code = 1; Name = "0.1.5-alpha.1"; Output = "baseline-r.apk" }
   )) {
     $ErrorActionPreference = "Continue"
