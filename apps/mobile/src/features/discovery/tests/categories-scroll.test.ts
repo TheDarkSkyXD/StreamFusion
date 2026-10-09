@@ -449,7 +449,12 @@ describe("category scrolling", () => {
           items: [fixtureCategory("twitch", "second", "twitch second", 10)],
         });
         await twitchSecond;
-        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await vi.waitFor(async () => {
+        await act(async () => {});
+        expect(
+          catalog?.view.providers.twitch.items.map((item) => item.id),
+        ).toEqual(["first", "second"]);
       });
       expect(reads).toEqual([
         "twitch:first",
@@ -457,9 +462,6 @@ describe("category scrolling", () => {
         "twitch:next",
         "kick:next",
       ]);
-      expect(
-        catalog?.view.providers.twitch.items.map((item) => item.id),
-      ).toEqual(["first", "second"]);
       expect(catalog?.view.providers.kick.items.map((item) => item.id)).toEqual(
         ["first", "second"],
       );
