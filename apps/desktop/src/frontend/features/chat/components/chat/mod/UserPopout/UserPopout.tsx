@@ -1,9 +1,7 @@
-import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Copy,
-  ExternalLink,
   Languages,
   LayoutDashboard,
   LockKeyhole,
@@ -218,13 +216,7 @@ export function UserPopout({
     });
   }, [newestMessageId]);
   const resolvedChannel = channel.state === "known" ? channel.value : null;
-  const externalUsername = resolvedChannel?.username ?? username;
-  const externalDisplayName = resolvedChannel?.displayName ?? username;
   const platformLabel = platform === "kick" ? "Kick" : "Twitch";
-  const externalUrl =
-    platform === "kick"
-      ? `https://kick.com/${externalUsername.trim().replace(/^@+/, "").toLowerCase()}`
-      : `https://www.twitch.tv/${externalUsername}`;
   const liveAnnouncement = [
     renderedIdentity.state === "failed"
       ? t("chatModeration.profileIdentityVerificationFailed")
@@ -581,24 +573,6 @@ export function UserPopout({
               <Radio className="h-4 w-4" aria-hidden />
               {t("chatModeration.viewChannel")}
             </button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                  aria-label={t("chatModeration.openExternalProfile", {
-                    displayName: externalDisplayName,
-                    platform: platformLabel,
-                  })}
-                  onClick={() => void getChatPresentationServices()?.openExternal(externalUrl)}
-                >
-                  <ExternalLink className="h-4 w-4" aria-hidden />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {t("chatModeration.openOnPlatform", { platform: platformLabel })}
-              </TooltipContent>
-            </Tooltip>
             {channel.state === "loading" ? (
               <span className="text-xs text-[var(--color-foreground-muted)]">
                 {t("chatModeration.verifyingChannel")}

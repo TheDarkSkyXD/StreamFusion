@@ -17,13 +17,9 @@ export function useChannelFollow(input: {
   readonly channel: ChannelIdentity;
   readonly displayName?: string;
   readonly enabled?: boolean;
-  readonly following: Pick<
-    FollowingSession,
-    "listMembership" | "mutateFollow" | "openProviderPage"
-  >;
+  readonly following: Pick<FollowingSession, "listMembership" | "mutateFollow">;
 }): {
   readonly follow: FollowView;
-  readonly openProviderPage: () => void;
   readonly toggle: () => void;
 } {
   const queryClient = useQueryClient();
@@ -47,12 +43,6 @@ export function useChannelFollow(input: {
       membership: membership.data ?? [],
       pending: pending || (enabled && membership.isLoading),
     }),
-    openProviderPage() {
-      void input.following.openProviderPage({
-        channelLogin: input.channel.username,
-        platform: input.channel.platform,
-      });
-    },
     toggle() {
       if (pending) return;
       void impactHaptic("light");
@@ -73,10 +63,7 @@ export function useChannelFollow(input: {
 async function mutateFollow(input: {
   readonly channel: ChannelIdentity;
   readonly displayName?: string;
-  readonly following: Pick<
-    FollowingSession,
-    "listMembership" | "mutateFollow" | "openProviderPage"
-  >;
+  readonly following: Pick<FollowingSession, "listMembership" | "mutateFollow">;
   readonly queryClient: ReturnType<typeof useQueryClient>;
   readonly setError: (reason: string | null) => void;
   readonly setPending: (pending: boolean) => void;

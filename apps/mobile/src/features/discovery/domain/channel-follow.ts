@@ -33,7 +33,3 @@ export function followCopy(follow: FollowView): string {
 export function followActionLabel(follow: FollowView): string {
   return follow.kind === "guest-present" ? "Unfollow" : "Follow";
 }
-
-export function providerPageLabel(platform: ChannelIdentity["platform"]): string {
-  return platform === "twitch" ? "Open on Twitch" : "Open on Kick";
-}

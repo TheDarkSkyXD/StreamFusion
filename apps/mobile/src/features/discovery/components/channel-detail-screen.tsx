@@ -83,7 +83,6 @@ export function ChannelDetailScreen({
           );
       }}
       onFollow={follow.toggle}
-      onOpenProviderPage={follow.openProviderPage}
       onRetry={live.retry}
       onSelectTab={setTab}
       tab={tab}
@@ -98,7 +97,6 @@ export function ChannelDetailView({
   liveAlerts,
   onToggleLiveAlerts,
   onFollow,
-  onOpenProviderPage,
   onRetry,
   onSelectProofMode,
   onSelectTab,
@@ -111,7 +109,6 @@ export function ChannelDetailView({
   readonly liveAlerts?: boolean;
   readonly onToggleLiveAlerts?: () => void;
   readonly onFollow: () => void;
-  readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
   readonly onSelectTab: (tab: ChannelDetailTab) => void;
@@ -126,7 +123,6 @@ export function ChannelDetailView({
       {...(liveAlerts === undefined ? {} : { liveAlerts })}
       {...(onToggleLiveAlerts === undefined ? {} : { onToggleLiveAlerts })}
       onFollow={onFollow}
-      onOpenProviderPage={onOpenProviderPage}
       onRetry={onRetry}
       onSelectTab={onSelectTab}
       tab={tab}
@@ -144,7 +140,6 @@ export function ChannelDetailBody({
   liveAlerts,
   onToggleLiveAlerts,
   onFollow,
-  onOpenProviderPage,
   onRetry,
   onSelectProofMode,
   onSelectTab,
@@ -157,7 +152,6 @@ export function ChannelDetailBody({
   readonly liveAlerts?: boolean;
   readonly onToggleLiveAlerts?: () => void;
   readonly onFollow: () => void;
-  readonly onOpenProviderPage: () => void;
   readonly onRetry: () => void;
   readonly onSelectProofMode?: (mode: ChannelFixtureMode) => void;
   readonly onSelectTab: (tab: ChannelDetailTab) => void;
@@ -194,7 +188,6 @@ export function ChannelDetailBody({
           {...(onToggleLiveAlerts === undefined ? {} : { onToggleLiveAlerts })}
           follow={view.follow}
           onFollow={onFollow}
-          onOpenProviderPage={onOpenProviderPage}
           onWatch={() => {
             if (view.watch.kind !== "available") return;
             onWatch?.(view.watch.target);

@@ -293,7 +293,6 @@ describe("catalog UI journeys", () => {
           username: "twitch-live",
         },
         onFollow: () => followed.push("follow"),
-        onOpenProviderPage: () => undefined,
         onRetry: () => retried.push("channel"),
         onSelectTab: () => undefined,
         tab: "home",

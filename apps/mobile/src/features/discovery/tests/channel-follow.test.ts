@@ -5,7 +5,6 @@ import {
   composeGuestFollowView,
   followActionLabel,
   followCopy,
-  providerPageLabel,
 } from "../domain/channel-follow";
 
 const channel = {
@@ -85,7 +84,5 @@ describe("follow copy", () => {
     expect(followCopy({ kind: "guest-present" })).toBe(
       "This channel is a Guest Follow on this device.",
     );
-    expect(providerPageLabel("twitch")).toBe("Open on Twitch");
-    expect(providerPageLabel("kick")).toBe("Open on Kick");
   });
 });

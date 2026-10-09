@@ -90,11 +90,10 @@ export type WatchCaptionSession = {
 
 const INERT_FOLLOWING_SESSION: Pick<
   FollowingSession,
-  "listMembership" | "mutateFollow" | "openProviderPage"
+  "listMembership" | "mutateFollow"
 > = {
   listMembership: async () => [],
   mutateFollow: async () => ({ kind: "rejected", reason: "invalid" }),
-  openProviderPage: async () => {},
 };
 
 export function WatchRoute({

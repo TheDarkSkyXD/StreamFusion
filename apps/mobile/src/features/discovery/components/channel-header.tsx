@@ -18,17 +18,12 @@ import type {
   WatchAvailability,
 } from "../capabilities/platform-reads";
 import { watchAvailabilityCopy } from "../domain/channel-detail";
-import {
-  followActionLabel,
-  followCopy,
-  providerPageLabel,
-} from "../domain/channel-follow";
+import { followActionLabel, followCopy } from "../domain/channel-follow";
 
 export function ChannelHeader({
   channel,
   follow,
   onFollow,
-  onOpenProviderPage,
   onWatch,
   liveAlerts,
   onToggleLiveAlerts,
@@ -37,7 +32,6 @@ export function ChannelHeader({
   readonly channel: Channel;
   readonly follow: FollowView;
   readonly onFollow: () => void;
-  readonly onOpenProviderPage: () => void;
   readonly onWatch: () => void;
   readonly liveAlerts?: boolean;
   readonly onToggleLiveAlerts?: () => void;
@@ -141,15 +135,6 @@ export function ChannelHeader({
         >
           {watchCopy}
         </Text>
-        <MobileButton
-          accessibilityHint={`Opens ${channel.displayName} on ${channel.platform}.`}
-          accessibilityLabel={providerPageLabel(channel.platform)}
-          onPress={onOpenProviderPage}
-          testID="channel-open-provider"
-          variant={channel.platform}
-        >
-          {providerPageLabel(channel.platform)}
-        </MobileButton>
       </View>
     </View>
   );

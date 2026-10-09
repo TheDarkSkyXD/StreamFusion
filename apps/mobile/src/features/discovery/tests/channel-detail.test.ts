@@ -122,7 +122,6 @@ function bodyProps(
   return {
     channel,
     onFollow: () => undefined,
-    onOpenProviderPage: () => undefined,
     onRetry: () => undefined,
     onSelectTab: () => undefined,
     tab: extras.tab ?? "home",
@@ -167,7 +166,7 @@ describe("channel detail screen", () => {
     expect(toggles).toBe(1);
   });
 
-  it("renders header, tabs, about, Follow, and provider page", () => {
+  it("renders Twitch channel actions without a provider shortcut", () => {
     const root = ChannelDetailBody(
       bodyProps(
         { id: "twitch-c1", platform: "twitch", username: "twitch-live" },
@@ -189,7 +188,7 @@ describe("channel detail screen", () => {
     );
     expect(
       nodes.some((node) => node.props.testID === "channel-open-provider"),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       nodes.some((node) => node.props.testID === "channel-follow-reason"),
     ).toBe(true);
@@ -202,10 +201,34 @@ describe("channel detail screen", () => {
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "Follow")).toBe(true);
     expect(nodes.some((node) => node.props.children === "Open on Twitch")).toBe(
-      true,
+      false,
     );
     const watch = nodes.find((node) => node.props.testID === "channel-watch");
     expect(watch?.props.disabled).toBe(false);
+    expect(nodes.some((node) => node.props.children === "Watch")).toBe(true);
+  });
+
+  it("renders Kick Follow and Watch without a provider shortcut", () => {
+    const nodes = descendants(
+      ChannelDetailBody(
+        bodyProps(
+          { id: "kick-c1", platform: "kick", username: "kick-live" },
+          "kick-unsupported",
+        ),
+      ),
+    );
+    expect(nodes.some((node) => node.props.testID === "channel-follow")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "channel-watch")).toBe(
+      true,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "channel-open-provider"),
+    ).toBe(false);
+    expect(nodes.some((node) => node.props.children === "Open on Kick")).toBe(
+      false,
+    );
   });
 
   it("disables Follow while a Guest Follow write is pending", () => {

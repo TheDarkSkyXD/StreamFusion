@@ -1,7 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { installElectronAPIMock, renderWithProviders } from "../../../../../../../../../tests/test-utils";
+import {
+  installElectronAPIMock,
+  renderWithProviders,
+} from "../../../../../../../../../tests/test-utils";
 
 const toastSuccessMock = vi.hoisted(() => vi.fn());
 const toastErrorMock = vi.hoisted(() => vi.fn());
@@ -86,9 +89,7 @@ beforeEach(() => {
       chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES },
     } as typeof state.preferences,
   }));
-  // Stub the electronAPI for openExternal usage inside the footer.
   const api = installElectronAPIMock();
-  api.openExternal = vi.fn();
   api.auth.getToken = vi.fn().mockResolvedValue(null);
   api.auth.tokenStatus = vi.fn().mockResolvedValue({
     platform: "twitch",
@@ -155,7 +156,7 @@ function renderPopout(
 
 // Guards: failed remote identity keeps chat-known identity visible and exposes a field-level retry.
 // Guards: identity loading remains visible without delaying the dialog shell.
-// Guards: Kick user dialogs keep Kick-specific accessible copy and external profile navigation.
+// Guards: Twitch and Kick user dialogs omit external profile shortcuts while retaining in-app channel actions.
 // Guards: Recent chat stays channel-scoped, rich, author-truthful, and capped at four row badges.
 // Guards: Exact selected-message targets survive live insertion/pruning and change only deliberately.
 // Guards: Live matching inserts respect reduced motion and badge catalog states stay independently truthful.
@@ -423,7 +424,7 @@ describe("UserPopout", () => {
     expect(screen.getByRole("button", { name: "Copy message to chat" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Translate · Coming Soon" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "View Channel" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Open Alice on Twitch" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Open Alice on Twitch" })).not.toBeInTheDocument();
   });
 
   it("copies the selected visible message into chat without writing to the clipboard", () => {
@@ -658,7 +659,6 @@ describe("UserPopout", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reply" }));
     fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
     fireEvent.click(screen.getByRole("button", { name: "View Channel" }));
-    fireEvent.click(screen.getByRole("button", { name: "Open Alice on Twitch" }));
 
     expect(onReply).toHaveBeenCalledWith(bobReply);
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Bob selected"));
@@ -667,7 +667,6 @@ describe("UserPopout", () => {
       username: "alice",
       displayName: "Alice",
     });
-    expect(window.electronAPI.openExternal).toHaveBeenCalledWith("https://www.twitch.tv/alice");
   });
 
   it("keeps the verified-empty current-chat section visible with exact copy", () => {
@@ -889,7 +888,7 @@ describe("UserPopout", () => {
     expect(screen.getByText("@alice")).toBeInTheDocument();
     expect(screen.getByText("Profile loading…")).toBeInTheDocument();
     expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Open alice on Twitch" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open alice on Twitch" })).not.toBeInTheDocument();
     expect(screen.getByText("Verifying channel…")).toBeInTheDocument();
   });
 
@@ -1039,7 +1038,7 @@ describe("UserPopout", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
   });
 
-  it("keeps external navigation available while failed internal channel verification disables View Channel and offers Retry", () => {
+  it("disables View Channel and offers Retry when channel verification fails", () => {
     const retryChannel = vi.fn();
     mockedUseUserProfile.mockReturnValue({
       ...pendingProfileState(),
@@ -1048,38 +1047,19 @@ describe("UserPopout", () => {
     });
 
     renderPopout();
-    fireEvent.click(screen.getByRole("button", { name: "Open alice on Twitch" }));
     expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Open alice on Twitch" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Couldn’t verify · Retry" }));
 
-    expect(window.electronAPI.openExternal).toHaveBeenCalledWith("https://www.twitch.tv/alice");
     expect(retryChannel).toHaveBeenCalledOnce();
     expect(screen.getByRole("heading", { name: "alice" })).toBeInTheDocument();
   });
 
-  it("opens the clicked chatter channel rather than the current stream channel", () => {
-    mockedUseUserProfile.mockReturnValue({
-      ...pendingProfileState(),
-      channel: {
-        state: "known",
-        source: "official",
-        value: { id: "u1", username: "alice", displayName: "Alice" },
-      },
-    });
-
-    renderPopout();
-    fireEvent.click(screen.getByRole("button", { name: "Open Alice on Twitch" }));
-
-    expect(window.electronAPI.openExternal).toHaveBeenCalledWith("https://www.twitch.tv/alice");
-  });
-
-  it("preserves the Kick dialog path and opens the clicked user on Kick", () => {
+  it("preserves the Kick dialog without an external profile shortcut", () => {
     mockedUseUserProfile.mockReturnValue(pendingProfileState());
 
     renderPopout(true, "kick");
-    fireEvent.click(screen.getByRole("button", { name: "Open alice on Kick" }));
-
-    expect(window.electronAPI.openExternal).toHaveBeenCalledWith("https://kick.com/alice");
+    expect(screen.queryByRole("button", { name: "Open alice on Kick" })).not.toBeInTheDocument();
     expect(
       screen.getByText("Public Kick profile and recent messages for @alice.")
     ).toBeInTheDocument();
@@ -1115,7 +1095,7 @@ describe("UserPopout", () => {
   });
 
   it.each(["unavailable", "failed"] as const)(
-    "keeps the chat-known Kick profile link available when channel enrichment is %s",
+    "keeps the Kick profile visible without an external shortcut when channel enrichment is %s",
     (channelState) => {
       mockedUseUserProfile.mockReturnValue({
         ...pendingProfileState(),
@@ -1123,11 +1103,9 @@ describe("UserPopout", () => {
       });
 
       renderPopout(true, "kick", undefined, "AntithesisOfSpace");
-      fireEvent.click(screen.getByRole("button", { name: "Open AntithesisOfSpace on Kick" }));
-
-      expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
-        "https://kick.com/antithesisofspace"
-      );
+      expect(
+        screen.queryByRole("button", { name: "Open AntithesisOfSpace on Kick" })
+      ).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Couldn’t verify · Retry" })).toBeEnabled();
     }
