@@ -137,13 +137,11 @@ const chatting = {
 
 // Guards: catalog journeys keep navigation, retry, and empty/error distinct from ready cards
 describe("catalog UI journeys", () => {
-  it("shows Watch-home featured carousel and retries a failed Twitch catalog", () => {
-    const retried: string[] = [];
+  it("shows Watch-home featured carousel and automatic Twitch recovery", () => {
     const ready = descendants(
       HomeLiveDiscoveryView({
         onOpenAccounts: () => undefined,
         onOpenChannel: () => undefined,
-        onRetry: (platform) => retried.push(platform),
         view: composeHomeLiveDiscovery({
           kick: fixtureOutcome("kick", "ready"),
           loading: false,
@@ -164,7 +162,6 @@ describe("catalog UI journeys", () => {
       HomeLiveDiscoveryView({
         onOpenAccounts: () => undefined,
         onOpenChannel: () => undefined,
-        onRetry: (platform) => retried.push(platform),
         view: composeHomeLiveDiscovery({
           kick: fixtureOutcome("kick", "ready"),
           loading: false,
@@ -172,8 +169,14 @@ describe("catalog UI journeys", () => {
         }),
       }),
     );
-    press(failed, "home-retry-twitch");
-    expect(retried).toEqual(["twitch"]);
+    expect(
+      failed.some((node) => node.props.testID === "home-retry-twitch"),
+    ).toBe(false);
+    expect(
+      failed.some(
+        (node) => node.props.children === "Twitch catalog read failed. Reconnecting…",
+      ),
+    ).toBe(true);
   });
 
   it("opens a category card and retries a failed category catalog", () => {

@@ -8,6 +8,7 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { PlatformReadOutcome } from "../capabilities/platform-reads";
+import { shouldAutoRetryHomeRead } from "../domain/home-live-discovery";
 
 export function HomeProviderBanner({
   onOpenAccounts,
@@ -15,12 +16,13 @@ export function HomeProviderBanner({
   outcome,
 }: {
   readonly onOpenAccounts: () => void;
-  readonly onRetry: (platform: Platform) => void;
-  readonly outcome: PlatformReadOutcome<unknown>;
+  readonly onRetry?: (platform: Platform) => void;
+  readonly outcome: PlatformReadOutcome<unknown> | undefined;
 }) {
-  const message = bannerMessage(outcome);
+  if (outcome === undefined) return null;
+  const message = bannerMessage(outcome, onRetry === undefined);
   if (message === null) return null;
-  const canRetry = viewRetryable(outcome);
+  const canRetry = onRetry !== undefined && viewRetryable(outcome);
   return (
     <View style={styles.banner} testID={`home-banner-${outcome.platform}`}>
       <Text selectable style={styles.bannerCopy}>
@@ -35,7 +37,7 @@ export function HomeProviderBanner({
           {cacheAge(outcome)}
         </Text>
       ) : null}
-      {canRetry ? (
+      {canRetry && onRetry ? (
         <MobileButton
           accessibilityLabel={`Retry ${outcome.platform}`}
           onPress={() => onRetry(outcome.platform)}
@@ -60,7 +62,14 @@ export function HomeProviderBanner({
   );
 }
 
-function bannerMessage(outcome: PlatformReadOutcome<unknown>): string | null {
+function bannerMessage(
+  outcome: PlatformReadOutcome<unknown>,
+  automaticRecovery: boolean,
+): string | null {
+  const reconnecting =
+    automaticRecovery && shouldAutoRetryHomeRead(outcome)
+      ? " Reconnecting…"
+      : "";
   if (outcome.error?.code === "auth-lost") {
     return `${platformLabel(outcome.platform)} catalog can still use Relay.`;
   }
@@ -68,13 +77,15 @@ function bannerMessage(outcome: PlatformReadOutcome<unknown>): string | null {
     return `${platformLabel(outcome.platform)} read was cancelled.`;
   }
   if (outcome.error?.code === "retry-exhausted") {
-    return `${platformLabel(outcome.platform)} retries are exhausted. Retry this platform only.`;
+    return automaticRecovery
+      ? `${platformLabel(outcome.platform)} retries are exhausted.${reconnecting}`
+      : `${platformLabel(outcome.platform)} retries are exhausted. Retry this platform only.`;
   }
   if (
     outcome.path.kind === "unavailable" &&
     outcome.path.reason === "relay-unavailable"
   ) {
-    return `${platformLabel(outcome.platform)} Relay is unavailable.`;
+    return `${platformLabel(outcome.platform)} Relay is unavailable.${reconnecting}`;
   }
   if (
     outcome.path.kind === "unavailable" &&
@@ -83,13 +94,13 @@ function bannerMessage(outcome: PlatformReadOutcome<unknown>): string | null {
     return `${platformLabel(outcome.platform)} Relay is unavailable.`;
   }
   if (outcome.status === "failed") {
-    return `${platformLabel(outcome.platform)} catalog read failed.`;
+    return `${platformLabel(outcome.platform)} catalog read failed.${reconnecting}`;
   }
   if (
     outcome.status === "stale" ||
     (outcome.cache.kind === "hit" && outcome.cache.stale)
   ) {
-    return `${platformLabel(outcome.platform)} is showing a cached catalog.`;
+    return `${platformLabel(outcome.platform)} is showing a cached catalog.${reconnecting}`;
   }
   return null;
 }

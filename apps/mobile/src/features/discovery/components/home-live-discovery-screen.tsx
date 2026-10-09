@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
-import type { ChannelIdentity, Platform } from "@streamfusion/core/platform";
+import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileRefreshableFlatList } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
@@ -108,7 +108,6 @@ export function HomeLiveDiscoveryScreen({
       onFeaturedIndexChange={setFeaturedIndex}
       onOpenAccounts={onOpenAccounts}
       onRefresh={live.refresh}
-      onRetry={live.retry}
       refreshing={live.refreshing}
       view={live.view}
       {...(footer === undefined ? {} : { footer })}
@@ -128,7 +127,6 @@ export function HomeLiveDiscoveryView({
   onOpenAccounts,
   onOpenChannel,
   onRefresh,
-  onRetry,
   onSelectProofMode,
   onSelectStream,
   proofMode,
@@ -144,7 +142,6 @@ export function HomeLiveDiscoveryView({
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (channel: ChannelIdentity) => void;
   readonly onRefresh?: () => void | Promise<void>;
-  readonly onRetry: (platform: Platform) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly onSelectStream?: (stream: Stream) => void;
   readonly proofMode?: DiscoveryFixtureMode;
@@ -223,12 +220,10 @@ export function HomeLiveDiscoveryView({
           ) : null}
           <HomeProviderBanner
             onOpenAccounts={onOpenAccounts}
-            onRetry={onRetry}
             outcome={view.providers.twitch}
           />
           <HomeProviderBanner
             onOpenAccounts={onOpenAccounts}
-            onRetry={onRetry}
             outcome={view.providers.kick}
           />
         </View>

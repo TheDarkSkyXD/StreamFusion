@@ -60,15 +60,13 @@ export type PlatformReadOutcome<T> = {
 };
 
 export type HomeLiveDiscoveryPhase =
-  | "loading"
-  | "ready"
-  | "offline-cache"
-  | "empty"
-  | "failed";
+  "loading" | "ready" | "offline-cache" | "empty" | "failed";
 
 export type HomeLiveDiscoveryView = {
   readonly streams: readonly Stream[];
-  readonly providers: Readonly<Record<Platform, PlatformReadOutcome<Stream>>>;
+  readonly providers: Readonly<
+    Record<Platform, PlatformReadOutcome<Stream> | undefined>
+  >;
   readonly phase: HomeLiveDiscoveryPhase;
   readonly retryablePlatforms: readonly Platform[];
 };
@@ -198,11 +196,7 @@ export type WatchAvailability =
 export type ChannelDetailTab = "home" | "videos" | "clips";
 
 export type ChannelDetailPhase =
-  | "loading"
-  | "ready"
-  | "offline-cache"
-  | "empty"
-  | "failed";
+  "loading" | "ready" | "offline-cache" | "empty" | "failed";
 
 export type ChannelDetailView = {
   readonly channel: Channel | null;

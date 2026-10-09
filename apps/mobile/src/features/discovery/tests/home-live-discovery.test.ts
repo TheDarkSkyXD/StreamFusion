@@ -27,6 +27,24 @@ describe("composeHomeLiveDiscovery", () => {
     expect(view.streams).toHaveLength(2);
   });
 
+  it("keeps pending providers absent until their reads settle", () => {
+    const pending = composeHomeLiveDiscovery({ loading: true });
+    expect(pending.phase).toBe("loading");
+    expect(pending.providers.twitch).toBeUndefined();
+    expect(pending.providers.kick).toBeUndefined();
+    expect(pending.retryablePlatforms).toEqual([]);
+
+    const oneReady = composeHomeLiveDiscovery({
+      loading: true,
+      twitch: fixtureOutcome("twitch", "ready"),
+    });
+    expect(oneReady.streams.map((stream) => stream.platform)).toEqual([
+      "twitch",
+    ]);
+    expect(oneReady.providers.kick).toBeUndefined();
+    expect(oneReady.retryablePlatforms).toEqual([]);
+  });
+
   it("scopes retry to the failed platform only", () => {
     const view = composeHomeLiveDiscovery({
       kick: fixtureOutcome("kick", "ready"),

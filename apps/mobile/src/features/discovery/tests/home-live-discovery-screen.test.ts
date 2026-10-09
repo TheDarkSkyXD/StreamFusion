@@ -1,4 +1,9 @@
-import { createElement, Fragment, isValidElement, type ReactElement } from "react";
+import {
+  createElement,
+  Fragment,
+  isValidElement,
+  type ReactElement,
+} from "react";
 import type { FlatListProps } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import { describe, expect, it, vi } from "vitest";
@@ -93,22 +98,18 @@ function render(
     readonly title?: string;
   } = {},
 ) {
-  const retried: string[] = [];
   const root = HomeLiveDiscoveryView({
     featuredIndex: extras.featuredIndex ?? 0,
     onFeaturedIndexChange: extras.onFeaturedIndexChange,
     onOpenAccounts: () => undefined,
     onOpenChannel: () => undefined,
-    onRetry: (platform) => {
-      retried.push(platform);
-    },
     ...(extras.onSelectStream
       ? { onSelectStream: extras.onSelectStream as never }
       : {}),
     ...(extras.title === undefined ? {} : { title: extras.title }),
     view: composeHomeLiveDiscovery({ kick, loading, twitch }),
   });
-  return { nodes: descendants(root), retried, root };
+  return { nodes: descendants(root), root };
 }
 
 describe("Home live discovery screen", () => {
@@ -117,31 +118,33 @@ describe("Home live discovery screen", () => {
       fixtureOutcome("twitch", "ready"),
       fixtureOutcome("kick", "ready"),
     );
-    expect(nodes.some((node) => node.props.testID === "home-featured-carousel")).toBe(
-      true,
-    );
-    expect(nodes.some((node) => node.props.testID === "home-featured-stage")).toBe(
-      true,
-    );
     expect(
-      nodes.some(
-        (node) => node.props.testID === "home-stream-kick-kick-ready",
-      ),
+      nodes.some((node) => node.props.testID === "home-featured-carousel"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "home-featured-stage"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "home-stream-kick-kick-ready"),
     ).toBe(true);
     expect(
       nodes.some(
         (node) =>
           typeof node.props.children === "string" &&
-          node.props.children === "40 viewers" && node.props.accessibilityLabel === "40 viewers",
+          node.props.children === "40 viewers" &&
+          node.props.accessibilityLabel === "40 viewers",
       ),
     ).toBe(true);
     expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
     expect(nodes.some((node) => node.props.children === "proof")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "home-stream-tags-kick-ready")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "home-stream-tags-kick-ready"),
+    ).toBe(true);
     const homeTitle = nodes.find((node) => node.props.children === "Home");
-    expect(homeTitle?.props.style).toMatchObject({ fontSize: 24, fontWeight: "700" });
+    expect(homeTitle?.props.style).toMatchObject({
+      fontSize: 24,
+      fontWeight: "700",
+    });
     expect(nodes.some((node) => node.props.testID === "open-categories")).toBe(
       false,
     );
@@ -157,7 +160,6 @@ describe("Home live discovery screen", () => {
     const root = HomeLiveDiscoveryView({
       onOpenAccounts: () => undefined,
       onOpenChannel: () => undefined,
-      onRetry: () => undefined,
       onSelectProofMode: () => undefined,
       proofMode: "ready",
       view: composeHomeLiveDiscovery({
@@ -173,9 +175,9 @@ describe("Home live discovery screen", () => {
     expect(
       nodes.some((node) => node.props.children === "issue-148-d05-60c4"),
     ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.children === "Live Channels"),
-    ).toBe(true);
+    expect(nodes.some((node) => node.props.children === "Live Channels")).toBe(
+      true,
+    );
     expect(nodes.some((node) => node.props.testID === "home-categories")).toBe(
       false,
     );
@@ -196,12 +198,16 @@ describe("Home live discovery screen", () => {
         },
       },
     );
-    expect(nodes.some((node) => node.props.testID === "home-featured-next")).toBe(
-      true,
-    );
-    nodes.find((node) => node.props.testID === "home-featured-next")?.props.onPress?.();
+    expect(
+      nodes.some((node) => node.props.testID === "home-featured-next"),
+    ).toBe(true);
+    nodes
+      .find((node) => node.props.testID === "home-featured-next")
+      ?.props.onPress?.();
     expect(indexes).toEqual([1]);
-    nodes.find((node) => node.props.testID === "home-featured-stage")?.props.onPress?.();
+    nodes
+      .find((node) => node.props.testID === "home-featured-stage")
+      ?.props.onPress?.();
     expect(selected).toEqual(["twitch:twitch-ready"]);
   });
 
@@ -213,30 +219,28 @@ describe("Home live discovery screen", () => {
     );
     const phase = nodes.find((node) => node.props.testID === "home-phase");
     expect(phase?.props.children).toMatch(/Loading/);
-    expect(nodes.some((node) => node.props.testID === "home-featured-carousel")).toBe(
-      false,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "home-featured-carousel"),
+    ).toBe(false);
   });
 
-  it("keeps Kick visible when only Twitch failed and retries Twitch alone", () => {
-    const { nodes, retried } = render(
+  it("keeps Kick visible and shows automatic recovery when Twitch fails", () => {
+    const { nodes } = render(
       fixtureOutcome("twitch", "twitch-fail"),
       fixtureOutcome("kick", "ready"),
     );
     expect(
       nodes.some((node) => node.props.testID === "home-retry-twitch"),
-    ).toBe(true);
+    ).toBe(false);
     expect(nodes.some((node) => node.props.testID === "home-retry-kick")).toBe(
       false,
     );
-    const retry = nodes.find(
-      (node) => node.props.testID === "home-retry-twitch",
-    );
-    retry?.props.onPress?.();
-    expect(retried).toEqual(["twitch"]);
+    expect(
+      nodes.some((node) => node.props.testID === "home-banner-twitch"),
+    ).toBe(true);
   });
 
-  it("surfaces stale cache age, guest retry after auth-lost, and Relay unavailability", () => {
+  it("surfaces stale cache age, sign in after auth loss, and Relay unavailability", () => {
     const stale = render(
       fixtureOutcome("twitch", "stale-cache"),
       fixtureOutcome("kick", "stale-cache"),
@@ -251,17 +255,19 @@ describe("Home live discovery screen", () => {
     );
     expect(
       authLost.nodes.some((node) => node.props.testID === "home-retry-twitch"),
-    ).toBe(true);
-    expect(
-      authLost.nodes.some((node) => node.props.testID === "home-login"),
     ).toBe(false);
+    expect(
+      authLost.nodes.some((node) => node.props.testID === "home-login-twitch"),
+    ).toBe(true);
 
     const relayDown = render(
       fixtureOutcome("twitch", "relay-unavailable"),
       fixtureOutcome("kick", "cache-miss"),
     );
     expect(
-      relayDown.nodes.some((node) => node.props.testID === "home-banner-twitch"),
+      relayDown.nodes.some(
+        (node) => node.props.testID === "home-banner-twitch",
+      ),
     ).toBe(true);
     const phase = relayDown.nodes.find(
       (node) => node.props.testID === "home-phase",
@@ -273,7 +279,6 @@ describe("Home live discovery screen", () => {
     const selected: string[] = [];
     const root = HomeLiveDiscoveryView({
       onOpenAccounts: () => undefined,
-      onRetry: () => undefined,
       onSelectStream: (stream) => {
         selected.push(`${stream.platform}:${stream.id}`);
       },
@@ -286,12 +291,12 @@ describe("Home live discovery screen", () => {
     });
     const nodes = descendants(root);
     expect(nodes.some((node) => node.props.children === "Watch")).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "home-live-discovery")).toBe(
-      true,
-    );
-    expect(nodes.some((node) => node.props.testID === "home-featured-carousel")).toBe(
-      true,
-    );
+    expect(
+      nodes.some((node) => node.props.testID === "home-live-discovery"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "home-featured-carousel"),
+    ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "open-categories")).toBe(
       false,
     );

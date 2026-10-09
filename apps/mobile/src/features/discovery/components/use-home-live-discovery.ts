@@ -3,7 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type { HomeDiscoverySession } from "../capabilities/platform-reads";
-import { composeHomeLiveDiscovery } from "../domain/home-live-discovery";
+import {
+  composeHomeLiveDiscovery,
+  shouldAutoRetryHomeRead,
+} from "../domain/home-live-discovery";
+
+const RECOVERY_INTERVAL_MS = 5_000;
 
 export function topStreamsQueryKey(
   platform: Platform,
@@ -28,6 +33,10 @@ export function useHomeLiveDiscovery(input: {
         ...(signal === undefined ? {} : { signal }),
       }),
     queryKey: topStreamsQueryKey("twitch", input.language),
+    refetchInterval: ({ state }) =>
+      state.status === "error" || shouldAutoRetryHomeRead(state.data)
+        ? RECOVERY_INTERVAL_MS
+        : false,
     retry: false,
   });
   const kick = useQuery({
@@ -39,6 +48,10 @@ export function useHomeLiveDiscovery(input: {
         ...(signal === undefined ? {} : { signal }),
       }),
     queryKey: topStreamsQueryKey("kick", input.language),
+    refetchInterval: ({ state }) =>
+      state.status === "error" || shouldAutoRetryHomeRead(state.data)
+        ? RECOVERY_INTERVAL_MS
+        : false,
     retry: false,
   });
   const loading = enabled && (twitch.isPending || kick.isPending);
@@ -58,18 +71,9 @@ export function useHomeLiveDiscovery(input: {
       }),
     [queryClient],
   );
-  const retry = useCallback(
-    (platform: Platform) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["discovery", "top-streams", platform],
-      });
-    },
-    [queryClient],
-  );
   return {
     refresh,
     refreshing: twitch.isFetching || kick.isFetching,
-    retry,
     view,
   };
 }

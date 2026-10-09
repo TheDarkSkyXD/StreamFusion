@@ -203,7 +203,209 @@ async function mountDiscovery(streamsPerProvider = 4) {
   };
 }
 
+async function mountLiveReads(
+  readTopStreams: DiscoverySession["readTopStreams"],
+) {
+  const unavailable = async (): Promise<never> => {
+    throw new Error("Unexpected discovery read");
+  };
+  const session: DiscoverySession = {
+    readTopStreams,
+    readCategories: unavailable,
+    searchCategories: unavailable,
+    readCategory: unavailable,
+    readCategoryStreams: unavailable,
+    readCategoryClips: unavailable,
+    readCategoryVideos: unavailable,
+    search: unavailable,
+    readChannel: unavailable,
+    readChannelVideos: unavailable,
+    readChannelClips: unavailable,
+  };
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(HomeLiveDiscoveryScreen, {
+          onOpenAccounts() {},
+          session,
+          title: "Watch",
+        }),
+      ),
+    );
+  });
+  await act(async () => {
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0);
+    else await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  return {
+    container,
+    dispose() {
+      act(() => root.unmount());
+      queryClient.clear();
+    },
+  };
+}
+
 describe("Watch discovery recommendation rendering", () => {
+  it("shows loading without failure banners before reads settle, then shows the ready peer", async () => {
+    let resolveTwitch: (value: PlatformReadOutcome<Stream>) => void = () =>
+      undefined;
+    let resolveKick: (value: PlatformReadOutcome<Stream>) => void = () =>
+      undefined;
+    const screen = await mountLiveReads(
+      ({ platform }) =>
+        new Promise((resolve) => {
+          if (platform === "twitch") resolveTwitch = resolve;
+          else resolveKick = resolve;
+        }),
+    );
+    try {
+      expect(
+        screen.container.querySelector('[data-testid="home-phase"]')
+          ?.textContent,
+      ).toContain("Loading");
+      expect(
+        screen.container.querySelector('[data-testid="home-banner-twitch"]'),
+      ).toBeNull();
+      expect(
+        screen.container.querySelector('[data-testid="home-banner-kick"]'),
+      ).toBeNull();
+      await act(async () => {
+        resolveTwitch(fixtureOutcome("twitch", "ready"));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+      expect(
+        screen.container
+          .querySelector('[data-testid="home-featured-stage"]')
+          ?.getAttribute("aria-label"),
+      ).toBe("Watch Twitch Live");
+      expect(
+        screen.container.querySelector('[data-testid="home-banner-kick"]'),
+      ).toBeNull();
+    } finally {
+      await act(async () => resolveKick(fixtureOutcome("kick", "ready")));
+      screen.dispose();
+    }
+  });
+
+  it("recovers a failed provider automatically without rereading the healthy peer", async () => {
+    vi.useFakeTimers();
+    const calls: Record<Platform, number> = { twitch: 0, kick: 0 };
+    const screen = await mountLiveReads(async ({ platform }) => {
+      calls[platform] += 1;
+      return platform === "twitch" && calls.twitch === 1
+        ? fixtureOutcome("twitch", "twitch-fail")
+        : fixtureOutcome(platform, "ready");
+    });
+    try {
+      expect(calls).toEqual({ twitch: 1, kick: 1 });
+      expect(
+        screen.container.querySelector('[data-testid="home-retry-twitch"]'),
+      ).toBeNull();
+      expect(
+        screen.container.querySelector('[data-testid="home-banner-twitch"]')
+          ?.textContent,
+      ).toContain("Reconnecting");
+      await act(async () => vi.advanceTimersByTimeAsync(5_000));
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(calls).toEqual({ twitch: 2, kick: 1 });
+      expect(
+        screen.container
+          .querySelector('[data-testid="home-featured-stage"]')
+          ?.getAttribute("aria-label"),
+      ).toBe("Watch Twitch Live");
+      expect(
+        screen.container.querySelector('[data-testid="home-banner-twitch"]'),
+      ).toBeNull();
+    } finally {
+      screen.dispose();
+    }
+  });
+
+  it("keeps sign in available without looping on terminal auth failure", async () => {
+    vi.useFakeTimers();
+    let twitchReads = 0;
+    const screen = await mountLiveReads(async ({ platform }) => {
+      if (platform === "twitch") {
+        twitchReads += 1;
+        return fixtureOutcome("twitch", "auth-lost");
+      }
+      return fixtureOutcome("kick", "ready");
+    });
+    try {
+      expect(
+        screen.container.querySelector('[data-testid="home-login-twitch"]'),
+      ).not.toBeNull();
+      expect(
+        screen.container.querySelector('[data-testid="home-retry-twitch"]'),
+      ).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(15_000));
+      expect(twitchReads).toBe(1);
+    } finally {
+      screen.dispose();
+    }
+  });
+
+  it("refreshes an offline cached provider when the connection returns", async () => {
+    vi.useFakeTimers();
+    let twitchReads = 0;
+    const screen = await mountLiveReads(async ({ platform }) => {
+      if (platform === "twitch") {
+        twitchReads += 1;
+        return fixtureOutcome(
+          "twitch",
+          twitchReads === 1 ? "stale-cache" : "ready",
+        );
+      }
+      return fixtureOutcome("kick", "ready");
+    });
+    try {
+      expect(
+        screen.container.querySelector('[data-testid="home-cache-age-twitch"]'),
+      ).not.toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(5_100));
+      expect(twitchReads).toBe(2);
+      expect(
+        screen.container.querySelector('[data-testid="home-cache-age-twitch"]'),
+      ).toBeNull();
+    } finally {
+      screen.dispose();
+    }
+  });
+
+  it("retries a thrown read while Watch remains mounted", async () => {
+    vi.useFakeTimers();
+    let twitchReads = 0;
+    const screen = await mountLiveReads(async ({ platform }) => {
+      if (platform === "twitch") {
+        twitchReads += 1;
+        if (twitchReads === 1) throw new Error("network down");
+      }
+      return fixtureOutcome(platform, "ready");
+    });
+    try {
+      expect(
+        screen.container.querySelector('[data-testid="home-banner-twitch"]'),
+      ).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(5_100));
+      expect(twitchReads).toBe(2);
+      expect(
+        screen.container
+          .querySelector('[data-testid="home-featured-stage"]')
+          ?.getAttribute("aria-label"),
+      ).toBe("Watch Twitch Live");
+    } finally {
+      screen.dispose();
+    }
+  });
   it("defers offscreen card work to the native list while retaining the full catalog", async () => {
     listWindow.limit = 3;
     const screen = await mountDiscovery(50);
