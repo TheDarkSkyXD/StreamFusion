@@ -41,6 +41,7 @@ vi.mock("react-native", () => {
     readonly children?: ReactNode;
     readonly testID?: string;
     readonly accessibilityLabel?: string;
+    readonly accessibilityRole?: string;
     readonly onPress?: () => void;
   }) {
     return createElement(
@@ -48,7 +49,7 @@ vi.mock("react-native", () => {
       {
         "aria-label": props.accessibilityLabel,
         "data-testid": props.testID,
-        role: props.onPress ? "button" : undefined,
+        role: props.accessibilityRole ?? (props.onPress ? "button" : undefined),
         onClick: props.onPress,
       },
       props.children,
@@ -58,6 +59,7 @@ vi.mock("react-native", () => {
     return typeof value === "function" ? createElement(value) : value;
   }
   return {
+    ActivityIndicator: host,
     View: host,
     Text: host,
     Pressable: host,
@@ -300,10 +302,11 @@ describe("Watch discovery recommendation rendering", () => {
         }),
     );
     try {
-      expect(
-        screen.container.querySelector('[data-testid="home-phase"]')
-          ?.textContent,
-      ).toContain("Loading");
+      const spinner = screen.container.querySelector(
+        '[data-testid="home-loading-spinner"]',
+      );
+      expect(spinner?.getAttribute("role")).toBe("progressbar");
+      expect(spinner?.getAttribute("aria-label")).toBe("Loading live channels");
       expect(
         screen.container.querySelector('[data-testid="home-banner-twitch"]'),
       ).toBeNull();
@@ -319,6 +322,9 @@ describe("Watch discovery recommendation rendering", () => {
         screen.container
           .querySelector('[data-testid="home-stream-twitch-twitch-ready"]'),
       ).not.toBeNull();
+      expect(
+        screen.container.querySelector('[data-testid="home-loading-spinner"]'),
+      ).toBeNull();
       expect(
         screen.container.querySelector('[data-testid="home-banner-kick"]'),
       ).toBeNull();

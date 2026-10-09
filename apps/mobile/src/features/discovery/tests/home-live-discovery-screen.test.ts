@@ -13,6 +13,7 @@ import { fixtureOutcome } from "../domain/discovery-fixture";
 import { HomeLiveDiscoveryView } from "../components/home-live-discovery-screen";
 
 vi.mock("react-native", () => ({
+  ActivityIndicator: "ActivityIndicator",
   FlatList(props: FlatListProps<Stream>) {
     const slot = (value: FlatListProps<Stream>["ListHeaderComponent"]) =>
       typeof value === "function" ? createElement(value) : value;
@@ -57,6 +58,7 @@ vi.mock("react-native", () => ({
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
+  accessibilityRole?: string;
   children?: unknown;
   onPress?: () => void;
   style?: Readonly<{ fontSize?: number; fontWeight?: string }>;
@@ -199,8 +201,12 @@ describe("Home live discovery screen", () => {
       fixtureOutcome("kick", "loading"),
       true,
     );
-    const phase = nodes.find((node) => node.props.testID === "home-phase");
-    expect(phase?.props.children).toMatch(/Loading/);
+    const spinner = nodes.find(
+      (node) => node.props.testID === "home-loading-spinner",
+    );
+    expect(spinner?.props.accessibilityRole).toBe("progressbar");
+    expect(spinner?.props.accessibilityLabel).toBe("Loading live channels");
+    expect(nodes.some((node) => node.props.testID === "home-phase")).toBe(false);
     expect(
       nodes.some((node) => node.props.testID === "home-featured-carousel"),
     ).toBe(false);

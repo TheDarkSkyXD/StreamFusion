@@ -1,12 +1,12 @@
 import { memo, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileRefreshableFlatList } from "@mobile/design/refreshable";
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
-import { mobileSpacing, mobileType } from "@mobile/design/tokens";
+import { mobileColors, mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
   DiscoveryFixtureMode,
   DiscoverySession,
@@ -117,7 +117,16 @@ export function HomeLiveDiscoveryView({
   readonly view: HomeLiveDiscoveryModel;
 }) {
   const rows = view.streams;
-  const phase = (
+  const phase = view.phase === "loading" ? (
+    <ActivityIndicator
+      accessibilityLabel="Loading live channels"
+      accessibilityRole="progressbar"
+      color={mobileColors.textSecondary}
+      size="large"
+      style={styles.loading}
+      testID="home-loading-spinner"
+    />
+  ) : (
     <Text selectable style={mobileType.body} testID="home-phase">
       {phaseCopy(view)}
     </Text>
@@ -219,6 +228,10 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: mobileSpacing.medium,
+  },
+  loading: {
+    alignSelf: "center",
+    paddingVertical: mobileSpacing.large,
   },
   headerBeforeContent: {
     marginBottom: mobileSpacing.medium,
