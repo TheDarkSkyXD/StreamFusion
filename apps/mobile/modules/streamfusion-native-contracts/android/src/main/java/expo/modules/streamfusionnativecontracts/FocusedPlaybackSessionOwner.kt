@@ -709,6 +709,12 @@ object FocusedPlaybackSessionOwner {
     }
 
     override fun onPlayerError(error: PlaybackException) {
+      val session = currentSession() ?: return
+      if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+        session.player.seekToDefaultPosition()
+        session.player.prepare()
+        return
+      }
       if (!disposeSession(sessionId, player)) return
       publish(
         mapOf(
