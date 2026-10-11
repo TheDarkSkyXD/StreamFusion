@@ -1,0 +1,58 @@
+[
+  {
+    "text": "",
+    "desc": "",
+    "res": "com.android.systemui:id/immersive_cling_icon",
+    "clickable": false,
+    "enabled": true,
+    "left": 1157,
+    "top": 63,
+    "right": 1241,
+    "bottom": 147,
+    "height": 84,
+    "x": 1199,
+    "y": 105
+  },
+  {
+    "text": "Viewing full screen",
+    "desc": "",
+    "res": "com.android.systemui:id/immersive_cling_title",
+    "clickable": false,
+    "enabled": true,
+    "left": 606,
+    "top": 200,
+    "right": 1793,
+    "bottom": 285,
+    "height": 85,
+    "x": 1199.5,
+    "y": 242.5
+  },
+  {
+    "text": "To exit, swipe down from the top of your screen",
+    "desc": "",
+    "res": "com.android.systemui:id/immersive_cling_description",
+    "clickable": false,
+    "enabled": true,
+    "left": 606,
+    "top": 285,
+    "right": 1793,
+    "bottom": 373,
+    "height": 88,
+    "x": 1199.5,
+    "y": 329
+  },
+  {
+    "text": "Got it",
+    "desc": "",
+    "res": "com.android.systemui:id/ok",
+    "clickable": true,
+    "enabled": true,
+    "left": 1611,
+    "top": 436,
+    "right": 1793,
+    "bottom": 562,
+    "height": 126,
+    "x": 1702,
+    "y": 499
+  }
+]

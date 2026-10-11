@@ -1,0 +1,58 @@
+[
+  {
+    "text": "",
+    "desc": "",
+    "res": "com.thedarkskyxd.streamfusion.dev:id/action_bar_root",
+    "clickable": false,
+    "enabled": true,
+    "left": 0,
+    "top": 0,
+    "right": 1080,
+    "bottom": 2400,
+    "height": 2400,
+    "x": 540,
+    "y": 1200
+  },
+  {
+    "text": "",
+    "desc": "",
+    "res": "android:id/content",
+    "clickable": false,
+    "enabled": true,
+    "left": 0,
+    "top": 0,
+    "right": 1080,
+    "bottom": 2400,
+    "height": 2400,
+    "x": 540,
+    "y": 1200
+  },
+  {
+    "text": "",
+    "desc": "Tools",
+    "res": "",
+    "clickable": false,
+    "enabled": true,
+    "left": 937,
+    "top": 1833,
+    "right": 1005,
+    "bottom": 1901,
+    "height": 68,
+    "x": 971,
+    "y": 1867
+  },
+  {
+    "text": "Tools",
+    "desc": "",
+    "res": "",
+    "clickable": false,
+    "enabled": true,
+    "left": 937,
+    "top": 1962,
+    "right": 1005,
+    "bottom": 1996,
+    "height": 34,
+    "x": 971,
+    "y": 1979
+  }
+]

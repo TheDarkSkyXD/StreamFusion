@@ -1,0 +1,30 @@
+[
+  {
+    "text": "",
+    "desc": "",
+    "res": "android:id/content",
+    "clickable": false,
+    "enabled": true,
+    "left": 0,
+    "top": 0,
+    "right": 1080,
+    "bottom": 2400,
+    "height": 2400,
+    "x": 540,
+    "y": 1200
+  },
+  {
+    "text": "",
+    "desc": "",
+    "res": "android:id/statusBarBackground",
+    "clickable": false,
+    "enabled": true,
+    "left": 0,
+    "top": 0,
+    "right": 1080,
+    "bottom": 63,
+    "height": 63,
+    "x": 540,
+    "y": 31.5
+  }
+]
