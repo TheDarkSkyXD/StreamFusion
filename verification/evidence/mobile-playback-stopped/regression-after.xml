@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-09T19:07:01.866Z" hostname="DESKTOP-O4BIJFR" time="3.613">
+  <properties/>
+  <testcase name="replacingMatchingPlaybackStopsCaptions" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="2.392"/>
+  <testcase name="endingAnotherPlaybackKeepsTheCaptionSessionActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.164"/>
+  <testcase name="behindLiveWindowKeepsAnAlreadyPausedSessionPaused" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.062"/>
+  <testcase name="endingMatchingPlaybackStopsCaptionsAndClearsTheCue" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.153"/>
+  <testcase name="behindLiveWindowKeepsTheOwnedPlayerAndCaptionsActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.037"/>
+  <testcase name="failedPlaybackReleasesItsPlayerAndCaptionsWithoutPublishingEnded" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.156"/>
+  <testcase name="staleTerminalCallbacksCannotDisposeAReplacementPlaybackWithTheSameId" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.04"/>
+  <testcase name="releasingPlaybackStopsCaptions" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.142"/>
+  <testcase name="repeatedTerminalCallbacksDisposeAndPublishOnlyOnce" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.142"/>
+  <testcase name="delayedEndCallbackCannotStopAReplacementCaptionSessionWithTheSameId" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.139"/>
+  <testcase name="anotherPlaybackFailureKeepsTheCaptionPlayerActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.03"/>
+  <testcase name="endedPlaybackReleasesItsPlayerAndCaptionsBeforePublishing" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.155"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

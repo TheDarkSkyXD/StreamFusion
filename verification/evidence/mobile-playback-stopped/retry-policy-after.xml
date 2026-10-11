@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-09T19:52:05.767Z" hostname="DESKTOP-O4BIJFR" time="0.194">
+  <properties/>
+  <testcase name="parserErrorsRemainFatalAndProgressiveLiveKeepsSixRetries" classname="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" time="0.044"/>
+  <testcase name="tlsFailuresStopAtTheOrdinaryLimit" classname="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" time="0.021"/>
+  <testcase name="retriesTimeoutsWithoutOverflowAtTheLargestErrorCount" classname="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" time="0.019"/>
+  <testcase name="retriesConnectionLossBeyondTheOrdinaryLimit" classname="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" time="0.041"/>
+  <testcase name="httpStatusFailuresKeepTheOrdinaryLimit" classname="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" time="0.048"/>
+  <testcase name="httpFallbackSelectionRemainsAvailable" classname="expo.modules.streamfusionnativecontracts.PlaybackLoadErrorHandlingPolicyTest" time="0.021"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

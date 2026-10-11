@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" tests="12" skipped="0" failures="2" errors="0" timestamp="2026-10-09T19:03:55.140Z" hostname="DESKTOP-O4BIJFR" time="3.8">
+  <properties/>
+  <testcase name="replacingMatchingPlaybackStopsCaptions" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="2.543"/>
+  <testcase name="endingAnotherPlaybackKeepsTheCaptionSessionActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.17"/>
+  <testcase name="behindLiveWindowKeepsAnAlreadyPausedSessionPaused" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.057">
+    <failure message="java.lang.AssertionError" type="java.lang.AssertionError">java.lang.AssertionError
+	at org.junit.Assert.fail(Assert.java:87)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertFalse(Assert.java:65)
+	at org.junit.Assert.assertFalse(Assert.java:75)
+	at expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest.behindLiveWindowKeepsAnAlreadyPausedSessionPaused$lambda$9(CaptionPlaybackLifecycleTest.kt:113)
+	at expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest.withCaptions(CaptionPlaybackLifecycleTest.kt:268)
+	at expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest.behindLiveWindowKeepsAnAlreadyPausedSessionPaused(CaptionPlaybackLifecycleTest.kt:105)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.robolectric.RobolectricTestRunner$HelperTestRunner$1.evaluate(RobolectricTestRunner.java:502)
+	at org.robolectric.internal.SandboxTestRunner$2.lambda$evaluate$2(SandboxTestRunner.java:285)
+	at org.robolectric.internal.bytecode.Sandbox.lambda$runOnMainThread$0(Sandbox.java:104)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+	Suppressed: org.robolectric.android.internal.AndroidTestEnvironment$UnExecutedRunnablesException: Main looper has queued unexecuted runnables. This might be the cause of the test failure. You might need a shadowOf(Looper.getMainLooper()).idle() call.
+</failure>
+  </testcase>
+  <testcase name="endingMatchingPlaybackStopsCaptionsAndClearsTheCue" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.158"/>
+  <testcase name="behindLiveWindowKeepsTheOwnedPlayerAndCaptionsActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.037">
+    <failure message="java.lang.AssertionError: expected:&lt;2&gt; but was:&lt;1&gt;" type="java.lang.AssertionError">java.lang.AssertionError: expected:&lt;2&gt; but was:&lt;1&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest.behindLiveWindowKeepsTheOwnedPlayerAndCaptionsActive$lambda$8(CaptionPlaybackLifecycleTest.kt:93)
+	at expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest.withCaptions(CaptionPlaybackLifecycleTest.kt:268)
+	at expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest.behindLiveWindowKeepsTheOwnedPlayerAndCaptionsActive(CaptionPlaybackLifecycleTest.kt:85)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.robolectric.RobolectricTestRunner$HelperTestRunner$1.evaluate(RobolectricTestRunner.java:502)
+	at org.robolectric.internal.SandboxTestRunner$2.lambda$evaluate$2(SandboxTestRunner.java:285)
+	at org.robolectric.internal.bytecode.Sandbox.lambda$runOnMainThread$0(Sandbox.java:104)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+	Suppressed: org.robolectric.android.internal.AndroidTestEnvironment$UnExecutedRunnablesException: Main looper has queued unexecuted runnables. This might be the cause of the test failure. You might need a shadowOf(Looper.getMainLooper()).idle() call.
+</failure>
+  </testcase>
+  <testcase name="failedPlaybackReleasesItsPlayerAndCaptionsWithoutPublishingEnded" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.164"/>
+  <testcase name="staleTerminalCallbacksCannotDisposeAReplacementPlaybackWithTheSameId" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.052"/>
+  <testcase name="releasingPlaybackStopsCaptions" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.152"/>
+  <testcase name="repeatedTerminalCallbacksDisposeAndPublishOnlyOnce" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.14"/>
+  <testcase name="delayedEndCallbackCannotStopAReplacementCaptionSessionWithTheSameId" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.14"/>
+  <testcase name="anotherPlaybackFailureKeepsTheCaptionPlayerActive" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.032"/>
+  <testcase name="endedPlaybackReleasesItsPlayerAndCaptionsBeforePublishing" classname="expo.modules.streamfusionnativecontracts.CaptionPlaybackLifecycleTest" time="0.15"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

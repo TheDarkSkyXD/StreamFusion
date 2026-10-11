@@ -1,0 +1,1 @@
+Device127.0.0.1:5585, read-only API30 clone. Wi-Fi/data disabled2026-10-09T15:36:10.6222211-05:00. Android settings wifi_on=0, mobile_data=0. Playback init7f832cf, appPID6142. No Retry tap during outage or restoration.
