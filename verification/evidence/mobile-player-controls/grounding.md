@@ -1,0 +1,3 @@
+# Existing ownership
+
+PlayerControls owns the on-video quality/volume and fullscreen actions and hides the rail with the WatchRoute three-second visibility timer. WatchScreen duplicated quality/fullscreen in a five-button portrait-only toolbar outside the stage. Its toolSheet state and sheet content are inside that portrait branch. Moving only triggers would make fullscreen sheets inaccessible. WatchRoute owns controlsVisible and qualityOpen; paused playback and qualityOpen hold visibility. Tool sheets should use the same visible lifecycle. PiP has no controls. The keyed player-stage must survive fullscreen transition. Video taps also switch the panel to Info by existing design; tool button taps should invoke their own callbacks.
