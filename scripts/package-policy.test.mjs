@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -22,6 +23,75 @@ import {
   npmVersionFromUserAgent,
   REQUIRED_NPM_VERSION,
 } from "./require-npm.mjs";
+
+function createHookRepository(t) {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "streamfusion-hook-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const env = { ...process.env };
+  for (const name of Object.keys(env)) {
+    if (name.startsWith("GIT_")) delete env[name];
+  }
+  const git = (...args) =>
+    spawnSync("git", args, { cwd: directory, env, encoding: "utf8" });
+  const runGit = (...args) => {
+    const result = git(...args);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return result.stdout;
+  };
+  runGit("init", "--initial-branch=main");
+  runGit("config", "user.name", "Hook Test");
+  runGit("config", "user.email", "hook-test@example.invalid");
+  runGit("config", "commit.gpgSign", "false");
+  runGit("config", "core.autocrlf", "false");
+  runGit("config", "core.whitespace", "blank-at-eol,blank-at-eof,space-before-tab");
+  const hooksDirectory = path.join(directory, ".git", "hooks");
+  writeFileSync(
+    path.join(hooksDirectory, "pre-commit"),
+    readFileSync(new URL("../.githooks/pre-commit", import.meta.url)),
+    { mode: 0o755 },
+  );
+  runGit("config", "core.hooksPath", hooksDirectory);
+  return { directory, git, runGit };
+}
+
+test("pre-commit allows scoped commits on main with unrelated changes", (t) => {
+  const { directory, runGit } = createHookRepository(t);
+  const stagedFile = path.join(directory, "staged.txt");
+  writeFileSync(stagedFile, "initial\n");
+  runGit("add", "staged.txt");
+  runGit("commit", "-m", "initial");
+  writeFileSync(stagedFile, "committed change\n");
+  runGit("add", "staged.txt");
+  writeFileSync(stagedFile, "unfinished change  \n");
+  writeFileSync(path.join(directory, "untracked.txt"), "unfinished work\n");
+
+  runGit("commit", "-m", "scoped change");
+
+  assert.equal(runGit("branch", "--show-current").trim(), "main");
+  assert.equal(runGit("show", "HEAD:staged.txt"), "committed change\n");
+  assert.equal(readFileSync(stagedFile, "utf8"), "unfinished change  \n");
+  assert.equal(
+    readFileSync(path.join(directory, "untracked.txt"), "utf8"),
+    "unfinished work\n",
+  );
+  assert.match(runGit("status", "--porcelain"), / M staged\.txt/);
+  assert.match(runGit("status", "--porcelain"), /\?\? untracked\.txt/);
+});
+
+test("pre-commit rejects whitespace errors in the staged version", (t) => {
+  const { directory, git, runGit } = createHookRepository(t);
+  const stagedFile = path.join(directory, "staged.txt");
+  writeFileSync(stagedFile, "trailing whitespace  \n");
+  runGit("add", "staged.txt");
+  writeFileSync(stagedFile, "clean working copy\n");
+
+  const result = git("commit", "-m", "invalid whitespace");
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout + result.stderr, /trailing whitespace/);
+  assert.notEqual(git("rev-parse", "--verify", "HEAD").status, 0);
+  assert.equal(runGit("show", ":staged.txt"), "trailing whitespace  \n");
+});
 
 test("the install guard accepts only the pinned npm version", () => {
   assert.equal(
@@ -81,25 +151,6 @@ test("the root workspace owns npm policy and application startup", () => {
   assert.equal(
     rootPackage.scripts["test:e2e"],
     "node .agents/skills/verify-streamfusion/scripts/control.mjs smoke --mode preview --fresh",
-  );
-  assert.equal(
-    readFileSync(".githooks/pre-commit", "utf8"),
-    [
-      "#!/bin/sh",
-      "",
-      "if ! git diff --quiet --ignore-submodules --; then",
-      '  echo "pre-commit: stage or stash tracked changes before running E2E" >&2',
-      "  exit 1",
-      "fi",
-      "",
-      'if test -n "$(git ls-files --others --exclude-standard)"; then',
-      '  echo "pre-commit: stage or remove untracked files before running E2E" >&2',
-      "  exit 1",
-      "fi",
-      "",
-      "exec npm run test:e2e",
-      "",
-    ].join("\n"),
   );
   assert.equal(
     rootPackage.scripts.desktop,
