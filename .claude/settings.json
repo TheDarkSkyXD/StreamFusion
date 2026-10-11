@@ -3,15 +3,18 @@
   "permissionDenyToAskHealV1": true,
   "valoPermissionGroupRuleVersions": {
     "index": 1,
-    "ghost": 2
+    "ghost": 3,
+    "seedance": 1
   },
   "valoPermissionGroupChoices": {
     "index": "ask",
-    "ghost": "ask"
+    "ghost": "ask",
+    "seedance": "ask"
   },
   "permissions": {
     "ask": [
       "mcp__valo-index__index",
+      "mcp__valo__generate_video",
       "mcp__valo__ghost_click",
       "mcp__valo__ghost_click_xy",
       "mcp__valo__ghost_upload_file",
@@ -20,7 +23,8 @@
       "mcp__valo__ghost_scroll",
       "mcp__valo__ghost_select_tab",
       "mcp__valo__ghost_close_tab",
-      "mcp__valo__ghost_navigate"
+      "mcp__valo__ghost_navigate",
+      "mcp__valo__ghost_firefox_act"
     ]
   }
 }
