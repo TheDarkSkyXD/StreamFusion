@@ -25,7 +25,7 @@ Resolve what is in scope vs explicitly out, technical or platform constraints, p
 Delegate codebase exploration (the **guard-the-context-window** principle skill).
 
 - Prefer the agent definition at `.agents/agents/superdev-agent.md`. A general-purpose subagent is the fallback. Do not use a harness-specific planning agent that bypasses this skill.
-- Pass `model:` explicitly per the configured roles (defaults `grok-4.6-fast-xhigh` for code, `claude-fable-5-thinking-max` for judgment).
+- Pass `model:` explicitly per the configured roles (defaults `grok-4.7-high` for code, `claude-opus-5-5-high` for judgment).
 
 Each explorer returns file pointers, conventions, dependencies, test infrastructure, and entry points. No inlined dumps.
 

@@ -32,21 +32,20 @@ Write one clear paragraph. Reviewers challenge whether the work achieves the int
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers together through the active harness's delegation interface. Use the `interrogate reviewers` list from `.agents/superdev-models.md` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
+Launch all reviewers together through the active harness's delegation interface. Use the `interrogate reviewers` line in `.agents/superdev-models.md`, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. If the map or that line is missing, use the table defaults.
 
 | Subagent | Default model |
 |----------|---------------|
-| Reviewer A | `claude-fable-5-thinking-max` |
-| Reviewer B | `gpt-5.6-sol-max` |
-| Reviewer C | `grok-4.6-fast-xhigh` |
-| Reviewer D | `claude-opus-5-thinking-xhigh` |
+| Reviewer A | `claude-opus-5-5-high` |
+| Reviewer B | `gpt-5.6-sol-high` |
+| Reviewer C | `grok-4.7-high` |
 
 For each reviewer:
 - Worker: general-purpose subagent through the active harness's delegation interface
-- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
+- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line. For an `auto` or `inherit-parent` entry, omit `model` so that reviewer runs on the parent model.
 - `readonly`: `true`
 
-If a model identifier is rejected, inspect the valid identifiers reported by the active harness, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid identifier, and open a separate PR to update the configured value or default table. Do not block the review on the identifier issue. If the configured value is `inherit-parent` or `auto`, omit the model override; never treat those aliases as broken identifiers.
+Use only high-reasoning, standard-speed variants. An `auto` or `inherit-parent` entry is usable only when the parent uses high reasoning at standard speed. If the delegation interface rejects a configured entry, run that reviewer on its family's high, standard-speed table default and say so. Families go by prefix: `claude-*`, `gpt-*`, and `grok-*`. With no family match, use Reviewer A's default. If a table default is rejected, use another detected high, standard-speed model; if none is available, report that the seat cannot run under the configured policy. Never treat an alias entry as a rejected slug or apply either fallback to it.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent
@@ -55,8 +54,6 @@ Read `references/reviewer-prompt.md` and fill in the template with:
 4. The code-quality lens from `references/code-quality-review.md` only when reviewing code
 
 The same filled template goes to all reviewers, so every model applies the same evidence standard and relevant review lenses.
-
-Each reviewer produces structured findings as described in the prompt template.
 
 ## Step 4, Synthesize
 

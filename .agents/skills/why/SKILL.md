@@ -9,6 +9,8 @@ Investigate the motivation and intent behind code.
 
 Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
+Each spawn below names a role line in `.agents/superdev-models.md` and a default. Use only high-reasoning, standard-speed model variants. Set `model` to that line's value, or to the default if the map or line is missing. Leave `model` unset for `auto` or `inherit-parent` only when the parent uses high reasoning at standard speed. If the delegation interface rejects a configured slug, use the default and say so. If it rejects the default, use a detected high-reasoning, standard-speed slug; if none is available, report that the role cannot run under the configured policy.
+
 ## Operating Posture
 
 Operate as a **careful, cautious, and precise investigator**. Be honest about what you know vs what you're inferring. Read `references/epistemics.md` for the full confidence framework and phrasing guide. The synthesizer must follow it.
@@ -78,7 +80,7 @@ Launch all matching investigators in a single message so they run concurrently. 
 
 Subagent config (each):
 - Worker: general-purpose subagent through the active harness's delegation interface
-- `model`: your configured why-investigators model (default `grok-4.6-fast-xhigh`)
+- `model`: the `why investigators` line, default `grok-4.7-high`
 - `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.
 
 Each investigator gets:
@@ -122,7 +124,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 Spawn one synthesizer subagent:
 
 - Worker: general-purpose subagent through the active harness's delegation interface
-- `model`: your configured why-synthesizer model (default `claude-fable-5-thinking-max`)
+- `model`: the `why synthesizer` line, default `claude-opus-5-5-high`
 - `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
 
 The synthesizer gets:

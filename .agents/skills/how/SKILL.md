@@ -7,6 +7,8 @@ description: "Use for \"how does X work\", code walkthroughs before changing som
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
+Each spawn below names a role line in `.agents/superdev-models.md` and a default. Use only high-reasoning, standard-speed model variants. Set `model` to that line's value, or to the default if the map or line is missing. Leave `model` unset for `auto` or `inherit-parent` only when the parent uses high reasoning at standard speed. If the delegation interface rejects a configured slug, use the default and say so. If it rejects the default, use a detected high-reasoning, standard-speed slug; if none is available, report that the role cannot run under the configured policy.
+
 ## Step 1. Assess Complexity
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.
@@ -21,7 +23,7 @@ When in doubt, take the simple path.
 Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
 
 - Worker: general-purpose subagent through the active harness's delegation interface
-- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)
+- `model`: the `how explorer` line, default `grok-4.7-high`
 - `readonly`: `true`
 
 Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
@@ -31,7 +33,7 @@ Each explorer gets the prompt in `references/explorer-prompt.md` with its angle 
 Spawn one general-purpose subagent through the active harness's delegation interface that explores and explains in one pass:
 
 - Worker: general-purpose subagent through the active harness's delegation interface
-- `model`: your configured how-explainer model (default `claude-fable-5-thinking-max`)
+- `model`: the `how explainer` line, default `claude-opus-5-5-high`
 - `readonly`: `true`
 
 Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
@@ -41,7 +43,7 @@ Build its prompt from `references/explainer-prompt.md` without the explorer-find
 Once all explorers have returned, spawn one general-purpose subagent through the active harness's delegation interface to synthesize their findings into one explanation:
 
 - Worker: general-purpose subagent through the active harness's delegation interface
-- `model`: your configured how-explainer model (default `claude-fable-5-thinking-max`)
+- `model`: the `how explainer` line, default `claude-opus-5-5-high`
 - `readonly`: `true`
 
 Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.

@@ -54,8 +54,6 @@ For each finding, provide:
 ## What to Avoid
 
 - Restating what the artifact says or the code does without identifying a problem
-- Suggesting rewrites for working code because you'd prefer a different style
-- Raising hypothetical issues ("what if someone passes null here") without evidence that the code path is reachable
 - Praising the code. You're an adversary, not a cheerleader. If you find nothing wrong, say "no findings" and stop.
 
 ## Output

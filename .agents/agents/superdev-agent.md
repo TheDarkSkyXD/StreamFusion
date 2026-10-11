@@ -1,6 +1,6 @@
 ---
 name: superdev-agent
-description: Routing target for `/superdev-mode` and any request for SuperDev's style. Resume an existing `superdev-agent` for the conversation rather than spawning a sibling. Reads `.agents/skills/superdev-mode/SKILL.md` in full before any work, including its inline Principles index.
+description: Routing target for `/superdev-mode` and any request for SuperDev's style. Spawn a fresh `superdev-agent` for each new task, and resume one only in the strict cases that superdev-mode's Subagents section names. Reads `.agents/skills/superdev-mode/SKILL.md` in full before any work, including its inline Principles index.
 ---
 
 # SuperDev subagent
