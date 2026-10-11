@@ -34,3 +34,11 @@
 *.AppImage      binary
 *.deb           binary
 *.rpm           binary
+
+# Preserve whitespace in raw verification captures and patch context.
+verification/evidence/mobile-category-scroll/android16-bootstrap.patch -whitespace
+verification/evidence/mobile-category-scroll/android16-gfxinfo.txt -whitespace
+verification/evidence/mobile-playback-stopped/all-logcat.txt -whitespace
+
+verification/evidence/mobile-playback-stopped/apk/StreamFusion-android-v0.1.8.apk filter=lfs diff=lfs merge=lfs -text
+verification/evidence/mobile-playback-stopped/retry-patched-debug.apk filter=lfs diff=lfs merge=lfs -text
