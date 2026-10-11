@@ -195,34 +195,13 @@ wrote or changed, not to prose you didn't touch.
 
 - Keep responses concise and to the point - unless the user asks otherwise
 
-## AGENT INSTRUCTION MAP
+## Agent instructions
 
 - Always read this root `AGENTS.md` first.
 - Before editing a file, also read the nearest `AGENTS.md` in that file's directory tree.
 - More specific `AGENTS.md` files add to these root rules for their subtree.
 
-| Scope | Instructions |
-|------|--------------|
-| Documentation | `apps/desktop/documentation/AGENTS.md` |
-| Desktop app source | `apps/desktop/src/AGENTS.md` |
-| Backend main process | `apps/desktop/src/backend/AGENTS.md` |
-| Platform API clients | `apps/desktop/src/backend/api/platforms/AGENTS.md` |
-| Kick API endpoints | `apps/desktop/src/backend/api/platforms/kick/AGENTS.md` |
-| Twitch API endpoints | `apps/desktop/src/backend/api/platforms/twitch/AGENTS.md` |
-| Auth module | `apps/desktop/src/backend/features/authentication/AGENTS.md` |
-| IPC handlers | `apps/desktop/src/backend/ipc/AGENTS.md` |
-| Chat and emote backend services | `apps/desktop/src/backend/features/chat/AGENTS.md` |
-| UI components | `apps/desktop/src/frontend/components/AGENTS.md` |
-| Chat UI components | `apps/desktop/src/frontend/features/chat/components/chat/AGENTS.md` |
-| Player components | `apps/desktop/src/frontend/features/playback/components/player/AGENTS.md` |
-| Stream browsing and feature screens | `apps/desktop/src/frontend/features/AGENTS.md` |
-| Shared React hooks | `apps/desktop/src/frontend/hooks/AGENTS.md` |
-| Mobile app | `apps/mobile/CONTEXT.md` |
-| Mod dashboard pages | `apps/desktop/src/frontend/features/moderation/components/screens/Mod/AGENTS.md` |
-| Preload bridge | `apps/desktop/src/backend/preload/AGENTS.md` |
-| Shared IPC contracts | `apps/desktop/src/shared/AGENTS.md` |
-| Feature state | `apps/desktop/src/frontend/features/AGENTS.md` |
-| Tests | `apps/desktop/tests/AGENTS.md` |
+- Use `CONTEXT-MAP.md` to find domain context. For mobile work, also read `apps/mobile/CONTEXT.md`.
 
 
 Dont open a PR only commit and push to main.
