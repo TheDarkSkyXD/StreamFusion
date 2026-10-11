@@ -1,0 +1,28 @@
+diff --git a/apps/mobile/app/index.tsx b/apps/mobile/app/index.tsx
+index d2a5a22..1fe133f 100644
+--- a/apps/mobile/app/index.tsx
++++ b/apps/mobile/app/index.tsx
+@@ -1,5 +1,8 @@
+-import { MobileRuntime } from "@mobile/composition/mobile-runtime";
++import "../src/i18n";
++import { SafeAreaProvider } from "react-native-safe-area-context";
++import { View } from "react-native";
++import meta, { ReadyInfiniteCatalog } from "../src/features/discovery/components/categories-scroll.stories";
+ 
+ export default function IndexRoute() {
+-  return <MobileRuntime />;
++  return <SafeAreaProvider><View style={{ flex: 1, backgroundColor: "#0f0f0f" }}><ReadyInfiniteCatalog {...meta.args} /></View></SafeAreaProvider>;
+ }
+diff --git a/apps/mobile/src/features/discovery/components/categories-scroll.stories.tsx b/apps/mobile/src/features/discovery/components/categories-scroll.stories.tsx
+index 6fb6df9..6fad4bc 100644
+--- a/apps/mobile/src/features/discovery/components/categories-scroll.stories.tsx
++++ b/apps/mobile/src/features/discovery/components/categories-scroll.stories.tsx
+@@ -93,7 +93,7 @@ const session: DiscoverySession = {
+   readChannelClips: unexpectedRead,
+ };
+ 
+-function ReadyInfiniteCatalog(props: ComponentProps<typeof CategoriesScreen>) {
++export function ReadyInfiniteCatalog(props: ComponentProps<typeof CategoriesScreen>) {
+   const [queryClient] = useState(() => new QueryClient());
+   const { height } = useWindowDimensions();
+   return (

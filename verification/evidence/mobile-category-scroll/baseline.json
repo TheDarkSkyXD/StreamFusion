@@ -1,0 +1,17 @@
+{
+  "surface": "Storybook production CategoriesScreen on react-native-web",
+  "viewport": { "width": 390, "height": 844 },
+  "fixture": "android-discovery-categories-scroll--ready-infinite",
+  "pageSize": 60,
+  "observations": [
+    { "loaded": 120, "mounted": 120 },
+    { "loaded": 180, "mounted": 180 },
+    { "loaded": 240, "mounted": 240 },
+    { "loaded": 300, "mounted": 300 },
+    { "loaded": 360, "mounted": 360 },
+    { "loaded": 600, "mounted": 600 }
+  ],
+  "lastCard": "Category 600",
+  "finalPageHasLoadMore": false,
+  "claim": "All loaded category cards remain mounted in the original ScrollView. This is a mounting observation, not a native frame-rate benchmark."
+}

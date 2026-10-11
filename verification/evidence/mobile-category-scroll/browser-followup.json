@@ -1,0 +1,179 @@
+{
+  "scope": "Browser functional observations, not native performance",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "samples": [
+    {
+      "loaded": "60 categories from Twitch & Kick",
+      "mounted": 42,
+      "scrollTop": 4401,
+      "visible": [
+        "category-card-twitch-29",
+        "category-card-twitch-30",
+        "category-card-twitch-31",
+        "category-card-twitch-32",
+        "category-card-twitch-33",
+        "category-card-twitch-34",
+        "category-card-twitch-35",
+        "category-card-twitch-36"
+      ]
+    },
+    {
+      "loaded": "60 categories from Twitch & Kick",
+      "mounted": 44,
+      "scrollTop": 5906,
+      "visible": [
+        "category-card-twitch-41",
+        "category-card-twitch-42",
+        "category-card-twitch-43",
+        "category-card-twitch-44",
+        "category-card-twitch-45",
+        "category-card-twitch-46",
+        "category-card-twitch-47",
+        "category-card-twitch-48"
+      ]
+    },
+    {
+      "loaded": "60 categories from Twitch & Kick",
+      "mounted": 44,
+      "scrollTop": 7870,
+      "visible": [
+        "category-card-twitch-55",
+        "category-card-twitch-56",
+        "category-card-twitch-57",
+        "category-card-twitch-58",
+        "category-card-twitch-59",
+        "category-card-twitch-60"
+      ]
+    },
+    {
+      "loaded": "60 categories from Twitch & Kick",
+      "mounted": 44,
+      "scrollTop": 7846,
+      "visible": [
+        "category-card-twitch-55",
+        "category-card-twitch-56",
+        "category-card-twitch-57",
+        "category-card-twitch-58",
+        "category-card-twitch-59",
+        "category-card-twitch-60"
+      ]
+    },
+    {
+      "loaded": "60 categories from Twitch & Kick",
+      "mounted": 44,
+      "scrollTop": 7846,
+      "visible": [
+        "category-card-twitch-55",
+        "category-card-twitch-56",
+        "category-card-twitch-57",
+        "category-card-twitch-58",
+        "category-card-twitch-59",
+        "category-card-twitch-60"
+      ]
+    },
+    {
+      "loaded": "120 categories from Twitch & Kick",
+      "mounted": 42,
+      "scrollTop": 7871,
+      "visible": [
+        "category-card-twitch-55",
+        "category-card-twitch-56",
+        "category-card-twitch-57",
+        "category-card-twitch-58",
+        "category-card-twitch-59",
+        "category-card-twitch-60",
+        "category-card-twitch-61",
+        "category-card-twitch-62"
+      ]
+    },
+    {
+      "loaded": "120 categories from Twitch & Kick",
+      "mounted": 46,
+      "scrollTop": 9540,
+      "visible": [
+        "category-card-twitch-67",
+        "category-card-twitch-68",
+        "category-card-twitch-69",
+        "category-card-twitch-70",
+        "category-card-twitch-71",
+        "category-card-twitch-72",
+        "category-card-twitch-73",
+        "category-card-twitch-74"
+      ]
+    },
+    {
+      "loaded": "120 categories from Twitch & Kick",
+      "mounted": 46,
+      "scrollTop": 11740,
+      "visible": [
+        "category-card-twitch-83",
+        "category-card-twitch-84",
+        "category-card-twitch-85",
+        "category-card-twitch-86",
+        "category-card-twitch-87",
+        "category-card-twitch-88"
+      ]
+    },
+    {
+      "loaded": "120 categories from Twitch & Kick",
+      "mounted": 42,
+      "scrollTop": 13519,
+      "visible": [
+        "category-card-twitch-95",
+        "category-card-twitch-96",
+        "category-card-twitch-97",
+        "category-card-twitch-98",
+        "category-card-twitch-99",
+        "category-card-twitch-100",
+        "category-card-twitch-101",
+        "category-card-twitch-102"
+      ]
+    },
+    {
+      "loaded": "120 categories from Twitch & Kick",
+      "mounted": 36,
+      "scrollTop": 14013,
+      "visible": [
+        "category-card-twitch-107",
+        "category-card-twitch-108",
+        "category-card-twitch-109",
+        "category-card-twitch-110",
+        "category-card-twitch-111",
+        "category-card-twitch-112",
+        "category-card-twitch-113",
+        "category-card-twitch-114"
+      ]
+    },
+    {
+      "loaded": "180 categories from Twitch & Kick",
+      "mounted": 36,
+      "scrollTop": 16006,
+      "visible": [
+        "category-card-twitch-115",
+        "category-card-twitch-116",
+        "category-card-twitch-117",
+        "category-card-twitch-118",
+        "category-card-twitch-119",
+        "category-card-twitch-120"
+      ]
+    },
+    {
+      "loaded": "180 categories from Twitch & Kick",
+      "mounted": 38,
+      "scrollTop": 15132,
+      "visible": [
+        "category-card-twitch-115",
+        "category-card-twitch-116",
+        "category-card-twitch-117",
+        "category-card-twitch-118",
+        "category-card-twitch-119",
+        "category-card-twitch-120",
+        "category-card-twitch-121",
+        "category-card-twitch-122"
+      ]
+    }
+  ]
+}

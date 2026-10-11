@@ -1,0 +1,15 @@
+{
+  "surface": "Storybook production CategoriesScreen on react-native-web",
+  "viewport": { "width": 390, "height": 844 },
+  "fixture": "android-discovery-categories-scroll--ready-infinite",
+  "loadedAtTop": 600,
+  "mountedAtTop": 18,
+  "automaticScrollingObservations": [
+    { "loaded": 60, "mounted": 42, "lastMounted": "Category 042" },
+    { "loaded": 120, "mounted": 44, "lastMounted": "Category 074" },
+    { "loaded": 180, "mounted": 42, "lastMounted": "Category 168" }
+  ],
+  "search": { "query": "Category 600", "result": "Category 600", "focusedInput": "categories-search", "scrollTop": 0 },
+  "providerSelection": { "kickMatches": 0, "twitchMatches": 1 },
+  "claim": "Loaded data remains available while mounting is limited to nearby rows and initial rows. Mount counts depend on viewport and scroll position. This is not a native frame-rate benchmark."
+}
