@@ -60,7 +60,7 @@ function pinFingerprint(fingerprint, recordedBy) {
   const normalized = fingerprint.replaceAll(":", "").toLowerCase();
   if (!FINGERPRINT_PATTERN.test(normalized)) {
     throw new Error(
-      `Not a SHA-256 certificate fingerprint: ${fingerprint}. Read it from "keytool -list -v -keystore <keystore> -alias <alias>" or "eas credentials".`,
+      `Not a SHA-256 certificate fingerprint: ${fingerprint}. Read it from "keytool -list -v -keystore <keystore> -alias <alias>".`,
     );
   }
   if (!recordedBy) {

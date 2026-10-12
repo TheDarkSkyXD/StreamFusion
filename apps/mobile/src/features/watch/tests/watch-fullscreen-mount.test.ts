@@ -22,6 +22,7 @@ vi.mock("react-native", async () => {
     (tag: string) => (props: { children?: unknown; testID?: string }) =>
       createElement(tag, { "data-testid": props.testID }, props.children);
   return {
+    requireNativeComponent: () => host("div"),
     Image: host("div"),
     Modal: host("div"),
     KeyboardAvoidingView: host("div"),

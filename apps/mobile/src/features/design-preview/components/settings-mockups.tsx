@@ -252,7 +252,7 @@ const panels = {
       },
       {
         kind: "info",
-        title: "Expo Go",
+        title: "Preview",
         description:
           "Native playlist interception is unavailable in this host.",
       },

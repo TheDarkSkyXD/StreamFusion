@@ -1,4 +1,4 @@
-import * as Linking from "expo-linking";
+import { Linking } from "react-native";
 
 import type { KickCallbackSource } from "@mobile/features/auth/capabilities/kick-session";
 

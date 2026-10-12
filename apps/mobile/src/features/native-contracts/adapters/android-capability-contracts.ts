@@ -51,13 +51,13 @@ import type {
   VerifiedApk,
 } from "../capabilities/android-capability-contracts";
 import type {
-  ExpoBindingReader,
-  ExpoCaptionsBinding,
-  ExpoDiagnosticsBinding,
-  ExpoMaintenanceBinding,
-  ExpoMediaJobsBinding,
-  ExpoPlaybackBinding,
-} from "./expo-capability-contracts";
+  NativeBindingReader,
+  NativeCaptionsBinding,
+  NativeDiagnosticsBinding,
+  NativeMaintenanceBinding,
+  NativeMediaJobsBinding,
+  NativePlaybackBinding,
+} from "./react-native-capability-bindings";
 
 type BindingResolution<TBinding> =
   | { readonly binding: TBinding; readonly kind: "available" }
@@ -88,7 +88,7 @@ function resolveBinding<
   TBinding extends { readonly getContractVersion: () => number },
 >(
   capability: AndroidCapabilityId,
-  reader: ExpoBindingReader<TBinding>,
+  reader: NativeBindingReader<TBinding>,
 ): BindingResolution<TBinding> {
   let binding: TBinding;
   try {
@@ -142,7 +142,7 @@ function readiness<
   TBinding extends { readonly getContractVersion: () => number },
 >(
   capability: AndroidCapabilityId,
-  reader: ExpoBindingReader<TBinding>,
+  reader: NativeBindingReader<TBinding>,
 ): AndroidCapabilityReadiness {
   const resolution = resolveBinding(capability, reader);
   return resolution.kind === "available"
@@ -211,7 +211,7 @@ async function invoke<
   TValue,
 >(
   capability: AndroidCapabilityId,
-  reader: ExpoBindingReader<TBinding>,
+  reader: NativeBindingReader<TBinding>,
   operation: (binding: TBinding) => Promise<unknown>,
   parse: (candidate: unknown) => TValue | undefined,
 ): Promise<AndroidNativeOperationResult<TValue>> {
@@ -788,7 +788,7 @@ function installHandoff(value: unknown): PackageInstallHandoff | undefined {
 }
 
 export function createAndroidPlaybackContractPort(
-  reader: ExpoBindingReader<ExpoPlaybackBinding>,
+  reader: NativeBindingReader<NativePlaybackBinding>,
 ): AndroidPlaybackContractPort {
   return {
     readiness: () => readiness("playback", reader),
@@ -1020,7 +1020,7 @@ function openResultFor(
 }
 
 export function createAndroidMediaJobsContractPort(
-  reader: ExpoBindingReader<ExpoMediaJobsBinding>,
+  reader: NativeBindingReader<NativeMediaJobsBinding>,
 ): AndroidMediaJobsContractPort {
   return {
     readiness: () => readiness("media-jobs", reader),
@@ -1105,10 +1105,10 @@ export function createAndroidMediaJobsContractPort(
 }
 
 export function createAndroidCaptionsContractPort(
-  reader: ExpoBindingReader<ExpoCaptionsBinding>,
+  reader: NativeBindingReader<NativeCaptionsBinding>,
 ): AndroidCaptionsContractPort {
   const call = <TValue>(
-    operation: (binding: ExpoCaptionsBinding) => Promise<unknown>,
+    operation: (binding: NativeCaptionsBinding) => Promise<unknown>,
     parse: (candidate: unknown) => TValue | undefined,
   ): Promise<AndroidNativeOperationResult<TValue>> =>
     invoke("captions", reader, operation, parse);
@@ -1205,7 +1205,7 @@ function captionSessionFor(
 }
 
 export function createAndroidDiagnosticsContractPort(
-  reader: ExpoBindingReader<ExpoDiagnosticsBinding>,
+  reader: NativeBindingReader<NativeDiagnosticsBinding>,
 ): AndroidDiagnosticsContractPort {
   return {
     readiness: () => readiness("diagnostics", reader),
@@ -1227,7 +1227,7 @@ export function createAndroidDiagnosticsContractPort(
 }
 
 export function createAndroidMaintenanceContractPort(
-  reader: ExpoBindingReader<ExpoMaintenanceBinding>,
+  reader: NativeBindingReader<NativeMaintenanceBinding>,
 ): AndroidMaintenanceContractPort {
   return {
     readiness: () => readiness("maintenance", reader),

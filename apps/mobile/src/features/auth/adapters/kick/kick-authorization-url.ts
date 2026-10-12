@@ -3,7 +3,8 @@ import {
   KICK_APP_SCOPES,
   KICK_AUTHORIZE_URL,
 } from "@streamfusion/core/auth";
-import * as Crypto from "expo-crypto";
+import { getPlatformModule } from "../../../../../modules/streamfusion-native-contracts/src/platform";
+import { requireStorageModule } from "../../../../../modules/streamfusion-native-contracts/src/storage";
 
 const verifierAlphabet =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -13,8 +14,18 @@ function encodeBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
 }
 
+function randomBytes(count: number): Uint8Array {
+  const hex = requireStorageModule().randomBytes(count);
+  if (hex.length !== count * 2 || !/^[0-9a-f]+$/.test(hex)) {
+    throw new Error("Secure random bytes are unavailable.");
+  }
+  return Uint8Array.from({ length: count }, (_, index) =>
+    Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16),
+  );
+}
+
 function randomVerifier(): string {
-  const bytes = Crypto.getRandomBytes(64);
+  const bytes = randomBytes(64);
   let verifier = "";
   for (const byte of bytes) verifier += verifierAlphabet[byte % verifierAlphabet.length];
   return verifier;
@@ -32,13 +43,9 @@ export async function createKickPkceAuthorization(input: {
   readonly state: string;
 }> {
   const codeVerifier = randomVerifier();
-  const digest = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    codeVerifier,
-    { encoding: Crypto.CryptoEncoding.BASE64 },
-  );
+  const digest = await getPlatformModule().sha256(codeVerifier);
   const codeChallenge = digest.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
-  const state = `sf1.${input.channel === "development" ? "d" : "p"}.${encodeBase64Url(Crypto.getRandomBytes(32))}`;
+  const state = `sf1.${input.channel === "development" ? "d" : "p"}.${encodeBase64Url(randomBytes(32))}`;
   const authorize = new URL(KICK_AUTHORIZE_URL);
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("client_id", input.clientId);

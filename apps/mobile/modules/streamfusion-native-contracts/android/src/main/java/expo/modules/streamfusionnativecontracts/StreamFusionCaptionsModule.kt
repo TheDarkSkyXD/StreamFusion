@@ -1,69 +1,83 @@
 package expo.modules.streamfusionnativecontracts
 
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.WritableMap
 
-class StreamFusionCaptionsModule : Module() {
-  private var sessions: CaptionSessionOwner? = null
-  private var store: CaptionModelStore? = null
-
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionCaptions")
-    Events("onNativeCaptions", "onNativeCaptionModel")
-    Function("getContractVersion") { 4 }
-    OnCreate {
-      val context = requireNotNull(appContext.reactContext) {
-        "Caption model storage requires an application files directory."
-      }
-      val modelStore = CaptionModelStore(context.filesDir)
-      store = modelStore
-      sessions = CaptionSessionOwner(context, modelStore) { event ->
-        sendEvent("onNativeCaptions", event)
-      }
-    }
-    Function("cancelEnglishModelInstall") {
-      mapOf("kind" to "completed", "value" to store().cancelInstall())
-    }
-    AsyncFunction("getEnglishModelState") {
-      mapOf("kind" to "completed", "value" to store().snapshot())
-    }
-    AsyncFunction("installEnglishModel") { request: Map<String, Any> ->
-      if (request["modelId"] != CaptionCatalog.MODEL_ID) {
-        return@AsyncFunction mapOf("kind" to "invalid")
-      }
-      sessions().stopAll()
-      mapOf("kind" to "completed", "value" to store().install(request["sourceUri"] as? String) { progress ->
-        sendEvent("onNativeCaptionModel", progress)
-      })
-    }
-    AsyncFunction("removeEnglishModel") { request: Map<String, Any> ->
-      if (request["modelId"] != CaptionCatalog.MODEL_ID) {
-        return@AsyncFunction mapOf("kind" to "invalid")
-      }
-      sessions().stopAll()
-      mapOf("kind" to "completed", "value" to store().remove())
-    }
-    AsyncFunction("startFocusedCaptionSession") { request: Map<String, Any> ->
-      sessions().start(request)
-    }
-    AsyncFunction("stopFocusedCaptionSession") { sessionId: String ->
-      sessions().stop(sessionId)
-    }
-    AsyncFunction("getCaptionProof") {
-      mapOf("kind" to "completed", "value" to sessions().proof())
-    }
-    AsyncFunction("queueDevelopmentCaptionConstraint") {
-      store().queueConstraint()
-      sessions().stopAll()
-      mapOf("kind" to "completed", "value" to store().snapshot())
-    }
-    AsyncFunction("clearDevelopmentCaptionConstraint") {
-      store().clearConstraint()
-      mapOf("kind" to "completed", "value" to store().snapshot())
-    }
-    OnDestroy { store?.cancelInstall(); sessions?.dispose() }
+class StreamFusionCaptionsModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
+  private val store = CaptionModelStore(context.filesDir)
+  private val sessions = CaptionSessionOwner(context, store) { event ->
+    NativeBridge.emit(context, "onNativeCaptions", event)
   }
 
-  private fun store(): CaptionModelStore = requireNotNull(store)
-  private fun sessions(): CaptionSessionOwner = requireNotNull(sessions)
+  override fun getName() = "StreamFusionCaptions"
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getContractVersion() = 4
+
+  @ReactMethod fun addListener(eventName: String) = Unit
+  @ReactMethod fun removeListeners(count: Int) = Unit
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun cancelEnglishModelInstall(): WritableMap =
+    com.facebook.react.bridge.Arguments.makeNativeMap(
+      mapOf("kind" to "completed", "value" to store.cancelInstall()),
+    )
+
+  @ReactMethod fun getEnglishModelState(promise: Promise) = NativeBridge.async(promise) {
+    mapOf("kind" to "completed", "value" to store.snapshot())
+  }
+
+  @ReactMethod fun installEnglishModel(request: ReadableMap, promise: Promise) = NativeBridge.async(promise) {
+    val params = NativeBridge.nonNullMap(request)
+    if (params["modelId"] != CaptionCatalog.MODEL_ID) {
+      mapOf("kind" to "invalid")
+    } else {
+      sessions.stopAll()
+      mapOf("kind" to "completed", "value" to store.install(params["sourceUri"] as? String) { progress ->
+        NativeBridge.emit(context, "onNativeCaptionModel", progress)
+      })
+    }
+  }
+
+  @ReactMethod fun removeEnglishModel(request: ReadableMap, promise: Promise) = NativeBridge.async(promise) {
+    if (request.getString("modelId") != CaptionCatalog.MODEL_ID) {
+      mapOf("kind" to "invalid")
+    } else {
+      sessions.stopAll()
+      mapOf("kind" to "completed", "value" to store.remove())
+    }
+  }
+
+  @ReactMethod fun startFocusedCaptionSession(request: ReadableMap, promise: Promise) = NativeBridge.async(promise) {
+    sessions.start(NativeBridge.nonNullMap(request))
+  }
+
+  @ReactMethod fun stopFocusedCaptionSession(sessionId: String, promise: Promise) = NativeBridge.async(promise) {
+    sessions.stop(sessionId)
+  }
+
+  @ReactMethod fun getCaptionProof(promise: Promise) = NativeBridge.async(promise) {
+    mapOf("kind" to "completed", "value" to sessions.proof())
+  }
+
+  @ReactMethod fun queueDevelopmentCaptionConstraint(promise: Promise) = NativeBridge.async(promise) {
+    store.queueConstraint()
+    sessions.stopAll()
+    mapOf("kind" to "completed", "value" to store.snapshot())
+  }
+
+  @ReactMethod fun clearDevelopmentCaptionConstraint(promise: Promise) = NativeBridge.async(promise) {
+    store.clearConstraint()
+    mapOf("kind" to "completed", "value" to store.snapshot())
+  }
+
+  override fun invalidate() {
+    store.cancelInstall()
+    sessions.dispose()
+    super.invalidate()
+  }
 }

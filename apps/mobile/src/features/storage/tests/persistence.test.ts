@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DatabaseSync } from "node:sqlite";
+import nacl from "tweetnacl";
 
 import type { ActivityItem, SerializedTimestamp } from "@streamfusion/core/activity";
 import type {
@@ -193,9 +194,10 @@ class ActivityMemoryDatabase extends MigrationDatabase {
 }
 
 class SqliteTestDatabase implements StoreDatabase {
-  readonly cipherVersion = "SQLite test adapter";
   readonly path = ":memory:";
   private readonly database = new DatabaseSync(":memory:");
+
+  constructor(readonly cipherVersion = "SQLite test adapter") {}
 
   close(): Promise<void> {
     this.database.close();
@@ -786,9 +788,107 @@ describe("encrypted store policy", () => {
       "App-layer encrypted storage is ready",
     );
     expect(persistenceViewModel(state, null, false).developmentDiagnostic).toBe(
-      "expo-go-app-layer-secretbox",
+      "legacy-app-layer-secretbox",
     );
     await runtime.close();
+  });
+
+  it("keeps an installed secretbox Product row when SQLCipher becomes available", async () => {
+    const product = new SqliteTestDatabase("unencrypted");
+    const cache = new SqliteTestDatabase("unencrypted");
+    const key = "aa".repeat(32);
+    const nonce = new Uint8Array(nacl.secretbox.nonceLength);
+    const boxed = nacl.secretbox(
+      new TextEncoder().encode("saved installation policy"),
+      nonce,
+      new Uint8Array(32).fill(0xaa),
+    );
+    const persisted = `sf1:${Buffer.from([...nonce, ...boxed]).toString("base64")}`;
+    await applyMigrations({ database: product, migrations: productMigrations });
+    await product.run(
+      "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+      ["installation-policy.v1", persisted, 42],
+    );
+
+    const openedPlain: string[] = [];
+    const openedCipher: string[] = [];
+    const deleted: string[] = [];
+    const driver = withCipherDriver({
+      backup: async () => undefined,
+      containsBytes: async () => false,
+      corrupt: async () => undefined,
+      delete: async (name) => void deleted.push(name),
+      deleteQuarantines: async () => undefined,
+      exists: (name) => name.endsWith("product.db"),
+      open: async (name) => {
+        openedCipher.push(name);
+        throw new Error("legacy Product Store must not be opened with SQLCipher");
+      },
+      openUnencrypted: async (name) => {
+        openedPlain.push(name);
+        return name.endsWith("product.db") ? product : cache;
+      },
+      quarantine: async () => "artifact",
+      restore: async () => undefined,
+    });
+    const runtime = createMobileStoreRuntime({
+      backupExcluded: true,
+      databaseDriver: driver,
+      random,
+      secretStore: memorySecrets({ "streamfusion.main.product-key.v1": key }),
+    });
+
+    await expect(runtime.initialize()).resolves.toMatchObject({
+      kind: "ready",
+      encryption: "app-layer-secretbox",
+    });
+    await expect(runtime.productState.installationPolicy.read()).resolves.toBe(
+      "saved installation policy",
+    );
+    await expect(
+      product.first<{ readonly value: string }>(
+        "SELECT value FROM settings WHERE key = ?",
+        ["installation-policy.v1"],
+      ),
+    ).resolves.toEqual({ value: persisted });
+    expect(openedPlain.some((name) => name.endsWith("product.db"))).toBe(true);
+    expect(openedCipher).toEqual([]);
+    expect(deleted).toEqual([]);
+    await runtime.close();
+  });
+
+  it("preserves an installed secretbox Product file when its payload key is missing", async () => {
+    const deleted: string[] = [];
+    const secrets = memorySecrets();
+    const driver = withCipherDriver({
+      backup: async () => undefined,
+      containsBytes: async () => false,
+      corrupt: async () => undefined,
+      delete: async (name) => void deleted.push(name),
+      deleteQuarantines: async () => undefined,
+      exists: (name) => name.endsWith("product.db"),
+      isSqlCipherAvailable: async () => false,
+      open: async () => {
+        throw new Error("must not open without the payload key");
+      },
+      openUnencrypted: async () => {
+        throw new Error("must not open without the payload key");
+      },
+      quarantine: async () => "artifact",
+      restore: async () => undefined,
+    });
+    const state = await createMobileStoreRuntime({
+      backupExcluded: true,
+      databaseDriver: driver,
+      random,
+      secretStore: secrets,
+    }).initialize();
+    expect(state).toMatchObject({
+      kind: "recovery-required",
+      reason: "product-key-missing",
+    });
+    expect(secrets.values.has("streamfusion.main.product-key.v1")).toBe(false);
+    expect(deleted).toEqual([]);
   });
 
   it("fails closed when SQLCipher is unavailable but an encrypted Product file exists", async () => {

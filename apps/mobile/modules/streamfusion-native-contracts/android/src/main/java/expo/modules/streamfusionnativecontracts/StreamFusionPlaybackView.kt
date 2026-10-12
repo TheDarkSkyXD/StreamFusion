@@ -1,15 +1,11 @@
 package expo.modules.streamfusionnativecontracts
 
 import android.content.Context
+import android.widget.FrameLayout
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import expo.modules.kotlin.AppContext
-import expo.modules.kotlin.views.ExpoView
 
-class StreamFusionPlaybackView(
-  context: Context,
-  appContext: AppContext,
-) : ExpoView(context, appContext) {
+class StreamFusionPlaybackView(context: Context) : FrameLayout(context) {
   private val playerView = PlayerView(context).apply {
     useController = false
     layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)

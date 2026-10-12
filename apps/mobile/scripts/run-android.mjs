@@ -40,14 +40,14 @@ function relativeTaskPath(repositoryDirectory, targetPath) {
   return relativePath;
 }
 
-export function resolveMobileExpoCli(
+export function resolveMobileReactNativeCli(
   mobileDirectory = mobileRoot,
   repositoryDirectory = repositoryRoot,
 ) {
   const mobilePackage = path.join(mobileDirectory, "package.json");
-  const expoCli = createRequire(mobilePackage).resolve("expo/bin/cli");
-  relativeTaskPath(repositoryDirectory, expoCli);
-  return expoCli;
+  const reactNativeCli = createRequire(mobilePackage).resolve("@react-native-community/cli/build/bin.js");
+  relativeTaskPath(repositoryDirectory, reactNativeCli);
+  return reactNativeCli;
 }
 
 export function mapWorktreePathToDriveLease(targetPath, lease) {
@@ -78,7 +78,7 @@ export function assertJavaAvailable(
   });
   if (result.error || result.status !== 0) {
     throw new Error(
-      "Java is required before Android prebuild. Set JAVA_HOME to a working JDK or put java on PATH.",
+      "Java is required before Android build. Set JAVA_HOME to a working JDK or put java on PATH.",
     );
   }
 }
@@ -412,29 +412,36 @@ function run(command, args, cwd, environment = process.env) {
 }
 
 async function main() {
-  const androidArguments = ["run:android", ...process.argv.slice(2)];
-  assertJavaAvailable();
-  const expoCli = resolveMobileExpoCli();
-
-  if (process.platform !== "win32") {
-    await run(process.execPath, [expoCli, ...androidArguments], mobileRoot);
-    return;
+  const [{ buildAndroid }, { createAndroidEnvironment, parseAdbDevices, resolveAndroidSdkRoot }] =
+    await Promise.all([import("./build-android-development.mjs"), import("./start-development-client.mjs")]);
+  const environment = createAndroidEnvironment(resolveAndroidSdkRoot());
+  assertJavaAvailable(environment);
+  if (process.platform === "win32") {
+    const lease = acquireWindowsDrive(repositoryRoot);
+    await runWithDriveLease(lease, () => buildAndroid(
+      mapWorktreePathToDriveLease(mobileRoot, lease),
+      createMappedAndroidEnvironment(lease, environment),
+    ));
+  } else {
+    await buildAndroid(mobileRoot, environment);
   }
-
-  const lease = acquireWindowsDrive(repositoryRoot);
-  await runWithDriveLease(lease, () => {
-    const mappedMobileRoot = mapWorktreePathToDriveLease(mobileRoot, lease);
-    const mappedExpoCli = mapWorktreePathToDriveLease(expoCli, lease);
-    const mappedEnvironment = createMappedAndroidEnvironment(lease);
-
-    console.log(`Starting Android from ${mappedMobileRoot}`);
-    return run(
-      process.execPath,
-      [mappedExpoCli, ...androidArguments],
-      mappedMobileRoot,
-      mappedEnvironment,
-    );
-  });
+  const arguments_ = process.argv.slice(2);
+  const deviceIndex = arguments_.indexOf("--device");
+  const requested = deviceIndex < 0 ? environment.STREAMFUSION_ANDROID_DEVICE : arguments_[deviceIndex + 1];
+  const adb = path.join(environment.ANDROID_HOME, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb");
+  const devices = spawnSync(adb, ["devices"], { env: environment, encoding: "utf8", windowsHide: true });
+  if (devices.error || devices.status !== 0) throw new Error("Android devices could not be read.");
+  const available = parseAdbDevices(devices.stdout);
+  const device = requested ?? (available.length === 1 ? available[0] : undefined);
+  if (!device || !available.includes(device)) throw new Error("Select a connected Android device with --device or STREAMFUSION_ANDROID_DEVICE.");
+  await run(adb, ["-s", device, "install", "-r", path.join(mobileRoot, "android/app/build/outputs/apk/debug/app-debug.apk")], mobileRoot, environment);
+  if (!arguments_.includes("--no-packager")) {
+    await run(process.execPath, [path.join(mobileRoot, "scripts/start-development-client.mjs")], mobileRoot, { ...environment, STREAMFUSION_ANDROID_DEVICE: device });
+  } else {
+    const config = JSON.parse(readFileSync(path.join(mobileRoot, "native-config.json"), "utf8"));
+    await run(adb, ["-s", device, "reverse", "tcp:8083", "tcp:8083"], mobileRoot, environment);
+    await run(adb, ["-s", device, "shell", "am", "start", "-W", "-n", config.android.package + "/.MainActivity"], mobileRoot, environment);
+  }
 }
 
 if (path.resolve(process.argv[1] ?? "") === scriptPath) {

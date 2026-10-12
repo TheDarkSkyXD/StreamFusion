@@ -12,13 +12,11 @@ import {
   resolveAndroidSdkRoot,
 } from "../scripts/start-development-client.mjs";
 
-test("the normal Android launcher opens the development client without a native build", () => {
+test("the normal Android launcher starts Metro without a native build", () => {
   assert.deepEqual(createDevelopmentClientArguments(["--clear"]), [
     "start",
-    "--dev-client",
-    "--offline",
     "--port",
-    "8081",
+    "8083",
     "--clear",
   ]);
   assert.equal(
@@ -28,10 +26,6 @@ test("the normal Android launcher opens the development client without a native 
   assert.equal(
     createDevelopmentClientArguments([]).includes("--android"),
     false,
-  );
-  assert.throws(
-    () => createDevelopmentClientArguments(["--go"]),
-    /--go is reserved/u,
   );
 });
 
@@ -51,13 +45,14 @@ test("missing and mismatched client versions give explicit build guidance", () =
   }
 });
 
-test("the launcher deep-links the installed development client over ADB", () => {
-  assert.deepEqual(createDevelopmentClientIntentArguments(8081, "10.0.2.2"), [
+test("the launcher opens the installed main activity over ADB", () => {
+  assert.deepEqual(createDevelopmentClientIntentArguments(), [
     "-a",
-    "android.intent.action.VIEW",
-    "-d",
-    "exp+streamfusion-development://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081",
-    "com.thedarkskyxd.streamfusion.dev",
+    "android.intent.action.MAIN",
+    "-c",
+    "android.intent.category.LAUNCHER",
+    "-n",
+    "com.thedarkskyxd.streamfusion.dev/.MainActivity",
   ]);
 });
 
@@ -65,18 +60,18 @@ test("an exit-zero Android intent failure cannot be reported as opened", () => {
   assert.throws(
     () =>
       assertDevelopmentClientIntentStarted(
-        "Error: Activity not started, unable to resolve Intent { act=android.intent.action.VIEW dat=streamfusion-launcher-invalid://probe pkg=com.thedarkskyxd.streamfusion.dev }",
+        "Error: Activity not started, unable to resolve Intent { act=android.intent.action.MAIN cmp=com.thedarkskyxd.streamfusion.dev/.MissingActivity }",
       ),
     /could not open.*npm run mobile:native.*Rebuild after native module changes/u,
   );
   assert.doesNotThrow(() =>
     assertDevelopmentClientIntentStarted(
-      "Starting: Intent { act=android.intent.action.VIEW }\nStatus: ok\nLaunchState: COLD\nActivity: com.thedarkskyxd.streamfusion.dev\/.MainActivity\nTotalTime: 740",
+      "Starting: Intent { act=android.intent.action.MAIN }\nStatus: ok\nLaunchState: COLD\nActivity: com.thedarkskyxd.streamfusion.dev/.MainActivity\nTotalTime: 740",
     ),
   );
 });
 
-test("installed development-client identity must match the app configuration", () => {
+test("installed development-client identity must match the native configuration", () => {
   assert.deepEqual(
     parseInstalledDevelopmentClient(
       "versionCode=1 minSdk=30\nversionName=0.1.0\n",
@@ -121,7 +116,7 @@ test("an explicit Android SDK is validated instead of silently ignored", () => {
   );
 });
 
-test("Expo receives Android SDK tools while preserving the caller environment", () => {
+test("React Native receives Android SDK tools while preserving the caller environment", () => {
   const environment = createAndroidEnvironment(
     "C:\\Android\\Sdk",
     { Path: "C:\\Windows", USER_SETTING: "preserved" },

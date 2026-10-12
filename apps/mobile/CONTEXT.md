@@ -1,82 +1,63 @@
 # StreamFusion Mobile runtime
 
-The Android client uses Expo Router and React Native. Portable product rules and contracts remain in the public `@streamfusion/core` subpaths.
+The Android client uses React Native with a committed Android project. Portable product rules and contracts remain in public @streamfusion/core subpaths. Expo is not a runtime, build, or package dependency.
 
 ## Runtime flow
 
-```text
-app route
-  -> src/composition/mobile-runtime.tsx
-  -> feature controller and UI
-  -> core or Mobile capability
-  -> transport, adapter, persistence, or native implementation
-```
-
-`src/composition/mobile-runtime.tsx` is the application composition root. It constructs concrete implementations and injects them into consumers. It contains no product policy, retries, provider normalization, or persistence rules.
+index.js registers the main component with AppRegistry. The MobileRuntime composition root constructs dependencies and injects them into feature controllers and screens. AppShell owns navigation, independent destination histories, back behavior, restoration, and parsed app links.
 
 ## Source ownership
 
-| Path                | Responsibility                                                       |
-| ------------------- | -------------------------------------------------------------------- |
-| `app/`              | Expo Router declarations that call the composition root              |
-| `src/features/`     | Screens, presentation, hooks, and controllers                        |
-| `src/design/`       | Mobile design tokens and reusable presentation elements              |
-| `src/composition/`  | Construction and dependency injection                                |
-| `modules/`          | Narrow Expo module bridges. Kotlin modules expose typed Android contracts. |
-| `tests/`            | Mobile tests and fixtures                                            |
+| Path | Responsibility |
+| --- | --- |
+| index.js | React Native entry point |
+| android/ | Android application, manifest, resources, Gradle configuration, and host lifecycle |
+| src/features/ | Feature routes, presentation, workflows, capabilities, adapters, and persistence |
+| src/design/ | Mobile tokens and reusable presentation elements |
+| src/composition/ | Dependency construction and injection |
+| modules/streamfusion-native-contracts/ | React Native bridges and existing Kotlin engines |
+| tests/ | Mobile infrastructure tests and fixtures |
+
+The historical Kotlin namespace remains stable because Android component identities participate in persisted service, installer, and export operations. It does not import the former module SDK.
 
 ## Import policy
 
-ESLint classifies each production file and rejects reverse imports. Routes import the Mobile composition root. Features consume capabilities, design code, Mobile foundations, and public core contracts. Concrete adapters import the ports they implement. Production code cannot import test support, Node or Electron APIs, another app's source, core internals, or provider and native APIs from UI code.
-
-The architecture verifier creates temporary imports for every layer. It proves both allowed dependencies and forbidden alias, relative, dynamic, and CommonJS paths. The normal Mobile test command runs this verifier.
+ESLint enforces feature responsibility boundaries and rejects reverse imports. Domain code and capabilities remain independent of React and native APIs. Concrete adapters consume the typed bridge. Only composition roots wire implementations. Production code cannot import test support, Node, Electron, another app's source, or Core internals. The architecture verifier exercises allowed and forbidden alias, relative, dynamic, and CommonJS imports. The no-Expo tests inspect the installed dependency graph and lockfile.
 
 ## State ownership
 
-TanStack Query owns remote request state. The Product Store owns durable StreamFusion records. The Cache Store owns disposable provider results. Zustand owns presentation-only state. Android services own recoverable background media work. A new state owner needs a projection and reconciliation rule before it duplicates existing state.
+TanStack Query owns remote request state. The Product Store owns durable records. The Cache Store owns disposable provider results. React and feature controllers own presentation state. Android services own recoverable background media work.
 
 ## Encrypted persistence
 
-`src/features/storage/composition/store-runtime.ts` opens independently keyed SQLCipher Product and Cache databases. Database keys are generated with `expo-crypto` and held by `expo-secure-store`; the encrypted pre-migration Product backup has its own key. Product migrations run transactionally after integrity checks. A failed migration or integrity check preserves a quarantine artifact and restores the encrypted backup when possible; a missing Product key never causes automatic deletion. Cache data is disposable, expires after seven days by default, and is evicted expired-first and then least-recently-used to a 256 MiB target.
+StreamFusionStorage uses Zetetic SQLCipher behind the existing EncryptedDatabaseDriver. Product, Cache, and recovery backups have independent keys. Database files remain in filesDir/SQLite with their existing names. Recovery artifacts remain in filesDir/recovery. WAL, integrity checks, transactional migrations, backup schema versions, and restore rekeying remain intact. Corrupt or missing-key Product data stays available for recovery rather than being silently deleted.
 
-Storage adapters import Expo secret, random, file, and SQLite APIs. The `native-contracts` feature owns typed TypeScript ports, adapters, proof, and composition. Its Kotlin Expo modules remain under `modules/streamfusion-native-contracts`. Diagnostics contract version 3 measures runtime, decoder inventory, memory, storage, thermal status, and form-factor facts. It does not qualify playback capacity. Media Jobs is a version 3 native contract: the Kotlin module owns the journal, media files, and foreground service, and JavaScript owns Product Store snapshots plus Activity rows. Playback contract version 5 owns Media3 sessions, program-audio taps, muted starts, and system PiP. Caption contract version 4 owns offline Vosk recognition. It downloads and verifies the 39.30 MiB English model once, accepts only the selected playback session's decoded PCM, and stops under low memory or severe thermal pressure. Diagnostic fixtures remain isolated and never supply production transcripts. Captions require a rebuilt Android native client; Expo Go cannot provide this audio tap. Maintenance remains a version 1 stub. The `capability-profile` feature turns those facts into an API, ABI, and form-factor candidate plus a visible degradation projection. It confirms the serialized current snapshot through the Product Store, but only as history. A restart starts fresh sampling and never restores workload admission or runtime protection. Multistream admission checks current native low-memory and severe-thermal facts before adding a player; these safeguards do not qualify device capacity. Caption resource checks also run while audio is arriving. Its sampler runs only while foregrounded, serializes measurement and persistence, samples every 30 seconds normally and every 120 seconds under any degradation, and cancels its timer on background or disposal. The cadence, reserve, and hysteresis values are provisional local safeguards, not qualification thresholds. This polling-only unit does not claim immediate thermal response: a pressure change can wait until the next foreground sample. Expo Go does not ship StreamFusion's SQLCipher native configuration. In that host the Product Store opens plain expo-sqlite and seals settings and Activity payloads with app-layer tweetnacl secretbox (key in SecureStore). Diagnostics labels this as app-layer secretbox. An existing SQLCipher Product file still fails closed without rewriting it. System Picture-in-Picture is unavailable in Expo Go. Navigating away from Watch keeps playback in the floating JS mini-player. Remote FCM push tokens are not requested in Expo Go on Android; local live alerts use expo-notifications and honor LiveNotificationPreferences. Android backup is disabled for all app-owned data. The Diagnostics proof uses isolated namespaces and removes its databases, sidecars, quarantine artifacts, and secrets in a `finally` path.
+StreamFusionSecureStore retains the existing Android Keystore aliases and encrypted SharedPreferences format. It preserves saved accounts, pending login attempts, database keys, and proxy credentials without a secret migration. Existing plaintext SQLite stores with secretbox payloads continue using that format in place. New stores use SQLCipher. The Cache Store remains disposable, expires after seven days by default, and evicts expired entries before the least recently used entries to a 256 MiB target. Android backup and device transfer exclude all app-owned data.
 
-The [Mobile domain language](../../docs/research/streamfusion-mobile/CONTEXT.md) defines the parity and release terms used by this client.
+## Native capabilities
 
-The [Android app updates reference](UPDATES.md) records the in-app update flow and release metadata contract.
+React Native modules preserve playback contract version 5, captions version 4, diagnostics and Media Jobs version 3, and connectivity and maintenance version 1. Maintenance remains a contained stub. Existing engines own Media3 sessions, decoded program audio, Vosk recognition, thermal and memory facts, download journals, app update verification, and installer handoffs. Typed adapters validate their responses and events before feature code consumes them.
 
+Media3 is the Android playback implementation for Watch and MultiStream. It retains Twitch playlist interception, muted starts, quality selection, playback speed, seek, volume, and system Picture-in-Picture. MainActivity forwards user-leave events for automatic PiP. React Native lifecycle listeners forward foreground and background state. Android owns system PiP movement and resizing. The floating in-app player retains dragging, resizing, and position within the current stream session.
 
-## Expo Go testing
+StreamFusionEmoteImage uses Fresco for cached GIF and WebP images. Its animated prop controls animation playback. StreamFusionPlatform owns Custom Tabs, clipboard, connectivity facts, orientation, system bars, haptics, app metadata, and SHA-256. Storage owns secure random bytes and UUIDs.
 
-The in-app mini-player supports one-finger dragging and two-finger resizing,
-keeps its 16:9 shape, and stays inside the workspace above navigation. Its
-position and size survive expansion and PiP return for the current stream.
-The Android native client automatically enters system Picture-in-Picture
-when leaving the app during playback. Paused or failed streams do not auto-enter.
-Android owns movement and resizing of the system PiP window; pinch resizing
-requires Android 12 or newer. Rebuild the native client for these PiP changes.
+StreamFusionNotifications owns local channels, posting permission, notification presentation, cold and warm tap receipts, and Firebase token events. Remote tokens require a configured Firebase application. The Google Services Gradle plugin processes android/app/google-services.json when present. Keep this installation-specific file out of version control. Local alerts remain independent of remote registration and honor LiveNotificationPreferences. Notification intents return to the existing shell parser.
 
-Custom Twitch ad blocking uses the native Media3 player's playlist interception.
-It requests alternative Twitch player tokens, verifies clean backup renditions,
-and holds unsafe media when no clean backup is available. Enabling it disables
-the Twitch playlist proxy. The player shield appears only for enabled custom
-blocking on Twitch live streams. Canary observation does not show the shield.
-Expo Go cannot intercept playlists and shows the custom blocker as unavailable;
-playlist proxy settings remain available there. Rebuild the Android development
-client after changing the native blocker.
+## Android workflows
 
-From `apps/mobile`:
+The normal mobile command opens the installed development app with Metro on port 8083. The native command builds the committed Gradle project and installs it without prebuild. Use STREAMFUSION_ANDROID_DEVICE or the native launcher's device argument when multiple devices are connected. Native changes require a rebuilt APK. Restart the app after code changes and leave the latest development app running after verification.
 
-```bash
-npm start
-```
+native-config.json records the development identity. Production builds require the exact production release channel, an explicit release version and version code, and the pinned signing certificate. The development application remains com.thedarkskyxd.streamfusion.dev with scheme streamfusion-development. The production application remains com.thedarkskyxd.streamfusion with scheme streamfusion. Release builds use the existing upload-signing variables and APK verification gates.
 
-Open the printed `exp://LAN:8081` URL in Expo Go on Android. Prefer the LAN URL form `exp://192.168.x.x:8081`. Use `npm run start:dev-client` only when loading a custom development APK that includes SQLCipher and native modules.
+Public Metro configuration uses STREAMFUSION_PUBLIC_RELAY_URL, STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS, STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID, STREAMFUSION_PUBLIC_KICK_CLIENT_ID, and STREAMFUSION_PUBLIC_WORKER_URL. The release workflow supplies these values from matching repository variables. The Babel plugin inlines only those explicit public variables. It never reads dotenv files or arbitrary environment values.
 
-## Mobile workflows
+## Provider workflows
 
-Authenticated chat, recorded replay, moderation, engagement, and multistream own feature roots. Provider-neutral ports isolate Twitch and Kick APIs from UI and domain rules. Production token access refreshes the connected account and checks scopes for each operation; development account fixtures cannot authorize provider writes. Viewer voting and wagers open the provider. Unsupported Kick moderation and engagement operations display an explicit handoff. Storybook renders the production components with deterministic transports. See [workflow architecture](../../docs/research/streamfusion-mobile/workflow-architecture.md) and [caption recognition evidence](../../verification/evidence/mobile-local-captions/README.md).
+Authenticated chat, recorded replay, moderation, engagement, and MultiStream keep their feature roots and provider-neutral capabilities. Tokens still refresh and pass scope checks before provider operations. Development fixtures cannot authorize provider writes. Unsupported provider operations retain their explicit handoffs.
 
-The production Twitch Device Code flow uses the public StreamFusion client ID from `@streamfusion/core/auth`. Connect stores the code attempt before opening Twitch verification. Kick Connect resolves the public client ID from `EXPO_PUBLIC_KICK_CLIENT_ID` or the Worker's `/auth/kick/config` route when needed. Kick keeps the PKCE attempt in encrypted storage and sends its canonical HTTPS redirect to Kick. The Worker callback page opens the development or production app scheme with the returned code and state. The mobile callback parser restores the canonical HTTPS redirect for token exchange. A callback received while the app is backgrounded waits until foreground account restoration; duplicate returns cannot start parallel exchanges. Both flows preserve guest browsing when a provider is unavailable.
+Twitch uses the existing public Device Code flow. Kick retains PKCE, encrypted durable attempts, the canonical HTTPS Worker callback, and the app-scheme return. Warm and cold callback delivery uses React Native Linking. Background returns wait for account restoration and duplicate returns cannot start parallel exchanges. Both providers retain guest browsing when unavailable.
 
-Twitch and Kick authorization pages open in a browser-owned Android Custom Tab launched from the StreamFusion task. The auth adapter requires an installed browser with Custom Tabs support and never falls back to an external browser task. Twitch approval leaves its Device Code pending until the user closes the tab and foreground polling resumes. Kick still returns through the Worker page's Open StreamFusion link and the existing callback inbox. Browser close alone does not cancel either durable attempt. Adding `expo-web-browser` requires a rebuilt native Android client; a Metro reload cannot add its native module.
+Authorization pages open in browser-owned Android Custom Tabs launched from the StreamFusion task. Missing Custom Tabs support fails explicitly without an external-browser fallback. Twitch polling resumes when the app returns to the foreground. Kick retains the Worker page's Open StreamFusion link. Closing a browser tab does not cancel a durable authorization attempt.
+
+The Mobile domain language is recorded in docs/research/streamfusion-mobile/CONTEXT.md. UPDATES.md describes the in-app update contract.

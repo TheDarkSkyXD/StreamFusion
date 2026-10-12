@@ -1,5 +1,5 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "@react-native/typescript-config",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "strict": true,
@@ -12,19 +12,30 @@
       "@desktop-i18n/*": [
         "../desktop/src/frontend/i18n/*"
       ]
-    }
+    },
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "bundler",
+    "types": [
+      "react"
+    ],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
+    "module": "preserve",
+    "customConditions": [
+      "react-native"
+    ]
   },
   "include": [
     ".storybook/**/*.ts",
     ".storybook/**/*.tsx",
-    "app/**/*.ts",
-    "app/**/*.tsx",
     "src/**/*.ts",
     "src/**/*.tsx",
     "modules/**/*.ts",
-    "modules/**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "modules/**/*.tsx"
   ],
   "exclude": [
     "src/features/**/tests/**"

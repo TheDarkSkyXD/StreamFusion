@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { getDefaultConfig } = require("expo/metro-config");
+const { getDefaultConfig } = require("@react-native/metro-config");
 
 const workspaceRoot = path.resolve(__dirname, "../..");
 const mobileRoot = __dirname;
@@ -8,33 +8,17 @@ const desktopI18nRoot = path.resolve(
   "apps/desktop/src/frontend/i18n",
 );
 const config = getDefaultConfig(mobileRoot);
-const queryStringCompatPath = path.resolve(
-  mobileRoot,
-  "vendor/query-string-compat.cjs",
-);
 const coreSubpathPattern = /^@streamfusion\/core\/([a-z-]+)$/u;
 const tanstackModern = new Set([
   "@tanstack/query-core",
   "@tanstack/react-query",
 ]);
 
-// Expo SDK 52+ already configures monorepo watchFolders + nodeModulesPaths.
-// Replacing nodeModulesPaths can load duplicate react-native copies and crash
-// Hermes with "property is not writable" inside setUpDefaultReactNativeEnvironment.
-// Only trim unrelated workspace apps from watchers to keep FD usage down.
-const ignoredWatchSuffixes = [
-  `${path.sep}apps${path.sep}desktop`,
-  `${path.sep}apps${path.sep}worker`,
-  `${path.sep}apps${path.sep}integration-relay`,
+config.watchFolders = [path.join(workspaceRoot, "node_modules"), path.join(workspaceRoot, "packages"), desktopI18nRoot];
+config.resolver.blockList = [
+  ...[config.resolver.blockList].flat(),
+  /[\\/]android[\\/](?:\.gradle|\.cxx|build|app[\\/](?:build|\.cxx))[\\/].*/,
 ];
-config.watchFolders = (config.watchFolders ?? []).filter(
-  (folder) =>
-    !ignoredWatchSuffixes.some((suffix) => folder.endsWith(suffix)),
-);
-// Share desktop display-language catalogs without watching the whole Electron app.
-if (!config.watchFolders.includes(desktopI18nRoot)) {
-  config.watchFolders.push(desktopI18nRoot);
-}
 
 const mobileOrigin = path.join(mobileRoot, "package.json");
 
@@ -49,15 +33,17 @@ function isReactFamily(moduleName) {
 
 const fs = require("node:fs");
 
-function resolveDesktopI18nPath(remainder) {
-  const base = path.resolve(desktopI18nRoot, remainder);
-  for (const ext of ["", ".ts", ".tsx", ".js", ".json"]) {
+function resolveSourcePath(root, remainder, platform) {
+  const base = path.resolve(root, remainder);
+  const extensions = [".ts", ".tsx", ".js", ".jsx", ".json"];
+  const suffixes = [platform, "native", ""].flatMap((variant) => extensions.map((extension) => variant ? `.${variant}${extension}` : extension));
+  for (const ext of ["", ...suffixes]) {
     const candidate = `${base}${ext}`;
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
       return candidate;
     }
   }
-  for (const ext of [".ts", ".tsx", ".js"]) {
+  for (const ext of suffixes) {
     const candidate = path.join(base, `index${ext}`);
     if (fs.existsSync(candidate)) return candidate;
   }
@@ -65,13 +51,19 @@ function resolveDesktopI18nPath(remainder) {
 }
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith("@mobile/")) {
+    return {
+      filePath: resolveSourcePath(path.join(mobileRoot, "src"), moduleName.slice("@mobile/".length), platform),
+      type: "sourceFile",
+    };
+  }
   if (moduleName === "@desktop-i18n" || moduleName.startsWith("@desktop-i18n/")) {
     const remainder =
       moduleName === "@desktop-i18n"
         ? "index"
         : moduleName.slice("@desktop-i18n/".length);
     return {
-      filePath: resolveDesktopI18nPath(remainder),
+      filePath: resolveSourcePath(desktopI18nRoot, remainder, platform),
       type: "sourceFile",
     };
   }
@@ -98,12 +90,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: "sourceFile",
     };
   }
-  if (
-    moduleName === "query-string" &&
-    /[\\/]node_modules[\\/]expo-router[\\/]/.test(context.originModulePath)
-  ) {
-    return { filePath: queryStringCompatPath, type: "sourceFile" };
-  }
 
   // Prefer the app workspace copy of react / react-native so Metro never mixes
   // root 0.86.2 with apps/mobile 0.86.3 during RN environment setup.
@@ -118,4 +104,5 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
+config.resolver.nodeModulesPaths = [path.join(mobileRoot, "node_modules"), path.join(workspaceRoot, "node_modules")];
 module.exports = config;

@@ -38,13 +38,13 @@ export function persistenceViewModel(
     return {
       canRunProof: !unencrypted,
       developmentDiagnostic: unencrypted
-        ? "expo-go-app-layer-secretbox"
+        ? "legacy-app-layer-secretbox"
         : null,
       detail: unencrypted
-        ? `Expo Go storage uses app-layer secretbox over SQLite (${state.cipherVersion}). Key is in SecureStore. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`
+        ? `Existing storage uses app-layer secretbox over SQLite (${state.cipherVersion}). The key is in Android Keystore. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`
         : `${state.cipherVersion}. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`,
       proofDetail: unencrypted
-        ? "SQLCipher native proof requires the StreamFusion development client. App-layer secretbox is active here."
+        ? "App-layer secretbox protects this existing database. Native SQLCipher checks apply to new databases."
         : proofFailed
           ? "The isolated native storage proof could not complete. Temporary proof data was removed."
           : proof

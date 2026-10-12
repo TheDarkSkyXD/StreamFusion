@@ -6,12 +6,12 @@ import {
   createAndroidPlaybackContractPort,
 } from "../adapters/android-capability-contracts";
 import {
-  expoCaptionsBindingReader,
-  expoDiagnosticsBindingReader,
-  expoMaintenanceBindingReader,
-  expoMediaJobsBindingReader,
-  expoPlaybackBindingReader,
-} from "../adapters/expo-capability-contracts";
+  androidCaptionsBindingReader,
+  androidDiagnosticsBindingReader,
+  androidMaintenanceBindingReader,
+  androidMediaJobsBindingReader,
+  androidPlaybackBindingReader,
+} from "../adapters/react-native-capability-bindings";
 import type { AndroidCapabilityContracts } from "../capabilities/android-capability-contracts";
 import { createAndroidCapabilityStubProof } from "../domain/android-capability-stub-proof";
 
@@ -23,11 +23,11 @@ export function createAndroidCapabilityContractRuntime(): {
   }>;
 } {
   const contracts: AndroidCapabilityContracts = {
-    captions: createAndroidCaptionsContractPort(expoCaptionsBindingReader),
-    diagnostics: createAndroidDiagnosticsContractPort(expoDiagnosticsBindingReader),
-    maintenance: createAndroidMaintenanceContractPort(expoMaintenanceBindingReader),
-    mediaJobs: createAndroidMediaJobsContractPort(expoMediaJobsBindingReader),
-    playback: createAndroidPlaybackContractPort(expoPlaybackBindingReader),
+    captions: createAndroidCaptionsContractPort(androidCaptionsBindingReader),
+    diagnostics: createAndroidDiagnosticsContractPort(androidDiagnosticsBindingReader),
+    maintenance: createAndroidMaintenanceContractPort(androidMaintenanceBindingReader),
+    mediaJobs: createAndroidMediaJobsContractPort(androidMediaJobsBindingReader),
+    playback: createAndroidPlaybackContractPort(androidPlaybackBindingReader),
   };
   return { contracts, runStubProof: createAndroidCapabilityStubProof(contracts).run };
 }

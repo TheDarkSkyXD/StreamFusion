@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { KICK_ANDROID_REDIRECT_URI } from "@streamfusion/core/auth";
 import { createKickPkceAuthorization } from "../adapters/kick/kick-authorization-url";
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  CryptoEncoding: { BASE64: "base64" },
-  getRandomBytes: (count: number) => new Uint8Array(count).fill(1),
-  digestStringAsync: async () => "YWJjZA==",
+vi.mock("../../../../modules/streamfusion-native-contracts/src/storage", () => ({
+  requireStorageModule: () => ({ randomBytes: (count: number) => "01".repeat(count) }),
+}));
+
+vi.mock("../../../../modules/streamfusion-native-contracts/src/platform", () => ({
+  getPlatformModule: () => ({ sha256: async () => "YWJjZA==" }),
 }));
 
 describe("Kick PKCE authorization", () => {

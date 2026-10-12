@@ -8,13 +8,13 @@ import {
   createAndroidPlaybackContractPort,
 } from "../adapters/android-capability-contracts";
 import type {
-  ExpoBindingReader,
-  ExpoCaptionsBinding,
-  ExpoDiagnosticsBinding,
-  ExpoMaintenanceBinding,
-  ExpoMediaJobsBinding,
-  ExpoPlaybackBinding,
-} from "../adapters/expo-capability-contracts";
+  NativeBindingReader,
+  NativeCaptionsBinding,
+  NativeDiagnosticsBinding,
+  NativeMaintenanceBinding,
+  NativeMediaJobsBinding,
+  NativePlaybackBinding,
+} from "../adapters/react-native-capability-bindings";
 import { createAndroidCapabilityStubProof } from "../domain/android-capability-stub-proof";
 
 const unsupported = async () => ({
@@ -23,7 +23,7 @@ const unsupported = async () => ({
   kind: "unsupported",
 });
 
-const playbackBinding: ExpoPlaybackBinding = {
+const playbackBinding: NativePlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
   getContractVersion: () => 5,
@@ -74,7 +74,7 @@ function recordJob(jobId: string) {
   };
 }
 
-const mediaJobsBinding: ExpoMediaJobsBinding = {
+const mediaJobsBinding: NativeMediaJobsBinding = {
   cancelRecoverableJob: async (jobId) => missingJob(jobId),
   deleteRecoverableJob: async (jobId) => ({
     kind: "completed",
@@ -97,7 +97,7 @@ const mediaJobsBinding: ExpoMediaJobsBinding = {
   retryRecoverableJob: async (jobId) => missingJob(jobId),
   startRecoverableJob: async (request) => recordJob(request.jobId),
 };
-const captionsBinding: ExpoCaptionsBinding = {
+const captionsBinding: NativeCaptionsBinding = {
   clearDevelopmentCaptionConstraint: unsupported,
   getCaptionProof: unsupported,
   getContractVersion: () => 4,
@@ -138,7 +138,7 @@ const diagnosticsSnapshot = {
   storage: { availableBytes: 1_024, totalBytes: 4_096 },
   thermal: { kind: "observed", state: "none" },
 } as const;
-const diagnosticsBinding: ExpoDiagnosticsBinding = {
+const diagnosticsBinding: NativeDiagnosticsBinding = {
   getContractVersion: () => 3,
   queueDevelopmentResourceSnapshotFailure: async () => ({
     kind: "completed",
@@ -149,13 +149,13 @@ const diagnosticsBinding: ExpoDiagnosticsBinding = {
     value: diagnosticsSnapshot,
   }),
 };
-const maintenanceBinding: ExpoMaintenanceBinding = {
+const maintenanceBinding: NativeMaintenanceBinding = {
   getContractVersion: () => 1,
   handoffVerifiedApk: unsupported,
   verifyDownloadedApk: unsupported,
 };
 
-function reader<TBinding>(binding: TBinding): ExpoBindingReader<TBinding> {
+function reader<TBinding>(binding: TBinding): NativeBindingReader<TBinding> {
   return { read: () => binding };
 }
 
@@ -244,7 +244,7 @@ describe("Android capability module contracts", () => {
   });
 
   it("distinguishes missing bindings from failed invocation and malformed native responses", async () => {
-    const absent: ExpoBindingReader<ExpoPlaybackBinding> = {
+    const absent: NativeBindingReader<NativePlaybackBinding> = {
       read() {
         throw new Error("not linked");
       },

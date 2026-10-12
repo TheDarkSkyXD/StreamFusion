@@ -1,5 +1,4 @@
-import { requireNativeViewManager } from "expo-modules-core";
-import { StyleSheet, View } from "react-native";
+import { requireNativeComponent, StyleSheet, UIManager, View } from "react-native";
 
 export type PlayerSurfaceProps = {
   readonly sessionId: string;
@@ -12,15 +11,9 @@ type NativePlaybackViewProps = {
   readonly testID?: string;
 };
 
-let NativePlaybackView:
-  | ReturnType<typeof requireNativeViewManager<NativePlaybackViewProps>>
-  | null = null;
-try {
-  NativePlaybackView =
-    requireNativeViewManager<NativePlaybackViewProps>("StreamFusionPlayback");
-} catch {
-  NativePlaybackView = null;
-}
+const NativePlaybackView = UIManager.getViewManagerConfig("StreamFusionPlayback")
+  ? requireNativeComponent<NativePlaybackViewProps>("StreamFusionPlayback")
+  : null;
 
 export function AndroidMedia3PlayerSurface({
   sessionId,

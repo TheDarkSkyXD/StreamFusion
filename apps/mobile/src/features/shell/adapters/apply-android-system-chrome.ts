@@ -1,15 +1,9 @@
 import { Platform } from "react-native";
 
-/**
- * Align Android root / navigation chrome with the bottom tab surface.
- *
- * Optional Expo modules (`expo-system-ui`, `expo-navigation-bar`) are omitted on
- * some development-client binaries. Requiring them throws a fatal RedBox even
- * inside try/catch, so this helper stays a no-op until those modules are linked.
- * Edge-to-edge / tab surface coloring continues via React Native theme tokens.
- */
+import { getPlatformModule } from "../../../../modules/streamfusion-native-contracts/src/platform";
+import { ANDROID_SYSTEM_CHROME_COLOR } from "../domain/android-system-chrome";
+
 export function applyAndroidSystemChrome(): void {
-  if (Platform.OS !== "android") {
-    return;
-  }
+  if (Platform.OS !== "android") return;
+  void getPlatformModule().setSystemChromeColor(ANDROID_SYSTEM_CHROME_COLOR).catch(() => undefined);
 }

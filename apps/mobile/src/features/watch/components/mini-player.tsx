@@ -245,7 +245,6 @@ export function MiniPlayer({
   const release = () => finish(true);
   const terminate = () => finish(false);
   // PanResponder stores callbacks and invokes them after render.
-  // eslint-disable-next-line react-hooks/refs
   const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: wantsStart,

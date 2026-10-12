@@ -6,7 +6,7 @@ Read the context documents relevant to the area being changed.
 | ----------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
 | Desktop           | Electron desktop client, renderer, main process, preload bridge, Twitch and Kick integrations | `apps/desktop/CONTEXT.md`           |
 | Worker            | Cloudflare Worker for Kick OAuth token exchange, refresh, and auth rate limiting              | `apps/worker/CONTEXT.md`            |
-| Mobile            | Android Expo client, runtime composition, adapters, persistence, and Desktop outcome parity   | `apps/mobile/CONTEXT.md`            |
+| Mobile            | Android React Native client, runtime composition, adapters, persistence, and Desktop outcome parity | `apps/mobile/CONTEXT.md`            |
 | Integration Relay | Versioned, environment-isolated boundary for future external integrations                     | `apps/integration-relay/CONTEXT.md` |
 
 System-wide architecture decisions live in `docs/adr/`. Context-specific decisions may live under `<context>/docs/adr/`.

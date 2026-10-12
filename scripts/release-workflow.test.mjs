@@ -418,14 +418,11 @@ test("the android release publishes a draft before it publishes", () => {
   assert.doesNotMatch(source, /--clobber/u);
 });
 
-test("every job reading an environment variable declares the environment", () => {
-  // A job only sees STREAMFUSION_* variables when it declares the environment
-  // that owns them. Reading them from a job that does not silently yields empty
-  // strings, which app.config.js then rejects with a confusing message.
+test("every job reading a production version declares the release environment", () => {
+  // Jobs must select the environment that owns their release version values.
   const workflow = loadWorkflow("android-release.yml");
   const required = [
-    "STREAMFUSION_PRODUCTION_EAS_PROJECT_ID",
-    "STREAMFUSION_PRODUCTION_EAS_OWNER",
+    "STREAMFUSION_PRODUCTION_VERSION",
     "STREAMFUSION_PRODUCTION_VERSION_CODE",
   ];
   const offenders = [];
@@ -482,7 +479,7 @@ test("only the android publish job may write to the repository", () => {
   assert.notEqual(workflow.jobs.release.environment, "production-release");
 });
 
-test("the android release refuses an EAS build from another commit", () => {
+test("the android release assembles the signed APK on its runner", () => {
   const workflow = loadWorkflow("android-release.yml");
   const { build } = workflow.jobs;
 
@@ -553,6 +550,14 @@ test("the android release does not duplicate the Android Release Gate", () => {
   assert.equal(existsSync(".github/workflows/android-release.yml"), true);
   assert.doesNotMatch(source, HOSTED_EMU_FORBIDDEN);
   assert.doesNotMatch(source, /firebase\s+test\s+lab|test-lab/iu);
+});
+
+test("the Android release bundle receives the public provider and relay configuration", () => {
+  const { build } = loadWorkflow("android-release.yml").jobs;
+  const assemble = stepNamed(build, "Assemble the signed release APK");
+  for (const name of ["RELAY_URL", "POLICY_TRUSTED_KEYS", "TWITCH_CLIENT_ID", "KICK_CLIENT_ID", "WORKER_URL"]) {
+    assert.equal(assemble.env[`STREAMFUSION_PUBLIC_${name}`], `\u0024{{ vars.STREAMFUSION_PUBLIC_${name} }}`);
+  }
 });
 
 test("electron-builder emits deterministic installer names and macOS updater archives", () => {

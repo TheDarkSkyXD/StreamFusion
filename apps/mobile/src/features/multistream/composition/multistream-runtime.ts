@@ -13,8 +13,6 @@ import type {
 } from "@mobile/features/watch/capabilities/watch";
 import { createAndroidFocusedPlaybackPort } from "@mobile/features/watch/adapters/android/android-focused-playback";
 import { AndroidMedia3PlayerSurface } from "@mobile/features/watch/adapters/android/android-media3-player-surface";
-import { createExpoHlsFocusedPlaybackPort } from "@mobile/features/watch/adapters/expo/expo-hls-focused-playback";
-import { ExpoHlsPlayerSurface } from "@mobile/features/watch/adapters/expo/expo-hls-player-surface";
 import { createPlaybackCompatibilityPolicy } from "@mobile/features/watch/adapters/playback-compatibility-policy";
 import { createDiscoveryMultistreamChannels } from "../adapters/discovery-multistream-channels";
 import { createAndroidMultistreamAdmission } from "../adapters/android-resource-admission";
@@ -51,7 +49,6 @@ export function createMultistreamRuntime(input: {
   readonly sessionIds: WatchSessionIdSource;
   readonly limit: () => number;
 }): MultistreamRuntime {
-  const native = input.playback.readiness().kind === "ready";
   return {
     chat: createMultistreamChat(() =>
       createWatchChatSession({ fetch: input.fetch }),
@@ -60,12 +57,10 @@ export function createMultistreamRuntime(input: {
       createPlatformChatCommands(input),
       createProviderEmoteReader(input),
     ),
-    PlayerSurface: native ? AndroidMedia3PlayerSurface : ExpoHlsPlayerSurface,
+    PlayerSurface: AndroidMedia3PlayerSurface,
     session: createMultistreamSession({
       channels: createDiscoveryMultistreamChannels(input.discovery),
-      playback: native
-        ? createAndroidFocusedPlaybackPort(input.playback)
-        : createExpoHlsFocusedPlaybackPort(),
+      playback: createAndroidFocusedPlaybackPort(input.playback),
       policy: createPlaybackCompatibilityPolicy(
         createEffectiveCapabilityPolicyReader({
           nowEpochMs: Date.now,

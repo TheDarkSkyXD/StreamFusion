@@ -16,6 +16,7 @@ import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
 import type { WatchTarget } from "../capabilities/watch";
 
 vi.mock("react-native", () => ({
+  requireNativeComponent: () => "Image",
   Image: "Image",
   Pressable: "Pressable",
   Modal: "Modal",

@@ -1,6 +1,6 @@
 plugins {
   id 'com.android.library'
-  id 'expo-module-gradle-plugin'
+  id 'org.jetbrains.kotlin.android'
 }
 
 group = 'expo.modules.streamfusionnativecontracts'
@@ -8,8 +8,12 @@ version = '0.1.0'
 
 android {
   namespace "expo.modules.streamfusionnativecontracts"
+  compileSdk rootProject.ext.compileSdkVersion
+  ndkVersion rootProject.ext.ndkVersion
 
   defaultConfig {
+    minSdk rootProject.ext.minSdkVersion
+    targetSdk rootProject.ext.targetSdkVersion
     versionCode 1
     versionName "0.1.0"
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -17,6 +21,11 @@ android {
 }
 
 dependencies {
+  implementation "com.facebook.react:react-android"
+  implementation "net.zetetic:sqlcipher-android:4.19.1@aar"
+  implementation "androidx.sqlite:sqlite:2.7.0"
+  implementation "androidx.browser:browser:1.9.0"
+  implementation "com.google.firebase:firebase-messaging:25.0.1"
   implementation "com.alphacephei:vosk-android:0.3.75"
   implementation "androidx.activity:activity:1.12.1"
   implementation "com.squareup.okhttp3:okhttp:4.12.0"

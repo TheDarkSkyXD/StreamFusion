@@ -1,58 +1,74 @@
-# Mobile deep links (Expo Go)
+# Mobile deep links
 
-Scheme from `app.json`: **`streamfusion-development`** (release builds may use `streamfusion`).
+The committed Android project registers one custom scheme for each application identity:
 
-Deep links are parsed by `parseAppLink` and applied through the shell lifecycle. They do not invent a second router tree; Expo Router still mounts the single app shell.
+| Build | Scheme | Application ID |
+| --- | --- | --- |
+| Development | `streamfusion-development` | `com.thedarkskyxd.streamfusion.dev` |
+| Production | `streamfusion` | `com.thedarkskyxd.streamfusion` |
 
-## Watch
+React Native `Linking` supplies the initial URL after a cold start and emits URL events while the app is running. `parseAppLink` accepts only the routes and fields listed below.
 
-Live channel:
+## Watch links
+
+A live channel link has this form:
 
 ```text
 streamfusion-development://watch/{twitch|kick}/{channelLogin}?channelId={id}
 ```
 
-VOD or clip:
+A clip or video link must include all four media fields:
 
 ```text
-streamfusion-development://watch/{twitch|kick}/{channelLogin}?channelId={id}&mediaKind=clip|video&mediaId={id}&title={title}&duration={seconds}
+streamfusion-development://watch/{twitch|kick}/{channelLogin}?channelId={id}&mediaKind={clip|video}&mediaId={id}&title={title}&duration={seconds}
 ```
 
-Example (Expo Go / Android):
+`channelLogin` accepts 1 to 64 letters, numbers, underscores, or hyphens. `channelId` and `mediaId` accept 1 to 256 letters, numbers, periods, underscores, colons, or hyphens. A media title accepts 1 to 256 characters without control characters. `duration` must be a non-negative integer.
 
-```bash
-npx uri-scheme open "streamfusion-development://watch/twitch/proofstreamer?channelId=channel-1" --android
-```
+The parser rejects unknown query parameters and partial media details.
 
-## Search
+## Search links
 
-Open Search:
+Open Search without a query:
 
 ```text
 streamfusion-development://search
 ```
 
-Open Search with a query (runs the search once the Search screen mounts):
+Open Search and run one query:
 
 ```text
 streamfusion-development://search?q=xqc
 ```
 
-Path-style URLs (Expo Router / some Expo Go forms) are normalized to the same intents:
+The query can contain up to 100 characters and cannot contain control characters. The path form below resolves to the same destination:
 
 ```text
 streamfusion-development:///search?q=xqc
-exp://127.0.0.1:8081/--/search?q=xqc
 ```
 
-## Activity
+## Activity links
+
+Open one Activity item with:
 
 ```text
 streamfusion-development://activity/{eventId}
 ```
 
-Live-alert / notification opens reuse the same Watch and Activity location mapping inside the shell (not a separate URL scheme).
+The event ID must contain 1 to 256 letters, numbers, periods, underscores, colons, or hyphens after URL decoding. Activity links do not accept query parameters.
 
-## Tablet navigation
+## Test a link on Android
 
-At window width **≥ 600**, the shell shows a persistent **side rail** (`getShellNavigationPlacement`). Compact phones keep the bottom tab bar. Primary navigation stays hidden during picture-in-picture and while the soft keyboard is open on the bottom bar (see Android navigation model).
+Install and open the development app before sending a link. Then run:
+
+```text
+adb shell am start -W -a android.intent.action.VIEW -d "streamfusion-development://watch/twitch/proofstreamer?channelId=channel-1" -p com.thedarkskyxd.streamfusion.dev
+```
+
+Use the production scheme and application ID only with a production APK.
+
+## Authentication and notification destinations
+
+Kick sign-in uses the HTTPS callback declared in the Android manifest at `https://streamfusion.leveluptogetherbiz.workers.dev/auth/kick/android/callback`. The callback adapter also recognizes the two custom-scheme callback forms for development and compatibility.
+
+Notification taps map their validated payload directly to a Watch or Activity destination. They do not create another URL scheme.

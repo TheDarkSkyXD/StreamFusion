@@ -132,8 +132,6 @@ jobs:
       - name: Resolve the production identity closed
         env:
           STREAMFUSION_RELEASE_CHANNEL: production
-          STREAMFUSION_PRODUCTION_EAS_PROJECT_ID: ${{ vars.STREAMFUSION_PRODUCTION_EAS_PROJECT_ID }}
-          STREAMFUSION_PRODUCTION_EAS_OWNER: ${{ vars.STREAMFUSION_PRODUCTION_EAS_OWNER }}
           STREAMFUSION_PRODUCTION_VERSION: ${{ needs.verify.outputs.version }}
           STREAMFUSION_PRODUCTION_VERSION_CODE: ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}
         run: npm run --workspace @streamfusion/mobile config:android:production
@@ -191,40 +189,26 @@ jobs:
           printf 'STREAMFUSION_UPLOAD_KEY_ALIAS=%s\n' "$KEY_ALIAS" >> "$GITHUB_ENV"
           printf 'STREAMFUSION_UPLOAD_KEY_PASSWORD=%s\n' "$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Prebuild the Android project
-        # Prebuild resolves the Expo app config, so the release channel and the
-        # production identity must be in the environment here. Without them the
-        # generated project keeps the development application id, and the result
-        # is a release APK users cannot upgrade to the public app later.
+      - name: Resolve the production native configuration
         env:
           STREAMFUSION_RELEASE_CHANNEL: production
-          STREAMFUSION_PRODUCTION_EAS_PROJECT_ID: ${{ vars.STREAMFUSION_PRODUCTION_EAS_PROJECT_ID }}
-          STREAMFUSION_PRODUCTION_EAS_OWNER: ${{ vars.STREAMFUSION_PRODUCTION_EAS_OWNER }}
           STREAMFUSION_PRODUCTION_VERSION: ${{ needs.verify.outputs.version }}
           STREAMFUSION_PRODUCTION_VERSION_CODE: ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}
-        run: npm run --workspace @streamfusion/mobile prebuild:android
-
-      - name: Require the production identity in the generated project
-        shell: bash
-        run: |
-          set -euo pipefail
-          for expected in \
-            "applicationId 'com.thedarkskyxd.streamfusion'" \
-            "versionName \"${{ needs.verify.outputs.version }}\"" \
-            "versionCode ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}"
-          do
-            grep -qF "$expected" apps/mobile/android/app/build.gradle || {
-              echo "generated project is missing: $expected" >&2
-              grep -nE "applicationId|versionName|versionCode" apps/mobile/android/app/build.gradle >&2
-              exit 1
-            }
-          done
+        run: npm run --workspace @streamfusion/mobile config:android:production
 
       - name: Assemble the signed release APK
         timeout-minutes: 40
         shell: bash
         env:
           ASSET_NAME: ${{ needs.verify.outputs.asset_name }}
+          STREAMFUSION_RELEASE_CHANNEL: production
+          STREAMFUSION_PRODUCTION_VERSION: ${{ needs.verify.outputs.version }}
+          STREAMFUSION_PRODUCTION_VERSION_CODE: ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}
+          STREAMFUSION_PUBLIC_RELAY_URL: ${{ vars.STREAMFUSION_PUBLIC_RELAY_URL }}
+          STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS: ${{ vars.STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS }}
+          STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID: ${{ vars.STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID }}
+          STREAMFUSION_PUBLIC_KICK_CLIENT_ID: ${{ vars.STREAMFUSION_PUBLIC_KICK_CLIENT_ID }}
+          STREAMFUSION_PUBLIC_WORKER_URL: ${{ vars.STREAMFUSION_PUBLIC_WORKER_URL }}
         run: |
           set -euo pipefail
           pushd apps/mobile/android

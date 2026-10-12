@@ -17,36 +17,29 @@ function stepBlock(name) {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
-test("prebuild runs with the production identity in the environment", () => {
-  const prebuild = stepBlock("Prebuild the Android project");
+test("the owned native project builds with the production identity in the environment", () => {
+  const prebuild = stepBlock("Assemble the signed release APK");
 
-  assert.ok(prebuild, "the workflow must prebuild the Android project");
+  assert.ok(prebuild, "the workflow must build the owned Android project");
   assert.match(prebuild, /STREAMFUSION_RELEASE_CHANNEL: production/u);
   for (const variable of [
-    "STREAMFUSION_PRODUCTION_EAS_PROJECT_ID",
-    "STREAMFUSION_PRODUCTION_EAS_OWNER",
     "STREAMFUSION_PRODUCTION_VERSION",
     "STREAMFUSION_PRODUCTION_VERSION_CODE",
   ]) {
-    assert.match(prebuild, new RegExp(variable, "u"), `${variable} must reach prebuild`);
+    assert.match(prebuild, new RegExp(variable, "u"), `${variable} must reach Gradle`);
   }
 });
 
-test("the generated project is proven to carry the public identity before Gradle runs", () => {
-  const check = stepBlock("Require the production identity in the generated project");
+test("production configuration is resolved before Gradle runs", () => {
+  const check = stepBlock("Resolve the production native configuration");
 
   assert.ok(check, "a release must not build from a project that still has the development application id");
-  assert.match(check, /com\.thedarkskyxd\.streamfusion['"]/u);
-  assert.doesNotMatch(check, /streamfusion\.dev/u);
-  assert.match(check, /build\.gradle/u, "the check must read the generated project");
+  assert.match(check, /config:android:production/u);
+  assert.match(check, /STREAMFUSION_RELEASE_CHANNEL: production/u);
   assert.ok(
-    workflowSource.indexOf("- name: Prebuild the Android project")
-      < workflowSource.indexOf("- name: Require the production identity in the generated project"),
-  );
-  assert.ok(
-    workflowSource.indexOf("- name: Require the production identity in the generated project")
+    workflowSource.indexOf("- name: Resolve the production native configuration")
       < workflowSource.indexOf("- name: Assemble the signed release APK"),
-    "the identity check must sit between prebuild and the build",
+    "the identity check must run before the build",
   );
 });
 

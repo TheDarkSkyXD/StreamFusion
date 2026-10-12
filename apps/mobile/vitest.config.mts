@@ -30,20 +30,8 @@ export default defineConfig({
       { find: /^react-dom$/, replacement: path.join(reactDomRoot, "index.js") },
       { find: /^react-dom\/(.*)$/, replacement: path.join(reactDomRoot, "$1") },
       {
-        find: "expo-haptics",
-        replacement: path.join(mobileRoot, "src/design/tests/expo-haptics-stub.ts"),
-      },
-      {
         find: "react-native",
         replacement: path.join(mobileRoot, "src/test-support/react-native-stub.cjs"),
-      },
-      {
-        find: "expo-crypto",
-        replacement: path.join(mobileRoot, "src/test-support/expo-crypto-stub.cjs"),
-      },
-      {
-        find: "expo",
-        replacement: path.join(mobileRoot, "src/test-support/expo-stub.cjs"),
       },
       {
         find: "@react-native-community/slider",

@@ -1,4 +1,4 @@
-import { requireOptionalNativeModule } from "expo";
+import { NativeEventEmitter, NativeModules } from "react-native";
 
 export interface NativeUnsupportedResponse {
   readonly code: "NATIVE_OPERATION_UNSUPPORTED";
@@ -7,6 +7,8 @@ export interface NativeUnsupportedResponse {
 }
 
 interface NativePlaybackModule {
+  addListener(event: "onNativePlayback", listener: (event: unknown) => void): { remove(): void };
+  removeListeners(count: number): void;
   readPlaybackObservation(sessionId: unknown): Promise<unknown>;
   setPlaybackSpeed(sessionId: unknown, speed: unknown): Promise<unknown>;
   endFocusedSession(sessionId: unknown): Promise<unknown>;
@@ -37,6 +39,8 @@ interface NativeMediaJobsModule {
 }
 
 interface NativeCaptionsModule {
+  addListener(event: "onNativeCaptions" | "onNativeCaptionModel", listener: (event: unknown) => void): { remove(): void };
+  removeListeners(count: number): void;
   cancelEnglishModelInstall(): unknown;
   getContractVersion(): number;
   clearDevelopmentCaptionConstraint(): Promise<unknown>;
@@ -65,6 +69,7 @@ export interface NativeUpdaterModule {
   snapshot(): Promise<unknown>;
   command(command: unknown): Promise<unknown>;
   addListener(event: "onUpdateRevision", listener: (event: unknown) => void): { remove(): void };
+  removeListeners(count: number): void;
 }
 
 export type NativeProxyRequestResult =
@@ -99,92 +104,121 @@ export class NativeModuleUnavailableError extends Error {
   }
 }
 
-function optionalNativeModule<T>(moduleName: string): T | null {
-  try {
-    return requireOptionalNativeModule<T>(moduleName);
-  } catch {
+function optionalNativeModule<T extends object>(
+  moduleName: string,
+  methods: readonly (keyof T)[],
+): T | null {
+  const native: unknown = NativeModules[moduleName];
+  if (!native || typeof native !== "object") return null;
+  if (!methods.every((method) => typeof Reflect.get(native, method) === "function")) {
     return null;
   }
+  return native as T;
 }
 
-function requireLinkedNativeModule<T>(moduleName: string): T {
-  const module = optionalNativeModule<T>(moduleName);
-  if (!module) throw new NativeModuleUnavailableError(moduleName);
-  return module;
+function withEvents<T extends object>(module: T, moduleName: string): T {
+  const emitter = new NativeEventEmitter(NativeModules[moduleName]);
+  return new Proxy(module, {
+    get(target, property, receiver) {
+      if (property === "addListener") {
+        return (event: string, listener: (value: unknown) => void) =>
+          emitter.addListener(event, listener);
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
 }
 
-/** Returns null in Expo Go and other hosts without the native module. Never throws. */
 export function getPlaybackModule(): NativePlaybackModule | null {
-  return optionalNativeModule<NativePlaybackModule>("StreamFusionPlayback");
+  const module = optionalNativeModule<NativePlaybackModule>("StreamFusionPlayback", [
+    "getContractVersion", "startFocusedSession", "endFocusedSession", "readPlaybackObservation",
+    "setPlaybackSpeed", "setPlaying", "setMuted", "setVolume", "listQualities",
+    "setQuality", "seekTo", "enterPictureInPicture", "addListener", "removeListeners",
+  ]);
+  return module ? withEvents(module, "StreamFusionPlayback") : null;
 }
 
 /** Returns null when the native module is absent. Never throws. */
 export function getMediaJobsModule(): NativeMediaJobsModule | null {
-  return optionalNativeModule<NativeMediaJobsModule>("StreamFusionMediaJobs");
+  return optionalNativeModule<NativeMediaJobsModule>("StreamFusionMediaJobs", [
+    "getContractVersion", "startRecoverableJob", "recoverJobs", "cancelRecoverableJob",
+    "pauseRecoverableJob", "resumeRecoverableJob", "retryRecoverableJob",
+    "finalizeRecoverableJob", "getRecoverableJob", "deleteRecoverableJob",
+    "openRecoverableJob", "exportRecoverableJob",
+  ]);
 }
 
 /** Returns null when the native module is absent. Never throws. */
 export function getCaptionsModule(): NativeCaptionsModule | null {
-  return optionalNativeModule<NativeCaptionsModule>("StreamFusionCaptions");
+  const module = optionalNativeModule<NativeCaptionsModule>("StreamFusionCaptions", [
+    "getContractVersion", "cancelEnglishModelInstall", "getEnglishModelState",
+    "installEnglishModel", "removeEnglishModel", "startFocusedCaptionSession",
+    "stopFocusedCaptionSession", "getCaptionProof", "queueDevelopmentCaptionConstraint",
+    "clearDevelopmentCaptionConstraint", "addListener", "removeListeners",
+  ]);
+  return module ? withEvents(module, "StreamFusionCaptions") : null;
 }
 
 /** Returns null when the native module is absent. Never throws. */
 export function getDiagnosticsModule(): NativeDiagnosticsModule | null {
-  return optionalNativeModule<NativeDiagnosticsModule>(
-    "StreamFusionDiagnostics",
-  );
+  return optionalNativeModule<NativeDiagnosticsModule>("StreamFusionDiagnostics", [
+    "getContractVersion", "queueDevelopmentResourceSnapshotFailure", "readResourceSnapshot",
+  ]);
 }
 
 /** Returns null when the native module is absent. Never throws. */
 export function getMaintenanceModule(): NativeMaintenanceModule | null {
-  return optionalNativeModule<NativeMaintenanceModule>(
-    "StreamFusionMaintenance",
-  );
+  return optionalNativeModule<NativeMaintenanceModule>("StreamFusionMaintenance", [
+    "getContractVersion", "verifyDownloadedApk", "handoffVerifiedApk",
+  ]);
 }
 
 export function getUpdaterModule(): NativeUpdaterModule | null {
-  return optionalNativeModule<NativeUpdaterModule>("StreamFusionUpdater");
+  const module = optionalNativeModule<NativeUpdaterModule>("StreamFusionUpdater", [
+    "snapshot", "command", "addListener", "removeListeners",
+  ]);
+  return module ? withEvents(module, "StreamFusionUpdater") : null;
 }
 
 /** Returns null when the native module is absent. Never throws. */
 export function getConnectivityModule(): NativeConnectivityModule | null {
-  return optionalNativeModule<NativeConnectivityModule>(
-    "StreamFusionConnectivity",
-  );
+  return optionalNativeModule<NativeConnectivityModule>("StreamFusionConnectivity", [
+    "getContractVersion", "proxyRequest", "cancelProxyRequest",
+  ]);
 }
 
 export function requirePlaybackModule(): NativePlaybackModule {
-  return requireLinkedNativeModule<NativePlaybackModule>(
-    "StreamFusionPlayback",
-  );
+  const module = getPlaybackModule();
+  if (!module) throw new NativeModuleUnavailableError("StreamFusionPlayback");
+  return module;
 }
 
 export function requireMediaJobsModule(): NativeMediaJobsModule {
-  return requireLinkedNativeModule<NativeMediaJobsModule>(
-    "StreamFusionMediaJobs",
-  );
+  const module = getMediaJobsModule();
+  if (!module) throw new NativeModuleUnavailableError("StreamFusionMediaJobs");
+  return module;
 }
 
 export function requireCaptionsModule(): NativeCaptionsModule {
-  return requireLinkedNativeModule<NativeCaptionsModule>(
-    "StreamFusionCaptions",
-  );
+  const module = getCaptionsModule();
+  if (!module) throw new NativeModuleUnavailableError("StreamFusionCaptions");
+  return module;
 }
 
 export function requireDiagnosticsModule(): NativeDiagnosticsModule {
-  return requireLinkedNativeModule<NativeDiagnosticsModule>(
-    "StreamFusionDiagnostics",
-  );
+  const module = getDiagnosticsModule();
+  if (!module) throw new NativeModuleUnavailableError("StreamFusionDiagnostics");
+  return module;
 }
 
 export function requireMaintenanceModule(): NativeMaintenanceModule {
-  return requireLinkedNativeModule<NativeMaintenanceModule>(
-    "StreamFusionMaintenance",
-  );
+  const module = getMaintenanceModule();
+  if (!module) throw new NativeModuleUnavailableError("StreamFusionMaintenance");
+  return module;
 }
 
 export function requireConnectivityModule(): NativeConnectivityModule {
-  return requireLinkedNativeModule<NativeConnectivityModule>(
-    "StreamFusionConnectivity",
-  );
+  const module = getConnectivityModule();
+  if (!module) throw new NativeModuleUnavailableError("StreamFusionConnectivity");
+  return module;
 }

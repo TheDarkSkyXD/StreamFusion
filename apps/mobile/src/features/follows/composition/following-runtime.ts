@@ -22,7 +22,7 @@ import { createPlatformFollowedContentReader } from "../adapters/composite/platf
 import { createKickGuestFollowedContentReader } from "../adapters/kick/kick-guest-followed-content-reader";
 import { createRelayFollowedContentReader } from "../adapters/relay/relay-followed-content-reader";
 import { createTwitchGuestFollowedContentReader } from "../adapters/twitch/twitch-guest-followed-content-reader";
-import { createExpoProviderPageOpener } from "../adapters/expo-provider-page";
+import { createAndroidProviderPageOpener } from "../adapters/android-provider-page";
 import type {
   AccountFollowMembershipSource,
   AccountLiveStreamsSource,
@@ -86,7 +86,7 @@ export function createFollowingRuntime(input: {
     liveCache: createFollowedLiveCache(input.cache),
     liveNotifications: input.liveNotifications,
     now,
-    pages: createExpoProviderPageOpener(),
+    pages: createAndroidProviderPageOpener(),
     reader: createPlatformFollowedContentReader({
       relay: createRelayFollowedContentReader({
         baseUrl: input.relayBaseUrl,
@@ -120,7 +120,7 @@ function bindSession(deps: {
   readonly liveCache: LiveCache;
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly now: () => number;
-  readonly pages: ReturnType<typeof createExpoProviderPageOpener>;
+  readonly pages: ReturnType<typeof createAndroidProviderPageOpener>;
   readonly reader: FollowedReader;
 }): FollowingSession {
   return {

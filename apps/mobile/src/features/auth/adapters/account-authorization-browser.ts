@@ -1,5 +1,5 @@
-import * as WebBrowser from "expo-web-browser";
 import { KICK_AUTHORIZE_URL } from "@streamfusion/core/auth";
+import { getPlatformModule } from "../../../../modules/streamfusion-native-contracts/src/platform";
 
 import type {
   AccountAuthorizationLaunchSignal,
@@ -35,40 +35,10 @@ export const openAccountAuthorization: OpenAccountAuthorization = async (
   if (signal.aborted) return;
   const authorizationUrl = validateAuthorizationUrl(url);
 
-  let browsers: WebBrowser.WebBrowserCustomTabsResults;
   try {
-    browsers = await WebBrowser.getCustomTabsSupportingBrowsersAsync();
+    await getPlatformModule().openAuthorizationTab(authorizationUrl);
   } catch {
     if (signal.aborted) return;
     throw new Error("In-app sign-in is unavailable. Install or enable a browser with Custom Tabs support.");
   }
-  if (signal.aborted) return;
-
-  const supporting = browsers.browserPackages.filter((name) =>
-    browsers.servicePackages.includes(name),
-  );
-  const browserPackage =
-    [browsers.preferredBrowserPackage, browsers.defaultBrowserPackage].find(
-      (name) => name && supporting.includes(name),
-    ) ?? supporting[0];
-  if (!browserPackage)
-    throw new Error("In-app sign-in is unavailable. Install or enable a browser with Custom Tabs support.");
-  if (signal.aborted) return;
-
-  let result: WebBrowser.WebBrowserResult;
-  try {
-    result = await WebBrowser.openBrowserAsync(authorizationUrl, {
-      browserPackage,
-      createTask: false,
-      useProxyActivity: false,
-      showInRecents: false,
-      showTitle: true,
-      enableDefaultShareMenuItem: false,
-    });
-  } catch {
-    if (signal.aborted) return;
-    throw new Error("The in-app sign-in page could not be opened. Retry the connection.");
-  }
-  if (result.type !== "opened" && !signal.aborted)
-    throw new Error("The in-app sign-in page could not be opened. Retry the connection.");
 };

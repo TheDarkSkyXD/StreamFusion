@@ -81,7 +81,7 @@ function playbackPort(
       ended.push(sessionId);
       return { kind: "missing", sessionId };
     },
-    enterPictureInPicture: async (sessionId) => ({
+    enterPictureInPicture: async (_sessionId) => ({
       kind: "unsupported" as const,
       failure: {
         code: "OPERATION_UNSUPPORTED" as const,

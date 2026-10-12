@@ -274,7 +274,7 @@ function PrimitiveSample({ kind }: { readonly kind: SampleKind }) {
         <MobileStatusPanel tone="info">
           <Text style={mobileType.title}>Native client required</Text>
           <Text style={mobileType.body}>
-            This capability is not available in Expo Go.
+            This capability requires the Android app.
           </Text>
         </MobileStatusPanel>
       );

@@ -523,8 +523,7 @@ export function createFocusedWatchSession(input: {
         }
         return result;
       }
-      // Expo Go and hosts without system PiP: floating mini-player is the
-      // working Picture-in-Picture action. Playback continues without ending.
+      // Keep playback in the floating mini-player when system PiP is unavailable.
       if (presentation.presentation !== "pip") return result;
       applyPresentation({
         pip: "idle",

@@ -59,7 +59,7 @@ function storyNativeBoundary(
             failure: {
               code: "NATIVE_BINDING_UNAVAILABLE",
               diagnostic:
-                "Offline captions require the Android native client. Expo Go does not include this engine.",
+                "Offline captions require the Android native client. This preview does not include the engine.",
             },
           }
         : { capability: "captions", kind: "ready", contractVersion: 3 },
@@ -113,7 +113,7 @@ function LocalCaptionWorkflow({
       ? ({
           kind: "unsupported",
           reason:
-            "Offline captions require the Android native client. Expo Go does not include this engine.",
+            "Offline captions require the Android native client. This preview does not include the engine.",
         } as const)
       : ({
           kind: "eligible",

@@ -11,10 +11,9 @@ import type { AndroidPlaybackContractPort } from "@mobile/features/native-contra
 
 import { createAndroidFocusedPlaybackPort } from "../adapters/android/android-focused-playback";
 import { AndroidMedia3PlayerSurface } from "../adapters/android/android-media3-player-surface";
-import { createExpoHlsFocusedPlaybackPort } from "../adapters/expo/expo-hls-focused-playback";
-import { ExpoHlsPlayerSurface } from "../adapters/expo/expo-hls-player-surface";
 import { createDiscoveryWatchInspectionReader } from "../adapters/discovery-watch-inspection-reader";
 import { createMemoryPlaybackProtection } from "../adapters/focused-playback-protection";
+import { createNativeOrientationController } from "../adapters/native-orientation-controller";
 import { createKickLivePlaybackSource } from "../adapters/kick/kick-live-playback-source";
 import { createKickVideoPlaybackSource } from "../adapters/kick/kick-vod-playback-source";
 import { createPlaybackCompatibilityPolicy } from "../adapters/playback-compatibility-policy";
@@ -26,6 +25,7 @@ import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
+import { setWatchOrientationController } from "../domain/watch-fullscreen-orientation";
 import { createWatchRuntime } from "./watch-runtime";
 
 export function createGuestWatchScreen(input: {
@@ -43,16 +43,13 @@ export function createGuestWatchScreen(input: {
   readonly policyStore: VerifiedPolicyStore;
   readonly sessionIds: WatchSessionIdSource;
 }): WatchScreenRuntime {
+  setWatchOrientationController(createNativeOrientationController());
   const filtering = input.filtering;
   const playbackSettings = input.playbackSettings;
   const playlistProxy = input.playlistProxy;
   const useNativeMedia3 = input.playback.readiness().kind === "ready";
-  const focusedPlayback = useNativeMedia3
-    ? createAndroidFocusedPlaybackPort(input.playback)
-    : createExpoHlsFocusedPlaybackPort();
-  const PlayerSurface = useNativeMedia3
-    ? AndroidMedia3PlayerSurface
-    : ExpoHlsPlayerSurface;
+  const focusedPlayback = createAndroidFocusedPlaybackPort(input.playback);
+  const PlayerSurface = AndroidMedia3PlayerSurface;
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     ...(playlistProxy === undefined ? {} : { playlistProxy }),

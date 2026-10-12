@@ -1,15 +1,22 @@
 package expo.modules.streamfusionnativecontracts
 
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 
-class StreamFusionMaintenanceModule : Module() {
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionMaintenance")
-    Function("getContractVersion") { 1 }
-    AsyncFunction("verifyDownloadedApk") { _: Map<String, Any> -> unsupported("Downloaded APK verification") }
-    AsyncFunction("handoffVerifiedApk") { _: Map<String, Any> -> unsupported("Android APK installation handoff") }
-  }
+class StreamFusionMaintenanceModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
+  override fun getName() = "StreamFusionMaintenance"
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getContractVersion() = 1
+
+  @ReactMethod fun verifyDownloadedApk(request: ReadableMap, promise: Promise) =
+    NativeBridge.resolve(promise, unsupported("Downloaded APK verification"))
+
+  @ReactMethod fun handoffVerifiedApk(request: ReadableMap, promise: Promise) =
+    NativeBridge.resolve(promise, unsupported("Android APK installation handoff"))
 
   private fun unsupported(operation: String) = mapOf(
     "code" to "NATIVE_OPERATION_UNSUPPORTED",

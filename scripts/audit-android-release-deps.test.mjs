@@ -337,11 +337,7 @@ test("every mobile production dependency is treated as shipped", () => {
   const manifest = JSON.parse(readFileSync("apps/mobile/package.json", "utf8"));
   const shipped = new Set(Object.keys(manifest.dependencies ?? {}));
 
-  assert.ok(
-    shipped.size > 20,
-    "the mobile app has a real production dependency set",
-  );
-  for (const name of ["expo-sqlite", "expo-secure-store", "react-native"]) {
+  for (const name of ["react-native", "tweetnacl"]) {
     assert.ok(shipped.has(name), `${name} must count as shipped`);
   }
   assert.equal(

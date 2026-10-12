@@ -1,7 +1,10 @@
 package expo.modules.streamfusionnativecontracts
 
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 import okhttp3.Credentials
 import okhttp3.Headers
 import okhttp3.OkHttpClient
@@ -13,19 +16,21 @@ import java.net.Proxy
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-class StreamFusionConnectivityModule : Module() {
+class StreamFusionConnectivityModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   private val calls = ConcurrentHashMap<String, okhttp3.Call>()
 
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionConnectivity")
-    Function("getContractVersion") { 1 }
-    AsyncFunction("cancelProxyRequest") { requestId: String ->
-      calls.remove(requestId)?.cancel()
-      mapOf("kind" to "completed")
-    }
-    AsyncFunction("proxyRequest") { request: Map<String, Any?> ->
-      proxyRequest(request)
-    }
+  override fun getName() = "StreamFusionConnectivity"
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getContractVersion() = 1
+
+  @ReactMethod fun cancelProxyRequest(requestId: String, promise: Promise) {
+    calls.remove(requestId)?.cancel()
+    NativeBridge.resolve(promise, mapOf("kind" to "completed"))
+  }
+
+  @ReactMethod fun proxyRequest(request: ReadableMap, promise: Promise) = NativeBridge.async(promise) {
+    proxyRequest(NativeBridge.map(request))
   }
 
   private fun proxyRequest(request: Map<String, Any?>): Map<String, Any?> {

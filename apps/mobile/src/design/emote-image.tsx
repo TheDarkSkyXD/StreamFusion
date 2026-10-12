@@ -1,5 +1,8 @@
-import { Image } from "expo-image";
-import type { StyleProp, ImageStyle } from "react-native";
+import { Image, Platform, requireNativeComponent, type StyleProp, type ImageStyle, type ViewProps } from "react-native";
+
+const NativeEmote = Platform.OS === "android"
+  ? requireNativeComponent<ViewProps & { readonly uri: string; readonly animated: boolean }>("StreamFusionEmoteImage")
+  : null;
 
 export function MobileEmoteImage({
   uri,
@@ -12,14 +15,15 @@ export function MobileEmoteImage({
   readonly animated: boolean;
   readonly style: StyleProp<ImageStyle>;
 }) {
+  if (NativeEmote) return (
+    <NativeEmote uri={uri} animated={animated} accessibilityLabel={name} style={style} key={`${uri}:${animated}`} />
+  );
   return (
     <Image
       source={{ uri }}
       accessibilityLabel={name}
-      autoplay={animated}
-      contentFit="contain"
-      cachePolicy="memory-disk"
-      recyclingKey={`${uri}:${animated}`}
+      resizeMode="contain"
+      key={`${uri}:${animated}`}
       style={style}
     />
   );

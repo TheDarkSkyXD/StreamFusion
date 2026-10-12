@@ -18,7 +18,7 @@ import type { ModerationChannel } from "@mobile/features/moderation/capabilities
 import type { PlatformWorkflowNavigation } from "@mobile/features/moderation/capabilities/workflow-navigation";
 import type { Platform as StreamPlatform } from "@streamfusion/core/platform";
 import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
-import { StatusBar } from "expo-status-bar";
+import { StatusBar } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
   useCallback,
@@ -663,7 +663,7 @@ export function AppShell({
         ) : null}
       </View>
       <UpdateDialogHost session={supportSession} />
-      <StatusBar hidden={fullscreen} style="light" />
+      <StatusBar hidden={fullscreen} barStyle="light-content" />
       <AndroidNavigationBar hidden={fullscreen} />
     </View>
   );

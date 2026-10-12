@@ -44,7 +44,7 @@ const CLIP_QUERY =
 
 /**
  * Desktop-parity guest Twitch followed-content path: public GQL Client-Id only.
- * Expo Go / signed-out Following must not depend on relay installation identity.
+ * Signed-out Following must not depend on relay installation identity.
  */
 export function createTwitchGuestFollowedContentReader(input: {
   readonly fetch: typeof globalThis.fetch;

@@ -3,19 +3,17 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test, { after } from "node:test";
 
-const require = createRequire(import.meta.url);
-const resolveAppConfig = require("../app.config.js");
-
-const easManifest = JSON.parse(readFileSync("eas.json", "utf8"));
-const appManifest = JSON.parse(readFileSync("app.json", "utf8")).expo;
-const productionProfile = easManifest.build.production;
+const resolveNativeConfig = createRequire(import.meta.url)(
+  "../native-config.cjs",
+);
+const committed = JSON.parse(readFileSync("native-config.json", "utf8"));
 const PRODUCTION_APPLICATION_ID = "com.thedarkskyxd.streamfusion";
 const CERTIFICATE_PATH = "config/production-signing-certificate.json";
 const committedCertificate = readFileSync(CERTIFICATE_PATH, "utf8");
 
 after(() => writeFileSync(CERTIFICATE_PATH, committedCertificate));
 
-function pinTestCertificate() {
+function pinTestCertificate(overrides = {}) {
   writeFileSync(
     CERTIFICATE_PATH,
     JSON.stringify({
@@ -23,6 +21,7 @@ function pinTestCertificate() {
       certificateSha256: "a".repeat(64),
       recordedBy: "release-identity test fixture",
       recordedAt: "2026-09-30",
+      ...overrides,
     }),
   );
 }
@@ -30,278 +29,160 @@ function pinTestCertificate() {
 function productionEnvironment(overrides = {}) {
   return {
     STREAMFUSION_RELEASE_CHANNEL: "production",
-    STREAMFUSION_PRODUCTION_EAS_PROJECT_ID: "11111111-2222-3333-4444-555555555555",
-    STREAMFUSION_PRODUCTION_EAS_OWNER: "streamfusion",
     STREAMFUSION_PRODUCTION_VERSION: "1.0.0",
     STREAMFUSION_PRODUCTION_VERSION_CODE: "1",
     ...overrides,
   };
 }
 
-test("the committed app.json stays the development identity", () => {
-  const resolved = resolveAppConfig({}, {});
-
+test("the committed native config stays on the development identity", () => {
+  const resolved = resolveNativeConfig({}, {});
   assert.equal(resolved.name, "StreamFusion Development");
   assert.equal(resolved.slug, "streamfusion-development");
   assert.equal(resolved.scheme, "streamfusion-development");
   assert.equal(resolved.android.package, "com.thedarkskyxd.streamfusion.dev");
-  assert.equal(resolved.version, appManifest.version);
-  assert.equal(resolved.android.versionCode, appManifest.android.versionCode);
+  assert.equal(resolved.version, "0.1.9");
+  assert.equal(resolved.android.versionCode, 12);
+  assert.deepEqual(resolved, committed);
 });
 
-test("an unset release channel never resolves the production identity", () => {
-  for (const channel of [undefined, "", "development", "staging", "Production"]) {
+test("only the exact production channel switches identity", () => {
+  for (const channel of [
+    undefined,
+    "",
+    "development",
+    "staging",
+    "Production",
+  ]) {
     const environment = productionEnvironment();
-    delete environment.STREAMFUSION_RELEASE_CHANNEL;
-    if (channel !== undefined) {
-      environment.STREAMFUSION_RELEASE_CHANNEL = channel;
-    }
-
-    const resolved = resolveAppConfig({}, environment);
+    if (channel === undefined) delete environment.STREAMFUSION_RELEASE_CHANNEL;
+    else environment.STREAMFUSION_RELEASE_CHANNEL = channel;
     assert.equal(
-      resolved.android.package,
+      resolveNativeConfig({}, environment).android.package,
       "com.thedarkskyxd.streamfusion.dev",
-      `channel ${String(channel)} must not select production`,
     );
   }
 });
 
-test("a production build resolves the public application id and its own version", () => {
+test("production uses its own package and version", () => {
   pinTestCertificate();
-  const resolved = resolveAppConfig({}, productionEnvironment());
-
+  const resolved = resolveNativeConfig({}, productionEnvironment());
   assert.equal(resolved.name, "StreamFusion");
-  assert.equal(resolved.slug, "streamfusion");
   assert.equal(resolved.scheme, "streamfusion");
   assert.equal(resolved.android.package, PRODUCTION_APPLICATION_ID);
   assert.equal(resolved.version, "1.0.0");
   assert.equal(resolved.android.versionCode, 1);
-  assert.equal(resolved.owner, "streamfusion");
-  assert.equal(
-    resolved.extra.eas.projectId,
-    "11111111-2222-3333-4444-555555555555",
-  );
 });
 
-test("the production build never inherits a development value", () => {
+test("production requires both version values", () => {
   pinTestCertificate();
-  const variables = [
-    "STREAMFUSION_PRODUCTION_EAS_PROJECT_ID",
-    "STREAMFUSION_PRODUCTION_EAS_OWNER",
+  for (const variable of [
     "STREAMFUSION_PRODUCTION_VERSION",
     "STREAMFUSION_PRODUCTION_VERSION_CODE",
-  ];
-
-  for (const variable of variables) {
+  ]) {
     const environment = productionEnvironment();
     delete environment[variable];
-
     assert.throws(
-      () => resolveAppConfig({}, environment),
+      () => resolveNativeConfig({}, environment),
       new RegExp(variable, "u"),
-      `missing ${variable} must fail the production build`,
     );
   }
 });
 
-test("a malformed production value fails the build instead of shipping", () => {
+test("malformed production versions fail the build", () => {
   pinTestCertificate();
-  const cases = [
-    [{ STREAMFUSION_PRODUCTION_VERSION: "one" }],
-    [{ STREAMFUSION_PRODUCTION_VERSION: "1.0" }],
-    [{ STREAMFUSION_PRODUCTION_VERSION: "1.0.0.0" }],
-    [{ STREAMFUSION_PRODUCTION_VERSION_CODE: "0" }],
-    [{ STREAMFUSION_PRODUCTION_VERSION_CODE: "-1" }],
-    [{ STREAMFUSION_PRODUCTION_VERSION_CODE: "01x" }],
-    [{ STREAMFUSION_PRODUCTION_EAS_PROJECT_ID: "not-a-uuid" }],
-    [{ STREAMFUSION_PRODUCTION_EAS_OWNER: "StreamFusion Org" }],
-  ];
-
-  for (const [override] of cases) {
-    assert.throws(
-      () => resolveAppConfig({}, productionEnvironment(override)),
-      /STREAMFUSION_PRODUCTION/u,
-      `${JSON.stringify(override)} must fail the production build`,
-    );
-  }
-});
-
-test("a prerelease suffix is accepted and a bare major is not", () => {
-  pinTestCertificate();
-  for (const version of ["1.0.0", "1.0.0-rc.1", "2.1.3-beta.4", "1.0.0-alpha.1", "0.1.0-alpha", "1.0.0-rc"]) {
-    const resolved = resolveAppConfig(
-      {},
-      productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
-    );
-    assert.equal(resolved.version, version);
-  }
-  for (const version of ["1.0", "1.0.0-nightly.1", "v1.0.0", "1.0.0-alpha.beta", "1.0.0.0"]) {
+  for (const version of [
+    "one",
+    "1.0",
+    "1.0.0.0",
+    "v1.0.0",
+    "1.0.0-nightly.1",
+  ]) {
     assert.throws(
       () =>
-        resolveAppConfig(
+        resolveNativeConfig(
           {},
           productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
         ),
       /STREAMFUSION_PRODUCTION_VERSION/u,
     );
   }
-});
-
-test("every version the mobile tag policy accepts is also buildable", async () => {
-  const { validateMobileReleaseTag } = await import("../../../scripts/release-policy.mjs");
-  pinTestCertificate();
-
-  for (const version of ["0.1.0-alpha", "0.1.0-alpha.1", "1.0.0-rc.2", "2.0.0"]) {
-    assert.doesNotThrow(
-      () => validateMobileReleaseTag({ tag: `android-v${version}`, version }),
-      `policy rejected ${version}`,
-    );
-    const resolved = resolveAppConfig(
-      {},
-      productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
-    );
-    assert.equal(
-      resolved.version,
-      version,
-      `the policy accepts android-v${version} but app.config.js cannot build it`,
+  for (const versionCode of ["0", "-1", "01x", "9007199254740992"]) {
+    assert.throws(
+      () =>
+        resolveNativeConfig(
+          {},
+          productionEnvironment({
+            STREAMFUSION_PRODUCTION_VERSION_CODE: versionCode,
+          }),
+        ),
+      /STREAMFUSION_PRODUCTION_VERSION_CODE/u,
     );
   }
 });
 
-test("a half-switched identity is rejected", () => {
-  const committed = JSON.parse(readFileSync("app.json", "utf8")).expo;
-
-  assert.throws(
-    () =>
-      resolveAppConfig({
-        config: {
-          ...committed,
-          name: "StreamFusion",
-          scheme: "streamfusion-development",
-          android: {
-            ...committed.android,
-            package: PRODUCTION_APPLICATION_ID,
-            versionCode: 9,
-          },
-        },
-      }),
-    /identity switch/u,
-  );
+test("every accepted mobile release tag can be built", async () => {
+  const { validateMobileReleaseTag } =
+    await import("../../../scripts/release-policy.mjs");
+  pinTestCertificate();
+  for (const version of [
+    "0.1.0-alpha",
+    "0.1.0-alpha.1",
+    "1.0.0-rc.2",
+    "2.0.0",
+  ]) {
+    assert.doesNotThrow(() =>
+      validateMobileReleaseTag({ tag: `android-v${version}`, version }),
+    );
+    assert.equal(
+      resolveNativeConfig(
+        {},
+        productionEnvironment({ STREAMFUSION_PRODUCTION_VERSION: version }),
+      ).version,
+      version,
+    );
+  }
 });
 
-test("a production build cannot present the development package to Android", () => {
-  const committed = JSON.parse(readFileSync("app.json", "utf8")).expo;
-  const environment = productionEnvironment();
-  delete environment.STREAMFUSION_PRODUCTION_VERSION_CODE;
-
+test("development rejects a half-switched identity", () => {
   assert.throws(
     () =>
-      resolveAppConfig(
+      resolveNativeConfig(
         {
           config: {
             ...committed,
             android: {
               ...committed.android,
-              package: "com.thedarkskyxd.streamfusion.dev",
+              package: PRODUCTION_APPLICATION_ID,
             },
-          },
-        },
-        environment,
-      ),
-    /STREAMFUSION_PRODUCTION_VERSION_CODE/u,
-  );
-});
-
-test("an unknown application id is rejected", () => {
-  const committed = JSON.parse(readFileSync("app.json", "utf8")).expo;
-
-  assert.throws(
-    () =>
-      resolveAppConfig(
-        {
-          config: {
-            ...committed,
-            android: { ...committed.android, package: "com.example.streamfusion" },
           },
         },
         {},
       ),
-    /Unknown StreamFusion Android application id/u,
+    /Development identity must match native-config.json/u,
   );
 });
 
-test("the committed certificate pins the production signer", () => {
-  const pinned = JSON.parse(
-    readFileSync("config/production-signing-certificate.json", "utf8"),
-  );
-
+test("the certificate pins the public application identity and signer", () => {
+  const pinned = JSON.parse(committedCertificate);
   assert.equal(pinned.applicationId, PRODUCTION_APPLICATION_ID);
-  assert.match(
-    String(pinned.certificateSha256),
-    /^[0-9a-f]{64}$/u,
-    "a production release requires a pinned 64-character lowercase hex fingerprint",
-  );
-  assert.ok(pinned.recordedBy, "a fingerprint without provenance cannot be audited");
+  assert.match(String(pinned.certificateSha256), /^[0-9a-f]{64}$/u);
+  assert.ok(pinned.recordedBy);
   assert.match(String(pinned.recordedAt), /^\d{4}-\d{2}-\d{2}$/u);
 });
 
-test("a production build is refused when the pinned certificate is missing", (context) => {
-  const certificatePath = "config/production-signing-certificate.json";
-  const original = readFileSync(certificatePath, "utf8");
-  context.after(() => writeFileSync(certificatePath, original));
-
-  writeFileSync(
-    certificatePath,
-    JSON.stringify({
-      ...JSON.parse(original),
-      certificateSha256: null,
-    }),
-  );
-
+test("production refuses an unpinned signer", () => {
+  pinTestCertificate({ certificateSha256: null });
   assert.throws(
-    () => resolveAppConfig({}, productionEnvironment()),
-    /no production Android build is authorized/iu,
+    () => resolveNativeConfig({}, productionEnvironment()),
+    /production signing certificate must be pinned/iu,
   );
 });
 
-test("a production build succeeds once the certificate is pinned", () => {
-  pinTestCertificate();
-  const resolved = resolveAppConfig({}, productionEnvironment());
-  assert.equal(resolved.android.package, PRODUCTION_APPLICATION_ID);
-  assert.equal(resolved.version, "1.0.0");
-});
-
-test("the production EAS profile is pinned and internal", () => {
-  assert.ok(productionProfile, "eas.json must declare a production build profile");
-  assert.equal(productionProfile.developmentClient, false);
-  assert.equal(productionProfile.distribution, "internal");
-  assert.equal(productionProfile.autoIncrement, false);
-  assert.equal(productionProfile.android.buildType, "apk");
-  assert.equal(productionProfile.node, "22.14.0");
-  assert.equal(
-    productionProfile.env.STREAMFUSION_RELEASE_CHANNEL,
-    "production",
-    "the production profile must select the production identity",
+test("production refuses a certificate pinned for another application", () => {
+  pinTestCertificate({ applicationId: "com.example.unrelated" });
+  assert.throws(
+    () => resolveNativeConfig({}, productionEnvironment()),
+    /certificate|application id/iu,
   );
-  assert.match(
-    productionProfile.image,
-    /^ubuntu-\d+\.\d+-jdk-17-ndk-r\d+[a-z]?-sdk-57$/u,
-    "production must pin a named SDK 57 image rather than latest, auto, or an alias",
-  );
-  assert.equal(
-    easManifest.cli.appVersionSource,
-    "local",
-    "the release commit records the shipped versionCode",
-  );
-  assert.equal(easManifest.cli.requireCommit, true);
-});
-
-test("the development and alpha profiles never select the production identity", () => {
-  for (const name of ["development", "alpha"]) {
-    assert.notEqual(
-      easManifest.build[name].env?.STREAMFUSION_RELEASE_CHANNEL,
-      "production",
-      `the ${name} profile must keep building the development identity`,
-    );
-  }
 });

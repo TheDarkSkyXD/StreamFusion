@@ -4,18 +4,20 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveMobileReactNativeCli } from "./run-android.mjs";
+
 const scriptPath = fileURLToPath(import.meta.url);
 const mobileRoot = path.resolve(path.dirname(scriptPath), "..");
 const appConfig = JSON.parse(
-  readFileSync(path.resolve(mobileRoot, "app.json"), "utf8"),
-).expo;
+  readFileSync(path.resolve(mobileRoot, "native-config.json"), "utf8"),
+);
 const developmentClient = Object.freeze({
   packageName: appConfig.android.package,
-  scheme: `exp+${appConfig.slug}`,
+  scheme: appConfig.scheme,
   versionCode: appConfig.android.versionCode,
   versionName: appConfig.version,
 });
-const metroPort = 8081;
+const metroPort = 8083;
 
 function defaultSdkCandidates(platform, home) {
   if (platform === "win32") {
@@ -84,25 +86,8 @@ export function createAndroidEnvironment(
   };
 }
 
-export function createDevelopmentClientArguments(
-  forwardArguments = [],
-  port = metroPort,
-) {
-  for (const argument of forwardArguments) {
-    if (argument === "--go" || argument === "--dev-client") {
-      throw new Error(
-        `${argument} is reserved by the StreamFusion development-client launcher.`,
-      );
-    }
-  }
-  return [
-    "start",
-    "--dev-client",
-    "--offline",
-    "--port",
-    String(port),
-    ...forwardArguments,
-  ];
+export function createDevelopmentClientArguments(forwardArguments = [], port = metroPort) {
+  return ["start", "--port", String(port), ...forwardArguments];
 }
 
 export function parseAdbDevices(output) {
@@ -112,17 +97,8 @@ export function parseAdbDevices(output) {
     .filter(Boolean);
 }
 
-export function createDevelopmentClientIntentArguments(
-  port = metroPort,
-  host = "127.0.0.1",
-) {
-  return [
-    "-a",
-    "android.intent.action.VIEW",
-    "-d",
-    `${developmentClient.scheme}://expo-development-client/?url=${encodeURIComponent(`http://${host}:${port}`)}`,
-    developmentClient.packageName,
-  ];
+export function createDevelopmentClientIntentArguments() {
+  return ["-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER", "-n", developmentClient.packageName + "/.MainActivity"];
 }
 
 export function parseInstalledDevelopmentClient(output) {
@@ -204,7 +180,9 @@ function delay(milliseconds) {
 }
 
 async function findReadyAndroidDevice(adb, environment) {
-  const devices = parseAdbDevices(runChecked(adb, ["devices"], environment));
+  const available = parseAdbDevices(runChecked(adb, ["devices"], environment));
+  const requested = environment.STREAMFUSION_ANDROID_DEVICE;
+  const devices = requested ? available.filter((device) => device === requested) : available;
   for (const device of devices) {
     const bootCompleted = runChecked(
       adb,
@@ -261,6 +239,7 @@ async function ensureAndroidDevice({
     detached: true,
     env: environment,
     stdio: "ignore",
+    windowsHide: true,
   });
   emulatorProcess.unref();
 
@@ -287,7 +266,7 @@ async function waitForMetro(port, timeoutMilliseconds = 30_000) {
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/status`);
-      if ((await response.text()).includes("packager-status:running")) return;
+      if (response.ok && (await response.text()).includes("packager-status:running")) return;
     } catch {
       // Metro is still starting.
     }
@@ -326,7 +305,7 @@ function waitForExit(child, wasStopped) {
       }
       reject(
         new Error(
-          `Expo exited with ${signal ? `signal ${signal}` : `code ${code ?? 1}`}`,
+          `Metro exited with ${signal ? `signal ${signal}` : `code ${code ?? 1}`}`,
         ),
       );
     });
@@ -336,7 +315,7 @@ function waitForExit(child, wasStopped) {
 async function main() {
   const sdkRoot = resolveAndroidSdkRoot();
   const environment = createAndroidEnvironment(sdkRoot);
-  const expoCli = fileURLToPath(import.meta.resolve("expo/bin/cli"));
+  const reactNativeCli = resolveMobileReactNativeCli();
   const startedAt = Date.now();
 
   console.log(
@@ -344,7 +323,7 @@ async function main() {
   );
   const metro = spawn(
     process.execPath,
-    [expoCli, ...createDevelopmentClientArguments(process.argv.slice(2))],
+    [reactNativeCli, ...createDevelopmentClientArguments(process.argv.slice(2))],
     { cwd: mobileRoot, env: environment, stdio: "inherit" },
   );
   let stopRequested = false;

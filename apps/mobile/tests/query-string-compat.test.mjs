@@ -10,80 +10,13 @@ const mobileDirectory = path.resolve(
   "..",
 );
 const config = require("../metro.config.js");
-const queryString = require("../vendor/query-string-compat.cjs");
 
-test("Expo Router receives the query-string CommonJS API", () => {
-  const parsed = queryString.parse(
-    "term=a+b&unicode=st%C3%A5le&tag=one&tag=two&empty",
-  );
-
-  assert.equal(parsed.term, "a b");
-  assert.equal(parsed.unicode, "ståle");
-  assert.deepEqual(parsed.tag, ["one", "two"]);
-  assert.equal(parsed.empty, null);
-  assert.equal(
-    queryString.stringify(
-      { term: "a b", tag: ["one", "two"], empty: null, omitted: undefined },
-      { sort: false },
-    ),
-    "term=a%20b&tag=one&tag=two&empty",
-  );
-});
-
-test("Metro redirects only Expo Router query-string imports", () => {
-  const context = {
-    originModulePath: "",
-    resolveRequest: (_context, moduleName, platform) => ({
-      filePath: `${moduleName}.${platform}`,
-      type: "sourceFile",
-    }),
-  };
-
-  for (const originModulePath of [
-    path.join(
-      mobileDirectory,
-      "node_modules",
-      "expo-router",
-      "build",
-      "fork",
-      "getPathFromState.js",
-    ),
-    "/repo/node_modules/expo-router/build/fork/getPathFromState.js",
-  ]) {
-    assert.deepEqual(
-      config.resolver.resolveRequest(
-        { ...context, originModulePath },
-        "query-string",
-        "android",
-      ),
-      {
-        filePath: path.join(
-          mobileDirectory,
-          "vendor",
-          "query-string-compat.cjs",
-        ),
-        type: "sourceFile",
-      },
-    );
-  }
-
-  assert.deepEqual(
-    config.resolver.resolveRequest(context, "react-native", "android"),
-    {
-      filePath: "react-native.android",
-      type: "sourceFile",
-    },
-  );
-});
-
-test("Metro resolves public core subpaths inside a mapped Android workspace", () => {
+test("Metro resolves public core subpaths inside the mapped Android workspace", () => {
   const resolution = config.resolver.resolveRequest(
     {
       originModulePath: path.join(
         mobileDirectory,
-        "src",
-        "composition",
-        "mobile-runtime.tsx",
+        "src/composition/mobile-runtime.tsx",
       ),
       resolveRequest() {
         throw new Error("workspace package fallback must not run");
@@ -100,15 +33,13 @@ test("Metro resolves public core subpaths inside a mapped Android workspace", ()
   assert.equal(resolution.type, "sourceFile");
 });
 
-test("Metro loads TanStack Query from the modern build instead of the react-native TypeScript entry", () => {
+test("Metro loads TanStack Query from the modern build", () => {
   for (const moduleName of ["@tanstack/react-query", "@tanstack/query-core"]) {
     const resolution = config.resolver.resolveRequest(
       {
         originModulePath: path.join(
           mobileDirectory,
-          "src",
-          "composition",
-          "mobile-runtime.tsx",
+          "src/composition/mobile-runtime.tsx",
         ),
         resolveRequest() {
           throw new Error("TanStack Query must not fall through to Metro");
@@ -117,7 +48,6 @@ test("Metro loads TanStack Query from the modern build instead of the react-nati
       moduleName,
       "android",
     );
-
     assert.equal(
       resolution.filePath,
       path.resolve(
@@ -131,39 +61,35 @@ test("Metro loads TanStack Query from the modern build instead of the react-nati
   }
 });
 
-test("Metro keeps Expo monorepo nodeModulesPaths (no manual overwrite)", () => {
-  const { getDefaultConfig } = require("expo/metro-config");
-  const defaults = getDefaultConfig(mobileDirectory);
-  assert.deepEqual(
-    config.resolver.nodeModulesPaths,
-    defaults.resolver.nodeModulesPaths,
-  );
+test("Metro searches the mobile workspace before the repository hoist", () => {
+  assert.deepEqual(config.resolver.nodeModulesPaths, [
+    path.join(mobileDirectory, "node_modules"),
+    path.resolve(mobileDirectory, "../../node_modules"),
+  ]);
   assert.ok(
     (config.watchFolders ?? []).every(
       (folder) =>
-        !folder.endsWith(`${path.sep}apps${path.sep}desktop`) &&
-        !folder.endsWith(`${path.sep}apps${path.sep}worker`) &&
-        !folder.endsWith(`${path.sep}apps${path.sep}integration-relay`),
+        !["desktop", "worker", "integration-relay"].some((name) =>
+          folder.endsWith(`${path.sep}apps${path.sep}${name}`),
+        ),
     ),
   );
 });
 
-test("Metro pins react-native resolution through the mobile workspace origin", () => {
+test("Metro pins React Native resolution to the mobile workspace", () => {
   const origins = [];
   const resolution = config.resolver.resolveRequest(
     {
       originModulePath: path.join(
         mobileDirectory,
-        "../../node_modules/expo/AppEntry.js",
+        "../../node_modules/react-native/index.js",
       ),
       resolveRequest(nextContext, moduleName, platform) {
-        origins.push(nextContext.originModulePath);
+        origins.push([nextContext.originModulePath, moduleName, platform]);
         return {
           filePath: path.join(
             mobileDirectory,
-            "../../node_modules",
-            "react-native",
-            "index.js",
+            "node_modules/react-native/index.js",
           ),
           type: "sourceFile",
         };
@@ -172,15 +98,11 @@ test("Metro pins react-native resolution through the mobile workspace origin", (
     "react-native",
     "android",
   );
-
-  assert.deepEqual(origins, [path.join(mobileDirectory, "package.json")]);
+  assert.deepEqual(origins, [
+    [path.join(mobileDirectory, "package.json"), "react-native", "android"],
+  ]);
   assert.equal(
     resolution.filePath,
-    path.join(
-      mobileDirectory,
-      "../../node_modules",
-      "react-native",
-      "index.js",
-    ),
+    path.join(mobileDirectory, "node_modules/react-native/index.js"),
   );
 });

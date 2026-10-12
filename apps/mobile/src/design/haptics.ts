@@ -1,84 +1,35 @@
-/**
- * Meaningful outcome haptics only (play/pause, follow, clear, successful refresh).
- * Lazy-loads expo-haptics and skips when reduce-motion is enabled.
- */
+import { AccessibilityInfo } from "react-native";
 
-type HapticsModule = {
-  readonly selectionAsync: () => Promise<void>;
-  readonly impactAsync: (style: unknown) => Promise<void>;
-  readonly notificationAsync: (type: unknown) => Promise<void>;
-  readonly ImpactFeedbackStyle: { readonly Light: unknown; readonly Medium: unknown };
-  readonly NotificationFeedbackType: { readonly Warning: unknown };
-};
+import { getPlatformModule } from "../../modules/streamfusion-native-contracts/src/platform";
 
-let hapticsModule: HapticsModule | null | undefined;
 let reduceMotionCached: boolean | null = null;
 
-async function loadHaptics(): Promise<HapticsModule | null> {
-  if (hapticsModule !== undefined) return hapticsModule;
-  try {
-    hapticsModule = (await import("expo-haptics")) as HapticsModule;
-  } catch {
-    hapticsModule = null;
-  }
-  return hapticsModule;
-}
-
 async function mayHaptic(): Promise<boolean> {
-  if (reduceMotionCached === true) return false;
   if (reduceMotionCached === null) {
-    try {
-      const { AccessibilityInfo } = await import("react-native");
-      reduceMotionCached =
-        (await AccessibilityInfo.isReduceMotionEnabled?.()) ?? false;
-      AccessibilityInfo.addEventListener?.("reduceMotionChanged", (enabled) => {
-        reduceMotionCached = enabled;
-      });
-    } catch {
-      reduceMotionCached = false;
-    }
+    reduceMotionCached = await AccessibilityInfo.isReduceMotionEnabled();
+    AccessibilityInfo.addEventListener("reduceMotionChanged", (enabled) => {
+      reduceMotionCached = enabled;
+    });
   }
-  return reduceMotionCached !== true;
+  return !reduceMotionCached;
 }
 
-/** Light selection feedback for successful refresh / toggle outcomes. */
-export async function selectionHaptic(): Promise<void> {
-  if (!(await mayHaptic())) return;
-  const Haptics = await loadHaptics();
-  if (!Haptics) return;
+async function perform(kind: "selection" | "light" | "medium" | "warning"): Promise<void> {
   try {
-    await Haptics.selectionAsync();
+    if (await mayHaptic()) await getPlatformModule().performHaptic(kind);
   } catch {
-    // Expo Go / web / missing native module — ignore.
+    return;
   }
 }
 
-/** Soft impact for play/pause and follow/unfollow. */
-export async function impactHaptic(
-  style: "light" | "medium" = "light",
-): Promise<void> {
-  if (!(await mayHaptic())) return;
-  const Haptics = await loadHaptics();
-  if (!Haptics) return;
-  try {
-    await Haptics.impactAsync(
-      style === "medium"
-        ? Haptics.ImpactFeedbackStyle.Medium
-        : Haptics.ImpactFeedbackStyle.Light,
-    );
-  } catch {
-    // ignore
-  }
+export function selectionHaptic(): Promise<void> {
+  return perform("selection");
 }
 
-/** Noticeable feedback for clear / destructive confirms. */
-export async function warningHaptic(): Promise<void> {
-  if (!(await mayHaptic())) return;
-  const Haptics = await loadHaptics();
-  if (!Haptics) return;
-  try {
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-  } catch {
-    // ignore
-  }
+export function impactHaptic(style: "light" | "medium" = "light"): Promise<void> {
+  return perform(style);
+}
+
+export function warningHaptic(): Promise<void> {
+  return perform("warning");
 }

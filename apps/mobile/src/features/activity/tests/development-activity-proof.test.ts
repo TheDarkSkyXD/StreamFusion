@@ -8,12 +8,12 @@ import type {
 import type { EncryptedDatabaseDriver } from "@mobile/features/storage/data/database-contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/expo-secure-random-source";
+import { createAndroidSecureRandomSource } from "@mobile/features/storage/adapters/android-secure-random-source";
 
 import { createDevelopmentActivityProof } from "../composition/development-activity-proof";
 
-vi.mock("expo-crypto", () => ({
-  randomUUID: vi.fn(() => "11111111-1111-4111-8111-111111111111"),
+vi.mock("react-native", () => ({
+  NativeModules: { StreamFusionStorage: { randomUuid: vi.fn(() => "11111111-1111-4111-8111-111111111111") } },
 }));
 
 function repository(
@@ -198,13 +198,13 @@ function runtime(
 const proofUuid = "11111111-1111-4111-8111-111111111111";
 
 describe("development Activity proof", () => {
-  it("canonicalizes the compact Expo UUID before opening the real proof factory", async () => {
+  it("canonicalizes the compact native UUID before opening the real proof factory", async () => {
     const proof = createDevelopmentActivityProof({
       createRuntime: () => runtime(repository()),
       databaseDriver: driver(),
       mainRepository: repository(),
       now: () => Date.parse("2026-09-08T00:00:00.000Z"),
-      randomUuid: createExpoSecureRandomSource().uuid,
+      randomUuid: createAndroidSecureRandomSource().uuid,
       secretStore: secretStore(),
     });
 

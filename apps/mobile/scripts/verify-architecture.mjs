@@ -34,8 +34,8 @@ const cases = [
   ["src/features/native-contracts/components/proof-expo-sdk.ts", 'import { requireNativeModule } from "expo";\nexport const bypass = requireNativeModule("StreamFusionMaintenance");\n', false, "no-restricted-imports"],
   ["src/features/native-contracts/components/proof-react-native-sdk.ts", 'import { NativeModules, TurboModuleRegistry } from "react-native";\nexport const bypass = [NativeModules.StreamFusionMaintenance, TurboModuleRegistry.get("StreamFusionMaintenance")];\n', false, "no-restricted-imports"],
   ["src/features/native-contracts/components/proof-react-native-namespace.ts", 'import * as ReactNative from "react-native";\nexport const bypass = ReactNative.NativeModules.StreamFusionMaintenance;\n', false, "no-restricted-syntax"],
-  ["src/features/native-contracts/adapters/proof-native-sdk.ts", 'import { requireNativeModule } from "expo-modules-core";\nexport const adapter = requireNativeModule("StreamFusionMaintenance");\n', true],
-  ["src/features/auth/adapters/proof-account-browser.ts", 'import * as WebBrowser from "expo-web-browser";\nexport const open = WebBrowser.openBrowserAsync;\n', true],
+  ["src/features/native-contracts/adapters/proof-native-sdk.ts", 'import { NativeModules } from "react-native";\nexport const adapter = NativeModules.StreamFusionMaintenance;\n', true],
+  ["src/features/auth/adapters/proof-account-browser.ts", 'import { getPlatformModule } from "../../../../modules/streamfusion-native-contracts/src/platform";\nexport const open = getPlatformModule;\n', true],
   ["src/features/auth/components/proof-account-browser.ts", 'import * as WebBrowser from "expo-web-browser";\nexport const open = WebBrowser.openBrowserAsync;\n', false, "no-restricted-imports"],
   ["src/features/auth/domain/proof-account-browser.ts", 'import * as WebBrowser from "expo-web-browser";\nexport const open = WebBrowser.openBrowserAsync;\n', false, "no-restricted-imports"],
   ["modules/streamfusion-native-contracts/src/proof-alias.ts", 'import "@mobile/features/native-contracts/capabilities/android-capability-contracts";\n', false],
@@ -55,7 +55,9 @@ const cases = [
   ["src/features/shell/components/architecture-proof-preview-dynamic.ts", 'void import("@mobile/features/design-preview/components/architecture-proof-preview");\n', false],
   ["src/features/shell/components/architecture-proof-preview-require.ts", 'require("../../design-preview/components/architecture-proof-preview");\n', false],
   ["src/composition/architecture-proof-preview.ts", 'import "../features/design-preview/components/architecture-proof-preview";\n', false],
-  ["app/architecture-proof-preview.ts", 'import "../src/features/design-preview/components/architecture-proof-preview";\n', false],
+  ["src/composition/architecture-proof-preview.ts", 'import "../features/design-preview/components/architecture-proof-preview";\n', false],
+  ["src/features/shell/components/proof-entry.ts", 'import "../../../../index.js";\n', false],
+  ["src/features/shell/tests/proof-entry.ts", 'import "../../../../index.js";\n', true],
   ["src/features/shell/components/architecture-proof-storybook-config.ts", 'import "../../../../.storybook/architecture-proof";\n', false],
 ];
 const files = cases.map(([file]) => path.join(root, file));

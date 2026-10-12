@@ -339,16 +339,23 @@ export function createMobileStoreRuntime(
     }
 
     const productKey = await getOrCreateKey({
-      databaseExists: false,
+      databaseExists: productDatabaseExisted,
       keyName: storeNames.productKey,
-      mayDiscardDatabase: true,
+      mayDiscardDatabase: false,
       randomKey,
       secretStore: options.secretStore,
     }).catch(() => {
       throw new StoreStartupError(startupDiagnostic("product-key"));
     });
     if (productKey.kind === "missing") {
-      throw new Error("App-layer payload keys may always be recreated.");
+      return {
+        kind: "recovery-required",
+        reason: "product-key-missing",
+        diagnostic: startupDiagnostic("product-key"),
+        artifact: storeNames.product,
+        message:
+          "The Product Store key is missing. The encrypted file was preserved for recovery.",
+      };
     }
     const payloadCipher = createPayloadSecretBox(productKey.value);
 
@@ -430,13 +437,17 @@ export function createMobileStoreRuntime(
 
     const sqlCipherAvailable =
       await options.databaseDriver.isSqlCipherAvailable();
-    if (!sqlCipherAvailable) {
-      return openUnencryptedStores(productMigrationSet, maximumCacheBytes);
-    }
-
     const productDatabaseExisted = options.databaseDriver.exists(
       storeNames.product,
     );
+    if (
+      !sqlCipherAvailable ||
+      (productDatabaseExisted &&
+        !(await options.databaseDriver.appearsEncrypted(storeNames.product)))
+    ) {
+      return openUnencryptedStores(productMigrationSet, maximumCacheBytes);
+    }
+
     const productKey = await getOrCreateKey({
       databaseExists: productDatabaseExisted,
       keyName: storeNames.productKey,

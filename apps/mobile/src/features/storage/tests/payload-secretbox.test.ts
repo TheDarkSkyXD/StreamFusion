@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../../../../modules/streamfusion-native-contracts/src/storage", () => ({
+  requireStorageModule: () => ({ randomBytes: (length: number) => "ab".repeat(length) }),
+}));
 
 import { createPayloadSecretBox } from "../adapters/payload-secretbox";
 

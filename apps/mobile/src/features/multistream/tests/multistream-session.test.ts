@@ -145,7 +145,7 @@ describe("Multistream session", () => {
     const { session, playback, log } = setup();
     await session.add("twitch", "alpha");
     await session.add("kick", "beta");
-    playback.setMuted = async (id, muted) =>
+    playback.setMuted = async (id, _muted) =>
       id === "player-1"
         ? { kind: "missing", sessionId: id }
         : {

@@ -1,78 +1,97 @@
 package expo.modules.streamfusionnativecontracts
 
-import expo.modules.kotlin.functions.Queues
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import android.app.Activity
+import com.facebook.react.bridge.LifecycleEventListener
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 
-class StreamFusionPlaybackModule : Module() {
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionPlayback")
-    Events("onNativePlayback")
-    Function("getContractVersion") { 5 }
-    OnCreate {
-      FocusedPlaybackSessionOwner.attachEmitter { event ->
-        sendEvent("onNativePlayback", event)
-      }
-      FocusedPlaybackSessionOwner.rememberActivity(appContext.currentActivity)
+class StreamFusionPlaybackModule(private val context: ReactApplicationContext) :
+  ReactContextBaseJavaModule(context), LifecycleEventListener {
+  init {
+    context.addLifecycleEventListener(this)
+    FocusedPlaybackSessionOwner.attachEmitter { event ->
+      NativeBridge.emit(context, "onNativePlayback", event)
     }
-    OnDestroy {
-      FocusedPlaybackSessionOwner.release()
-    }
-    OnActivityEntersBackground {
-      FocusedPlaybackSessionOwner.pauseForBackground()
-    }
-    OnUserLeavesActivity {
-      FocusedPlaybackSessionOwner.onUserLeavesActivity(appContext.currentActivity)
-    }
-    OnActivityEntersForeground {
-      val activity = appContext.currentActivity
-      FocusedPlaybackSessionOwner.rememberActivity(activity)
-      FocusedPlaybackSessionOwner.onForeground(activity)
-    }
-    AsyncFunction("startFocusedSession") { request: Map<String, Any> ->
-      val activity = appContext.currentActivity
-      FocusedPlaybackSessionOwner.rememberActivity(activity)
-      val context = requireNotNull(activity ?: appContext.reactContext) {
-        "Focused playback requires a React application context."
-      }
-      FocusedPlaybackSessionOwner.start(context, request)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("endFocusedSession") { sessionId: String ->
-      FocusedPlaybackSessionOwner.end(sessionId)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("setPlaying") { sessionId: String, playing: Boolean ->
-      FocusedPlaybackSessionOwner.setPlaying(sessionId, playing)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("setMuted") { sessionId: String, muted: Boolean ->
-      FocusedPlaybackSessionOwner.setMuted(sessionId, muted)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("readPlaybackObservation") { sessionId: String ->
-      FocusedPlaybackSessionOwner.readObservation(sessionId)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("setPlaybackSpeed") { sessionId: String, speed: Double ->
-      FocusedPlaybackSessionOwner.setSpeed(sessionId, speed.toFloat())
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("setVolume") { sessionId: String, volume: Double ->
-      FocusedPlaybackSessionOwner.setVolume(sessionId, volume.toFloat())
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("listQualities") { sessionId: String ->
-      FocusedPlaybackSessionOwner.listQualities(sessionId)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("setQuality") { sessionId: String, quality: String ->
-      FocusedPlaybackSessionOwner.setQuality(sessionId, quality)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("seekTo") { sessionId: String, positionMs: Double ->
-      FocusedPlaybackSessionOwner.seekTo(sessionId, positionMs)
-    }.runOnQueue(Queues.MAIN)
-    AsyncFunction("enterPictureInPicture") { sessionId: String ->
-      val activity = appContext.currentActivity
-      FocusedPlaybackSessionOwner.rememberActivity(activity)
-      FocusedPlaybackSessionOwner.enterPictureInPicture(activity, sessionId)
-    }.runOnQueue(Queues.MAIN)
-    View(StreamFusionPlaybackView::class) {
-      Prop("sessionId") { view: StreamFusionPlaybackView, sessionId: String? ->
-        view.setSessionId(sessionId)
-      }
+    FocusedPlaybackSessionOwner.rememberActivity(context.currentActivity)
+  }
+
+  override fun getName() = "StreamFusionPlayback"
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getContractVersion() = 5
+
+  @ReactMethod fun addListener(eventName: String) = Unit
+  @ReactMethod fun removeListeners(count: Int) = Unit
+
+  override fun onHostResume() {
+    val activity = context.currentActivity
+    FocusedPlaybackSessionOwner.rememberActivity(activity)
+    FocusedPlaybackSessionOwner.onForeground(activity)
+  }
+
+  override fun onHostPause() = FocusedPlaybackSessionOwner.pauseForBackground()
+  override fun onHostDestroy() = Unit
+
+  override fun invalidate() {
+    context.removeLifecycleEventListener(this)
+    FocusedPlaybackSessionOwner.release()
+    super.invalidate()
+  }
+
+  @ReactMethod fun startFocusedSession(request: ReadableMap, promise: Promise) = NativeBridge.onMain(promise) {
+    val activity = context.currentActivity
+    FocusedPlaybackSessionOwner.rememberActivity(activity)
+    FocusedPlaybackSessionOwner.start(activity ?: context, NativeBridge.nonNullMap(request))
+  }
+
+  @ReactMethod fun endFocusedSession(sessionId: String, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.end(sessionId)
+  }
+
+  @ReactMethod fun setPlaying(sessionId: String, playing: Boolean, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.setPlaying(sessionId, playing)
+  }
+
+  @ReactMethod fun setMuted(sessionId: String, muted: Boolean, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.setMuted(sessionId, muted)
+  }
+
+  @ReactMethod fun readPlaybackObservation(sessionId: String, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.readObservation(sessionId)
+  }
+
+  @ReactMethod fun setPlaybackSpeed(sessionId: String, speed: Double, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.setSpeed(sessionId, speed.toFloat())
+  }
+
+  @ReactMethod fun setVolume(sessionId: String, volume: Double, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.setVolume(sessionId, volume.toFloat())
+  }
+
+  @ReactMethod fun listQualities(sessionId: String, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.listQualities(sessionId)
+  }
+
+  @ReactMethod fun setQuality(sessionId: String, quality: String, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.setQuality(sessionId, quality)
+  }
+
+  @ReactMethod fun seekTo(sessionId: String, positionMs: Double, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.seekTo(sessionId, positionMs)
+  }
+
+  @ReactMethod fun enterPictureInPicture(sessionId: String, promise: Promise) = NativeBridge.onMain(promise) {
+    val activity = context.currentActivity
+    FocusedPlaybackSessionOwner.rememberActivity(activity)
+    FocusedPlaybackSessionOwner.enterPictureInPicture(activity, sessionId)
+  }
+
+  companion object {
+    fun onUserLeavesActivity(activity: Activity?) {
+      FocusedPlaybackSessionOwner.onUserLeavesActivity(activity)
     }
   }
 }

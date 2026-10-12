@@ -1,34 +1,44 @@
 package expo.modules.streamfusionnativecontracts
 
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import com.facebook.react.bridge.LifecycleEventListener
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 
-class StreamFusionUpdaterModule : Module() {
-  private var listener: ((Long) -> Unit)? = null
-
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionUpdater")
-    Events("onUpdateRevision")
-    OnCreate {
-      val callback: (Long) -> Unit = { revision -> sendEvent("onUpdateRevision", mapOf("revision" to revision)) }
-      listener = callback
-      engine().listen(callback)
-      appContext.currentActivity?.let { engine().onForeground(it) }
-    }
-    OnDestroy {
-      listener?.let { engine().unlisten(it) }
-      listener = null
-    }
-    OnActivityEntersForeground { engine().onForeground(appContext.currentActivity) }
-    OnActivityEntersBackground { engine().onBackground() }
-    AsyncFunction("snapshot") { engine().snapshot() }
-    AsyncFunction("command") { command: Map<String, Any> ->
-      engine().command(command, appContext.currentActivity)
-    }
+class StreamFusionUpdaterModule(private val context: ReactApplicationContext) :
+  ReactContextBaseJavaModule(context), LifecycleEventListener {
+  private val listener: (Long) -> Unit = { revision ->
+    NativeBridge.emit(context, "onUpdateRevision", mapOf("revision" to revision))
   }
 
-  private fun engine(): UpdaterEngine {
-    val context = requireNotNull(appContext.reactContext) { "Updater requires an Android application context." }
-    return UpdaterEngine.get(context)
+  init {
+    context.addLifecycleEventListener(this)
+    engine().listen(listener)
+    context.currentActivity?.let { engine().onForeground(it) }
   }
+
+  override fun getName() = "StreamFusionUpdater"
+
+  @ReactMethod fun addListener(eventName: String) = Unit
+  @ReactMethod fun removeListeners(count: Int) = Unit
+
+  override fun onHostResume() = engine().onForeground(context.currentActivity)
+  override fun onHostPause() = engine().onBackground()
+  override fun onHostDestroy() = Unit
+
+  override fun invalidate() {
+    engine().unlisten(listener)
+    context.removeLifecycleEventListener(this)
+    super.invalidate()
+  }
+
+  @ReactMethod fun snapshot(promise: Promise) = NativeBridge.async(promise) { engine().snapshot() }
+
+  @ReactMethod fun command(command: ReadableMap, promise: Promise) = NativeBridge.async(promise) {
+    engine().command(NativeBridge.nonNullMap(command), context.currentActivity)
+  }
+
+  private fun engine(): UpdaterEngine = UpdaterEngine.get(context)
 }

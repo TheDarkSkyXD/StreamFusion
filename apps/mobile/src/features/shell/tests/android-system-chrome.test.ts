@@ -1,6 +1,13 @@
-import { readFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
 
-import { describe, expect, it } from "vitest";
+const { setSystemChromeColor } = vi.hoisted(() => ({
+  setSystemChromeColor: vi.fn(async () => undefined),
+}));
+
+vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
+vi.mock("../../../../modules/streamfusion-native-contracts/src/platform", () => ({
+  getPlatformModule: () => ({ setSystemChromeColor }),
+}));
 
 import { mobileColors } from "@mobile/design/tokens";
 
@@ -8,17 +15,7 @@ import {
   ANDROID_SYSTEM_CHROME_COLOR,
   androidBottomChromeReliesOnNativeWindow,
 } from "../domain/android-system-chrome";
-
-const appJson = JSON.parse(
-  readFileSync(new URL("../../../../app.json", import.meta.url), "utf8"),
-) as {
-  expo: {
-    backgroundColor?: string;
-    android?: { backgroundColor?: string };
-    androidNavigationBar?: { backgroundColor?: string; barStyle?: string };
-    plugins?: unknown[];
-  };
-};
+import { applyAndroidSystemChrome } from "../adapters/apply-android-system-chrome";
 
 describe("android system chrome", () => {
   it("matches the bottom tab surface token", () => {
@@ -32,26 +29,8 @@ describe("android system chrome", () => {
     expect(androidBottomChromeReliesOnNativeWindow(48)).toBe(false);
   });
 
-  it("configures Expo root and Android chrome colors for Expo Go / prebuild", () => {
-    expect(appJson.expo.backgroundColor).toBe(ANDROID_SYSTEM_CHROME_COLOR);
-    expect(appJson.expo.android?.backgroundColor).toBe(
-      ANDROID_SYSTEM_CHROME_COLOR,
-    );
-    expect(appJson.expo.androidNavigationBar).toEqual({
-      backgroundColor: ANDROID_SYSTEM_CHROME_COLOR,
-      barStyle: "light-content",
-    });
-    expect(appJson.expo.plugins).toEqual(
-      expect.arrayContaining([
-        "expo-system-ui",
-        [
-          "expo-navigation-bar",
-          {
-            enforceContrast: false,
-            style: "light",
-          },
-        ],
-      ]),
-    );
+  it("applies the tab surface color to Android system chrome", () => {
+    applyAndroidSystemChrome();
+    expect(setSystemChromeColor).toHaveBeenCalledWith(ANDROID_SYSTEM_CHROME_COLOR);
   });
 });

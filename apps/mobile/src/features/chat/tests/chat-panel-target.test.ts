@@ -39,6 +39,7 @@ vi.mock("react-native", async () => {
       props.children,
     );
   return {
+    requireNativeComponent: () => host("img"),
     ActivityIndicator: host("span"),
     Platform: { OS: "android" },
     Modal: (props: HostProps) => (props.visible ? host("div")(props) : null),

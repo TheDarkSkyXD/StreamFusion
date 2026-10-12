@@ -2,87 +2,99 @@ package expo.modules.streamfusionnativecontracts
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
-import expo.modules.kotlin.Promise
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import com.facebook.react.bridge.ActivityEventListener
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.UiThreadUtil
 
-class StreamFusionMediaJobsModule : Module() {
+class StreamFusionMediaJobsModule(private val context: ReactApplicationContext) :
+  ReactContextBaseJavaModule(context), ActivityEventListener {
   private var exportPromise: Promise? = null
   private var exportJobId: String? = null
 
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionMediaJobs")
-    Function("getContractVersion") { 3 }
-    AsyncFunction("startRecoverableJob") { request: Map<String, Any> ->
-      val headers = stringMap(request["requestHeaders"])
-      engine().start(
-        request["jobId"] as String,
-        request["kind"] as String,
-        request["sourceUri"] as String,
-        headers,
-      )
-    }
-    AsyncFunction("recoverJobs") {
-      mapOf("kind" to "completed", "value" to engine().recover())
-    }
-    AsyncFunction("cancelRecoverableJob") { jobId: String -> engine().cancel(jobId) }
-    AsyncFunction("pauseRecoverableJob") { jobId: String -> engine().pause(jobId) }
-    AsyncFunction("resumeRecoverableJob") { jobId: String -> engine().resume(jobId) }
-    AsyncFunction("retryRecoverableJob") { jobId: String -> engine().retry(jobId) }
-    AsyncFunction("finalizeRecoverableJob") { jobId: String -> engine().finalize(jobId) }
-    AsyncFunction("getRecoverableJob") { jobId: String -> engine().get(jobId) }
-    AsyncFunction("deleteRecoverableJob") { jobId: String -> engine().delete(jobId) }
-    AsyncFunction("openRecoverableJob") { jobId: String -> engine().open(jobId) }
-    AsyncFunction("hashRecoverableJob") { jobId: String -> engine().artifactSha256(jobId) }
-    AsyncFunction("exportRecoverableJob") { jobId: String, promise: Promise ->
-      val activity = appContext.currentActivity
-      if (activity == null) {
-        promise.resolve(
-          mapOf(
-            "kind" to "completed",
-            "value" to mapOf("kind" to "unavailable", "jobId" to jobId),
-          ),
-        )
-        return@AsyncFunction
+  init { context.addActivityEventListener(this) }
+
+  override fun getName() = "StreamFusionMediaJobs"
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getContractVersion() = 3
+
+  @ReactMethod fun startRecoverableJob(request: ReadableMap, promise: Promise) = NativeBridge.async(promise) {
+    val values = NativeBridge.nonNullMap(request)
+    engine().start(
+      values["jobId"] as String,
+      values["kind"] as String,
+      values["sourceUri"] as String,
+      stringMap(values["requestHeaders"]),
+    )
+  }
+
+  @ReactMethod fun recoverJobs(promise: Promise) = NativeBridge.async(promise) {
+    mapOf("kind" to "completed", "value" to engine().recover())
+  }
+
+  @ReactMethod fun cancelRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().cancel(jobId) }
+  @ReactMethod fun pauseRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().pause(jobId) }
+  @ReactMethod fun resumeRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().resume(jobId) }
+  @ReactMethod fun retryRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().retry(jobId) }
+  @ReactMethod fun finalizeRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().finalize(jobId) }
+  @ReactMethod fun getRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().get(jobId) }
+  @ReactMethod fun deleteRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().delete(jobId) }
+  @ReactMethod fun openRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().open(jobId) }
+  @ReactMethod fun hashRecoverableJob(jobId: String, promise: Promise) = NativeBridge.async(promise) { engine().artifactSha256(jobId) }
+
+  @ReactMethod fun exportRecoverableJob(jobId: String, promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val activity = context.currentActivity
+        if (activity == null) {
+          NativeBridge.resolve(promise, mapOf("kind" to "completed", "value" to mapOf("kind" to "unavailable", "jobId" to jobId)))
+          return@runOnUiThread
+        }
+        exportPromise?.let { NativeBridge.resolve(it, mapOf("kind" to "completed", "value" to mapOf("kind" to "cancelled"))) }
+        exportPromise = promise
+        exportJobId = jobId
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+          addCategory(Intent.CATEGORY_OPENABLE)
+          type = "application/octet-stream"
+          putExtra(Intent.EXTRA_TITLE, "$jobId.bin")
+        }
+        activity.startActivityForResult(intent, EXPORT_REQUEST)
+      } catch (error: Exception) {
+        exportPromise = null
+        exportJobId = null
+        promise.reject("NATIVE_OPERATION_FAILED", error)
       }
-      exportPromise?.resolve(
-        mapOf("kind" to "completed", "value" to mapOf("kind" to "cancelled")),
-      )
-      exportPromise = promise
-      exportJobId = jobId
-      val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-        addCategory(Intent.CATEGORY_OPENABLE)
-        type = "application/octet-stream"
-        putExtra(Intent.EXTRA_TITLE, "$jobId.bin")
-      }
-      activity.startActivityForResult(intent, EXPORT_REQUEST)
-    }
-    OnActivityResult { _, payload ->
-      if (payload.requestCode != EXPORT_REQUEST) return@OnActivityResult
-      val promise = exportPromise ?: return@OnActivityResult
-      val jobId = exportJobId
-      exportPromise = null
-      exportJobId = null
-      if (payload.resultCode != Activity.RESULT_OK || jobId == null) {
-        promise.resolve(mapOf("kind" to "completed", "value" to mapOf("kind" to "cancelled")))
-        return@OnActivityResult
-      }
-      val uri = payload.data?.data
-      if (uri == null) {
-        promise.resolve(mapOf("kind" to "completed", "value" to mapOf("kind" to "cancelled")))
-        return@OnActivityResult
-      }
-      promise.resolve(engine().exportTo(jobId, uri as Uri))
     }
   }
 
-  private fun engine(): MediaJobEngine {
-    val context = requireNotNull(appContext.reactContext) {
-      "Media Jobs requires a React application context."
+  override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+    if (requestCode != EXPORT_REQUEST) return
+    val promise = exportPromise ?: return
+    val jobId = exportJobId
+    exportPromise = null
+    exportJobId = null
+    if (resultCode != Activity.RESULT_OK || jobId == null || data?.data == null) {
+      NativeBridge.resolve(promise, mapOf("kind" to "completed", "value" to mapOf("kind" to "cancelled")))
+    } else {
+      NativeBridge.async(promise) { engine().exportTo(jobId, data.data!!) }
     }
-    return MediaJobEngine.get(context)
   }
+
+  override fun onNewIntent(intent: Intent) = Unit
+
+  override fun invalidate() {
+    context.removeActivityEventListener(this)
+    exportPromise?.let { NativeBridge.resolve(it, mapOf("kind" to "completed", "value" to mapOf("kind" to "cancelled"))) }
+    exportPromise = null
+    exportJobId = null
+    super.invalidate()
+  }
+
+  private fun engine(): MediaJobEngine = MediaJobEngine.get(context)
 
   private fun stringMap(value: Any?): Map<String, String> {
     val record = value as? Map<*, *> ?: return emptyMap()
@@ -93,7 +105,5 @@ class StreamFusionMediaJobsModule : Module() {
     }.toMap()
   }
 
-  companion object {
-    private const val EXPORT_REQUEST = 7142
-  }
+  companion object { private const val EXPORT_REQUEST = 7142 }
 }

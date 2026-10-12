@@ -37,9 +37,7 @@ export function createDevelopmentClientController(options: {
         (state) => state.kind === "unavailable",
       );
       const runtimeName =
-        metadata.runtimeHost === "expo-go"
-          ? "Expo Go"
-          : metadata.runtimeHost.replaceAll("-", " ");
+        metadata.runtimeHost.replaceAll("-", " ");
       return {
         title: metadata.name,
         version: `Version ${metadata.version}`,

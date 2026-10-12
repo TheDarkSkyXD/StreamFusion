@@ -11,7 +11,7 @@ const appMetadata: AppMetadataReader = {
     return {
       name: "StreamFusion Mobile",
       version: "0.1.0",
-      runtimeHost: "expo-go",
+      runtimeHost: "bare",
     };
   },
 };
@@ -33,7 +33,7 @@ describe("Mobile runtime composition", () => {
       nativeCapabilityStatus:
         "0/0 Android module contracts available. Capability behavior is not enabled by this check.",
       providerStatus: "2 provider contracts ready.",
-      runtimeStatus: "Android Expo Go runtime is composed.",
+      runtimeStatus: "Android bare runtime is composed.",
       title: "StreamFusion Mobile",
       version: "Version 0.1.0",
     });

@@ -47,10 +47,10 @@ StreamFusion is an npm workspace monorepo (`apps/*`, `packages/*`) on **Node.js 
 
 ### Mobile (`apps/mobile`)
 
-- **Runtime**: [Expo](https://expo.dev/) 57 + [React Native](https://reactnative.dev/) 0.86
-- **Navigation**: [expo-router](https://docs.expo.dev/router/introduction/)
+- **Runtime**: [React Native](https://reactnative.dev/) 0.86 with an owned Android project
+- **Navigation**: the StreamFusion shell manages destinations, back history, and restoration
 - **Shared UI/data**: React 19, TanStack Query, i18next
-- **Device**: expo-video, expo-sqlite, expo-secure-store, and other Expo modules for Android
+- **Device**: Media3 playback, SQLCipher storage, Android Keystore, and React Native module bridges
 
 ### Shared & services
 
@@ -120,9 +120,9 @@ npm start
 ```
 
 Run `npm run desktop` to start Electron without the picker. Run `npm run mobile` to
-build, install, and start the Android development client on a connected device or
-emulator. Mobile source, Expo configuration, generated Android files, tests, assets,
-and dependency declarations stay under `apps/mobile`.
+open the installed Android development app with Metro. Run `npm run mobile:native`
+to build and install it after native changes. Mobile source, native configuration,
+the Android project, tests, assets, and dependency declarations stay under `apps/mobile`.
 
 Choose `4) E2E Preview` to build and run the compiled Electron artifact in an isolated
 verification session. It is opt-in. Normal development proof remains the default. See

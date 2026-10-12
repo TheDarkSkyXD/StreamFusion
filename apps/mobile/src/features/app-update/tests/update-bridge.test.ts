@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseUpdateSnapshot } from "../adapters/expo-android-updater";
+import { parseUpdateSnapshot } from "../adapters/android-updater";
 import { updatePresentation } from "../domain/update-presentation";
 
 const release = {

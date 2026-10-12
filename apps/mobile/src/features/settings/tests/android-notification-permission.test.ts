@@ -1,46 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { read, request } = vi.hoisted(() => ({
+  read: vi.fn(async () => "not-requested"),
+  request: vi.fn(async () => "granted"),
+}));
+
 vi.mock("react-native", () => ({
   Linking: { openSettings: vi.fn(async () => undefined) },
   Platform: { Version: 34 },
 }));
-
-const getPermissionsAsync = vi.fn();
-const requestPermissionsAsync = vi.fn();
-
-vi.mock("../../notifications/adapters/expo-local-notifications-module", () => ({
-  loadExpoLocalNotifications: vi.fn(async () => ({
-    getPermissionsAsync,
-    requestPermissionsAsync,
-  })),
+vi.mock("../../notifications/adapters/android-notifications-module", () => ({
+  getNativeNotifications: () => ({ getPermissionStatus: read, requestPermission: request }),
 }));
+
+import {
+  createAndroidNotificationPermissionPort,
+  permissionFromStatus,
+} from "../adapters/android-notification-permission";
 
 describe("android notification permission port", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getPermissionsAsync.mockResolvedValue({ status: "undetermined" });
-    requestPermissionsAsync.mockResolvedValue({ status: "granted" });
+    read.mockResolvedValue("not-requested");
+    request.mockResolvedValue("granted");
   });
 
-  it("maps undetermined to not-requested without requesting", async () => {
-    const { createAndroidNotificationPermissionPort, permissionFromStatus } =
-      await import("../adapters/android-notification-permission");
-    expect(permissionFromStatus("undetermined")).toBe("not-requested");
-    expect(permissionFromStatus("granted")).toBe("granted");
-    expect(permissionFromStatus("denied")).toBe("denied");
-
-    const snapshot = await createAndroidNotificationPermissionPort().read();
-    expect(snapshot).toEqual({ apiLevel: 34, permission: "not-requested" });
-    expect(getPermissionsAsync).toHaveBeenCalledOnce();
-    expect(requestPermissionsAsync).not.toHaveBeenCalled();
+  it("reads an unrequested permission without prompting", async () => {
+    expect(permissionFromStatus("not-requested")).toBe("not-requested");
+    expect(await createAndroidNotificationPermissionPort().read()).toEqual({
+      apiLevel: 34, permission: "not-requested",
+    });
+    expect(read).toHaveBeenCalledOnce();
+    expect(request).not.toHaveBeenCalled();
   });
 
-  it("requests permission through the local loader for Expo Go-safe prompts", async () => {
-    const { createAndroidNotificationPermissionPort } = await import(
-      "../adapters/android-notification-permission"
-    );
-    const snapshot = await createAndroidNotificationPermissionPort().request();
-    expect(snapshot).toEqual({ apiLevel: 34, permission: "granted" });
-    expect(requestPermissionsAsync).toHaveBeenCalledOnce();
+  it("requests Android notification permission", async () => {
+    expect(await createAndroidNotificationPermissionPort().request()).toEqual({
+      apiLevel: 34, permission: "granted",
+    });
+    expect(request).toHaveBeenCalledOnce();
   });
 });

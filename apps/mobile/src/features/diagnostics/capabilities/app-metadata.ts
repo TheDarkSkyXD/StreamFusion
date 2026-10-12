@@ -1,5 +1,5 @@
 export type MobileRuntimeHost =
-  "expo-go" | "development-client" | "standalone" | "bare";
+  "development-client" | "standalone" | "bare";
 
 export interface MobileAppMetadata {
   readonly name: string;

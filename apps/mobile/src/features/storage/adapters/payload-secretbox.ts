@@ -1,5 +1,5 @@
-import { getRandomValues } from "expo-crypto";
 import nacl from "tweetnacl";
+import { requireStorageModule } from "../../../../modules/streamfusion-native-contracts/src/storage";
 
 import type { PayloadSecretBox } from "../capabilities/payload-secretbox";
 
@@ -37,7 +37,14 @@ export function createPayloadSecretBox(keyHex: string): PayloadSecretBox {
   return {
     seal(plaintext) {
       const nonce = new Uint8Array(nacl.secretbox.nonceLength);
-      getRandomValues(nonce);
+      const nonceHex = requireStorageModule().randomBytes(nonce.length);
+      if (
+        nonceHex.length !== nonce.length * 2 ||
+        !/^[a-f0-9]+$/u.test(nonceHex)
+      ) {
+        throw new Error("The secure random source returned an invalid nonce.");
+      }
+      nonce.set(hexToBytes(nonceHex));
       const message = new TextEncoder().encode(plaintext);
       const boxed = nacl.secretbox(message, nonce, key);
       if (!boxed) throw new Error("Payload encryption failed.");

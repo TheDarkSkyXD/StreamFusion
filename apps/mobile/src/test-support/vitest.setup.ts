@@ -2,7 +2,6 @@ import { vi } from "vitest";
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-vi.mock("expo-image", () => ({ Image: "Image" }));
 
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -33,6 +32,19 @@ vi.mock("react-native", () => ({
     get: () => ({ width: 390, height: 844, scale: 2, fontScale: 1 }),
   },
   NativeModules: {},
+  NativeEventEmitter: class {
+    constructor(private readonly nativeModule: {
+      addListener(event: string): void;
+      removeListeners(count: number): void;
+    }) {}
+
+    addListener(event: string, _listener: (value: unknown) => void) {
+      this.nativeModule.addListener(event);
+      return { remove: () => this.nativeModule.removeListeners(1) };
+    }
+  },
+  UIManager: { getViewManagerConfig: () => null },
+  requireNativeComponent: (name: string) => name,
   AppState: {
     currentState: "active",
     addEventListener: () => ({ remove() {} }),
@@ -57,13 +69,4 @@ vi.mock("react-native-svg", () => ({
 
 vi.mock("@react-native-community/slider", () => ({
   default: "Slider",
-}));
-
-vi.mock("expo-crypto", () => ({
-  getRandomValues: (typedArray: Uint8Array) => {
-    for (let index = 0; index < typedArray.length; index += 1) {
-      typedArray[index] = (index * 17 + 3) % 256;
-    }
-    return typedArray;
-  },
 }));

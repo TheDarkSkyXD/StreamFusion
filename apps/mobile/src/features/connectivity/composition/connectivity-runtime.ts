@@ -4,7 +4,7 @@ import type {
 } from "@mobile/features/storage/capabilities/persistence";
 
 import { createProxyFetch, nativeProxyAvailability } from "../adapters/native-proxy-fetch";
-import { readExpoNetwork } from "../adapters/expo-network-source";
+import { readAndroidNetwork } from "../adapters/android-network-source";
 import type {
   ConnectivitySession,
   ConnectivityView,
@@ -28,7 +28,7 @@ export function createConnectivityRuntime(input: {
     settings: input.settings,
   });
   const credentials = createProxyCredentialStore({ secrets: input.secrets });
-  const readNetwork = input.readNetwork ?? readExpoNetwork;
+  const readNetwork = input.readNetwork ?? readAndroidNetwork;
 
   async function snapshot(saveDetail: string | null = null): Promise<ConnectivityView> {
     const [stored, secret, network] = await Promise.all([

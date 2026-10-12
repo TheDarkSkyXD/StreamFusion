@@ -38,8 +38,8 @@ function repositorySecrets(repositoryRoot, now) {
 }
 
 async function androidPermissions(repositoryRoot, now) {
-  const config = JSON.parse(await readFile(path.join(repositoryRoot, "apps/mobile/app.json"), "utf8"));
-  const android = config.expo?.android;
+  const config = JSON.parse(await readFile(path.join(repositoryRoot, "apps/mobile/native-config.json"), "utf8"));
+  const android = config.android;
   const permissions = android?.permissions ?? [];
   const permitted = permissions.every((permission) => permission === "android.permission.INTERNET");
   return android?.allowBackup === false && permitted

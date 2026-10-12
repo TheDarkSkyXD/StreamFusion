@@ -2,15 +2,14 @@ import { KICK_ANDROID_REDIRECT_URI, TWITCH_APP_CLIENT_ID } from "@streamfusion/c
 import { PLATFORMS } from "@streamfusion/core/platform";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
-import * as Clipboard from "expo-clipboard";
-import * as Linking from "expo-linking";
+import { copyTextToClipboard } from "@mobile/features/shell/adapters/android-clipboard";
 import { useEffect, useMemo, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Linking } from "react-native";
 
-import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
+import { createAndroidAppLinkSource } from "@mobile/features/shell/adapters/android-app-link-adapter";
 import { applyAndroidSystemChrome } from "@mobile/features/shell/adapters/apply-android-system-chrome";
 import { AndroidNavigationBar } from "@mobile/features/shell/adapters/android-navigation-bar";
-import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
+import { createAndroidAppMetadataReader } from "@mobile/features/diagnostics/adapters/android-app-metadata-reader";
 import { createAndroidCapabilityContractRuntime } from "@mobile/features/native-contracts/composition/android-capability-contract-runtime";
 import { createCapabilityProfileRuntime } from "@mobile/features/capability-profile/composition/capability-profile-runtime";
 import { useCapabilityProfileController } from "@mobile/features/capability-profile/components/use-capability-profile-controller";
@@ -24,8 +23,8 @@ import { usePersistenceController } from "@mobile/features/diagnostics/component
 import { createMediaJobsRuntime } from "@mobile/features/media-jobs/composition/media-jobs-runtime";
 import { createLocalCaptionsRuntime } from "@mobile/features/local-captions/composition/local-captions-runtime";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
-import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/expo-secure-random-source";
-import { createExpoSecureSecretStore } from "@mobile/features/storage/adapters/expo-secure-secret-store";
+import { createAndroidSecureRandomSource } from "@mobile/features/storage/adapters/android-secure-random-source";
+import { createAndroidSecureSecretStore } from "@mobile/features/storage/adapters/android-secure-secret-store";
 import { createSqliteEncryptedDatabaseDriver } from "@mobile/features/storage/adapters/sqlite-encrypted-driver";
 import { createMobileStoreRuntime } from "@mobile/features/storage/composition/store-runtime";
 import { createDevelopmentActivityProof } from "@mobile/features/activity/composition/development-activity-proof";
@@ -71,10 +70,10 @@ import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/g
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
 import { createFetchPlaylistProxyHealth } from "@mobile/features/ad-blocking/adapters/fetch-playlist-proxy-health";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
-import { createExpoLocalNotificationPresenter } from "@mobile/features/notifications/adapters/expo-notification-runtime";
+import { createAndroidLocalNotificationPresenter } from "@mobile/features/notifications/adapters/android-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
-import { createExpoAndroidUpdaterPort } from "@mobile/features/app-update/adapters/expo-android-updater";
+import { createAndroidAndroidUpdaterPort } from "@mobile/features/app-update/adapters/android-updater";
 import { createGithubReleaseOpenPort } from "@mobile/features/settings/adapters/github-release-open";
 import { createSupportLogPort } from "@mobile/features/settings/adapters/support-log-buffer";
 import { createSupportMaintenancePort } from "@mobile/features/settings/adapters/support-maintenance";
@@ -100,14 +99,14 @@ import { createPlatformWorkflowNavigation } from "@mobile/features/moderation/ad
 const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
 
 const developmentClientController = createDevelopmentClientController({
-  appMetadata: createExpoAppMetadataReader(),
+  appMetadata: createAndroidAppMetadataReader(),
   nativeCapabilityContracts: Object.values(androidCapabilityRuntime.contracts),
   runtimeProbes: [createFetchRuntimeProbe(), createVolatilePersistenceProbe()],
   supportedPlatforms: PLATFORMS,
 });
 
-const secureRandom = createExpoSecureRandomSource();
-const secureSecretStore = createExpoSecureSecretStore();
+const secureRandom = createAndroidSecureRandomSource();
+const secureSecretStore = createAndroidSecureSecretStore();
 const databaseDriver = createSqliteEncryptedDatabaseDriver();
 
 const persistenceRuntime = createMobileStoreRuntime({
@@ -144,7 +143,7 @@ const developmentActivityProof = __DEV__
     })
   : null;
 
-const appLinks = createExpoAppLinkSource();
+const appLinks = createAndroidAppLinkSource();
 
 const capabilityProfileRuntime = createCapabilityProfileRuntime({
   diagnostics: androidCapabilityRuntime.contracts.diagnostics,
@@ -162,8 +161,8 @@ const captions = createLocalCaptionsRuntime({
 
 const installationPolicyRuntime = createInstallationPolicyRuntime({
   productionConfiguration: publicProductionConfigurationFromEnvironment({
-    relayUrl: process.env.EXPO_PUBLIC_STREAMFUSION_RELAY_URL,
-    trustedKeysJson: process.env.EXPO_PUBLIC_STREAMFUSION_POLICY_TRUSTED_KEYS,
+    relayUrl: process.env.STREAMFUSION_PUBLIC_RELAY_URL,
+    trustedKeysJson: process.env.STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS,
   }),
   random: secureRandom,
   secretStore: secureSecretStore,
@@ -182,7 +181,7 @@ const developmentTwitchRepository = createSecureTwitchCredentialRepository({
 let twitchClientId: string | null = null;
 try {
   twitchClientId = parseTwitchClientConfiguration(
-    process.env.EXPO_PUBLIC_TWITCH_CLIENT_ID ?? TWITCH_APP_CLIENT_ID,
+    process.env.STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID ?? TWITCH_APP_CLIENT_ID,
   ).clientId;
 } catch {
   twitchClientId = null;
@@ -195,14 +194,14 @@ const developmentTwitchGateway = __DEV__
   : null;
 const productionTwitchController = createTwitchAccountSessionController({
   clientId: twitchClientId,
-  copy: async (value) => void (await Clipboard.setStringAsync(value)),
+  copy: copyTextToClipboard,
   gateway: productionTwitchGateway,
   open: openAccountAuthorization,
   repository: productionTwitchRepository,
 });
 const developmentTwitchController = createTwitchAccountSessionController({
   clientId: DEVELOPMENT_TWITCH_CLIENT_ID,
-  copy: async (value) => void (await Clipboard.setStringAsync(value)),
+  copy: copyTextToClipboard,
   gateway: developmentTwitchGateway,
   open: openAccountAuthorization,
   repository: developmentTwitchRepository,
@@ -216,16 +215,16 @@ const developmentKickRepository = createSecureKickCredentialRepository({
   key: "streamfusion.development.issue146.kick-auth.v1",
 });
 const kickConfiguration = createKickPublicClientConfigurationResolver({
-  ...(process.env.EXPO_PUBLIC_KICK_CLIENT_ID
-    ? { override: process.env.EXPO_PUBLIC_KICK_CLIENT_ID }
+  ...(process.env.STREAMFUSION_PUBLIC_KICK_CLIENT_ID
+    ? { override: process.env.STREAMFUSION_PUBLIC_KICK_CLIENT_ID }
     : {}),
-  ...(process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL
-    ? { workerBaseUrl: process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL }
+  ...(process.env.STREAMFUSION_PUBLIC_WORKER_URL
+    ? { workerBaseUrl: process.env.STREAMFUSION_PUBLIC_WORKER_URL }
     : {}),
 });
 const productionKickGateway = createKickOAuthApi({
-  ...(process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL
-    ? { workerBaseUrl: process.env.EXPO_PUBLIC_STREAMFUSION_WORKER_URL }
+  ...(process.env.STREAMFUSION_PUBLIC_WORKER_URL
+    ? { workerBaseUrl: process.env.STREAMFUSION_PUBLIC_WORKER_URL }
     : {}),
 });
 const developmentKickFixture = __DEV__
@@ -264,7 +263,7 @@ const queryClient = new QueryClient({
 });
 
 function relayBaseUrl(): string {
-  const configured = process.env.EXPO_PUBLIC_STREAMFUSION_RELAY_URL;
+  const configured = process.env.STREAMFUSION_PUBLIC_RELAY_URL;
   const raw =
     configured && configured.length > 0 ? configured : "http://10.0.2.2:8787/";
   return raw.endsWith("/") ? raw : `${raw}/`;
@@ -349,7 +348,7 @@ const kickAccountFollows = createKickAccountFollowMembership({
   readCredential: readKickCredentialForActivity,
 });
 
-const localLiveAlertPresenter = createExpoLocalNotificationPresenter();
+const localLiveAlertPresenter = createAndroidLocalNotificationPresenter();
 
 const followingSession = createFollowingRuntime({
   kickLiveCatalog,
@@ -423,7 +422,7 @@ const supportStore = createSupportPreferenceStore(
   persistenceRuntime.productState.settings,
 );
 const supportSession = createSupportSettingsSession({
-  updater: createExpoAndroidUpdaterPort(),
+  updater: createAndroidAndroidUpdaterPort(),
   logs: createSupportLogPort(),
   maintenance: createSupportMaintenancePort({
     cacheClear: () => persistenceRuntime.disposableCache.clear(),
@@ -433,7 +432,7 @@ const supportSession = createSupportSettingsSession({
     settings: persistenceRuntime.productState.settings,
     support: supportStore,
   }),
-  metadata: createExpoAppMetadataReader(),
+  metadata: createAndroidAppMetadataReader(),
   releases: createGithubStableReleaseCheckPort(),
   open: createGithubReleaseOpenPort(),
   share: createSupportSharePort(),

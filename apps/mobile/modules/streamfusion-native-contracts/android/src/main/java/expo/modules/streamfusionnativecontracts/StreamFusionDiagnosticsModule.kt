@@ -7,37 +7,38 @@ import android.media.MediaCodecList
 import android.os.Build
 import android.os.PowerManager
 import android.os.StatFs
-import expo.modules.kotlin.modules.Module
-import expo.modules.kotlin.modules.ModuleDefinition
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
 import java.util.concurrent.atomic.AtomicBoolean
 
-class StreamFusionDiagnosticsModule : Module() {
+class StreamFusionDiagnosticsModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   private val developmentResourceSnapshotFailureQueued = AtomicBoolean(false)
 
-  override fun definition() = ModuleDefinition {
-    Name("StreamFusionDiagnostics")
-    Function("getContractVersion") { 3 }
-    AsyncFunction("queueDevelopmentResourceSnapshotFailure") {
-      if (!BuildConfig.DEBUG) {
-        mapOf(
-          "code" to "NATIVE_OPERATION_UNSUPPORTED",
-          "diagnostic" to "Development diagnostics failure proof is unavailable in release builds.",
-          "kind" to "unsupported",
-        )
-      } else {
-        developmentResourceSnapshotFailureQueued.set(true)
-        mapOf("kind" to "completed", "value" to mapOf("queued" to true))
-      }
-    }
-    AsyncFunction("readResourceSnapshot") { readResourceSnapshot() }
+  override fun getName() = "StreamFusionDiagnostics"
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getContractVersion() = 3
+
+  @ReactMethod fun queueDevelopmentResourceSnapshotFailure(promise: Promise) {
+    NativeBridge.resolve(promise, if (!BuildConfig.DEBUG) {
+      mapOf(
+        "code" to "NATIVE_OPERATION_UNSUPPORTED",
+        "diagnostic" to "Development diagnostics failure proof is unavailable in release builds.",
+        "kind" to "unsupported",
+      )
+    } else {
+      developmentResourceSnapshotFailureQueued.set(true)
+      mapOf("kind" to "completed", "value" to mapOf("queued" to true))
+    })
   }
+
+  @ReactMethod fun readResourceSnapshot(promise: Promise) = NativeBridge.async(promise) { readResourceSnapshot() }
 
   private fun readResourceSnapshot(): Map<String, Any> {
     if (developmentResourceSnapshotFailureQueued.compareAndSet(true, false)) {
       throw IllegalStateException("Development resource snapshot failure proof consumed its queued failure.")
-    }
-    val context = requireNotNull(appContext.reactContext) {
-      "Android resource diagnostics requires a React application context."
     }
     val activityManager = requireNotNull(
       context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager,

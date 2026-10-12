@@ -1,108 +1,48 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 const packageManifest = JSON.parse(readFileSync("package.json", "utf8"));
-const appManifest = JSON.parse(readFileSync("app.json", "utf8"));
-const easManifest = JSON.parse(readFileSync("eas.json", "utf8"));
-const require = createRequire(import.meta.url);
+const nativeConfig = JSON.parse(readFileSync("native-config.json", "utf8"));
+const buildGradle = readFileSync("android/app/build.gradle", "utf8");
+const projectGradle = readFileSync("android/build.gradle", "utf8");
+const manifest = readFileSync(
+  "android/app/src/main/AndroidManifest.xml",
+  "utf8",
+);
 
-function installedPackageManifest(name) {
-  return JSON.parse(
-    readFileSync(require.resolve(`${name}/package.json`), "utf8"),
-  );
-}
-
-test("the development client is Android-only and distinct from production", () => {
-  assert.deepEqual(appManifest.expo.platforms, ["android"]);
+test("development has an Android-only identity distinct from production", () => {
+  assert.deepEqual(nativeConfig.platforms, ["android"]);
   assert.equal(
-    appManifest.expo.android.package,
+    nativeConfig.android.package,
     "com.thedarkskyxd.streamfusion.dev",
   );
   assert.notEqual(
-    appManifest.expo.android.package,
+    nativeConfig.android.package,
     "com.thedarkskyxd.streamfusion",
   );
-  assert.equal(appManifest.expo.version, packageManifest.version);
+  assert.equal(nativeConfig.version, packageManifest.version);
   assert.equal(existsSync("ios"), false);
 });
 
-test("native app links stay in the single Mobile runtime", () => {
+test("the owned native project registers the app's main entry", () => {
+  assert.equal(packageManifest.main, "index.js");
   assert.match(
-    readFileSync("app/+native-intent.ts", "utf8"),
-    /redirectSystemPath\(\): null/u,
+    readFileSync("index.js", "utf8"),
+    /AppRegistry\.registerComponent\("main",/u,
   );
-  assert.equal(existsSync("app/[...path].tsx"), false);
+  assert.match(buildGradle, /entryFile = file\("\.\.\/\.\.\/index\.js"\)/u);
+  assert.match(manifest, /android:name="\.MainActivity"/u);
+  assert.match(manifest, /android\.intent\.action\.MAIN/u);
+  assert.match(manifest, /android\.intent\.category\.LAUNCHER/u);
 });
 
-test("the Android build supports API 30 and custom development clients", () => {
-  const buildProperties = appManifest.expo.plugins.find(
-    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
-  );
-
-  assert.equal(buildProperties?.[1]?.android?.minSdkVersion, 30);
-  assert.ok(packageManifest.dependencies["expo-dev-client"]);
-  assert.equal(easManifest.build.development.developmentClient, true);
-  assert.equal(easManifest.build.development.distribution, "internal");
-  assert.equal(easManifest.build.development.android.buildType, "apk");
-  assert.equal(easManifest.build.development.autoIncrement, false);
-  assert.equal(easManifest.build.alpha.developmentClient, false);
-  assert.equal(easManifest.build.alpha.distribution, "internal");
-  assert.equal(easManifest.build.alpha.android.buildType, "apk");
-  assert.equal(easManifest.build.alpha.autoIncrement, false);
-});
-
-test("the Android build enables SQLCipher and excludes all app data from backup", () => {
-  const sqlitePlugin = appManifest.expo.plugins.find(
-    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-sqlite",
-  );
-  const secureStorePlugin = appManifest.expo.plugins.find(
-    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-secure-store",
-  );
-
-  assert.equal(appManifest.expo.android.allowBackup, false);
-  assert.equal(sqlitePlugin?.[1]?.android?.useSQLCipher, true);
-  assert.equal(secureStorePlugin?.[1]?.configureAndroidBackup, true);
-  assert.equal(packageManifest.dependencies["expo-crypto"], "57.0.2");
-  assert.equal(packageManifest.dependencies["expo-file-system"], "57.0.2");
-  assert.equal(packageManifest.dependencies["expo-secure-store"], "57.0.2");
-  assert.equal(packageManifest.dependencies["expo-sqlite"], "57.0.2");
-  assert.equal(packageManifest.dependencies["expo-network"], "57.0.1");
-  assert.ok(
-    !appManifest.expo.plugins.flat().includes("expo-network"),
-    "expo-network has no app.plugin.js; listing it in plugins loads build/Network.js under Node and fails type stripping",
-  );
-});
-
-test("SQLCipher is proven in memory before a persistent database is opened", () => {
-  const driverSource = readFileSync(
-    "src/features/storage/adapters/sqlite-encrypted-driver.ts",
-    "utf8",
-  );
-  const probe = driverSource.indexOf('openDatabaseAsync(":memory:"');
-  const persistentOpen = driverSource.indexOf(
-    "openDatabaseAsync(databaseName)",
-  );
-
-  assert.ok(probe >= 0);
-  assert.ok(persistentOpen > probe);
-});
-
-test("local Android commands stay owned by the Mobile workspace", () => {
-  const developmentBuildSource = readFileSync(
-    "scripts/build-android-development.mjs",
-    "utf8",
-  );
-
-  assert.equal(packageManifest.scripts.start, "expo start");
-  assert.equal(
-    packageManifest.scripts["start:dev-client"],
-    "expo start --dev-client",
-  );
+test("the Android build supports API 30 and uses its owned Gradle project", () => {
+  assert.equal(nativeConfig.android.minSdkVersion, 30);
+  assert.match(projectGradle, /minSdkVersion = 30/u);
+  assert.match(buildGradle, /minSdkVersion rootProject\.ext\.minSdkVersion/u);
+  assert.equal(existsSync("android/gradlew.bat"), true);
+  assert.equal(packageManifest.scripts.start, "react-native start --port 8083");
   assert.equal(
     packageManifest.scripts.android,
     "node scripts/start-development-client.mjs",
@@ -111,154 +51,80 @@ test("local Android commands stay owned by the Mobile workspace", () => {
     packageManifest.scripts["android:native"],
     "node scripts/run-android.mjs",
   );
-  assert.match(
+  assert.equal(
     packageManifest.scripts["build:android:development"],
-    /build-android-development/,
+    "node scripts/build-android-development.mjs",
   );
   assert.equal(
     packageManifest.scripts["bundle:android"],
-    "expo export --platform android --output-dir dist",
-  );
-  assert.equal(
-    packageManifest.scripts["prebuild:android"],
-    "expo prebuild --platform android --no-install",
-  );
-  assert.match(developmentBuildSource, /process\.env\.ComSpec/u);
-  assert.ok(
-    developmentBuildSource.includes('".\\\\gradlew.bat app:assembleDebug"'),
+    "node scripts/bundle-android.mjs",
   );
 });
 
-test("native animation peers match the Expo SDK and resolve without conflicts", () => {
-  const expoManifestPath = require.resolve("expo/package.json");
-  const bundledNativeModules = JSON.parse(
-    readFileSync(
-      path.join(path.dirname(expoManifestPath), "bundledNativeModules.json"),
-      "utf8",
-    ),
-  );
-  const reanimatedVersion = bundledNativeModules["react-native-reanimated"];
-  const workletsVersion = bundledNativeModules["react-native-worklets"];
+test("the Android manifest keeps overlay permission out and supports callbacks", () => {
+  assert.doesNotMatch(manifest, /android\.permission\.SYSTEM_ALERT_WINDOW/u);
+  assert.match(manifest, /android:scheme="\$\{appScheme\}"/u);
+  assert.match(manifest, /android\.permission\.INTERNET/u);
+  assert.match(manifest, /android\.permission\.VIBRATE/u);
+});
 
+test("Android excludes app data from backup", () => {
+  assert.equal(nativeConfig.android.allowBackup, false);
+  assert.match(manifest, /android:allowBackup="false"/u);
+  for (const [attribute, file] of [
+    ["fullBackupContent", "secure_store_backup_rules.xml"],
+    ["dataExtractionRules", "secure_store_data_extraction_rules.xml"],
+  ]) {
+    assert.match(
+      manifest,
+      new RegExp(`android:${attribute}="@xml/${file.slice(0, -4)}"`, "u"),
+    );
+    assert.equal(
+      existsSync(`android/app/src/main/res/xml/${file}`),
+      true,
+      `${file} must exist for resource linking`,
+    );
+  }
+});
+
+test("native storage uses SQLCipher and checks it before persistent opens", () => {
+  const storage = readFileSync(
+    "modules/streamfusion-native-contracts/android/src/main/java/expo/modules/streamfusionnativecontracts/StreamFusionStorageModule.kt",
+    "utf8",
+  );
+  assert.match(storage, /net\.zetetic\.database\.sqlcipher\.SQLiteDatabase/u);
+  assert.match(storage, /System\.loadLibrary\("sqlcipher"\)/u);
+  assert.match(storage, /"PRAGMA cipher_version"/u);
+  assert.ok(
+    storage.indexOf('System.loadLibrary("sqlcipher")') <
+      storage.indexOf("SQLiteDatabase.openDatabase(\n      path.absolutePath"),
+  );
+});
+
+test("native animation and webp libraries are declared together", () => {
   assert.equal(
     packageManifest.dependencies["react-native-reanimated"],
-    reanimatedVersion,
+    "4.5.1",
   );
-  assert.equal(
-    packageManifest.dependencies["react-native-worklets"],
-    workletsVersion,
-  );
-  assert.equal(
-    installedPackageManifest("react-native-reanimated").version,
-    reanimatedVersion,
-  );
-  assert.equal(
-    installedPackageManifest("react-native-worklets").version,
-    workletsVersion,
-  );
-
-  const npmCli = process.env.npm_execpath;
-  assert.ok(
-    npmCli,
-    "npm_execpath must identify the repository's approved npm CLI",
-  );
-  const repositoryRoot = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../../..",
-  );
-  const peerCheck = spawnSync(
-    process.execPath,
-    [
-      npmCli,
-      "ls",
-      "expo-modules-core",
-      "react-native-reanimated",
-      "react-native-worklets",
-      "--all",
-    ],
-    { cwd: repositoryRoot, encoding: "utf8" },
-  );
-
-  assert.equal(peerCheck.status, 0, peerCheck.stderr || peerCheck.stdout);
+  assert.equal(packageManifest.dependencies["react-native-worklets"], "0.10.1");
+  assert.match(buildGradle, /com\.facebook\.fresco:webpsupport:3\.6\.0/u);
+  assert.match(buildGradle, /com\.facebook\.fresco:animated-webp:3\.6\.0/u);
 });
 
-test("the release build is signed with the production keystore, never the debug key", () => {
-  const { applyReleaseSigning } = require("../plugins/with-production-signing.js");
-  const buildGradle = `android {
-    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-    }
-    buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
-        release {
-            signingConfig signingConfigs.debug
-        }
-    }
-}
-`;
-
-  const patched = applyReleaseSigning(buildGradle);
-  const releaseBlock = patched.split("release {").at(-1);
-
-  assert.match(releaseBlock, /signingConfig signingConfigs\.release/u);
-  assert.doesNotMatch(releaseBlock, /signingConfigs\.debug/u);
-  assert.match(patched, /STREAMFUSION_UPLOAD_STORE_FILE/u);
-  assert.match(patched, /STREAMFUSION_UPLOAD_KEY_PASSWORD/u);
+test("release and debug builds use distinct signing configurations", () => {
   assert.match(
-    patched.slice(0, patched.indexOf("buildTypes")),
-    /androiddebugkey/u,
-    "the debug build type still signs with the debug key",
+    buildGradle,
+    /debug\s*\{ signingConfig signingConfigs\.debug \}/u,
   );
-  assert.equal(
-    applyReleaseSigning(patched),
-    patched,
-    "prebuild must be idempotent so re-running does not double-apply",
+  assert.match(
+    buildGradle,
+    /release\s*\{\s*signingConfig signingConfigs\.release/u,
   );
-});
-
-test("a build script without a release signing reference is rejected", () => {
-  const { applyReleaseSigning } = require("../plugins/with-production-signing.js");
-
-  assert.throws(
-    () => applyReleaseSigning("android {}\n"),
-    /signingConfigs block/u,
-  );
-  assert.throws(
-    () => applyReleaseSigning("android {\n  signingConfigs {\n  }\n}\n"),
-    /release build type/u,
-  );
-});
-
-test("the production signing plugin is registered for prebuild", () => {
-  assert.ok(
-    appManifest.expo.plugins.includes("./plugins/with-production-signing"),
-    "a release APK signed with the debug key is a different application identity",
-  );
-});
-
-test("draw-over-apps stays off main so Search does not leave the app", () => {
-  assert.ok(
-    appManifest.expo.plugins.includes("./plugins/with-no-draw-over-apps"),
-    "prebuild must strip SYSTEM_ALERT_WINDOW from main via with-no-draw-over-apps",
-  );
-
-  // android/ is gitignored; assert the config plugin's strip behavior instead of
-  // generated manifests so CI (without a local prebuild) still enforces the gate.
-  const plugin = require("../plugins/with-no-draw-over-apps.js");
-  const stripped = plugin.stripSystemAlertWindowPermission({
-    "uses-permission": [
-      { $: { "android:name": "android.permission.INTERNET" } },
-      { $: { "android:name": plugin.OVERLAY_PERMISSION } },
-    ],
-  });
-  assert.deepEqual(stripped["uses-permission"], [
-    { $: { "android:name": "android.permission.INTERNET" } },
-  ]);
+  for (const variable of [
+    "STREAMFUSION_UPLOAD_STORE_FILE",
+    "STREAMFUSION_UPLOAD_STORE_PASSWORD",
+    "STREAMFUSION_UPLOAD_KEY_ALIAS",
+    "STREAMFUSION_UPLOAD_KEY_PASSWORD",
+  ])
+    assert.match(buildGradle, new RegExp(variable, "u"));
 });

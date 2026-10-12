@@ -107,31 +107,25 @@ test("the Media Job engine fences generation, writes journals atomically, and st
   assert.match(service, /restoreOwnedJobs/u);
 });
 
-test("the Expo module keeps contained stubs plus measured diagnostics and connectivity", () => {
-  const config = JSON.parse(
-    readFileSync(path.join(moduleRoot, "expo-module.config.json"), "utf8"),
-  );
-  assert.deepEqual(config.platforms, ["android"]);
-  assert.equal(config.android.modules.length, modules.length + 1);
-  assert.ok(config.android.modules.includes(
-    "expo.modules.streamfusionnativecontracts.StreamFusionUpdaterModule",
-  ));
+test("the React Native modules keep contained stubs plus measured diagnostics and connectivity", () => {
+  const registry = readFileSync(path.join(kotlinRoot, "StreamFusionPackage.kt"), "utf8");
+  assert.match(registry, /StreamFusionUpdaterModule\(context\)/u);
   for (const [className, moduleName, operations] of modules) {
     const source = readFileSync(
       path.join(kotlinRoot, `StreamFusion${className}Module.kt`),
       "utf8",
     );
-    assert.match(source, new RegExp(`Name\\("${moduleName}"\\)`, "u"));
+    assert.match(source, new RegExp(`getName\\(\\) = "${moduleName}"`, "u"));
     assert.match(
       source,
       className === "Diagnostics" ||
         className === "MediaJobs"
-        ? /Function\("getContractVersion"\) \{ 3 \}/u
+        ? /fun getContractVersion\(\) = 3/u
         : className === "Captions"
-          ? /Function\("getContractVersion"\) \{ 4 \}/u
+          ? /fun getContractVersion\(\) = 4/u
           : className === "Playback"
-            ? /Function\("getContractVersion"\) \{ 5 \}/u
-          : /Function\("getContractVersion"\) \{ 1 \}/u,
+            ? /fun getContractVersion\(\) = 5/u
+          : /fun getContractVersion\(\) = 1/u,
     );
     if (className === "Diagnostics") {
       assert.match(source, /ActivityManager\.MemoryInfo/u);
@@ -165,7 +159,7 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
       assert.match(source, /enterPictureInPicture/u);
       assert.match(source, /rememberActivity/u);
       assert.match(source, /currentActivity/u);
-      assert.doesNotMatch(source, /AsyncFunction\("startFocusedSession"\) \{ _: Map/u);
+      assert.match(source, /@ReactMethod fun startFocusedSession/u);
       const owner = readFileSync(
         path.join(kotlinRoot, "FocusedPlaybackSessionOwner.kt"),
         "utf8",
@@ -183,7 +177,7 @@ test("the Expo module keeps contained stubs plus measured diagnostics and connec
     for (const operation of operations)
       assert.match(
         source,
-        new RegExp(`AsyncFunction\\("${operation}"\\)`, "u"),
+        new RegExp(`@ReactMethod fun ${operation}\\(`, "u"),
       );
   }
 });

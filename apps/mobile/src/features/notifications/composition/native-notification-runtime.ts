@@ -6,11 +6,11 @@ import type { NotificationPermissionPort } from "@mobile/features/settings/capab
 
 import { createHttpNativePushTransport } from "../adapters/http-native-push-transport";
 import {
-  createExpoLocalNotificationPresenter,
-  createExpoNotificationChannels,
-  createExpoNotificationReceiptSource,
-  createExpoPushTokenSource,
-} from "../adapters/expo-notification-runtime";
+  createAndroidLocalNotificationPresenter,
+  createAndroidNotificationChannels,
+  createAndroidNotificationReceiptSource,
+  createAndroidPushTokenSource,
+} from "../adapters/android-notification-runtime";
 import { createNativeNotificationRuntime } from "../domain/native-notification-runtime";
 
 export function createNativeNotificationRuntimeForApp(input: {
@@ -27,16 +27,16 @@ export function createNativeNotificationRuntimeForApp(input: {
         await input.activityRepository.record(item);
       },
     },
-    channels: createExpoNotificationChannels(),
+    channels: createAndroidNotificationChannels(),
     follows: input.followingSession,
     identityReady: async () => (await readCredential(input.identityStore)) !== null,
     permission: async () => {
       const status = (await input.permission.read()).permission;
       return status === "not-requested" ? "unavailable" : status;
     },
-    presenter: createExpoLocalNotificationPresenter(),
-    receipts: createExpoNotificationReceiptSource(),
-    tokens: createExpoPushTokenSource(),
+    presenter: createAndroidLocalNotificationPresenter(),
+    receipts: createAndroidNotificationReceiptSource(),
+    tokens: createAndroidPushTokenSource(),
     transport: createHttpNativePushTransport({
       baseUrl: input.relayBaseUrl,
       credential: () => readCredential(input.identityStore),

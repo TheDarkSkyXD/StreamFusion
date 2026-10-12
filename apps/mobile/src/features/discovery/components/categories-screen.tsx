@@ -102,7 +102,6 @@ export function CategoriesScreen({
 }
 
 export function CategoriesView({
-  embedded = false,
   followingSession,
   canLoadMore = false,
   onChangeLanguage,

@@ -17,7 +17,7 @@ import {
   mapWorktreePathToDriveLease,
   parseSubstMappings,
   releaseWindowsDrive,
-  resolveMobileExpoCli,
+  resolveMobileReactNativeCli,
   runWithDriveLease,
 } from "../scripts/run-android.mjs";
 
@@ -26,29 +26,36 @@ const {
   translateResolvedPath,
 } = require("../scripts/preserve-subst-paths.cjs");
 
-function writeExpoCli(root, version) {
-  const expoRoot = path.join(root, "node_modules", "expo");
-  mkdirSync(path.join(expoRoot, "bin"), { recursive: true });
+function writeReactNativeCli(root, version) {
+  const cliRoot = path.join(
+    root,
+    "node_modules",
+    "@react-native-community",
+    "cli",
+  );
+  mkdirSync(path.join(cliRoot, "build"), { recursive: true });
   writeFileSync(
-    path.join(expoRoot, "package.json"),
+    path.join(cliRoot, "package.json"),
     JSON.stringify({
-      exports: { "./bin/cli": "./bin/cli.js" },
-      name: "expo",
+      name: "@react-native-community/cli",
       version,
     }),
   );
-  writeFileSync(path.join(expoRoot, "bin", "cli.js"), "export {};\n");
+  writeFileSync(
+    path.join(cliRoot, "build", "bin.js"),
+    "module.exports = {};\n",
+  );
 }
 
-function createExpoResolutionFixture({ appLocal }) {
+function createCliResolutionFixture({ appLocal }) {
   const repositoryRoot = mkdtempSync(
     path.join(tmpdir(), "streamfusion mobile cli fixture "),
   );
   const mobileRoot = path.join(repositoryRoot, "apps", "mobile");
   mkdirSync(mobileRoot, { recursive: true });
   writeFileSync(path.join(mobileRoot, "package.json"), '{"name":"mobile"}');
-  writeExpoCli(repositoryRoot, "57.0.15");
-  if (appLocal) writeExpoCli(mobileRoot, "57.0.17");
+  writeReactNativeCli(repositoryRoot, "20.2.0");
+  if (appLocal) writeReactNativeCli(mobileRoot, "20.2.1");
   return { mobileRoot, repositoryRoot };
 }
 
@@ -146,7 +153,7 @@ test("real paths inside the repository remain on the leased drive", () => {
   );
 });
 
-test("the mapped Expo process preloads consistent realpath handling", () => {
+test("the mapped React Native process preloads consistent realpath handling", () => {
   const environment = createMappedAndroidEnvironment(
     { drive: "S", repositoryRoot: "F:\\StreamFusion" },
     { NODE_OPTIONS: "--trace-warnings", USER_SETTING: "preserved" },
@@ -161,40 +168,48 @@ test("the mapped Expo process preloads consistent realpath handling", () => {
   assert.equal(environment.STREAMFUSION_SUBST_TARGET_ROOT, "F:\\StreamFusion");
 });
 
-test("the mobile-local Expo CLI wins over a distinct hoisted version and maps to the leased drive", () => {
-  const fixture = createExpoResolutionFixture({ appLocal: true });
+test("the mobile-local React Native CLI wins over a distinct hoisted version and maps to the leased drive", () => {
+  const fixture = createCliResolutionFixture({ appLocal: true });
   try {
-    const expoCli = resolveMobileExpoCli(
+    const reactNativeCli = resolveMobileReactNativeCli(
       fixture.mobileRoot,
       fixture.repositoryRoot,
     );
     assert.equal(
-      expoCli,
-      path.join(fixture.mobileRoot, "node_modules", "expo", "bin", "cli.js"),
+      reactNativeCli,
+      path.join(
+        fixture.mobileRoot,
+        "node_modules",
+        "@react-native-community",
+        "cli",
+        "build",
+        "bin.js",
+      ),
     );
     assert.equal(
-      mapWorktreePathToDriveLease(expoCli, {
+      mapWorktreePathToDriveLease(reactNativeCli, {
         drive: "S",
         repositoryRoot: fixture.repositoryRoot,
       }),
-      "S:\\apps\\mobile\\node_modules\\expo\\bin\\cli.js",
+      "S:\\apps\\mobile\\node_modules\\@react-native-community\\cli\\build\\bin.js",
     );
   } finally {
     rmSync(fixture.repositoryRoot, { force: true, recursive: true });
   }
 });
 
-test("a hoisted Expo CLI remains valid when it resolves inside the task worktree", () => {
-  const fixture = createExpoResolutionFixture({ appLocal: false });
+test("a hoisted React Native CLI remains valid when it resolves inside the task worktree", () => {
+  const fixture = createCliResolutionFixture({ appLocal: false });
   try {
     assert.equal(
-      resolveMobileExpoCli(fixture.mobileRoot, fixture.repositoryRoot),
+      resolveMobileReactNativeCli(fixture.mobileRoot, fixture.repositoryRoot),
       path.join(
         fixture.repositoryRoot,
         "node_modules",
-        "expo",
-        "bin",
-        "cli.js",
+        "@react-native-community",
+        "cli",
+        "build",
+        "bin.js",
       ),
     );
   } finally {
@@ -202,9 +217,11 @@ test("a hoisted Expo CLI remains valid when it resolves inside the task worktree
   }
 });
 
-test("a resolved Expo CLI outside the task worktree is rejected before mapping", () => {
-  const fixture = createExpoResolutionFixture({ appLocal: false });
-  const outsideRoot = mkdtempSync(path.join(tmpdir(), "outside expo cli "));
+test("a resolved React Native CLI outside the task worktree is rejected before mapping", () => {
+  const fixture = createCliResolutionFixture({ appLocal: false });
+  const outsideRoot = mkdtempSync(
+    path.join(tmpdir(), "outside react native cli "),
+  );
   try {
     const outsideCli = path.join(outsideRoot, "cli.js");
     writeFileSync(outsideCli, "export {};\n");
@@ -222,12 +239,11 @@ test("a resolved Expo CLI outside the task worktree is rejected before mapping",
   }
 });
 
-test("the development build checks Java before prebuild can create Android output", async () => {
-  let prebuildStarted = false;
+test("the development build checks Java before Gradle starts", async () => {
+  let gradleStarted = false;
   await assert.rejects(
     buildAndroid(
       path.join(tmpdir(), "missing-java-mobile"),
-      "expo-cli",
       {},
       {
         assertJava() {
@@ -237,14 +253,72 @@ test("the development build checks Java before prebuild can create Android outpu
           return false;
         },
         runCommand() {
-          prebuildStarted = true;
+          gradleStarted = true;
           return Promise.resolve();
         },
       },
     ),
     /Java is required/u,
   );
-  assert.equal(prebuildStarted, false);
+  assert.equal(gradleStarted, false);
+});
+
+test("the development build runs Gradle in the owned Android project", async () => {
+  const calls = [];
+  const mobileRoot = path.join(tmpdir(), "streamfusion-mobile");
+  await buildAndroid(
+    mobileRoot,
+    { USER_SETTING: "preserved" },
+    {
+      assertJava() {
+        calls.push("java");
+      },
+      exists(candidate) {
+        calls.push(candidate);
+        return true;
+      },
+      runCommand(command, args, cwd, environment) {
+        calls.push({ command, args, cwd, environment });
+        return Promise.resolve();
+      },
+    },
+  );
+  const androidRoot = path.join(mobileRoot, "android");
+  assert.equal(calls[0], "java");
+  assert.equal(
+    calls[1],
+    path.join(
+      androidRoot,
+      process.platform === "win32" ? "gradlew.bat" : "gradlew",
+    ),
+  );
+  assert.equal(calls[2].cwd, androidRoot);
+  assert.equal(calls[2].environment.USER_SETTING, "preserved");
+  assert.deepEqual(
+    calls[2].args,
+    process.platform === "win32"
+      ? ["/d", "/s", "/c", ".\\gradlew.bat app:assembleDebug -PreactNativeDevServerPort=8083"]
+      : ["app:assembleDebug", "-PreactNativeDevServerPort=8083"],
+  );
+});
+
+test("the development build refuses a missing owned Android project", async () => {
+  await assert.rejects(
+    buildAndroid(
+      path.join(tmpdir(), "missing-owned-android"),
+      {},
+      {
+        assertJava() {},
+        exists() {
+          return false;
+        },
+        runCommand() {
+          throw new Error("Gradle must not start");
+        },
+      },
+    ),
+    /owned Android project is missing/u,
+  );
 });
 
 test("the Java preflight uses JAVA_HOME on Windows and PATH on Linux", () => {
@@ -281,8 +355,10 @@ test("the Java preflight contains failed and timed-out commands", () => {
 });
 
 test("a lease releases when resolved CLI path mapping fails", async () => {
-  const fixture = createExpoResolutionFixture({ appLocal: false });
-  const outsideRoot = mkdtempSync(path.join(tmpdir(), "outside expo cli "));
+  const fixture = createCliResolutionFixture({ appLocal: false });
+  const outsideRoot = mkdtempSync(
+    path.join(tmpdir(), "outside react native cli "),
+  );
   const harness = createDriveHarness();
   const lease = acquireWindowsDrive(fixture.repositoryRoot, harness.overrides);
   try {

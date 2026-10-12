@@ -8,7 +8,6 @@ import {
   assertJavaAvailable,
   createMappedAndroidEnvironment,
   mapWorktreePathToDriveLease,
-  resolveMobileExpoCli,
   runWithDriveLease,
 } from "./run-android.mjs";
 
@@ -60,7 +59,6 @@ export function runBuildCommand(
 
 export async function buildAndroid(
   root,
-  expoCli,
   environment = process.env,
   dependencies = {
     assertJava: assertJavaAvailable,
@@ -74,16 +72,8 @@ export async function buildAndroid(
     gradleRoot,
     process.platform === "win32" ? "gradlew.bat" : "gradlew",
   );
-
-  await dependencies.runCommand(
-    process.execPath,
-    [expoCli, "prebuild", "--platform", "android", "--no-install"],
-    root,
-    environment,
-  );
-
   if (!dependencies.exists(gradleExecutable)) {
-    throw new Error(`Expo prebuild did not create ${gradleExecutable}`);
+    throw new Error(`The owned Android project is missing ${gradleExecutable}`);
   }
 
   const gradleCommand =
@@ -92,8 +82,8 @@ export async function buildAndroid(
       : gradleExecutable;
   const gradleArguments =
     process.platform === "win32"
-      ? ["/d", "/s", "/c", ".\\gradlew.bat app:assembleDebug"]
-      : ["app:assembleDebug"];
+      ? ["/d", "/s", "/c", ".\\gradlew.bat app:assembleDebug -PreactNativeDevServerPort=8083"]
+      : ["app:assembleDebug", "-PreactNativeDevServerPort=8083"];
 
   await dependencies.runCommand(
     gradleCommand,
@@ -104,20 +94,17 @@ export async function buildAndroid(
 }
 
 async function main() {
-  const expoCli = resolveMobileExpoCli();
   if (process.platform === "win32") {
     const lease = acquireWindowsDrive(repositoryRoot);
     await runWithDriveLease(lease, () => {
       const mappedMobileRoot = mapWorktreePathToDriveLease(mobileRoot, lease);
-      const mappedExpoCli = mapWorktreePathToDriveLease(expoCli, lease);
       return buildAndroid(
         mappedMobileRoot,
-        mappedExpoCli,
         createMappedAndroidEnvironment(lease),
       );
     });
   } else {
-    await buildAndroid(mobileRoot, expoCli);
+    await buildAndroid(mobileRoot);
   }
 
   console.log(
