@@ -4,15 +4,14 @@ export type FcmSendResult =
   | { readonly kind: "accepted" }
   | { readonly kind: "credential-mismatch" }
   | { readonly kind: "retryable"; readonly retryAfterMs: number }
-  | { readonly kind: "unregistered" };
+  | { readonly kind: "unregistered" }
+  | { readonly kind: "rejected" };
 
 export interface FcmPushSender {
-  sendDirect(
-    token: string,
-    payload: SafeNotificationPayload
-  ): Promise<FcmSendResult>;
-  sendTopic(
-    topic: string,
-    payload: SafeNotificationPayload
-  ): Promise<FcmSendResult>;
+  sendDirect(input: {
+    readonly nativeToken: string;
+    readonly payload: SafeNotificationPayload;
+    readonly silent: boolean;
+    readonly ttlSeconds: number;
+  }): Promise<FcmSendResult>;
 }

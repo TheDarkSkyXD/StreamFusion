@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
@@ -61,6 +61,43 @@ function session(input?: {
 
 // Guards: enable requests permission; later patches keep stored flags; denied retry stays available
 describe("notification settings session", () => {
+  it("keeps local saves usable and refreshes registration status after permission changes", async () => {
+    const store = memoryNotifications();
+    const saved: boolean[] = [];
+    let registrationCopy = "Registering this device";
+    let registrationChanged: (() => void) | null = null;
+    const settings = createNotificationSettingsSession({
+      network: async () => "online",
+      permission: permissionPort(
+        { apiLevel: 33, permission: "granted" },
+        { count: 0 },
+      ),
+      registrationCopy: () => registrationCopy,
+      registrationSubscribe: (listener) => {
+        registrationChanged = listener;
+        return () => {
+          registrationChanged = null;
+        };
+      },
+      onLocalChange: () => {
+        saved.push(true);
+      },
+      store,
+    });
+    const unsubscribe = settings.subscribe(() => undefined);
+    await settings.load();
+    await settings.apply({ sound: false });
+    expect((await store.read()).sound).toBe(false);
+    expect(saved).toEqual([true]);
+    registrationCopy = "This device is registered for live alerts";
+    registrationChanged?.();
+    await vi.waitFor(() =>
+      expect(settings.peek().registrationCopy).toBe(registrationCopy),
+    );
+    await settings.retryPermission();
+    expect(saved).toEqual([true, true]);
+    unsubscribe();
+  });
   it("requests permission only when Android notifications are turned on", async () => {
     const store = memoryNotifications({
       ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
@@ -104,7 +141,6 @@ describe("notification settings session", () => {
     const retried = await settings.retryPermission();
     expect(retried.denied).toBe(true);
   });
-
 
   it("requests permission when Guest Follow notifications are turned on", async () => {
     const store = memoryNotifications({

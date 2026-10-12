@@ -5,6 +5,7 @@ const { native } = vi.hoisted(() => ({
     getPermissionStatus: vi.fn(async () => "granted"),
     requestPermission: vi.fn(),
     ensureChannels: vi.fn(),
+    configureLiveAlerts: vi.fn(),
     present: vi.fn(),
     getInitialResponse: vi.fn(),
     getDevicePushToken: vi.fn(),

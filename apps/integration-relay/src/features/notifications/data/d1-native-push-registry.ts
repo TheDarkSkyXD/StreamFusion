@@ -1,4 +1,4 @@
-import type { LiveNotificationProjection } from "@streamfusion/core/relay";
+import { liveNotificationProjectionSchema } from "@streamfusion/core/relay";
 
 import type {
   NativePushRecord,
@@ -9,7 +9,7 @@ type NativePushRow = {
   readonly installation_id: string;
   readonly native_token: string;
   readonly token_hash: string;
-  readonly token_type: "fcm";
+  readonly token_type: string;
   readonly projection_json: string;
   readonly remote_delivery_enabled: number;
   readonly registered_at: string;
@@ -67,7 +67,10 @@ export function createD1NativePushRegistry(
             WHERE remote_delivery_enabled = 1`
         )
         .all<NativePushRow>();
-      return (result.results ?? []).map(fromRow);
+      return (result.results ?? []).flatMap((row) => {
+        const record = fromRow(row);
+        return record === null ? [] : [record];
+      });
     },
 
     async upsert(record) {
@@ -113,28 +116,39 @@ export function createD1NativePushRegistry(
       return result.meta.changes === 1;
     },
 
-    async retireByTokenHash(tokenHash, rotatedAt) {
+    async retireIfCurrent(installationId, tokenHash, rotatedAt) {
       await ensureInitialized();
       const result = await database
         .prepare(
           `UPDATE native_push_tokens
               SET remote_delivery_enabled = 0, rotated_at = ?
-            WHERE token_hash = ? AND remote_delivery_enabled = 1`
+            WHERE installation_id = ? AND token_hash = ? AND remote_delivery_enabled = 1`
         )
-        .bind(rotatedAt, tokenHash)
+        .bind(rotatedAt, installationId, tokenHash)
         .run();
       return (result.meta.changes ?? 0) > 0;
     }
   };
 }
 
-function fromRow(row: NativePushRow): NativePushRecord {
+function fromRow(row: NativePushRow): NativePushRecord | null {
+  let projection: unknown;
+  try {
+    projection = JSON.parse(row.projection_json);
+  } catch {
+    return null;
+  }
+  if (
+    row.token_type !== "fcm" ||
+    !liveNotificationProjectionSchema.is(projection)
+  )
+    return null;
   return {
     installationId: row.installation_id,
     nativeToken: row.native_token,
     tokenHash: row.token_hash,
     tokenType: row.token_type,
-    projection: JSON.parse(row.projection_json) as LiveNotificationProjection,
+    projection,
     remoteDeliveryEnabled: row.remote_delivery_enabled === 1,
     registeredAt: row.registered_at,
     rotatedAt: row.rotated_at

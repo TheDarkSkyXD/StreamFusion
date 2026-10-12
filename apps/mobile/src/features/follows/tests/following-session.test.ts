@@ -120,6 +120,37 @@ function envelope(body: object) {
 }
 
 describe("createFollowingRuntime", () => {
+  it("signals successful local follow and notification changes", async () => {
+    const changed: string[][] = [];
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      guestFollows: memoryGuestFollows(),
+      installation: async () => ({ kind: "none" }),
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      onLocalChange: () => {
+        void session.listMembership().then((membership) => {
+          changed.push(membership.map((follow) => follow.channelId));
+        });
+      },
+      relayBaseUrl: "http://relay.test/",
+    });
+    await session.mutateFollow({
+      channelId: "1234",
+      channelLogin: "spreen",
+      platform: "kick",
+    });
+    await vi.waitFor(() => expect(changed).toEqual([["1234"]]));
+    await session.removeGuestFollow({ platform: "kick", channelId: "1234" });
+    await vi.waitFor(() => expect(changed).toEqual([["1234"], []]));
+    await session.writeNotifications({
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      sound: false,
+    });
+    await vi.waitFor(() => expect(changed).toEqual([["1234"], [], []]));
+    await session.removeGuestFollow({ platform: "kick", channelId: "1234" });
+    expect(changed).toEqual([["1234"], [], []]);
+  });
   it("adds Spreen as a Kick guest follow and reads live and recorded content without relay", async () => {
     const guestFollows = memoryGuestFollows();
     const urls: string[] = [];

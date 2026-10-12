@@ -13,7 +13,7 @@ const ignoredDirectories = new Set([
   "dist",
   "node_modules"
 ]);
-const privateKeyMarker = ["-----BEGIN", "PRIVATE KEY-----"].join(" ");
+const privateKeyMaterial = /-----BEGIN PRIVATE KEY-----\s+[A-Za-z0-9+/]{20,}/;
 const sensitiveAssignment = new RegExp(
   String.raw`(?:client[_-]?secret|api[_-]?token|private[_-]?key|fcm[_-]?credential|password)\s*[=:]\s*["'][^"'$\s][^"']{7,}["']`,
   "i"
@@ -44,7 +44,7 @@ for (const file of files) {
     findings.push(`${relative}: secret file`);
 
   const content = await readFile(file, "utf8");
-  if (content.includes(privateKeyMarker))
+  if (privateKeyMaterial.test(content))
     findings.push(`${relative}: private key material`);
   if (sensitiveAssignment.test(content))
     findings.push(`${relative}: plaintext credential`);

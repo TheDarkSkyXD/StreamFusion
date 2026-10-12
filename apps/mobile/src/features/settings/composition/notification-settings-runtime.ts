@@ -17,11 +17,14 @@ import {
 export function createNotificationSettingsSession(input: {
   readonly network: () => Promise<NotificationNetwork>;
   readonly permission: NotificationPermissionPort;
-  readonly registrationCopy?: () => Promise<string>;
+  readonly onLocalChange?: () => void;
+  readonly registrationCopy?: () => string;
+  readonly registrationSubscribe?: (listener: () => void) => () => void;
   readonly store: LiveNotificationPreferenceStore;
 }): NotificationSettingsSession {
   const listeners = new Set<() => void>();
   let cached = defaultNotificationSettingsView();
+  let unsubscribeRegistration: (() => void) | null = null;
 
   function notify(): void {
     listeners.forEach((listener) => listener());
@@ -30,12 +33,12 @@ export function createNotificationSettingsSession(input: {
   async function hydrate(
     snapshot?: NotificationPermissionSnapshot,
   ): Promise<NotificationSettingsView> {
-    const [preferences, permission, network, registrationCopy] = await Promise.all([
+    const [preferences, permission, network] = await Promise.all([
       input.store.read(),
       Promise.resolve(snapshot ?? input.permission.read()),
       input.network(),
-      input.registrationCopy?.() ?? Promise.resolve(undefined),
     ]);
+    const registrationCopy = input.registrationCopy?.();
     cached = composeNotificationSettingsView({
       apiLevel: permission.apiLevel,
       network,
@@ -51,8 +54,20 @@ export function createNotificationSettingsSession(input: {
     peek: () => cached,
     subscribe(listener) {
       listeners.add(listener);
+      if (listeners.size === 1 && input.registrationSubscribe) {
+        unsubscribeRegistration = input.registrationSubscribe(() => {
+          const registrationCopy = input.registrationCopy?.();
+          if (registrationCopy === undefined) return;
+          cached = { ...cached, registrationCopy };
+          notify();
+        });
+      }
       return () => {
         listeners.delete(listener);
+        if (listeners.size === 0) {
+          unsubscribeRegistration?.();
+          unsubscribeRegistration = null;
+        }
       };
     },
     load: () => hydrate(),
@@ -65,9 +80,14 @@ export function createNotificationSettingsSession(input: {
       await input.store.write(
         mergeNotificationPreferences(cached.preferences, patch),
       );
+      input.onLocalChange?.();
       return hydrate(permission);
     },
-    retryPermission: async () => hydrate(await input.permission.request()),
+    async retryPermission() {
+      const permission = await input.permission.request();
+      input.onLocalChange?.();
+      return hydrate(permission);
+    },
     openSystemSettings: () => input.permission.openSystemSettings(),
   };
 }

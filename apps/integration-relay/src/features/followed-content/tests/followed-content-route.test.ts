@@ -216,6 +216,39 @@ describe("followed-content route", () => {
       "followed-content:streams:twitch:development:installation-1"
     );
   });
+
+  it("keeps internal unavailable refs out of the public stream response", async () => {
+    const { route } = createRoute({
+      catalogs: [
+        {
+          ...catalog("kick"),
+          async followedStreams() {
+            return {
+              platform: "kick",
+              streams: [],
+              missing: [],
+              unavailableRefs: [{ kind: "login", value: "missing" }]
+            };
+          }
+        }
+      ]
+    });
+    const response = await request(
+      route,
+      "/v1/followed-content/streams?platform=kick&login=missing"
+    );
+    const body: unknown = await response.json();
+    if (
+      !relayResponseEnvelopeSchema.is(body) ||
+      body.outcome.kind !== "success"
+    )
+      throw new Error("Expected a successful stream response");
+    expect(body.outcome.body).toEqual({
+      platform: "kick",
+      streams: [],
+      missing: []
+    });
+  });
 });
 
 describe("followed-content provider catalogs", () => {

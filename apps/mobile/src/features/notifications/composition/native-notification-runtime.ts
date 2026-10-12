@@ -7,6 +7,7 @@ import type { NotificationPermissionPort } from "@mobile/features/settings/capab
 import { createHttpNativePushTransport } from "../adapters/http-native-push-transport";
 import {
   createAndroidLocalNotificationPresenter,
+  createAndroidNotificationPolicy,
   createAndroidNotificationChannels,
   createAndroidNotificationReceiptSource,
   createAndroidPushTokenSource,
@@ -29,11 +30,13 @@ export function createNativeNotificationRuntimeForApp(input: {
     },
     channels: createAndroidNotificationChannels(),
     follows: input.followingSession,
-    identityReady: async () => (await readCredential(input.identityStore)) !== null,
+    identityReady: async () =>
+      (await readCredential(input.identityStore)) !== null,
     permission: async () => {
       const status = (await input.permission.read()).permission;
       return status === "not-requested" ? "unavailable" : status;
     },
+    postingPolicy: createAndroidNotificationPolicy(),
     presenter: createAndroidLocalNotificationPresenter(),
     receipts: createAndroidNotificationReceiptSource(),
     tokens: createAndroidPushTokenSource(),

@@ -4,6 +4,7 @@ import { proofLivePayload } from "../domain/notification-entry";
 
 const { native, listeners } = vi.hoisted(() => ({
   native: {
+    configureLiveAlerts: vi.fn(async () => undefined),
     ensureChannels: vi.fn(async () => undefined),
     getPermissionStatus: vi.fn(async () => "granted"),
     requestPermission: vi.fn(async () => "granted"),
@@ -27,6 +28,7 @@ vi.mock("../adapters/android-notifications-module", () => ({
 
 import {
   createAndroidLocalNotificationPresenter,
+  createAndroidNotificationPolicy,
   createAndroidNotificationChannels,
   createAndroidNotificationReceiptSource,
   createAndroidPushTokenSource,
@@ -36,6 +38,12 @@ describe("Android notification runtime", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listeners.clear();
+  });
+
+  it("updates native posting policy independently of push registration", async () => {
+    await createAndroidNotificationPolicy().apply({ enabled: false, sound: false });
+    expect(native.configureLiveAlerts).toHaveBeenCalledWith(false, false);
+    expect(native.getDevicePushToken).not.toHaveBeenCalled();
   });
 
   it("creates channels and presents a live alert with its payload", async () => {

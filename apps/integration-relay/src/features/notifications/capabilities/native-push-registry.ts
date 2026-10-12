@@ -16,5 +16,9 @@ export interface NativePushRegistry {
   listEnabled(): Promise<readonly NativePushRecord[]>;
   upsert(record: NativePushRecord): Promise<void>;
   disable(installationId: string, rotatedAt: string): Promise<boolean>;
-  retireByTokenHash(tokenHash: string, rotatedAt: string): Promise<boolean>;
+  retireIfCurrent(
+    installationId: string,
+    tokenHash: string,
+    rotatedAt: string
+  ): Promise<boolean>;
 }

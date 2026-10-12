@@ -31,6 +31,7 @@ export {
 } from "./live-notifications.ts";
 export type {
   LiveNotificationPair,
+  LiveNotificationDeliveryPolicy,
   LiveNotificationProjection,
   LiveStreamState,
   NativePushDisableRequest,
@@ -40,22 +41,6 @@ export type {
   SafeNotificationDestination,
   SafeNotificationPayload,
 } from "./live-notifications.ts";
-export {
-  LIVE_NOTIFICATION_TOPIC_PREFIX,
-  MAX_FCM_TOPIC_SUBSCRIPTIONS,
-  countPlannedRecipients,
-  liveNotificationPairKey,
-  liveNotificationTopicName,
-  planInstallationFanout,
-  planLogicalEventDelivery,
-} from "./live-notification-fanout.ts";
-export type {
-  FanoutRecipient,
-  InstallationFanoutPlan,
-  PlannedDirectSend,
-  PlannedNotificationSend,
-  PlannedTopicSend,
-} from "./live-notification-fanout.ts";
 export type {
   InstallationCredentialGrant,
   InstallationRegistrationRequest,

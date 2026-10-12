@@ -560,6 +560,28 @@ test("the Android release bundle receives the public provider and relay configur
   }
 });
 
+test("the Android release validates notification configuration before Gradle", () => {
+  const { build } = loadWorkflow("android-release.yml").jobs;
+  const materializeIndex = build.steps.findIndex((step) => step.name === "Materialize production Firebase configuration");
+  const assembleIndex = build.steps.findIndex((step) => step.name === "Assemble the signed release APK");
+  assert.ok(materializeIndex >= 0 && materializeIndex < assembleIndex);
+
+  const materialize = build.steps[materializeIndex];
+  assert.equal(
+    materialize.env.STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64,
+    "${{ secrets.STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64 }}",
+  );
+  assert.equal(
+    materialize.env.STREAMFUSION_PUBLIC_RELAY_URL,
+    "${{ vars.STREAMFUSION_PUBLIC_RELAY_URL }}",
+  );
+  assert.equal(
+    materialize.env.STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS,
+    "${{ vars.STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS }}",
+  );
+  assert.match(materialize.run, /node apps\/mobile\/scripts\/firebase-release-config\.mjs --materialize/u);
+});
+
 test("electron-builder emits deterministic installer names and macOS updater archives", () => {
   const desktopPackage = JSON.parse(
     readFileSync("apps/desktop/package.json", "utf8"),

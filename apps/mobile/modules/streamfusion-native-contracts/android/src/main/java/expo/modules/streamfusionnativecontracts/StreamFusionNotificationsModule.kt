@@ -22,8 +22,8 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.atomic.AtomicInteger
 
 class StreamFusionNotificationsModule(
   private val context: ReactApplicationContext,
@@ -64,6 +64,14 @@ class StreamFusionNotificationsModule(
   @ReactMethod
   fun ensureChannels(promise: Promise) = NativeBridge.onMain(promise) {
     createChannels(context)
+    null
+  }
+
+  @ReactMethod
+  fun configureLiveAlerts(enabled: Boolean, sound: Boolean, promise: Promise) = NativeBridge.onMain(promise) {
+    val saved = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
+      .putBoolean("live-enabled", enabled).putBoolean("live-sound", sound).commit()
+    check(saved) { "Notification settings could not be saved." }
     null
   }
 
@@ -111,7 +119,9 @@ class StreamFusionNotificationsModule(
     private const val PREFERENCES = "streamfusion-notifications"
     private const val EXTRA_PAYLOAD = "streamfusion.notification.payload"
     private const val PERMISSION_REQUEST = 9204
-    private val notificationIds = AtomicInteger(1000)
+    private const val REMOTE_RECEIPTS = "remote-receipts"
+    private const val MAX_REMOTE_RECEIPTS = 512
+    private val remoteDeliveryLock = Any()
     private var activeContext: ReactApplicationContext? = null
 
     fun captureIntent(intent: Intent?) {
@@ -132,12 +142,25 @@ class StreamFusionNotificationsModule(
     }
 
     fun deliverRemote(context: Context, message: RemoteMessage) {
-      val payloadJson = message.data["payload"] ?: JSONObject(message.data).toString()
+      val payloadJson = message.data["payload"] ?: return
       val payload = try { JSONObject(payloadJson) } catch (_: Exception) { return }
-      val title = payload.optString("title", message.notification?.title ?: "StreamFusion")
-      val body = payload.optString("body", message.notification?.body ?: "")
-      val channel = payload.optString("channel", "live")
-      showNotification(context, title, body, payloadJson, channel, false)
+      val eventId = payload.optString("eventId")
+      if (payload.optInt("schemaVersion") != 1 || eventId.isEmpty()) return
+      val title = payload.optString("title")
+      val body = payload.optString("body")
+      val channel = payload.optString("channel")
+      synchronized(remoteDeliveryLock) {
+        val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        val receipts = try { JSONArray(preferences.getString(REMOTE_RECEIPTS, "[]")) } catch (_: Exception) { JSONArray() }
+        if ((0 until receipts.length()).any { receipts.optString(it) == eventId }) return
+        if (!showNotification(context, title, body, payloadJson, channel, message.data["silent"] == "true")) return
+        val retained = JSONArray()
+        for (index in maxOf(0, receipts.length() - MAX_REMOTE_RECEIPTS + 1) until receipts.length()) {
+          retained.put(receipts.optString(index))
+        }
+        retained.put(eventId)
+        preferences.edit().putString(REMOTE_RECEIPTS, retained.toString()).commit()
+      }
       val foreground = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
         .runningAppProcesses?.any {
           it.pid == Process.myPid() && it.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
@@ -182,14 +205,25 @@ class StreamFusionNotificationsModule(
       payloadJson: String,
       channel: String,
       silent: Boolean,
-    ) {
+    ): Boolean {
+      if (permissionStatus(context) != "granted") return false
+      if (channel !in setOf("live", "media", "account-device")) return false
+      val payload = JSONObject(payloadJson)
+      val eventId = payload.optString("eventId")
+      if (eventId.isEmpty()) return false
+      val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+      if (channel == "live") {
+        if (!preferences.getBoolean("live-enabled", true)) return false
+        val destination = payload.optJSONObject("destination")
+        if (destination?.optString("kind") == "watch-channel" && destination.optString("streamState") != "live") return false
+      }
       createChannels(context)
-      val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+      val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return false
       launch.putExtra(EXTRA_PAYLOAD, payloadJson)
+      launch.identifier = eventId
       launch.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      val id = notificationIds.incrementAndGet()
       val tap = PendingIntent.getActivity(
-        context, id, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        context, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
       val icon = context.applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
       val notification = NotificationCompat.Builder(context, channel)
@@ -199,11 +233,13 @@ class StreamFusionNotificationsModule(
         .setStyle(NotificationCompat.BigTextStyle().bigText(body))
         .setContentIntent(tap)
         .setAutoCancel(true)
+        .setOnlyAlertOnce(true)
         .setPriority(if (channel == "live") NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
-        .setSilent(silent)
+        .setSilent(silent || (channel == "live" && !preferences.getBoolean("live-sound", true)))
         .build()
       val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-      manager.notify(id, notification)
+      manager.notify(eventId, 0, notification)
+      return true
     }
   }
 }

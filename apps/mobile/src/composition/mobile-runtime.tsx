@@ -1,4 +1,7 @@
-import { KICK_ANDROID_REDIRECT_URI, TWITCH_APP_CLIENT_ID } from "@streamfusion/core/auth";
+import {
+  KICK_ANDROID_REDIRECT_URI,
+  TWITCH_APP_CLIENT_ID,
+} from "@streamfusion/core/auth";
 import { PLATFORMS } from "@streamfusion/core/platform";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -43,9 +46,7 @@ import { useKickAccountController } from "@mobile/features/auth/components/use-k
 import { useTwitchAccountController } from "@mobile/features/auth/components/use-twitch-account-controller";
 import { createKickAccountSessionController } from "@mobile/features/auth/domain/kick-account-session-controller";
 import { createTwitchAccountSessionController } from "@mobile/features/auth/domain/twitch-account-session-controller";
-import {
-  createDevelopmentKickAuthFixture,
-} from "@mobile/features/auth/adapters/kick/development-kick-auth-fixture";
+import { createDevelopmentKickAuthFixture } from "@mobile/features/auth/adapters/kick/development-kick-auth-fixture";
 import {
   createDevelopmentTwitchAuthFixture,
   DEVELOPMENT_TWITCH_CLIENT_ID,
@@ -366,6 +367,9 @@ const followingSession = createFollowingRuntime({
   },
   liveNotifications: persistenceRuntime.productState.liveNotifications,
   network: () => connectivitySession.readNetwork(),
+  onLocalChange: () => {
+    void nativeNotifications.sync();
+  },
   presentSystemNotification: async ({ item, silent }) => {
     if (item.kind !== "channel" || item.destination.kind !== "watch-channel") {
       return;
@@ -408,8 +412,12 @@ const nativeNotifications = createNativeNotificationRuntimeForApp({
 });
 const notificationSession = createNotificationSettingsSession({
   network: () => connectivitySession.readNetwork(),
+  onLocalChange: () => {
+    void nativeNotifications.sync();
+  },
   permission: androidNotificationPermission,
-  registrationCopy: async () => nativeNotifications.peek().copy,
+  registrationCopy: () => nativeNotifications.peek().copy,
+  registrationSubscribe: (listener) => nativeNotifications.subscribe(listener),
   store: persistenceRuntime.productState.liveNotifications,
 });
 const chatDisplaySession = createChatDisplaySettingsSession({
@@ -449,6 +457,8 @@ export function MobileRuntime() {
     const subscription = AppState.addEventListener("change", (state) => {
       if (previous !== "active" && state === "active") {
         void supportSession.checkOnForeground();
+        void notificationSession.load();
+        void nativeNotifications.sync();
       }
       previous = state;
     });
@@ -469,6 +479,14 @@ export function MobileRuntime() {
   const installationPolicy = useInstallationPolicyController(
     installationPolicyRuntime,
   );
+  useEffect(() => {
+    if (installationPolicy.model.installation.phase === "registered") {
+      void nativeNotifications.sync();
+    }
+  }, [
+    installationPolicy.model.installation.phase,
+    installationPolicy.model.installation.generation,
+  ]);
   const twitchAccount = useTwitchAccountController({
     controller: productionTwitchController,
   });
@@ -546,7 +564,8 @@ export function MobileRuntime() {
           repository: productionTwitchRepository,
         },
         kick: {
-          clientId: () => kickConfiguration.resolve().then(({ clientId }) => clientId),
+          clientId: () =>
+            kickConfiguration.resolve().then(({ clientId }) => clientId),
           controller: productionKickController,
           repository: productionKickRepository,
         },
@@ -809,9 +828,7 @@ export function MobileRuntime() {
             kickAccountActions={visibleKickAccount.actions}
             kickAccountDevelopmentFixture={useDevelopmentKickFixture}
             onEnableKickDevelopmentFixture={
-              __DEV__
-                ? () => setUseDevelopmentKickFixture(true)
-                : undefined
+              __DEV__ ? () => setUseDevelopmentKickFixture(true) : undefined
             }
             onDisableKickDevelopmentFixture={
               useDevelopmentKickFixture

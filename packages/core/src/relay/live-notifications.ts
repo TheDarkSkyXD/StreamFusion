@@ -26,12 +26,19 @@ export type LiveStreamState = "live" | "ended";
 export type LiveNotificationPair = {
   readonly platform: Platform;
   readonly channelId: string;
+  readonly channelLogin?: string;
+};
+
+export type LiveNotificationDeliveryPolicy = {
+  readonly silent: boolean;
+  readonly restartGracePeriodMinutes: 0 | 5 | 15 | 30;
 };
 
 export type LiveNotificationProjection = {
   readonly schemaVersion: typeof NATIVE_PUSH_REGISTRATION_SCHEMA_VERSION;
   readonly version: number;
   readonly pairs: readonly LiveNotificationPair[];
+  readonly delivery?: LiveNotificationDeliveryPolicy;
 };
 
 export type NativePushRegistrationRequest = {
@@ -126,12 +133,20 @@ export function buildLiveNotificationProjection(input: {
     const key = `${follow.platform}:${follow.channelId}`;
     if (seen.has(key) || pairs.length >= MAX_LIVE_NOTIFICATION_PAIRS) continue;
     seen.add(key);
-    pairs.push({ platform: follow.platform, channelId: follow.channelId });
+    pairs.push({
+      platform: follow.platform,
+      channelId: follow.channelId,
+      channelLogin: follow.channelLogin,
+    });
   }
   return {
     schemaVersion: NATIVE_PUSH_REGISTRATION_SCHEMA_VERSION,
     version: input.version,
     pairs,
+    delivery: {
+      silent: !input.preferences.sound,
+      restartGracePeriodMinutes: input.preferences.restartGracePeriodMinutes,
+    },
   };
 }
 
@@ -205,13 +220,14 @@ function isLiveNotificationProjection(
 ): value is LiveNotificationProjection {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["schemaVersion", "version", "pairs"]) &&
+    hasOnlyKeys(value, ["schemaVersion", "version", "pairs", "delivery"]) &&
     value.schemaVersion === NATIVE_PUSH_REGISTRATION_SCHEMA_VERSION &&
     isPositiveSafeInteger(value.version) &&
     Array.isArray(value.pairs) &&
     value.pairs.length <= MAX_LIVE_NOTIFICATION_PAIRS &&
     value.pairs.every(isLiveNotificationPair) &&
-    uniquePairCount(value.pairs) === value.pairs.length
+    uniquePairCount(value.pairs) === value.pairs.length &&
+    (value.delivery === undefined || isDeliveryPolicy(value.delivery))
   );
 }
 
@@ -278,9 +294,24 @@ function isSafeDestination(
 function isLiveNotificationPair(value: unknown): value is LiveNotificationPair {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["platform", "channelId"]) &&
+    hasOnlyKeys(value, ["platform", "channelId", "channelLogin"]) &&
     isPlatform(value.platform) &&
-    isIdentifier(value.channelId)
+    isIdentifier(value.channelId) &&
+    (value.channelLogin === undefined || isChannelLogin(value.channelLogin))
+  );
+}
+
+function isDeliveryPolicy(
+  value: unknown,
+): value is LiveNotificationDeliveryPolicy {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["silent", "restartGracePeriodMinutes"]) &&
+    isBoolean(value.silent) &&
+    (value.restartGracePeriodMinutes === 0 ||
+      value.restartGracePeriodMinutes === 5 ||
+      value.restartGracePeriodMinutes === 15 ||
+      value.restartGracePeriodMinutes === 30)
   );
 }
 

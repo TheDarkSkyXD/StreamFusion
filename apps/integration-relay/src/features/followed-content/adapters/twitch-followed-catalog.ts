@@ -28,11 +28,15 @@ export function createTwitchFollowedCatalog(input: {
     platform: "twitch",
     async followedStreams(refs) {
       const payload = await client.get(
-        `/streams?${identityQuery(refs, "user_id", "user_login")}`
+        `/streams?${helixQuery([["first", "100"]])}&${identityQuery(refs, "user_id", "user_login")}`
       );
-      return payload === null
-        ? null
-        : streamsBody(twitchStreamsBody(payload), refs);
+      const rows = strictRows(payload);
+      if (rows === null) return null;
+      const streams = twitchStreamsBody(payload);
+      return streams.length === rows.length &&
+        streams.every((stream) => stream.startedAt !== null && stream.isLive)
+        ? streamsBody(streams, refs)
+        : null;
     },
     async followedChannels(refs) {
       const payload = await client.get(
@@ -69,6 +73,23 @@ export function createTwitchFollowedCatalog(input: {
       return recordedClips(channelId, clips, mapped.cursor);
     }
   };
+}
+
+function strictRows(payload: unknown): readonly unknown[] | null {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload) ||
+    !("data" in payload)
+  )
+    return null;
+  const rows = payload.data;
+  return Array.isArray(rows) &&
+    rows.every(
+      (row) => typeof row === "object" && row !== null && !Array.isArray(row)
+    )
+    ? rows
+    : null;
 }
 
 function identityQuery(

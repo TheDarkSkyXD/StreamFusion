@@ -42,9 +42,13 @@ function memoryRegistry(): NativePushRegistry & {
         (record) => record.remoteDeliveryEnabled
       );
     },
-    async retireByTokenHash(tokenHash, rotatedAt) {
+    async retireIfCurrent(installationId, tokenHash, rotatedAt) {
       for (const [id, record] of records) {
-        if (record.tokenHash !== tokenHash || !record.remoteDeliveryEnabled) {
+        if (
+          id !== installationId ||
+          record.tokenHash !== tokenHash ||
+          !record.remoteDeliveryEnabled
+        ) {
           continue;
         }
         records.set(id, {
@@ -79,6 +83,8 @@ function createRoute() {
       }
     },
     service: createNativePushService({
+      deliveryAvailable: true,
+      providerAvailable: { twitch: true, kick: true },
       now: () => Date.parse("2026-09-15T12:00:00.000Z"),
       registry
     })
@@ -157,7 +163,7 @@ describe("native push registration route", () => {
       true
     );
     expect(firstBody.outcome.body).toMatchObject({
-      topicSubscriptions: 1,
+      topicSubscriptions: 0,
       overflowPairs: 0
     });
     const rotatedToken = `${nativeToken}Rotated`;

@@ -32,14 +32,30 @@ const GRACE_OPTIONS: readonly {
 ];
 
 const NOTIFICATION_TOGGLES = [
-  { field: "enabled", label: "Android notifications", testID: "android-notifications" },
-  { field: "liveAlerts", label: "Live Notification history", testID: "live-activity" },
+  {
+    field: "enabled",
+    label: "Android notifications",
+    testID: "android-notifications",
+  },
+  {
+    field: "liveAlerts",
+    label: "Live Notification history",
+    testID: "live-activity",
+  },
   { field: "toastAlerts", label: "In-app banners", testID: "toast" },
   { field: "sound", label: "Sound", testID: "sound" },
   { field: "twitch", label: "Twitch", testID: "notify-twitch" },
   { field: "kick", label: "Kick", testID: "notify-kick" },
-  { field: "guestFollows", label: "Guest Follow notifications", testID: "notify-guest" },
-  { field: "favoriteChannelsOnly", label: "Favorites only", testID: "favorites-only" },
+  {
+    field: "guestFollows",
+    label: "Guest Follow notifications",
+    testID: "notify-guest",
+  },
+  {
+    field: "favoriteChannelsOnly",
+    label: "Favorites only",
+    testID: "favorites-only",
+  },
 ] as const;
 
 function togglePatch(
@@ -133,15 +149,25 @@ export function NotificationsSettingsView({
   const prefs = view.preferences;
   return (
     <SettingsSection testID="panel-notifications" title="NOTIFICATIONS">
+      <SettingsCopy
+        testID="fcm-registration-status"
+        value={view.registrationCopy}
+      />
+      <SettingsCopy testID="notifications-delivery" value={view.deliveryCopy} />
       {view.denied ? (
-        <SettingsCopy testID="notifications-permission" value={view.permissionCopy} />
+        <SettingsCopy
+          testID="notifications-permission"
+          value={view.permissionCopy}
+        />
       ) : null}
       {NOTIFICATION_TOGGLES.map((toggle) => (
         <SettingsSwitch
           checked={prefs[toggle.field]}
           key={toggle.testID}
           label={toggle.label}
-          onToggle={() => onChange(togglePatch(toggle.field, !prefs[toggle.field]))}
+          onToggle={() =>
+            onChange(togglePatch(toggle.field, !prefs[toggle.field]))
+          }
           testID={toggle.testID}
         />
       ))}

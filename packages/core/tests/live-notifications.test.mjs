@@ -78,6 +78,32 @@ test("native FCM registration requests require a native token and a projection",
   assert.equal(
     nativePushRegistrationRequestSchema.is({
       ...request,
+      projection: {
+        ...request.projection,
+        pairs: [
+          {
+            platform: "twitch",
+            channelId: "chan-1",
+            channelLogin: "Proof Streamer",
+          },
+        ],
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    nativePushRegistrationRequestSchema.is({
+      ...request,
+      projection: {
+        ...request.projection,
+        delivery: { silent: false, restartGracePeriodMinutes: 7 },
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    nativePushRegistrationRequestSchema.is({
+      ...request,
       tokenType: "expo",
     }),
     false,
@@ -106,13 +132,22 @@ test("live-notification projection keeps eligible Guest Follows and drops disabl
     preferences: {
       ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       kick: false,
+      sound: false,
+      restartGracePeriodMinutes: 15,
     },
     version: 3,
   });
   assert.deepEqual(projection, {
     schemaVersion: 1,
     version: 3,
-    pairs: [{ platform: "twitch", channelId: "chan-1" }],
+    pairs: [
+      {
+        platform: "twitch",
+        channelId: "chan-1",
+        channelLogin: "proofstreamer",
+      },
+    ],
+    delivery: { silent: true, restartGracePeriodMinutes: 15 },
   });
   const fingerprint = await fingerprintNativePushToken(nativeToken);
   assert.match(fingerprint, /^[a-f0-9]{16}$/);
@@ -122,7 +157,7 @@ test("live-notification projection keeps eligible Guest Follows and drops disabl
       registered: true,
       tokenFingerprint: fingerprint,
       projectionVersion: 3,
-      topicSubscriptions: 1,
+      topicSubscriptions: 0,
       overflowPairs: 0,
       reconciledAt: "2026-09-15T12:00:00.000Z",
     }),

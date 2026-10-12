@@ -81,6 +81,11 @@ async function handleRegister(
   if (installation === null)
     return failure(requestId, "unauthorized", 401, { kind: "never" });
   const grant = await input.service.register({ installation, request: body });
+  if (grant === null)
+    return failure(requestId, "unavailable", 503, {
+      kind: "after",
+      seconds: 60
+    });
   return success(requestId, grant);
 }
 
@@ -113,7 +118,7 @@ function success(requestId: string, body: JsonValue): Response {
 
 function failure(
   requestId: string,
-  code: "invalid_request" | "rate_limited" | "unauthorized",
+  code: "invalid_request" | "rate_limited" | "unauthorized" | "unavailable",
   status: number,
   retry: RelayRetry
 ): Response {

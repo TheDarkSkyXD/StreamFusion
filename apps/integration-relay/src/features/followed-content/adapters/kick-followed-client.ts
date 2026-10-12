@@ -39,6 +39,7 @@ export function createKickFollowedClient(input: {
       if (accessToken === null) return null;
       try {
         const response = await input.fetch(`${KICK_API_URL}${path}`, {
+          signal: AbortSignal.timeout(10_000),
           headers: { Authorization: `Bearer ${accessToken}` }
         });
         if (!response.ok) return null;
@@ -60,6 +61,7 @@ async function clientCredentialsToken(
 } | null> {
   try {
     const response = await fetch(KICK_IDENTITY_URL, {
+      signal: AbortSignal.timeout(10_000),
       body: new URLSearchParams({
         client_id: credentials.clientId,
         client_secret: credentials.clientSecret,

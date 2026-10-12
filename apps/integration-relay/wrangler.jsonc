@@ -12,6 +12,7 @@
   "env": {
     "development": {
       "name": "streamfusion-integration-relay-development",
+      "triggers": { "crons": ["* * * * *"] },
       "vars": {
         "RELAY_ENVIRONMENT": "development"
       },
@@ -24,6 +25,7 @@
     },
     "production": {
       "name": "streamfusion-integration-relay-production",
+      "triggers": { "crons": ["* * * * *"] },
       "vars": {
         "RELAY_ENVIRONMENT": "production"
       }

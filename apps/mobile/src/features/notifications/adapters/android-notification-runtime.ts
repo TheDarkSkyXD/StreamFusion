@@ -7,6 +7,7 @@ import { Platform } from "react-native";
 import type {
   LocalNotificationPresenter,
   NativeNotificationChannels,
+  NativeNotificationPolicy,
   NativePushTokenSource,
   NotificationReceiptSource,
 } from "../capabilities/native-notifications";
@@ -14,6 +15,14 @@ import {
   createNotificationEvents,
   getNativeNotifications,
 } from "./android-notifications-module";
+
+export function createAndroidNotificationPolicy(): NativeNotificationPolicy {
+  return {
+    async apply({ enabled, sound }) {
+      await getNativeNotifications().configureLiveAlerts(enabled, sound);
+    },
+  };
+}
 
 export function createAndroidNotificationChannels(): NativeNotificationChannels {
   return {

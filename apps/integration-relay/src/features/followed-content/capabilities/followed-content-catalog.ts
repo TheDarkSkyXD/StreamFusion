@@ -11,6 +11,9 @@ import type {
 export type { FollowedClipPeriod, FollowedRecordedSort };
 
 export type FollowedPlatform = FollowedStreamsBody["platform"];
+export type FollowedStreamsSnapshot = FollowedStreamsBody & {
+  readonly unavailableRefs?: readonly FollowedIdentityRef[];
+};
 
 export type FollowedContentRead =
   | {
@@ -48,7 +51,7 @@ export interface FollowedContentCatalog {
   readonly platform: FollowedPlatform;
   followedStreams(
     refs: readonly FollowedIdentityRef[]
-  ): Promise<FollowedStreamsBody | null>;
+  ): Promise<FollowedStreamsSnapshot | null>;
   followedChannels(
     refs: readonly FollowedIdentityRef[]
   ): Promise<FollowedChannelsBody | null>;

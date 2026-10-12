@@ -166,6 +166,13 @@ jobs:
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
 
+      - name: Materialize production Firebase configuration
+        env:
+          STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64: ${{ secrets.STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64 }}
+          STREAMFUSION_PUBLIC_RELAY_URL: ${{ vars.STREAMFUSION_PUBLIC_RELAY_URL }}
+          STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS: ${{ vars.STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS }}
+        run: node apps/mobile/scripts/firebase-release-config.mjs --materialize
+
       - name: Materialize the production keystore
         shell: bash
         env:

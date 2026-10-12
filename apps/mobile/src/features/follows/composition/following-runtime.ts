@@ -58,6 +58,7 @@ export function createFollowingRuntime(input: {
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly network: () => Promise<"online" | "offline">;
   readonly now?: () => number;
+  readonly onLocalChange?: () => void;
   readonly presentSystemNotification?: (input: {
     readonly item: ActivityItem;
     readonly silent: boolean;
@@ -86,6 +87,9 @@ export function createFollowingRuntime(input: {
     liveCache: createFollowedLiveCache(input.cache),
     liveNotifications: input.liveNotifications,
     now,
+    ...(input.onLocalChange === undefined
+      ? {}
+      : { onLocalChange: input.onLocalChange }),
     pages: createAndroidProviderPageOpener(),
     reader: createPlatformFollowedContentReader({
       relay: createRelayFollowedContentReader({
@@ -120,6 +124,7 @@ function bindSession(deps: {
   readonly liveCache: LiveCache;
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly now: () => number;
+  readonly onLocalChange?: () => void;
   readonly pages: ReturnType<typeof createAndroidProviderPageOpener>;
   readonly reader: FollowedReader;
 }): FollowingSession {
@@ -150,13 +155,24 @@ function bindSession(deps: {
     },
     listMembership: () => listUnionMembership(deps),
     listGuestMembership: () => deps.guestFollows.list(),
-    mutateFollow: (write) => mutateGuestFollow({ ...deps, write }),
-    removeGuestFollow: (identity) =>
-      removeGuestFollow(deps.guestFollows, identity),
+    async mutateFollow(write) {
+      const result = await mutateGuestFollow({ ...deps, write });
+      if (result.kind !== "rejected") deps.onLocalChange?.();
+      return result;
+    },
+    async removeGuestFollow(identity) {
+      const result = await removeGuestFollow(deps.guestFollows, identity);
+      if (result.kind !== "rejected") deps.onLocalChange?.();
+      return result;
+    },
     openProviderPage: (target) => deps.pages.open(target),
     readNotifications: () => deps.liveNotifications.read(),
     resolveChannel: (read) => resolveByLogin(deps.reader, read),
-    writeNotifications: (value) => deps.liveNotifications.write(value),
+    async writeNotifications(value) {
+      const preferences = await deps.liveNotifications.write(value);
+      deps.onLocalChange?.();
+      return preferences;
+    },
   };
 }
 

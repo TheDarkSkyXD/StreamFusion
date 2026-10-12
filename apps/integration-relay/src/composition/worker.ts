@@ -8,11 +8,15 @@ import {
 } from "../features/installation-policy/composition/installation-policy-relay";
 import type { RelayEnvironment } from "../features/installation-policy/capabilities/installation-registry";
 import { createFollowedContentRelayRoute } from "../features/followed-content/composition/followed-content-relay";
-import { createNotificationsRelayRoute } from "../features/notifications/composition/notifications-relay";
+import {
+  createNotificationsRelayRoute,
+  createScheduledLiveNotifications
+} from "../features/notifications/composition/notifications-relay";
 import { createSignedOutDiscoveryRelayRoute } from "../features/signed-out-discovery/composition/signed-out-discovery-relay";
 
 interface Env {
   CAPABILITY_MANIFEST_JSON?: string;
+  FCM_SERVICE_ACCOUNT_JSON?: string;
   INSTALLATION_REGISTRY?: D1Database;
   KICK_CLIENT_ID?: string;
   KICK_CLIENT_SECRET?: string;
@@ -32,10 +36,14 @@ type RelayRoutes = {
   readonly discovery: ReturnType<typeof createSignedOutDiscoveryRelayRoute>;
   readonly followedContent: ReturnType<typeof createFollowedContentRelayRoute>;
   readonly notifications: ReturnType<typeof createNotificationsRelayRoute>;
+  readonly liveNotifications: ReturnType<
+    typeof createScheduledLiveNotifications
+  >;
   readonly environment: RelayEnvironment;
   readonly kickClientId: string | undefined;
   readonly kickClientSecret: string | undefined;
   readonly manifest: string | undefined;
+  readonly fcmServiceAccountJson: string | undefined;
   readonly secret: string;
   readonly twitchClientId: string | undefined;
   readonly twitchClientSecret: string | undefined;
@@ -59,6 +67,17 @@ export function createRelayWorker(
 ) {
   let routes: RelayRoutes | null = null;
   return {
+    async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+      const configuredEnv = configuredEnvFrom(env);
+      if (configuredEnv === null) return;
+      routes = routesFor({
+        cached: routes,
+        env: configuredEnv,
+        fetch: input.fetch ?? globalThis.fetch,
+        now: input.now ?? Date.now
+      });
+      await routes.liveNotifications?.tick();
+    },
     async fetch(request: Request, env: Env): Promise<Response> {
       const requestId = crypto.randomUUID();
       if (!isRelayEnvironment(env.RELAY_ENVIRONMENT)) {
@@ -167,12 +186,28 @@ function routesFor(input: {
       credentialSecret: input.env.RELAY_CREDENTIAL_HMAC_SECRET,
       database: input.env.INSTALLATION_REGISTRY,
       environment: input.env.RELAY_ENVIRONMENT,
-      now: input.now
+      now: input.now,
+      fcmServiceAccountJson: input.env.FCM_SERVICE_ACCOUNT_JSON,
+      kickClientId: input.env.KICK_CLIENT_ID,
+      kickClientSecret: input.env.KICK_CLIENT_SECRET,
+      twitchClientId: input.env.TWITCH_CLIENT_ID,
+      twitchClientSecret: input.env.TWITCH_CLIENT_SECRET
+    }),
+    liveNotifications: createScheduledLiveNotifications({
+      database: input.env.INSTALLATION_REGISTRY,
+      fcmServiceAccountJson: input.env.FCM_SERVICE_ACCOUNT_JSON,
+      fetch: input.fetch,
+      kickClientId: input.env.KICK_CLIENT_ID,
+      kickClientSecret: input.env.KICK_CLIENT_SECRET,
+      now: input.now,
+      twitchClientId: input.env.TWITCH_CLIENT_ID,
+      twitchClientSecret: input.env.TWITCH_CLIENT_SECRET
     }),
     environment: input.env.RELAY_ENVIRONMENT,
     kickClientId: input.env.KICK_CLIENT_ID,
     kickClientSecret: input.env.KICK_CLIENT_SECRET,
     manifest: input.env.CAPABILITY_MANIFEST_JSON,
+    fcmServiceAccountJson: input.env.FCM_SERVICE_ACCOUNT_JSON,
     secret: input.env.RELAY_CREDENTIAL_HMAC_SECRET,
     twitchClientId: input.env.TWITCH_CLIENT_ID,
     twitchClientSecret: input.env.TWITCH_CLIENT_SECRET
@@ -190,6 +225,7 @@ function sameRouteConfiguration(
     cached.kickClientId === env.KICK_CLIENT_ID &&
     cached.kickClientSecret === env.KICK_CLIENT_SECRET &&
     cached.manifest === env.CAPABILITY_MANIFEST_JSON &&
+    cached.fcmServiceAccountJson === env.FCM_SERVICE_ACCOUNT_JSON &&
     cached.secret === env.RELAY_CREDENTIAL_HMAC_SECRET &&
     cached.twitchClientId === env.TWITCH_CLIENT_ID &&
     cached.twitchClientSecret === env.TWITCH_CLIENT_SECRET

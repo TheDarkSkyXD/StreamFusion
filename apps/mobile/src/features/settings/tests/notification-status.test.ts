@@ -13,7 +13,9 @@ import {
 // Guards: API 30 reports platform-granted posting; denied still keeps Activity; offline copy does not claim FCM
 describe("notification settings status", () => {
   it("treats API 30 as granted without a runtime prompt", () => {
-    expect(notificationPermissionCopy("denied", 30)).toMatch(/without a runtime prompt/);
+    expect(notificationPermissionCopy("denied", 30)).toMatch(
+      /without a runtime prompt/,
+    );
     const view = composeNotificationSettingsView({
       apiLevel: 30,
       network: "online",
@@ -22,18 +24,22 @@ describe("notification settings status", () => {
     });
     expect(view.denied).toBe(false);
     expect(view.permissionCopy).toMatch(/without a runtime prompt/);
-    expect(view.deliveryCopy).toMatch(/Overflow past 2000 topics uses direct tokens/);
+    expect(view.deliveryCopy).toMatch(
+      /Background delivery depends on device registration/,
+    );
   });
 
   it("keeps Activity copy when Android posting is denied", () => {
-    expect(notificationPermissionCopy("denied", 33)).toMatch(/Retry the permission/);
+    expect(notificationPermissionCopy("denied", 33)).toMatch(
+      /Retry the permission/,
+    );
     expect(
       notificationDeliveryCopy({
         network: "online",
         permission: "denied",
         preferences: DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
       }),
-    ).toMatch(/Live Notification history stays active/);
+    ).toMatch(/Live Notification history remains available/);
   });
 
   it("saves locally while offline without claiming relay registration", () => {
@@ -54,19 +60,14 @@ describe("notification settings status", () => {
 
   it("describes one-mode topic and direct delivery after permission is granted", () => {
     expect(notificationPermissionCopy("granted", 33)).toMatch(
-      /Local live alerts post on this device/,
+      /Android allows notification posting/,
     );
   });
 
-  it("names 100k dispatch, retries, rotation, reinstall, force-stop, and go-live-only routing", () => {
+  it("describes saved choices without unverified relay capacity claims", () => {
     const copy = notificationLifecycleCopy();
-    expect(copy).toMatch(/100,000 Live recipients/);
-    expect(copy).toMatch(/Two simultaneous events/);
-    expect(copy).toMatch(/Retry-After/);
-    expect(copy).toMatch(/credentials can rotate/);
-    expect(copy).toMatch(/Reinstall retires the old token/);
-    expect(copy).toMatch(/Force-stop does not delete Activity/);
-    expect(copy).toMatch(/go-live alerts only/);
+    expect(copy).toMatch(/saved follows and notification choices/);
+    expect(copy).not.toMatch(/100,000|2000 topics/);
     expect(
       composeNotificationSettingsView({
         apiLevel: 30,
@@ -78,10 +79,13 @@ describe("notification settings status", () => {
   });
 
   it("merges a patch onto current preferences instead of defaults", () => {
-    const current = mergeNotificationPreferences(DEFAULT_LIVE_NOTIFICATION_PREFERENCES, {
-      favoriteChannelsOnly: true,
-      kick: false,
-    });
+    const current = mergeNotificationPreferences(
+      DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      {
+        favoriteChannelsOnly: true,
+        kick: false,
+      },
+    );
     const next = mergeNotificationPreferences(current, { sound: false });
     expect(next.favoriteChannelsOnly).toBe(true);
     expect(next.kick).toBe(false);

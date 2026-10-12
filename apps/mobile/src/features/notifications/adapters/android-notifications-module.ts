@@ -4,6 +4,7 @@ export interface NativeNotificationsModule {
   getPermissionStatus(): Promise<"granted" | "denied" | "not-requested" | "unavailable">;
   requestPermission(): Promise<"granted" | "denied" | "not-requested" | "unavailable">;
   ensureChannels(): Promise<void>;
+  configureLiveAlerts(enabled: boolean, sound: boolean): Promise<void>;
   present(title: string, body: string, payloadJson: string, channel: string, silent: boolean): Promise<void>;
   getInitialResponse(): Promise<string | null>;
   getDevicePushToken(): Promise<string | null>;
@@ -15,7 +16,7 @@ export function getNativeNotifications(): NativeNotificationsModule {
   const module: unknown = NativeModules.StreamFusionNotifications;
   const methods = [
     "getPermissionStatus", "requestPermission", "ensureChannels", "present",
-    "getInitialResponse", "getDevicePushToken", "addListener", "removeListeners",
+    "getInitialResponse", "getDevicePushToken", "configureLiveAlerts", "addListener", "removeListeners",
   ] as const;
   if (!module || typeof module !== "object" ||
     methods.some((method) => !hasFunction(module, method))) {

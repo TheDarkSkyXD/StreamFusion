@@ -65,17 +65,20 @@ test("Android redirect constant is the exact hosted Worker callback", () => {
     "utf8",
   );
   const mobileAppConfig = readFileSync(
-    path.join(workspaceRoot, "apps/mobile/app.json"),
+    path.join(
+      workspaceRoot,
+      "apps/mobile/android/app/src/main/AndroidManifest.xml",
+    ),
     "utf8",
   );
   assert.match(workerGrant, new RegExp(`"${redirect.replaceAll("/", "\\/")}"`));
   assert.match(
     mobileAppConfig,
-    /"host": "streamfusion.leveluptogetherbiz.workers.dev"/,
+    /android:host="streamfusion.leveluptogetherbiz.workers.dev"/,
   );
   assert.match(
     mobileAppConfig,
-    /"pathPrefix": "\/auth\/kick\/android\/callback"/,
+    /android:pathPrefix="\/auth\/kick\/android\/callback"/,
   );
 });
 

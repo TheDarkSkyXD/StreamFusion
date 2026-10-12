@@ -120,8 +120,11 @@ function followedResponse(
 }
 
 function validBody(result: AvailableFollowedReadResult): JsonValue | null {
-  if (result.kind === "streams")
-    return followedStreamsBodySchema.is(result.body) ? result.body : null;
+  if (result.kind === "streams") {
+    const { platform, streams, missing } = result.body;
+    const body = { platform, streams, missing };
+    return followedStreamsBodySchema.is(body) ? body : null;
+  }
   if (result.kind === "channels")
     return followedChannelsBodySchema.is(result.body) ? result.body : null;
   if (result.kind === "videos")

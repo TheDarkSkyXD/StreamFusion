@@ -5,14 +5,13 @@ import type {
   SafeNotificationPayload,
 } from "@streamfusion/core/relay";
 import type { Platform } from "@streamfusion/core/platform";
-import type { GuestFollow, LiveNotificationPreferences } from "@streamfusion/core/follows";
+import type {
+  GuestFollow,
+  LiveNotificationPreferences,
+} from "@streamfusion/core/follows";
 
 export type NativeRegistrationState =
-  | "idle"
-  | "pending"
-  | "registered"
-  | "unavailable"
-  | "denied";
+  "idle" | "pending" | "registered" | "unavailable" | "denied";
 
 export type NativeRegistrationSnapshot = {
   readonly state: NativeRegistrationState;
@@ -61,6 +60,13 @@ export interface NativeNotificationChannels {
   ensure(): Promise<void>;
 }
 
+export interface NativeNotificationPolicy {
+  apply(input: {
+    readonly enabled: boolean;
+    readonly sound: boolean;
+  }): Promise<void>;
+}
+
 export interface NativePushTokenSource {
   read(): Promise<string | null>;
   subscribe(listener: (token: string) => void): () => void;
@@ -75,10 +81,12 @@ export interface LocalNotificationPresenter {
 
 export interface NotificationReceiptSource {
   initial(): Promise<SafeNotificationPayload | null>;
-  subscribe(listener: (input: {
-    readonly payload: SafeNotificationPayload;
-    readonly foreground: boolean;
-  }) => void): () => void;
+  subscribe(
+    listener: (input: {
+      readonly payload: SafeNotificationPayload;
+      readonly foreground: boolean;
+    }) => void,
+  ): () => void;
 }
 
 export interface NativeNotificationRuntime {
@@ -103,6 +111,7 @@ export interface NativeNotificationDependencies {
   };
   readonly identityReady: () => Promise<boolean>;
   readonly permission: () => Promise<"granted" | "denied" | "unavailable">;
+  readonly postingPolicy: NativeNotificationPolicy;
   readonly presenter: LocalNotificationPresenter;
   readonly receipts: NotificationReceiptSource;
   readonly tokens: NativePushTokenSource;

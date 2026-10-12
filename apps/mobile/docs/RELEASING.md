@@ -68,6 +68,7 @@ The `android-release` environment supplies the production build. Configure these
 | `STREAMFUSION_MOBILE_KEYSTORE_PASSWORD` | Keystore password |
 | `STREAMFUSION_MOBILE_KEY_ALIAS` | Signing key alias |
 | `STREAMFUSION_MOBILE_KEY_PASSWORD` | Signing key password |
+| `STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64` | Base64-encoded Android `google-services.json` downloaded from the production Firebase project |
 
 Configure `ANDROID_PRODUCTION_VERSION_CODE` as an environment variable. Increase it for every published APK.
 
@@ -81,9 +82,11 @@ The build job also passes these public environment variables to Metro:
 | `STREAMFUSION_PUBLIC_KICK_CLIENT_ID` | Kick client ID override |
 | `STREAMFUSION_PUBLIC_WORKER_URL` | Kick worker URL override |
 
-The Babel build replaces each configured value in the JavaScript bundle. The release workflow does not validate these five values. If the relay URL or trusted keys are absent or invalid, the production installation-policy transport stays unavailable. An absent relay URL also sends native push registration to the development fallback at `http://10.0.2.2:8787/`.
+The Babel build replaces each configured value in the JavaScript bundle. The production build requires a public HTTPS relay URL with a DNS hostname and a nonempty JSON map of trusted key IDs to 43-character base64url public keys. It rejects local and reserved relay hostnames. The Twitch, Kick, and worker overrides remain optional.
 
-The Android app applies the Google Services Gradle plugin only when `apps/mobile/android/app/google-services.json` exists. The release workflow does not create that file. A successful APK build therefore does not prove that Firebase remote notifications are configured.
+Download the Android `google-services.json` for `com.thedarkskyxd.streamfusion` from the production Firebase project. Encode the complete file as base64 and store it in the `android-release` environment as `STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64`. Keep the JSON and its encoded value out of version control. The repository ignores `apps/mobile/android/app/google-services.json`.
+
+Before Gradle runs, the workflow restores the JSON and checks the production package name, Firebase project number and ID, Android app ID, API key, relay URL, and trusted keys. Gradle repeats the check for every production build. A missing or invalid value stops the build before an APK can be published. Development builds can run without Firebase configuration; local notifications still work, but remote registration needs a configured Firebase app.
 
 ## Release workflow
 
@@ -91,10 +94,10 @@ The Android app applies the Google Services Gradle plugin only when `apps/mobile
 
 1. `verify` validates the tag, audits dependencies, creates a release bundle for inspection, and runs mobile lint, typecheck, and tests.
 2. `signing` requires the pinned certificate and resolves the production identity.
-3. `build` restores the keystore from GitHub secrets, runs `app:assembleRelease`, verifies the APK signer and application ID, and creates the Android Release Set.
+3. `build` validates and restores Firebase configuration, restores the keystore, runs `app:assembleRelease`, verifies the APK signer and application ID, and creates the Android Release Set.
 4. `release` downloads the Release Set, verifies the APK again, creates a draft GitHub Release, and publishes it.
 
-The workflow fails before publication when the tag does not match `apps/mobile/package.json`, the production identity is incomplete, a signing secret is missing, the signer differs from the pin, or the APK has the wrong application ID.
+The workflow fails before publication when the tag does not match `apps/mobile/package.json`, the production identity or notification configuration is incomplete, a signing secret is missing, the signer differs from the pin, or the APK has the wrong application ID.
 
 To publish the version recorded in `apps/mobile/package.json`, create and push the matching tag:
 

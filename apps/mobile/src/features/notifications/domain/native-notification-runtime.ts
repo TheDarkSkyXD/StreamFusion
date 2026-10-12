@@ -2,6 +2,7 @@ import {
   buildLiveNotificationProjection,
   type SafeNotificationPayload,
 } from "@streamfusion/core/relay";
+import type { LiveNotificationPreferences } from "@streamfusion/core/follows";
 
 import type {
   InAppNotificationBanner,
@@ -33,6 +34,7 @@ export function createNativeNotificationRuntime(
 ): NativeNotificationRuntime {
   const listeners = new Set<() => void>();
   const enqueueReceipt = createExclusiveQueue();
+  const enqueueRegistration = createExclusiveQueue();
   let snapshot = nativeRegistrationSnapshot({
     fingerprint: null,
     state: "idle",
@@ -40,8 +42,7 @@ export function createNativeNotificationRuntime(
   let banner: InAppNotificationBanner | null = null;
   let projectionVersion = 1;
   let started = false;
-  let openHandler: ((location: NotificationOpenLocation) => void) | null =
-    null;
+  let openHandler: ((location: NotificationOpenLocation) => void) | null = null;
 
   function notify(): void {
     listeners.forEach((listener) => listener());
@@ -90,18 +91,12 @@ export function createNativeNotificationRuntime(
     open(location);
   }
 
-  async function deniedSnapshot(): Promise<NativeRegistrationSnapshot | null> {
-    if ((await deps.permission()) !== "denied") return null;
-    return setSnapshot({ fingerprint: null, state: "denied" });
-  }
-
   async function registerProjection(
     token: string,
+    preferences: LiveNotificationPreferences,
+    policyFailure: string | null,
   ): Promise<NativeRegistrationSnapshot> {
-    const [membership, preferences] = await Promise.all([
-      deps.follows.listMembership(),
-      deps.follows.readNotifications(),
-    ]);
+    const membership = await deps.follows.listMembership();
     const grant = await deps.transport.register({
       nativeToken: token,
       projection: buildLiveNotificationProjection({
@@ -109,38 +104,89 @@ export function createNativeNotificationRuntime(
         preferences,
         version: projectionVersion,
       }),
-      remoteDeliveryEnabled: preferences.enabled && preferences.liveAlerts,
+      remoteDeliveryEnabled:
+        preferences.enabled &&
+        preferences.liveAlerts &&
+        !preferences.doNotDisturb,
     });
     if (grant === null) {
-      return setSnapshot({ fingerprint: null, state: "unavailable" });
+      return setSnapshot({
+        fingerprint: null,
+        lastFailure: policyFailure,
+        state: "unavailable",
+      });
     }
     projectionVersion = grant.projectionVersion + 1;
     return setSnapshot({
       fingerprint: grant.tokenFingerprint,
       overflowPairs: grant.overflowPairs,
+      lastFailure: policyFailure,
       state: "registered",
       topicSubscriptions: grant.topicSubscriptions,
     });
   }
 
-  async function registerToken(
+  async function registerTokenNow(
     token: string | null,
   ): Promise<NativeRegistrationSnapshot> {
-    const denied = await deniedSnapshot();
-    if (denied) return denied;
-    setSnapshot({ fingerprint: snapshot.fingerprint, state: "pending" });
-    await deps.channels.ensure();
-    if (token === null || !(await deps.identityReady())) {
-      return setSnapshot({ fingerprint: null, state: "unavailable" });
+    const [preferences, permission] = await Promise.all([
+      deps.follows.readNotifications(),
+      deps.permission(),
+    ]);
+    let policyFailure: string | null = null;
+    try {
+      await deps.postingPolicy.apply({
+        enabled:
+          permission === "granted" &&
+          preferences.enabled &&
+          preferences.liveAlerts &&
+          !preferences.doNotDisturb,
+        sound: preferences.sound,
+      });
+    } catch {
+      policyFailure =
+        "Android alert settings could not be applied on this device.";
     }
-    return registerProjection(token);
+    if (permission === "denied") {
+      let disabled = false;
+      try {
+        disabled = await deps.transport.disable();
+      } catch {
+        disabled = false;
+      }
+      return setSnapshot({
+        fingerprint: null,
+        state: "denied",
+        lastFailure: disabled
+          ? policyFailure
+          : "Android blocked notifications. Remote alert registration could not be retired yet.",
+      });
+    }
+    setSnapshot({ fingerprint: snapshot.fingerprint, state: "pending" });
+    if (token === null || !(await deps.identityReady())) {
+      return setSnapshot({
+        fingerprint: null,
+        lastFailure: policyFailure,
+        state: "unavailable",
+      });
+    }
+    return registerProjection(token, preferences, policyFailure);
   }
 
-  async function registerCurrentToken(): Promise<NativeRegistrationSnapshot> {
-    const denied = await deniedSnapshot();
-    if (denied) return denied;
-    await deps.channels.ensure();
-    return registerToken(await deps.tokens.read());
+  function registerToken(token?: string): Promise<NativeRegistrationSnapshot> {
+    return enqueueRegistration(async () => {
+      try {
+        await deps.channels.ensure();
+        return await registerTokenNow(token ?? (await deps.tokens.read()));
+      } catch {
+        return setSnapshot({
+          fingerprint: null,
+          lastFailure:
+            "Remote alert registration failed. Your notification settings remain saved on this device.",
+          state: "unavailable",
+        });
+      }
+    });
   }
 
   function ensureStarted(): void {
@@ -155,7 +201,7 @@ export function createNativeNotificationRuntime(
     void deps.receipts.initial().then((payload) => {
       if (payload) open(notificationOpenLocation(payload));
     });
-    void registerCurrentToken();
+    void registerToken();
   }
 
   return {
@@ -166,7 +212,7 @@ export function createNativeNotificationRuntime(
       banner = null;
       notify();
     },
-    load: registerCurrentToken,
+    load: () => registerToken(),
     peek: () => snapshot,
     peekBanner: () => banner,
     async presentProof(payload) {
@@ -185,6 +231,6 @@ export function createNativeNotificationRuntime(
         listeners.delete(listener);
       };
     },
-    sync: registerCurrentToken,
+    sync: () => registerToken(),
   };
 }

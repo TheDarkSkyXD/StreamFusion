@@ -25,7 +25,8 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@streamfusion/core": "0.0.0"
+    "@streamfusion/core": "0.0.0",
+    "jose": "6.2.12"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260728.1",
@@ -35,6 +36,7 @@
     "eslint-import-resolver-alias": "1.1.2",
     "eslint-plugin-boundaries": "7.2.0",
     "globals": "^17.8.0",
+    "miniflare": "5.20260820.0-alpha",
     "prettier": "^3.9.6",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.65.0",

@@ -39,9 +39,16 @@ function toStream(record: JsonRecord): Stream | null {
   const user = recordAt(channel, "user") ?? channel;
   const category =
     recordAt(record, "category") ?? firstRecord(record, "categories");
-  const id = firstIdentifier(record, ["id", "slug", "session_id"]);
-  const channelId = firstIdentifier(channel, ["id", "slug"]);
-  const channelName = firstString(channel, ["slug", "username", "name"]);
+  const broadcasterId = firstIdentifier(record, ["broadcaster_user_id"]);
+  const startedAt = helixTimestamp(stringAt(record, "started_at"));
+  const id =
+    broadcasterId !== "" &&
+    startedAt !== null &&
+    Date.parse(startedAt) >= Date.parse("2000-01-01T00:00:00.000Z")
+      ? `${broadcasterId}:${startedAt}`
+      : "";
+  const channelId = broadcasterId;
+  const channelName = firstString(record, ["slug"]);
   if (id === "" || channelId === "" || channelName === "") return null;
   const categoryId = category === null ? "" : identifierAt(category, "id");
   const categoryName = category === null ? "" : stringAt(category, "name");
@@ -58,9 +65,7 @@ function toStream(record: JsonRecord): Stream | null {
     isLive: booleanAt(record, "is_live") || !hasKey(record, "is_live"),
     language: stringAt(record, "language"),
     platform: "kick",
-    startedAt: helixTimestamp(
-      firstString(record, ["started_at", "start_time", "created_at"])
-    ),
+    startedAt,
     tags: stringArrayAt(record, "tags"),
     thumbnailUrl: firstString(record, ["thumbnail_url", "thumbnail", "image"]),
     title: firstString(record, ["session_title", "title", "stream_title"]),
@@ -72,14 +77,16 @@ function toStream(record: JsonRecord): Stream | null {
 
 function toChannel(record: JsonRecord): Channel | null {
   const user = recordAt(record, "user") ?? record;
-  const id = firstIdentifier(record, ["id", "slug"]);
+  const id = firstIdentifier(record, ["broadcaster_user_id"]);
   const username = firstString(record, ["slug", "username", "name"]);
   if (id === "" || username === "") return null;
   return {
     avatarUrl: firstString(user, ["profile_pic", "profile_picture", "avatar"]),
     displayName: firstString(user, ["username", "name", "slug"]),
     id,
-    isLive: booleanAt(record, "is_live"),
+    isLive:
+      booleanAt(record, "is_live") ||
+      booleanAt(recordAt(record, "stream") ?? {}, "is_live"),
     isPartner: booleanAt(record, "is_partner"),
     isVerified: booleanAt(record, "verified"),
     platform: "kick",

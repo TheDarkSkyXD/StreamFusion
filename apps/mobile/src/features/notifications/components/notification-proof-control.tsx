@@ -22,19 +22,12 @@ export function NotificationProofControl({
         Notification proof
       </Text>
       <Text selectable style={styles.body}>
-        Present a local live-alert on the Live channel. One event uses a topic
-        or a direct token, never both. Overflow past 2000 topics stays direct.
-        Activity still records if FCM is unavailable. Relay accepts 100,000 Live
-        recipients on one topic event within 30 seconds. That is StreamFusion
-        dispatch, not device receipt. Two simultaneous events stay separate.
-        Rate limits retry after Retry-After. Relay FCM credentials can rotate
-        without dropping Activity. Reinstall retires the old token. Force-stop
-        does not delete Activity. Alerts are go-live only.
+        Show a test live alert on this device. Tap the notification to check
+        that it opens the channel.
       </Text>
       <Text selectable style={styles.body} testID="notification-lifecycle-status">
-        Relay accepts 100,000 Live recipients on one topic event within 30
-        seconds. Force-stop does not delete Activity. An ended stream opens the
-        channel page.
+        This local test checks Android notification display and navigation.
+        Background push delivery requires a configured Firebase app and relay.
       </Text>
       {registrationCopy ? (
         <Text

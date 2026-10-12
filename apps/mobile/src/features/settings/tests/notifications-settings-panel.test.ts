@@ -44,7 +44,10 @@ function descendants(node: unknown): readonly Element[] {
   const element: Element = node;
   const rendered = renderFunction(element);
   if (rendered) return [element, ...descendants(rendered)];
-  return [element, ...childNodes(element).flatMap((child) => descendants(child))];
+  return [
+    element,
+    ...childNodes(element).flatMap((child) => descendants(child)),
+  ];
 }
 
 function renderFunction(element: Element): unknown {
@@ -109,13 +112,20 @@ describe("notifications settings panel", () => {
     expect(hasTestId(nodes, "restart-grace")).toBe(true);
     expect(hasTestId(nodes, "notifications-system-settings")).toBe(true);
     expect(hasTestId(nodes, "notifications-permission")).toBe(false);
-    expect(hasTestId(nodes, "notifications-delivery")).toBe(false);
+    expect(hasTestId(nodes, "notifications-delivery")).toBe(true);
     expect(hasTestId(nodes, "notifications-lifecycle")).toBe(false);
-    expect(hasTestId(nodes, "fcm-registration-status")).toBe(false);
+    expect(hasTestId(nodes, "fcm-registration-status")).toBe(true);
+    expect(
+      nodes
+        .filter((node) => node.props.testID === "fcm-registration-status")
+        .at(-1)?.props.children,
+    ).toBe("Checking background alert registration on this device.");
     expect(hasTestId(nodes, "favorites-only-effective")).toBe(false);
     expect(hasTestId(nodes, "notifications-retry")).toBe(false);
     nodes
-      .find((node) => node.props.testID === "notify-guest" && node.props.onPress)
+      .find(
+        (node) => node.props.testID === "notify-guest" && node.props.onPress,
+      )
       ?.props.onPress?.();
     expect(toggled).toEqual(["guestFollows"]);
   });
@@ -127,8 +137,13 @@ describe("notifications settings panel", () => {
     });
     expect(hasTestId(nodes, "notifications-retry")).toBe(true);
     expect(hasTestId(nodes, "notifications-permission")).toBe(true);
-    expect(hasTestId(nodes, "notifications-delivery")).toBe(false);
+    expect(hasTestId(nodes, "notifications-delivery")).toBe(true);
     expect(hasTestId(nodes, "notifications-lifecycle")).toBe(false);
-    expect(hasTestId(nodes, "fcm-registration-status")).toBe(false);
+    expect(hasTestId(nodes, "fcm-registration-status")).toBe(true);
+    expect(
+      nodes
+        .filter((node) => node.props.testID === "fcm-registration-status")
+        .at(-1)?.props.children,
+    ).toMatch(/Android blocked notification posting/);
   });
 });

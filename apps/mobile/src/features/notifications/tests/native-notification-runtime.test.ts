@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
+import {
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+  type GuestFollow,
+} from "@streamfusion/core/follows";
 import type { ActivityItem } from "@streamfusion/core/activity";
 import {
   fingerprintNativePushToken,
@@ -9,6 +12,7 @@ import {
 
 import type {
   NativeNotificationDependencies,
+  NativePushTransport,
   NotificationOpenLocation,
 } from "../capabilities/native-notifications";
 import { createNativeNotificationRuntime } from "../domain/native-notification-runtime";
@@ -18,6 +22,8 @@ const nativeToken =
   "dK3kExampleFcmTokenValue:APA91bProofTokenWithoutSecrets0123456789";
 
 function dependencies(input?: {
+  readonly beforeApply?: () => Promise<void>;
+  readonly beforeRegister?: () => Promise<void>;
   readonly permission?: "granted" | "denied" | "unavailable";
   readonly token?: string | null;
 }): {
@@ -28,16 +34,27 @@ function dependencies(input?: {
   }) => void;
   readonly emitToken: (token: string) => void;
   readonly opened: NotificationOpenLocation[];
+  readonly policies: { readonly enabled: boolean; readonly sound: boolean }[];
   readonly presented: SafeNotificationPayload[];
   readonly registered: string[];
+  readonly requests: Parameters<NativePushTransport["register"]>[0][];
   readonly runtime: ReturnType<typeof createNativeNotificationRuntime>;
+  readonly setPermission: (value: "granted" | "denied" | "unavailable") => void;
+  readonly setMembership: (value: readonly GuestFollow[]) => void;
+  readonly setToken: (value: string | null) => void;
+  readonly setPreferences: (
+    value: typeof DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+  ) => void;
   readonly sequence: string[];
   readonly tokenReads: number;
+  readonly disabled: number;
 } {
   const activity: ActivityItem[] = [];
   const opened: NotificationOpenLocation[] = [];
   const presented: SafeNotificationPayload[] = [];
   const registered: string[] = [];
+  const requests: Parameters<NativePushTransport["register"]>[0][] = [];
+  const policies: { readonly enabled: boolean; readonly sound: boolean }[] = [];
   const sequence: string[] = [];
   const listeners: ((token: string) => void)[] = [];
   const receiptListeners: ((input: {
@@ -45,6 +62,19 @@ function dependencies(input?: {
     foreground: boolean;
   }) => void)[] = [];
   let tokenReads = 0;
+  let disabled = 0;
+  let permission = input?.permission ?? "granted";
+  let currentToken = input?.token === undefined ? nativeToken : input.token;
+  let preferences = DEFAULT_LIVE_NOTIFICATION_PREFERENCES;
+  let membership: readonly GuestFollow[] = [
+    {
+      platform: "twitch",
+      channelId: "chan-1",
+      channelLogin: "proofstreamer",
+      displayName: "ProofStreamer",
+      followedAt: "2026-09-01T00:00:00.000Z",
+    },
+  ];
   const deps: NativeNotificationDependencies = {
     activity: {
       async record(item) {
@@ -57,19 +87,17 @@ function dependencies(input?: {
       },
     },
     follows: {
-      listMembership: async () => [
-        {
-          platform: "twitch",
-          channelId: "chan-1",
-          channelLogin: "proofstreamer",
-          displayName: "ProofStreamer",
-          followedAt: "2026-09-01T00:00:00.000Z",
-        },
-      ],
-      readNotifications: async () => DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      listMembership: async () => membership,
+      readNotifications: async () => preferences,
     },
-    identityReady: async () => input?.token !== null,
-    permission: async () => input?.permission ?? "granted",
+    identityReady: async () => currentToken !== null,
+    permission: async () => permission,
+    postingPolicy: {
+      async apply(value) {
+        policies.push(value);
+        await input?.beforeApply?.();
+      },
+    },
     presenter: {
       async present(payload) {
         presented.push(payload);
@@ -86,7 +114,7 @@ function dependencies(input?: {
       async read() {
         sequence.push("token");
         tokenReads += 1;
-        return input?.token ?? nativeToken;
+        return currentToken;
       },
       subscribe(listener) {
         listeners.push(listener);
@@ -94,14 +122,23 @@ function dependencies(input?: {
       },
     },
     transport: {
-      disable: async () => true,
+      disable: async () => {
+        disabled += 1;
+        return true;
+      },
       async register(request) {
         registered.push(request.nativeToken);
+        requests.push(request);
+        await input?.beforeRegister?.();
         return {
           registered: true,
-          tokenFingerprint: await fingerprintNativePushToken(request.nativeToken),
+          tokenFingerprint: await fingerprintNativePushToken(
+            request.nativeToken,
+          ),
           projectionVersion: request.projection.version,
-          topicSubscriptions: request.remoteDeliveryEnabled ? request.projection.pairs.length : 0,
+          topicSubscriptions: request.remoteDeliveryEnabled
+            ? request.projection.pairs.length
+            : 0,
           overflowPairs: 0,
           reconciledAt: "2026-09-15T12:00:00.000Z",
         };
@@ -124,10 +161,27 @@ function dependencies(input?: {
       return tokenReads;
     },
     opened,
+    policies,
     presented,
     registered,
+    requests,
     runtime,
+    setPermission: (value) => {
+      permission = value;
+    },
+    setMembership: (value) => {
+      membership = value;
+    },
+    setToken: (value) => {
+      currentToken = value;
+    },
+    setPreferences: (value) => {
+      preferences = value;
+    },
     sequence,
+    get disabled() {
+      return disabled;
+    },
   };
 }
 
@@ -137,13 +191,17 @@ describe("native notification runtime", () => {
     const { registered, runtime } = dependencies();
     const first = await runtime.sync();
     expect(first.state).toBe("registered");
-    expect(first.fingerprint).toBe(await fingerprintNativePushToken(nativeToken));
+    expect(first.fingerprint).toBe(
+      await fingerprintNativePushToken(nativeToken),
+    );
     expect(first.topicSubscriptions).toBe(1);
     expect(first.overflowPairs).toBe(0);
-    expect(first.copy).toMatch(/Live topics/);
+    expect(first.copy).toMatch(/registered for background delivery/i);
     expect(registered).toEqual([nativeToken]);
     const rotated = `${nativeToken}Rotated`;
-    const { registered: again, runtime: next } = dependencies({ token: rotated });
+    const { registered: again, runtime: next } = dependencies({
+      token: rotated,
+    });
     const second = await next.sync();
     expect(second.fingerprint).toBe(await fingerprintNativePushToken(rotated));
     expect(again).toEqual([rotated]);
@@ -155,6 +213,7 @@ describe("native notification runtime", () => {
     expect((await denied.runtime.sync()).state).toBe("denied");
     const missing = dependencies({ token: null });
     expect((await missing.runtime.sync()).state).toBe("unavailable");
+    expect(missing.policies).toEqual([{ enabled: true, sound: true }]);
     const payload = proofLivePayload("2026-09-15T12:00:00.000Z");
     await denied.runtime.presentProof(payload);
     expect(denied.activity[0]?.eventId).toBe(payload.eventId);
@@ -169,7 +228,121 @@ describe("native notification runtime", () => {
   it("creates Android channels before reading the native FCM token", async () => {
     const { sequence, runtime } = dependencies();
     await runtime.sync();
-    expect(sequence.indexOf("channels")).toBeLessThan(sequence.indexOf("token"));
+    expect(sequence.indexOf("channels")).toBeLessThan(
+      sequence.indexOf("token"),
+    );
+  });
+
+  it("reconciles saved preferences and posting policy after an initial registration", async () => {
+    const harness = dependencies();
+    await harness.runtime.sync();
+    harness.setPreferences({
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      doNotDisturb: true,
+      sound: false,
+    });
+    await harness.runtime.sync();
+    expect(
+      harness.requests.map((request) => request.remoteDeliveryEnabled),
+    ).toEqual([true, false]);
+    expect(harness.policies).toEqual([
+      { enabled: true, sound: true },
+      { enabled: false, sound: false },
+    ]);
+  });
+
+  it("sends updated followed channels after registration", async () => {
+    const harness = dependencies();
+    await harness.runtime.sync();
+    harness.setMembership([
+      {
+        platform: "kick",
+        channelId: "chan-2",
+        channelLogin: "spreen",
+        displayName: "Spreen",
+        followedAt: "2026-09-01T00:00:00.000Z",
+      },
+    ]);
+    await harness.runtime.sync();
+    expect(
+      harness.requests.map((request) =>
+        request.projection.pairs.map((pair) => pair.channelId),
+      ),
+    ).toEqual([["chan-1"], ["chan-2"]]);
+  });
+
+  it("retires an enabled remote registration when Android permission is denied", async () => {
+    const harness = dependencies();
+    await harness.runtime.sync();
+    harness.setPermission("denied");
+    const denied = await harness.runtime.sync();
+    expect(denied.state).toBe("denied");
+    expect(harness.disabled).toBe(1);
+    expect(harness.policies.at(-1)).toEqual({ enabled: false, sound: true });
+  });
+
+  it("still retires remote delivery when Android alert policy cannot be applied", async () => {
+    const harness = dependencies({
+      permission: "denied",
+      beforeApply: async () => {
+        throw new Error("native policy unavailable");
+      },
+    });
+    expect((await harness.runtime.sync()).state).toBe("denied");
+    expect(harness.disabled).toBe(1);
+  });
+
+  it("serializes overlapping registrations and sends the latest saved choices last", async () => {
+    let releaseFirst: (() => void) | undefined;
+    let started = 0;
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const harness = dependencies({
+      beforeRegister: async () => {
+        started += 1;
+        if (started === 1) await firstBlocked;
+      },
+    });
+    const first = harness.runtime.sync();
+    await vi.waitFor(() => expect(harness.requests).toHaveLength(1));
+    harness.setPreferences({
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      enabled: false,
+    });
+    const second = harness.runtime.sync();
+    await Promise.resolve();
+    expect(harness.requests).toHaveLength(1);
+    releaseFirst?.();
+    await Promise.all([first, second]);
+    expect(
+      harness.requests.map((request) => [
+        request.projection.version,
+        request.remoteDeliveryEnabled,
+      ]),
+    ).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+  });
+
+  it("reports a registration failure and can retry without losing local settings", async () => {
+    let fail = true;
+    const harness = dependencies({
+      beforeRegister: async () => {
+        if (fail) {
+          fail = false;
+          throw new Error("network unavailable");
+        }
+      },
+    });
+    expect((await harness.runtime.sync()).state).toBe("unavailable");
+    harness.setPreferences({
+      ...DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+      sound: false,
+    });
+    expect((await harness.runtime.sync()).state).toBe("registered");
+    expect(harness.policies.at(-1)).toEqual({ enabled: true, sound: false });
   });
 
   it("registers a listener token without reading getDevicePushTokenAsync again", async () => {
@@ -185,6 +358,15 @@ describe("native notification runtime", () => {
       expect(harness.registered).toContain(rotated);
     });
     expect(harness.tokenReads).toBe(reads);
+  });
+
+  it("refreshes the native token on sync after a rotation without a JS event", async () => {
+    const harness = dependencies();
+    await harness.runtime.sync();
+    const rotated = `${nativeToken}Rotated`;
+    harness.setToken(rotated);
+    await harness.runtime.sync();
+    expect(harness.registered).toEqual([nativeToken, rotated]);
   });
 
   it("opens Watch for a background live alert and the channel page when it has ended", async () => {
@@ -250,6 +432,7 @@ describe("native notification runtime", () => {
       },
       identityReady: async () => false,
       permission: async () => "granted",
+      postingPolicy: { apply: async () => undefined },
       presenter: {
         async present() {
           throw new Error("Play Services is missing");
@@ -298,6 +481,7 @@ describe("native notification runtime", () => {
       },
       identityReady: async () => false,
       permission: async () => "granted",
+      postingPolicy: { apply: async () => undefined },
       presenter: {
         async present(payload) {
           receiptListeners.forEach((listener) =>

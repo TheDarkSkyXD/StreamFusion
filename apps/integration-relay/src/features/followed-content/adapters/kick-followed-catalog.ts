@@ -25,22 +25,35 @@ export function createKickFollowedCatalog(input: {
       const payload = await client.get(
         `/public/v1/channels?${channelQuery(refs)}`
       );
-      return payload === null
-        ? null
-        : channelsBody(kickChannelsFrom(payload), refs);
+      const rows = strictRows(payload);
+      if (rows === null) return null;
+      const channels = kickChannelsFrom(payload);
+      return channels.length === rows.length
+        ? channelsBody(channels, refs)
+        : null;
     },
     async followedStreams(refs) {
       const resolved = await resolveStreamIds(client, refs);
       if (resolved === null) return null;
       if (resolved.ids.length === 0) {
-        return streamsBody([], refs);
+        return {
+          ...streamsBody([], refs),
+          unavailableRefs: resolved.unavailableRefs
+        };
       }
       const payload = await client.get(
         `/public/v1/livestreams?${idQuery(resolved.ids)}`
       );
-      return payload === null
-        ? null
-        : streamsBody(kickStreamsFrom(payload), refs);
+      const rows = strictRows(payload);
+      if (rows === null) return null;
+      const streams = kickStreamsFrom(payload);
+      return streams.length === rows.length &&
+        streams.every((stream) => stream.startedAt !== null && stream.isLive)
+        ? {
+            ...streamsBody(streams, refs),
+            unavailableRefs: resolved.unavailableRefs
+          }
+        : null;
     },
     async followedVideos({ channelId }) {
       return unsupportedVideos(channelId);
@@ -54,18 +67,34 @@ export function createKickFollowedCatalog(input: {
 async function resolveStreamIds(
   client: ReturnType<typeof createKickFollowedClient>,
   refs: readonly FollowedIdentityRef[]
-): Promise<{ readonly ids: readonly string[] } | null> {
+): Promise<{
+  readonly ids: readonly string[];
+  readonly unavailableRefs: readonly FollowedIdentityRef[];
+} | null> {
   const ids = refs.filter((ref) => ref.kind === "id").map((ref) => ref.value);
-  const logins = refs
-    .filter((ref) => ref.kind === "login")
-    .map((ref) => ref.value);
-  if (logins.length === 0) return { ids };
+  const logins = refs.filter((ref) => ref.kind === "login");
+  if (logins.length === 0) return { ids, unavailableRefs: [] };
   const payload = await client.get(
-    `/public/v1/channels?${helixQuery(logins.map((login) => ["slug[]", login] as const))}`
+    `/public/v1/channels?${helixQuery(logins.map((login) => ["slug", login.value] as const))}`
   );
-  if (payload === null) return null;
+  const rows = strictRows(payload);
+  if (rows === null) return null;
+  const channels = kickChannelsFrom(payload);
+  if (channels.length !== rows.length) return null;
+  const requestedLogins = new Set(
+    logins.map((login) => login.value.toLowerCase())
+  );
+  const matchedChannels = channels.filter((channel) =>
+    requestedLogins.has(channel.username.toLowerCase())
+  );
+  const resolvedLogins = new Set(
+    matchedChannels.map((channel) => channel.username.toLowerCase())
+  );
   return {
-    ids: [...ids, ...kickChannelsFrom(payload).map((channel) => channel.id)]
+    ids: [...ids, ...matchedChannels.map((channel) => channel.id)],
+    unavailableRefs: logins.filter(
+      (login) => !resolvedLogins.has(login.value.toLowerCase())
+    )
   };
 }
 
@@ -73,14 +102,34 @@ function channelQuery(refs: readonly FollowedIdentityRef[]): string {
   return helixQuery(
     refs.map((ref) =>
       ref.kind === "id"
-        ? (["broadcaster_user_id[]", ref.value] as const)
-        : (["slug[]", ref.value] as const)
+        ? (["broadcaster_user_id", ref.value] as const)
+        : (["slug", ref.value] as const)
     )
   );
 }
 
 function idQuery(ids: readonly string[]): string {
-  return helixQuery(ids.map((id) => ["broadcaster_user_id[]", id] as const));
+  return helixQuery([
+    ["limit", "50"],
+    ...ids.map((id) => ["broadcaster_user_id", id] as const)
+  ]);
+}
+
+function strictRows(payload: unknown): readonly unknown[] | null {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload) ||
+    !("data" in payload)
+  )
+    return null;
+  const rows = payload.data;
+  return Array.isArray(rows) &&
+    rows.every(
+      (row) => typeof row === "object" && row !== null && !Array.isArray(row)
+    )
+    ? rows
+    : null;
 }
 
 function streamsBody(
