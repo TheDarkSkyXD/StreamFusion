@@ -12,3 +12,8 @@ export type KickSendResult =
       message: string;
       retryAfterSeconds?: number;
     };
+
+export interface KickRealtimeConnection {
+  appKey: string;
+  cluster: string;
+}

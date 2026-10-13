@@ -24,6 +24,8 @@ import type {
   KickOfficialTimeoutTarget,
 } from "../../../../shared/kick-moderation-types";
 import { kickAuthService } from "../../authentication/adapters/kick/kick-auth";
+import { getKickRealtimeConnection } from "../adapters/kick/kick-realtime-connection";
+import type { KickRealtimeConnection } from "../../../../shared/kick-chat-types";
 import {
   type KickPinMutationResult,
   type KickPinPayload,
@@ -202,6 +204,14 @@ async function withMainKickCredential(
 }
 
 export function registerKickChatHandlers(): void {
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_GET_REALTIME_CONNECTION,
+    (event): Promise<KickRealtimeConnection> => {
+      if (!isAllowedSender(event)) throw new Error("Rejected sender origin.");
+      return getKickRealtimeConnection();
+    }
+  );
+
   ipcMain.handle(
     IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION,
     (event, change: unknown): void => {

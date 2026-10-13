@@ -267,6 +267,7 @@ export const IPC_CHANNELS = {
   // Renderer goes through these channels so kick-chat.ts stays renderer-safe
   // (no transitive better-sqlite3 / electron import via channel-endpoints).
   KICK_CHAT_ENSURE_SEND_WINDOW_READY: "kick-chat:ensure-send-window-ready",
+  KICK_CHAT_GET_REALTIME_CONNECTION: "kick-chat:get-realtime-connection",
   KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION: "kick-chat:set-send-window-composer-retention",
   KICK_CHAT_SEND_MESSAGE: "kick-chat:send-message",
   KICK_CHAT_BAN_USER: "kick-chat:ban-user",

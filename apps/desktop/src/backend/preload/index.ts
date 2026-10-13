@@ -12,7 +12,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import { createFeatureAwareIpc } from "./ipc-feature-loader";
 
-import type { KickSendResult } from "@shared/kick-chat-types";
+import type { KickRealtimeConnection, KickSendResult } from "@shared/kick-chat-types";
 import type {
   KickChatModeRequest,
   KickModerationResult,
@@ -1058,6 +1058,8 @@ const electronAPI = {
   // electron + the storage / database-service chain into the renderer
   // bundle and break the build).
   kickChat: {
+    getRealtimeConnection: (): Promise<KickRealtimeConnection> =>
+      invokeIpc(IPC_CHANNELS.KICK_CHAT_GET_REALTIME_CONNECTION),
     setSendWindowComposerRetention: (
       change: KickSendWindowComposerRetentionChange
     ): Promise<void> =>

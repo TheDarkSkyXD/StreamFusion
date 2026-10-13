@@ -27,7 +27,7 @@ import { ChatBadge, ContentFragment, ReplyInfo } from "@streamfusion/core/chat";
 // kick-send-window's main-only deps (electron / better-sqlite3 via the
 // storage-service chain) into the renderer bundle. The runtime calls go
 // through window.electronAPI.kickChat below.
-import type { KickSendResult } from "@shared/kick-chat-types";
+import type { KickRealtimeConnection, KickSendResult } from "@shared/kick-chat-types";
 
 // ... imports
 import {
@@ -250,8 +250,6 @@ export class KickChatSendError extends Error {
 
 // ========== Constants ==========
 
-const PUSHER_APP_KEY = "32cbd69e4b950bf97679";
-const PUSHER_CLUSTER = "us2";
 const RECONNECT_DELAYS_MS = [5000, 10000, 15000, 30000] as const;
 const MESSAGE_RATE_LIMIT = 10; // Messages per 10 seconds (conservative)
 const MOD_MESSAGE_RATE_LIMIT = 50; // Messages per 10 seconds for mods
@@ -296,6 +294,7 @@ export class KickChatService
   }
 
   private pusher: Pusher | null = null;
+  private connectionAttempt: Promise<void> | null = null;
   private channels: Map<string, ChannelInfo> = new Map(); // slug -> ChannelInfo
   private connectionState: ChatConnectionState = "disconnected";
   private reconnectAttempts = 0;
@@ -359,10 +358,10 @@ export class KickChatService
       return;
     }
 
-    // If currently connecting, wait for the connection to complete
-    if (this.pusher && this.connectionState === "connecting") {
+    // Share configuration lookup and socket establishment with concurrent callers.
+    if (this.connectionAttempt) {
       this.log("Connection already in progress, waiting...");
-      return this.waitForConnection();
+      return this.connectionAttempt;
     }
 
     // Check if service was deactivated
@@ -373,8 +372,21 @@ export class KickChatService
 
     this.debugMode = options.debug ?? false;
     this.setConnectionState("connecting");
-
+    const generation = this.reconnectGeneration;
+    const attempt = this.connectWithConfiguration(generation);
+    this.connectionAttempt = attempt;
     try {
+      await attempt;
+    } finally {
+      if (this.connectionAttempt === attempt) this.connectionAttempt = null;
+    }
+  }
+
+  private async connectWithConfiguration(generation: number): Promise<void> {
+    try {
+      const configuration = await window.electronAPI.kickChat.getRealtimeConnection();
+      if (!this.isActive || this.reconnectGeneration !== generation) return;
+
       const staleClient = this.pusher;
       if (staleClient) {
         this.cancelConnectionWaits(staleClient);
@@ -386,7 +398,7 @@ export class KickChatService
       }
 
       // Create Pusher client
-      const client = this.createPusherClient();
+      const client = this.createPusherClient(configuration);
       this.pusher = client;
 
       // Set up connection event handlers
@@ -398,16 +410,8 @@ export class KickChatService
       await this.waitForConnection(client);
 
       // Check if service was deactivated during connection
-      if (!this.isActive) {
-        this.log("Service deactivated during connection, cleaning up");
-        try {
-          this.pusher?.disconnect();
-        } catch {
-          // Ignore
-        }
-        this.pusher = null;
+      if (!this.isActive || this.reconnectGeneration !== generation || this.pusher !== client)
         return;
-      }
 
       if (this.pusher === client) {
         for (const membership of [...this.channels.values()]) {
@@ -417,6 +421,7 @@ export class KickChatService
         }
       }
     } catch (error) {
+      if (!this.isActive || this.reconnectGeneration !== generation) return;
       this.handleConnectionError(error);
       throw error;
     }
@@ -522,6 +527,7 @@ export class KickChatService
   async disconnect(): Promise<void> {
     this.clearReconnectTimer();
     this.reconnectGeneration += 1;
+    this.connectionAttempt = null;
     const client = this.pusher;
     for (const membership of this.channels.values()) {
       this.resetTrackedSubscription(membership);
@@ -633,6 +639,7 @@ export class KickChatService
     this.isActive = false;
     this.clearReconnectTimer();
     this.reconnectGeneration += 1;
+    this.connectionAttempt = null;
     this.activeUsers = 0;
     if (this.sendWindowRetentionUsers > 0) {
       await setSendWindowComposerRetention("release");
@@ -1081,9 +1088,9 @@ export class KickChatService
   /**
    * Create Pusher client with appropriate options
    */
-  private createPusherClient(): Pusher {
-    return new Pusher(PUSHER_APP_KEY, {
-      cluster: PUSHER_CLUSTER,
+  private createPusherClient(configuration: KickRealtimeConnection): Pusher {
+    return new Pusher(configuration.appKey, {
+      cluster: configuration.cluster,
       forceTLS: true,
       enabledTransports: ["ws", "wss"],
     });
@@ -1178,6 +1185,26 @@ export class KickChatService
 
       // Extract error code from various possible locations
       const code = errorObj.data?.code ?? errorObj.error?.data?.code;
+
+      if (code === 4001) {
+        this.emit(
+          "error",
+          new Error(`Pusher error ${code}: ${errorObj.data?.message || "Unknown error"}`)
+        );
+        this.reconnectGeneration += 1;
+        this.connectionAttempt = null;
+        this.cancelConnectionWaits(client);
+        client.connection.unbind_all();
+        try {
+          client.disconnect();
+        } catch {
+          // Continue with a fresh client even if closing the rejected socket fails.
+        }
+        this.pusher = null;
+        for (const membership of this.channels.values()) this.resetTrackedSubscription(membership);
+        this.scheduleReconnect();
+        return;
+      }
 
       if (errorObj?.type === "PusherError" || errorObj?.error?.type === "PusherError") {
         // Check if this is a transient WebSocket error that Pusher will auto-retry
