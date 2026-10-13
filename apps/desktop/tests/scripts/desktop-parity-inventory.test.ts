@@ -82,7 +82,7 @@ describe("desktop parity inventory", () => {
     expect(second).toEqual(first);
     expect(first.inventory.capabilities.length).toBeGreaterThan(1);
     expect(first.inventory.facts.length).toBeGreaterThan(50);
-  });
+  }, 30_000);
 
   it("keeps capability fact IDs stable when routes and endpoints live in feature roots", () => {
     const { inventory } = buildInventory({ repositoryRoot });

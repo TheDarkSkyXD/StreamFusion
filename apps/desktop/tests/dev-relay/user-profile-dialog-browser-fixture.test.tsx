@@ -178,7 +178,7 @@ async function renderFixture(search: string) {
     await screen.findByRole("heading", { name: "Alice" });
     await screen.findByText("Jun 6, 2011");
     await screen.findByText("Jan 15, 2020");
-    await screen.findByRole("button", { name: "Open Alice on Twitch" });
+    await screen.findByRole("button", { name: "View Channel" });
   }
 
   return relayCall;
@@ -204,7 +204,7 @@ describe("browser user-profile fixture", () => {
 
     expect(await screen.findByRole("heading", { name: "Alice" })).toBeInTheDocument();
     expect(await screen.findByText("Jun 6, 2011")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Open Alice on Twitch" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "View Channel" })).toBeEnabled();
     expect(relayCall).toHaveBeenCalledWith(
       ["userProfiles", "getTwitchIdentity"],
       [{ userId: "u1", username: "alice" }]
@@ -222,7 +222,7 @@ describe("browser user-profile fixture", () => {
       { name: "Couldn’t verify · Retry" }
     );
     expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open alice on Twitch" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open alice on Twitch" })).not.toBeInTheDocument();
 
     fireEvent.click(accountRetry);
     fireEvent.click(channelRetry);
