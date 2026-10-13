@@ -1,12 +1,22 @@
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
+const { prepareWindowsNinja } = require("./prepare-windows-ninja.cjs");
 
 const repositoryRoot = path.resolve(__dirname, "../../..");
-const result = spawnSync(process.execPath, [
-  require.resolve("patch-package/index.js"),
-  "--patch-dir", "apps/mobile/patches",
-  "--error-on-fail",
-], { cwd: repositoryRoot, stdio: "inherit" });
+const result = spawnSync(
+  process.execPath,
+  [
+    require.resolve("patch-package/index.js"),
+    "--patch-dir",
+    "apps/mobile/patches",
+    "--error-on-fail",
+  ],
+  { cwd: repositoryRoot, stdio: "inherit" },
+);
 
 if (result.error) throw result.error;
-process.exit(result.status ?? 1);
+if (result.status !== 0) process.exit(result.status ?? 1);
+prepareWindowsNinja(repositoryRoot).catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

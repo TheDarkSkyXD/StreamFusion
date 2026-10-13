@@ -144,6 +144,10 @@ Channel both "measure twice, cut once" and "yagni". Fight scope creep. Try to ho
 
 ## Blast radius
 
+- Work directly in the project folder. Do not create or use Git worktrees. Keep temporary artifacts and build caches inside the project. Use real filesystem paths. Never create drive-letter aliases with `subst` to shorten paths; fix quoting or tool configuration instead.
+- When moving folders, preserve symlinks and junctions as links. Verify the repository's commit and staged and unstaged changes after relocation.
+- Before removing a directory, inspect its links and ensure the cleanup cannot traverse their targets.
+
 - Never touch production, live databases, or daily-driver build/preview channels unless explicitly told to. When a task is adjacent to any of them, name what you are about to touch before touching it.
 
 ## Pull Requests

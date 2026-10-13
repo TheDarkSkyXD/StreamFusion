@@ -1,21 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import {
-  closeSync,
-  existsSync,
-  openSync,
-  realpathSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertJavaAvailable } from "./build-android-development.mjs";
 
-const driveCandidates = ["S", "R", "Q", "P", "O", "N", "M", "L"];
-const javaPreflightTimeoutMs = 10_000;
 const scriptPath = fileURLToPath(import.meta.url);
 const mobileRoot = path.resolve(path.dirname(scriptPath), "..");
 const repositoryRoot = path.resolve(mobileRoot, "../..");
@@ -45,330 +34,11 @@ export function resolveMobileReactNativeCli(
   repositoryDirectory = repositoryRoot,
 ) {
   const mobilePackage = path.join(mobileDirectory, "package.json");
-  const reactNativeCli = createRequire(mobilePackage).resolve("@react-native-community/cli/build/bin.js");
+  const reactNativeCli = createRequire(mobilePackage).resolve(
+    "@react-native-community/cli/build/bin.js",
+  );
   relativeTaskPath(repositoryDirectory, reactNativeCli);
   return reactNativeCli;
-}
-
-export function mapWorktreePathToDriveLease(targetPath, lease) {
-  const relativePath = relativeTaskPath(lease.repositoryRoot, targetPath);
-  return path.win32.join(`${lease.drive}:\\`, relativePath);
-}
-
-export function assertJavaAvailable(
-  environment = process.env,
-  platform = process.platform,
-  run = spawnSync,
-) {
-  const pathApi = platform === "win32" ? path.win32 : path.posix;
-  const javaExecutable = environment.JAVA_HOME
-    ? pathApi.join(
-        environment.JAVA_HOME,
-        "bin",
-        platform === "win32" ? "java.exe" : "java",
-      )
-    : platform === "win32"
-      ? "java.exe"
-      : "java";
-  const result = run(javaExecutable, ["-version"], {
-    env: environment,
-    stdio: "ignore",
-    timeout: javaPreflightTimeoutMs,
-    windowsHide: true,
-  });
-  if (result.error || result.status !== 0) {
-    throw new Error(
-      "Java is required before Android build. Set JAVA_HOME to a working JDK or put java on PATH.",
-    );
-  }
-}
-
-function normalizeTarget(target) {
-  return path.win32
-    .normalize(target)
-    .replace(/[\\/]+$/, "")
-    .toLowerCase();
-}
-
-export function parseSubstMappings(output) {
-  const mappings = new Map();
-
-  for (const line of output.split(/\r?\n/u)) {
-    const match = line.match(/^([a-z]):\\: => (.+)$/iu);
-    if (match) {
-      mappings.set(match[1].toUpperCase(), match[2]);
-    }
-  }
-
-  return mappings;
-}
-
-function runSubst(args) {
-  const result = spawnSync("subst", args, {
-    encoding: "utf8",
-    windowsHide: true,
-  });
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  return result;
-}
-
-function lockPath(drive) {
-  return path.join(tmpdir(), `streamfusion-mobile-android-${drive}.lock.json`);
-}
-
-const systemDependencies = {
-  candidates: driveCandidates,
-  createLock(drive, record) {
-    const target = lockPath(drive);
-    let descriptor;
-
-    try {
-      descriptor = openSync(target, "wx");
-      writeFileSync(descriptor, JSON.stringify(record), "utf8");
-      return true;
-    } catch (error) {
-      if (error?.code === "EEXIST") {
-        return false;
-      }
-      throw error;
-    } finally {
-      if (descriptor !== undefined) {
-        closeSync(descriptor);
-      }
-    }
-  },
-  createToken: randomUUID,
-  deleteLock(drive) {
-    try {
-      unlinkSync(lockPath(drive));
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        throw error;
-      }
-    }
-  },
-  driveExists(drive) {
-    return existsSync(`${drive}:\\`);
-  },
-  isProcessAlive(processId) {
-    try {
-      process.kill(processId, 0);
-      return true;
-    } catch (error) {
-      return error?.code === "EPERM";
-    }
-  },
-  listMappings() {
-    const result = runSubst([]);
-    if (result.status !== 0) {
-      throw new Error(
-        result.stderr.trim() || "Unable to inspect drive mappings",
-      );
-    }
-    return parseSubstMappings(result.stdout);
-  },
-  mapDrive(drive, target) {
-    return runSubst([`${drive}:`, target]).status === 0;
-  },
-  processId: process.pid,
-  readLock(drive) {
-    try {
-      return JSON.parse(readFileSync(lockPath(drive), "utf8"));
-    } catch (error) {
-      if (error?.code === "ENOENT") {
-        return undefined;
-      }
-      return null;
-    }
-  },
-  unmapDrive(drive) {
-    return runSubst([`${drive}:`, "/d"]).status === 0;
-  },
-};
-
-function sameTarget(left, right) {
-  return normalizeTarget(left) === normalizeTarget(right);
-}
-
-function reconcileStaleLease(drive, dependencies) {
-  const lock = dependencies.readLock(drive);
-  if (lock === undefined) {
-    return true;
-  }
-
-  if (
-    Number.isInteger(lock?.processId) &&
-    dependencies.isProcessAlive(lock.processId)
-  ) {
-    return false;
-  }
-
-  const mappedTarget = dependencies.listMappings().get(drive);
-  if (
-    mappedTarget &&
-    typeof lock?.repositoryRoot === "string" &&
-    sameTarget(mappedTarget, lock.repositoryRoot)
-  ) {
-    if (!dependencies.unmapDrive(drive)) {
-      return false;
-    }
-    if (dependencies.listMappings().has(drive)) {
-      return false;
-    }
-  }
-
-  dependencies.deleteLock(drive);
-  return true;
-}
-
-function rollbackUnverifiedMapping(drive, targetRepositoryRoot, dependencies) {
-  const mappedTarget = dependencies.listMappings().get(drive);
-  if (mappedTarget && sameTarget(mappedTarget, targetRepositoryRoot)) {
-    if (!dependencies.unmapDrive(drive)) {
-      throw new Error(`Unable to roll back temporary Android drive ${drive}:`);
-    }
-
-    const remainingTarget = dependencies.listMappings().get(drive);
-    if (remainingTarget && sameTarget(remainingTarget, targetRepositoryRoot)) {
-      throw new Error(`Temporary Android drive ${drive}: is still mapped`);
-    }
-  }
-
-  dependencies.deleteLock(drive);
-}
-
-export function acquireWindowsDrive(targetRepositoryRoot, overrides = {}) {
-  const dependencies = { ...systemDependencies, ...overrides };
-
-  for (const drive of dependencies.candidates) {
-    if (!reconcileStaleLease(drive, dependencies)) {
-      continue;
-    }
-
-    if (
-      dependencies.listMappings().has(drive) ||
-      dependencies.driveExists(drive)
-    ) {
-      continue;
-    }
-
-    const token = dependencies.createToken();
-    const record = {
-      processId: dependencies.processId,
-      repositoryRoot: targetRepositoryRoot,
-      token,
-    };
-
-    if (!dependencies.createLock(drive, record)) {
-      continue;
-    }
-
-    if (
-      dependencies.listMappings().has(drive) ||
-      dependencies.driveExists(drive) ||
-      !dependencies.mapDrive(drive, targetRepositoryRoot)
-    ) {
-      dependencies.deleteLock(drive);
-      continue;
-    }
-
-    const mappedTarget = dependencies.listMappings().get(drive);
-    if (mappedTarget && sameTarget(mappedTarget, targetRepositoryRoot)) {
-      return {
-        dependencies,
-        drive,
-        repositoryRoot: targetRepositoryRoot,
-        token,
-      };
-    }
-
-    rollbackUnverifiedMapping(drive, targetRepositoryRoot, dependencies);
-  }
-
-  throw new Error(
-    `Unable to reserve a short Windows drive from ${dependencies.candidates.join(", ")}. Existing drives and mappings were left unchanged.`,
-  );
-}
-
-export function releaseWindowsDrive(lease) {
-  const {
-    dependencies,
-    drive,
-    repositoryRoot: targetRepositoryRoot,
-    token,
-  } = lease;
-  const lock = dependencies.readLock(drive);
-
-  if (lock?.token !== token) {
-    return false;
-  }
-
-  const mappedTarget = dependencies.listMappings().get(drive);
-  if (mappedTarget && sameTarget(mappedTarget, targetRepositoryRoot)) {
-    if (!dependencies.unmapDrive(drive)) {
-      throw new Error(`Unable to remove temporary Android drive ${drive}:`);
-    }
-    const remainingTarget = dependencies.listMappings().get(drive);
-    if (remainingTarget && sameTarget(remainingTarget, targetRepositoryRoot)) {
-      throw new Error(`Temporary Android drive ${drive}: is still mapped`);
-    }
-  }
-
-  dependencies.deleteLock(drive);
-  return true;
-}
-
-export async function runWithDriveLease(lease, operation) {
-  let operationError;
-
-  try {
-    await operation();
-  } catch (error) {
-    operationError = error;
-  }
-
-  try {
-    releaseWindowsDrive(lease);
-  } catch (cleanupError) {
-    if (!operationError) {
-      throw cleanupError;
-    }
-    console.error(cleanupError);
-  }
-
-  if (operationError) {
-    throw operationError;
-  }
-}
-
-export function createMappedAndroidEnvironment(
-  lease,
-  currentEnvironment = process.env,
-) {
-  const mappedRepositoryRoot = `${lease.drive}:\\`;
-  const mappedPreload = path.win32.join(
-    mappedRepositoryRoot,
-    "apps",
-    "mobile",
-    "scripts",
-    "preserve-subst-paths.cjs",
-  );
-
-  return {
-    ...currentEnvironment,
-    NODE_OPTIONS: [
-      currentEnvironment.NODE_OPTIONS,
-      `--require=${mappedPreload}`,
-    ]
-      .filter(Boolean)
-      .join(" "),
-    STREAMFUSION_SUBST_DRIVE_ROOT: mappedRepositoryRoot,
-    STREAMFUSION_SUBST_TARGET_ROOT: lease.repositoryRoot,
-  };
 }
 
 function run(command, args, cwd, environment = process.env) {
@@ -412,35 +82,88 @@ function run(command, args, cwd, environment = process.env) {
 }
 
 async function main() {
-  const [{ buildAndroid }, { createAndroidEnvironment, parseAdbDevices, resolveAndroidSdkRoot }] =
-    await Promise.all([import("./build-android-development.mjs"), import("./start-development-client.mjs")]);
+  const [
+    { buildAndroid },
+    { createAndroidEnvironment, parseAdbDevices, resolveAndroidSdkRoot },
+  ] = await Promise.all([
+    import("./build-android-development.mjs"),
+    import("./start-development-client.mjs"),
+  ]);
   const environment = createAndroidEnvironment(resolveAndroidSdkRoot());
   assertJavaAvailable(environment);
-  if (process.platform === "win32") {
-    const lease = acquireWindowsDrive(repositoryRoot);
-    await runWithDriveLease(lease, () => buildAndroid(
-      mapWorktreePathToDriveLease(mobileRoot, lease),
-      createMappedAndroidEnvironment(lease, environment),
-    ));
-  } else {
-    await buildAndroid(mobileRoot, environment);
-  }
+  await buildAndroid(mobileRoot, environment);
   const arguments_ = process.argv.slice(2);
   const deviceIndex = arguments_.indexOf("--device");
-  const requested = deviceIndex < 0 ? environment.STREAMFUSION_ANDROID_DEVICE : arguments_[deviceIndex + 1];
-  const adb = path.join(environment.ANDROID_HOME, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb");
-  const devices = spawnSync(adb, ["devices"], { env: environment, encoding: "utf8", windowsHide: true });
-  if (devices.error || devices.status !== 0) throw new Error("Android devices could not be read.");
+  const requested =
+    deviceIndex < 0
+      ? environment.STREAMFUSION_ANDROID_DEVICE
+      : arguments_[deviceIndex + 1];
+  const adb = path.join(
+    environment.ANDROID_HOME,
+    "platform-tools",
+    process.platform === "win32" ? "adb.exe" : "adb",
+  );
+  const devices = spawnSync(adb, ["devices"], {
+    env: environment,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (devices.error || devices.status !== 0)
+    throw new Error("Android devices could not be read.");
   const available = parseAdbDevices(devices.stdout);
-  const device = requested ?? (available.length === 1 ? available[0] : undefined);
-  if (!device || !available.includes(device)) throw new Error("Select a connected Android device with --device or STREAMFUSION_ANDROID_DEVICE.");
-  await run(adb, ["-s", device, "install", "-r", path.join(mobileRoot, "android/app/build/outputs/apk/debug/app-debug.apk")], mobileRoot, environment);
+  const device =
+    requested ?? (available.length === 1 ? available[0] : undefined);
+  if (!device || !available.includes(device))
+    throw new Error(
+      "Select a connected Android device with --device or STREAMFUSION_ANDROID_DEVICE.",
+    );
+  await run(
+    adb,
+    [
+      "-s",
+      device,
+      "install",
+      "-r",
+      path.join(
+        mobileRoot,
+        "android/app/build/outputs/apk/debug/app-debug.apk",
+      ),
+    ],
+    mobileRoot,
+    environment,
+  );
   if (!arguments_.includes("--no-packager")) {
-    await run(process.execPath, [path.join(mobileRoot, "scripts/start-development-client.mjs")], mobileRoot, { ...environment, STREAMFUSION_ANDROID_DEVICE: device });
+    await run(
+      process.execPath,
+      [path.join(mobileRoot, "scripts/start-development-client.mjs")],
+      mobileRoot,
+      { ...environment, STREAMFUSION_ANDROID_DEVICE: device },
+    );
   } else {
-    const config = JSON.parse(readFileSync(path.join(mobileRoot, "native-config.json"), "utf8"));
-    await run(adb, ["-s", device, "reverse", "tcp:8083", "tcp:8083"], mobileRoot, environment);
-    await run(adb, ["-s", device, "shell", "am", "start", "-W", "-n", config.android.package + "/.MainActivity"], mobileRoot, environment);
+    const config = JSON.parse(
+      readFileSync(path.join(mobileRoot, "native-config.json"), "utf8"),
+    );
+    await run(
+      adb,
+      ["-s", device, "reverse", "tcp:8083", "tcp:8083"],
+      mobileRoot,
+      environment,
+    );
+    await run(
+      adb,
+      [
+        "-s",
+        device,
+        "shell",
+        "am",
+        "start",
+        "-W",
+        "-n",
+        config.android.package + "/.MainActivity",
+      ],
+      mobileRoot,
+      environment,
+    );
   }
 }
 

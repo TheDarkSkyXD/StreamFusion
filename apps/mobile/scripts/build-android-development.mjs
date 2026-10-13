@@ -1,19 +1,40 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  acquireWindowsDrive,
-  assertJavaAvailable,
-  createMappedAndroidEnvironment,
-  mapWorktreePathToDriveLease,
-  runWithDriveLease,
-} from "./run-android.mjs";
+const javaPreflightTimeoutMs = 10_000;
+
+export function assertJavaAvailable(
+  environment = process.env,
+  platform = process.platform,
+  run = spawnSync,
+) {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const javaExecutable = environment.JAVA_HOME
+    ? pathApi.join(
+        environment.JAVA_HOME,
+        "bin",
+        platform === "win32" ? "java.exe" : "java",
+      )
+    : platform === "win32"
+      ? "java.exe"
+      : "java";
+  const result = run(javaExecutable, ["-version"], {
+    env: environment,
+    stdio: "ignore",
+    timeout: javaPreflightTimeoutMs,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      "Java is required before Android build. Set JAVA_HOME to a working JDK or put java on PATH.",
+    );
+  }
+}
 
 const scriptPath = fileURLToPath(import.meta.url);
 const mobileRoot = path.resolve(path.dirname(scriptPath), "..");
-const repositoryRoot = path.resolve(mobileRoot, "../..");
 
 export function runBuildCommand(
   command,
@@ -82,7 +103,12 @@ export async function buildAndroid(
       : gradleExecutable;
   const gradleArguments =
     process.platform === "win32"
-      ? ["/d", "/s", "/c", ".\\gradlew.bat app:assembleDebug -PreactNativeDevServerPort=8083"]
+      ? [
+          "/d",
+          "/s",
+          "/c",
+          ".\\gradlew.bat app:assembleDebug -PreactNativeDevServerPort=8083",
+        ]
       : ["app:assembleDebug", "-PreactNativeDevServerPort=8083"];
 
   await dependencies.runCommand(
@@ -93,23 +119,16 @@ export async function buildAndroid(
   );
 }
 
-async function main() {
-  if (process.platform === "win32") {
-    const lease = acquireWindowsDrive(repositoryRoot);
-    await runWithDriveLease(lease, () => {
-      const mappedMobileRoot = mapWorktreePathToDriveLease(mobileRoot, lease);
-      return buildAndroid(
-        mappedMobileRoot,
-        createMappedAndroidEnvironment(lease),
-      );
-    });
-  } else {
-    await buildAndroid(mobileRoot);
-  }
+export async function main(
+  root = mobileRoot,
+  environment = process.env,
+  build = buildAndroid,
+) {
+  await build(root, environment);
 
   console.log(
     path.join(
-      mobileRoot,
+      root,
       "android",
       "app",
       "build",

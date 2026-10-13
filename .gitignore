@@ -20,6 +20,8 @@ logs
 
 # Claude Code worktrees (per-session isolated checkouts under .claude/worktrees/)
 .claude/worktrees/
+/worktrees/
+/.cxx/
 
 # Local working directory for transient analysis artifacts (diagnostics, vitest reports, ad-hoc scripts)
 tmp/

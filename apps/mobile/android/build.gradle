@@ -16,4 +16,22 @@ buildscript {
   }
 }
 allprojects { repositories { google(); mavenCentral() } }
+if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")) {
+  def repositoryRoot = file("../../..").canonicalFile
+  def ninja = new File(repositoryRoot, ".cache/ninja/1.13.2/ninja.exe")
+  if (!ninja.isFile()) throw new GradleException("Windows Ninja setup did not complete")
+  subprojects { nativeProject ->
+    ["com.android.application", "com.android.library"].each { plugin ->
+      nativeProject.pluginManager.withPlugin(plugin) {
+        nativeProject.extensions.getByName("androidComponents").finalizeDsl { android ->
+          def moduleIndex = rootProject.subprojects.toList().sort { it.path }.indexOf(nativeProject)
+          android.externalNativeBuild.cmake.buildStagingDirectory = new File(repositoryRoot, ".cxx/${moduleIndex}")
+          android.defaultConfig.externalNativeBuild.cmake.arguments.add("-DCMAKE_MAKE_PROGRAM=" + ninja.absolutePath.replace('\\', '/'))
+        }
+      }
+    }
+  }
+}
+
+// Register native path settings before this plugin evaluates :app.
 apply plugin: "com.facebook.react.rootproject"
