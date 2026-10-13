@@ -198,16 +198,6 @@ wrote or changed, not to prose you didn't touch.
 ## RESPONSES
 
 - Keep responses concise and to the point - unless the user asks otherwise
-
-## Agent instructions
-
-- Always read this root `AGENTS.md` first.
-- Before editing a file, also read the nearest `AGENTS.md` in that file's directory tree.
-- More specific `AGENTS.md` files add to these root rules for their subtree.
-
-- Use `CONTEXT-MAP.md` to find domain context. For mobile work, also read `apps/mobile/CONTEXT.md`.
-
-
 Dont open a PR only commit and push to main.
 
 ## Project structure
