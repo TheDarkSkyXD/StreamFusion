@@ -23,6 +23,7 @@ vi.mock("@shared/utils/cross-logger", () => ({
 // here so the tests can assert on the bridge surface instead of the underlying
 // module. See `apps/desktop/src/backend/ipc/handlers/kick-chat-handlers.ts`.
 const kickChatApi = {
+  getRealtimeConnection: vi.fn(() => Promise.resolve({ appKey: "current-key", cluster: "us2" })),
   setSendWindowComposerRetention: vi.fn(() => Promise.resolve()),
   ensureSendWindowReady: vi.fn(() => Promise.resolve()),
   sendMessage: vi.fn(),
@@ -143,6 +144,8 @@ function seedKickBucket(channel: string): string {
 afterEach(() => {
   vi.useRealTimers();
   vi.mocked(Pusher).mockReset();
+  kickChatApi.getRealtimeConnection.mockReset();
+  kickChatApi.getRealtimeConnection.mockResolvedValue({ appKey: "current-key", cluster: "us2" });
   useChatStore.setState({
     messagesByChannel: {},
     pausedChannels: new Set(),
@@ -224,6 +227,200 @@ function makeFakePusherChannel() {
 }
 
 describe("KickChatService reconnect lifecycle", () => {
+  it("replaces a key rejected during the initial handshake without waiting for the connection timeout", async () => {
+    vi.useFakeTimers();
+    const rejectedPusher = makeReconnectPusher("disconnected");
+    const replacementPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher)
+      .mockImplementationOnce(function makeRejectedPusher() {
+        return rejectedPusher as unknown as Pusher;
+      })
+      .mockImplementationOnce(function makeReplacementPusher() {
+        return replacementPusher as unknown as Pusher;
+      });
+    kickChatApi.getRealtimeConnection
+      .mockResolvedValueOnce({ appKey: "rejected-key", cluster: "us2" })
+      .mockResolvedValueOnce({ appKey: "accepted-key", cluster: "eu" });
+    const service = new KickChatService(chatChannelLifecycle);
+
+    const initialConnection = service.connect();
+    await Promise.resolve();
+    rejectedPusher.__emitConnection("error", {
+      type: "PusherError",
+      data: { code: 4001, message: "Application does not exist" },
+    });
+    await initialConnection;
+    expect(rejectedPusher.disconnect).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    replacementPusher.__emitConnection("connected");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(kickChatApi.getRealtimeConnection).toHaveBeenCalledTimes(2);
+    expect(Pusher).toHaveBeenNthCalledWith(
+      2,
+      "accepted-key",
+      expect.objectContaining({ cluster: "eu" })
+    );
+    expect(service.getConnectionStatus().state).toBe("connected");
+  });
+
+  it("renegotiates a rejected key and receives chat through the replacement client", async () => {
+    vi.useFakeTimers();
+    const initialPusher = makeReconnectPusher("disconnected");
+    const replacementPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher)
+      .mockImplementationOnce(function makeInitialPusher() {
+        return initialPusher as unknown as Pusher;
+      })
+      .mockImplementationOnce(function makeReplacementPusher() {
+        return replacementPusher as unknown as Pusher;
+      });
+    kickChatApi.getRealtimeConnection
+      .mockResolvedValueOnce({ appKey: "expired-key", cluster: "us2" })
+      .mockResolvedValueOnce({ appKey: "rotated-key", cluster: "eu" });
+
+    const service = new KickChatService(chatChannelLifecycle);
+    const received: ChatMessage[] = [];
+    service.on("message", (message) => received.push(message));
+    const connecting = service.connect();
+    await Promise.resolve();
+    initialPusher.__emitConnection("connected");
+    await connecting;
+    await service.joinChannel("xqc", 123, 456);
+
+    initialPusher.__emitConnection("error", {
+      type: "PusherError",
+      data: { code: 4001, message: "Application does not exist" },
+    });
+    await vi.advanceTimersByTimeAsync(5_000);
+    replacementPusher.__emitConnection("connected");
+    await vi.advanceTimersByTimeAsync(0);
+    replacementPusher.__emitChannel("chatrooms.123.v2", "pusher:subscription_succeeded");
+    replacementPusher.__emitChannel("chatrooms.123.v2", "App\\Events\\ChatMessageEvent", {
+      id: "rotated-message",
+      chatroom_id: 123,
+      content: "hello after rotation",
+      type: "message",
+      created_at: "2026-10-12T12:00:00Z",
+      sender: {
+        id: 1,
+        username: "viewer",
+        slug: "viewer",
+        identity: { color: "#53FC18", badges: [] },
+      },
+    });
+
+    expect(Pusher).toHaveBeenNthCalledWith(
+      1,
+      "expired-key",
+      expect.objectContaining({ cluster: "us2" })
+    );
+    expect(Pusher).toHaveBeenNthCalledWith(
+      2,
+      "rotated-key",
+      expect.objectContaining({ cluster: "eu" })
+    );
+    expect(initialPusher.disconnect).toHaveBeenCalledOnce();
+    expect(received).toMatchObject([{ id: "rotated-message", rawContent: "hello after rotation" }]);
+  });
+
+  it("coalesces concurrent connection requests before configuration resolves", async () => {
+    let resolveConfig!: (value: { appKey: string; cluster: string }) => void;
+    kickChatApi.getRealtimeConnection.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConfig = resolve;
+        })
+    );
+    const pusher = makeReconnectPusher("connected");
+    vi.mocked(Pusher).mockImplementationOnce(function makePusher() {
+      return pusher as unknown as Pusher;
+    });
+    const service = new KickChatService(chatChannelLifecycle);
+
+    const first = service.connect();
+    const second = service.connect();
+    resolveConfig({ appKey: "fresh-key", cluster: "eu" });
+    await Promise.all([first, second]);
+
+    expect(kickChatApi.getRealtimeConnection).toHaveBeenCalledTimes(1);
+    expect(Pusher).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces configuration failure and allows a later connection attempt", async () => {
+    kickChatApi.getRealtimeConnection.mockRejectedValueOnce(new Error("Kick config unavailable"));
+    const pusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher).mockImplementationOnce(function makePusher() {
+      return pusher as unknown as Pusher;
+    });
+    const service = new KickChatService(chatChannelLifecycle);
+    const errors: Error[] = [];
+    service.on("error", (error) => errors.push(error));
+
+    await expect(service.connect()).rejects.toThrow("Kick config unavailable");
+    expect(errors).toHaveLength(1);
+    const retry = service.connect();
+    await Promise.resolve();
+    pusher.__emitConnection("connected");
+    await retry;
+
+    expect(kickChatApi.getRealtimeConnection).toHaveBeenCalledTimes(2);
+    expect(Pusher).toHaveBeenCalledTimes(1);
+    expect(service.getConnectionStatus().state).toBe("connected");
+  });
+
+  it.each(["disconnect", "forceShutdown"] as const)(
+    "%s during configuration lookup does not create a stale client",
+    async (teardown) => {
+      let resolveConfig!: (value: { appKey: string; cluster: string }) => void;
+      kickChatApi.getRealtimeConnection.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveConfig = resolve;
+          })
+      );
+      const service = new KickChatService(chatChannelLifecycle);
+
+      const connecting = service.connect();
+      await service[teardown]();
+      resolveConfig({ appKey: "stale-key", cluster: "us2" });
+      await connecting;
+
+      expect(Pusher).not.toHaveBeenCalled();
+      expect(service.getConnectionStatus().state).toBe("disconnected");
+    }
+  );
+
+  it("ignores a late configuration response after a newer connection succeeds", async () => {
+    let resolveOldConfig!: (value: { appKey: string; cluster: string }) => void;
+    kickChatApi.getRealtimeConnection
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldConfig = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ appKey: "new-key", cluster: "eu" });
+    const pusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher).mockImplementationOnce(function makePusher() {
+      return pusher as unknown as Pusher;
+    });
+    const service = new KickChatService(chatChannelLifecycle);
+
+    const oldConnection = service.connect();
+    await service.disconnect();
+    const newerConnection = service.connect();
+    await Promise.resolve();
+    pusher.__emitConnection("connected");
+    await newerConnection;
+    resolveOldConfig({ appKey: "old-key", cluster: "us2" });
+    await oldConnection;
+
+    expect(Pusher).toHaveBeenCalledOnce();
+    expect(Pusher).toHaveBeenCalledWith("new-key", expect.objectContaining({ cluster: "eu" }));
+    expect(service.getConnectionStatus().state).toBe("connected");
+  });
   // Guards: active Kick chat survives outages longer than the former ten-attempt cutoff and keeps retrying at the capped cadence.
   it("retries active chat forever with 5s, 10s, 15s, then capped 30s delays", async () => {
     vi.useFakeTimers();
@@ -236,6 +433,7 @@ describe("KickChatService reconnect lifecycle", () => {
     const errors: Error[] = [];
     service.on("error", (error) => errors.push(error));
     const initialConnect = service.connect();
+    await Promise.resolve();
     initialPusher.__emitConnection("connected");
     await initialConnect;
 
@@ -279,6 +477,7 @@ describe("KickChatService reconnect lifecycle", () => {
 
     const service = new KickChatService(chatChannelLifecycle);
     const initialConnect = service.connect();
+    await Promise.resolve();
     initialPusher.__emitConnection("connected");
     await initialConnect;
 
@@ -299,6 +498,7 @@ describe("KickChatService reconnect lifecycle", () => {
 
     const service = new KickChatService(chatChannelLifecycle);
     const initialConnect = service.connect();
+    await Promise.resolve();
     initialPusher.__emitConnection("connected");
     await initialConnect;
 
@@ -327,6 +527,7 @@ describe("KickChatService reconnect lifecycle", () => {
 
     const service = new KickChatService(chatChannelLifecycle);
     const initialConnect = service.connect();
+    await Promise.resolve();
     initialPusher.__emitConnection("connected");
     await initialConnect;
     await service.joinChannel("xqc", 123, 456);
@@ -356,11 +557,13 @@ describe("KickChatService reconnect lifecycle", () => {
 
     const service = new KickChatService(chatChannelLifecycle);
     const initialConnect = service.connect();
+    await Promise.resolve();
     initialPusher.__emitConnection("connected");
     await initialConnect;
     initialPusher.__emitConnection("disconnected");
 
     const joining = service.joinChannel("xqc", 123, 456);
+    await Promise.resolve();
     replacementPusher.__emitConnection("connected");
     await joining;
 
@@ -385,6 +588,7 @@ describe("KickChatService room subscription recovery", () => {
     });
     const service = new KickChatService(chatChannelLifecycle);
     const connecting = service.connect();
+    await Promise.resolve();
     pusher.__emitConnection("connected");
     await connecting;
     return service;
@@ -1033,6 +1237,7 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
       service.on("error", (error) => errors.push(error));
 
       const connection = service.connect();
+      await Promise.resolve();
       expect(vi.getTimerCount()).toBe(1);
 
       await service[teardown]();

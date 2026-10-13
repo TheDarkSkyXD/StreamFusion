@@ -20,6 +20,10 @@ vi.mock("@backend/features/chat/adapters/kick/kick-send-window", () => ({
   releaseSendWindowComposerLeasesForOwner: vi.fn(),
 }));
 
+vi.mock("@backend/features/chat/adapters/kick/kick-realtime-connection", () => ({
+  getKickRealtimeConnection: vi.fn(),
+}));
+
 vi.mock("@backend/features/authentication/adapters/kick/kick-auth", () => ({
   kickAuthService: {
     ensureValidToken: vi.fn(),
@@ -35,6 +39,7 @@ vi.mock("@backend/features/moderation/adapters/kick/kick-mod-mutations", () => (
 }));
 
 import { ipcMain } from "electron";
+import { getKickRealtimeConnection } from "@backend/features/chat/adapters/kick/kick-realtime-connection";
 
 import {
   banKickChatUser,
@@ -79,6 +84,7 @@ describe("registerKickChatHandlers", () => {
   it("registers Kick chat IPC channels", () => {
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY);
+    expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_GET_REALTIME_CONNECTION);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_BAN_USER);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_TIMEOUT_USER);
@@ -91,6 +97,29 @@ describe("registerKickChatHandlers", () => {
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_SET_MODE);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION);
+  });
+});
+
+describe("KICK_CHAT_GET_REALTIME_CONNECTION", () => {
+  it("returns negotiated credentials to an allowed sender", async () => {
+    vi.mocked(getKickRealtimeConnection).mockResolvedValue({ appKey: "freshkey", cluster: "us2" });
+
+    const handler = getHandler(IPC_CHANNELS.KICK_CHAT_GET_REALTIME_CONNECTION);
+    await expect(
+      handler({ senderFrame: { url: "http://localhost:5173/#/stream/kick/xqc" } })
+    ).resolves.toEqual({
+      appKey: "freshkey",
+      cluster: "us2",
+    });
+  });
+
+  it("rejects a sender outside the app", async () => {
+    const handler = getHandler(IPC_CHANNELS.KICK_CHAT_GET_REALTIME_CONNECTION);
+
+    expect(() => handler({ senderFrame: { url: "https://other.example/" } })).toThrow(
+      "IPC request failed"
+    );
+    expect(getKickRealtimeConnection).not.toHaveBeenCalled();
   });
 });
 
