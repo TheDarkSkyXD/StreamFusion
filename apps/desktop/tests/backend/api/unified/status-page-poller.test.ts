@@ -23,23 +23,6 @@ function fireEvent(event: HealthEvent) {
   for (const listener of listeners) listener(event);
 }
 
-function defaultKickStatusResponse(url: string | URL | Request): Response {
-  const href = String(url);
-  if (href.endsWith("/config.json")) {
-    return new Response(
-      JSON.stringify({
-        name: "Kick Status Page",
-        components: [{ name: "kick.com", status: "operational" }],
-        incidents: [],
-      }),
-      { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } }
-    );
-  }
-  return new Response(JSON.stringify({}), { status: 200 });
-}
-
-// Guards: Kick's Datadog status-page config is the sole machine-readable source. The former
-// PagerDuty API routes now return an HTML shell with HTTP 200 and must never drive the banner.
 describe("status-page-poller (slice 08)", () => {
   let originalFetch: typeof globalThis.fetch;
   let platformHealth: typeof import("@backend/api/unified/platform-health");
@@ -49,7 +32,7 @@ describe("status-page-poller (slice 08)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
     originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn((url) => Promise.resolve(defaultKickStatusResponse(url)));
+    globalThis.fetch = vi.fn();
     listeners.clear();
     platformHealth = await import("@backend/api/unified/platform-health");
     vi.mocked(platformHealth.recordStatusPageSignal).mockClear();
@@ -76,12 +59,21 @@ describe("status-page-poller (slice 08)", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("starts Kick polling while platform is healthy, but does not poll Twitch", async () => {
+  it("polls Twitch after degradation and stays idle before it", async () => {
     await vi.advanceTimersByTimeAsync(120_000);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
 
-    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
-    expect(urls.length).toBeGreaterThan(0);
-    expect(urls.every((url) => url.startsWith("https://status.kick.com/"))).toBe(true);
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ status: { indicator: "none" } }), { status: 200 })
+    );
+    fireEvent({ platform: "twitch", status: "degraded", startedAt: Date.now() });
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://status.twitch.com/api/v2/status.json",
+      expect.anything()
+    );
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "all-clear");
   });
 
   it("starts polling on healthy-to-degraded transition", async () => {
@@ -183,138 +175,6 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "all-clear");
   });
 
-  it("Kick: current Datadog operational config produces 'all-clear' from one request", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          name: "Kick Status Page",
-          components: [{ name: "kick.com", status: "operational", type: "Component" }],
-          incidents: [{ currentStatus: "resolved", resolved: true, title: "Resolved" }],
-        }),
-        { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } }
-      )
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      "https://status.kick.com/config.json",
-      expect.anything()
-    );
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
-  });
-
-  it("Kick: degraded Datadog component produces a readable confirmed outage", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          components: [{ name: "kick.com", status: "degraded" }],
-          incidents: [
-            {
-              currentStatus: "investigating",
-              resolved: false,
-              title: "Playback is degraded",
-            },
-          ],
-        }),
-        { status: 200 }
-      )
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.objectContaining({
-        summary: "Kick status: Degraded.",
-        impact: "Degraded",
-        headline: "Playback is degraded",
-      })
-    );
-  });
-
-  it("Kick: unresolved Datadog incident is an outage even before the component degrades", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          components: [{ name: "kick.com", status: "operational" }],
-          incidents: [
-            { currentStatus: "investigating", resolved: false, title: "Investigating errors" },
-          ],
-        }),
-        { status: 200 }
-      )
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.objectContaining({
-        summary: "Kick status: Investigating.",
-        impact: "Investigating",
-        headline: "Investigating errors",
-      })
-    );
-  });
-
-  it("Kick: major_outage Datadog status is normalized for the banner", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          components: [{ name: "kick.com", status: "major_outage" }],
-          incidents: [],
-        }),
-        { status: 200 }
-      )
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.objectContaining({
-        summary: "Kick status: Major outage.",
-        impact: "Major outage",
-      })
-    );
-  });
-
-  it("fetch failure produces 'no-signal' (never throws)", async () => {
-    vi.mocked(globalThis.fetch).mockRejectedValue(new Error("network error"));
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
-  });
-
-  it("Kick: HTML from config fails closed and backs off without warning spam", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response("<!doctype html><html><body>Status page</body></html>", {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      })
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
-
-    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
-    expect(urls).toEqual(["https://status.kick.com/config.json"]);
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
-    expect(platformHealth.recordStatusPageSignal).not.toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.anything()
-    );
-    expect(loggerMock.warn).not.toHaveBeenCalled();
-    expect(loggerMock.error).not.toHaveBeenCalled();
-  });
-
   it("Twitch status fetch rejection: logs warn with [poller-r9c2] tag and status URL in meta", async () => {
     vi.mocked(globalThis.fetch).mockRejectedValue(new Error("net::ERR_TIMED_OUT"));
 
@@ -362,25 +222,6 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "no-signal");
   });
 
-  it("Kick status fetch rejection: logs warn with the Kick URL in meta", async () => {
-    vi.mocked(globalThis.fetch).mockRejectedValue(new Error("dns failure"));
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(loggerMock.warn).toHaveBeenCalledTimes(1);
-    const [tag, message, meta] = loggerMock.warn.mock.calls[0] as [
-      string,
-      string,
-      Record<string, unknown>,
-    ];
-    expect(tag).toBe("StatusPoller");
-    expect(message).toContain("[poller-r9c2]");
-    expect(meta.url).toBe("https://status.kick.com/config.json");
-    expect(typeof meta.err).toBe("string");
-    expect((meta.err as string).length).toBeGreaterThan(0);
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
-  });
-
   it("happy path: 200 + indicator 'none' does NOT call logger.warn", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ status: { indicator: "none" } }), { status: 200 })
@@ -417,11 +258,22 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "all-clear");
   });
 
-  it("poll interval is 60s", async () => {
-    await vi.advanceTimersByTimeAsync(59_998);
-    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(0);
+  it("polls Twitch again after 60s of degraded health", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ status: { indicator: "none" } }), { status: 200 })
+    );
+    fireEvent({ platform: "twitch", status: "degraded", startedAt: Date.now() });
+    await vi.advanceTimersByTimeAsync(1);
+    vi.mocked(globalThis.fetch).mockClear();
 
-    await vi.advanceTimersByTimeAsync(2);
-    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(0);
+    await vi.advanceTimersByTimeAsync(59_998);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://status.twitch.com/api/v2/status.json",
+      expect.anything()
+    );
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "all-clear");
   });
 });
