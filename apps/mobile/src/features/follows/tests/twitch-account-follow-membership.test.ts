@@ -6,6 +6,18 @@ import {
 } from "../adapters/twitch-account-follow-membership";
 
 describe("twitch account follow membership", () => {
+  it.each([
+    { data: [], pagination: { cursor: "next-page" } },
+    { data: [{ broadcaster_id: "1" }], pagination: {} },
+    { data: [], total: 3, pagination: {} },
+  ])("does not confirm an incomplete followed list (%j)", async (payload) => {
+    const source = createTwitchAccountFollowMembership({
+      clientId: () => "client",
+      readCredential: async () => ({ accessToken: "fixture", userId: "user" }),
+      fetch: async () => new Response(JSON.stringify(payload)),
+    });
+    expect((await source.read()).kind).not.toBe("available");
+  });
   it("maps Helix followed channels into GuestFollow writes", () => {
     const follows = helixFollowedChannelsToGuestFollows([
       {
@@ -40,5 +52,4 @@ describe("twitch account follow membership", () => {
       reason: "twitch-client-id-missing",
     });
   });
-
 });

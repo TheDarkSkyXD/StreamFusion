@@ -23,5 +23,6 @@ export type LiveStreamCatalogRead =
 export interface LiveStreamCatalog {
   read(input: {
     readonly signal?: AbortSignal;
+    readonly freshness?: "cached" | "network";
   }): Promise<LiveStreamCatalogRead>;
 }

@@ -51,11 +51,19 @@ export type FollowedReadOutcome<T> = {
   readonly platform: Platform;
   readonly status: "complete" | "partial" | "failed" | "stale";
   readonly items: readonly T[];
+  readonly verifiedOfflineChannelIds?: readonly string[];
   readonly missing: readonly FollowedIdentityRef[];
   readonly stale: boolean;
   readonly offline: boolean;
   readonly retryable: boolean;
   readonly error?: string;
+};
+
+export type LiveHydration = {
+  readonly membership: readonly GuestFollow[];
+  readonly outcomes: Readonly<Record<Platform, FollowedReadOutcome<Stream>>>;
+  readonly accountLive: readonly Stream[];
+  readonly observedAtMs: Readonly<Record<Platform | "account", number>>;
 };
 
 export type FollowedRecordedOutcome<T> = {

@@ -26,7 +26,10 @@ export function createKickGuestFollowedContentReader(input: {
   return {
     async readStreams(read) {
       if (read.platform !== "kick") return failedRead(read.refs);
-      const catalog = await input.liveCatalog.read(signalInput(read.signal));
+      const catalog = await input.liveCatalog.read({
+        ...signalInput(read.signal),
+        freshness: "network",
+      });
       if (read.signal?.aborted) return failedRead(read.refs);
       const entries = catalog.kind === "ready" ? catalog.entries : [];
       const streams: Stream[] = matchingEntries(entries, read.refs).map(
@@ -35,6 +38,7 @@ export function createKickGuestFollowedContentReader(input: {
       const channels: Channel[] = matchingEntries(entries, read.refs).map(
         (entry) => entry.channel,
       );
+      const verifiedOfflineChannelIds: string[] = [];
       let failed = false;
       for (const ref of read.refs) {
         if (
@@ -54,6 +58,9 @@ export function createKickGuestFollowedContentReader(input: {
         }
         if (result.channel !== null) channels.push(result.channel);
         if (result.live !== null) streams.push(result.live);
+        if (result.channel !== null && result.live === null) {
+          verifiedOfflineChannelIds.push(result.channel.id);
+        }
       }
       if (
         failed ||
@@ -61,14 +68,19 @@ export function createKickGuestFollowedContentReader(input: {
           channels.length === 0 &&
           read.refs.some((ref) => ref.kind === "id"))
       ) {
-        return streams.length === 0
-          ? failedRead(read.refs)
-          : partialRead(streams, missingRefs(channels, read.refs));
+        const outcome =
+          streams.length === 0
+            ? failedRead<Stream>(read.refs)
+            : partialRead(streams, missingRefs(channels, read.refs));
+        return { ...outcome, verifiedOfflineChannelIds };
       }
-      return completeRead(
-        uniqueById(streams, (stream) => stream.id),
-        missingRefs(channels, read.refs),
-      );
+      return {
+        ...completeRead(
+          uniqueById(streams, (stream) => stream.id),
+          missingRefs(channels, read.refs),
+        ),
+        verifiedOfflineChannelIds,
+      };
     },
     async readChannels(read) {
       if (read.platform !== "kick") return failedRead(read.refs);
@@ -89,6 +101,7 @@ export function createKickGuestFollowedContentReader(input: {
           input.fetch,
           ref.value,
           read.signal,
+          false,
         );
         if (result.kind === "failed") return failedRead(read.refs);
         if (result.channel === null) missing.push(ref);
@@ -144,6 +157,7 @@ async function readPublicChannel(
   fetchImpl: typeof globalThis.fetch,
   slug: string,
   signal?: AbortSignal,
+  liveStateRequired = true,
 ): Promise<
   | {
       readonly kind: "ready";
@@ -162,12 +176,64 @@ async function readPublicChannel(
     if (!response.ok || signal?.aborted) return { kind: "failed" };
     const payload: unknown = await response.json();
     const channel = mapKickPublicChannel(payload);
-    return channel === null
+    if (channel === null) return { kind: "failed" };
+    if (!liveStateRequired) return { kind: "ready", channel, live: null };
+    const record = asRecord(payload);
+    if (
+      record === null ||
+      ("is_live" in record && typeof record.is_live !== "boolean")
+    )
+      return { kind: "failed" };
+    if (explicitlyOffline(payload))
+      return { kind: "ready", channel, live: null };
+    const livestream = asRecord(record?.livestream ?? record?.stream);
+    if (
+      livestream !== null &&
+      "is_live" in livestream &&
+      typeof livestream.is_live !== "boolean"
+    )
+      return { kind: "failed" };
+    const id = livestream?.id;
+    const validId =
+      typeof id === "string"
+        ? /^[a-zA-Z0-9._:-]{1,256}$/.test(id) && id !== "0"
+        : typeof id === "number" && Number.isSafeInteger(id) && id > 0;
+    if (!validId) return { kind: "failed" };
+    const live = mapKickPublicLive(payload, channel);
+    return live === null
       ? { kind: "failed" }
-      : { kind: "ready", channel, live: mapKickPublicLive(payload, channel) };
+      : { kind: "ready", channel, live };
   } catch {
     return { kind: "failed" };
   }
+}
+
+function explicitlyOffline(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const channel = value as Record<string, unknown>;
+  if (channel.is_live === false) return true;
+  if (
+    channel.is_live !== true &&
+    (("livestream" in channel && channel.livestream === null) ||
+      (!("livestream" in channel) &&
+        "stream" in channel &&
+        channel.stream === null))
+  )
+    return true;
+  const livestream = channel.livestream ?? channel.stream;
+  return (
+    typeof livestream === "object" &&
+    livestream !== null &&
+    !Array.isArray(livestream) &&
+    (livestream as Record<string, unknown>).is_live === false
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function matchingEntries(

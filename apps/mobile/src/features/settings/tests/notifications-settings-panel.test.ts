@@ -114,12 +114,12 @@ describe("notifications settings panel", () => {
     expect(hasTestId(nodes, "notifications-permission")).toBe(false);
     expect(hasTestId(nodes, "notifications-delivery")).toBe(true);
     expect(hasTestId(nodes, "notifications-lifecycle")).toBe(false);
-    expect(hasTestId(nodes, "fcm-registration-status")).toBe(true);
+    expect(hasTestId(nodes, "background-check-status")).toBe(true);
     expect(
       nodes
-        .filter((node) => node.props.testID === "fcm-registration-status")
+        .filter((node) => node.props.testID === "background-check-status")
         .at(-1)?.props.children,
-    ).toBe("Checking background alert registration on this device.");
+    ).toBe("Checking phone background checks on this device.");
     expect(hasTestId(nodes, "favorites-only-effective")).toBe(false);
     expect(hasTestId(nodes, "notifications-retry")).toBe(false);
     nodes
@@ -139,10 +139,10 @@ describe("notifications settings panel", () => {
     expect(hasTestId(nodes, "notifications-permission")).toBe(true);
     expect(hasTestId(nodes, "notifications-delivery")).toBe(true);
     expect(hasTestId(nodes, "notifications-lifecycle")).toBe(false);
-    expect(hasTestId(nodes, "fcm-registration-status")).toBe(true);
+    expect(hasTestId(nodes, "background-check-status")).toBe(true);
     expect(
       nodes
-        .filter((node) => node.props.testID === "fcm-registration-status")
+        .filter((node) => node.props.testID === "background-check-status")
         .at(-1)?.props.children,
     ).toMatch(/Android blocked notification posting/);
   });

@@ -7,7 +7,10 @@ export interface NativeNotificationsModule {
   configureLiveAlerts(enabled: boolean, sound: boolean): Promise<void>;
   present(title: string, body: string, payloadJson: string, channel: string, silent: boolean): Promise<void>;
   getInitialResponse(): Promise<string | null>;
-  getDevicePushToken(): Promise<string | null>;
+  configureBackgroundChecks(snapshotJson: string): Promise<string>;
+  getBackgroundCheckStatus(): Promise<string>;
+  readBackgroundEvents(): Promise<string>;
+  acknowledgeBackgroundEvents(eventIdsJson: string): Promise<void>;
   addListener(eventName: string): void;
   removeListeners(count: number): void;
 }
@@ -16,7 +19,8 @@ export function getNativeNotifications(): NativeNotificationsModule {
   const module: unknown = NativeModules.StreamFusionNotifications;
   const methods = [
     "getPermissionStatus", "requestPermission", "ensureChannels", "present",
-    "getInitialResponse", "getDevicePushToken", "configureLiveAlerts", "addListener", "removeListeners",
+    "getInitialResponse", "configureLiveAlerts", "addListener", "removeListeners",
+    "configureBackgroundChecks", "getBackgroundCheckStatus", "readBackgroundEvents", "acknowledgeBackgroundEvents",
   ] as const;
   if (!module || typeof module !== "object" ||
     methods.some((method) => !hasFunction(module, method))) {

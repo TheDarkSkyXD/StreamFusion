@@ -1,7 +1,6 @@
 package expo.modules.streamfusionnativecontracts
 
 import android.Manifest
-import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Process
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.facebook.react.bridge.Promise
@@ -18,10 +16,6 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.PermissionAwareActivity
 import com.facebook.react.modules.core.PermissionListener
-import com.google.firebase.FirebaseApp
-import com.google.firebase.messaging.FirebaseMessaging
-import com.google.firebase.messaging.FirebaseMessagingService
-import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -94,14 +88,24 @@ class StreamFusionNotificationsModule(
   }
 
   @ReactMethod
-  fun getDevicePushToken(promise: Promise) {
-    if (FirebaseApp.getApps(context).isEmpty()) {
-      promise.resolve(null)
-      return
-    }
-    FirebaseMessaging.getInstance().token
-      .addOnSuccessListener { promise.resolve(it) }
-      .addOnFailureListener { promise.resolve(null) }
+  fun configureBackgroundChecks(snapshotJson: String, promise: Promise) = NativeBridge.async(promise) {
+    BackgroundCheckRequests.configure(context, snapshotJson)
+  }
+
+  @ReactMethod
+  fun getBackgroundCheckStatus(promise: Promise) = NativeBridge.async(promise) {
+    BackgroundCheckRequests.status(context)
+  }
+
+  @ReactMethod
+  fun readBackgroundEvents(promise: Promise) = NativeBridge.async(promise) {
+    JSONArray(BackgroundLiveAlerts.owner(context).pending().map { AlertJson.payload(it) }).toString()
+  }
+
+  @ReactMethod
+  fun acknowledgeBackgroundEvents(eventIdsJson: String, promise: Promise) = NativeBridge.async(promise) {
+    BackgroundLiveAlerts.owner(context).acknowledge(BackgroundCheckRequests.acknowledgements(eventIdsJson))
+    null
   }
 
   @ReactMethod
@@ -119,9 +123,6 @@ class StreamFusionNotificationsModule(
     private const val PREFERENCES = "streamfusion-notifications"
     private const val EXTRA_PAYLOAD = "streamfusion.notification.payload"
     private const val PERMISSION_REQUEST = 9204
-    private const val REMOTE_RECEIPTS = "remote-receipts"
-    private const val MAX_REMOTE_RECEIPTS = 512
-    private val remoteDeliveryLock = Any()
     private var activeContext: ReactApplicationContext? = null
 
     fun captureIntent(intent: Intent?) {
@@ -139,39 +140,6 @@ class StreamFusionNotificationsModule(
       context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
         .edit().putString("last-response", payload).apply()
       activeContext?.let { NativeBridge.emit(it, "notificationOpened", mapOf("payloadJson" to payload)) }
-    }
-
-    fun deliverRemote(context: Context, message: RemoteMessage) {
-      val payloadJson = message.data["payload"] ?: return
-      val payload = try { JSONObject(payloadJson) } catch (_: Exception) { return }
-      val eventId = payload.optString("eventId")
-      if (payload.optInt("schemaVersion") != 1 || eventId.isEmpty()) return
-      val title = payload.optString("title")
-      val body = payload.optString("body")
-      val channel = payload.optString("channel")
-      synchronized(remoteDeliveryLock) {
-        val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-        val receipts = try { JSONArray(preferences.getString(REMOTE_RECEIPTS, "[]")) } catch (_: Exception) { JSONArray() }
-        if ((0 until receipts.length()).any { receipts.optString(it) == eventId }) return
-        if (!showNotification(context, title, body, payloadJson, channel, message.data["silent"] == "true")) return
-        val retained = JSONArray()
-        for (index in maxOf(0, receipts.length() - MAX_REMOTE_RECEIPTS + 1) until receipts.length()) {
-          retained.put(receipts.optString(index))
-        }
-        retained.put(eventId)
-        preferences.edit().putString(REMOTE_RECEIPTS, retained.toString()).commit()
-      }
-      val foreground = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
-        .runningAppProcesses?.any {
-          it.pid == Process.myPid() && it.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
-        } == true
-      if (foreground) activeContext?.let {
-        NativeBridge.emit(it, "notificationReceived", mapOf("payloadJson" to payloadJson))
-      }
-    }
-
-    fun deliverToken(token: String) {
-      activeContext?.let { NativeBridge.emit(it, "pushToken", mapOf("token" to token)) }
     }
 
     private fun permissionStatus(context: Context): String {
@@ -198,7 +166,7 @@ class StreamFusionNotificationsModule(
       }
     }
 
-    private fun showNotification(
+    internal fun showNotification(
       context: Context,
       title: String,
       body: String,
@@ -241,15 +209,5 @@ class StreamFusionNotificationsModule(
       manager.notify(eventId, 0, notification)
       return true
     }
-  }
-}
-
-class StreamFusionFirebaseMessagingService : FirebaseMessagingService() {
-  override fun onMessageReceived(message: RemoteMessage) {
-    StreamFusionNotificationsModule.deliverRemote(this, message)
-  }
-
-  override fun onNewToken(token: String) {
-    StreamFusionNotificationsModule.deliverToken(token)
   }
 }

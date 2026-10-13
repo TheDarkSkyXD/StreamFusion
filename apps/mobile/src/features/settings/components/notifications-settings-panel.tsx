@@ -150,7 +150,7 @@ export function NotificationsSettingsView({
   return (
     <SettingsSection testID="panel-notifications" title="NOTIFICATIONS">
       <SettingsCopy
-        testID="fcm-registration-status"
+        testID="background-check-status"
         value={view.registrationCopy}
       />
       <SettingsCopy testID="notifications-delivery" value={view.deliveryCopy} />

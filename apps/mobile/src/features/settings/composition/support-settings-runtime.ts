@@ -37,7 +37,7 @@ function redactedLocalReport(input: {
       installedVersion: input.installedVersion,
       logs: input.logs,
       preferences: input.preferences,
-      profileCopy: "Capability Profile omitted secrets and FCM tokens.",
+      profileCopy: "Capability Profile omitted secrets.",
     }),
   );
 }

@@ -9,9 +9,9 @@ export function identityRefsFor(
   return follows.flatMap((follow) => {
     if (follow.platform !== platform) return [];
     const login = follow.channelLogin.trim().toLowerCase();
-    // Twitch guest GQL prefers login; id is a
-    // fallback when login is missing. Kick relay wants id and optional slug.
     if (platform === "twitch") {
+      if (/^[1-9]\d*$/.test(follow.channelId))
+        return [{ kind: "id" as const, value: follow.channelId }];
       return login.length > 0
         ? [{ kind: "login" as const, value: login }]
         : [{ kind: "id" as const, value: follow.channelId }];

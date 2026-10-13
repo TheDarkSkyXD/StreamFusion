@@ -31,9 +31,10 @@ export function createKickLiveCatalog(input: {
     readonly expiresAt: number;
   } | null = null;
   return {
-    async read({ signal }) {
+    async read({ signal, freshness }) {
       if (signal?.aborted) return cancelled();
-      if (cached && nowEpochMs() < cached.expiresAt) return cached.read;
+      if (freshness !== "network" && cached && nowEpochMs() < cached.expiresAt)
+        return cached.read;
       try {
         const response = await input.fetch(
           DIRECTORY_URL,

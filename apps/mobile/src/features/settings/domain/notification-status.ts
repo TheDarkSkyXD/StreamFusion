@@ -15,7 +15,7 @@ const RUNTIME_PERMISSION_API = 33;
 const DENIED_PERMISSION_COPY =
   "Android blocked notification posting. Activity history stays on. Retry the permission or open system settings.";
 const NOTIFICATION_LIFECYCLE_COPY =
-  "Live alerts use your saved follows and notification choices. Notification history remains available when Android posting is off.";
+  "Phone checks followed channels about every 15 minutes, even when the app is closed. Android may delay checks. Force-stopping the app pauses them until you reopen it. Notification history remains available when Android posting is off.";
 
 export function notificationLifecycleCopy(): string {
   return NOTIFICATION_LIFECYCLE_COPY;
@@ -53,22 +53,22 @@ export function notificationDeliveryCopy(input: {
     return "Live Notification history stays available. Android live alerts are off.";
   }
   if (!preferences.liveAlerts) {
-    return "Activity does not create live-alert rows. Android posting stays independent.";
+    return "Live Notification history and phone background checks are off.";
   }
   if (network === "offline") {
-    return "Preferences save on this device. Relay registration waits until the network returns.";
+    return "Preferences save on this device. Phone checks resume when the network returns.";
   }
   if (
     preferences.enabled &&
     preferences.guestFollows &&
     permission === "granted"
   ) {
-    return "Guest Follow live alerts are eligible on this device. Background delivery depends on device registration.";
+    return "Guest Follow live alerts are eligible for phone background checks.";
   }
   return "Followed live channels can create alerts when their notification choices are enabled.";
 }
 
-function nativeRegistrationFallback(input: {
+function backgroundCheckFallback(input: {
   readonly permission: NotificationPermissionStatus;
   readonly preferences: LiveNotificationPreferences;
 }): string {
@@ -78,7 +78,7 @@ function nativeRegistrationFallback(input: {
   if (!input.preferences.enabled) {
     return "Android live alerts are off. Live Notification history stays available.";
   }
-  return "Checking background alert registration on this device.";
+  return "Checking phone background checks on this device.";
 }
 
 export function composeNotificationSettingsView(input: {
@@ -105,7 +105,7 @@ export function composeNotificationSettingsView(input: {
     preferences,
     registrationCopy:
       registrationCopy ??
-      nativeRegistrationFallback({ permission, preferences }),
+      backgroundCheckFallback({ permission, preferences }),
   };
 }
 

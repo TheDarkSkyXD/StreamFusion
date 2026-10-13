@@ -49,7 +49,7 @@ function activityFields(payload: SafeNotificationPayload) {
   return {
     schemaVersion: 1 as const,
     eventId: payload.eventId,
-    source: "relay" as const,
+    source: "local" as const,
     occurredAt: toSerializedTimestamp(payload.occurredAt),
     readAt: null,
     title: payload.title,

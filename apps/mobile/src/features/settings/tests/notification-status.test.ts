@@ -10,7 +10,6 @@ import {
   notificationPermissionCopy,
 } from "../domain/notification-status";
 
-// Guards: API 30 reports platform-granted posting; denied still keeps Activity; offline copy does not claim FCM
 describe("notification settings status", () => {
   it("treats API 30 as granted without a runtime prompt", () => {
     expect(notificationPermissionCopy("denied", 30)).toMatch(
@@ -25,7 +24,7 @@ describe("notification settings status", () => {
     expect(view.denied).toBe(false);
     expect(view.permissionCopy).toMatch(/without a runtime prompt/);
     expect(view.deliveryCopy).toMatch(
-      /Background delivery depends on device registration/,
+      /phone background checks/,
     );
   });
 
@@ -58,16 +57,16 @@ describe("notification settings status", () => {
     );
   });
 
-  it("describes one-mode topic and direct delivery after permission is granted", () => {
+  it("describes Android posting after permission is granted", () => {
     expect(notificationPermissionCopy("granted", 33)).toMatch(
       /Android allows notification posting/,
     );
   });
 
-  it("describes saved choices without unverified relay capacity claims", () => {
+  it("explains phone checks while the app is closed", () => {
     const copy = notificationLifecycleCopy();
-    expect(copy).toMatch(/saved follows and notification choices/);
-    expect(copy).not.toMatch(/100,000|2000 topics/);
+    expect(copy).toMatch(/about every 15 minutes/);
+    expect(copy).toMatch(/Force-stopping/);
     expect(
       composeNotificationSettingsView({
         apiLevel: 30,

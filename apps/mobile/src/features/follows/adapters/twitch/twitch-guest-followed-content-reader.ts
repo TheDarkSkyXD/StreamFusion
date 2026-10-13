@@ -62,24 +62,32 @@ export function createTwitchGuestFollowedContentReader(input: {
       }
       const streams: Stream[] = [];
       const missing: FollowedIdentityRef[] = [];
+      const verifiedOfflineChannelIds: string[] = [];
       for (let index = 0; index < pages.length; index += 1) {
         const page = pages[index];
         const ref = refs[index];
         if (page?.kind !== "ready" || ref === undefined) continue;
         if (page.stream === null) {
           missing.push(ref);
+          if (page.channel !== null)
+            verifiedOfflineChannelIds.push(page.channel.id);
           continue;
         }
         streams.push(page.stream);
       }
-      return completeRead("twitch", streams, missing);
+      return {
+        ...completeRead("twitch", streams, missing),
+        ...(verifiedOfflineChannelIds.length === 0
+          ? {}
+          : { verifiedOfflineChannelIds }),
+      };
     },
     async readChannels(read) {
       if (read.platform !== "twitch") return failedRead(read.platform);
       if (read.signal?.aborted) return failedRead("twitch", true);
       const refs = uniqueRefs(read.refs);
       const pages = await Promise.all(
-        refs.map((ref) => loadUser(input.fetch, ref, read.signal)),
+        refs.map((ref) => loadUser(input.fetch, ref, read.signal, false)),
       );
       if (pages.some((page) => page.kind === "failed")) {
         return failedRead("twitch");
@@ -106,12 +114,17 @@ export function createTwitchGuestFollowedContentReader(input: {
       if (login === null) {
         return failedRecorded("twitch", read.channelId);
       }
-      const payload = await gqlJson(input.fetch, VIDEO_QUERY, {
-        broadcastType: "ARCHIVE",
-        limit: 20,
-        login,
-        videoSort: read.sort === "views" ? "VIEWS" : "TIME",
-      }, read.signal);
+      const payload = await gqlJson(
+        input.fetch,
+        VIDEO_QUERY,
+        {
+          broadcastType: "ARCHIVE",
+          limit: 20,
+          login,
+          videoSort: read.sort === "views" ? "VIEWS" : "TIME",
+        },
+        read.signal,
+      );
       if (payload.kind === "failed") {
         return failedRecorded("twitch", read.channelId);
       }
@@ -133,11 +146,16 @@ export function createTwitchGuestFollowedContentReader(input: {
       if (login === null) {
         return failedRecorded("twitch", read.channelId);
       }
-      const payload = await gqlJson(input.fetch, CLIP_QUERY, {
-        criteria: clipCriteria(read.period),
-        limit: 20,
-        login,
-      }, read.signal);
+      const payload = await gqlJson(
+        input.fetch,
+        CLIP_QUERY,
+        {
+          criteria: clipCriteria(read.period),
+          limit: 20,
+          login,
+        },
+        read.signal,
+      );
       if (payload.kind === "failed") {
         return failedRecorded("twitch", read.channelId);
       }
@@ -175,13 +193,14 @@ async function resolveLogin(
     { kind: "id", value: read.channelId },
     signal ?? read.signal,
   );
-  return page.kind === "ready" ? page.channel?.username ?? null : null;
+  return page.kind === "ready" ? (page.channel?.username ?? null) : null;
 }
 
 async function loadUser(
   fetchImpl: typeof globalThis.fetch,
   ref: FollowedIdentityRef,
   signal?: AbortSignal,
+  liveStateRequired = true,
 ): Promise<
   | {
       readonly kind: "ready";
@@ -200,14 +219,17 @@ async function loadUser(
     return { channel: null, kind: "ready", stream: null };
   }
   const channel = channelFromUser(user);
+  if (!liveStateRequired) return { channel, kind: "ready", stream: null };
+  if (channel === null || !("stream" in user)) return { kind: "failed" };
   const streamNode = asRecord(user.stream);
+  if (user.stream !== null && streamNode === null) return { kind: "failed" };
+  const stream =
+    streamNode === null ? null : streamFromUser(streamNode, channel);
+  if (streamNode !== null && stream === null) return { kind: "failed" };
   return {
     channel,
     kind: "ready",
-    stream:
-      channel === null || streamNode === null
-        ? null
-        : streamFromUser(streamNode, channel),
+    stream,
   };
 }
 
@@ -234,7 +256,15 @@ async function gqlJson(
       method: "POST",
     });
     if (!response.ok) return { kind: "failed" };
-    return { kind: "ready", value: await response.json() };
+    const value: unknown = await response.json();
+    const root = asRecord(value);
+    if (
+      root === null ||
+      ("errors" in root &&
+        (!Array.isArray(root.errors) || root.errors.length > 0))
+    )
+      return { kind: "failed" };
+    return { kind: "ready", value };
   } catch {
     return { kind: "failed" };
   }
@@ -300,8 +330,8 @@ function streamFromUser(
   node: Record<string, unknown>,
   channel: Channel,
 ): Stream | null {
-  const id = stringField(node, "id");
-  if (id === "") return null;
+  const id = stringField(node, "id").trim();
+  if (!/^[a-zA-Z0-9._:-]{1,256}$/.test(id)) return null;
   const game = asRecord(node.game);
   const startedAt = stringField(node, "createdAt");
   return {

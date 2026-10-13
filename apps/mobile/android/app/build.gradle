@@ -13,15 +13,6 @@ if (production) {
   if (releaseVersionCode == null || !(releaseVersionCode ==~ /[1-9]\d*/)) throw new GradleException("A production build requires STREAMFUSION_PRODUCTION_VERSION_CODE")
   def certificate = new JsonSlurper().parse(file("../../config/production-signing-certificate.json"))
   if (!(certificate.certificateSha256 ==~ /[0-9a-f]{64}/)) throw new GradleException("The production signing certificate must be pinned before building")
-  def validation = ["node", file("../../scripts/firebase-release-config.mjs").absolutePath, "--check"].execute(null, rootDir)
-  def validationOutput = new StringBuffer()
-  def validationErrors = new StringBuffer()
-  validation.waitForProcessOutput(validationOutput, validationErrors)
-  if (validation.exitValue() != 0) throw new GradleException(validationErrors.toString().trim() ?: "Invalid production Firebase configuration")
-}
-
-if (file("google-services.json").exists()) {
-  apply plugin: "com.google.gms.google-services"
 }
 
 react {
@@ -83,5 +74,4 @@ dependencies {
   implementation("androidx.core:core-splashscreen:1.0.1")
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
-  androidTestImplementation("com.google.firebase:firebase-messaging:25.0.1")
 }

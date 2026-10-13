@@ -6,6 +6,13 @@ plugins {
 group = 'expo.modules.streamfusionnativecontracts'
 version = '0.1.0'
 
+if (layout.buildDirectory.get().asFile.path.contains(',')) {
+  def checkoutKey = java.security.MessageDigest.getInstance('SHA-256')
+    .digest(projectDir.canonicalPath.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+    .encodeHex().toString().take(16)
+  layout.buildDirectory.set(new File(gradle.gradleUserHomeDir, "streamfusion-native-builds/${checkoutKey}"))
+}
+
 android {
   namespace "expo.modules.streamfusionnativecontracts"
   compileSdk rootProject.ext.compileSdkVersion
@@ -25,7 +32,7 @@ dependencies {
   implementation "net.zetetic:sqlcipher-android:4.19.1@aar"
   implementation "androidx.sqlite:sqlite:2.7.0"
   implementation "androidx.browser:browser:1.9.0"
-  implementation "com.google.firebase:firebase-messaging:25.0.1"
+  implementation "androidx.work:work-runtime-ktx:2.12.0"
   implementation "com.alphacephei:vosk-android:0.3.75"
   implementation "androidx.activity:activity:1.12.1"
   implementation "com.squareup.okhttp3:okhttp:4.12.0"
@@ -40,4 +47,5 @@ dependencies {
   androidTestImplementation "androidx.test.ext:junit:1.2.1"
   androidTestImplementation "com.squareup.okhttp3:mockwebserver:4.12.0"
   androidTestImplementation "com.squareup.okhttp3:okhttp-tls:4.12.0"
+  androidTestImplementation "androidx.work:work-testing:2.12.0"
 }

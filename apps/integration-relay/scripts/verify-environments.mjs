@@ -30,7 +30,7 @@ const resourceFields = [
   "r2_buckets"
 ];
 for (const environment of environmentNames) {
-  assert.deepEqual(config.env[environment].triggers?.crons, ["* * * * *"]);
+  assert.equal(config.env[environment].triggers, undefined);
   for (const field of resourceFields) {
     assert.equal(
       config.env[environment][field],

@@ -4,7 +4,10 @@ import {
 } from "@streamfusion/core/follows";
 
 import { createTwitchHelixReader } from "@mobile/features/discovery/adapters/twitch/twitch-helix-reader";
-import type { HelixFollowedChannel } from "@mobile/features/discovery/adapters/twitch/helix-catalog-map";
+import {
+  helixFollowedChannels,
+  type HelixFollowedChannel,
+} from "@mobile/features/discovery/adapters/twitch/helix-catalog-map";
 
 import type {
   AccountFollowMembershipOutcome,
@@ -43,23 +46,82 @@ export function createTwitchAccountFollowMembership(input: {
           reason: "twitch-signed-out",
         };
       }
-      const reader = createTwitchHelixReader({
-        clientId,
-        fetch: input.fetch ?? globalThis.fetch,
-        readAccessToken: async () => credential.accessToken,
-        readUserId: async () => credential.userId,
-      });
-      const outcome = await reader.getFollowedChannels();
-      if (outcome.status !== "complete" && outcome.status !== "partial") {
+      try {
+        const response = await (input.fetch ?? globalThis.fetch)(
+          `https://api.twitch.tv/helix/channels/followed?user_id=${encodeURIComponent(credential.userId)}&first=100`,
+          {
+            headers: {
+              Authorization: `Bearer ${credential.accessToken}`,
+              "Client-Id": clientId,
+            },
+          },
+        );
+        if (!response.ok)
+          return {
+            kind: "unavailable",
+            reason: "twitch-followed-channels-failed",
+          };
+        const payload: unknown = await response.json();
+        if (
+          typeof payload !== "object" ||
+          payload === null ||
+          !("data" in payload) ||
+          !Array.isArray(payload.data)
+        ) {
+          return {
+            kind: "unavailable",
+            reason: "twitch-followed-channels-invalid",
+          };
+        }
+        const channels = helixFollowedChannels(payload);
+        const follows = helixFollowedChannelsToGuestFollows(channels);
+        if (follows.length !== payload.data.length)
+          return {
+            kind: "unavailable",
+            reason: "twitch-followed-channels-invalid",
+          };
+        const pagination = "pagination" in payload ? payload.pagination : null;
+        if (
+          pagination !== null &&
+          (typeof pagination !== "object" || Array.isArray(pagination))
+        ) {
+          return {
+            kind: "unavailable",
+            reason: "twitch-followed-channels-invalid",
+          };
+        }
+        const cursor =
+          pagination !== null && "cursor" in pagination
+            ? pagination.cursor
+            : undefined;
+        if (cursor !== undefined && typeof cursor !== "string")
+          return {
+            kind: "unavailable",
+            reason: "twitch-followed-channels-invalid",
+          };
+        const total = "total" in payload ? payload.total : undefined;
+        if (
+          total !== undefined &&
+          (typeof total !== "number" ||
+            !Number.isSafeInteger(total) ||
+            total < 0)
+        ) {
+          return {
+            kind: "unavailable",
+            reason: "twitch-followed-channels-invalid",
+          };
+        }
+        const partial =
+          pagination === null ||
+          (typeof cursor === "string" && cursor.length > 0) ||
+          (typeof total === "number" && total > follows.length);
+        return { kind: partial ? "partial" : "available", follows };
+      } catch {
         return {
           kind: "unavailable",
-          reason: outcome.error?.code ?? "twitch-followed-channels-failed",
+          reason: "twitch-followed-channels-failed",
         };
       }
-      return {
-        kind: "available",
-        follows: helixFollowedChannelsToGuestFollows(outcome.items),
-      };
     },
   };
 }

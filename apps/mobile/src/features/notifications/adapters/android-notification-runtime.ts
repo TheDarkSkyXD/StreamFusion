@@ -8,7 +8,6 @@ import type {
   LocalNotificationPresenter,
   NativeNotificationChannels,
   NativeNotificationPolicy,
-  NativePushTokenSource,
   NotificationReceiptSource,
 } from "../capabilities/native-notifications";
 import {
@@ -28,26 +27,6 @@ export function createAndroidNotificationChannels(): NativeNotificationChannels 
   return {
     async ensure() {
       if (Platform.OS === "android") await getNativeNotifications().ensureChannels();
-    },
-  };
-}
-
-export function createAndroidPushTokenSource(): NativePushTokenSource {
-  return {
-    async read() {
-      try {
-        return nativeTokenData(await getNativeNotifications().getDevicePushToken());
-      } catch {
-        return null;
-      }
-    },
-    subscribe(listener) {
-      const subscription = createNotificationEvents().addListener("pushToken", (event: unknown) => {
-        if (!isRecord(event)) return;
-        const token = nativeTokenData(event.token);
-        if (token) listener(token);
-      });
-      return () => subscription.remove();
     },
   };
 }
@@ -109,10 +88,6 @@ export function createAndroidLocalNotificationPresenter(): LocalNotificationPres
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function nativeTokenData(value: unknown): string | null {
-  return typeof value === "string" && value.length >= 32 ? value : null;
 }
 
 function payloadFromEvent(event: unknown): SafeNotificationPayload | null {

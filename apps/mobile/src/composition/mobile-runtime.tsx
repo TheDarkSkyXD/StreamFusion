@@ -60,6 +60,8 @@ import { createSearchHistoryRepository } from "@mobile/features/discovery/compos
 import { createKickLiveCatalog } from "@mobile/features/discovery/adapters/kick/kick-live-catalog";
 import { createDiscoveryPreferenceStore } from "@mobile/features/discovery/data/discovery-preference-store";
 import { createFollowingRuntime } from "@mobile/features/follows/composition/following-runtime";
+import { createConfirmedAccountFollowMembership } from "@mobile/features/follows/data/confirmed-account-follow-membership";
+import { readAccountMembershipState } from "@mobile/features/follows/composition/account-membership-state";
 import { createGuestLiveAlertPoller } from "@mobile/features/activity/domain/guest-live-alert-poller";
 import { createKickAccountFollowMembership } from "@mobile/features/follows/adapters/kick-account-follow-membership";
 import {
@@ -71,8 +73,8 @@ import { createAdBlockSession } from "@mobile/features/ad-blocking/composition/g
 import { createTwitchPlaylistProxySession } from "@mobile/features/ad-blocking/composition/guest-twitch-playlist-proxy-session";
 import { createFetchPlaylistProxyHealth } from "@mobile/features/ad-blocking/adapters/fetch-playlist-proxy-health";
 import { createAndroidNotificationPermissionPort } from "@mobile/features/settings/adapters/android-notification-permission";
-import { createAndroidLocalNotificationPresenter } from "@mobile/features/notifications/adapters/android-notification-runtime";
 import { createNativeNotificationRuntimeForApp } from "@mobile/features/notifications/composition/native-notification-runtime";
+import { verifiedLiveObservations } from "@mobile/features/notifications/domain/background-live-alerts";
 import { createGithubStableReleaseCheckPort } from "@mobile/features/settings/adapters/github-stable-release";
 import { createAndroidAndroidUpdaterPort } from "@mobile/features/app-update/adapters/android-updater";
 import { createGithubReleaseOpenPort } from "@mobile/features/settings/adapters/github-release-open";
@@ -319,10 +321,17 @@ function twitchClientIdForActivity(): string | null {
   return twitchClientId ?? (__DEV__ ? DEVELOPMENT_TWITCH_CLIENT_ID : null);
 }
 
-const twitchAccountFollows = createTwitchAccountFollowMembership({
-  clientId: twitchClientIdForActivity,
-  fetch: connectivitySession.fetch,
-  readCredential: readTwitchCredentialForActivity,
+const twitchAccountFollows = createConfirmedAccountFollowMembership({
+  platform: "twitch",
+  settings: persistenceRuntime.productState.settings,
+  readAccountState: () => readAccountMembershipState([
+    () => productionTwitchRepository.read(), () => developmentTwitchRepository.read(),
+  ]),
+  source: createTwitchAccountFollowMembership({
+    clientId: twitchClientIdForActivity,
+    fetch: connectivitySession.fetch,
+    readCredential: readTwitchCredentialForActivity,
+  }),
 });
 const twitchAccountLiveStreams = createTwitchAccountLiveStreamsSource({
   clientId: twitchClientIdForActivity,
@@ -344,16 +353,20 @@ async function readKickCredentialForActivity(): Promise<{
   return null;
 }
 
-const kickAccountFollows = createKickAccountFollowMembership({
-  fetch: connectivitySession.fetch,
-  readCredential: readKickCredentialForActivity,
+const kickAccountFollows = createConfirmedAccountFollowMembership({
+  platform: "kick",
+  settings: persistenceRuntime.productState.settings,
+  readAccountState: () => readAccountMembershipState([
+    () => productionKickRepository.read(), () => developmentKickRepository.read(),
+  ]),
+  source: createKickAccountFollowMembership({
+    fetch: connectivitySession.fetch,
+    readCredential: readKickCredentialForActivity,
+  }),
 });
-
-const localLiveAlertPresenter = createAndroidLocalNotificationPresenter();
 
 const followingSession = createFollowingRuntime({
   kickLiveCatalog,
-  activity: persistenceRuntime.productState.activity,
   accountFollows: [twitchAccountFollows, kickAccountFollows],
   accountLiveStreams: [twitchAccountLiveStreams],
   cache: persistenceRuntime.disposableCache,
@@ -370,34 +383,12 @@ const followingSession = createFollowingRuntime({
   onLocalChange: () => {
     void nativeNotifications.sync();
   },
-  presentSystemNotification: async ({ item, silent }) => {
-    if (item.kind !== "channel" || item.destination.kind !== "watch-channel") {
-      return;
-    }
-    await localLiveAlertPresenter.present(
-      {
-        schemaVersion: 1,
-        eventId: item.eventId,
-        sourceId: "local-live-alert",
-        channel: "live",
-        title: item.title,
-        body: item.body,
-        occurredAt: item.occurredAt,
-        destination: {
-          kind: "watch-channel",
-          platform: item.destination.platform,
-          channelId: item.destination.channelId,
-          channelLogin: item.destination.channelLogin,
-          streamState: "live",
-        },
-      },
-      { silent },
-    );
+  onLiveHydrated: (hydration) => {
+    void nativeNotifications.sync(verifiedLiveObservations(hydration)).catch(() => undefined);
   },
   relayBaseUrl: relayBaseUrl(),
 });
 
-/** Foreground go-live poller: reuses Following hydrateLive + guest reconciler. */
 const liveAlertPoller = createGuestLiveAlertPoller({
   hydrateLive: () => followingSession.hydrateLive(),
 });
@@ -406,9 +397,6 @@ const androidNotificationPermission = createAndroidNotificationPermissionPort();
 const nativeNotifications = createNativeNotificationRuntimeForApp({
   activityRepository: persistenceRuntime.productState.activity,
   followingSession,
-  identityStore: installationPolicyRuntime.identityStore,
-  permission: androidNotificationPermission,
-  relayBaseUrl: relayBaseUrl(),
 });
 const notificationSession = createNotificationSettingsSession({
   network: () => connectivitySession.readNetwork(),
@@ -507,6 +495,9 @@ export function MobileRuntime() {
   const visibleKickAccount = useDevelopmentKickFixture
     ? developmentKickAccount
     : kickAccount;
+  useEffect(() => {
+    void nativeNotifications.sync();
+  }, [visibleTwitchAccount.model, visibleKickAccount.model]);
   const homeDiscovery = useMemo(
     () =>
       createDiscoveryRuntime({

@@ -120,6 +120,78 @@ function envelope(body: object) {
 }
 
 describe("createFollowingRuntime", () => {
+  it("keeps each provider read's time and membership when older hydration finishes last", async () => {
+    let clock = 100;
+    let finishFirstAccountRead: (streams: readonly never[]) => void = () =>
+      undefined;
+    const firstAccountRead = new Promise<readonly never[]>((resolve) => {
+      finishFirstAccountRead = resolve;
+    });
+    let accountReads = 0;
+    let streamReads = 0;
+    const requestedVariables: unknown[] = [];
+    const hydrated: unknown[] = [];
+    const guestFollows = memoryGuestFollows([
+      guestFollow({
+        platform: "twitch",
+        channelLogin: "channel",
+        channelId: "123",
+      }),
+    ]);
+    const list = vi.spyOn(guestFollows, "list");
+    const session = createFollowingRuntime({
+      cache: memoryCache(),
+      guestFollows,
+      installation: async () => ({ kind: "none" }),
+      liveNotifications: memoryNotifications(),
+      network: async () => "online",
+      now: () => clock,
+      accountLiveStreams: [
+        {
+          read: () =>
+            ++accountReads === 1 ? firstAccountRead : Promise.resolve([]),
+        },
+      ],
+      fetch: async (_url, init) => {
+        requestedVariables.push(JSON.parse(String(init?.body)).variables);
+        return new Response(
+          JSON.stringify(
+            gqlUser({
+              id: "123",
+              login: "channel",
+              stream: { id: `session-${++streamReads}` },
+            }),
+          ),
+        );
+      },
+      onLiveHydrated: (value) => {
+        hydrated.push(value);
+      },
+      relayBaseUrl: "http://relay.test/",
+    });
+    const first = session.hydrateLive();
+    await vi.waitFor(() => expect(streamReads).toBe(1));
+    clock = 200;
+    await session.hydrateLive();
+    clock = 300;
+    finishFirstAccountRead([]);
+    await first;
+    expect(hydrated).toMatchObject([
+      {
+        membership: [{ channelId: "123" }],
+        observedAtMs: { twitch: 200, kick: 200, account: 200 },
+        outcomes: { twitch: { items: [{ id: "session-2" }] } },
+      },
+      {
+        membership: [{ channelId: "123" }],
+        observedAtMs: { twitch: 100, kick: 100, account: 100 },
+        outcomes: { twitch: { items: [{ id: "session-1" }] } },
+      },
+    ]);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(requestedVariables).toEqual([{ id: "123" }, { id: "123" }]);
+  });
+
   it("signals successful local follow and notification changes", async () => {
     const changed: string[][] = [];
     const session = createFollowingRuntime({

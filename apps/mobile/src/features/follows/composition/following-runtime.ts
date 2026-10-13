@@ -7,14 +7,11 @@ import {
 import type { Platform } from "@streamfusion/core/platform";
 import type { FollowedIdentityRef } from "@streamfusion/core/relay";
 
-import type { ActivityItem } from "@streamfusion/core/activity";
 import type {
-  ActivityRepository,
   DisposableCache,
   GuestFollowRepository,
   LiveNotificationPreferenceStore,
 } from "@mobile/features/storage/capabilities/persistence";
-import { createGuestLiveAlertReconciler } from "@mobile/features/activity/domain/guest-live-alert-reconciler";
 import { unionFollowMembership } from "@mobile/features/activity/domain/union-follow-membership";
 import type { LiveStreamCatalog } from "@mobile/features/discovery/capabilities/live-stream-catalog";
 
@@ -32,6 +29,7 @@ import type {
   FollowedReadOutcome,
   FollowingSession,
   FollowMutationResult,
+  LiveHydration,
 } from "../capabilities/following-session";
 
 import { createFollowedLiveCache } from "../data/followed-live-cache";
@@ -42,7 +40,6 @@ type FollowedReader = FollowedContentReader;
 type LiveCache = ReturnType<typeof createFollowedLiveCache>;
 
 export function createFollowingRuntime(input: {
-  readonly activity?: ActivityRepository;
   /** Signed-in Twitch/Kick follow lists for Activity membership union. */
   readonly accountFollows?: readonly AccountFollowMembershipSource[];
   /** Signed-in live followed streams (e.g. Helix streams/followed). */
@@ -59,10 +56,7 @@ export function createFollowingRuntime(input: {
   readonly network: () => Promise<"online" | "offline">;
   readonly now?: () => number;
   readonly onLocalChange?: () => void;
-  readonly presentSystemNotification?: (input: {
-    readonly item: ActivityItem;
-    readonly silent: boolean;
-  }) => Promise<void>;
+  readonly onLiveHydrated?: (input: LiveHydration) => void;
   readonly relayBaseUrl: string;
 }): FollowingSession {
   const now = input.now ?? Date.now;
@@ -70,23 +64,12 @@ export function createFollowingRuntime(input: {
     accountFollows: input.accountFollows ?? [],
     accountLiveStreams: input.accountLiveStreams ?? [],
     guestFollows: input.guestFollows,
-    liveAlertPrimed: { value: false },
-    liveAlertReconciler:
-      input.activity === undefined
-        ? null
-        : createGuestLiveAlertReconciler({
-            activity: input.activity,
-            now,
-            systemNotificationsSupported: true,
-            ...(input.presentSystemNotification === undefined
-              ? {}
-              : {
-                  presentSystemNotification: input.presentSystemNotification,
-                }),
-          }),
     liveCache: createFollowedLiveCache(input.cache),
     liveNotifications: input.liveNotifications,
     now,
+    ...(input.onLiveHydrated === undefined
+      ? {}
+      : { onLiveHydrated: input.onLiveHydrated }),
     ...(input.onLocalChange === undefined
       ? {}
       : { onLocalChange: input.onLocalChange }),
@@ -117,14 +100,11 @@ function bindSession(deps: {
   readonly accountFollows: readonly AccountFollowMembershipSource[];
   readonly accountLiveStreams: readonly AccountLiveStreamsSource[];
   readonly guestFollows: GuestFollowRepository;
-  readonly liveAlertPrimed: { value: boolean };
-  readonly liveAlertReconciler: ReturnType<
-    typeof createGuestLiveAlertReconciler
-  > | null;
   readonly liveCache: LiveCache;
   readonly liveNotifications: LiveNotificationPreferenceStore;
   readonly now: () => number;
   readonly onLocalChange?: () => void;
+  readonly onLiveHydrated?: (input: LiveHydration) => void;
   readonly pages: ReturnType<typeof createAndroidProviderPageOpener>;
   readonly reader: FollowedReader;
 }): FollowingSession {
@@ -206,7 +186,7 @@ async function readAccountFollows(
   const outcomes = await Promise.all(sources.map((source) => source.read()));
   const follows: GuestFollow[] = [];
   for (const outcome of outcomes) {
-    if (outcome.kind === "available") follows.push(...outcome.follows);
+    if (outcome.kind !== "unavailable") follows.push(...outcome.follows);
   }
   return follows;
 }
@@ -224,13 +204,11 @@ async function hydrateLive(
     readonly accountFollows: readonly AccountFollowMembershipSource[];
     readonly accountLiveStreams: readonly AccountLiveStreamsSource[];
     readonly guestFollows: GuestFollowRepository;
-    readonly liveAlertPrimed: { value: boolean };
-    readonly liveAlertReconciler: ReturnType<
-      typeof createGuestLiveAlertReconciler
-    > | null;
     readonly liveCache: LiveCache;
     readonly liveNotifications: LiveNotificationPreferenceStore;
     readonly reader: FollowedReader;
+    readonly now: () => number;
+    readonly onLiveHydrated?: (input: LiveHydration) => void;
   },
   signal?: AbortSignal,
 ): Promise<Readonly<Record<Platform, FollowedReadOutcome<Stream>>>> {
@@ -238,45 +216,38 @@ async function hydrateLive(
   const accountMembership = await readAccountFollows(deps.accountFollows);
   const membership = unionFollowMembership(guestMembership, accountMembership);
   const extra = signal === undefined ? {} : { signal };
+  const twitchObservedAtMs = deps.now();
+  const twitchRead = hydratePlatform({
+    liveCache: deps.liveCache,
+    membership: guestMembership,
+    platform: "twitch",
+    reader: deps.reader,
+    ...extra,
+  });
+  const kickObservedAtMs = deps.now();
+  const kickRead = hydratePlatform({
+    liveCache: deps.liveCache,
+    membership,
+    platform: "kick",
+    reader: deps.reader,
+    ...extra,
+  });
+  const accountObservedAtMs = deps.now();
   const [twitch, kick, accountLive] = await Promise.all([
-    hydratePlatform({
-      liveCache: deps.liveCache,
-      membership: guestMembership,
-      platform: "twitch",
-      reader: deps.reader,
-      ...extra,
-    }),
-    hydratePlatform({
-      liveCache: deps.liveCache,
-      membership,
-      platform: "kick",
-      reader: deps.reader,
-      ...extra,
-    }),
+    twitchRead,
+    kickRead,
     readAccountLiveStreams(deps.accountLiveStreams),
   ]);
-  if (deps.liveAlertReconciler) {
-    const fresh =
-      twitch.status === "complete" ||
-      twitch.status === "partial" ||
-      kick.status === "complete" ||
-      kick.status === "partial" ||
-      accountLive.length > 0;
-    if (fresh) {
-      const preferences = await deps.liveNotifications.read();
-      // First observation after cold start is silent so already-live channels
-      // do not flood Activity; subsequent hydrates emit offline→live alerts.
-      const silent = !deps.liveAlertPrimed.value;
-      deps.liveAlertPrimed.value = true;
-      await deps.liveAlertReconciler.observe({
-        guestMembership,
-        membership,
-        preferences,
-        silent,
-        streams: [...twitch.items, ...kick.items, ...accountLive],
-      });
-    }
-  }
+  deps.onLiveHydrated?.({
+    membership,
+    outcomes: { kick, twitch },
+    accountLive,
+    observedAtMs: {
+      twitch: twitchObservedAtMs,
+      kick: kickObservedAtMs,
+      account: accountObservedAtMs,
+    },
+  });
   return { kick, twitch };
 }
 
@@ -321,8 +292,6 @@ async function addFollow(input: {
     readonly displayName?: string;
   };
 }): Promise<FollowMutationResult> {
-  // Desktop parity: when channel identity is already known (Channel Detail Follow),
-  // persist locally without a relay resolve. Relay is only required for login-only adds.
   const known = guestFollowFromKnownIdentity(input.write, input.now);
   if (known !== null) {
     return { follow: await input.guestFollows.upsert(known), kind: "followed" };

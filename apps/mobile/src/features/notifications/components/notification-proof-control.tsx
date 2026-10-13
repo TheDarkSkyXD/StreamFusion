@@ -27,7 +27,7 @@ export function NotificationProofControl({
       </Text>
       <Text selectable style={styles.body} testID="notification-lifecycle-status">
         This local test checks Android notification display and navigation.
-        Background push delivery requires a configured Firebase app and relay.
+        Phone background checks run about every 15 minutes when enabled.
       </Text>
       {registrationCopy ? (
         <Text

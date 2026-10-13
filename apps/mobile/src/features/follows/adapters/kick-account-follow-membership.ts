@@ -44,7 +44,7 @@ export function createKickAccountFollowMembership(input: {
         return { kind: "unavailable", reason: outcome.reason };
       }
       return {
-        kind: "available",
+        kind: outcome.kind === "partial" ? "partial" : "available",
         follows: kickFollowedChannelsToGuestFollows(outcome.channels),
       };
     },
@@ -70,7 +70,10 @@ export type KickFollowedChannelRow = {
 };
 
 export type KickFollowedFetchOutcome =
-  | { readonly kind: "ok"; readonly channels: readonly KickFollowedChannelRow[] }
+  | {
+      readonly kind: "ok" | "partial";
+      readonly channels: readonly KickFollowedChannelRow[];
+    }
   | {
       readonly kind: "error";
       readonly reason:
@@ -134,7 +137,9 @@ export async function fetchKickFollowedChannels(input: {
   if (channels === null) {
     return { kind: "error", reason: "kick-followed-parse" };
   }
-  return { kind: "ok", channels };
+  const partial =
+    typeof parsed === "object" && parsed !== null && "nextCursor" in parsed;
+  return { kind: partial ? "partial" : "ok", channels };
 }
 
 export function kickFollowedChannelsToGuestFollows(
@@ -191,7 +196,11 @@ function extractLegacyItems(parsed: unknown): unknown[] | null {
 function parseKickWebFollowPageChannels(
   payload: unknown,
 ): KickFollowedChannelRow[] | null {
-  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+  if (
+    payload === null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
     return null;
   }
   const record = payload as Record<string, unknown>;
@@ -209,11 +218,11 @@ function parseKickWebFollowPageChannels(
   const channels: KickFollowedChannelRow[] = [];
   for (const value of record.channels) {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      continue;
+      return null;
     }
     const item = value as Record<string, unknown>;
     if (typeof item.channel_slug !== "string" || !item.channel_slug.trim()) {
-      continue;
+      return null;
     }
     const slug = item.channel_slug.trim().toLowerCase();
     const displayName =

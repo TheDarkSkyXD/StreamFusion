@@ -10,7 +10,6 @@ const { native, listeners } = vi.hoisted(() => ({
     requestPermission: vi.fn(async () => "granted"),
     present: vi.fn(async () => undefined),
     getInitialResponse: vi.fn(async () => null as string | null),
-    getDevicePushToken: vi.fn(async () => null as string | null),
   },
   listeners: new Map<string, (event: unknown) => void>(),
 }));
@@ -31,7 +30,6 @@ import {
   createAndroidNotificationPolicy,
   createAndroidNotificationChannels,
   createAndroidNotificationReceiptSource,
-  createAndroidPushTokenSource,
 } from "../adapters/android-notification-runtime";
 
 describe("Android notification runtime", () => {
@@ -40,10 +38,9 @@ describe("Android notification runtime", () => {
     listeners.clear();
   });
 
-  it("updates native posting policy independently of push registration", async () => {
+  it("updates native posting policy", async () => {
     await createAndroidNotificationPolicy().apply({ enabled: false, sound: false });
     expect(native.configureLiveAlerts).toHaveBeenCalledWith(false, false);
-    expect(native.getDevicePushToken).not.toHaveBeenCalled();
   });
 
   it("creates channels and presents a live alert with its payload", async () => {
@@ -77,9 +74,4 @@ describe("Android notification runtime", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("only exposes a configured native FCM token", async () => {
-    expect(await createAndroidPushTokenSource().read()).toBeNull();
-    native.getDevicePushToken.mockResolvedValueOnce("a".repeat(48));
-    expect(await createAndroidPushTokenSource().read()).toBe("a".repeat(48));
-  });
 });

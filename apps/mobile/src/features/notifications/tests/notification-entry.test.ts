@@ -57,6 +57,7 @@ describe("notification entry routing", () => {
       eventId: payload.eventId,
       kind: "channel",
       event: "live-alert",
+      source: "local",
       occurredAt: toSerializedTimestamp(payload.occurredAt),
       title: payload.title,
     });

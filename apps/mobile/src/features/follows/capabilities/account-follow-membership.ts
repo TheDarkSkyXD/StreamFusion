@@ -8,7 +8,7 @@ import type { GuestFollow } from "@streamfusion/core/follows";
  */
 export type AccountFollowMembershipOutcome =
   | {
-      readonly kind: "available";
+      readonly kind: "available" | "partial";
       readonly follows: readonly GuestFollow[];
     }
   | {
@@ -19,6 +19,11 @@ export type AccountFollowMembershipOutcome =
 export interface AccountFollowMembershipSource {
   read(): Promise<AccountFollowMembershipOutcome>;
 }
+
+export type AccountMembershipState =
+  | { readonly kind: "account"; readonly accountId: string }
+  | { readonly kind: "signed-out" }
+  | { readonly kind: "unavailable" };
 
 export interface AccountLiveStreamsSource {
   read(): Promise<readonly Stream[]>;

@@ -1,236 +1,130 @@
-import {
-  buildLiveNotificationProjection,
-  type SafeNotificationPayload,
-} from "@streamfusion/core/relay";
-import type { LiveNotificationPreferences } from "@streamfusion/core/follows";
+import type { SafeNotificationPayload } from "@streamfusion/core/relay";
 
 import type {
   InAppNotificationBanner,
   NativeNotificationDependencies,
   NativeNotificationRuntime,
-  NativeRegistrationSnapshot,
+  NativeNotificationSnapshot,
   NotificationOpenLocation,
 } from "../capabilities/native-notifications";
-import { nativeRegistrationSnapshot } from "./native-registration-status";
-import {
-  activityItemFromPayload,
-  notificationOpenLocation,
-} from "./notification-entry";
+import type { ForegroundObservation, BackgroundStatus } from "../capabilities/background-live-alerts";
+import { buildBackgroundSnapshot } from "./background-live-alerts";
+import { activityItemFromPayload, notificationOpenLocation } from "./notification-entry";
 
 function createExclusiveQueue() {
   let tail: Promise<unknown> = Promise.resolve();
   return function enqueue<T>(work: () => Promise<T>): Promise<T> {
     const next = tail.then(work, work);
-    tail = next.then(
-      () => undefined,
-      () => undefined,
-    );
+    tail = next.then(() => undefined, () => undefined);
     return next;
   };
 }
 
-export function createNativeNotificationRuntime(
-  deps: NativeNotificationDependencies,
-): NativeNotificationRuntime {
+function statusCopy(status: BackgroundStatus | null): string {
+  if (status === null) return "Phone background checks are unavailable. Saved notification choices remain on this device.";
+  if (status.failure === "inbox-full") return "Background Activity is full. Open Activity to import pending alerts.";
+  if (status.failure === "storage-unavailable") return "Phone background checks cannot use secure storage right now.";
+  if (status.failure === "provider-unavailable") return "The last phone check could not reach a provider. It will retry.";
+  if (!status.scheduled) return "Phone background checks are off for the current follows and settings.";
+  const lastChecked = status.lastCheckedAtMs === null
+    ? "No completed phone check yet."
+    : `Last checked ${new Date(status.lastCheckedAtMs).toLocaleString()}.`;
+  return `This phone checks ${status.channelCount} followed channel${status.channelCount === 1 ? "" : "s"} about every 15 minutes, even when the app is closed. Android may delay checks. Force-stopping the app pauses them until you reopen it. ${lastChecked}`;
+}
+
+export function createNativeNotificationRuntime(deps: NativeNotificationDependencies): NativeNotificationRuntime {
   const listeners = new Set<() => void>();
-  const enqueueReceipt = createExclusiveQueue();
-  const enqueueRegistration = createExclusiveQueue();
-  let snapshot = nativeRegistrationSnapshot({
-    fingerprint: null,
-    state: "idle",
-  });
+  const enqueue = createExclusiveQueue();
+  let snapshot: NativeNotificationSnapshot = { status: null, copy: "Checking phone background checks." };
   let banner: InAppNotificationBanner | null = null;
-  let projectionVersion = 1;
   let started = false;
   let openHandler: ((location: NotificationOpenLocation) => void) | null = null;
 
-  function notify(): void {
-    listeners.forEach((listener) => listener());
-  }
-
-  function setSnapshot(next: {
-    readonly fingerprint: string | null;
-    readonly lastFailure?: string | null;
-    readonly overflowPairs?: number;
-    readonly state: NativeRegistrationSnapshot["state"];
-    readonly topicSubscriptions?: number;
-  }): NativeRegistrationSnapshot {
-    snapshot = nativeRegistrationSnapshot(next);
+  function notify() { listeners.forEach((listener) => listener()); }
+  function setStatus(status: BackgroundStatus | null) {
+    snapshot = { status, copy: statusCopy(status) };
     notify();
     return snapshot;
   }
-
-  function open(location: NotificationOpenLocation): void {
-    openHandler?.(location);
-  }
-
-  function applyReceipt(input: {
-    readonly foreground: boolean;
-    readonly payload: SafeNotificationPayload;
-  }): Promise<void> {
-    return enqueueReceipt(() => applyReceiptNow(input));
-  }
-
-  async function applyReceiptNow(input: {
-    readonly foreground: boolean;
-    readonly payload: SafeNotificationPayload;
-  }): Promise<void> {
-    const item = activityItemFromPayload(input.payload);
-    if (item) await deps.activity.record(item);
-    const location = notificationOpenLocation(input.payload);
-    if (input.foreground) {
-      banner = {
-        eventId: input.payload.eventId,
-        title: input.payload.title,
-        body: input.payload.body,
-        location,
-      };
-      notify();
-      return;
+  async function importPending(): Promise<readonly SafeNotificationPayload[]> {
+    const pending = await deps.background.pending();
+    for (const payload of pending) {
+      const item = activityItemFromPayload(payload);
+      if (item === null) continue;
+      await deps.activity.record(item);
+      await deps.background.acknowledge([payload.eventId]);
     }
-    open(location);
+    return pending;
   }
-
-  async function registerProjection(
-    token: string,
-    preferences: LiveNotificationPreferences,
-    policyFailure: string | null,
-  ): Promise<NativeRegistrationSnapshot> {
-    const membership = await deps.follows.listMembership();
-    const grant = await deps.transport.register({
-      nativeToken: token,
-      projection: buildLiveNotificationProjection({
-        membership,
-        preferences,
-        version: projectionVersion,
-      }),
-      remoteDeliveryEnabled:
-        preferences.enabled &&
-        preferences.liveAlerts &&
-        !preferences.doNotDisturb,
-    });
-    if (grant === null) {
-      return setSnapshot({
-        fingerprint: null,
-        lastFailure: policyFailure,
-        state: "unavailable",
-      });
-    }
-    projectionVersion = grant.projectionVersion + 1;
-    return setSnapshot({
-      fingerprint: grant.tokenFingerprint,
-      overflowPairs: grant.overflowPairs,
-      lastFailure: policyFailure,
-      state: "registered",
-      topicSubscriptions: grant.topicSubscriptions,
-    });
-  }
-
-  async function registerTokenNow(
-    token: string | null,
-  ): Promise<NativeRegistrationSnapshot> {
-    const [preferences, permission] = await Promise.all([
-      deps.follows.readNotifications(),
-      deps.permission(),
-    ]);
-    let policyFailure: string | null = null;
+  async function syncNow(observations: readonly ForegroundObservation[]): Promise<NativeNotificationSnapshot> {
     try {
+      const before = new Set((await importPending()).map((event) => event.eventId));
+      const [membership, guestMembership] = await Promise.all([
+        deps.follows.listMembership(),
+        deps.follows.listGuestMembership(),
+      ]);
+      await deps.channels.ensure();
+      const preferences = await deps.follows.readNotifications();
       await deps.postingPolicy.apply({
-        enabled:
-          permission === "granted" &&
-          preferences.enabled &&
-          preferences.liveAlerts &&
-          !preferences.doNotDisturb,
+        enabled: preferences.enabled && !preferences.doNotDisturb,
         sound: preferences.sound,
       });
+      const status = await deps.background.configure(buildBackgroundSnapshot({
+        membership, guestMembership, preferences, observations,
+      }));
+      const after = await importPending();
+      if (observations.length > 0 && preferences.toastAlerts && !preferences.doNotDisturb) {
+        const observedChannels = new Set(observations.filter((observation) => observation.kind === "live")
+          .map((observation) => `${observation.platform}:${observation.channelId}`));
+        const fresh = after.find((event) => !before.has(event.eventId) &&
+          event.destination.kind === "watch-channel" &&
+          observedChannels.has(`${event.destination.platform}:${event.destination.channelId}`));
+        if (fresh) {
+          banner = {
+            eventId: fresh.eventId,
+            title: fresh.title,
+            body: fresh.body,
+            location: notificationOpenLocation(fresh),
+          };
+          notify();
+        }
+      }
+      return setStatus(status);
     } catch {
-      policyFailure =
-        "Android alert settings could not be applied on this device.";
+      return setStatus(null);
     }
-    if (permission === "denied") {
-      let disabled = false;
-      try {
-        disabled = await deps.transport.disable();
-      } catch {
-        disabled = false;
-      }
-      return setSnapshot({
-        fingerprint: null,
-        state: "denied",
-        lastFailure: disabled
-          ? policyFailure
-          : "Android blocked notifications. Remote alert registration could not be retired yet.",
-      });
-    }
-    setSnapshot({ fingerprint: snapshot.fingerprint, state: "pending" });
-    if (token === null || !(await deps.identityReady())) {
-      return setSnapshot({
-        fingerprint: null,
-        lastFailure: policyFailure,
-        state: "unavailable",
-      });
-    }
-    return registerProjection(token, preferences, policyFailure);
   }
-
-  function registerToken(token?: string): Promise<NativeRegistrationSnapshot> {
-    return enqueueRegistration(async () => {
-      try {
-        await deps.channels.ensure();
-        return await registerTokenNow(token ?? (await deps.tokens.read()));
-      } catch {
-        return setSnapshot({
-          fingerprint: null,
-          lastFailure:
-            "Remote alert registration failed. Your notification settings remain saved on this device.",
-          state: "unavailable",
-        });
-      }
-    });
-  }
-
-  function ensureStarted(): void {
+  function ensureStarted() {
     if (started) return;
     started = true;
-    deps.receipts.subscribe((receipt) => {
-      void applyReceipt(receipt);
-    });
-    deps.tokens.subscribe((token) => {
-      void registerToken(token);
+    deps.receipts.subscribe(({ payload, foreground }) => {
+      if (!foreground) openHandler?.(notificationOpenLocation(payload));
     });
     void deps.receipts.initial().then((payload) => {
-      if (payload) open(notificationOpenLocation(payload));
+      if (payload) openHandler?.(notificationOpenLocation(payload));
     });
-    void registerToken();
+    void enqueue(() => syncNow([]));
   }
-
   return {
-    bindOpen(handler) {
-      openHandler = handler;
-    },
-    dismissBanner() {
-      banner = null;
-      notify();
-    },
-    load: () => registerToken(),
+    bindOpen(handler) { openHandler = handler; },
+    dismissBanner() { banner = null; notify(); },
+    load: () => enqueue(() => syncNow([])),
     peek: () => snapshot,
     peekBanner: () => banner,
     async presentProof(payload) {
       await deps.channels.ensure();
-      await applyReceipt({ foreground: true, payload });
-      try {
-        await deps.presenter.present(payload);
-      } catch {
-        return;
-      }
+      const item = activityItemFromPayload(payload);
+      if (item) await deps.activity.record(item);
+      banner = { eventId: payload.eventId, title: payload.title, body: payload.body,
+        location: notificationOpenLocation(payload) };
+      notify();
+      try { await deps.presenter.present(payload); } catch { return; }
     },
     subscribe(listener) {
       listeners.add(listener);
       ensureStarted();
-      return () => {
-        listeners.delete(listener);
-      };
+      return () => { listeners.delete(listener); };
     },
-    sync: () => registerToken(),
+    sync: (observations = []) => enqueue(() => syncNow(observations)),
   };
 }

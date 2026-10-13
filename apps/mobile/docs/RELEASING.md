@@ -68,7 +68,6 @@ The `android-release` environment supplies the production build. Configure these
 | `STREAMFUSION_MOBILE_KEYSTORE_PASSWORD` | Keystore password |
 | `STREAMFUSION_MOBILE_KEY_ALIAS` | Signing key alias |
 | `STREAMFUSION_MOBILE_KEY_PASSWORD` | Signing key password |
-| `STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64` | Base64-encoded Android `google-services.json` downloaded from the production Firebase project |
 
 Configure `ANDROID_PRODUCTION_VERSION_CODE` as an environment variable. Increase it for every published APK.
 
@@ -76,17 +75,15 @@ The build job also passes these public environment variables to Metro:
 
 | Variable | Runtime use |
 | --- | --- |
-| `STREAMFUSION_PUBLIC_RELAY_URL` | Installation policy and native push relay |
+| `STREAMFUSION_PUBLIC_RELAY_URL` | Installation policy and provider catalog reads |
 | `STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS` | JSON object of trusted installation-policy keys |
 | `STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID` | Twitch client ID override |
 | `STREAMFUSION_PUBLIC_KICK_CLIENT_ID` | Kick client ID override |
 | `STREAMFUSION_PUBLIC_WORKER_URL` | Kick worker URL override |
 
-The Babel build replaces each configured value in the JavaScript bundle. The production build requires a public HTTPS relay URL with a DNS hostname and a nonempty JSON map of trusted key IDs to 43-character base64url public keys. It rejects local and reserved relay hostnames. The Twitch, Kick, and worker overrides remain optional.
+The Babel build replaces each configured value in the JavaScript bundle. These public overrides are optional. Installation policy requires a relay URL and trusted policy keys when configured.
 
-Download the Android `google-services.json` for `com.thedarkskyxd.streamfusion` from the production Firebase project. Encode the complete file as base64 and store it in the `android-release` environment as `STREAMFUSION_MOBILE_GOOGLE_SERVICES_BASE64`. Keep the JSON and its encoded value out of version control. The repository ignores `apps/mobile/android/app/google-services.json`.
-
-Before Gradle runs, the workflow restores the JSON and checks the production package name, Firebase project number and ID, Android app ID, API key, relay URL, and trusted keys. Gradle repeats the check for every production build. A missing or invalid value stops the build before an APK can be published. Development builds can run without Firebase configuration; local notifications still work, but remote registration needs a configured Firebase app.
+Live alerts use Android WorkManager on the device. No Firebase project, Google Services file, or notification server is required. Android checks eligible saved follows about every 15 minutes when a network is available and may delay checks to save battery. Force-stopping the app prevents background checks until you reopen it.
 
 ## Release workflow
 
@@ -94,10 +91,10 @@ Before Gradle runs, the workflow restores the JSON and checks the production pac
 
 1. `verify` validates the tag, audits dependencies, creates a release bundle for inspection, and runs mobile lint, typecheck, and tests.
 2. `signing` requires the pinned certificate and resolves the production identity.
-3. `build` validates and restores Firebase configuration, restores the keystore, runs `app:assembleRelease`, verifies the APK signer and application ID, and creates the Android Release Set.
+3. `build` restores the keystore, runs `app:assembleRelease`, verifies the APK signer and application ID, and creates the Android Release Set.
 4. `release` downloads the Release Set, verifies the APK again, creates a draft GitHub Release, and publishes it.
 
-The workflow fails before publication when the tag does not match `apps/mobile/package.json`, the production identity or notification configuration is incomplete, a signing secret is missing, the signer differs from the pin, or the APK has the wrong application ID.
+The workflow fails before publication when the tag does not match `apps/mobile/package.json`, the production identity is incomplete, a signing secret is missing, the signer differs from the pin, or the APK has the wrong application ID.
 
 To publish the version recorded in `apps/mobile/package.json`, create and push the matching tag:
 

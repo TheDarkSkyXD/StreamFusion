@@ -10,6 +10,25 @@ import {
 } from "../adapters/kick-account-follow-membership";
 
 describe("kick account follow membership", () => {
+  it("does not confirm a followed page that has a continuation cursor", async () => {
+    const source = createKickAccountFollowMembership({
+      readCredential: async () => ({ accessToken: "fixture" }),
+      fetch: async () =>
+        new Response(JSON.stringify({ channels: [], nextCursor: 0 })),
+    });
+    expect((await source.read()).kind).toBe("partial");
+  });
+
+  it("rejects malformed followed rows rather than confirming an empty list", async () => {
+    const source = createKickAccountFollowMembership({
+      readCredential: async () => ({ accessToken: "fixture" }),
+      fetch: async () =>
+        new Response(
+          JSON.stringify({ channels: [{ user_username: "Missing slug" }] }),
+        ),
+    });
+    expect((await source.read()).kind).toBe("unavailable");
+  });
   it("maps legacy followed rows into GuestFollow writes", () => {
     const follows = kickFollowedChannelsToGuestFollows([
       {
@@ -56,7 +75,8 @@ describe("kick account follow membership", () => {
           {
             channel_slug: "xQc",
             user_username: "xQcOW",
-            profile_picture: "https://files.kick.com/images/user/99/profile.webp",
+            profile_picture:
+              "https://files.kick.com/images/user/99/profile.webp",
           },
         ],
         nextCursor: 0,
@@ -81,19 +101,20 @@ describe("kick account follow membership", () => {
   });
 
   it("returns available follows when the catalog succeeds", async () => {
-    const fetch = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          data: [
-            {
-              id: 1,
-              slug: "alice",
-              user: { username: "Alice" },
-            },
-          ],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 1,
+                slug: "alice",
+                user: { username: "Alice" },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
     );
     const source = createKickAccountFollowMembership({
       fetch: fetch as unknown as typeof globalThis.fetch,

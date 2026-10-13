@@ -42,11 +42,17 @@ Media3 is the Android playback implementation for Watch and MultiStream. It reta
 
 StreamFusionEmoteImage uses Fresco for cached GIF and WebP images. Its animated prop controls animation playback. StreamFusionPlatform owns Custom Tabs, clipboard, connectivity facts, orientation, system bars, haptics, app metadata, and SHA-256. Storage owns secure random bytes and UUIDs.
 
-StreamFusionNotifications owns local channels, posting permission, notification presentation, cold and warm tap receipts, and Firebase token events. Remote tokens require a configured Firebase application. The Google Services Gradle plugin processes android/app/google-services.json when present. Keep this installation-specific file out of version control. Local alerts remain independent of remote registration and honor LiveNotificationPreferences. Notification intents return to the existing shell parser.
+StreamFusionNotifications owns local channels, posting permission, presentation, and cold and warm tap receipts. Android WorkManager checks public Twitch and Kick stream state for an encrypted snapshot of eligible saved follows about every 15 minutes. Foreground reads and background checks share one encrypted native observation journal. The worker does not start React or use account tokens. Provider failures preserve the last verified state. The first successful observation establishes a silent baseline.
+
+The native journal retains pending Activity events until JavaScript persists and acknowledges them. Notification settings control eligibility, restart grace, sound, and interruption policy. Disabled system alerts, Do Not Disturb, and denied Android permission do not discard eligible Activity history. Android may delay periodic work, and force-stop suspends it until the app opens again. Firebase and a notification relay are not used.
+
+Product settings retain the last confirmed account follow list for each platform and account identity. Unavailable reads keep that list, and partial reads merge verified follows into it. Confirmed empty lists, sign-out, and account switches clear the old membership. Foreground observations carry their original read times and only explicit provider live or offline evidence.
 
 ## Android workflows
 
 The normal mobile command opens the installed development app with Metro on port 8083. The native command builds the committed Gradle project and installs it without prebuild. Use STREAMFUSION_ANDROID_DEVICE or the native launcher's device argument when multiple devices are connected. Native changes require a rebuilt APK. Restart the app after code changes and leave the latest development app running after verification.
+
+For checkout paths containing commas, the native-contracts module puts its build output in Gradle's user-home cache, keyed by the checkout path. This keeps Kotlin's test-access path list intact. App APK paths stay under `android/app/build/outputs/apk/`.
 
 native-config.json records the development identity. Production builds require the exact production release channel, an explicit release version and version code, and the pinned signing certificate. The development application remains com.thedarkskyxd.streamfusion.dev with scheme streamfusion-development. The production application remains com.thedarkskyxd.streamfusion with scheme streamfusion. Release builds use the existing upload-signing variables and APK verification gates.
 
