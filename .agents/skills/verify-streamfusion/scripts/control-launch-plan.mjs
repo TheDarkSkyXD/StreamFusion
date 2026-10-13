@@ -86,7 +86,7 @@ export function createVerificationLaunchPlan(
     ...launcher.npmPrefix,
     "--",
     `--remote-debugging-port=${request.port}`,
-    `--user-data-dir=${request.profileDir}`,
+    ...(mode === "dev:electron" ? [] : [`--user-data-dir=${request.profileDir}`]),
     ...electronArgs,
   ];
   const executable = npmCommand(npmArguments, {
@@ -94,7 +94,11 @@ export function createVerificationLaunchPlan(
     execPath: host.execPath ?? process.execPath,
     env: host.env ?? process.env,
   });
-  const { ELECTRON_RUN_AS_NODE: _ignored, ...env } = host.env ?? process.env;
+  const { ELECTRON_RUN_AS_NODE: _ignored, ...inheritedEnv } = host.env ?? process.env;
+  const env = {
+    ...inheritedEnv,
+    STREAMFUSION_DEV_USER_DATA_DIR: request.profileDir,
+  };
 
   return Object.freeze({
     launcher: launcher.launcher,

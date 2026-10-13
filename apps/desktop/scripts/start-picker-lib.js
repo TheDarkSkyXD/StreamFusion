@@ -93,7 +93,11 @@ function launchStartMode(
   if (mode === "dev") launchEnv.STREAMFUSION_BROWSER_DEV = "1";
 
   const startArgs = [path.resolve(__dirname, "start-dev.js")];
-  if (electronArgs.length > 0) startArgs.push("--", ...electronArgs);
+  const profileDir = env.STREAMFUSION_DEV_USER_DATA_DIR;
+  const forwardedArgs = profileDir
+    ? [...electronArgs, `--user-data-dir=${profileDir}`]
+    : electronArgs;
+  if (forwardedArgs.length > 0) startArgs.push("--", ...forwardedArgs);
 
   const child = spawn(execPath, startArgs, {
     cwd,
