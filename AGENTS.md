@@ -210,6 +210,37 @@ wrote or changed, not to prose you didn't touch.
 
 Dont open a PR only commit and push to main.
 
+## Project structure
+
+This repository is an npm workspace monorepo. Use these paths to locate each app and shared code:
+
+```text
+StreamFusion/
+├── apps/
+│   ├── desktop/              # Electron desktop app
+│   │   └── src/
+│   │       ├── backend/      # Electron main process and preload bridge
+│   │       ├── frontend/     # React UI and browser development entry points
+│   │       └── shared/       # Desktop contracts shared across process boundaries
+│   ├── mobile/               # React Native Android app and native modules
+│   ├── worker/               # Cloudflare Worker for Kick OAuth
+│   └── integration-relay/    # Cloudflare Worker for external integrations
+├── packages/
+│   └── core/                 # Shared platform contracts and business logic
+├── docs/                     # Architecture, ADRs, plans, and agent guidance
+├── scripts/                  # Workspace tooling, release checks, and verification
+├── verification/             # Verification scripts and evidence definitions
+├── .agents/                  # Project skills and agent definitions
+├── .github/                  # GitHub workflows and repository configuration
+├── AGENTS.md                 # Root agent instructions
+├── CONTEXT-MAP.md            # App contexts and their domain documents
+├── DESIGN.md                 # UI design system
+├── package.json              # Workspace registration and root commands
+└── package-lock.json         # Shared npm lockfile
+```
+
+The web frontend lives in `apps/desktop/src/frontend/`. There is no separate root `web/` or `app/` folder. Keep app-specific changes in the owning workspace and shared code in `packages/core/`. Read `CONTEXT-MAP.md` and the owning app's `CONTEXT.md` before changing a feature.
+
 ## FEATURE ARCHITECTURE
 
 Every implemented feature owns a `features/<feature>/` root with this structure:
