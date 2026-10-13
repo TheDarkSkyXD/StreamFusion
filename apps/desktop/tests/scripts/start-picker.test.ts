@@ -15,7 +15,7 @@ import {
 // Guards: choosing Mobile reports that it is unavailable and exits without launching Electron.
 // Guards: picker modes launch start-dev.js through Node, avoiding npm.cmd spawn EINVAL on Windows.
 // Guards: browser mode adds its development flag without mutating the inherited environment.
-// Guards: npm start forwards explicit Electron arguments after a separator so runtime proofs use their isolated profile.
+// Guards: npm start forwards Electron arguments after a separator and adds the isolated profile from the environment.
 // Guards: root npm start reaches the desktop picker through the unified workspace without a nested install.
 describe("start picker", () => {
   it("defaults to Electron-only when the interactive answer is empty", async () => {
@@ -154,6 +154,36 @@ describe("start picker", () => {
       "C:\\Program Files\\nodejs\\node.exe",
       [startDevPath, "--", "--user-data-dir=C:\\proof-profile"],
       expect.objectContaining({ cwd: "C:\\repo\\apps\\desktop", stdio: "inherit" })
+    );
+
+    child.emit("exit", 0, null);
+    await expect(exitCode).resolves.toBe(0);
+  });
+
+  it("forwards the isolated profile from the environment as one Electron argument", async () => {
+    const child = new EventEmitter();
+    const spawn = vi.fn(() => child);
+    const startDevPath = resolve(__dirname, "../../scripts/start-dev.js");
+    const profileDir = "C:\\My Github Repos\\StreamFusion\\profile";
+
+    const exitCode = launchStartMode("dev:electron", {
+      spawn,
+      env: { STREAMFUSION_DEV_USER_DATA_DIR: profileDir },
+      electronArgs: ["--remote-debugging-port=48123"],
+    });
+
+    expect(spawn).toHaveBeenCalledWith(
+      process.execPath,
+      [
+        startDevPath,
+        "--",
+        "--remote-debugging-port=48123",
+        `--user-data-dir=${profileDir}`,
+      ],
+      expect.objectContaining({
+        env: { STREAMFUSION_DEV_USER_DATA_DIR: profileDir },
+        stdio: "inherit",
+      })
     );
 
     child.emit("exit", 0, null);

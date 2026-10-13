@@ -41,10 +41,12 @@ test("the missing mode keeps the development launch plan", () => {
     "start",
     "--",
     "--remote-debugging-port=48123",
-    "--user-data-dir=C:\\runs\\preview\\profile",
   ]);
   assert.equal(plan.readinessTimeoutMs, 120_000);
-  assert.deepEqual(plan.env, { KEEP: "yes" });
+  assert.deepEqual(plan.env, {
+    KEEP: "yes",
+    STREAMFUSION_DEV_USER_DATA_DIR: request.profileDir,
+  });
 });
 
 test("unknown and inherited mode names are rejected", () => {
@@ -115,6 +117,21 @@ test("Windows uses npm_execpath before the beside-Node fallback", () => {
     fallback.args[0],
     "C:\\node\\node_modules\\npm\\bin\\npm-cli.js",
   );
+});
+
+test("Windows keeps the isolated profile outside npm script arguments", () => {
+  const profileDir = "C:\\My Github Repos\\StreamFusion\\profile";
+  const plan = createVerificationLaunchPlan(
+    { ...request, profileDir },
+    { platform: "win32", execPath: "C:\\node\\node.exe", env: {} },
+  );
+
+  assert.deepEqual(plan.args.slice(1), [
+    "start",
+    "--",
+    "--remote-debugging-port=48123",
+  ]);
+  assert.equal(plan.env.STREAMFUSION_DEV_USER_DATA_DIR, profileDir);
 });
 
 test("the controller reserves CDP and profile switches", () => {
