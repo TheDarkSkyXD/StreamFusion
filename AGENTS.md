@@ -223,6 +223,9 @@ StreamFusion/
 │   │       ├── frontend/     # React UI and browser development entry points
 │   │       └── shared/       # Desktop contracts shared across process boundaries
 │   ├── mobile/               # React Native Android app and native modules
+│   │   ├── src/              # React Native UI and app logic organized by feature
+│   │   ├── android/          # Native Android project
+│   │   └── modules/          # Native platform modules
 │   ├── worker/               # Cloudflare Worker for Kick OAuth
 │   └── integration-relay/    # Cloudflare Worker for external integrations
 ├── packages/
@@ -240,6 +243,8 @@ StreamFusion/
 ```
 
 The web frontend lives in `apps/desktop/src/frontend/`. There is no separate root `web/` or `app/` folder. Keep app-specific changes in the owning workspace and shared code in `packages/core/`. Read `CONTEXT-MAP.md` and the owning app's `CONTEXT.md` before changing a feature.
+
+Mobile has no separate `frontend/` or `backend/` folders. Its UI and app logic live in `apps/mobile/src/`, with native Android code in `apps/mobile/android/` and `apps/mobile/modules/`. Server-side services live in `apps/worker/` and `apps/integration-relay/`.
 
 ## FEATURE ARCHITECTURE
 
