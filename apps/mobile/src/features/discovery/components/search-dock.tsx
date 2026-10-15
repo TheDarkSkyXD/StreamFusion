@@ -1,14 +1,7 @@
-import {
-  Keyboard,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ArrowLeft, Search, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 
-import { MobileButton } from "@mobile/design/button";
 import {
   mobileTextFieldProps,
   mobileTextFieldStyle,
@@ -21,11 +14,15 @@ import {
 } from "@mobile/design/tokens";
 
 export function SearchDock({
+  autoFocus = false,
+  onBack,
   onChangeText,
   onClear,
   onSubmit,
   value,
 }: {
+  readonly autoFocus?: boolean;
+  readonly onBack?: () => void;
   readonly onChangeText: (value: string) => void;
   readonly onClear: () => void;
   readonly onSubmit: (value?: string) => void;
@@ -34,51 +31,52 @@ export function SearchDock({
   const { t } = useTranslation();
   return (
     <View style={styles.dock} testID="search-dock">
-      <TextInput
-        {...mobileTextFieldProps}
-        accessibilityLabel={t("discovery.search.placeholder")}
-        autoCapitalize="none"
-        autoCorrect={false}
-        onChangeText={onChangeText}
-        onSubmitEditing={({ nativeEvent }) => {
-          Keyboard.dismiss();
-          onSubmit(nativeEvent.text);
-        }}
-        placeholder={t("discovery.search.placeholder")}
-        placeholderTextColor={mobileColors.textMuted}
-        returnKeyType="search"
-        style={styles.field}
-        testID="search-field"
-        value={value}
-      />
-      {value.length > 0 ? (
+      {onBack ? (
         <Pressable
-          accessibilityLabel="Clear search field"
+          accessibilityLabel="Back to categories"
           accessibilityRole="button"
-          onPress={onClear}
-          style={({ pressed }) => [
-            styles.action,
-            pressed ? styles.pressed : null,
-          ]}
-          testID="clear-search-field"
+          onPress={onBack}
+          style={styles.action}
+          testID="search-back"
         >
-          <Text selectable style={styles.actionLabel}>
-            {t("discovery.search.clearField")}
-          </Text>
+          <ArrowLeft color={mobileColors.textPrimary} size={22} />
         </Pressable>
       ) : null}
-      <MobileButton
-        accessibilityHint="Submits the visible query"
-        accessibilityLabel="Submit search"
-        onPress={() => {
-          Keyboard.dismiss();
-          onSubmit(value);
-        }}
-        testID="submit-search"
-        variant="primary"
-      >
-        {t("discovery.search.submit")}
-      </MobileButton>
+      <View style={styles.fieldWrap}>
+        <Search color={mobileColors.textSecondary} size={19} />
+        <TextInput
+          {...mobileTextFieldProps}
+          accessibilityLabel={t("discovery.search.placeholder")}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus={autoFocus}
+          onChangeText={onChangeText}
+          onSubmitEditing={({ nativeEvent }) => {
+            Keyboard.dismiss();
+            onSubmit(nativeEvent.text);
+          }}
+          placeholder={t("discovery.search.placeholder")}
+          placeholderTextColor={mobileColors.textMuted}
+          returnKeyType="search"
+          style={styles.field}
+          testID="search-field"
+          value={value}
+        />
+        {value.length > 0 ? (
+          <Pressable
+            accessibilityLabel="Clear search field"
+            accessibilityRole="button"
+            onPress={onClear}
+            style={({ pressed }) => [
+              styles.action,
+              pressed ? styles.pressed : null,
+            ]}
+            testID="clear-search-field"
+          >
+            <X color={mobileColors.textSecondary} size={18} />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -86,33 +84,34 @@ export function SearchDock({
 const styles = StyleSheet.create({
   dock: {
     alignItems: "center",
-    backgroundColor: mobileColors.surface,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingTop: mobileSpacing.small,
+  },
+  fieldWrap: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceMuted,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.large,
     borderWidth: 1,
+    flex: 1,
     flexDirection: "row",
-    gap: mobileSpacing.small,
-    padding: mobileSpacing.small,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingLeft: mobileSpacing.medium,
   },
   field: {
     ...mobileTextFieldStyle,
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
+    backgroundColor: "transparent",
     flex: 1,
     minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
+    paddingHorizontal: mobileSpacing.small,
   },
   action: {
     alignItems: "center",
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
     minWidth: mobileSizing.minimumTouchTarget,
-  },
-  actionLabel: {
-    color: mobileColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
   },
   pressed: {
     opacity: 0.76,

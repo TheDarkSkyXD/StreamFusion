@@ -73,7 +73,7 @@ export type HomeLiveDiscoveryView = {
 
 export type DiscoveryPageKind = "top-streams" | "categories" | "search";
 
-export type SearchHistoryScope = "channels" | "streams" | "categories";
+export type SearchHistoryScope = "all" | "channels" | "streams" | "categories";
 
 export type SearchHistoryEntry = {
   readonly label: string;

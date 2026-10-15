@@ -30,6 +30,7 @@ import {
 } from "react";
 import {
   BackHandler,
+  Keyboard,
   type NativeSyntheticEvent,
   Platform,
   Pressable,
@@ -115,7 +116,10 @@ import type {
 import { CategoriesScreen } from "@mobile/features/discovery/components/categories-screen";
 import { CategoryDetailScreen } from "@mobile/features/discovery/components/category-detail-screen";
 import { ChannelDetailScreen } from "@mobile/features/discovery/components/channel-detail-screen";
-import { UnifiedSearchScreen } from "@mobile/features/discovery/components/unified-search-screen";
+import {
+  UnifiedSearchScreen,
+  type SearchPresentationState,
+} from "@mobile/features/discovery/components/unified-search-screen";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import { FollowingWorkspace } from "@mobile/features/follows/components/following-workspace";
 import type { ConnectivitySession } from "@mobile/features/connectivity/capabilities/connectivity-session";
@@ -378,6 +382,17 @@ export function AppShell({
     settingsReady: settings.ready,
   });
   const { dispatch, launchSearchQuery, state: navigation } = lifecycle;
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchPresentation = useRef<SearchPresentationState | null>(null);
+  const saveSearchPresentation = useCallback(
+    (state: SearchPresentationState) => {
+      searchPresentation.current = state;
+    },
+    [],
+  );
+  useEffect(() => {
+    if (launchSearchQuery) setSearchFocused(true);
+  }, [launchSearchQuery]);
   const [notificationBanner, setNotificationBanner] = useState(
     nativeNotifications.peekBanner(),
   );
@@ -448,6 +463,11 @@ export function AppShell({
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
+        if (location.route === "search" && searchFocused) {
+          if (keyboard.open) Keyboard.dismiss();
+          else setSearchFocused(false);
+          return true;
+        }
         const decision = resolveHardwareBack({
           canNavigateBack: canNavigateBack(navigation),
           fullscreen,
@@ -475,7 +495,10 @@ export function AppShell({
     dispatch,
     fullscreen,
     hasDismissalConfirmation,
+    keyboard.open,
+    location.route,
     navigation,
+    searchFocused,
     watchingWatch,
     watchPeek.kind,
     watch.runtime.session,
@@ -519,7 +542,9 @@ export function AppShell({
         >
           {placement === "rail" && !playerOnlySurface ? navigationView() : null}
           <View style={styles.workspace}>
-            {playerOnlySurface || watchOwnsChrome ? null : (
+            {playerOnlySurface ||
+            watchOwnsChrome ||
+            (location.route === "search" && searchFocused) ? null : (
               <ShellHeader dispatch={dispatch} state={navigation} />
             )}
             {playerOnlySurface ? null : (
@@ -609,6 +634,10 @@ export function AppShell({
               captionsController={captionsController}
               launchSearchQuery={launchSearchQuery}
               searchHistory={searchHistory}
+              searchFocused={searchFocused}
+              onSearchFocusChange={setSearchFocused}
+              onSearchStateChange={saveSearchPresentation}
+              searchPresentation={searchPresentation.current}
               discoveryPreferences={discoveryPreferences}
               followingSession={followingSession}
               connectivitySession={connectivitySession}
@@ -821,6 +850,10 @@ function ShellScreen({
   captionsController,
   launchSearchQuery,
   searchHistory,
+  searchFocused,
+  onSearchFocusChange,
+  onSearchStateChange,
+  searchPresentation,
   discoveryPreferences,
   followingSession,
   connectivitySession,
@@ -886,6 +919,10 @@ function ShellScreen({
   readonly captionsController: ReturnType<typeof useLocalCaptionsController>;
   readonly launchSearchQuery: string | null;
   readonly searchHistory: SearchHistoryRepository;
+  readonly searchFocused: boolean;
+  readonly onSearchFocusChange: (focused: boolean) => void;
+  readonly onSearchStateChange: (state: SearchPresentationState) => void;
+  readonly searchPresentation: SearchPresentationState | null;
   readonly discoveryPreferences: DiscoveryPreferenceStore;
   readonly followingSession: FollowingSession;
   readonly connectivitySession: ConnectivitySession;
@@ -1244,11 +1281,18 @@ function ShellScreen({
                   location: { category, route: "more/category-detail" },
                 })
               }
+              onOpenSearch={() => onSearchFocusChange(true)}
               preferences={discoveryPreferences}
               session={homeDiscovery}
             />
           }
           history={searchHistory}
+          focused={searchFocused}
+          onSearchFocusChange={onSearchFocusChange}
+          onStateChange={onSearchStateChange}
+          {...(searchPresentation === null
+            ? {}
+            : { restoredState: searchPresentation })}
           onOpenAccounts={() =>
             dispatch({ type: "navigate", location: { route: "more/accounts" } })
           }

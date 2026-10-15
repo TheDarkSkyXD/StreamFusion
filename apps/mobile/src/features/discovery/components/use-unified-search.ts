@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { SearchIntent, SearchResultType } from "@streamfusion/core/discovery";
+import type {
+  SearchIntent,
+  SearchResultType,
+} from "@streamfusion/core/discovery";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type {
@@ -43,6 +46,7 @@ export function useUnifiedSearch(input: {
   const historyScope =
     input.historyScope ?? historyScopeForTab(input.resultType);
   const enabled = input.enabled !== false;
+  useEffect(() => setHistoryConfirmClear(false), [historyScope]);
   const query = input.query.trim();
   const shouldFetch = enabled && query.length > 0;
   const fetchTwitch = shouldFetch && input.platform !== "kick";
@@ -93,10 +97,7 @@ export function useUnifiedSearch(input: {
       setHistoryConfirmClear(false);
     },
     async confirmClear() {
-      const next = clearSearchHistory(
-        history,
-        historyScope,
-      );
+      const next = clearSearchHistory(history, historyScope);
       setHistoryConfirmClear(false);
       await persist(next);
     },
@@ -115,7 +116,8 @@ export function useUnifiedSearch(input: {
         queryKey: ["discovery", "search"],
       });
     },
-    refreshing: (fetchTwitch && twitch.isFetching) || (fetchKick && kick.isFetching),
+    refreshing:
+      (fetchTwitch && twitch.isFetching) || (fetchKick && kick.isFetching),
     retry(platform: Platform) {
       void queryClient.invalidateQueries({
         queryKey: ["discovery", "search", platform],

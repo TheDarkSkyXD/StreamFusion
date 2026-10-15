@@ -49,6 +49,7 @@ export function SearchFilters({
         accessibilityLabel="Search filters"
         contentContainerStyle={styles.row}
         horizontal
+        keyboardShouldPersistTaps="handled"
         showsHorizontalScrollIndicator={false}
       >
         {PLATFORMS.map((next) => (
@@ -99,6 +100,8 @@ function platformLabel(platform: Platform): string {
 const styles = StyleSheet.create({
   stack: {
     gap: mobileSpacing.small,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingTop: mobileSpacing.small,
   },
   row: {
     flexDirection: "row",

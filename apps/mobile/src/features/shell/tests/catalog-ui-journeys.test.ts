@@ -222,42 +222,8 @@ describe("catalog UI journeys", () => {
     ).toBe(false);
   });
 
-  it("repeats Search history and retries a failed Search catalog", () => {
-    const repeated: string[] = [];
+  it("retries a failed Search catalog", () => {
     const retried: string[] = [];
-    const history = descendants(
-      UnifiedSearchView({
-        draft: "arcade",
-        liveOnly: false,
-        mode: "search",
-        onCancelClear: () => undefined,
-        onChangeDraft: () => undefined,
-        onClearDraft: () => undefined,
-        onConfirmClear: () => undefined,
-        onOpenAccounts: () => undefined,
-        onRemoveHistory: () => undefined,
-        onRepeatHistory: (entry) =>
-          repeated.push(typeof entry === "string" ? entry : entry.label),
-        onRequestClear: () => undefined,
-        onRetry: () => undefined,
-        onSelectMode: () => undefined,
-        onSelectPlatform: () => undefined,
-        onSelectTab: () => undefined,
-        onSubmit: () => undefined,
-        onToggleLiveOnly: () => undefined,
-        platform: "all",
-        tab: "all",
-        view: composeUnifiedSearch({
-          history: { ...emptySearchHistory(), channels: [{ label: "arcade" }] },
-          intent: null,
-          kick: fixtureSearchOutcome("kick", "ready"),
-          loading: false,
-          twitch: fixtureSearchOutcome("twitch", "ready"),
-        }),
-      }),
-    );
-    press(history, "repeat-search-arcade");
-    expect(repeated).toEqual(["arcade"]);
     const failed = descendants(
       UnifiedSearchView({
         draft: "arcade",

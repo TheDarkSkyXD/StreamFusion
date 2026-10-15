@@ -27,6 +27,7 @@ I wanted to share some of my preferences here so we can be more aligned as we wo
 4. **If asked to investigate, investigate.** "Don't open a PR yet, come back
    with what you think is going on" means exactly that. Do not start fixing
    because you spotted something on the way.
+- For a UI reference, inspect the requested app's entry, focus, and back interactions before designing the change. Check existing emulator installations before installing another copy, and confirm which destination the reference applies to.
 
 ## While you work
 

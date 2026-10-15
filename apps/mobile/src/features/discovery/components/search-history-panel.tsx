@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import type { Platform } from "@streamfusion/core/platform";
+import { Clock3, X } from "lucide-react-native";
 
 import {
   mobileColors,
@@ -14,35 +14,25 @@ import type {
   SearchHistoryScope,
 } from "../capabilities/platform-reads";
 import {
-  channelIdentityFromHistory,
   historyEntryAvatarUrl,
   historyEntryLabel,
 } from "../domain/search-history";
 
 export function SearchHistoryPanel({
   confirmClear,
-  fallbackPlatform = "twitch",
   history,
   onCancelClear,
   onClear,
   onConfirmClear,
-  onOpenChannel,
   onRemove,
   onRepeat,
   scope,
 }: {
   readonly confirmClear: boolean;
-  readonly fallbackPlatform?: Platform;
   readonly history: SearchHistoryByScope;
   readonly onCancelClear: () => void;
   readonly onClear: () => void;
   readonly onConfirmClear: () => void;
-  readonly onOpenChannel?: (channel: {
-    readonly id: string;
-    readonly platform: Platform;
-    readonly username: string;
-    readonly avatarUrl?: string;
-  }) => void;
   readonly onRemove: (entry: SearchHistoryEntry) => void;
   readonly onRepeat: (entry: SearchHistoryEntry) => void;
   readonly scope: SearchHistoryScope;
@@ -118,30 +108,15 @@ export function SearchHistoryPanel({
           const label = historyEntryLabel(entry);
           const avatarUrl = historyEntryAvatarUrl(entry);
           const token = historyToken(label);
-          const openChannel =
-            scope === "channels" || scope === "streams"
-              ? channelIdentityFromHistory(entry, fallbackPlatform)
-              : null;
-          const onPress = () => {
-            if (openChannel && onOpenChannel) {
-              onOpenChannel({
-                ...openChannel,
-                ...(avatarUrl ? { avatarUrl } : {}),
-              });
-              return;
-            }
-            onRepeat(entry);
-          };
           return (
-            <View key={`${entry.platform ?? "any"}:${entry.channelId ?? label}`} style={styles.row}>
+            <View
+              key={`${entry.platform ?? "any"}:${entry.channelId ?? label}`}
+              style={styles.row}
+            >
               <Pressable
-                accessibilityLabel={
-                  openChannel
-                    ? `Open ${label} channel`
-                    : `Search again for ${label}`
-                }
+                accessibilityLabel={`Search again for ${label}`}
                 accessibilityRole="button"
-                onPress={onPress}
+                onPress={() => onRepeat(entry)}
                 style={({ pressed }) => [
                   styles.cardPress,
                   pressed ? styles.pressed : null,
@@ -156,10 +131,11 @@ export function SearchHistoryPanel({
                     testID={`search-history-avatar-${token}`}
                   />
                 ) : (
-                  <View style={styles.avatar} testID={`search-history-avatar-placeholder-${token}`}>
-                    <Text style={styles.avatarLetter}>
-                      {label.slice(0, 1).toUpperCase()}
-                    </Text>
+                  <View
+                    style={styles.icon}
+                    testID={`search-history-avatar-placeholder-${token}`}
+                  >
+                    <Clock3 color={mobileColors.textSecondary} size={20} />
                   </View>
                 )}
                 <Text numberOfLines={1} selectable style={styles.query}>
@@ -176,9 +152,7 @@ export function SearchHistoryPanel({
                 ]}
                 testID={`remove-search-${token}`}
               >
-                <Text selectable style={styles.actionLabel}>
-                  ✕
-                </Text>
+                <X color={mobileColors.textSecondary} size={18} />
               </Pressable>
             </View>
           );
@@ -249,14 +223,9 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: "center",
-    backgroundColor: mobileColors.surface,
-    borderColor: mobileColors.border,
-    borderRadius: mobileRadii.large,
-    borderWidth: 1,
     flexDirection: "row",
     gap: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
+    paddingVertical: mobileSpacing.xSmall,
   },
   cardPress: {
     alignItems: "center",
@@ -269,21 +238,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: mobileColors.surfaceRaised,
     borderRadius: mobileRadii.full,
-    height: 40,
+    height: 28,
     justifyContent: "center",
     overflow: "hidden",
-    width: 40,
+    width: 28,
   },
-  avatarLetter: {
-    color: mobileColors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
+  icon: {
+    alignItems: "center",
+    height: 28,
+    justifyContent: "center",
+    width: 28,
   },
   query: {
     color: mobileColors.textPrimary,
     flex: 1,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "500",
     lineHeight: 22,
   },
   action: {
@@ -291,12 +261,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
     minWidth: mobileSizing.minimumTouchTarget,
-  },
-  actionLabel: {
-    color: mobileColors.textSecondary,
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 20,
   },
   pressed: {
     opacity: 0.76,

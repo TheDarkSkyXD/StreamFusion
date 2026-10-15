@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -10,7 +10,6 @@ import type { SearchResultType } from "@streamfusion/core/discovery";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
-import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
@@ -37,47 +36,64 @@ import { SearchFilters, type SearchPlatformFilter } from "./search-filters";
 import { SearchHistoryPanel } from "./search-history-panel";
 import { SearchProofControls } from "./search-proof-controls";
 import { SearchProviderBanner } from "./search-provider-banner";
-import { SearchResultsView, resultsHeading } from "./search-results-view";
+import { SearchResultsView } from "./search-results-view";
 import { useUnifiedSearch } from "./use-unified-search";
 
-export type SearchScreenMode = "search" | "categories";
-
-const SEARCH_MODES = [
-  { id: "search", label: "Search" },
-  { id: "categories", label: "Categories" },
-] as const satisfies readonly {
-  readonly id: SearchScreenMode;
-  readonly label: string;
-}[];
+export type SearchScreenMode = "browse" | "search";
+export type SearchPresentationState = {
+  readonly draft: string;
+  readonly query: string;
+  readonly tab: SearchResultType;
+  readonly platform: SearchPlatformFilter;
+  readonly liveOnly: boolean;
+};
 
 export function UnifiedSearchScreen({
   categoriesPanel,
+  focused,
   history,
   initialQuery,
   onOpenAccounts,
   onOpenChannel,
+  onSearchFocusChange,
+  onStateChange,
   onWatch,
+  restoredState,
   session,
 }: {
   readonly categoriesPanel?: ReactNode;
+  readonly focused?: boolean;
   readonly history: SearchHistoryRepository;
   readonly initialQuery?: string;
   readonly onOpenAccounts: () => void;
   readonly onOpenChannel?: (
     channel: ChannelIdentity & { readonly avatarUrl?: string | null },
   ) => void;
+  readonly onSearchFocusChange?: (focused: boolean) => void;
+  readonly onStateChange?: (state: SearchPresentationState) => void;
   readonly onWatch?: (target: WatchTarget) => void;
+  readonly restoredState?: SearchPresentationState;
   readonly session: SearchSession;
 }) {
   const seededQuery = initialQuery?.trim() ?? "";
-  const [mode, setMode] = useState<SearchScreenMode>("search");
-  const [draft, setDraft] = useState(seededQuery);
-  const [query, setQuery] = useState(seededQuery);
-  const [tab, setTab] = useState<SearchResultType>("all");
-  const [platform, setPlatform] = useState<SearchPlatformFilter>("all");
-  const [liveOnly, setLiveOnly] = useState(false);
+  const [localMode, setLocalMode] = useState<SearchScreenMode>(
+    seededQuery ? "search" : "browse",
+  );
+  const mode =
+    focused === undefined ? localMode : focused ? "search" : "browse";
+  const [draft, setDraft] = useState(seededQuery || restoredState?.draft || "");
+  const [query, setQuery] = useState(seededQuery || restoredState?.query || "");
+  const [tab, setTab] = useState<SearchResultType>(restoredState?.tab ?? "all");
+  const [platform, setPlatform] = useState<SearchPlatformFilter>(
+    restoredState?.platform ?? "all",
+  );
+  const [liveOnly, setLiveOnly] = useState(restoredState?.liveOnly ?? false);
+  useEffect(() => {
+    onStateChange?.({ draft, query, tab, platform, liveOnly });
+  }, [draft, query, tab, platform, liveOnly, onStateChange]);
   const historyScope = historyScopeForTab(tab);
   const live = useUnifiedSearch({
+    enabled: mode === "search",
     history,
     historyScope,
     liveOnly,
@@ -91,9 +107,17 @@ export function UnifiedSearchScreen({
     const next = value.trim();
     setDraft(next);
     setQuery(next);
-    setMode("search");
     Keyboard.dismiss();
     if (next.length > 0) live.record(next);
+  };
+
+  const changeMode = (next: SearchScreenMode) => {
+    setLocalMode(next);
+    onSearchFocusChange?.(next === "search");
+    if (next === "browse") {
+      live.cancelClear();
+      Keyboard.dismiss();
+    }
   };
 
   return (
@@ -119,9 +143,12 @@ export function UnifiedSearchScreen({
       onRefresh={() => live.refresh()}
       onRetry={live.retry}
       refreshing={live.refreshing}
-      onSelectMode={setMode}
+      onBack={() => changeMode("browse")}
       onSelectPlatform={setPlatform}
-      onSelectTab={setTab}
+      onSelectTab={(next) => {
+        live.cancelClear();
+        setTab(next);
+      }}
       onSubmit={(value) => submit(value ?? draft)}
       onToggleLiveOnly={() => setLiveOnly((current) => !current)}
       {...(onOpenChannel === undefined
@@ -157,9 +184,10 @@ function channelAvatar(
 export function UnifiedSearchView({
   categoriesPanel,
   draft,
-  historyScope = "channels",
+  historyScope,
   liveOnly,
   mode = "search",
+  onBack,
   onCancelClear,
   onChangeDraft,
   onClearDraft,
@@ -170,7 +198,6 @@ export function UnifiedSearchView({
   onRepeatHistory,
   onRequestClear,
   onRetry,
-  onSelectMode,
   onSelectPlatform,
   onSelectProofMode,
   onSelectTab,
@@ -189,6 +216,7 @@ export function UnifiedSearchView({
   readonly historyScope?: SearchHistoryScope;
   readonly liveOnly: boolean;
   readonly mode?: SearchScreenMode;
+  readonly onBack?: () => void;
   readonly onCancelClear: () => void;
   readonly onChangeDraft: (value: string) => void;
   readonly onClearDraft: () => void;
@@ -199,7 +227,6 @@ export function UnifiedSearchView({
   readonly onRepeatHistory: (entry: SearchHistoryEntry) => void;
   readonly onRequestClear: () => void;
   readonly onRetry: (platform: "kick" | "twitch") => void;
-  readonly onSelectMode?: (mode: SearchScreenMode) => void;
   readonly onSelectPlatform: (platform: SearchPlatformFilter) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly onSelectTab: (tab: SearchResultType) => void;
@@ -219,9 +246,6 @@ export function UnifiedSearchView({
   const resultsBlock =
     view.phase === "idle" ? null : (
       <>
-        <Text selectable style={styles.heading} testID="search-results-heading">
-          {resultsHeading(tab)}
-        </Text>
         {view.phase === "empty" ? (
           <MobileStatusPanel tone="empty">
             <Text selectable style={mobileType.body}>
@@ -256,99 +280,84 @@ export function UnifiedSearchView({
       </>
     );
 
-  const modeTabs =
-    onSelectMode === undefined ? null : (
-      <MobileUnderlineTabs
-        accessibilityLabel="Search modes"
-        onSelect={onSelectMode}
-        selectedId={mode}
-        tabs={SEARCH_MODES.map((entry) => ({
-          accessibilityLabel: `${entry.label} search mode`,
-          id: entry.id,
-          label: entry.label,
-          testID: `search-mode-${entry.id}`,
-        }))}
-        testID="search-mode-tabs"
-      />
-    );
-
-  if (mode === "categories") {
-    return (
-      <KeyboardAvoidingView style={styles.frame} testID="unified-search">
-        <View style={styles.modeChrome}>{modeTabs}</View>
-        <View style={styles.panel} testID="search-categories-panel">
-          {categoriesPanel ?? (
-            <MobileStatusPanel tone="empty">
-              <Text selectable style={mobileType.body}>
-                Categories are unavailable in this Search session.
-              </Text>
-            </MobileStatusPanel>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    );
-  }
-
   return (
     <KeyboardAvoidingView style={styles.frame} testID="unified-search">
-      <MobileRefreshableScroll
-        contentContainerStyle={styles.content}
-        contentInsetAdjustmentBehavior="automatic"
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        style={styles.scroll}
+      <View
+        style={[styles.panel, mode === "browse" ? null : styles.hidden]}
+        testID="search-categories-panel"
       >
-        {modeTabs}
-        <SearchDock
-          onChangeText={onChangeDraft}
-          onClear={onClearDraft}
-          onSubmit={onSubmit}
-          value={draft}
-        />
-        {proofMode && onSelectProofMode ? (
-          <SearchProofControls mode={proofMode} onSelect={onSelectProofMode} />
-        ) : null}
-        <SearchFilters
-          liveOnly={liveOnly}
-          onSelectPlatform={onSelectPlatform}
-          onSelectTab={onSelectTab}
-          onToggleLiveOnly={onToggleLiveOnly}
-          platform={platform}
-          tab={tab}
-        />
-        {view.intent ? (
-          <>
-            <SearchProviderBanner
-              onOpenAccounts={onOpenAccounts}
-              onRetry={onRetry}
-              outcome={view.providers.twitch}
-            />
-            <SearchProviderBanner
-              onOpenAccounts={onOpenAccounts}
-              onRetry={onRetry}
-              outcome={view.providers.kick}
-            />
-          </>
-        ) : null}
-        {view.phase === "idle" ? (
-          <SearchHistoryPanel
-            confirmClear={view.historyConfirmClear}
-            fallbackPlatform={platform === "all" ? "twitch" : platform}
-            history={view.history}
-            onCancelClear={onCancelClear}
-            onClear={onRequestClear}
-            onConfirmClear={onConfirmClear}
-            onRemove={onRemoveHistory}
-            onRepeat={onRepeatHistory}
-            scope={activeHistoryScope}
-            {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
-          />
-        ) : (
-          resultsBlock
+        {categoriesPanel ?? (
+          <MobileStatusPanel tone="empty">
+            <Text selectable style={mobileType.body}>
+              Categories are unavailable.
+            </Text>
+          </MobileStatusPanel>
         )}
-      </MobileRefreshableScroll>
+      </View>
+      {mode === "search" ? (
+        <View style={styles.panel}>
+          <SearchDock
+            autoFocus
+            {...(onBack === undefined ? {} : { onBack })}
+            onChangeText={onChangeDraft}
+            onClear={onClearDraft}
+            onSubmit={onSubmit}
+            value={draft}
+          />
+          <SearchFilters
+            liveOnly={liveOnly}
+            onSelectPlatform={onSelectPlatform}
+            onSelectTab={onSelectTab}
+            onToggleLiveOnly={onToggleLiveOnly}
+            platform={platform}
+            tab={tab}
+          />
+          <MobileRefreshableScroll
+            contentContainerStyle={styles.content}
+            contentInsetAdjustmentBehavior="automatic"
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            style={styles.scroll}
+          >
+            {proofMode && onSelectProofMode ? (
+              <SearchProofControls
+                mode={proofMode}
+                onSelect={onSelectProofMode}
+              />
+            ) : null}
+            {view.intent ? (
+              <>
+                <SearchProviderBanner
+                  onOpenAccounts={onOpenAccounts}
+                  onRetry={onRetry}
+                  outcome={view.providers.twitch}
+                />
+                <SearchProviderBanner
+                  onOpenAccounts={onOpenAccounts}
+                  onRetry={onRetry}
+                  outcome={view.providers.kick}
+                />
+              </>
+            ) : null}
+            {view.phase === "idle" ? (
+              <SearchHistoryPanel
+                confirmClear={view.historyConfirmClear}
+                history={view.history}
+                onCancelClear={onCancelClear}
+                onClear={onRequestClear}
+                onConfirmClear={onConfirmClear}
+                onRemove={onRemoveHistory}
+                onRepeat={onRepeatHistory}
+                scope={activeHistoryScope}
+              />
+            ) : (
+              resultsBlock
+            )}
+          </MobileRefreshableScroll>
+        </View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -367,22 +376,9 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
-  heading: {
-    ...mobileType.label,
-    letterSpacing: 1,
-  },
-  modeChrome: {
-    gap: mobileSpacing.medium,
-    paddingHorizontal: mobileSpacing.medium,
-    paddingTop: mobileSpacing.medium,
-  },
-  scopeTabs: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: mobileSpacing.small,
-  },
   panel: {
     flex: 1,
     minHeight: 0,
   },
+  hidden: { display: "none" },
 });

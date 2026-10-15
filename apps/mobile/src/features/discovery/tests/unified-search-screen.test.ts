@@ -24,6 +24,13 @@ vi.mock("react-native", () => ({
   Switch: "Switch",
 }));
 
+vi.mock("lucide-react-native", () => ({
+  ArrowLeft: "ArrowLeft",
+  Clock3: "Clock3",
+  Search: "Search",
+  X: "X",
+}));
+
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, options?: Record<string, unknown>) => {
     if (options && "name" in options) return `${key}:${String(options.name)}`;
@@ -76,7 +83,7 @@ function render(
     readonly confirmClear?: boolean;
     readonly history?: readonly string[];
     readonly loading?: boolean;
-    readonly mode?: "search" | "categories";
+    readonly mode?: "search" | "browse";
     readonly idle?: boolean;
     readonly onWatch?: (target: WatchTarget) => void;
     readonly resultType?: "all" | "streams" | "videos";
@@ -88,6 +95,7 @@ function render(
     draft: "arcade",
     liveOnly: false,
     mode: extras.mode ?? "search",
+    onBack: () => undefined,
     onCancelClear: () => undefined,
     onChangeDraft: () => undefined,
     onClearDraft: () => undefined,
@@ -101,7 +109,6 @@ function render(
     onRetry: (platform) => {
       retried.push(platform);
     },
-    onSelectMode: () => undefined,
     onSelectPlatform: () => undefined,
     onSelectTab: () => undefined,
     onSubmit: () => undefined,
@@ -112,6 +119,9 @@ function render(
     view: composeUnifiedSearch({
       history: {
         ...emptySearchHistory(),
+        all: (extras.history ?? ["arcade"]).map((item: string) => ({
+          label: item,
+        })),
         channels: (extras.history ?? ["arcade"]).map((item: string) => ({
           label: item,
         })),
@@ -271,7 +281,7 @@ describe("Unified search screen", () => {
       view: composeUnifiedSearch({
         history: {
           ...emptySearchHistory(),
-          channels: [
+          all: [
             {
               label: "arcade",
               avatarUrl: "https://example.com/a.png",
@@ -296,26 +306,27 @@ describe("Unified search screen", () => {
     ).toBe(true);
   });
 
-  it("exposes Search and Categories mode tabs, with history on Search", () => {
+  it("shows a focused field and result tabs without a second mode switch", () => {
     const { nodes } = render(undefined, undefined, { mode: "search" });
     expect(nodes.some((node) => node.props.testID === "search-mode-tabs")).toBe(
+      false,
+    );
+    expect(nodes.some((node) => node.props.testID === "search-back")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "search-field")).toBe(
+      true,
+    );
+    expect(nodes.some((node) => node.props.testID === "search-tab-all")).toBe(
       true,
     );
     expect(
-      nodes.some((node) => node.props.testID === "search-mode-search"),
+      nodes.some((node) => node.props.testID === "search-tab-categories"),
     ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.testID === "search-mode-categories"),
-    ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.testID === "search-mode-history"),
-    ).toBe(false);
-    expect(nodes.some((node) => node.props.testID === "search-history")).toBe(
-      false,
-    );
     const idleSearch = render(undefined, undefined, {
       history: ["arcade"],
       idle: true,
+      resultType: "channels",
     });
     expect(
       idleSearch.nodes.some((node) => node.props.testID === "search-history"),

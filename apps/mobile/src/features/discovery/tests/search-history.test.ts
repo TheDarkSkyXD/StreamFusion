@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   addSearchHistory,
-  channelIdentityFromHistory,
   clearSearchHistory,
   emptySearchHistory,
   historyScopeForTab,
@@ -19,11 +18,15 @@ describe("search history", () => {
     }
     expect(history.channels).toHaveLength(SEARCH_HISTORY_LIMIT);
     expect(history.channels[0]).toEqual({ label: "query-12" });
-    expect(history.channels.some((item) => item.label === "query-1")).toBe(false);
+    expect(history.channels.some((item) => item.label === "query-1")).toBe(
+      false,
+    );
     history = addSearchHistory(history, "channels", "QUERY-11");
     expect(history.channels[0]).toEqual({ label: "QUERY-11" });
     expect(
-      history.channels.filter((item) => item.label.toLowerCase() === "query-11"),
+      history.channels.filter(
+        (item) => item.label.toLowerCase() === "query-11",
+      ),
     ).toHaveLength(1);
   });
 
@@ -61,6 +64,7 @@ describe("search history", () => {
         extra: ["no"],
       }),
     ).toEqual({
+      all: [],
       categories: [],
       channels: [
         { label: "apex" },
@@ -74,22 +78,31 @@ describe("search history", () => {
       ],
       streams: [],
     });
-    expect(
-      channelIdentityFromHistory({
-        label: "Pokimane",
-        channelId: "123",
-        platform: "twitch",
-        username: "pokimane",
-      }),
-    ).toEqual({
-      id: "123",
-      platform: "twitch",
-      username: "pokimane",
-    });
     expect(historyScopeForTab("streams")).toBe("streams");
     expect(historyScopeForTab("categories")).toBe("categories");
     expect(historyScopeForTab("videos")).toBe("channels");
-    expect(historyScopeForTab("all")).toBe("channels");
+    expect(historyScopeForTab("all")).toBe("all");
+  });
+
+  it("keeps All independent of Channels while parsing older saved scopes", () => {
+    const parsed = parseSearchHistory({
+      channels: [{ label: "old channel" }],
+      streams: [{ label: "old stream" }],
+    });
+    expect(parsed).toEqual({
+      all: [],
+      channels: [{ label: "old channel" }],
+      streams: [{ label: "old stream" }],
+      categories: [],
+    });
+    const withAll = addSearchHistory(parsed, "all", "new all query");
+    expect(withAll.all).toEqual([{ label: "new all query" }]);
+    expect(clearSearchHistory(withAll, "all").channels).toEqual([
+      { label: "old channel" },
+    ]);
+    expect(removeSearchHistory(withAll, "channels", "old channel").all).toEqual(
+      [{ label: "new all query" }],
+    );
   });
 
   it("preserves avatarUrl when a plain-string re-add matches a rich channel entry", () => {

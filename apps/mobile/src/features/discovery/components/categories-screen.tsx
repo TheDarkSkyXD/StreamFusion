@@ -8,12 +8,14 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
   type FlatList,
   type ListRenderItem,
 } from "react-native";
+import { Search, SlidersHorizontal } from "lucide-react-native";
 import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileButton } from "@mobile/design/button";
@@ -25,7 +27,13 @@ import {
 } from "@mobile/design/refreshable";
 import { MobileSelect } from "@mobile/design/select";
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
-import { mobileSpacing, mobileType } from "@mobile/design/tokens";
+import {
+  mobileColors,
+  mobileRadii,
+  mobileSizing,
+  mobileSpacing,
+  mobileType,
+} from "@mobile/design/tokens";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import { FollowingCategoryCard } from "@mobile/features/follows/components/following-category-card";
 import { tabItemsCopy } from "@mobile/features/follows/components/following-tab-copy";
@@ -58,6 +66,7 @@ export function CategoriesScreen({
   followingSession,
   onOpenAccounts,
   onOpenCategory,
+  onOpenSearch,
   preferences,
   session,
 }: {
@@ -65,6 +74,7 @@ export function CategoriesScreen({
   readonly followingSession?: FollowingSession;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategory: (category: CategoryIdentity) => void;
+  readonly onOpenSearch?: () => void;
   readonly preferences: DiscoveryPreferenceStore;
   readonly session: DiscoverySession;
 }) {
@@ -86,6 +96,7 @@ export function CategoriesScreen({
       onChangeTab={setTab}
       onOpenAccounts={onOpenAccounts}
       onOpenCategory={onOpenCategory}
+      {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       onLoadMore={() => live.loadMore(platform)}
       onRefresh={live.refresh}
       platform={platform}
@@ -102,6 +113,7 @@ export function CategoriesScreen({
 }
 
 export function CategoriesView({
+  embedded = false,
   followingSession,
   canLoadMore = false,
   onChangeLanguage,
@@ -110,6 +122,7 @@ export function CategoriesView({
   onChangeTab,
   onOpenAccounts,
   onOpenCategory,
+  onOpenSearch,
   onLoadMore,
   onRefresh,
   onSelectProofMode,
@@ -128,6 +141,7 @@ export function CategoriesView({
   readonly onChangeTab?: (tab: "popular" | "followed") => void;
   readonly onOpenAccounts: () => void;
   readonly onOpenCategory: (category: CategoryIdentity) => void;
+  readonly onOpenSearch?: () => void;
   readonly onLoadMore?: (() => void) | undefined;
   readonly onRefresh?: (() => void | Promise<void>) | undefined;
   readonly onRetry?: (platform: Platform) => void;
@@ -139,62 +153,98 @@ export function CategoriesView({
   readonly view: ReturnType<typeof composeCategoryCatalog>;
 }) {
   const { t } = useTranslation();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const translate = (key: string, values?: Record<string, unknown>) =>
     values === undefined ? t(key) : t(key, values);
   const header = (
     <View style={styles.header}>
-      <DiscoverySearchDock
-        onChangeQuery={onChangeQuery}
-        placeholder={t("discovery.filterCategoriesPlaceholder")}
-        query={view.query}
-        testID="categories-search"
-      />
-      {followingSession ? (
-        <MobileUnderlineTabs
-          accessibilityLabel="Category collection"
-          onSelect={(next) => onChangeTab?.(next)}
-          selectedId={tab}
-          tabs={[
-            {
-              id: "popular",
-              label: "Popular",
-              testID: "categories-tab-popular",
-            },
-            {
-              id: "followed",
-              label: "Followed",
-              testID: "categories-tab-followed",
-            },
-          ]}
-          testID="categories-tabs"
+      {embedded && onOpenSearch ? (
+        <Pressable
+          accessibilityLabel="Search channels, streams, and categories"
+          accessibilityRole="button"
+          onPress={onOpenSearch}
+          style={styles.searchEntry}
+          testID="categories-search-entry"
+        >
+          <Search color={mobileColors.textSecondary} size={20} />
+          <Text style={styles.searchEntryText}>Search</Text>
+        </Pressable>
+      ) : (
+        <DiscoverySearchDock
+          onChangeQuery={onChangeQuery}
+          placeholder={t("discovery.filterCategoriesPlaceholder")}
+          query={view.query}
+          testID="categories-search"
         />
+      )}
+      {followingSession || embedded ? (
+        <View style={styles.collectionRow}>
+          {followingSession ? (
+            <View style={styles.collectionTabs}>
+              <MobileUnderlineTabs
+                accessibilityLabel="Category collection"
+                onSelect={(next) => onChangeTab?.(next)}
+                selectedId={tab}
+                tabs={[
+                  {
+                    id: "popular",
+                    label: "Popular",
+                    testID: "categories-tab-popular",
+                  },
+                  {
+                    id: "followed",
+                    label: "Followed",
+                    testID: "categories-tab-followed",
+                  },
+                ]}
+                testID="categories-tabs"
+              />
+            </View>
+          ) : null}
+          {embedded ? (
+            <Pressable
+              accessibilityLabel="Category filters"
+              accessibilityRole="button"
+              accessibilityState={{ expanded: filtersOpen }}
+              onPress={() => setFiltersOpen((open) => !open)}
+              style={styles.filterToggle}
+              testID="categories-filter-toggle"
+            >
+              <SlidersHorizontal color={mobileColors.textPrimary} size={20} />
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
-      <View style={styles.filters}>
-        {(["all", "twitch", "kick"] as const).map((value) => (
-          <MobileFilterChip
-            accessibilityLabel={
-              value === "all" ? t("discovery.following.all") : value
-            }
-            key={value}
-            label={
-              value === "all"
-                ? t("discovery.following.all")
-                : value === "twitch"
-                  ? "Twitch"
-                  : "Kick"
-            }
-            onPress={() => onChangePlatform?.(value)}
-            selected={value === platform}
-            testID={`categories-platform-${value}`}
-          />
-        ))}
-      </View>
+      {!embedded || filtersOpen ? (
+        <View style={styles.filters}>
+          {(["all", "twitch", "kick"] as const).map((value) => (
+            <MobileFilterChip
+              accessibilityLabel={
+                value === "all" ? t("discovery.following.all") : value
+              }
+              key={value}
+              label={
+                value === "all"
+                  ? t("discovery.following.all")
+                  : value === "twitch"
+                    ? "Twitch"
+                    : "Kick"
+              }
+              onPress={() => onChangePlatform?.(value)}
+              selected={value === platform}
+              testID={`categories-platform-${value}`}
+            />
+          ))}
+        </View>
+      ) : null}
       {tab === "popular" ? (
         <>
-          <LanguageRow
-            language={view.language}
-            onChangeLanguage={onChangeLanguage}
-          />
+          {!embedded || filtersOpen ? (
+            <LanguageRow
+              language={view.language}
+              onChangeLanguage={onChangeLanguage}
+            />
+          ) : null}
           {proofMode && onSelectProofMode ? (
             <CategoryDiscoveryProofControls
               mode={proofMode}
@@ -208,6 +258,7 @@ export function CategoriesView({
   if (tab === "popular") {
     return (
       <PopularCategories
+        embedded={embedded}
         canLoadMore={canLoadMore}
         header={header}
         onLoadMore={onLoadMore}
@@ -254,6 +305,7 @@ function CategoryRowGap() {
 
 function PopularCategories({
   canLoadMore,
+  embedded,
   header,
   onLoadMore,
   onOpenAccounts,
@@ -265,6 +317,7 @@ function PopularCategories({
   view,
 }: {
   readonly canLoadMore: boolean;
+  readonly embedded: boolean;
   readonly header: ReactNode;
   readonly onLoadMore?: (() => void) | undefined;
   readonly onOpenAccounts: () => void;
@@ -289,10 +342,11 @@ function PopularCategories({
     ({ item }) => (
       <CategoryCard
         category={item}
+        compact={embedded}
         onPress={() => onOpenCategory(identityFromCategory(item))}
       />
     ),
-    [onOpenCategory],
+    [embedded, onOpenCategory],
   );
   const loadNextPage = useCallback(() => {
     if (canLoadMore) onLoadMore?.();
@@ -357,7 +411,7 @@ function PopularCategories({
         </View>
       }
       maxToRenderPerBatch={6}
-      numColumns={2}
+      numColumns={embedded ? 3 : 2}
       onEndReached={loadNextPage}
       onEndReachedThreshold={0.5}
       onRefresh={onRefresh}
@@ -540,6 +594,26 @@ const styles = StyleSheet.create({
     paddingBottom: mobileSpacing.xLarge,
   },
   header: { gap: mobileSpacing.medium },
+  collectionRow: { alignItems: "center", flexDirection: "row" },
+  collectionTabs: { flex: 1 },
+  filterToggle: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    minWidth: mobileSizing.minimumTouchTarget,
+  },
+  searchEntry: {
+    alignItems: "center",
+    backgroundColor: mobileColors.surfaceMuted,
+    borderColor: mobileColors.border,
+    borderRadius: mobileRadii.large,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  searchEntryText: { ...mobileType.body, color: mobileColors.textSecondary },
   listHeader: { gap: mobileSpacing.medium, marginBottom: mobileSpacing.medium },
   footer: { gap: mobileSpacing.medium, marginTop: mobileSpacing.medium },
   columns: { justifyContent: "space-between" },

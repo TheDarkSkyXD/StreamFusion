@@ -28,6 +28,7 @@ export function MobileUnderlineTabs<T extends string>({
       accessibilityRole="tablist"
       contentContainerStyle={styles.row}
       horizontal
+      keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
       showsHorizontalScrollIndicator={false}
       style={styles.scroll}

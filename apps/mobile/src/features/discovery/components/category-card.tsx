@@ -16,9 +16,11 @@ const viewerFormatter = new Intl.NumberFormat("en", {
 
 export function CategoryCard({
   category,
+  compact = false,
   onPress,
 }: {
   readonly category: CatalogCategory;
+  readonly compact?: boolean;
   readonly onPress: () => void;
 }) {
   const { t } = useTranslation();
@@ -29,7 +31,11 @@ export function CategoryCard({
       accessibilityRole="button"
       android_ripple={{ color: mobileColors.surfaceRaised }}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+      style={({ pressed }) => [
+        styles.card,
+        compact ? styles.compact : null,
+        pressed ? styles.pressed : null,
+      ]}
       testID={`category-card-${category.platform}-${category.id}`}
     >
       <View style={styles.artWrap}>
@@ -68,6 +74,7 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.xSmall,
     width: "48%",
   },
+  compact: { width: "31.5%" },
   artWrap: {
     aspectRatio: 3 / 4,
     backgroundColor: mobileColors.surfaceMuted,

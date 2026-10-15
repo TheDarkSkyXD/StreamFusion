@@ -1,5 +1,3 @@
-import type { Platform } from "@streamfusion/core/platform";
-
 import type {
   SearchHistoryByScope,
   SearchHistoryEntry,
@@ -7,6 +5,7 @@ import type {
 } from "../capabilities/platform-reads";
 
 export const SEARCH_HISTORY_SCOPES = [
+  "all",
   "channels",
   "streams",
   "categories",
@@ -16,6 +15,7 @@ export const SEARCH_HISTORY_LIMIT = 10;
 
 export function emptySearchHistory(): SearchHistoryByScope {
   return {
+    all: [],
     categories: [],
     channels: [],
     streams: [],
@@ -28,6 +28,7 @@ export function parseSearchHistory(value: unknown): SearchHistoryByScope {
   }
   const record = value as Partial<Record<SearchHistoryScope, unknown>>;
   return {
+    all: scopedEntries(record.all),
     categories: scopedEntries(record.categories),
     channels: scopedEntries(record.channels),
     streams: scopedEntries(record.streams),
@@ -39,8 +40,10 @@ export function mergeSearchHistoryEntry(
   existing: SearchHistoryEntry | undefined,
 ): SearchHistoryEntry {
   if (!existing) return incoming;
-  const avatarUrl = incoming.avatarUrl?.trim() || existing.avatarUrl?.trim() || "";
-  const channelId = incoming.channelId?.trim() || existing.channelId?.trim() || "";
+  const avatarUrl =
+    incoming.avatarUrl?.trim() || existing.avatarUrl?.trim() || "";
+  const channelId =
+    incoming.channelId?.trim() || existing.channelId?.trim() || "";
   const username =
     incoming.username?.trim().toLowerCase() ||
     existing.username?.trim().toLowerCase() ||
@@ -92,7 +95,12 @@ export function clearSearchHistory(
 }
 
 export function historyScopeForTab(resultType: string): SearchHistoryScope {
-  if (resultType === "streams" || resultType === "categories") {
+  if (resultType === "all") return "all";
+  if (
+    resultType === "channels" ||
+    resultType === "streams" ||
+    resultType === "categories"
+  ) {
     return resultType;
   }
   return "channels";
@@ -102,23 +110,11 @@ export function historyEntryLabel(entry: SearchHistoryEntry): string {
   return entry.label;
 }
 
-export function historyEntryAvatarUrl(entry: SearchHistoryEntry): string | null {
+export function historyEntryAvatarUrl(
+  entry: SearchHistoryEntry,
+): string | null {
   const url = entry.avatarUrl?.trim();
   return url && url.length > 0 ? url : null;
-}
-
-export function channelIdentityFromHistory(
-  entry: SearchHistoryEntry,
-  fallbackPlatform: Platform = "twitch",
-): { id: string; platform: Platform; username: string } | null {
-  const username = (entry.username ?? entry.label).trim().toLowerCase();
-  if (username.length === 0) return null;
-  const platform = entry.platform ?? fallbackPlatform;
-  return {
-    id: entry.channelId?.trim() || username,
-    platform,
-    username,
-  };
 }
 
 function scopedEntries(value: unknown): readonly SearchHistoryEntry[] {

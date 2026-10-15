@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { Clip, Video, Channel, Stream } from "@streamfusion/core/content";
-import type { SearchResultType } from "@streamfusion/core/discovery";
 
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
 import type { UnifiedSearchView } from "../capabilities/platform-reads";
@@ -188,23 +187,6 @@ function Section({
       {children}
     </View>
   );
-}
-
-export function resultsHeading(tab: SearchResultType): string {
-  switch (tab) {
-    case "all":
-      return "Results";
-    case "channels":
-      return "Channels";
-    case "streams":
-      return "Streams";
-    case "videos":
-      return "Videos";
-    case "clips":
-      return "Clips";
-    case "categories":
-      return "Categories";
-  }
 }
 
 const styles = StyleSheet.create({

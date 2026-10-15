@@ -110,7 +110,8 @@ vi.mock("../components/discovery-search-dock", () => ({
 }));
 
 vi.mock("@mobile/design/select", () => ({
-  MobileSelect: () => createElement("select"),
+  MobileSelect: (props: { readonly testID: string }) =>
+    createElement("select", { "data-testid": props.testID }),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -122,6 +123,8 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("lucide-react-native", () => ({
   ChevronDown: () => null,
+  Search: () => null,
+  SlidersHorizontal: () => null,
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -154,7 +157,13 @@ function sessionWith(reads: Partial<DiscoverySession>): DiscoverySession {
   };
 }
 
-function mountView(view: ReturnType<typeof composeCategoryCatalog>) {
+function mountView(
+  view: ReturnType<typeof composeCategoryCatalog>,
+  options: {
+    readonly embedded?: boolean;
+    readonly onOpenSearch?: () => void;
+  } = {},
+) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -168,6 +177,7 @@ function mountView(view: ReturnType<typeof composeCategoryCatalog>) {
   function render() {
     root.render(
       createElement(CategoriesView, {
+        ...(options.embedded ? { embedded: true } : {}),
         canLoadMore,
         onChangeLanguage() {},
         onChangePlatform(next) {
@@ -183,6 +193,7 @@ function mountView(view: ReturnType<typeof composeCategoryCatalog>) {
         onOpenCategory(category) {
           opened.push(`${category.platform}:${category.id}`);
         },
+        ...(options.onOpenSearch ? { onOpenSearch: options.onOpenSearch } : {}),
         onLoadMore() {
           loaded.push(platform);
         },
@@ -226,6 +237,57 @@ afterEach(() => {
 });
 
 describe("category scrolling", () => {
+  it("uses a compact embedded grid and reveals filters on demand", () => {
+    const openedSearch: string[] = [];
+    const screen = mountView(
+      composeCategoryCatalog({
+        twitch: {
+          ...fixtureOutcome("twitch", "ready"),
+          items: [fixtureCategory("twitch", "1", "Just Chatting", 100)],
+        },
+        kick: { ...fixtureOutcome("kick", "ready"), items: [] },
+        language: "all",
+        loading: false,
+        query: "",
+      }),
+      { embedded: true, onOpenSearch: () => openedSearch.push("search") },
+    );
+    try {
+      expect(listState.props?.numColumns).toBe(3);
+      expect(
+        screen.container.querySelector('[data-testid="categories-search"]'),
+      ).toBeNull();
+      expect(
+        screen.container.querySelector(
+          '[data-testid="categories-platform-all"]',
+        ),
+      ).toBeNull();
+      act(() =>
+        screen.container
+          .querySelector<HTMLElement>('[data-testid="categories-search-entry"]')
+          ?.click(),
+      );
+      expect(openedSearch).toEqual(["search"]);
+      act(() =>
+        screen.container
+          .querySelector<HTMLElement>(
+            '[data-testid="categories-filter-toggle"]',
+          )
+          ?.click(),
+      );
+      expect(
+        screen.container.querySelector(
+          '[data-testid="categories-platform-all"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        screen.container.querySelector('[data-testid="categories-language"]'),
+      ).not.toBeNull();
+    } finally {
+      screen.dispose();
+    }
+  });
+
   it("passes 101 categories to the two-column grid and opens the odd tail", () => {
     const categories = Array.from({ length: 101 }, (_, index) =>
       fixtureCategory("twitch", String(index), `Game ${index}`, 200 - index),
