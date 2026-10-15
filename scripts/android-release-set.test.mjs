@@ -101,7 +101,7 @@ test("the checksums file matches every other file byte for byte", () => {
   }
 });
 
-test("the build record names the production application id and the EAS build", () => {
+test("the build record names the production application id and the GitHub Actions build", () => {
   const directory = releaseSetDirectory();
 
   assembleReleaseSet({

@@ -55,7 +55,6 @@ export function assembleReleaseSet({
     buildProfile: "production",
     builder: "github-actions",
     toolchain: "gradlew app:assembleRelease on ubuntu-latest",
-    expoSdk: "57",
     applicationId: PRODUCTION_APPLICATION_ID,
     versionName: version,
     versionCode,
