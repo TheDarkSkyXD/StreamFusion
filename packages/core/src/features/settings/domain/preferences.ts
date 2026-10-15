@@ -59,6 +59,7 @@ export type ProductPreferences = {
   readonly restoreSession: boolean;
   readonly resumePlayback: boolean;
   readonly rewindSeconds: SeekIntervalSeconds;
+  readonly showLargeStreamCards: boolean;
   readonly showFullscreen: boolean;
   readonly showQuality: boolean;
   readonly showSpeed: boolean;
@@ -87,6 +88,7 @@ export const DEFAULT_PRODUCT_PREFERENCES: ProductPreferences = {
   restoreSession: true,
   resumePlayback: false,
   rewindSeconds: 10,
+  showLargeStreamCards: false,
   showFullscreen: true,
   showQuality: true,
   showSpeed: true,
@@ -212,6 +214,10 @@ function mergeBooleanPreferences(
     lowLatencyMode: booleanOr(patch.lowLatencyMode, current.lowLatencyMode),
     restoreSession: booleanOr(patch.restoreSession, current.restoreSession),
     resumePlayback: booleanOr(patch.resumePlayback, current.resumePlayback),
+    showLargeStreamCards: booleanOr(
+      patch.showLargeStreamCards,
+      current.showLargeStreamCards,
+    ),
     showFullscreen: booleanOr(patch.showFullscreen, current.showFullscreen),
     showQuality: booleanOr(patch.showQuality, current.showQuality),
     showSpeed: booleanOr(patch.showSpeed, current.showSpeed),

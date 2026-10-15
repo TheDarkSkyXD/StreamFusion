@@ -7,6 +7,7 @@ import {
   applyPreferencePatch,
   nativeColorScheme,
   parseProductPreferences,
+  serializeProductPreferences,
   searchSettingsControls,
   settingsPanelsFor,
 } from "@streamfusion/core/settings";
@@ -87,6 +88,35 @@ test("token player stays native ExoPlayer when another engine is requested", () 
 test("corrupt JSON falls back to defaults", () => {
   assert.deepEqual(parseProductPreferences("{"), DEFAULT_PRODUCT_PREFERENCES);
   assert.deepEqual(parseProductPreferences(null), DEFAULT_PRODUCT_PREFERENCES);
+});
+
+test("stream cards default to compact and the large choice survives storage", () => {
+  assert.equal(parseProductPreferences(null).showLargeStreamCards, false);
+  const selected = applyPreferencePatch(DEFAULT_PRODUCT_PREFERENCES, {
+    showLargeStreamCards: true,
+  });
+  assert.deepEqual(selected.rejected, []);
+  assert.equal(selected.preferences.showLargeStreamCards, true);
+  assert.equal(
+    parseProductPreferences(serializeProductPreferences(selected.preferences))
+      .showLargeStreamCards,
+    true,
+  );
+  assert.equal(
+    parseProductPreferences('{"showLargeStreamCards":"true"}')
+      .showLargeStreamCards,
+    false,
+  );
+});
+
+test("stream card size can be found from Settings search", () => {
+  assert.deepEqual(
+    searchSettingsControls("large stream cards").map((entry) => [
+      entry.id,
+      entry.panel,
+    ]),
+    [["large-stream-cards", "appearance"]],
+  );
 });
 
 test("local search matches HEVC and player chrome without losing panel order", () => {

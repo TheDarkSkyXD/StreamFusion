@@ -1,4 +1,4 @@
-import { isValidElement, type ReactElement } from "react";
+import { createElement, isValidElement, type ReactElement } from "react";
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
@@ -24,6 +24,23 @@ vi.mock("react-native", () => ({
   TextInput: "TextInput",
   View: "View",
 }));
+
+vi.mock(
+  "@mobile/features/discovery/components/live-stream-card-content",
+  () => ({
+    LiveStreamCardContent: ({
+      stream,
+    }: {
+      readonly stream: { readonly channelDisplayName: string };
+    }) =>
+      createElement(
+        "View",
+        null,
+        createElement("Text", null, "LIVE"),
+        createElement("Text", null, stream.channelDisplayName),
+      ),
+  }),
+);
 
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, _options?: Record<string, unknown>) => key as string,

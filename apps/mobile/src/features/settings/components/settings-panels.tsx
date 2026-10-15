@@ -85,6 +85,14 @@ function AppearanceLookRows({ onChange, view }: SettingsPanelProps) {
         testID="language-effective"
         value={view.effective.language}
       />
+      <SettingsSwitch
+        checked={prefs.showLargeStreamCards}
+        label="Show large stream cards"
+        onToggle={() =>
+          onChange({ showLargeStreamCards: !prefs.showLargeStreamCards })
+        }
+        testID="large-stream-cards"
+      />
     </>
   );
 }

@@ -32,6 +32,10 @@ vi.mock("lucide-react-native", () => ({
   SlidersHorizontal: "SlidersHorizontal",
 }));
 
+vi.mock("../components/live-stream-card-content", () => ({
+  LiveStreamCardContent: () => null,
+}));
+
 vi.mock("@mobile/design/select", () => ({ MobileSelect: "MobileSelect" }));
 vi.mock("@mobile/design/bottom-sheet", () => ({
   MobileBottomSheet: ({

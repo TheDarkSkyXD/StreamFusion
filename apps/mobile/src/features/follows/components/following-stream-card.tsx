@@ -1,10 +1,7 @@
 import { Pressable, StyleSheet } from "react-native";
 import type { Stream } from "@streamfusion/core/content";
 
-import {
-  mobilePressRing,
-  mobileRadii,
-} from "@mobile/design/tokens";
+import { mobilePressRing, mobileRadii } from "@mobile/design/tokens";
 import { LiveStreamCardContent } from "@mobile/features/discovery/components/live-stream-card-content";
 
 export function FollowingStreamCard({
@@ -23,7 +20,7 @@ export function FollowingStreamCard({
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
       testID={`following-stream-${stream.platform}-${stream.id}`}
     >
-      <LiveStreamCardContent compact stream={stream} />
+      <LiveStreamCardContent stream={stream} />
     </Pressable>
   );
 }

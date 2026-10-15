@@ -48,6 +48,12 @@ export const SETTINGS_CONTROL_CATALOG: readonly SettingsControlCatalogEntry[] =
       "english",
       "locale",
     ]),
+    entry("large-stream-cards", "appearance", "Show large stream cards", [
+      "stream cards",
+      "small cards",
+      "large stream cards",
+      "thumbnails",
+    ]),
     entry("restore-session", "appearance", "Restore session", [
       "restore",
       "session",

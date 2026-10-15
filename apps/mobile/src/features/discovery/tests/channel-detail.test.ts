@@ -27,6 +27,10 @@ vi.mock("react-native", () => ({
 
 vi.mock("lucide-react-native", () => ({ Bell: "Bell", BellOff: "BellOff" }));
 
+vi.mock("../components/live-stream-card-content", () => ({
+  LiveStreamCardContent: () => null,
+}));
+
 type ElementProps = Readonly<{
   children?: unknown;
   disabled?: boolean;

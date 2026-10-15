@@ -30,6 +30,7 @@ export function createTwitchGqlGuestReader(input: {
     ): Promise<PlatformReadOutcome<Stream>> {
       const language = read.language?.trim().toLowerCase();
       const items: Stream[] = [];
+      const seenStreamIds = new Set<string>();
       let cursor: string | undefined;
       for (let page = 0; page < (language ? 3 : 1); page += 1) {
         const outcome = await gqlCollection({
@@ -44,11 +45,12 @@ export function createTwitchGqlGuestReader(input: {
           ...(read.signal === undefined ? {} : { signal: read.signal }),
         });
         if (outcome.status === "failed") return outcome;
-        items.push(
-          ...outcome.items.filter(
-            (stream) => !language || stream.language === language,
-          ),
-        );
+        for (const stream of outcome.items) {
+          if (language && stream.language !== language) continue;
+          if (seenStreamIds.has(stream.id)) continue;
+          seenStreamIds.add(stream.id);
+          items.push(stream);
+        }
         cursor = outcome.cursor;
         if (!cursor || items.length >= 10) break;
       }

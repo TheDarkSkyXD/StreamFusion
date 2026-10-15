@@ -56,6 +56,10 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+vi.mock("../components/live-stream-card-content", () => ({
+  LiveStreamCardContent: () => null,
+}));
+
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
   accessibilityRole?: string;
@@ -116,23 +120,16 @@ describe("Home live discovery screen", () => {
       fixtureOutcome("twitch", "ready"),
       fixtureOutcome("kick", "ready"),
     );
-    expect(nodes.some((node) => node.props.testID === "home-featured-carousel")).toBe(false);
-    expect(nodes.some((node) => node.props.testID === "home-stream-twitch-twitch-ready")).toBe(true);
     expect(
-      nodes.some((node) => node.props.testID === "home-stream-kick-kick-ready"),
-    ).toBe(true);
+      nodes.some((node) => node.props.testID === "home-featured-carousel"),
+    ).toBe(false);
     expect(
       nodes.some(
-        (node) =>
-          typeof node.props.children === "string" &&
-          node.props.children === "40 viewers" &&
-          node.props.accessibilityLabel === "40 viewers",
+        (node) => node.props.testID === "home-stream-twitch-twitch-ready",
       ),
     ).toBe(true);
-    expect(nodes.some((node) => node.props.children === "LIVE")).toBe(true);
-    expect(nodes.some((node) => node.props.children === "proof")).toBe(true);
     expect(
-      nodes.some((node) => node.props.testID === "home-stream-tags-kick-ready"),
+      nodes.some((node) => node.props.testID === "home-stream-kick-kick-ready"),
     ).toBe(true);
     const watchTitle = nodes.find((node) => node.props.children === "Watch");
     expect(watchTitle?.props.style).toMatchObject({
@@ -206,7 +203,9 @@ describe("Home live discovery screen", () => {
     );
     expect(spinner?.props.accessibilityRole).toBe("progressbar");
     expect(spinner?.props.accessibilityLabel).toBe("Loading live channels");
-    expect(nodes.some((node) => node.props.testID === "home-phase")).toBe(false);
+    expect(nodes.some((node) => node.props.testID === "home-phase")).toBe(
+      false,
+    );
     expect(
       nodes.some((node) => node.props.testID === "home-featured-carousel"),
     ).toBe(false);

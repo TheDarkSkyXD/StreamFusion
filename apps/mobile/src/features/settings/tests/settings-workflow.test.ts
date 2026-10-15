@@ -12,7 +12,8 @@ vi.mock("../adapters/appearance-scheme", () => ({
 }));
 
 vi.mock("@mobile/i18n", async () => {
-  const actual = await vi.importActual<typeof import("@mobile/i18n")>("@mobile/i18n");
+  const actual =
+    await vi.importActual<typeof import("@mobile/i18n")>("@mobile/i18n");
   return {
     ...actual,
     activateDisplayLanguage: vi.fn(actual.activateDisplayLanguage),
@@ -62,6 +63,18 @@ describe("settings workflow", () => {
     expect(i18n.t("navigation.settings")).toBe("Paramètres");
   });
 
+  it("keeps the large stream card choice after the Settings session is recreated", async () => {
+    const store = memorySettings();
+    const first = createSettingsSession({ settings: store });
+    await first.load();
+    expect(first.snapshot().showLargeStreamCards).toBe(false);
+    const applied = await first.apply({ showLargeStreamCards: true });
+    expect(applied.preferences.showLargeStreamCards).toBe(true);
+    const reopened = createSettingsSession({ settings: store });
+    await reopened.load();
+    expect(reopened.snapshot().showLargeStreamCards).toBe(true);
+  });
+
   it("rejects unsupported locales without overwriting the saved language", async () => {
     const settings = session();
     await settings.load();
@@ -92,7 +105,9 @@ describe("settings workflow", () => {
     const filtered = await settings.search("lang");
     expect(filtered.query).toBe("lang");
     expect(filtered.panels).toContain("appearance");
-    expect(filtered.matches.some((match) => match.id === "language")).toBe(true);
+    expect(filtered.matches.some((match) => match.id === "language")).toBe(
+      true,
+    );
     expect(filtered.panels.includes("proxy")).toBe(false);
 
     const cleared = await settings.search("");

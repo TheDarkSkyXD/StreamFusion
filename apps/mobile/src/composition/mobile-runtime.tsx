@@ -85,6 +85,7 @@ import { createChatDisplaySettingsSession } from "@mobile/features/settings/comp
 import { createNotificationSettingsSession } from "@mobile/features/settings/composition/notification-settings-runtime";
 import { createPredictionSettingsSession } from "@mobile/features/settings/composition/prediction-settings-runtime";
 import { createSettingsSession } from "@mobile/features/settings/composition/settings-runtime";
+import { LiveStreamCardsProvider } from "@mobile/features/discovery/components/live-stream-cards-provider";
 import { DisplayLanguageSync } from "@mobile/i18n/DisplayLanguageSync";
 import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
 import { bootstrapMobileI18n, i18n } from "@mobile/i18n";
@@ -731,120 +732,125 @@ export function MobileRuntime() {
   return (
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>
-        <DisplayLanguageSync
-          language={settings.view.preferences.language}
-          ready={i18nReady && settings.ready}
+        <LiveStreamCardsProvider
+          queryClient={queryClient}
+          showLargeStreamCards={settings.view.preferences.showLargeStreamCards}
         >
-          <AppShell
-            moderation={moderation}
-            moderationChat={moderationChatRuntime}
-            engagement={engagement}
-            inlineEngagement={inlineEngagement}
-            workflowNavigation={workflowNavigation}
-            onRequestPlatformScopes={(platform, scopes) => {
-              if (platform === "twitch") {
-                setUseDevelopmentTwitchFixture(false);
-                void productionTwitchController.connect(scopes);
-              } else {
-                setUseDevelopmentKickFixture(false);
-                void productionKickController.connect();
+          <DisplayLanguageSync
+            language={settings.view.preferences.language}
+            ready={i18nReady && settings.ready}
+          >
+            <AppShell
+              moderation={moderation}
+              moderationChat={moderationChatRuntime}
+              engagement={engagement}
+              inlineEngagement={inlineEngagement}
+              workflowNavigation={workflowNavigation}
+              onRequestPlatformScopes={(platform, scopes) => {
+                if (platform === "twitch") {
+                  setUseDevelopmentTwitchFixture(false);
+                  void productionTwitchController.connect(scopes);
+                } else {
+                  setUseDevelopmentKickFixture(false);
+                  void productionKickController.connect();
+                }
+              }}
+              multistream={multistream}
+              AndroidNavigationBar={AndroidNavigationBar}
+              activityRepository={
+                developmentActivityProof?.repository ??
+                persistenceRuntime.productState.activity
               }
-            }}
-            multistream={multistream}
-            AndroidNavigationBar={AndroidNavigationBar}
-            activityRepository={
-              developmentActivityProof?.repository ??
-              persistenceRuntime.productState.activity
-            }
-            developmentActivityProof={activityProof}
-            appLinks={appLinks}
-            capabilityProfile={capabilityProfile.model}
-            onRetryCapabilityProfile={capabilityProfile.retry}
-            installationPolicy={installationPolicy.model}
-            onRefreshCapabilityPolicy={
-              installationPolicy.refreshCapabilityPolicy
-            }
-            onRetryInstallationRegistration={
-              installationPolicy.retryInstallationRegistration
-            }
-            onRunCapabilityProfileDevelopmentProof={() =>
-              capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()
-            }
-            onQueueActivityReadFailure={() => {
-              developmentActivityProof?.queueNextReadFailure();
-            }}
-            onExitDevelopmentActivityProof={async () => {
-              await developmentActivityProof?.exit();
-              setActivityProof(developmentActivityProof?.snapshot() ?? null);
-            }}
-            onReplayDevelopmentActivityProof={async () => {
-              await developmentActivityProof?.replayCompleted();
-              setActivityProof(developmentActivityProof?.snapshot() ?? null);
-            }}
-            onRetryDevelopmentActivityProofCleanup={async () => {
-              await developmentActivityProof?.retryCleanup();
-              setActivityProof(developmentActivityProof?.snapshot() ?? null);
-            }}
-            onStartDevelopmentActivityProof={async () => {
-              await developmentActivityProof?.start();
-              setActivityProof(developmentActivityProof?.snapshot() ?? null);
-            }}
-            developmentStatus={developmentClientController.read()}
-            onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
-            onPrepareRestorationProof={async (kind) => {
-              await persistenceRuntime.productState.shellRestoration.write(
-                kind === "corrupt"
-                  ? "not-json"
-                  : JSON.stringify({ version: 2 }),
-                Date.now(),
-              );
-            }}
-            onRunPersistenceProof={persistence.runProof}
-            persistenceStatus={persistence.model}
-            shellRestoration={persistenceRuntime.productState.shellRestoration}
-            twitchAccount={visibleTwitchAccount.model}
-            twitchAccountActions={visibleTwitchAccount.actions}
-            twitchAccountDevelopmentFixture={useDevelopmentTwitchFixture}
-            onEnableTwitchDevelopmentFixture={
-              __DEV__ && twitchClientId === null
-                ? () => setUseDevelopmentTwitchFixture(true)
-                : undefined
-            }
-            onDisableTwitchDevelopmentFixture={
-              useDevelopmentTwitchFixture
-                ? () => setUseDevelopmentTwitchFixture(false)
-                : undefined
-            }
-            kickAccount={visibleKickAccount.model}
-            kickAccountActions={visibleKickAccount.actions}
-            kickAccountDevelopmentFixture={useDevelopmentKickFixture}
-            onEnableKickDevelopmentFixture={
-              __DEV__ ? () => setUseDevelopmentKickFixture(true) : undefined
-            }
-            onDisableKickDevelopmentFixture={
-              useDevelopmentKickFixture
-                ? () => setUseDevelopmentKickFixture(false)
-                : undefined
-            }
-            homeDiscovery={homeDiscovery}
-            mediaJobs={mediaJobs}
-            captions={captions}
-            searchHistory={searchHistory}
-            discoveryPreferences={discoveryPreferences}
-            followingSession={followingSession}
-            connectivitySession={connectivitySession}
-            adblockSession={adblockSession}
-            twitchPlaylistProxySession={twitchPlaylistProxySession}
-            playlistProxyHealth={playlistProxyHealth}
-            notificationSession={notificationSession}
-            chatDisplaySession={chatDisplaySession}
-            predictionSession={predictionSession}
-            nativeNotifications={nativeNotifications}
-            settingsSession={settingsSession}
-            supportSession={supportSession}
-            watch={watch}
-          />
-        </DisplayLanguageSync>
+              developmentActivityProof={activityProof}
+              appLinks={appLinks}
+              capabilityProfile={capabilityProfile.model}
+              onRetryCapabilityProfile={capabilityProfile.retry}
+              installationPolicy={installationPolicy.model}
+              onRefreshCapabilityPolicy={
+                installationPolicy.refreshCapabilityPolicy
+              }
+              onRetryInstallationRegistration={
+                installationPolicy.retryInstallationRegistration
+              }
+              onRunCapabilityProfileDevelopmentProof={() =>
+                capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()
+              }
+              onQueueActivityReadFailure={() => {
+                developmentActivityProof?.queueNextReadFailure();
+              }}
+              onExitDevelopmentActivityProof={async () => {
+                await developmentActivityProof?.exit();
+                setActivityProof(developmentActivityProof?.snapshot() ?? null);
+              }}
+              onReplayDevelopmentActivityProof={async () => {
+                await developmentActivityProof?.replayCompleted();
+                setActivityProof(developmentActivityProof?.snapshot() ?? null);
+              }}
+              onRetryDevelopmentActivityProofCleanup={async () => {
+                await developmentActivityProof?.retryCleanup();
+                setActivityProof(developmentActivityProof?.snapshot() ?? null);
+              }}
+              onStartDevelopmentActivityProof={async () => {
+                await developmentActivityProof?.start();
+                setActivityProof(developmentActivityProof?.snapshot() ?? null);
+              }}
+              developmentStatus={developmentClientController.read()}
+              onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
+              onPrepareRestorationProof={async (kind) => {
+                await persistenceRuntime.productState.shellRestoration.write(
+                  kind === "corrupt"
+                    ? "not-json"
+                    : JSON.stringify({ version: 2 }),
+                  Date.now(),
+                );
+              }}
+              onRunPersistenceProof={persistence.runProof}
+              persistenceStatus={persistence.model}
+              shellRestoration={persistenceRuntime.productState.shellRestoration}
+              twitchAccount={visibleTwitchAccount.model}
+              twitchAccountActions={visibleTwitchAccount.actions}
+              twitchAccountDevelopmentFixture={useDevelopmentTwitchFixture}
+              onEnableTwitchDevelopmentFixture={
+                __DEV__ && twitchClientId === null
+                  ? () => setUseDevelopmentTwitchFixture(true)
+                  : undefined
+              }
+              onDisableTwitchDevelopmentFixture={
+                useDevelopmentTwitchFixture
+                  ? () => setUseDevelopmentTwitchFixture(false)
+                  : undefined
+              }
+              kickAccount={visibleKickAccount.model}
+              kickAccountActions={visibleKickAccount.actions}
+              kickAccountDevelopmentFixture={useDevelopmentKickFixture}
+              onEnableKickDevelopmentFixture={
+                __DEV__ ? () => setUseDevelopmentKickFixture(true) : undefined
+              }
+              onDisableKickDevelopmentFixture={
+                useDevelopmentKickFixture
+                  ? () => setUseDevelopmentKickFixture(false)
+                  : undefined
+              }
+              homeDiscovery={homeDiscovery}
+              mediaJobs={mediaJobs}
+              captions={captions}
+              searchHistory={searchHistory}
+              discoveryPreferences={discoveryPreferences}
+              followingSession={followingSession}
+              connectivitySession={connectivitySession}
+              adblockSession={adblockSession}
+              twitchPlaylistProxySession={twitchPlaylistProxySession}
+              playlistProxyHealth={playlistProxyHealth}
+              notificationSession={notificationSession}
+              chatDisplaySession={chatDisplaySession}
+              predictionSession={predictionSession}
+              nativeNotifications={nativeNotifications}
+              settingsSession={settingsSession}
+              supportSession={supportSession}
+              watch={watch}
+            />
+          </DisplayLanguageSync>
+        </LiveStreamCardsProvider>
       </I18nextProvider>
     </QueryClientProvider>
   );

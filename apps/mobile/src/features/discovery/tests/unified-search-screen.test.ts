@@ -31,6 +31,10 @@ vi.mock("lucide-react-native", () => ({
   X: "X",
 }));
 
+vi.mock("../components/live-stream-card-content", () => ({
+  LiveStreamCardContent: () => null,
+}));
+
 const i18nTest = vi.hoisted(() => ({
   t: (key: string, options?: Record<string, unknown>) => {
     if (options && "name" in options) return `${key}:${String(options.name)}`;
