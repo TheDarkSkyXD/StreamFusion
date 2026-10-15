@@ -15,6 +15,7 @@ const INITIAL: ChatInteractionView = {
   detail: "Checking chat access.",
   sending: false,
   emotes: [],
+  recentEmotes: [],
   emoteStatus: "loading",
   emoteDetail: "Loading emotes.",
 };
@@ -211,6 +212,7 @@ export function createChatInteractions(
       sending: false,
       detail: "Checking chat access.",
       emotes: [],
+      recentEmotes: [],
       emoteStatus: "loading",
       emoteDetail: "Loading emotes.",
     });
@@ -300,6 +302,19 @@ export function createChatInteractions(
               : "Completed.",
       });
       return result;
+    },
+    rememberEmote(emote) {
+      if (!target || recorded || !view.emotes.includes(emote)) return;
+      const identity = { provider: emote.provider, id: emote.id };
+      update({
+        recentEmotes: [
+          identity,
+          ...view.recentEmotes.filter(
+            (recent) =>
+              recent.id !== emote.id || recent.provider !== emote.provider,
+          ),
+        ].slice(0, 9),
+      });
     },
     async userAction(message, action) {
       if (!target) return { kind: "blocked", detail: "No chat is attached." };

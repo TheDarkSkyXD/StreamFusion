@@ -10,7 +10,10 @@ export type ChatEmote = {
   readonly staticImageUrl?: string;
   readonly animatedImageUrl?: string;
   readonly zeroWidth?: boolean;
+  readonly isGlobal?: boolean;
 };
+
+export type ChatEmoteIdentity = Pick<ChatEmote, "provider" | "id">;
 
 export type ChatCosmeticBadge = {
   readonly id: string;
@@ -99,6 +102,7 @@ export type ChatInteractionView = {
   readonly detail: string;
   readonly sending: boolean;
   readonly emotes: readonly ChatEmote[];
+  readonly recentEmotes: readonly ChatEmoteIdentity[];
   readonly emoteStatus: "loading" | "ready" | "partial" | "failed";
   readonly emoteDetail: string;
   readonly cosmetics?: ReadonlyMap<string, ChatUserCosmetics>;
@@ -141,6 +145,7 @@ export interface ChatInteractions {
   subscribe(listener: () => void): () => void;
   loadCosmetics?(userIds: readonly string[]): void;
   send(text: string, replyId?: string): Promise<ChatCommandResult>;
+  rememberEmote(emote: ChatEmote): void;
   userAction(
     message: WatchChatMessage,
     action: "block" | "report",

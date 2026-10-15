@@ -69,3 +69,20 @@ it("selects Twitch and FFZ animation with their real static alternatives", () =>
     zeroWidth: true,
   });
 });
+
+it("marks only global provider inventory as quick-row fallback", () => {
+  expect(
+    parseProviderEmotes("twitch", {
+      data: [
+        { id: "1", name: "Global", emote_type: "globals" },
+        { id: "2", name: "Sub", emote_type: "subscriptions" },
+      ],
+    }).map((emote) => emote.isGlobal),
+  ).toEqual([true, false]);
+  expect(
+    parseProviderEmotes("kick", [
+      { name: "Global Emotes", emotes: [{ id: 3, name: "Global" }] },
+      { name: "channel_set", emotes: [{ id: 4, name: "Channel" }] },
+    ]).map((emote) => emote.isGlobal),
+  ).toEqual([true, false]);
+});

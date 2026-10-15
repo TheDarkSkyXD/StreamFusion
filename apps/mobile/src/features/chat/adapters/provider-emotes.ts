@@ -14,6 +14,7 @@ function https(url: string): string {
 export function parseProviderEmotes(
   provider: ChatEmote["provider"],
   payload: unknown,
+  globalSource = false,
 ): readonly ChatEmote[] {
   const body = object(payload);
   let values: readonly unknown[];
@@ -53,12 +54,18 @@ export function parseProviderEmotes(
     case "kick":
       if (!Array.isArray(payload) && !Array.isArray(body.emotes))
         throw new Error("Invalid Kick emote inventory.");
-      values = Array.isArray(payload)
-        ? payload.flatMap((group) => array(object(group).emotes))
-        : array(body.emotes);
+      values = Array.isArray(payload) ? [] : array(body.emotes);
       break;
   }
-  return values.flatMap((raw): ChatEmote[] => {
+  const entries =
+    provider === "kick" && Array.isArray(payload)
+      ? payload.flatMap((group) => {
+          const name = string(object(group).name).trim().toLowerCase();
+          const isGlobal = name !== "" && name !== "channel_set";
+          return array(object(group).emotes).map((raw) => ({ raw, isGlobal }));
+        })
+      : values.map((raw) => ({ raw, isGlobal: globalSource }));
+  return entries.flatMap(({ raw, isGlobal }): ChatEmote[] => {
     const emote = object(raw);
     const id = identifier(emote.id);
     const name = string(emote.name ?? emote.code);
@@ -127,6 +134,14 @@ export function parseProviderEmotes(
         ...(staticImageUrl ? { staticImageUrl } : {}),
         ...(animatedImageUrl ? { animatedImageUrl } : {}),
         ...(zeroWidth ? { zeroWidth } : {}),
+        ...(provider === "twitch" || provider === "kick" || globalSource
+          ? {
+              isGlobal:
+                isGlobal ||
+                (provider === "twitch" &&
+                  string(emote.emote_type) === "globals"),
+            }
+          : {}),
         provider,
         insertion: provider === "kick" ? `[emote:${id}:${name}]` : name,
       },
@@ -190,6 +205,7 @@ export function createProviderEmoteReader(input: {
             "Client-Id": globalAccess.clientId,
           },
         ),
+        true,
       );
     }
     const result: ChatEmote[] = [];
@@ -250,6 +266,7 @@ export function createProviderEmoteReader(input: {
             parseProviderEmotes(
               "7tv",
               await readJson("https://7tv.io/v3/emote-sets/global", signal),
+              true,
             ),
         },
         {
@@ -269,6 +286,7 @@ export function createProviderEmoteReader(input: {
                   "https://api.betterttv.net/3/cached/emotes/global",
                   signal,
                 ),
+                true,
               ),
           },
           {
@@ -291,6 +309,7 @@ export function createProviderEmoteReader(input: {
                   "https://api.frankerfacez.com/v1/set/global",
                   signal,
                 ),
+                true,
               ),
           },
           {
@@ -337,8 +356,10 @@ export function createProviderEmoteReader(input: {
           failures.push(enabled[index]?.name ?? "Provider");
           return;
         }
-        for (const emote of result.value)
-          emotes.set(`${emote.provider}:${emote.id}:${emote.name}`, emote);
+        for (const emote of result.value) {
+          const key = `${emote.provider}:${emote.id}:${emote.name}`;
+          if (!emotes.has(key)) emotes.set(key, emote);
+        }
       });
       return { emotes: [...emotes.values()].slice(0, 4000), failures };
     },

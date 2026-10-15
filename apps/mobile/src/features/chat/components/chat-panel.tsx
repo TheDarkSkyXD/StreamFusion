@@ -31,6 +31,7 @@ import {
   mobileType,
 } from "@mobile/design/tokens";
 import type {
+  ChatEmote,
   ChatInteractions,
   ChatInteractionView,
 } from "../capabilities/chat-interactions";
@@ -41,12 +42,14 @@ import type {
 } from "../capabilities/watch-chat";
 import { ChatMessageRow } from "./chat-message-row";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/domain/chat-display-preferences";
+import { selectQuickEmotes } from "../domain/quick-emotes";
 
 const READ_ONLY: ChatInteractionView = {
   access: "blocked",
   detail: "Sign in to send messages.",
   sending: false,
   emotes: [],
+  recentEmotes: [],
   emoteStatus: "ready",
   emoteDetail: "",
 };
@@ -105,6 +108,7 @@ function ChatPanelBody({
   const preferences =
     view.displayPreferences ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const [draft, setDraft] = useState("");
+  const input = useRef<TextInput>(null);
   const [sendNotice, setSendNotice] = useState<string | null>(null);
   const composerEpoch = useRef(0);
   const [reply, setReply] = useState<WatchChatMessage | null>(null);
@@ -178,6 +182,24 @@ function ChatPanelBody({
       preferences.enableFfz,
     ],
   );
+  const quickEmotes = useMemo(
+    () =>
+      preferences.quickEmotes
+        ? selectQuickEmotes(platform, emotes, view.recentEmotes)
+        : [],
+    [platform, emotes, view.recentEmotes, preferences.quickEmotes],
+  );
+  const sendQuickEmote = async (emote: ChatEmote) => {
+    if (!interactions || view.access !== "ready" || view.sending) return;
+    const epoch = composerEpoch.current;
+    setSendNotice(null);
+    const result = await interactions.send(emote.insertion);
+    if (epoch !== composerEpoch.current) return;
+    if (result.kind === "sent") interactions.rememberEmote(emote);
+    if (result.kind === "uncertain")
+      setSendNotice(`Message to ${channelName}: ${result.detail}`);
+    input.current?.focus();
+  };
   const matches = useMemo(
     () =>
       picker
@@ -483,6 +505,43 @@ function ChatPanelBody({
               {sendNotice}
             </Text>
           ) : null}
+          {quickEmotes.length ? (
+            <ScrollView
+              horizontal
+              keyboardShouldPersistTaps="always"
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickEmotes}
+              testID="chat-quick-emotes"
+            >
+              {quickEmotes.map((emote) => (
+                <Pressable
+                  key={`${emote.provider}:${emote.id}`}
+                  accessibilityLabel={`Send ${emote.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: view.access !== "ready" || view.sending,
+                  }}
+                  disabled={view.access !== "ready" || view.sending}
+                  onPress={() => {
+                    void sendQuickEmote(emote);
+                  }}
+                  style={styles.quickEmoteChoice}
+                  testID="chat-quick-emote"
+                >
+                  <MobileEmoteImage
+                    name={emote.name}
+                    uri={
+                      preferences.animatedEmotes
+                        ? (emote.animatedImageUrl ?? emote.imageUrl)
+                        : (emote.staticImageUrl ?? emote.imageUrl)
+                    }
+                    animated={preferences.animatedEmotes}
+                    style={styles.emote}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
           {picker ? (
             <MobileBottomSheet
               visible
@@ -509,6 +568,7 @@ function ChatPanelBody({
                       accessibilityLabel={`${emote.name} (${emote.provider})`}
                       accessibilityRole="button"
                       onPress={() => {
+                        interactions?.rememberEmote(emote);
                         setDraft(
                           (value) =>
                             `${value}${value ? " " : ""}${emote.insertion} `,
@@ -547,6 +607,7 @@ function ChatPanelBody({
               <Smile color={mobileColors.textSecondary} size={24} />
             </MobileIconButton>
             <TextInput
+              ref={input}
               accessibilityLabel="Chat message"
               editable={view.access === "ready" && !view.sending}
               multiline
@@ -587,6 +648,15 @@ const styles = StyleSheet.create({
     paddingBottom: mobileSpacing.small,
   },
   emote: { width: 28, height: 28 },
+  quickEmotes: { flexDirection: "row", gap: mobileSpacing.xSmall },
+  quickEmoteChoice: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: mobileColors.surface,
+    borderRadius: mobileRadii.medium,
+  },
   composer: { gap: mobileSpacing.xSmall, paddingBottom: mobileSpacing.small },
   input: {
     ...mobileType.body,

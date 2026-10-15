@@ -8,12 +8,14 @@ import { ChatPanel } from "../components/chat-panel";
 import type {
   ChatCommands,
   ChatCommandResult,
+  ChatEmote,
 } from "../capabilities/chat-interactions";
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
 } from "../capabilities/watch-chat";
 import { createChatInteractions } from "../domain/chat-interactions";
+import { defaultChatDisplaySettingsView } from "@mobile/features/settings/domain/chat-display-preferences";
 
 vi.mock("lucide-react-native", () => ({ Smile: () => null }));
 
@@ -118,18 +120,43 @@ const messageA: WatchChatMessage = {
   badges: [],
 };
 
-function renderPanel(commands: ChatCommands) {
+function renderPanel(
+  commands: ChatCommands,
+  emotes: readonly ChatEmote[] = [],
+  quickEmotes = true,
+) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
   const root = createRoot(container);
-  const interactions = createChatInteractions(commands, {
-    read: async () => ({ emotes: [], failures: [] }),
-  });
+  const interactions = createChatInteractions(
+    commands,
+    {
+      read: async () => ({ emotes, failures: [] }),
+    },
+    {
+      load: async () => ({
+        ...defaultChatDisplaySettingsView(),
+        preferences: {
+          ...defaultChatDisplaySettingsView().preferences,
+          quickEmotes,
+        },
+      }),
+      peek: () => ({
+        ...defaultChatDisplaySettingsView(),
+        preferences: {
+          ...defaultChatDisplaySettingsView().preferences,
+          quickEmotes,
+        },
+      }),
+      subscribe: () => () => undefined,
+    },
+  );
   const send = vi.spyOn(interactions, "send");
   const render = (
     target: WatchChatConnectInput,
     messages: readonly WatchChatMessage[] = [messageA],
     messageMetadataRevision = 0,
+    mode: { readonly recorded?: boolean; readonly readOnly?: boolean } = {},
   ) =>
     act(async () => {
       root.render(
@@ -143,6 +170,7 @@ function renderPanel(commands: ChatCommands) {
           platform: target.platform,
           target,
           interactions,
+          ...mode,
         }),
       );
     });
@@ -159,11 +187,13 @@ function renderPanel(commands: ChatCommands) {
     return element;
   };
   return {
+    interactions,
     container,
     render,
     send,
     draft: () => input("chat-draft").value,
     sendDisabled: () => button('[data-testid="chat-send"]').disabled,
+    buttonDisabled: (selector: string) => button(selector).disabled,
     press: (selector: string) => act(async () => button(selector).click()),
     type: (id: string, text: string) =>
       act(async () => {
@@ -187,6 +217,186 @@ function chatCommands(send: ChatCommands["send"]): ChatCommands {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("chat panel target identity", () => {
+  it("sends a Kick quick emote immediately while preserving the draft and reply", async () => {
+    const delivery = vi.fn<ChatCommands["send"]>(async () => ({
+      kind: "sent",
+      messageId: "sent",
+    }));
+    const panel = renderPanel(chatCommands(delivery), [
+      {
+        provider: "kick",
+        id: "42",
+        name: "Smile",
+        insertion: "[emote:42:Smile]",
+        imageUrl: "https://files.kick.com/emotes/42/fullsize",
+        isGlobal: true,
+      },
+    ]);
+    try {
+      await panel.render({ ...channelA, platform: "kick" });
+      await panel.type("chat-draft", "Keep my draft");
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.press('[data-testid="chat-reply"]');
+      await panel.press('[aria-label="Send Smile"]');
+      expect(delivery).toHaveBeenCalledExactlyOnceWith(
+        { ...channelA, platform: "kick" },
+        "[emote:42:Smile]",
+        null,
+        expect.any(AbortSignal),
+      );
+      expect(panel.draft()).toBe("Keep my draft");
+      expect(panel.container.textContent).toContain(
+        "Replying to Alpha viewer.",
+      );
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("disables quick sends while pending or blocked and hides the row when opted out or read-only", async () => {
+    let finish: (result: ChatCommandResult) => void = () => undefined;
+    const pending = new Promise<ChatCommandResult>((resolve) => {
+      finish = resolve;
+    });
+    const delivery = vi.fn<ChatCommands["send"]>(() => pending);
+    const emotes: ChatEmote[] = [
+      {
+        provider: "twitch",
+        id: "25",
+        name: "Kappa",
+        insertion: "Kappa",
+        imageUrl: "https://example.test/kappa",
+        isGlobal: true,
+      },
+    ];
+    const panel = renderPanel(chatCommands(delivery), emotes);
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Send Kappa"]');
+      expect(panel.buttonDisabled('[aria-label="Send Kappa"]')).toBe(true);
+      await panel.press('[aria-label="Send Kappa"]');
+      expect(delivery).toHaveBeenCalledTimes(1);
+      await act(async () => finish({ kind: "sent", messageId: "sent" }));
+    } finally {
+      await panel.unmount();
+    }
+    const hidden = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      emotes,
+      false,
+    );
+    try {
+      await hidden.render(channelA);
+      expect(
+        hidden.container.querySelector('[aria-label="Send Kappa"]'),
+      ).toBeNull();
+    } finally {
+      await hidden.unmount();
+    }
+    const readOnly = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      emotes,
+    );
+    try {
+      await readOnly.render(channelA, [messageA], 0, { readOnly: true });
+      expect(
+        readOnly.container.querySelector('[aria-label="Send Kappa"]'),
+      ).toBeNull();
+      await readOnly.render(channelA, [messageA], 0, { recorded: true });
+      expect(
+        readOnly.container.querySelector('[aria-label="Send Kappa"]'),
+      ).toBeNull();
+    } finally {
+      await readOnly.unmount();
+    }
+    const blocked = renderPanel(
+      {
+        ...chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+        access: async () => ({ allowed: false, detail: "Sign in" }),
+      },
+      emotes,
+    );
+    try {
+      await blocked.render(channelA);
+      expect(blocked.buttonDisabled('[aria-label="Send Kappa"]')).toBe(true);
+    } finally {
+      await blocked.unmount();
+    }
+  });
+
+  it("keeps the composer on a failed quick send and ignores a late result after changing channels", async () => {
+    let finish: (result: ChatCommandResult) => void = () => undefined;
+    const delivery = vi
+      .fn<ChatCommands["send"]>()
+      .mockResolvedValueOnce({ kind: "failed", detail: "Slow mode." })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const panel = renderPanel(chatCommands(delivery), [
+      {
+        provider: "twitch",
+        id: "25",
+        name: "Kappa",
+        insertion: "Kappa",
+        imageUrl: "https://example.test/kappa",
+        isGlobal: true,
+      },
+    ]);
+    try {
+      await panel.render(channelA);
+      await panel.type("chat-draft", "Keep this");
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.press('[data-testid="chat-reply"]');
+      await panel.press('[aria-label="Send Kappa"]');
+      expect(panel.draft()).toBe("Keep this");
+      expect(panel.container.textContent).toContain(
+        "Replying to Alpha viewer.",
+      );
+      expect(panel.container.textContent).toContain("Slow mode.");
+      await panel.press('[aria-label="Send Kappa"]');
+      await panel.render(channelB);
+      await act(async () => finish({ kind: "sent", messageId: "late" }));
+      expect(panel.interactions.snapshot().recentEmotes).toEqual([]);
+      expect(
+        panel.container.querySelector('[data-testid="chat-send-notice"]'),
+      ).toBeNull();
+      expect(panel.draft()).toBe("");
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps full-picker selection as draft insertion and moves it into recent quick choices", async () => {
+    const delivery = vi.fn<ChatCommands["send"]>(async () => ({
+      kind: "sent",
+      messageId: "sent",
+    }));
+    const panel = renderPanel(chatCommands(delivery), [
+      {
+        provider: "twitch",
+        id: "25",
+        name: "Kappa",
+        insertion: "Kappa",
+        imageUrl: "https://example.test/kappa",
+        isGlobal: true,
+      },
+    ]);
+    try {
+      await panel.render(channelA);
+      await panel.press('[data-testid="chat-emotes"]');
+      await panel.press('[aria-label="Kappa (twitch)"]');
+      expect(panel.draft()).toBe("Kappa ");
+      expect(delivery).not.toHaveBeenCalled();
+      expect(panel.interactions.snapshot().recentEmotes).toEqual([
+        { provider: "twitch", id: "25" },
+      ]);
+    } finally {
+      await panel.unmount();
+    }
+  });
   it("drops the previous channel composer and actions before sending to the next channel", async () => {
     const delivery = vi.fn<ChatCommands["send"]>(async () => ({
       kind: "sent",

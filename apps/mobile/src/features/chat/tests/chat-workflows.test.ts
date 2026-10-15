@@ -42,6 +42,51 @@ const access = (): AuthenticatedPlatformAccess => ({
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status });
 
+it("ignores a recent selection from an invalidated emote inventory", async () => {
+  let invalidate: () => void = () => undefined;
+  const session = createChatInteractions(
+    {
+      access: async () => ({ allowed: true, detail: "Ready" }),
+      subscribe: (listener) => {
+        invalidate = listener;
+        return () => undefined;
+      },
+      send: async () => ({ kind: "sent", messageId: "sent" }),
+      userAction: async () => ({ kind: "completed" }),
+    },
+    {
+      read: async () => ({
+        emotes: [
+          {
+            id: "25",
+            name: "Kappa",
+            provider: "twitch",
+            insertion: "Kappa",
+            imageUrl: "https://example.test/kappa",
+          },
+        ],
+        failures: [],
+      }),
+    },
+  );
+  session.attach(twitch, false);
+  await vi.waitFor(() => expect(session.snapshot().emoteStatus).toBe("ready"));
+  const previous = session.snapshot().emotes[0]!;
+  session.rememberEmote(previous);
+  expect(session.snapshot().recentEmotes).toEqual([
+    { provider: "twitch", id: "25" },
+  ]);
+  invalidate();
+  await vi.waitFor(() => expect(session.snapshot().emoteStatus).toBe("ready"));
+  session.rememberEmote(previous);
+  expect(session.snapshot().recentEmotes).toEqual([]);
+  session.rememberEmote(session.snapshot().emotes[0]!);
+  expect(session.snapshot().recentEmotes).toEqual([
+    { provider: "twitch", id: "25" },
+  ]);
+  session.dispose();
+});
+
 it("replaces an emote inventory without retaining stale image URLs", () => {
   const emote = {
     id: "wave",
@@ -321,6 +366,44 @@ describe("chat interaction lifecycle", () => {
 });
 
 describe("provider emotes and message parts", () => {
+  it("keeps global metadata when a channel repeats the same 7TV emote", async () => {
+    const shared = {
+      emotes: [
+        {
+          id: "7",
+          name: "Wave",
+          data: {
+            host: {
+              url: "//cdn.7tv.app/emote/7",
+              files: [{ name: "2x.webp" }],
+            },
+          },
+        },
+      ],
+    };
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("kick.com/api/v1/channels/"))
+        return json({ user_id: 123 });
+      if (url.includes("7tv.io/v3/emote-sets/global")) return json(shared);
+      if (url.includes("7tv.io/v3/users/KICK/"))
+        return json({ emote_set: shared });
+      if (url.includes("kick.com/emotes/")) return json([]);
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    const reader = createProviderEmoteReader({ access: access(), fetch });
+    const result = await reader.read(
+      { ...twitch, platform: "kick" },
+      new AbortController().signal,
+    );
+    expect(
+      result.emotes.map((emote) => ({
+        id: emote.id,
+        isGlobal: emote.isGlobal,
+      })),
+    ).toEqual([{ id: "7", isGlobal: true }]);
+    expect(result.failures).toEqual([]);
+  });
   it("does not request disabled third-party emote providers", async () => {
     const fetch = vi.fn(async () => json({ data: [], pagination: {} }));
     const view = defaultChatDisplaySettingsView();
