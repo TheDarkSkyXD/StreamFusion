@@ -23,6 +23,7 @@ import { createTwitchVodPlaybackSource } from "../adapters/twitch/twitch-vod-pla
 import { createWatchChatSession } from "@mobile/features/chat/adapters/create-watch-chat-session";
 import type { WatchChatSession } from "@mobile/features/chat/capabilities/watch-chat";
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
+import type { ChatPresentation } from "@mobile/features/chat/capabilities/chat-presentation";
 import type { WatchScreenRuntime } from "../components/watch-screen";
 import type { WatchSessionIdSource } from "../capabilities/watch";
 import { setWatchOrientationController } from "../domain/watch-fullscreen-orientation";
@@ -31,6 +32,7 @@ import { createWatchRuntime } from "./watch-runtime";
 export function createGuestWatchScreen(input: {
   readonly chat?: WatchChatSession;
   readonly chatInteractions?: ChatInteractions;
+  readonly chatPresentation?: ChatPresentation;
   readonly discovery: DiscoverySession;
   readonly fetch: typeof globalThis.fetch;
   readonly filtering?: AdBlockSession;
@@ -57,6 +59,9 @@ export function createGuestWatchScreen(input: {
     ...(input.chatInteractions === undefined
       ? {}
       : { chatInteractions: input.chatInteractions }),
+    ...(input.chatPresentation === undefined
+      ? {}
+      : { chatPresentation: input.chatPresentation }),
     history: input.history,
     PlayerSurface,
     nativePlayback: useNativeMedia3,

@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { AppState, Text } from "react-native";
 import { mobileType } from "@mobile/design/tokens";
 import type { ChatInteractions } from "../capabilities/chat-interactions";
+import type { ChatPresentation } from "../capabilities/chat-presentation";
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
@@ -12,6 +13,7 @@ import { ChatPanel } from "./chat-panel";
 export type ConnectedChatRuntime = {
   readonly chat: WatchChatSession;
   readonly interactions: ChatInteractions;
+  readonly presentation?: ChatPresentation;
 };
 
 export function ConnectedChatPanel({
@@ -61,6 +63,7 @@ export function ConnectedChatPanel({
       platform={platform}
       target={target}
       interactions={runtime.interactions}
+      {...(runtime.presentation ? { presentation: runtime.presentation } : {})}
       onRetry={runtime.chat.retry}
       {...(onModerateMessage ? { onModerateMessage } : {})}
     />

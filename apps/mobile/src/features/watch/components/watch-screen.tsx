@@ -31,6 +31,7 @@ import type {
   WatchChatMessage,
 } from "@mobile/features/chat/capabilities/watch-chat";
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
+import type { ChatPresentation } from "@mobile/features/chat/capabilities/chat-presentation";
 import type {
   FocusedWatchState,
   FocusedWatchSession,
@@ -72,6 +73,7 @@ export type WatchScreenRuntime = {
   readonly playlistProxy?: TwitchPlaylistProxySession;
   readonly chat: WatchChatSession;
   readonly chatInteractions?: ChatInteractions;
+  readonly chatPresentation?: ChatPresentation;
   readonly history: WatchHistoryRepository;
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
   readonly runtime: WatchRuntime;
@@ -110,6 +112,7 @@ export function WatchScreen({
   chat,
   chatSession,
   chatInteractions,
+  chatPresentation,
   inlineEngagement,
   chrome,
   download,
@@ -159,6 +162,7 @@ export function WatchScreen({
   readonly chat: WatchChatAvailability;
   readonly chatSession?: WatchChatSession;
   readonly chatInteractions?: ChatInteractions;
+  readonly chatPresentation?: ChatPresentation;
   readonly inlineEngagement?: ChatEngagementInlineBindings;
   readonly chrome?: {
     readonly showFullscreen: boolean;
@@ -407,6 +411,7 @@ export function WatchScreen({
             {...(chatSession === undefined ? {} : { chatSession })}
             chatTarget={target}
             {...(chatInteractions === undefined ? {} : { chatInteractions })}
+            {...(chatPresentation === undefined ? {} : { chatPresentation })}
             info={inspection?.info ?? null}
             onOpenRelated={onOpenRelated}
             onSelect={onSelectTab}

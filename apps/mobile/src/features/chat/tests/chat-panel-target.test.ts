@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement, type ReactNode } from "react";
+import { act, createElement, useImperativeHandle, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -16,8 +16,25 @@ import type {
 } from "../capabilities/watch-chat";
 import { createChatInteractions } from "../domain/chat-interactions";
 import { defaultChatDisplaySettingsView } from "@mobile/features/settings/domain/chat-display-preferences";
+import { selectUserChatMessages } from "../domain/select-user-chat-messages";
 
 vi.mock("lucide-react-native", () => ({ Smile: () => null }));
+
+const scrollToOffset = vi.fn();
+let nativeListEvents: {
+  readonly maintainVisibleContentPosition?: {
+    readonly minIndexForVisible: number;
+  };
+  readonly onScrollBeginDrag?: () => void;
+  readonly onScrollEndDrag?: () => void;
+  readonly onMomentumScrollBegin?: () => void;
+  readonly onMomentumScrollEnd?: (event: {
+    nativeEvent: { contentOffset: { y: number } };
+  }) => void;
+  readonly onScroll?: (event: {
+    nativeEvent: { contentOffset: { y: number } };
+  }) => void;
+} = {};
 
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
@@ -28,6 +45,7 @@ vi.mock("react-native", async () => {
     readonly accessibilityLabel?: string;
     readonly disabled?: boolean;
     readonly onPress?: () => void;
+    readonly onRequestClose?: () => void;
   };
   const host = (tag: string) => (props: HostProps) =>
     createElement(
@@ -44,7 +62,18 @@ vi.mock("react-native", async () => {
     requireNativeComponent: () => host("img"),
     ActivityIndicator: host("span"),
     Platform: { OS: "android" },
-    Modal: (props: HostProps) => (props.visible ? host("div")(props) : null),
+    Modal: (props: HostProps) =>
+      props.visible
+        ? createElement(
+            "div",
+            {
+              onKeyDown: (event: KeyboardEvent) => {
+                if (event.key === "Escape") props.onRequestClose?.();
+              },
+            },
+            props.children,
+          )
+        : null,
     KeyboardAvoidingView: host("div"),
     View: host("div"),
     Text: host("span"),
@@ -54,14 +83,25 @@ vi.mock("react-native", async () => {
     FlatList: (
       props: HostProps & {
         readonly onScrollBeginDrag?: () => void;
+        readonly onScrollEndDrag?: () => void;
+        readonly onMomentumScrollBegin?: () => void;
+        readonly onMomentumScrollEnd?: (event: {
+          nativeEvent: { contentOffset: { y: number } };
+        }) => void;
+        readonly ref?: React.Ref<unknown>;
         readonly onScroll?: (event: {
           nativeEvent: { contentOffset: { y: number } };
         }) => void;
+        readonly maintainVisibleContentPosition?: {
+          readonly minIndexForVisible: number;
+        };
         readonly data: readonly WatchChatMessage[];
         readonly renderItem: (entry: { item: WatchChatMessage }) => ReactNode;
       },
-    ) =>
-      createElement(
+    ) => {
+      nativeListEvents = props;
+      useImperativeHandle(props.ref, () => ({ scrollToOffset }));
+      return createElement(
         "div",
         {
           "data-testid": props.testID,
@@ -76,7 +116,8 @@ vi.mock("react-native", async () => {
         props.data.map((item) =>
           createElement("div", { key: item.id }, props.renderItem({ item })),
         ),
-      ),
+      );
+    },
     Image: host("img"),
     TextInput: (
       props: HostProps & {
@@ -124,6 +165,24 @@ function renderPanel(
   commands: ChatCommands,
   emotes: readonly ChatEmote[] = [],
   quickEmotes = true,
+  presentation?: {
+    readonly copyText: (text: string) => Promise<void>;
+    readonly readChannel: (
+      identity: { platform: "twitch" | "kick"; id: string; username: string },
+      signal: AbortSignal,
+    ) => Promise<{
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl: string;
+      createdAt?: string;
+    } | null>;
+    readonly viewChannel: (channel: {
+      platform: "twitch" | "kick";
+      id: string;
+      username: string;
+    }) => void;
+  },
 ) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -156,9 +215,14 @@ function renderPanel(
     target: WatchChatConnectInput,
     messages: readonly WatchChatMessage[] = [messageA],
     messageMetadataRevision = 0,
-    mode: { readonly recorded?: boolean; readonly readOnly?: boolean } = {},
-  ) =>
-    act(async () => {
+    mode: {
+      readonly recorded?: boolean;
+      readonly readOnly?: boolean;
+      readonly moderationRevision?: number;
+    } = {},
+  ) => {
+    const { moderationRevision, ...panelMode } = mode;
+    return act(async () => {
       root.render(
         createElement(ChatPanel, {
           chat: {
@@ -166,14 +230,17 @@ function renderPanel(
             detail: "Chat connected.",
             messages,
             messageMetadataRevision,
+            ...(moderationRevision === undefined ? {} : { moderationRevision }),
           },
           platform: target.platform,
           target,
           interactions,
-          ...mode,
+          ...(presentation ? { presentation } : {}),
+          ...panelMode,
         }),
       );
     });
+  };
   const button = (selector: string) => {
     const element = container.querySelector(selector);
     if (!(element instanceof HTMLButtonElement))
@@ -214,7 +281,11 @@ function chatCommands(send: ChatCommands["send"]): ChatCommands {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  scrollToOffset.mockClear();
+  nativeListEvents = {};
+});
 
 describe("chat panel target identity", () => {
   it("sends a Kick quick emote immediately while preserving the draft and reply", async () => {
@@ -508,6 +579,203 @@ describe("chat panel target identity", () => {
 });
 
 describe("chat reading position", () => {
+  it("anchors visible rows only while the reader holds history, then releases the anchor on Resume", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA, [messageA]);
+      expect(nativeListEvents.maintainVisibleContentPosition).toBeUndefined();
+      await act(async () => nativeListEvents.onScrollBeginDrag?.());
+      expect(nativeListEvents.maintainVisibleContentPosition).toEqual({
+        minIndexForVisible: 0,
+      });
+      await panel.render(channelA, [
+        { ...messageA, id: "new", text: "New arrival" },
+        messageA,
+      ]);
+      expect(nativeListEvents.maintainVisibleContentPosition).toEqual({
+        minIndexForVisible: 0,
+      });
+      await panel.press('[data-testid="chat-resume"]');
+      expect(nativeListEvents.maintainVisibleContentPosition).toBeUndefined();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("pauses a short fling whose first away-from-bottom offset arrives after drag end", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA, [messageA]);
+      await act(async () => {
+        nativeListEvents.onScrollBeginDrag?.();
+        nativeListEvents.onScrollEndDrag?.();
+        nativeListEvents.onMomentumScrollBegin?.();
+        nativeListEvents.onScroll?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+        nativeListEvents.onMomentumScrollEnd?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-resume"]'),
+      ).not.toBeNull();
+      await panel.render(channelA, [
+        { ...messageA, id: "new", text: "New arrival" },
+      ]);
+      expect(panel.container.textContent).toContain("Alpha message");
+      expect(panel.container.textContent).not.toContain("New arrival");
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps ownership when momentum starts after the first frame following drag end", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA);
+      await act(async () => {
+        nativeListEvents.onScrollBeginDrag?.();
+        nativeListEvents.onScrollEndDrag?.();
+        await new Promise((resolve) => setTimeout(resolve, 18));
+        nativeListEvents.onMomentumScrollBegin?.();
+        nativeListEvents.onScroll?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+        nativeListEvents.onMomentumScrollEnd?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-resume"]'),
+      ).not.toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps history paused when a fling reports its first offset after coast cleanup", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA);
+      await act(async () => {
+        nativeListEvents.onScrollBeginDrag?.();
+        nativeListEvents.onScrollEndDrag?.();
+        await new Promise((resolve) => setTimeout(resolve, 55));
+        nativeListEvents.onMomentumScrollBegin?.();
+        nativeListEvents.onScroll?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+        nativeListEvents.onMomentumScrollEnd?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-resume"]'),
+      ).not.toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps the first pending follow frame through a burst of new arrivals", async () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      const id = ++nextFrame;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      frames.delete(id);
+    });
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA);
+      const firstFrame = nextFrame;
+      await panel.render(channelA, [{ ...messageA, id: "next-1" }]);
+      await panel.render(channelA, [{ ...messageA, id: "next-2" }]);
+      expect(frames.has(firstFrame)).toBe(true);
+      await act(async () => frames.get(firstFrame)?.(0));
+      expect(scrollToOffset).toHaveBeenCalledWith({
+        offset: 0,
+        animated: false,
+      });
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("follows committed arrivals and equal-height rollover while reading at the bottom", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA, [messageA]);
+      scrollToOffset.mockClear();
+      await panel.render(channelA, [
+        { ...messageA, id: "next", text: "Next message" },
+      ]);
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+      expect(scrollToOffset).toHaveBeenCalledWith({
+        offset: 0,
+        animated: false,
+      });
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps a reader pause through programmatic zero-offset events and sheet dismissal", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA, [messageA]);
+      await act(async () => {
+        nativeListEvents.onScrollBeginDrag?.();
+        nativeListEvents.onScroll?.({
+          nativeEvent: { contentOffset: { y: 160 } },
+        });
+        nativeListEvents.onScrollEndDrag?.();
+      });
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      const sheet = panel.container.querySelector(
+        '[data-testid="chat-user-actions"]',
+      );
+      if (!sheet) throw new Error("Missing user sheet");
+      await act(async () =>
+        sheet.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        ),
+      );
+      await act(async () =>
+        nativeListEvents.onScroll?.({
+          nativeEvent: { contentOffset: { y: 0 } },
+        }),
+      );
+      expect(
+        panel.container.querySelector('[data-testid="chat-resume"]'),
+      ).not.toBeNull();
+      await panel.render(channelA, [
+        { ...messageA, id: "new", text: "New arrival" },
+      ]);
+      expect(panel.container.textContent).not.toContain("New arrival");
+    } finally {
+      await panel.unmount();
+    }
+  });
+
   it.each(["paused", "picker"])(
     "updates late badges in %s rows while preserving older rows and reading position",
     async (mode) => {
@@ -721,6 +989,141 @@ describe("chat reading position", () => {
       expect(container.querySelector(`[data-testid="chat-resume"]`)).toBeNull();
     } finally {
       await act(async () => root.unmount());
+    }
+  });
+});
+
+describe("chat user sheet", () => {
+  it("groups recent messages by stable identity and retains an evicted selection", () => {
+    const selected = { ...messageA, userId: "user-a", id: "selected" };
+    const same = {
+      ...messageA,
+      userId: "user-a",
+      id: "same",
+      username: "renamed",
+    };
+    const other = { ...messageA, userId: "user-b", id: "other" };
+    expect(selectUserChatMessages(selected, [same, other])).toEqual([
+      selected,
+      same,
+    ]);
+  });
+
+  it("copies the selected visible message and inserts it into the draft without sending", async () => {
+    const delivery = vi.fn<ChatCommands["send"]>(async () => ({
+      kind: "sent",
+      messageId: "sent",
+    }));
+    const copyText = vi.fn(async () => undefined);
+    const panel = renderPanel(chatCommands(delivery), [], true, {
+      copyText,
+      readChannel: async () => null,
+      viewChannel: () => undefined,
+    });
+    try {
+      await panel.render(channelA);
+      await panel.type("chat-draft", "Existing");
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.press('[data-testid="chat-copy-message"]');
+      expect(copyText).toHaveBeenCalledWith("Alpha message");
+      await panel.press('[data-testid="chat-copy-to-chat"]');
+      expect(panel.draft()).toBe("Existing Alpha message");
+      expect(delivery).not.toHaveBeenCalled();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps local history and clipboard when profile lookup fails", async () => {
+    const copyText = vi.fn(async () => undefined);
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText,
+        readChannel: async () => {
+          throw new Error("Offline");
+        },
+        viewChannel: () => undefined,
+      },
+    );
+    try {
+      await panel.render(channelA, [
+        messageA,
+        { ...messageA, id: "second", text: "Second message" },
+      ]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(panel.container.textContent).toContain("Second message");
+      expect(panel.container.textContent).toContain(
+        "Channel details unavailable",
+      );
+      await panel.press('[data-testid="chat-user-message-alpha-message"]');
+      await panel.press('[data-testid="chat-copy-message"]');
+      expect(copyText).toHaveBeenCalledWith("Alpha message");
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("navigates only with the verified channel returned by discovery", async () => {
+    const viewChannel = vi.fn();
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText: async () => undefined,
+        readChannel: async () => ({
+          id: "verified-id",
+          username: "verified-login",
+          displayName: "Verified",
+          avatarUrl: "https://example.test/avatar",
+        }),
+        viewChannel,
+      },
+    );
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.press('[data-testid="chat-view-channel"]');
+      expect(viewChannel).toHaveBeenCalledWith({
+        platform: "twitch",
+        id: "verified-id",
+        username: "verified-login",
+      });
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("closes a selected message after deletion so clipboard cannot expose its old text", async () => {
+    const copyText = vi.fn(async () => undefined);
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText,
+        readChannel: async () => null,
+        viewChannel: () => undefined,
+      },
+    );
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.render(channelA, [{ ...messageA, deletedAt: 123 }], 0, {
+        moderationRevision: 1,
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+      expect(
+        panel.container.querySelector('[data-testid="chat-copy-message"]'),
+      ).toBeNull();
+      expect(copyText).not.toHaveBeenCalled();
+    } finally {
+      await panel.unmount();
     }
   });
 });

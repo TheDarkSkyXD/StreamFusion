@@ -7,14 +7,37 @@ import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/doma
 import { createRecordedChatReader } from "../adapters/recorded-chat-reader";
 import { createWatchChatSession } from "../adapters/create-watch-chat-session";
 import type { ChatDisplaySettingsSession } from "@mobile/features/settings/capabilities/chat-display-settings";
+import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
+import type { ChannelIdentity } from "@streamfusion/core/platform";
+import type { ChatPresentation } from "../capabilities/chat-presentation";
 
 export function createChatRuntime(input: {
   readonly access: AuthenticatedPlatformAccess;
   readonly fetch: typeof globalThis.fetch;
   readonly openUrl: (url: string) => Promise<void>;
   readonly display?: ChatDisplaySettingsSession;
+  readonly discovery: Pick<DiscoverySession, "readChannel">;
+  readonly copyText: (text: string) => Promise<void>;
 }) {
+  const presentation: ChatPresentation = {
+      copyText: input.copyText,
+      async readChannel(identity: ChannelIdentity, signal: AbortSignal) {
+        const page = await input.discovery.readChannel({
+          channel: identity,
+          signal,
+        });
+        return page.channel;
+      },
+      viewChannel(channel: ChannelIdentity) {
+        void input.openUrl(
+          channel.platform === "twitch"
+            ? `https://www.twitch.tv/${encodeURIComponent(channel.username)}`
+            : `https://kick.com/${encodeURIComponent(channel.username)}`,
+        );
+      },
+  };
   return {
+    presentation,
     chat: createWatchChatSession({
       fetch: input.fetch,
       replayReader: createRecordedChatReader(input.fetch),

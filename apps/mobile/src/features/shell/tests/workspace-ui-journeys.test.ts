@@ -67,6 +67,7 @@ vi.mock("react", async () => {
   return {
     ...actual,
     useEffect: vi.fn(),
+    useLayoutEffect: vi.fn(),
     useMemo: (factory: () => unknown) => factory(),
     useCallback: (callback: unknown) => callback,
     useRef: () => ({ current: null }),

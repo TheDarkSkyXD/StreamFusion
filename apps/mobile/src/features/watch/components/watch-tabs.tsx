@@ -26,6 +26,7 @@ import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
 import { SubscribedChatPanel } from "@mobile/features/chat/components/subscribed-chat-panel";
 import type { ChatEngagementInlineBindings } from "@mobile/features/engagement/components/chat-engagement-inline";
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
+import type { ChatPresentation } from "@mobile/features/chat/capabilities/chat-presentation";
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
@@ -38,6 +39,7 @@ export function WatchTabs({
   chat,
   chatSession,
   chatInteractions,
+  chatPresentation,
   inlineEngagement,
   chatTarget,
   info,
@@ -53,6 +55,7 @@ export function WatchTabs({
   readonly chat: WatchChatAvailability;
   readonly chatSession?: WatchChatSession;
   readonly chatInteractions?: ChatInteractions;
+  readonly chatPresentation?: ChatPresentation;
   readonly inlineEngagement?: ChatEngagementInlineBindings;
   readonly chatTarget?: WatchChatConnectInput;
   readonly info: WatchInfo | null;
@@ -105,6 +108,9 @@ export function WatchTabs({
           {...(chatInteractions === undefined
             ? {}
             : { interactions: chatInteractions })}
+          {...(chatPresentation === undefined
+            ? {}
+            : { presentation: chatPresentation })}
           {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
           {...(chatTarget === undefined ? {} : { target: chatTarget })}
           {...(onChatRetry === undefined ? {} : { onRetry: onChatRetry })}

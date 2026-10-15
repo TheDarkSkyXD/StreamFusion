@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -35,12 +36,14 @@ import type {
   ChatInteractions,
   ChatInteractionView,
 } from "../capabilities/chat-interactions";
+import type { ChatPresentation } from "../capabilities/chat-presentation";
 import type {
   WatchChatAvailability,
   WatchChatConnectInput,
   WatchChatMessage,
 } from "../capabilities/watch-chat";
 import { ChatMessageRow } from "./chat-message-row";
+import { ChatUserSheet } from "./chat-user-sheet";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/domain/chat-display-preferences";
 import { selectQuickEmotes } from "../domain/quick-emotes";
 
@@ -54,6 +57,7 @@ const READ_ONLY: ChatInteractionView = {
   emoteDetail: "",
 };
 const EMPTY_MESSAGES: readonly WatchChatMessage[] = [];
+const VISIBLE_POSITION_ANCHOR = { minIndexForVisible: 0 } as const;
 const noopSubscribe = () => () => undefined;
 
 export function ChatPanel(props: Parameters<typeof ChatPanelBody>[0]) {
@@ -77,6 +81,7 @@ function ChatPanelBody({
   readOnly = false,
   onRetry,
   onModerateMessage,
+  presentation,
   testID = "watch-chat",
   title = "Chat",
   engagementHeader,
@@ -89,6 +94,7 @@ function ChatPanelBody({
   readonly readOnly?: boolean;
   readonly onRetry?: () => void;
   readonly onModerateMessage?: (message: WatchChatMessage) => void;
+  readonly presentation?: ChatPresentation;
   readonly testID?: string;
   readonly title?: string;
   readonly engagementHeader?: ReactNode;
@@ -101,7 +107,9 @@ function ChatPanelBody({
   );
   const { t } = useTranslation();
   const list = useRef<FlatList<WatchChatMessage>>(null);
-  const readingGesture = useRef(false);
+  const readingGesture = useRef<"none" | "drag" | "coast" | "momentum">("none");
+  const gestureMessages = useRef<readonly WatchChatMessage[]>(EMPTY_MESSAGES);
+  const followFrame = useRef<number | null>(null);
   const [pausedMessages, setPausedMessages] = useState<
     readonly WatchChatMessage[] | null
   >(null);
@@ -159,11 +167,49 @@ function ChatPanelBody({
   };
   const messages = chat.kind === "live" ? chat.messages : EMPTY_MESSAGES;
   const visibleMessages =
-    pausedMessages ?? (picker ? pickerMessages : messages);
+    pausedMessages ?? (picker || selected ? pickerMessages : messages);
+  const visibleMessagesRef = useRef(visibleMessages);
+  useLayoutEffect(() => {
+    visibleMessagesRef.current = visibleMessages;
+  }, [visibleMessages]);
   const newestFirst = useMemo(
     () => [...visibleMessages].reverse(),
     [visibleMessages],
   );
+  const following = pausedMessages === null;
+  const followingRef = useRef(following);
+  const overlayRef = useRef(picker || selected !== null);
+  const cancelFollow = useCallback(() => {
+    if (followFrame.current !== null) cancelAnimationFrame(followFrame.current);
+    followFrame.current = null;
+  }, []);
+  const requestFollow = useCallback(() => {
+    if (followFrame.current !== null) return;
+    if (
+      !followingRef.current ||
+      overlayRef.current ||
+      readingGesture.current !== "none"
+    )
+      return;
+    followFrame.current = requestAnimationFrame(() => {
+      followFrame.current = null;
+      if (
+        followingRef.current &&
+        !overlayRef.current &&
+        readingGesture.current === "none"
+      )
+        list.current?.scrollToOffset({ offset: 0, animated: false });
+    });
+  }, []);
+  useLayoutEffect(() => {
+    followingRef.current = following;
+    overlayRef.current = picker || selected !== null;
+    if (overlayRef.current) cancelFollow();
+  }, [following, picker, selected, cancelFollow]);
+  useEffect(() => {
+    requestFollow();
+  }, [newestFirst, picker, selected, requestFollow]);
+  useEffect(() => cancelFollow, [cancelFollow]);
   const emotes = useMemo(
     () =>
       view.emotes.filter((emote) =>
@@ -220,10 +266,22 @@ function ChatPanelBody({
         preferences={preferences}
         cosmetics={item.userId ? view.cosmetics?.get(item.userId) : undefined}
         roleBadges={view.cosmeticRoleBadges}
-        onSelect={setSelected}
+        onSelect={(message) => {
+          cancelFollow();
+          overlayRef.current = true;
+          setPickerMessages(visibleMessagesRef.current);
+          setSelected(message);
+        }}
       />
     ),
-    [platform, emotes, preferences, view.cosmetics, view.cosmeticRoleBadges],
+    [
+      platform,
+      emotes,
+      preferences,
+      view.cosmetics,
+      view.cosmeticRoleBadges,
+      cancelFollow,
+    ],
   );
   const onVisibleMessages = useCallback(
     (event: {
@@ -294,13 +352,18 @@ function ChatPanelBody({
     (event: {
       readonly nativeEvent: { readonly contentOffset: { readonly y: number } };
     }) => {
-      const readingHistory = event.nativeEvent.contentOffset.y > 24;
-      if (readingGesture.current || !readingHistory)
-        setPausedMessages((previous) =>
-          readingHistory ? (previous ?? messages) : null,
-        );
+      const offset = event.nativeEvent.contentOffset.y;
+      if (readingGesture.current === "none" || overlayRef.current) return;
+      if (offset > 24) {
+        cancelFollow();
+        followingRef.current = false;
+        setPausedMessages((previous) => previous ?? gestureMessages.current);
+      } else if (readingGesture.current !== "coast") {
+        followingRef.current = true;
+        setPausedMessages(null);
+      }
     },
-    [messages],
+    [cancelFollow],
   );
   return (
     <View style={styles.panel} testID={testID}>
@@ -341,20 +404,47 @@ function ChatPanelBody({
         onViewableItemsChanged={onVisibleMessages}
         onScroll={handleScroll}
         onScrollBeginDrag={() => {
-          readingGesture.current = true;
+          cancelFollow();
+          gestureMessages.current = visibleMessages;
+          readingGesture.current = "drag";
+          followingRef.current = false;
+          setPausedMessages((previous) => previous ?? gestureMessages.current);
         }}
         onScrollEndDrag={() => {
-          readingGesture.current = false;
+          readingGesture.current = "coast";
         }}
+        onMomentumScrollBegin={() => {
+          if (
+            readingGesture.current !== "coast" &&
+            readingGesture.current !== "drag"
+          )
+            return;
+          readingGesture.current = "momentum";
+        }}
+        onMomentumScrollEnd={(event) => {
+          if (
+            readingGesture.current === "momentum" &&
+            event.nativeEvent.contentOffset.y <= 24 &&
+            !overlayRef.current
+          ) {
+            followingRef.current = true;
+            setPausedMessages(null);
+          }
+          readingGesture.current = "none";
+          requestFollow();
+        }}
+        onContentSizeChange={requestFollow}
+        onLayout={requestFollow}
         scrollEventThrottle={64}
         style={styles.messages}
         contentContainerStyle={styles.messageList}
         testID={`${testID}-scroll`}
         inverted
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 24,
-        }}
+        maintainVisibleContentPosition={
+          following && !picker && selected === null
+            ? undefined
+            : VISIBLE_POSITION_ANCHOR
+        }
         data={newestFirst}
         keyExtractor={(message) => message.id}
         initialNumToRender={12}
@@ -363,109 +453,74 @@ function ChatPanelBody({
         renderItem={renderMessage}
       />
       {pausedMessages ? (
-        <MobileButton
+        <Pressable
           accessibilityLabel={t("chat.chatPausedDueToScroll")}
+          accessibilityRole="button"
           testID="chat-resume"
-          variant="secondary"
           onPress={() => {
-            readingGesture.current = false;
+            readingGesture.current = "none";
+            followingRef.current = true;
             setPausedMessages(null);
-            list.current?.scrollToOffset({ offset: 0, animated: false });
           }}
+          style={styles.resume}
         >
-          {t("chat.chatPausedDueToScroll")}
-        </MobileButton>
+          <Text style={mobileType.label}>Scroll down</Text>
+        </Pressable>
       ) : null}
       {selected ? (
-        <MobileBottomSheet
-          visible
-          title={selected.displayName}
+        <ChatUserSheet
+          selected={selected}
+          messages={pickerMessages}
+          platform={platform}
+          {...(presentation ? { presentation } : {})}
+          canCompose={!recorded && !readOnly && view.access === "ready"}
+          canReply={!recorded && !readOnly && view.access === "ready"}
+          onSelect={setSelected}
           onDismiss={() => setSelected(null)}
-        >
-          <View style={styles.menu} testID="chat-user-actions">
-            <View style={styles.actions}>
-              {!recorded && !readOnly ? (
-                <MobileButton
-                  accessibilityLabel="Reply to message"
-                  disabled={view.access !== "ready"}
-                  onPress={() => {
-                    setReply(selected);
-                    setSelected(null);
-                  }}
-                  testID="chat-reply"
-                  variant="secondary"
-                >
-                  Reply
-                </MobileButton>
-              ) : null}
-              {!recorded && !readOnly ? (
-                <MobileButton
-                  accessibilityLabel="Mention user"
-                  onPress={() => {
-                    setDraft(
-                      (value) =>
-                        `${value}${value ? " " : ""}@${selected.username ?? selected.displayName} `,
-                    );
-                    setSelected(null);
-                  }}
-                  testID="chat-mention"
-                  variant="secondary"
-                >
-                  Mention
-                </MobileButton>
-              ) : null}
-              {interactions && !readOnly ? (
-                <MobileButton
-                  accessibilityLabel={
-                    platform === "kick" ? "Block on Kick" : "Block user"
-                  }
-                  onPress={() => {
-                    void interactions.userAction(selected, "block");
-                    setSelected(null);
-                  }}
-                  testID="chat-block"
-                  variant="secondary"
-                >
-                  {platform === "kick" ? "Block on Kick" : "Block user"}
-                </MobileButton>
-              ) : null}
-              {interactions ? (
-                <MobileButton
-                  accessibilityLabel="Report on platform"
-                  onPress={() => {
-                    void interactions.userAction(selected, "report");
-                    setSelected(null);
-                  }}
-                  testID="chat-report"
-                  variant="secondary"
-                >
-                  Report on platform
-                </MobileButton>
-              ) : null}
-              {onModerateMessage && !readOnly ? (
-                <MobileButton
-                  accessibilityLabel="Open moderation for user"
-                  onPress={() => {
-                    onModerateMessage(selected);
-                    setSelected(null);
-                  }}
-                  testID="chat-moderate"
-                  variant="secondary"
-                >
-                  Moderate
-                </MobileButton>
-              ) : null}
-              <MobileButton
-                accessibilityLabel="Close user actions"
-                onPress={() => setSelected(null)}
-                testID="chat-user-close"
-                variant="ghost"
-              >
-                Close
-              </MobileButton>
-            </View>
-          </View>
-        </MobileBottomSheet>
+          onReply={() => {
+            setReply(selected);
+            setSelected(null);
+            requestAnimationFrame(() => input.current?.focus());
+          }}
+          onCopyToChat={() => {
+            if (selected.deletedAt !== undefined) return;
+            setDraft((value) => `${value}${value ? " " : ""}${selected.text}`);
+            setSelected(null);
+            requestAnimationFrame(() => input.current?.focus());
+          }}
+          onMention={() => {
+            if (!selected.username) return;
+            setDraft(
+              (value) => `${value}${value ? " " : ""}@${selected.username} `,
+            );
+            setSelected(null);
+            requestAnimationFrame(() => input.current?.focus());
+          }}
+          {...(interactions && !readOnly
+            ? {
+                onBlock: () => {
+                  void interactions.userAction(selected, "block");
+                  setSelected(null);
+                },
+              }
+            : {})}
+          {...(interactions
+            ? {
+                onReport: () => {
+                  void interactions.userAction(selected, "report");
+                  setSelected(null);
+                },
+              }
+            : {})}
+          {...(onModerateMessage && !readOnly
+            ? {
+                onModerate: () => {
+                  onModerateMessage(selected);
+                  setSelected(null);
+                },
+              }
+            : {})}
+        />
       ) : null}
       {recorded && interactions ? (
         <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
@@ -643,6 +698,14 @@ function ChatPanelBody({
 const styles = StyleSheet.create({
   panel: { flex: 1, minHeight: 0, gap: mobileSpacing.small },
   messages: { flex: 1, minHeight: 0 },
+  resume: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    backgroundColor: mobileColors.surfaceMuted,
+    borderRadius: mobileRadii.medium,
+  },
   messageList: {
     gap: mobileSpacing.xSmall,
     paddingBottom: mobileSpacing.small,

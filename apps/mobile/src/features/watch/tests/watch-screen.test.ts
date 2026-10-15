@@ -87,6 +87,7 @@ vi.mock("react", async (importOriginal) => {
     ...actual,
     memo: <P>(component: (props: P) => ReactNode) => component,
     useEffect: () => undefined,
+    useLayoutEffect: () => undefined,
     useMemo: (factory: () => unknown) => factory(),
     useCallback: (callback: unknown) => callback,
     useRef: (initial: unknown) => ({ current: initial }),

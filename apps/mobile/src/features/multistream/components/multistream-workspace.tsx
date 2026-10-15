@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useReducer, useState, type ComponentType } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -19,6 +19,7 @@ import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import { ChatPanel } from "@mobile/features/chat/components/chat-panel";
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
+import type { ChatPresentation } from "@mobile/features/chat/capabilities/chat-presentation";
 import type { MultistreamChat } from "../capabilities/multistream-chat";
 import {
   mobileColors,
@@ -41,13 +42,19 @@ export type MultistreamWorkspaceProps = {
   }>;
   readonly chat?: MultistreamChat;
   readonly interactions?: ChatInteractions;
+  readonly presentation?: ChatPresentation;
 };
 export function MultistreamWorkspace({
   session,
   PlayerSurface,
   chat,
   interactions,
+  presentation,
 }: MultistreamWorkspaceProps) {
+  const mergedPresentation = useMemo(
+    () => presentation ? { copyText: presentation.copyText } : undefined,
+    [presentation?.copyText],
+  );
   const [, refresh] = useReducer((value) => value + 1, 0);
   const snapshot = session.snapshot();
   const [platform, setPlatform] = useState<Platform>("twitch");
@@ -262,6 +269,11 @@ export function MultistreamWorkspace({
               onRetry={() => chat.retry(chatId)}
               {...(selectedChat ? { target: selectedChat.target } : {})}
               {...(selectedChat && interactions ? { interactions } : {})}
+              {...(selectedChat && presentation
+                ? { presentation }
+                : mergedPresentation
+                  ? { presentation: mergedPresentation }
+                  : {})}
             />
           </View>
         ) : null}

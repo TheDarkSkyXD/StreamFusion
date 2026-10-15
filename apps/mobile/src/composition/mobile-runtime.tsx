@@ -569,25 +569,29 @@ export function MobileRuntime() {
     () =>
       createChatRuntime({
         display: chatDisplaySession,
+        discovery: homeDiscovery,
+        copyText: copyTextToClipboard,
         access: platformAccess,
         fetch: connectivitySession.fetch,
         openUrl: async (url) => {
           await Linking.openURL(url);
         },
       }),
-    [platformAccess],
+    [platformAccess, homeDiscovery],
   );
   const moderationChatRuntime = useMemo(
     () =>
       createChatRuntime({
         display: chatDisplaySession,
+        discovery: homeDiscovery,
+        copyText: copyTextToClipboard,
         access: platformAccess,
         fetch: connectivitySession.fetch,
         openUrl: async (url) => {
           await Linking.openURL(url);
         },
       }),
-    [platformAccess],
+    [platformAccess, homeDiscovery],
   );
   useEffect(
     () => () => {
@@ -659,6 +663,7 @@ export function MobileRuntime() {
       createGuestWatchScreen({
         chat: chatRuntime.chat,
         chatInteractions: chatRuntime.interactions,
+        chatPresentation: chatRuntime.presentation,
         discovery: homeDiscovery,
         kickLiveCatalog,
         fetch: connectivitySession.fetch,
@@ -677,6 +682,7 @@ export function MobileRuntime() {
     () =>
       createMultistreamRuntime({
         access: platformAccess,
+        presentation: chatRuntime.presentation,
         fetch: connectivitySession.fetch,
         openUrl: async (url) => {
           await Linking.openURL(url);
@@ -689,7 +695,7 @@ export function MobileRuntime() {
         sessionIds: { create: secureRandom.uuid },
         limit: () => settingsSession.snapshot().multiviewCap,
       }),
-    [homeDiscovery, platformAccess, watch],
+    [homeDiscovery, platformAccess, watch, chatRuntime],
   );
   useEffect(
     () => () => {

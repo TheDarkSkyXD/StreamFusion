@@ -26,12 +26,14 @@ import { createChatInteractions } from "@mobile/features/chat/domain/chat-intera
 import { createPlatformChatCommands } from "@mobile/features/chat/adapters/platform-chat-commands";
 import { createProviderEmoteReader } from "@mobile/features/chat/adapters/provider-emotes";
 import type { ChatInteractions } from "@mobile/features/chat/capabilities/chat-interactions";
+import type { ChatPresentation } from "@mobile/features/chat/capabilities/chat-presentation";
 import type { AuthenticatedPlatformAccess } from "@mobile/features/auth/capabilities/platform-access";
 
 export type MultistreamRuntime = {
   readonly session: MultistreamSession;
   readonly chat: MultistreamChat;
   readonly interactions: ChatInteractions;
+  readonly presentation?: ChatPresentation;
   readonly PlayerSurface: ComponentType<{
     readonly sessionId: string;
     readonly testID?: string;
@@ -42,6 +44,7 @@ export function createMultistreamRuntime(input: {
   readonly access: AuthenticatedPlatformAccess;
   readonly fetch: typeof globalThis.fetch;
   readonly openUrl: (url: string) => Promise<void>;
+  readonly presentation?: ChatPresentation;
   readonly playback: AndroidPlaybackContractPort;
   readonly diagnostics: AndroidDiagnosticsContractPort;
   readonly policyStore: VerifiedPolicyStore;
@@ -50,6 +53,7 @@ export function createMultistreamRuntime(input: {
   readonly limit: () => number;
 }): MultistreamRuntime {
   return {
+    ...(input.presentation ? { presentation: input.presentation } : {}),
     chat: createMultistreamChat(() =>
       createWatchChatSession({ fetch: input.fetch }),
     ),

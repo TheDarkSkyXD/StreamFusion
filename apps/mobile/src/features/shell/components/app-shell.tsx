@@ -16,7 +16,7 @@ import type { ModerationController } from "@mobile/features/moderation/domain/mo
 import type { EngagementController } from "@mobile/features/engagement/domain/engagement-controller";
 import type { ModerationChannel } from "@mobile/features/moderation/capabilities/moderation";
 import type { PlatformWorkflowNavigation } from "@mobile/features/moderation/capabilities/workflow-navigation";
-import type { Platform as StreamPlatform } from "@streamfusion/core/platform";
+import type { ChannelIdentity, Platform as StreamPlatform } from "@streamfusion/core/platform";
 import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
 import { StatusBar } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -1028,7 +1028,23 @@ function ShellScreen({
   };
 
   if (location.route === "more/multistream" && multistream) {
-    return <MultistreamWorkspace {...multistream} />;
+    return (
+      <MultistreamWorkspace
+        {...multistream}
+        {...(multistream.presentation
+          ? {
+              presentation: {
+                ...multistream.presentation,
+                viewChannel: (channel: ChannelIdentity) =>
+                  dispatch({
+                    type: "navigate",
+                    location: { route: "more/channel", channel },
+                  }),
+              },
+            }
+          : {})}
+      />
+    );
   }
 
   if (

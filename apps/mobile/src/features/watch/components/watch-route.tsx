@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import type { ChannelIdentity } from "@streamfusion/core/platform";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { setPerChannelLiveNotificationPreference } from "@streamfusion/core/follows";
 import type { Stream } from "@streamfusion/core/content";
@@ -245,6 +246,19 @@ function WatchSessionRoute({
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
+  const chatPresentation = useMemo(() => {
+    if (!screen.chatPresentation) return undefined;
+    if (!onOpenChannel) return screen.chatPresentation;
+    return {
+      ...screen.chatPresentation,
+      viewChannel: (channel: ChannelIdentity) =>
+        onOpenChannel({
+          channelId: channel.id,
+          channelName: channel.username,
+          platform: channel.platform,
+        }),
+    };
+  }, [screen.chatPresentation, onOpenChannel]);
   useWatchChatConnection(screen.chat, target);
   const channelFollow = useChannelFollow({
     channel: {
@@ -343,6 +357,7 @@ function WatchSessionRoute({
       {...(screen.chatInteractions === undefined
         ? {}
         : { chatInteractions: screen.chatInteractions })}
+      {...(chatPresentation === undefined ? {} : { chatPresentation })}
       {...(onOpenEngagement === undefined ? {} : { onOpenEngagement })}
       {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
       PlayerSurface={screen.PlayerSurface}
