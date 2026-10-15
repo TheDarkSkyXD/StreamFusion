@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createKickLiveCatalog } from "../adapters/kick/kick-live-catalog";
 import { createKickOfficialReader } from "../adapters/kick/kick-official-reader";
+import { mapKickPublicChannel } from "../adapters/kick/kick-public-catalog";
 
 const payload = {
   status: "success",
@@ -42,6 +43,37 @@ const payload = {
 function json(value: unknown): Response {
   return new Response(JSON.stringify(value), { status: 200 });
 }
+
+describe("Kick partner status", () => {
+  it("keeps affiliate and partner flags distinct in public channel details", () => {
+    const base = { id: "channel-42", slug: "ada", user: { username: "Ada" } };
+    expect(mapKickPublicChannel({ ...base, is_affiliate: true, is_partner: false })?.isPartner).toBe(false);
+    expect(mapKickPublicChannel({ ...base, is_affiliate: false, is_partner: true })?.isPartner).toBe(true);
+  });
+
+  it("keeps affiliate and partner flags distinct in live directory entries", async () => {
+    const readPartner = async (isPartner: boolean) => {
+      const row = payload.data.livestreams[0];
+      const catalog = createKickLiveCatalog({
+        fetch: async () => json({
+          ...payload,
+          data: { ...payload.data, livestreams: [{
+            ...row,
+            streamer: {
+              ...row.streamer,
+              channel: { ...row.streamer.channel, is_affiliate: true, is_partner: isPartner },
+            },
+          }] },
+        }),
+      });
+      const read = await catalog.read({});
+      return read.kind === "ready" ? read.entries[0]?.channel.isPartner : null;
+    };
+
+    expect(await readPartner(false)).toBe(false);
+    expect(await readPartner(true)).toBe(true);
+  });
+});
 
 describe("Kick live catalog", () => {
   it("reads the desktop directory into populated cards and their playable source", async () => {

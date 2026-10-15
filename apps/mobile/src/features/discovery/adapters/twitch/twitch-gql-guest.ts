@@ -168,7 +168,7 @@ export function createTwitchGqlGuestReader(input: {
       const outcome = await gqlJson({
         fetchImpl: input.fetch,
         query:
-          "query User($login: String!) { user(login: $login) { id login displayName description profileImageURL(width: 70) stream { " +
+          "query User($login: String!) { user(login: $login) { id login displayName description profileImageURL(width: 70) roles { isPartner isAffiliate } stream { " +
           STREAM_FIELDS +
           " } } }",
         variables: { login: read.login },

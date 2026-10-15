@@ -1,7 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ComponentType } from "react";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import {
+  AtSign,
+  Ban,
+  Copy,
+  CornerUpLeft,
+  ExternalLink,
+  Flag,
+  Shield,
+  X,
+} from "lucide-react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileAvatar } from "@mobile/design/avatar";
+import { MobileVerifiedBadge } from "@mobile/design/verified-badge";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import {
   mobileColors,
@@ -13,11 +32,14 @@ import {
 import type { ChatPresentation } from "../capabilities/chat-presentation";
 import type { WatchChatMessage } from "../capabilities/watch-chat";
 import { selectUserChatMessages } from "../domain/select-user-chat-messages";
+import { KickBadgeImage } from "./kick-badge-image";
 
 type Action = {
   readonly label: string;
   readonly testID: string;
   readonly onPress: () => void;
+  readonly icon: ComponentType<{ color: string; size: number }>;
+  readonly tone?: "platform" | "danger" | "primary";
 };
 
 export function ChatUserSheet({
@@ -52,7 +74,9 @@ export function ChatUserSheet({
   readonly onModerate?: () => void;
 }) {
   const [profile, setProfile] =
-    useState<Awaited<ReturnType<NonNullable<ChatPresentation["readChannel"]>>>>(null);
+    useState<Awaited<ReturnType<NonNullable<ChatPresentation["readChannel"]>>>>(
+      null,
+    );
   const [profileStatus, setProfileStatus] = useState<
     "loading" | "ready" | "unavailable"
   >("loading");
@@ -72,7 +96,14 @@ export function ChatUserSheet({
     )
       .then((channel) => {
         if (controller.signal.aborted) return;
-        if (channel && (!userId || channel.id === userId)) {
+        const login = username?.trim().toLowerCase();
+        const sameLogin = Boolean(
+          login && channel?.username.trim().toLowerCase() === login,
+        );
+        const sameUser = platform === "kick" || !userId
+          ? sameLogin
+          : channel?.id === userId;
+        if (channel && sameUser) {
           setProfile(channel);
           setProfileStatus("ready");
         } else {
@@ -90,7 +121,14 @@ export function ChatUserSheet({
   );
   const actions: Action[] = [
     ...(canReply
-      ? [{ label: "Reply", testID: "chat-reply", onPress: onReply }]
+      ? [
+          {
+            label: "Reply",
+            testID: "chat-reply",
+            onPress: onReply,
+            icon: CornerUpLeft,
+          },
+        ]
       : []),
     ...(canCompose && selected.deletedAt === undefined
       ? [
@@ -98,11 +136,19 @@ export function ChatUserSheet({
             label: "Copy to chat",
             testID: "chat-copy-to-chat",
             onPress: onCopyToChat,
+            icon: Copy,
           },
         ]
       : []),
     ...(canCompose && username
-      ? [{ label: "Mention", testID: "chat-mention", onPress: onMention }]
+      ? [
+          {
+            label: "Mention",
+            testID: "chat-mention",
+            onPress: onMention,
+            icon: AtSign,
+          },
+        ]
       : []),
     ...(profile && viewChannel
       ? [
@@ -117,6 +163,8 @@ export function ChatUserSheet({
               });
               onDismiss();
             },
+            icon: ExternalLink,
+            tone: "platform" as const,
           },
         ]
       : []),
@@ -126,6 +174,8 @@ export function ChatUserSheet({
             label: platform === "kick" ? "Block on Kick" : "Block user",
             testID: "chat-block",
             onPress: onBlock,
+            icon: Ban,
+            tone: "danger" as const,
           },
         ]
       : []),
@@ -135,13 +185,22 @@ export function ChatUserSheet({
             label: "Report on platform",
             testID: "chat-report",
             onPress: onReport,
+            icon: Flag,
+            tone: "danger" as const,
           },
         ]
       : []),
     ...(onModerate
-      ? [{ label: "Moderate", testID: "chat-moderate", onPress: onModerate }]
+      ? [
+          {
+            label: "Moderate",
+            testID: "chat-moderate",
+            onPress: onModerate,
+            icon: Shield,
+          },
+        ]
       : []),
-    { label: "Close", testID: "chat-user-close", onPress: onDismiss },
+    { label: "Close", testID: "chat-user-close", onPress: onDismiss, icon: X },
   ];
   const copyMessage = async () => {
     if (!presentation || selected.deletedAt !== undefined) return;
@@ -152,6 +211,11 @@ export function ChatUserSheet({
       setNotice("Could not copy message.");
     }
   };
+  const hasOfficialPartnerBadge = selected.badges.some(
+    (badge) =>
+      Boolean(badge.imageUrl) &&
+      (badge.setId === "partner" || badge.setId === "verified"),
+  );
   return (
     <MobileBottomSheet
       visible
@@ -166,8 +230,9 @@ export function ChatUserSheet({
               onPress={() => {
                 void copyMessage();
               }}
+              icon={Copy}
+              tone="primary"
               disabled={selected.deletedAt !== undefined}
-              wide
             />
             {notice ? (
               <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
@@ -184,17 +249,46 @@ export function ChatUserSheet({
             name={selected.displayName}
             size={48}
             uri={profile?.avatarUrl ?? null}
+            livePlatform={profile?.isLive ? platform : null}
             testID="chat-user-avatar"
           />
           <View style={styles.identityCopy}>
-            <Text style={mobileType.title} numberOfLines={2}>
-              {profile?.displayName ?? selected.displayName}
-            </Text>
-            {username ? (
-              <Text style={mobileType.caption} numberOfLines={1}>
-                @{profile?.username ?? username}
+            <View style={styles.nameRow}>
+              <Text
+                style={[mobileType.title, styles.nameText]}
+                numberOfLines={2}
+              >
+                {profile?.displayName ?? selected.displayName}
               </Text>
-            ) : null}
+              {selected.badges
+                .filter((badge) => badge.imageUrl)
+                .map((badge) =>
+                  platform === "kick" ? (
+                    <KickBadgeImage
+                      key={`${badge.setId}-${badge.version}`}
+                      imageUrl={badge.imageUrl}
+                      title={badge.title}
+                      testID={`chat-user-badge-${badge.setId}`}
+                    />
+                  ) : (
+                    <Image
+                      key={`${badge.setId}-${badge.version}`}
+                      accessibilityLabel={badge.title}
+                      resizeMode="contain"
+                      source={{ uri: badge.imageUrl }}
+                      style={styles.badge}
+                      testID={`chat-user-badge-${badge.setId}`}
+                    />
+                  ),
+                )}
+              {!hasOfficialPartnerBadge &&
+              (profile?.isPartner ||
+                (platform === "kick" && profile?.isVerified)) ? (
+                <View testID="chat-user-partner">
+                  <MobileVerifiedBadge platform={platform} />
+                </View>
+              ) : null}
+            </View>
             {profile?.createdAt ? (
               <Text style={mobileType.caption}>
                 Joined {new Date(profile.createdAt).toLocaleDateString()}
@@ -236,7 +330,7 @@ export function ChatUserSheet({
         <View style={styles.actions}>
           {actions.map((action) => (
             <View key={action.testID} style={styles.actionCell}>
-              <SheetAction {...action} />
+              <SheetAction {...action} platform={platform} />
             </View>
           ))}
         </View>
@@ -250,11 +344,19 @@ function SheetAction({
   testID,
   onPress,
   disabled = false,
-  wide = false,
+  icon: Icon,
+  tone,
+  platform,
 }: Action & {
   readonly disabled?: boolean;
-  readonly wide?: boolean;
+  readonly platform?: Platform;
 }) {
+  const platformColor =
+    platform === "kick" ? mobileColors.kick : mobileColors.twitch;
+  const color =
+    tone === "primary" || (tone === "platform" && platform === "kick")
+      ? mobileColors.background
+      : mobileColors.textPrimary;
   return (
     <Pressable
       accessibilityLabel={label}
@@ -264,14 +366,15 @@ function SheetAction({
       onPress={onPress}
       style={[
         styles.action,
-        wide ? styles.wide : null,
+        tone === "primary" ? styles.wide : null,
+        tone === "platform" ? { backgroundColor: platformColor } : null,
+        tone === "danger" ? styles.danger : null,
         disabled ? styles.disabled : null,
       ]}
       testID={testID}
     >
-      <Text style={[styles.actionText, wide ? styles.wideText : null]}>
-        {label}
-      </Text>
+      <Icon color={color} size={18} />
+      <Text style={[styles.actionText, { color }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -284,6 +387,14 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
   },
   identityCopy: { flex: 1, minWidth: 0, gap: mobileSpacing.xSmall },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: mobileSpacing.xSmall,
+  },
+  nameText: { flexShrink: 1 },
+  badge: { width: 18, height: 18 },
   history: { gap: mobileSpacing.xSmall },
   historyScroll: { maxHeight: 144 },
   historyRow: {
@@ -302,16 +413,19 @@ const styles = StyleSheet.create({
     minHeight: mobileSizing.minimumTouchTarget,
     justifyContent: "center",
     alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
     padding: mobileSpacing.small,
     borderRadius: mobileRadii.medium,
     backgroundColor: mobileColors.surfaceMuted,
   },
   wide: { backgroundColor: mobileColors.textPrimary },
+  danger: { backgroundColor: "#3a2228" },
   disabled: { opacity: 0.5 },
   actionText: {
     ...mobileType.label,
     color: mobileColors.textPrimary,
     textAlign: "center",
+    flexShrink: 1,
   },
-  wideText: { color: mobileColors.background },
 });

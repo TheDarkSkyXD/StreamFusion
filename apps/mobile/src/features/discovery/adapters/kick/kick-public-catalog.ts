@@ -113,7 +113,7 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
     displayName: stringField(user, "username") || username,
     id,
     isLive: livestream?.is_live === true || record.is_live === true,
-    isPartner: record.is_affiliate === true || record.is_partner === true,
+    isPartner: record.is_partner === true,
     isVerified: kickVerified(record) || kickVerified(user),
     platform: "kick",
     username,

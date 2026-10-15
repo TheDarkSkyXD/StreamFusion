@@ -8,7 +8,14 @@ export type ChatPresentation = {
     signal: AbortSignal,
   ) => Promise<Pick<
     Channel,
-    "id" | "username" | "displayName" | "avatarUrl" | "createdAt"
+    | "id"
+    | "username"
+    | "displayName"
+    | "avatarUrl"
+    | "createdAt"
+    | "isLive"
+    | "isPartner"
+    | "isVerified"
   > | null>;
   readonly viewChannel?: (channel: ChannelIdentity) => void;
 };

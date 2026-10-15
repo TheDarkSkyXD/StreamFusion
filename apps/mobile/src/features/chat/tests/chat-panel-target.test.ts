@@ -17,8 +17,20 @@ import type {
 import { createChatInteractions } from "../domain/chat-interactions";
 import { defaultChatDisplaySettingsView } from "@mobile/features/settings/domain/chat-display-preferences";
 import { selectUserChatMessages } from "../domain/select-user-chat-messages";
+import type { ChatPresentation } from "../capabilities/chat-presentation";
 
-vi.mock("lucide-react-native", () => ({ Smile: () => null }));
+vi.mock("lucide-react-native", () => ({
+  AtSign: () => null,
+  ArrowDown: () => createElement("svg", { "data-testid": "resume-arrow" }),
+  Ban: () => null,
+  Copy: () => null,
+  CornerUpLeft: () => null,
+  ExternalLink: () => null,
+  Flag: () => null,
+  Shield: () => null,
+  Smile: () => null,
+  X: () => null,
+}));
 
 const scrollToOffset = vi.fn();
 let nativeListEvents: {
@@ -46,6 +58,8 @@ vi.mock("react-native", async () => {
     readonly disabled?: boolean;
     readonly onPress?: () => void;
     readonly onRequestClose?: () => void;
+    readonly source?: { readonly uri?: string };
+    readonly style?: unknown;
   };
   const host = (tag: string) => (props: HostProps) =>
     createElement(
@@ -55,6 +69,8 @@ vi.mock("react-native", async () => {
         "aria-label": props.accessibilityLabel,
         disabled: props.disabled,
         onClick: props.onPress,
+        "data-source-uri": props.source?.uri,
+        "data-style": JSON.stringify(props.style),
       },
       props.children,
     );
@@ -165,24 +181,7 @@ function renderPanel(
   commands: ChatCommands,
   emotes: readonly ChatEmote[] = [],
   quickEmotes = true,
-  presentation?: {
-    readonly copyText: (text: string) => Promise<void>;
-    readonly readChannel: (
-      identity: { platform: "twitch" | "kick"; id: string; username: string },
-      signal: AbortSignal,
-    ) => Promise<{
-      id: string;
-      username: string;
-      displayName: string;
-      avatarUrl: string;
-      createdAt?: string;
-    } | null>;
-    readonly viewChannel: (channel: {
-      platform: "twitch" | "kick";
-      id: string;
-      username: string;
-    }) => void;
-  },
+  presentation?: ChatPresentation,
 ) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -587,6 +586,23 @@ describe("chat reading position", () => {
       await panel.render(channelA, [messageA]);
       expect(nativeListEvents.maintainVisibleContentPosition).toBeUndefined();
       await act(async () => nativeListEvents.onScrollBeginDrag?.());
+      expect(panel.buttonDisabled('[data-testid="chat-resume"]')).toBe(false);
+      expect(
+        panel.container
+          .querySelector('[data-testid="chat-resume"]')
+          ?.getAttribute("aria-label"),
+      ).toBe("Resume live chat");
+      expect(panel.container.textContent).toContain(
+        "Chat paused due to scroll",
+      );
+      expect(
+        panel.container
+          .querySelector('[data-testid="chat-resume"] span')
+          ?.getAttribute("data-style"),
+      ).toContain("#ffffff");
+      expect(
+        panel.container.querySelector('[data-testid="resume-arrow"]'),
+      ).not.toBeNull();
       expect(nativeListEvents.maintainVisibleContentPosition).toEqual({
         minIndexForVisible: 0,
       });
@@ -994,6 +1010,155 @@ describe("chat reading position", () => {
 });
 
 describe("chat user sheet", () => {
+  it("uses a matching Kick login when chat and discovery IDs differ", async () => {
+    const viewChannel = vi.fn();
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText: async () => undefined,
+        readChannel: async () => ({
+          id: "channel-42",
+          username: "alpha-viewer",
+          displayName: "Alpha viewer",
+          avatarUrl: "https://example.test/avatar.png",
+          isLive: true,
+          isPartner: true,
+          isVerified: true,
+        }),
+        viewChannel,
+      },
+    );
+    try {
+      await panel.render({ ...channelA, platform: "kick" }, [
+        {
+          ...messageA,
+          userId: "chat-99",
+          badges: [
+            {
+              setId: "moderator",
+              version: "1",
+              imageUrl: "https://example.test/badge.png",
+              title: "Moderator",
+            },
+          ],
+        },
+      ]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(
+        panel.container.querySelector('[data-testid="chat-view-channel"]'),
+      ).not.toBeNull();
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-avatar"]'),
+      ).not.toBeNull();
+      expect(
+        panel.container.querySelector(
+          '[data-source-uri="https://example.test/avatar.png"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        panel.container
+          .querySelector('[data-testid="chat-user-avatar"]')
+          ?.getAttribute("data-style"),
+      ).toContain("#53fc18");
+      expect(
+        panel.container.querySelector(
+          '[data-testid="chat-user-badge-moderator"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-partner"]'),
+      ).not.toBeNull();
+      expect(panel.container.textContent).not.toContain("@alpha-viewer");
+      await panel.press('[data-testid="chat-view-channel"]');
+      expect(viewChannel).toHaveBeenCalledWith({
+        platform: "kick",
+        id: "channel-42",
+        username: "alpha-viewer",
+      });
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("shows a partner mark when the official badge has no image yet", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText: async () => undefined,
+        readChannel: async () => ({
+          id: "channel-42",
+          username: "alpha-viewer",
+          displayName: "Alpha viewer",
+          avatarUrl: "",
+          isLive: false,
+          isPartner: true,
+          isVerified: true,
+        }),
+        viewChannel: () => undefined,
+      },
+    );
+    try {
+      await panel.render({ ...channelA, platform: "kick" }, [
+        {
+          ...messageA,
+          userId: "chat-99",
+          badges: [
+            { setId: "partner", version: "1", imageUrl: "", title: "Partner" },
+          ],
+        },
+      ]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-partner"]'),
+      ).not.toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("rejects a Kick lookup whose login differs from the selected sender", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText: async () => undefined,
+        readChannel: async () => ({
+          id: "chat-99",
+          username: "someone-else",
+          displayName: "Someone else",
+          avatarUrl: "https://example.test/other.png",
+          isLive: true,
+          isPartner: true,
+          isVerified: true,
+        }),
+        viewChannel: () => undefined,
+      },
+    );
+    try {
+      await panel.render({ ...channelA, platform: "kick" }, [
+        { ...messageA, userId: "chat-99" },
+      ]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(
+        panel.container.querySelector('[data-testid="chat-view-channel"]'),
+      ).toBeNull();
+      expect(
+        panel.container.querySelector(
+          '[data-source-uri="https://example.test/other.png"]',
+        ),
+      ).toBeNull();
+      expect(panel.container.textContent).toContain(
+        "Channel details unavailable",
+      );
+    } finally {
+      await panel.unmount();
+    }
+  });
   it("groups recent messages by stable identity and retains an evicted selection", () => {
     const selected = { ...messageA, userId: "user-a", id: "selected" };
     const same = {
@@ -1076,7 +1241,7 @@ describe("chat user sheet", () => {
         copyText: async () => undefined,
         readChannel: async () => ({
           id: "verified-id",
-          username: "verified-login",
+          username: "alpha-viewer",
           displayName: "Verified",
           avatarUrl: "https://example.test/avatar",
         }),
@@ -1090,7 +1255,7 @@ describe("chat user sheet", () => {
       expect(viewChannel).toHaveBeenCalledWith({
         platform: "twitch",
         id: "verified-id",
-        username: "verified-login",
+        username: "alpha-viewer",
       });
     } finally {
       await panel.unmount();

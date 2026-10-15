@@ -42,6 +42,8 @@ I wanted to share some of my preferences here so we can be more aligned as we wo
 - **Fix the root cause, not the symptom.** Sink one level further rather than
   fix the sink. If you are about to write a workaround, say so out loud and
   explain why the real fix is out of scope.
+- Keep semantic flags faithful to their source meaning at the adapter boundary.
+  Correct an inaccurate mapping there instead of compensating in consumers.
 - **Name the library.** If the task has an obvious well-known tool for it, use
   that tool. Do not hand-roll a worse version because nobody named it.
 - **Don't invent content.** If you need real data real names, real products,

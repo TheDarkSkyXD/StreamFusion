@@ -18,7 +18,7 @@ import {
   View,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Smile } from "lucide-react-native";
+import { ArrowDown, Smile } from "lucide-react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileButton } from "@mobile/design/button";
 import { MobileIconButton } from "@mobile/design/icon-button";
@@ -28,6 +28,7 @@ import { MobileEmoteImage } from "@mobile/design/emote-image";
 import {
   mobileColors,
   mobileRadii,
+  mobileSizing,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
@@ -399,74 +400,83 @@ function ChatPanelBody({
           {chat.historyDetail}
         </Text>
       ) : null}
-      <FlatList
-        ref={list}
-        onViewableItemsChanged={onVisibleMessages}
-        onScroll={handleScroll}
-        onScrollBeginDrag={() => {
-          cancelFollow();
-          gestureMessages.current = visibleMessages;
-          readingGesture.current = "drag";
-          followingRef.current = false;
-          setPausedMessages((previous) => previous ?? gestureMessages.current);
-        }}
-        onScrollEndDrag={() => {
-          readingGesture.current = "coast";
-        }}
-        onMomentumScrollBegin={() => {
-          if (
-            readingGesture.current !== "coast" &&
-            readingGesture.current !== "drag"
-          )
-            return;
-          readingGesture.current = "momentum";
-        }}
-        onMomentumScrollEnd={(event) => {
-          if (
-            readingGesture.current === "momentum" &&
-            event.nativeEvent.contentOffset.y <= 24 &&
-            !overlayRef.current
-          ) {
-            followingRef.current = true;
-            setPausedMessages(null);
-          }
-          readingGesture.current = "none";
-          requestFollow();
-        }}
-        onContentSizeChange={requestFollow}
-        onLayout={requestFollow}
-        scrollEventThrottle={64}
-        style={styles.messages}
-        contentContainerStyle={styles.messageList}
-        testID={`${testID}-scroll`}
-        inverted
-        maintainVisibleContentPosition={
-          following && !picker && selected === null
-            ? undefined
-            : VISIBLE_POSITION_ANCHOR
-        }
-        data={newestFirst}
-        keyExtractor={(message) => message.id}
-        initialNumToRender={12}
-        maxToRenderPerBatch={8}
-        windowSize={3}
-        renderItem={renderMessage}
-      />
-      {pausedMessages ? (
-        <Pressable
-          accessibilityLabel={t("chat.chatPausedDueToScroll")}
-          accessibilityRole="button"
-          testID="chat-resume"
-          onPress={() => {
-            readingGesture.current = "none";
-            followingRef.current = true;
-            setPausedMessages(null);
+      <View style={styles.messageViewport}>
+        <FlatList
+          ref={list}
+          onViewableItemsChanged={onVisibleMessages}
+          onScroll={handleScroll}
+          onScrollBeginDrag={() => {
+            cancelFollow();
+            gestureMessages.current = visibleMessages;
+            readingGesture.current = "drag";
+            followingRef.current = false;
+            setPausedMessages(
+              (previous) => previous ?? gestureMessages.current,
+            );
           }}
-          style={styles.resume}
-        >
-          <Text style={mobileType.label}>Scroll down</Text>
-        </Pressable>
-      ) : null}
+          onScrollEndDrag={() => {
+            readingGesture.current = "coast";
+          }}
+          onMomentumScrollBegin={() => {
+            if (
+              readingGesture.current !== "coast" &&
+              readingGesture.current !== "drag"
+            )
+              return;
+            readingGesture.current = "momentum";
+          }}
+          onMomentumScrollEnd={(event) => {
+            if (
+              readingGesture.current === "momentum" &&
+              event.nativeEvent.contentOffset.y <= 24 &&
+              !overlayRef.current
+            ) {
+              followingRef.current = true;
+              setPausedMessages(null);
+            }
+            readingGesture.current = "none";
+            requestFollow();
+          }}
+          onContentSizeChange={requestFollow}
+          onLayout={requestFollow}
+          scrollEventThrottle={64}
+          style={styles.messages}
+          contentContainerStyle={styles.messageList}
+          testID={`${testID}-scroll`}
+          inverted
+          maintainVisibleContentPosition={
+            following && !picker && selected === null
+              ? undefined
+              : VISIBLE_POSITION_ANCHOR
+          }
+          data={newestFirst}
+          keyExtractor={(message) => message.id}
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={3}
+          renderItem={renderMessage}
+        />
+        {pausedMessages ? (
+          <Pressable
+            accessibilityLabel="Resume live chat"
+            accessibilityRole="button"
+            testID="chat-resume"
+            onPress={() => {
+              readingGesture.current = "none";
+              followingRef.current = true;
+              setPausedMessages(null);
+            }}
+            style={styles.resume}
+          >
+            <ArrowDown color={mobileColors.textPrimary} size={16} />
+            <Text style={[mobileType.label, styles.resumeText]}>
+              {t("chat.chatPausedDueToScroll", {
+                defaultValue: "Chat paused due to scroll",
+              })}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
       {selected ? (
         <ChatUserSheet
           selected={selected}
@@ -697,15 +707,25 @@ function ChatPanelBody({
 
 const styles = StyleSheet.create({
   panel: { flex: 1, minHeight: 0, gap: mobileSpacing.small },
+  messageViewport: { flex: 1, minHeight: 0, position: "relative" },
   messages: { flex: 1, minHeight: 0 },
   resume: {
-    width: "100%",
+    position: "absolute",
+    bottom: mobileSpacing.small,
+    alignSelf: "center",
+    maxWidth: "100%",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 48,
-    backgroundColor: mobileColors.surfaceMuted,
-    borderRadius: mobileRadii.medium,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+    backgroundColor: mobileColors.surfaceRaised,
+    borderColor: "rgba(255,255,255,0.2)",
+    borderWidth: 1,
+    borderRadius: mobileRadii.full,
   },
+  resumeText: { color: mobileColors.textPrimary, flexShrink: 1 },
   messageList: {
     gap: mobileSpacing.xSmall,
     paddingBottom: mobileSpacing.small,

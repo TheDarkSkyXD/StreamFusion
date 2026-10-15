@@ -3,6 +3,40 @@ import { describe, expect, it } from "vitest";
 import { createTwitchGqlGuestReader } from "../adapters/twitch/twitch-gql-guest";
 
 describe("twitch gql guest reader", () => {
+  it("requests broadcaster roles on the channel user so an offline partner is recognized", async () => {
+    const queries: string[] = [];
+    const reader = createTwitchGqlGuestReader({
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          query?: string;
+        };
+        queries.push(body.query ?? "");
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
+                id: "1",
+                login: "ada",
+                displayName: "Ada",
+                description: "",
+                profileImageURL: "https://cdn.example/a.png",
+                roles: { isPartner: true, isAffiliate: false },
+                stream: null,
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    const page = await reader.getChannel({ login: "ada" });
+    expect(queries[0]).toMatch(
+      /user\(login: \$login\) \{[^}]*roles \{ isPartner isAffiliate \}/,
+    );
+    expect(page.channel?.isPartner).toBe(true);
+    expect(page.channel?.isLive).toBe(false);
+  });
   it("maps stream.createdAt into startedAt for channel pages", async () => {
     const queries: string[] = [];
     const reader = createTwitchGqlGuestReader({

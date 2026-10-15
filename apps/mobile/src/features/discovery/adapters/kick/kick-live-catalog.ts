@@ -112,8 +112,7 @@ function parseEntry(value: unknown): LiveStreamCatalogEntry | null {
     displayName: stringField(user, "username") || slug,
     id: channelId,
     isLive: true,
-    isPartner:
-      channelRecord.is_partner === true || channelRecord.is_affiliate === true,
+    isPartner: channelRecord.is_partner === true,
     isVerified:
       kickVerified(value) || kickVerified(user) || kickVerified(channelRecord),
     platform: "kick",
