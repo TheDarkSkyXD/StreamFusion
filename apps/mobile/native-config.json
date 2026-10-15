@@ -1,12 +1,12 @@
 {
   "name": "StreamFusion Development",
   "slug": "streamfusion-development",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "scheme": "streamfusion-development",
   "platforms": ["android"],
   "android": {
     "package": "com.thedarkskyxd.streamfusion.dev",
-    "versionCode": 12,
+    "versionCode": 13,
     "allowBackup": false,
     "minSdkVersion": 30
   }
