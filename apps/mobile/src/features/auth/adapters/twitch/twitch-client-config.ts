@@ -1,3 +1,5 @@
+import { TWITCH_APP_CLIENT_ID } from "@streamfusion/core/auth";
+
 export interface TwitchClientConfiguration {
   readonly clientId: string;
 }
@@ -5,7 +7,5 @@ export interface TwitchClientConfiguration {
 export function parseTwitchClientConfiguration(
   clientId: string | undefined,
 ): TwitchClientConfiguration {
-  if (!clientId?.trim())
-    throw new Error("Mobile Twitch Device Code configuration is unavailable.");
-  return { clientId: clientId.trim() };
+  return { clientId: clientId?.trim() || TWITCH_APP_CLIENT_ID };
 }

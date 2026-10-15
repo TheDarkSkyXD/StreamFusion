@@ -1,7 +1,4 @@
-import {
-  KICK_ANDROID_REDIRECT_URI,
-  TWITCH_APP_CLIENT_ID,
-} from "@streamfusion/core/auth";
+import { KICK_ANDROID_REDIRECT_URI } from "@streamfusion/core/auth";
 import { PLATFORMS } from "@streamfusion/core/platform";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -185,7 +182,7 @@ const developmentTwitchRepository = createSecureTwitchCredentialRepository({
 let twitchClientId: string | null = null;
 try {
   twitchClientId = parseTwitchClientConfiguration(
-    process.env.STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID ?? TWITCH_APP_CLIENT_ID,
+    process.env.STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID,
   ).clientId;
 } catch {
   twitchClientId = null;
