@@ -128,7 +128,7 @@ function KickState({
       <>
         <Status text="Waiting for Kick sign-in" />
         <Text style={styles.detail}>
-          Complete sign-in in the browser, then choose Open StreamFusion to return. This attempt expires{" "}
+          Complete sign-in, then choose Open StreamFusion to return. This attempt expires{" "}
           {new Date(model.expiresAtEpochMs).toLocaleString()}.
         </Text>
         <Action id="cancel-kick-account-connect" label="Cancel" onPress={actions.cancel} />

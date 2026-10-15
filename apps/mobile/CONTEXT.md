@@ -64,6 +64,6 @@ Authenticated chat, recorded replay, moderation, engagement, and MultiStream kee
 
 Twitch uses the existing public Device Code flow. Kick retains PKCE, encrypted durable attempts, the canonical HTTPS Worker callback, and the app-scheme return. Warm and cold callback delivery uses React Native Linking. Background returns wait for account restoration and duplicate returns cannot start parallel exchanges. Both providers retain guest browsing when unavailable.
 
-Authorization pages open in browser-owned Android Custom Tabs launched from the StreamFusion task. Missing Custom Tabs support fails explicitly without an external-browser fallback. Twitch polling resumes when the app returns to the foreground. Kick retains the Worker page's Open StreamFusion link. Closing a browser tab does not cancel a durable authorization attempt.
+Authorization pages open in browser-owned Android Custom Tabs launched from the StreamFusion task. Both providers request a resizable sheet at three quarters of the screen height with background interaction disabled. Browsers without partial Custom Tabs support show a full-screen in-app tab. Missing Custom Tabs support fails explicitly without an external-browser fallback. Twitch polling resumes when the app returns to the foreground. Kick retains the Worker page's Open StreamFusion link. Closing a browser tab does not cancel a durable authorization attempt.
 
 The Mobile domain language is recorded in docs/research/streamfusion-mobile/CONTEXT.md. UPDATES.md describes the in-app update contract.

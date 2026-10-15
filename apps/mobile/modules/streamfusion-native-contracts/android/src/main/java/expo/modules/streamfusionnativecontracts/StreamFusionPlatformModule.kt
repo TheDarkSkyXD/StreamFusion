@@ -84,11 +84,18 @@ class StreamFusionPlatformModule(
     val browser = if (preferred != null && preferred in packages) preferred else packages.firstOrNull()
     if (browser == null) throw IllegalStateException("A browser with Custom Tabs support is required.")
     val tab = CustomTabsIntent.Builder()
+      .setInitialActivityHeightPx(
+        activity.resources.displayMetrics.heightPixels * 3 / 4,
+        CustomTabsIntent.ACTIVITY_HEIGHT_ADJUSTABLE,
+      )
+      .setBackgroundInteractionEnabled(false)
       .setShowTitle(true)
       .setShareState(CustomTabsIntent.SHARE_STATE_OFF)
       .build()
     tab.intent.setPackage(browser)
-    tab.launchUrl(activity, uri)
+    tab.intent.data = uri
+    // Partial Custom Tabs require a browser session or an activity-result launch.
+    activity.startActivityForResult(tab.intent, AUTHORIZATION_REQUEST, tab.startAnimationBundle)
     null
   }
 
@@ -171,4 +178,6 @@ class StreamFusionPlatformModule(
     stopNetworkCallback()
     super.invalidate()
   }
+
+  companion object { private const val AUTHORIZATION_REQUEST = 4107 }
 }
