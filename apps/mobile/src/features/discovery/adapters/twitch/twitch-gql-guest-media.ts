@@ -20,7 +20,7 @@ const GQL = "https://gql.twitch.tv/gql";
 const CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const FALLBACK_TIMESTAMP = toSerializedTimestamp("1970-01-01T00:00:00.000Z");
 const VIDEO_QUERY =
-  "query FilterableVideoTower_Videos($limit:Int!,$login:String!,$broadcastType:BroadcastType,$videoSort:VideoSort){user(login:$login){id login displayName profileImageURL(width:70) videos(first:$limit,type:$broadcastType,sort:$videoSort){edges{node{id title lengthSeconds viewCount publishedAt previewThumbnailURL broadcastType owner{id login displayName profileImageURL(width:70)}}}}}}";
+  "query FilterableVideoTower_Videos($limit:Int!,$login:String!,$broadcastType:BroadcastType,$videoSort:VideoSort){user(login:$login){id login displayName profileImageURL(width:70) videos(first:$limit,type:$broadcastType,sort:$videoSort){edges{node{id title lengthSeconds viewCount publishedAt previewThumbnailURL(width:640,height:360) broadcastType owner{id login displayName profileImageURL(width:70)}}}}}}";
 const CLIP_QUERY =
   "query ClipsCards__User($login:String!,$limit:Int!,$criteria:ClipsFilter){user(login:$login){id login displayName profileImageURL(width:70) clips(first:$limit,criteria:{filter:$criteria}){edges{node{id slug title viewCount durationSeconds createdAt thumbnailURL url broadcaster{id login displayName profileImageURL(width:70)} curator{displayName}}}}}}";
 
