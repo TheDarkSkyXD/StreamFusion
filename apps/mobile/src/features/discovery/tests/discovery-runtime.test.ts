@@ -385,7 +385,7 @@ describe("createDiscoveryRuntime", () => {
     expect(reads).toEqual(["twitch"]);
   });
 
-  it("reads a signed-out channel through Twitch GQL and Kick public videos", async () => {
+  it("reads a signed-out channel through Twitch GQL and Kick public media", async () => {
     const session = createDiscoveryRuntime({
       cache: memoryCache(),
       fetch: async (input) => {
@@ -415,6 +415,17 @@ describe("createDiscoveryRuntime", () => {
               video: { uuid: "u" },
             },
           ]);
+        }
+        if (url.includes("kick.com/api/v2/channels/kick-live/clips")) {
+          return jsonResponse({
+            clips: [{
+              created_at: "2026-09-01T00:00:00.000Z",
+              duration: 20,
+              id: "clip_123",
+              title: "Kick moment",
+              channel: { id: "k1", slug: "kick-live" },
+            }],
+          });
         }
         throw new Error(url);
       },
@@ -446,11 +457,12 @@ describe("createDiscoveryRuntime", () => {
     const kickClips = await session.readChannelClips({
       channel: { id: "k1", platform: "kick", username: "kick-live" },
     });
-    expect(kickClips).toEqual({
-      kind: "unsupported",
-      media: "clips",
-      platform: "kick",
-    });
+    expect(kickClips.kind).toBe("page");
+    if (kickClips.kind !== "page") return;
+    expect(kickClips.outcome.status).toBe("complete");
+    expect(kickClips.outcome.items[0]?.clipUrl).toBe(
+      "https://kick.com/kick-live/clips/clip_123",
+    );
   });
 
   it("reads signed-out search from public Kick and Twitch GQL", async () => {

@@ -294,7 +294,7 @@ describe("guest recent history", () => {
       signal: new AbortController().signal,
     });
     expect(urls).toEqual([
-      "https://kick.com/api/v1/channels/ada",
+      "https://kick.com/api/v2/channels/ada",
       "https://kick.com/api/v2/channels/123/messages",
     ]);
     expect(result).toEqual({ kind: "loaded", messages: [] });

@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MediaTab } from "../components/channel-detail-media";
 import { ChannelDetailBody } from "../components/channel-detail-screen";
-import {
-  composeChannelDetail,
-  unsupportedMedia,
-} from "../domain/channel-detail";
+import { composeChannelDetail } from "../domain/channel-detail";
 import {
   fixtureChannel,
   fixtureChannelDetail,
@@ -60,6 +57,42 @@ function descendants(node: unknown): readonly Element[] {
 }
 
 describe("channel detail compose", () => {
+  it("uses the loaded channel avatar for recorded media without an avatar", () => {
+    const page = fixtureChannelPage("kick", "ready");
+    const channel = {
+      ...fixtureChannel("kick", true),
+      avatarUrl: "https://example.test/profile.jpg",
+    };
+    const view = composeChannelDetail({
+      loading: false,
+      page: { ...page, channel },
+      videos: {
+        kind: "page",
+        outcome: {
+          cache: { kind: "miss" },
+          items: [
+            fixtureVideo("kick"),
+            {
+              ...fixtureVideo("kick"),
+              id: "own-avatar",
+              channelAvatar: "https://example.test/video-owner.jpg",
+            },
+          ],
+          path: { kind: "guest", platform: "kick" },
+          platform: "kick",
+          status: "complete",
+        },
+      },
+    });
+    expect(
+      view.videos.kind === "page" &&
+        view.videos.outcome.items.map((item) => item.channelAvatar),
+    ).toEqual([
+      "https://example.test/profile.jpg",
+      "https://example.test/video-owner.jpg",
+    ]);
+  });
+
   it("defaults Guest Follow to absent and enables Watch for a live stream", () => {
     const view = composeChannelDetail({
       clips: {
@@ -100,13 +133,13 @@ describe("channel detail compose", () => {
     expect(view.phase).toBe("ready");
   });
 
-  it("marks Kick clips unsupported and lists Kick videos", () => {
+  it("lists Kick videos and clips", () => {
     const view = fixtureChannelDetail(
       { id: "kick-c1", platform: "kick", username: "kick-live" },
-      "kick-unsupported",
+      "ready",
     );
     expect(view.videos.kind).toBe("page");
-    expect(view.clips).toEqual(unsupportedMedia("kick", "clips"));
+    expect(view.clips.kind).toBe("page");
   });
 });
 
@@ -116,7 +149,7 @@ function bodyProps(
     readonly platform: "twitch" | "kick";
     readonly username: string;
   },
-  mode: "ready" | "kick-unsupported",
+  mode: "ready",
   extras: {
     readonly follow?: ReturnType<typeof fixtureChannelDetail>["follow"];
     readonly tab?: "home" | "videos" | "clips";
@@ -135,6 +168,43 @@ function bodyProps(
 }
 
 describe("channel detail screen", () => {
+  it("shows one offline status and recent broadcasts without a disabled Watch action", () => {
+    const channel = {
+      id: "kick-c1",
+      platform: "kick",
+      username: "kick-live",
+    } as const;
+    const props = bodyProps(channel, "ready");
+    const view = {
+      ...props.view,
+      channel: {
+        ...fixtureChannel("kick", false),
+        avatarUrl: "https://example.test/profile.jpg",
+      },
+      live: null,
+      watch: { kind: "unavailable", reason: "channel-offline" },
+    } as const;
+    const nodes = descendants(ChannelDetailBody({ ...props, view }));
+    expect(
+      nodes.filter((node) => node.props.children === "Offline"),
+    ).toHaveLength(1);
+    expect(nodes.some((node) => node.props.testID === "channel-watch")).toBe(
+      false,
+    );
+    expect(
+      nodes.some((node) => node.props.testID === "channel-follow-reason"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.testID === "channel-watch-reason"),
+    ).toBe(false);
+    expect(
+      nodes.some((node) => node.props.children === "Recent broadcasts"),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "channel-videos-list"),
+    ).toBe(true);
+  });
+
   it("renders provider banner and invokes the live-alert preference action", () => {
     const channel = {
       id: "twitch-c1",
@@ -195,20 +265,21 @@ describe("channel detail screen", () => {
     ).toBe(false);
     expect(
       nodes.some((node) => node.props.testID === "channel-follow-reason"),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       nodes.some(
         (node) =>
           node.props.children ===
           "Save this channel as a Guest Follow on this device.",
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(nodes.some((node) => node.props.children === "Follow")).toBe(true);
     expect(nodes.some((node) => node.props.children === "Open on Twitch")).toBe(
       false,
     );
     const watch = nodes.find((node) => node.props.testID === "channel-watch");
-    expect(watch?.props.disabled).toBe(false);
+    expect(watch).toBeDefined();
+    expect(watch?.props.disabled).toBeFalsy();
     expect(nodes.some((node) => node.props.children === "Watch")).toBe(true);
   });
 
@@ -217,7 +288,7 @@ describe("channel detail screen", () => {
       ChannelDetailBody(
         bodyProps(
           { id: "kick-c1", platform: "kick", username: "kick-live" },
-          "kick-unsupported",
+          "ready",
         ),
       ),
     );
@@ -309,12 +380,12 @@ describe("channel detail screen", () => {
     ).toBe(true);
   });
 
-  it("shows Kick video rows and unsupported clips copy", () => {
+  it("shows Kick video and clip rows", () => {
     const videos = descendants(
       ChannelDetailBody(
         bodyProps(
           { id: "kick-c1", platform: "kick", username: "kick-live" },
-          "kick-unsupported",
+          "ready",
           { tab: "videos" },
         ),
       ),
@@ -323,7 +394,7 @@ describe("channel detail screen", () => {
       ChannelDetailBody(
         bodyProps(
           { id: "kick-c1", platform: "kick", username: "kick-live" },
-          "kick-unsupported",
+          "ready",
           { tab: "clips" },
         ),
       ),
@@ -332,7 +403,7 @@ describe("channel detail screen", () => {
       videos.some((node) => node.props.testID === "channel-videos-list"),
     ).toBe(true);
     expect(
-      clips.some((node) => node.props.testID === "channel-clips-unsupported"),
+      clips.some((node) => node.props.testID === "channel-clips-list"),
     ).toBe(true);
   });
 });

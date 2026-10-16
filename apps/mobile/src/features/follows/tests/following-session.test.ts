@@ -353,7 +353,7 @@ describe("createFollowingRuntime", () => {
       kind: "followed",
       follow: { channelId: "456", channelLogin: "offlinecreator" },
     });
-    expect(urls).toEqual(["https://kick.com/api/v1/channels/offlinecreator"]);
+    expect(urls).toEqual(["https://kick.com/api/v2/channels/offlinecreator"]);
   });
 
   it("hydrates a live Kick follow omitted from the directory", async () => {
@@ -392,7 +392,7 @@ describe("createFollowingRuntime", () => {
     expect((await session.hydrateLive()).kick.items).toMatchObject([
       { channelId: "456", id: "999", title: "Live now" },
     ]);
-    expect(urls).toEqual(["https://kick.com/api/v1/channels/smallcreator"]);
+    expect(urls).toEqual(["https://kick.com/api/v2/channels/smallcreator"]);
   });
 
   it("retains the relay when a public Kick channel read fails", async () => {
