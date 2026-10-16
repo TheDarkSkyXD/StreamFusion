@@ -44,6 +44,7 @@ export function helixStreams(value: unknown): readonly Stream[] {
 export type HelixUserFlags = {
   readonly isPartner: boolean;
   readonly isVerified: boolean;
+  readonly avatarUrl: string;
 };
 
 export function helixUserVerification(
@@ -57,6 +58,7 @@ export function helixUserVerification(
     users.set(id, {
       isPartner: twitchStreamVerified(type),
       isVerified: twitchChannelVerified(type),
+      avatarUrl: stringField(record, "profile_image_url"),
     });
   }
   return users;
@@ -67,8 +69,13 @@ export function attachHelixStreamVerification(
   users: ReadonlyMap<string, HelixUserFlags>,
 ): readonly Stream[] {
   return streams.map((stream) => {
-    if (users.get(stream.channelId)?.isVerified !== true) return stream;
-    return { ...stream, channelIsVerified: true };
+    const user = users.get(stream.channelId);
+    if (user === undefined) return stream;
+    return {
+      ...stream,
+      ...(user.avatarUrl === "" ? {} : { channelAvatar: user.avatarUrl }),
+      ...(user.isVerified ? { channelIsVerified: true } : {}),
+    };
   });
 }
 
@@ -81,6 +88,7 @@ export function attachHelixChannelVerification(
     if (flags === undefined) return channel;
     return {
       ...channel,
+      avatarUrl: flags.avatarUrl || channel.avatarUrl,
       isPartner: flags.isPartner,
       isVerified: flags.isVerified,
     };

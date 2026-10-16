@@ -15,7 +15,6 @@ const MODES: readonly ChannelFixtureMode[] = [
   "stale-cache",
   "channel-empty",
   "channel-failed",
-  "kick-unsupported",
 ];
 
 export function ChannelProofControls({

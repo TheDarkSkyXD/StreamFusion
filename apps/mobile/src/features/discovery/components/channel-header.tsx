@@ -40,7 +40,7 @@ export function ChannelHeader({
   const followers =
     channel.followerCount === undefined
       ? "Followers unavailable"
-      : `${channel.followerCount} followers`;
+      : `${channel.followerCount.toLocaleString()} followers`;
   const followBusy = follow.kind === "pending";
   const followLabel = followActionLabel(follow);
   const watchEnabled = watch.kind === "available";
@@ -79,7 +79,14 @@ export function ChannelHeader({
           <Text selectable style={styles.meta}>
             {followers}
           </Text>
-          <MobilePlatformBadge platform={channel.platform} />
+          <View style={styles.statusRow}>
+            <MobilePlatformBadge platform={channel.platform} />
+            {!channel.isLive ? (
+              <Text style={styles.meta} testID="channel-offline">
+                Offline
+              </Text>
+            ) : null}
+          </View>
         </View>
         {onToggleLiveAlerts !== undefined && liveAlerts !== undefined ? (
           <MobileIconButton
@@ -110,31 +117,37 @@ export function ChannelHeader({
           >
             {followLabel}
           </MobileButton>
-          <MobileButton
-            accessibilityHint={watchCopy}
-            accessibilityLabel="Watch"
-            disabled={!watchEnabled}
-            onPress={onWatch}
-            testID="channel-watch"
-            variant="primary"
-          >
-            Watch
-          </MobileButton>
+          {watchEnabled ? (
+            <MobileButton
+              accessibilityHint={watchCopy}
+              accessibilityLabel="Watch"
+              onPress={onWatch}
+              testID="channel-watch"
+              variant="primary"
+            >
+              Watch
+            </MobileButton>
+          ) : null}
         </View>
-        <Text
-          selectable
-          style={styles.followReason}
-          testID="channel-follow-reason"
-        >
-          {followCopy(follow)}
-        </Text>
-        <Text
-          selectable
-          style={styles.followReason}
-          testID="channel-watch-reason"
-        >
-          {watchCopy}
-        </Text>
+        {follow.kind === "failed" || follow.kind === "pending" ? (
+          <Text
+            selectable
+            style={styles.followReason}
+            testID="channel-follow-reason"
+          >
+            {followCopy(follow)}
+          </Text>
+        ) : null}
+        {watch.kind === "unavailable" &&
+        watch.reason === "live-state-unverified" ? (
+          <Text
+            selectable
+            style={styles.followReason}
+            testID="channel-watch-reason"
+          >
+            {watchCopy}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -164,6 +177,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: mobileSpacing.xSmall,
+  },
+  statusRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
   },
   meta: {
     ...mobileType.body,

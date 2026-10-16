@@ -117,6 +117,7 @@ export const PLAYBACK_COMPATIBILITY_CAPABILITY = {
 export type PlaybackIntegration =
   | "kick-v1-playback-url"
   | "kick-v2-video"
+  | "kick-v2-clip"
   | "twitch-gql-clip"
   | "twitch-gql-usher"
   | "twitch-gql-vod";
@@ -178,6 +179,7 @@ export type LivePlaybackSources = {
 };
 
 export type RecordedPlaybackSources = {
+  readonly kickClip: LivePlaybackSourceResolver<"kick">;
   readonly kickVideo: LivePlaybackSourceResolver<"kick">;
   readonly twitchClip: LivePlaybackSourceResolver<"twitch">;
   readonly twitchVideo: LivePlaybackSourceResolver<"twitch">;

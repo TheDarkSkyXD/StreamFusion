@@ -21,8 +21,15 @@ export function composeChannelDetail(input: {
   readonly videos?: ChannelMediaRead<Video>;
 }): ChannelDetailView {
   const page = input.page ?? emptyPage("twitch");
-  const videos = input.videos ?? pendingMedia(page.platform, "videos");
-  const clips = input.clips ?? pendingMedia(page.platform, "clips");
+  const avatarUrl = page.channel?.avatarUrl;
+  const videos = withChannelAvatar(
+    input.videos ?? pendingMedia<Video>(page.platform),
+    avatarUrl,
+  );
+  const clips = withChannelAvatar(
+    input.clips ?? pendingMedia<Clip>(page.platform),
+    avatarUrl,
+  );
   return {
     channel: page.channel,
     clips,
@@ -33,7 +40,9 @@ export function composeChannelDetail(input: {
         membership: input.membership ?? [],
         pending: false,
       }),
-    live: page.live,
+    live: page.live && !page.live.channelAvatar && avatarUrl
+      ? { ...page.live, channelAvatar: avatarUrl }
+      : page.live,
     page,
     phase: channelPhase({
       loading: input.loading,
@@ -41,6 +50,22 @@ export function composeChannelDetail(input: {
     }),
     videos,
     watch: composeWatchAvailability(page),
+  };
+}
+
+function withChannelAvatar<T extends Clip | Video>(
+  lane: ChannelMediaRead<T>,
+  avatarUrl: string | undefined,
+): ChannelMediaRead<T> {
+  if (lane.kind !== "page" || !avatarUrl) return lane;
+  return {
+    ...lane,
+    outcome: {
+      ...lane.outcome,
+      items: lane.outcome.items.map((item) =>
+        item.channelAvatar ? item : { ...item, channelAvatar: avatarUrl },
+      ),
+    },
   };
 }
 
@@ -81,13 +106,6 @@ function channelIdentity(page: ChannelPageOutcome): ChannelIdentity {
     platform: page.platform,
     username: page.channel?.username ?? "",
   };
-}
-
-export function unsupportedMedia(
-  platform: Platform,
-  media: "videos" | "clips",
-): ChannelMediaRead<never> {
-  return { kind: "unsupported", media, platform };
 }
 
 export function mediaItems<T>(lane: ChannelMediaRead<T>): readonly T[] {
@@ -136,13 +154,7 @@ function emptyPage(platform: Platform): ChannelPageOutcome {
   };
 }
 
-function pendingMedia<T>(
-  platform: Platform,
-  media: "videos" | "clips",
-): ChannelMediaRead<T> {
-  if (platform === "kick" && media === "clips") {
-    return unsupportedMedia(platform, media);
-  }
+function pendingMedia<T>(platform: Platform): ChannelMediaRead<T> {
   return {
     kind: "page",
     outcome: {

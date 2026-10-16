@@ -10,7 +10,20 @@ export const KICK_PUBLIC_SUBCATEGORIES =
   "https://kick.com/api/v1/subcategories";
 
 export function kickPublicChannelUrl(slug: string): string {
-  return `https://kick.com/api/v1/channels/${encodeURIComponent(slug)}`;
+  return `https://kick.com/api/v2/channels/${encodeURIComponent(slug)}`;
+}
+
+export function kickFollowerCount(
+  record: Record<string, unknown>,
+): number | undefined {
+  const value = record.followers_count ?? record.followersCount;
+  if (
+    typeof value !== "number" &&
+    (typeof value !== "string" || value.trim() === "")
+  )
+    return undefined;
+  const count = Number(value);
+  return Number.isFinite(count) && count >= 0 ? count : undefined;
 }
 
 export function kickChatroomId(value: unknown): string {
@@ -104,6 +117,7 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
   const livestream =
     objectField(record, "livestream") ?? objectField(record, "stream");
   const bio = stringField(user, "bio") || stringField(record, "bio");
+  const followerCount = kickFollowerCount(record);
   return {
     avatarUrl:
       stringField(user, "profilepic") ||
@@ -113,14 +127,16 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
     displayName: stringField(user, "username") || username,
     id,
     isLive:
-      livestream?.is_live === true ||
+      objectField(record, "livestream") !== null ||
       record.is_live === true ||
-      record.isLive === true,
+      record.isLive === true ||
+      livestream?.is_live === true,
     isPartner: record.is_partner === true,
     isVerified: kickVerified(record) || kickVerified(user),
     platform: "kick",
     username,
     ...(bio === "" ? {} : { bio }),
+    ...(followerCount === undefined ? {} : { followerCount }),
   };
 }
 

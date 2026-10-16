@@ -167,12 +167,11 @@ export function ChannelDetailBody({
       style={styles.scroll}
       testID="channel-detail"
     >
-      <Text selectable style={styles.eyebrow}>
-        CHANNEL
-      </Text>
-      <Text selectable style={styles.summary} testID="channel-phase">
-        {phaseCopy(view, channel)}
-      </Text>
+      {view.phase !== "ready" ? (
+        <Text selectable style={styles.summary} testID="channel-phase">
+          {phaseCopy(view, channel)}
+        </Text>
+      ) : null}
       {proofMode && onSelectProofMode ? (
         <ChannelProofControls mode={proofMode} onSelect={onSelectProofMode} />
       ) : null}
@@ -239,13 +238,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
-  },
-  eyebrow: {
-    color: mobileColors.textCategory,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
-    lineHeight: 16,
   },
   summary: {
     color: mobileColors.textCategory,

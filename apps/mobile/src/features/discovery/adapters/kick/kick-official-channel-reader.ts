@@ -16,6 +16,7 @@ import {
   stringField,
 } from "../../utils/helix-media";
 import {
+  kickFollowerCount,
   kickPublicChannelUrl,
   mapKickPublicChannel,
   mapKickPublicLive,
@@ -56,9 +57,20 @@ export function createKickOfficialChannelReader(input: {
                 )
               : undefined;
           if (entry) {
+            const publicPage =
+              entry.channel.followerCount === undefined
+                ? await readKickPublicChannel(input.fetch, slug, read.signal)
+                : null;
+            if (read.signal?.aborted) return failed("cancelled");
             return {
               cache: { kind: "miss" },
-              channel: entry.channel,
+              channel:
+                publicPage?.channel.followerCount === undefined
+                  ? entry.channel
+                  : {
+                      ...entry.channel,
+                      followerCount: publicPage.channel.followerCount,
+                    },
               live: entry.stream,
               path: { kind: "guest", platform: "kick" },
               platform: "kick",
@@ -78,7 +90,19 @@ export function createKickOfficialChannelReader(input: {
         }
         const row = kickRows(await response.json()).at(0);
         if (row === undefined) return failed("kick-failed");
-        const channel = toChannel(row);
+        const officialChannel = toChannel(row);
+        const publicPage =
+          officialChannel.followerCount === undefined
+            ? await readKickPublicChannel(input.fetch, slug, read.signal)
+            : null;
+        if (read.signal?.aborted) return failed("cancelled");
+        const channel =
+          publicPage?.channel.followerCount === undefined
+            ? officialChannel
+            : {
+                ...officialChannel,
+                followerCount: publicPage.channel.followerCount,
+              };
         return {
           cache: { kind: "miss" },
           channel,
@@ -131,16 +155,18 @@ function recordField(
 
 function toChannel(record: Record<string, unknown>): Channel {
   const user = recordField(record, "user") ?? record;
-  const stream = recordField(record, "stream") ?? recordField(record, "livestream");
-  const bio = stringField(record, "channel_description") || stringField(record, "bio");
+  const stream =
+    recordField(record, "stream") ?? recordField(record, "livestream");
+  const bio =
+    stringField(record, "channel_description") || stringField(record, "bio");
   const bannerUrl =
     stringField(record, "banner_picture") || stringField(record, "banner_url");
+  const followerCount = kickFollowerCount(record);
   return {
     avatarUrl:
       stringField(user, "profile_pic") || stringField(user, "profile_picture"),
-    displayName:
-      stringField(user, "username") || stringField(record, "slug"),
-    followerCount: numberField(record, "followers_count"),
+    displayName: stringField(user, "username") || stringField(record, "slug"),
+    ...(followerCount === undefined ? {} : { followerCount }),
     id:
       identifierField(record, "broadcaster_user_id") ||
       identifierField(record, "id") ||
@@ -159,7 +185,10 @@ function toChannel(record: Record<string, unknown>): Channel {
 }
 
 function toLive(record: Record<string, unknown>, channel: Channel): Stream {
-  const stream = recordField(record, "stream") ?? recordField(record, "livestream") ?? record;
+  const stream =
+    recordField(record, "stream") ??
+    recordField(record, "livestream") ??
+    record;
   const startedAt =
     canonicalTimestamp(stringField(stream, "start_time")) ??
     canonicalTimestamp(stringField(stream, "started_at"));
@@ -198,7 +227,8 @@ function failed(code: string): ChannelPageOutcome {
         ? {
             kind: "unavailable",
             platform: "kick",
-            reason: code === "auth-lost" ? "auth-lost" : "signed-out-login-required",
+            reason:
+              code === "auth-lost" ? "auth-lost" : "signed-out-login-required",
           }
         : { kind: "direct", platform: "kick" },
     platform: "kick",
@@ -211,24 +241,39 @@ async function kickPublicChannelPage(
   slug: string,
   signal?: AbortSignal,
 ): Promise<ChannelPageOutcome> {
+  const page = await readKickPublicChannel(fetchImpl, slug, signal);
+  if (page === null)
+    return failed(signal?.aborted ? "cancelled" : "kick-failed");
+  return {
+    cache: { kind: "miss" },
+    channel: page.channel,
+    live: page.live,
+    path: { kind: "guest", platform: "kick" },
+    platform: "kick",
+    status: "complete",
+  };
+}
+
+async function readKickPublicChannel(
+  fetchImpl: typeof globalThis.fetch,
+  slug: string,
+  signal?: AbortSignal,
+): Promise<{ readonly channel: Channel; readonly live: Stream | null } | null> {
   try {
     const response = await fetchImpl(
       kickPublicChannelUrl(slug),
       requestInit({ Accept: "application/json" }, signal),
     );
-    if (!response.ok) return failed("kick-failed");
+    if (!response.ok) return null;
     const payload: unknown = await response.json();
     const channel = mapKickPublicChannel(payload);
-    if (channel === null) return failed("kick-failed");
-    return {
-      cache: { kind: "miss" },
-      channel,
-      live: channel.isLive ? mapKickPublicLive(payload, channel) : null,
-      path: { kind: "guest", platform: "kick" },
-      platform: "kick",
-      status: "complete",
-    };
+    return channel === null
+      ? null
+      : {
+          channel,
+          live: channel.isLive ? mapKickPublicLive(payload, channel) : null,
+        };
   } catch {
-    return failed(signal?.aborted ? "cancelled" : "kick-failed");
+    return null;
   }
 }

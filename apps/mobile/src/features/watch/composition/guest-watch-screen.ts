@@ -15,6 +15,7 @@ import { createDiscoveryWatchInspectionReader } from "../adapters/discovery-watc
 import { createMemoryPlaybackProtection } from "../adapters/focused-playback-protection";
 import { createNativeOrientationController } from "../adapters/native-orientation-controller";
 import { createKickLivePlaybackSource } from "../adapters/kick/kick-live-playback-source";
+import { createKickClipPlaybackSource } from "../adapters/kick/kick-clip-playback-source";
 import { createKickVideoPlaybackSource } from "../adapters/kick/kick-vod-playback-source";
 import { createPlaybackCompatibilityPolicy } from "../adapters/playback-compatibility-policy";
 import { createTwitchClipPlaybackSource } from "../adapters/twitch/twitch-clip-playback-source";
@@ -87,6 +88,7 @@ export function createGuestWatchScreen(input: {
       protection: createMemoryPlaybackProtection(),
       sessionIds: input.sessionIds,
       recorded: {
+        kickClip: createKickClipPlaybackSource({ fetch: input.fetch }),
         kickVideo: createKickVideoPlaybackSource({ fetch: input.fetch }),
         twitchClip: createTwitchClipPlaybackSource({ fetch: input.fetch }),
         twitchVideo: createTwitchVodPlaybackSource({ fetch: input.fetch }),

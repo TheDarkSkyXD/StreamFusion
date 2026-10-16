@@ -17,6 +17,7 @@ import {
   stringField,
 } from "../../utils/helix-media";
 import { requestInit } from "../../utils/optional";
+import { kickFollowerCount } from "./kick-public-catalog";
 
 const DIRECTORY_URL = "https://api.kick.com/private/v1/livestreams";
 const CACHE_TTL_MS = 30_000;
@@ -107,6 +108,7 @@ function parseEntry(value: unknown): LiveStreamCatalogEntry | null {
   const categoryId = category === null ? "" : identifierField(category, "id");
   const categoryName = category === null ? "" : stringField(category, "name");
   const title = stringField(metadata, "title");
+  const followerCount = kickFollowerCount(channelRecord);
   const channel: Channel = {
     avatarUrl: stringField(user, "profile_picture"),
     displayName: stringField(user, "username") || slug,
@@ -117,6 +119,7 @@ function parseEntry(value: unknown): LiveStreamCatalogEntry | null {
       kickVerified(value) || kickVerified(user) || kickVerified(channelRecord),
     platform: "kick",
     username: slug,
+    ...(followerCount === undefined ? {} : { followerCount }),
     ...(stringField(channelRecord, "banner_picture") === ""
       ? {}
       : { bannerUrl: stringField(channelRecord, "banner_picture") }),

@@ -11,14 +11,13 @@ import type {
   ChannelPageOutcome,
   DiscoveryFixtureMode,
 } from "../capabilities/platform-reads";
-import { composeChannelDetail, unsupportedMedia } from "./channel-detail";
+import { composeChannelDetail } from "./channel-detail";
 import { fixtureStream } from "./discovery-fixture";
 
 export type ChannelFixtureMode =
   | DiscoveryFixtureMode
   | "channel-empty"
-  | "channel-failed"
-  | "kick-unsupported";
+  | "channel-failed";
 
 export function fixtureChannel(
   platform: Platform,
@@ -137,30 +136,14 @@ export function fixtureChannelDetail(
   mode: ChannelFixtureMode,
 ): ChannelDetailView {
   const platform = channel.platform;
-  if (mode === "kick-unsupported" || platform === "kick") {
-    return composeChannelDetail({
-      clips: unsupportedMedia("kick", "clips"),
-      loading: mode === "loading",
-      page: fixtureChannelPage(platform, mode === "kick-unsupported" ? "ready" : mode),
-      videos: {
-        kind: "page",
-        outcome: {
-          cache: { kind: "miss" },
-          items: mode === "channel-empty" ? [] : [fixtureVideo(platform)],
-          path: { kind: "guest", platform },
-          platform,
-          status: "complete",
-        },
-      },
-    });
-  }
+  const path = { kind: platform === "kick" ? "guest" : "relay", platform } as const;
   return composeChannelDetail({
     clips: {
       kind: "page",
       outcome: {
         cache: { kind: "miss" },
         items: mode === "channel-empty" ? [] : [fixtureClip(platform)],
-        path: { kind: "relay", platform },
+        path,
         platform,
         status: "complete",
       },
@@ -172,7 +155,7 @@ export function fixtureChannelDetail(
       outcome: {
         cache: { kind: "miss" },
         items: mode === "channel-empty" ? [] : [fixtureVideo(platform)],
-        path: { kind: "relay", platform },
+        path,
         platform,
         status: "complete",
       },

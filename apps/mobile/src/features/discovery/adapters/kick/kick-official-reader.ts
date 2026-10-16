@@ -1,4 +1,5 @@
-import type { Category, Stream } from "@streamfusion/core/content";
+import type { Category, Clip, Stream } from "@streamfusion/core/content";
+import type { ChannelIdentity } from "@streamfusion/core/platform";
 import type { Platform } from "@streamfusion/core/platform";
 import type { LiveStreamCatalog } from "../../capabilities/live-stream-catalog";
 
@@ -13,6 +14,7 @@ import { createKickLiveCatalog } from "./kick-live-catalog";
 import { mapKickOfficialStreams } from "./kick-official-streams";
 import { createKickOfficialCategoryReads } from "./kick-official-category-reader";
 import { createKickOfficialChannelReader } from "./kick-official-channel-reader";
+import { readKickPublicChannelClips } from "./kick-public-clips";
 import { readKickSearchPage } from "./kick-search-pages";
 import {
   readKickPublicCategories,
@@ -34,6 +36,16 @@ export function createKickOfficialReader(input: {
     ...createKickOfficialCategoryReads(input),
     ...channelReader,
     platform: "kick" as const,
+    getChannelClips(read: {
+      readonly channel: ChannelIdentity;
+      readonly signal?: AbortSignal;
+    }): Promise<PlatformReadOutcome<Clip>> {
+      return readKickPublicChannelClips({
+        fetchImpl: input.fetch,
+        slug: read.channel.username || read.channel.id,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
+    },
     searchPage<K extends MobileSearchKind>(
       read: SearchPageRequest<K>,
     ): Promise<SearchPageOutcome<K>> {

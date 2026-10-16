@@ -9,6 +9,7 @@ import { requestInit } from "../../utils/optional";
 import {
   helixRows,
   identifierField,
+  stringField,
 } from "../../utils/helix-media";
 import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
 import { createTwitchGqlGuestMediaReader } from "./twitch-gql-guest-media";
@@ -44,15 +45,41 @@ export function createTwitchHelixChannelReader(input: {
       const user = await helixUser(input, read.channel, read.signal);
       if (user.kind === "failed") return failedHelixPage(user.code);
       const userId = identifierField(user.row, "id");
-      const [channelPayload, streamPayload] = await Promise.all([
-        helixJson(input, `/channels?broadcaster_id=${encodeURIComponent(userId)}`, read.signal),
-        helixJson(input, `/streams?user_id=${encodeURIComponent(userId)}`, read.signal),
+      const [channelPayload, streamPayload, publicPage] = await Promise.all([
+        helixJson(
+          input,
+          `/channels?broadcaster_id=${encodeURIComponent(userId)}`,
+          read.signal,
+        ),
+        helixJson(
+          input,
+          `/streams?user_id=${encodeURIComponent(userId)}`,
+          read.signal,
+        ),
+        guest.getChannel({
+          login:
+            stringField(user.row, "login") ||
+            read.channel.username ||
+            read.channel.id,
+          ...signalProp(read.signal),
+        }),
       ]);
-      if (channelPayload.kind === "failed") return failedHelixPage(channelPayload.code);
-      if (streamPayload.kind === "failed") return failedHelixPage(streamPayload.code);
+      if (channelPayload.kind === "failed")
+        return failedHelixPage(channelPayload.code);
+      if (streamPayload.kind === "failed")
+        return failedHelixPage(streamPayload.code);
       const channelRow = helixRows(channelPayload.value).at(0) ?? {};
       const liveRow = helixRows(streamPayload.value).at(0);
-      const channel = toHelixChannel(user.row, channelRow, liveRow !== undefined);
+      const helixChannel = toHelixChannel(
+        user.row,
+        channelRow,
+        liveRow !== undefined,
+      );
+      const followerCount = publicPage.channel?.followerCount;
+      const channel =
+        followerCount === undefined
+          ? helixChannel
+          : { ...helixChannel, followerCount };
       return {
         cache: { kind: "miss" },
         channel,
@@ -165,7 +192,10 @@ async function helixJson(
     }
     return { kind: "ready", value: await response.json() };
   } catch {
-    return { code: signal?.aborted ? "cancelled" : "twitch-failed", kind: "failed" };
+    return {
+      code: signal?.aborted ? "cancelled" : "twitch-failed",
+      kind: "failed",
+    };
   }
 }
 

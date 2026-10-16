@@ -12,7 +12,10 @@ import type {
   ChannelMediaRead,
 } from "../capabilities/platform-reads";
 import { mediaItems } from "../domain/channel-detail";
-import { watchTargetFromClip, watchTargetFromVideo } from "../domain/channel-watch-target";
+import {
+  watchTargetFromClip,
+  watchTargetFromVideo,
+} from "../domain/channel-watch-target";
 import { ChannelMediaRow } from "./channel-media-row";
 import { HomeStreamCard } from "./home-stream-card";
 
@@ -30,7 +33,7 @@ const MEDIA_COPY = {
     videos: "Loading videos.",
   },
   unsupported: {
-    clips: "Kick does not publish clips on the official public API.",
+    clips: "Clips are unavailable for this channel.",
     videos: "Kick videos are unavailable for this channel.",
   },
 } as const;
@@ -44,13 +47,7 @@ export function HomeTab({
 }) {
   return (
     <View style={styles.section} testID="channel-home-tab">
-      {view.live ? (
-        <HomeStreamCard stream={view.live} />
-      ) : (
-        <Text selectable style={styles.meta} testID="channel-offline">
-          This channel is offline.
-        </Text>
-      )}
+      {view.live ? <HomeStreamCard stream={view.live} /> : null}
       {view.channel?.bio ? (
         <View style={styles.about} testID="channel-about">
           <Text selectable style={styles.aboutTitle}>
@@ -91,8 +88,7 @@ export function MediaTab({
   }
   const items = mediaItems(lane);
   if (items.length === 0) {
-    const loading =
-      lane.kind === "page" && lane.outcome.status === "partial";
+    const loading = lane.kind === "page" && lane.outcome.status === "partial";
     return <MediaStatus kind={kind} state={loading ? "loading" : "empty"} />;
   }
   return (

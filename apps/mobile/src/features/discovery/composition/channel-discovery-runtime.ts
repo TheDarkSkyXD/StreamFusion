@@ -13,7 +13,6 @@ import type {
   PlatformReadOutcome,
 } from "../capabilities/platform-reads";
 import { createChannelCacheStore } from "../data/cache-channel-store";
-import { unsupportedMedia } from "../domain/channel-detail";
 import {
   cancelled,
   executeChannelRead,
@@ -70,9 +69,6 @@ export function createChannelDiscoverySession(input: {
       };
     },
     async readChannelClips(read) {
-      if (read.channel.platform === "kick") {
-        return unsupportedMedia("kick", "clips");
-      }
       return {
         kind: "page",
         outcome: await readClips(input, cache, read),
@@ -149,9 +145,9 @@ async function readClips(
     network: context.network,
     platform: read.channel.platform,
     readDirect: () =>
-      input.readers.twitch.getChannelClips(
-        channelRead(read.channel, read.signal),
-      ),
+      read.channel.platform === "kick"
+        ? input.readers.kick.getChannelClips(channelRead(read.channel, read.signal))
+        : input.readers.twitch.getChannelClips(channelRead(read.channel, read.signal)),
     readRelay: () =>
       input.readers.relay.getChannelClips(
         channelRead(read.channel, read.signal),

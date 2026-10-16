@@ -38,14 +38,12 @@ export function resolveWatchSource(
       : missingRecorded("twitch-gql-clip");
   }
   if (media?.kind === "clip") {
-    return Promise.resolve({
-      failure: {
-        detail: "Kick clips are not available in this build.",
-        kind: "invalid-response",
-      },
-      integration: "kick-v2-video",
-      kind: "unavailable",
-    });
+    return recorded
+      ? recorded.kickClip.resolve({
+          signal,
+          target: { ...target, platform: "kick" },
+        })
+      : missingRecorded("kick-v2-clip");
   }
   if (target.platform === "kick") {
     return sources.kick.resolve({
@@ -64,7 +62,7 @@ export function integrationFor(target: WatchTarget): PlaybackIntegration {
     return target.platform === "kick" ? "kick-v2-video" : "twitch-gql-vod";
   }
   if (target.media?.kind === "clip") {
-    return target.platform === "twitch" ? "twitch-gql-clip" : "kick-v2-video";
+    return target.platform === "twitch" ? "twitch-gql-clip" : "kick-v2-clip";
   }
   return target.platform === "twitch" ? "twitch-gql-usher" : "kick-v1-playback-url";
 }

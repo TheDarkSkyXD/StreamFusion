@@ -5,7 +5,7 @@ import type {
   ChannelMediaRead,
   DiscoverySession,
 } from "../capabilities/platform-reads";
-import { composeChannelDetail, unsupportedMedia } from "../domain/channel-detail";
+import { composeChannelDetail } from "../domain/channel-detail";
 
 export function channelQueryKey(
   channel: ChannelIdentity,
@@ -95,25 +95,22 @@ function optionalLane<T, K extends "clips" | "videos">(
     return { [media]: query.data } as { readonly [P in K]: ChannelMediaRead<T> };
   }
   if (query.isError) {
-    return { [media]: failedLane(platform, media) } as {
+    return { [media]: failedLane(platform) } as {
       readonly [P in K]: ChannelMediaRead<T>;
     };
   }
   return {};
 }
 
-function failedLane<T>(
-  platform: Platform,
-  media: "videos" | "clips",
-): ChannelMediaRead<T> {
-  if (platform === "kick" && media === "clips") {
-    return unsupportedMedia(platform, media);
-  }
+function failedLane<T>(platform: Platform): ChannelMediaRead<T> {
   return {
     kind: "page",
     outcome: {
       cache: { kind: "miss" },
-      error: { code: "twitch-failed", retry: "manual" },
+      error: {
+        code: platform === "kick" ? "kick-failed" : "twitch-failed",
+        retry: "manual",
+      },
       items: [],
       path: { kind: "guest", platform },
       platform,
