@@ -1,6 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/features/playback/capabilities/media-types";
 import type { AdBlockStatus } from "@shared/adblock-types";
@@ -131,6 +131,9 @@ const offlineError: PlayerError = {
 // Guards: recoverable Kick source interruptions stay in a loading state and are not recorded as app errors while the page obtains a fresh signed URL.
 // Guards: Twitch ad holds recover inside HLS and cannot request a page-owned remount that pauses playback.
 describe("live player offline retry handling", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(window, "electronAPI");
+  });
   beforeEach(() => {
     h.kickHlsProps = null;
     h.twitchHlsProps = null;
@@ -243,6 +246,89 @@ describe("live player offline retry handling", () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it("moves a confirmed encrypted stream to one owned player window", async () => {
+    const check = vi.fn().mockResolvedValue(true);
+    const open = vi.fn().mockResolvedValue({ kind: "opened" });
+    const close = vi.fn().mockResolvedValue(undefined);
+    const focus = vi.fn().mockResolvedValue(undefined);
+    const mute = vi.fn().mockResolvedValue(undefined);
+    window.electronAPI = {
+      protectedPlayback: { check, open, close, focus, mute, onState: vi.fn(() => vi.fn()) },
+    } as unknown as typeof window.electronAPI;
+    const onRefresh = vi.fn();
+    const { unmount } = render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/primevideo.m3u8"
+        channelName="primevideo"
+        autoPlay
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() =>
+      h.twitchHlsProps?.onError?.({
+        code: "TOKEN_EXPIRED",
+        message: "403",
+        fatal: true,
+        shouldRefresh: true,
+      })
+    );
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    expect(check).toHaveBeenCalledWith("primevideo");
+    expect(screen.queryByTestId("twitch-hls-player")).toBeNull();
+    expect(onRefresh).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /focus/i }));
+    expect(focus).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /close/i }));
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("rechecks protected playback after a metadata lookup failure", async () => {
+    const check = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Twitch metadata unavailable"))
+      .mockResolvedValueOnce(true);
+    const open = vi.fn().mockResolvedValue({ kind: "opened" });
+    window.electronAPI = {
+      protectedPlayback: {
+        check,
+        open,
+        close: vi.fn(),
+        focus: vi.fn(),
+        mute: vi.fn(),
+        onState: vi.fn(() => vi.fn()),
+      },
+    } as unknown as typeof window.electronAPI;
+    const onError = vi.fn(() => true);
+    const { unmount } = render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/primevideo.m3u8"
+        channelName="primevideo"
+        autoPlay
+        recoveryManagedExternally
+        onError={onError}
+      />
+    );
+    const playbackError: PlayerError = {
+      code: "TOKEN_EXPIRED",
+      message: "403",
+      fatal: true,
+      shouldRefresh: true,
+    };
+
+    act(() => h.twitchHlsProps?.onError?.(playbackError));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(playbackError));
+    expect(open).not.toHaveBeenCalled();
+
+    act(() => h.twitchHlsProps?.onError?.(playbackError));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("twitch-hls-player")).toBeNull();
+    unmount();
   });
 
   it("Twitch watchdog-only missing fragments receive a bounded playback refresh", async () => {

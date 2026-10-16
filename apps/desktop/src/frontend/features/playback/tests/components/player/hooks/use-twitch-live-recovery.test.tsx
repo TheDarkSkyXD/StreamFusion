@@ -66,6 +66,28 @@ describe("useTwitchLiveRecovery", () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
+  it("stops HLS refreshes when playback moves to an owned player window", async () => {
+    vi.useFakeTimers();
+    const onRefresh = vi.fn();
+    const onExhausted = vi.fn();
+    const { result } = renderHook(() =>
+      useTwitchLiveRecovery({
+        sessionKey: "stream-page:twitch:primevideo",
+        sourceRevision: 1,
+        onRefresh,
+        onExhausted,
+      })
+    );
+
+    expect(result.current.handleError(stalledPlayback)).toBe(true);
+    act(() => result.current.suspend());
+    await act(async () => vi.runAllTimersAsync());
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(result.current.handleError(stalledPlayback)).toBe(false);
+    expect(onExhausted).not.toHaveBeenCalled();
+  });
+
   // Guards: a failed URL refresh must not leave the player spinner waiting forever for a source revision that never arrives.
   it("exhausts the bounded budget when a refresh never produces a new source", async () => {
     vi.useFakeTimers();

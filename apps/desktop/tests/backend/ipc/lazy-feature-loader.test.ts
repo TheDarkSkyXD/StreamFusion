@@ -13,6 +13,7 @@ const registerCategoryHandlers = vi.hoisted(() => vi.fn());
 const registerConnectivityHandlers = vi.hoisted(() => vi.fn());
 const registerDownloadHandlers = vi.hoisted(() => vi.fn());
 const registerLocalCaptionHandlers = vi.hoisted(() => vi.fn());
+const registerProtectedPlaybackRoutes = vi.hoisted(() => vi.fn());
 const registerSearchHandlers = vi.hoisted(() => vi.fn());
 const registerStreamHandlers = vi.hoisted(() => vi.fn());
 const registerVideoHandlers = vi.hoisted(() => vi.fn());
@@ -69,6 +70,9 @@ vi.mock("@backend/features/media-library/routes/download-routes", () => ({
 }));
 vi.mock("@backend/features/playback/routes/local-caption-routes", () => ({
   registerLocalCaptionHandlers,
+}));
+vi.mock("@backend/features/playback/routes/protected-playback-routes", () => ({
+  registerProtectedPlaybackRoutes,
 }));
 vi.mock("@backend/features/discovery/routes/search-routes", () => ({ registerSearchHandlers }));
 vi.mock("@backend/features/discovery/routes/stream-routes", () => ({ registerStreamHandlers }));
