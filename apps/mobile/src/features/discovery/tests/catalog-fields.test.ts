@@ -35,12 +35,17 @@ describe("catalog field mapping", () => {
     expect(kickVerified({ user: { username: "absi" } })).toBe(false);
   });
 
-  it("reads GQL freeform tags and broadcaster roles", () => {
-    const broadcaster = {
+  it("marks only Twitch GQL partners as verified", () => {
+    const affiliate = {
       roles: { isAffiliate: true, isPartner: false },
     };
+    const partner = {
+      roles: { isAffiliate: false, isPartner: true },
+    };
     expect(gqlTags({ freeformTags: [{ name: "Art" }] })).toEqual(["Art"]);
-    expect(gqlBroadcasterVerified(broadcaster)).toBe(true);
-    expect(gqlBroadcasterPartner(broadcaster)).toBe(false);
+    expect(gqlBroadcasterVerified(affiliate)).toBe(false);
+    expect(gqlBroadcasterPartner(affiliate)).toBe(false);
+    expect(gqlBroadcasterVerified(partner)).toBe(true);
+    expect(gqlBroadcasterPartner(partner)).toBe(true);
   });
 });
