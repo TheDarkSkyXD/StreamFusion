@@ -12,6 +12,7 @@ export type ChatPresentation = {
     | "username"
     | "displayName"
     | "avatarUrl"
+    | "bannerUrl"
     | "createdAt"
     | "isLive"
     | "isPartner"

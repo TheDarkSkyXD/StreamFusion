@@ -6,6 +6,8 @@ import { createChannelToolsApi } from "../adapters/channel-tools-api";
 import { createEventSubFeed } from "../adapters/eventsub-feed";
 import { createModerationLogRepository } from "../data/moderation-log";
 import { createProviderToolsController } from "../domain/provider-tools-controller";
+import { readWatchModerationRole } from "../domain/watch-moderation-role";
+import type { ModerationChannel } from "../capabilities/moderation";
 
 export function createModerationRuntime({
   access,
@@ -42,6 +44,11 @@ export function createModerationRuntime({
   return {
     ...controller,
     providerTools,
+    watchRole: {
+      read: (channel: ModerationChannel, signal: AbortSignal) =>
+        readWatchModerationRole({ access, gateway, channel, signal }),
+      subscribe: access.subscribe,
+    },
     dispose() {
       unsubscribe();
       providerTools.dispose();

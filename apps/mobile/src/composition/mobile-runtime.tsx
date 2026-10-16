@@ -745,6 +745,7 @@ export function MobileRuntime() {
           >
             <AppShell
               moderation={moderation}
+              moderationRole={moderation.watchRole}
               moderationChat={moderationChatRuntime}
               engagement={engagement}
               inlineEngagement={inlineEngagement}

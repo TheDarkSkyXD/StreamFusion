@@ -13,6 +13,7 @@ import {
 import { EngagementSheet } from "@mobile/features/engagement/components/engagement-sheet";
 import type { ChatEngagementInlineRuntime } from "@mobile/features/engagement/components/chat-engagement-inline";
 import type { ModerationController } from "@mobile/features/moderation/domain/moderation-controller";
+import type { WatchModerationRoleReader } from "@mobile/features/moderation/domain/watch-moderation-role";
 import type { EngagementController } from "@mobile/features/engagement/domain/engagement-controller";
 import type { ModerationChannel } from "@mobile/features/moderation/capabilities/moderation";
 import type { PlatformWorkflowNavigation } from "@mobile/features/moderation/capabilities/workflow-navigation";
@@ -242,6 +243,7 @@ function shellLocationFromNotification(
 export function AppShell({
   multistream,
   moderation,
+  moderationRole,
   engagement,
   inlineEngagement,
   workflowNavigation,
@@ -298,6 +300,7 @@ export function AppShell({
 }: {
   readonly multistream?: MultistreamWorkspaceProps;
   readonly moderation?: ModerationController;
+  readonly moderationRole?: WatchModerationRoleReader;
   readonly engagement?: EngagementController;
   readonly inlineEngagement?: ChatEngagementInlineRuntime;
   readonly workflowNavigation?: PlatformWorkflowNavigation;
@@ -579,6 +582,7 @@ export function AppShell({
             <ShellScreen
               {...(moderationChat ? { moderationChat } : {})}
               {...(moderation === undefined ? {} : { moderation })}
+              {...(moderationRole === undefined ? {} : { moderationRole })}
               {...(engagement === undefined ? {} : { engagement })}
               {...(inlineEngagement === undefined ? {} : { inlineEngagement })}
               {...(workflowNavigation === undefined
@@ -810,6 +814,7 @@ function ShellScreen({
   offline,
   multistream,
   moderation,
+  moderationRole,
   engagement,
   inlineEngagement,
   workflowNavigation,
@@ -872,6 +877,7 @@ function ShellScreen({
   readonly offline: boolean;
   readonly multistream?: MultistreamWorkspaceProps;
   readonly moderation?: ModerationController;
+  readonly moderationRole?: WatchModerationRoleReader;
   readonly engagement?: EngagementController;
   readonly inlineEngagement?: ChatEngagementInlineRuntime;
   readonly workflowNavigation?: PlatformWorkflowNavigation;
@@ -941,6 +947,47 @@ function ShellScreen({
   const route = getActiveShellRoute(state);
   const location = getActiveShellLocation(state);
   const focusedWatch = useWatchPeek(watch.runtime.session);
+  const moderationWatchTarget = watchTargetFor(location, focusedWatch);
+  const [verifiedWatchRole, setVerifiedWatchRole] = useState<{
+    readonly platform: StreamPlatform;
+    readonly channelId: string;
+  } | null>(null);
+  useEffect(() => {
+    let active = true;
+    let request = new AbortController();
+    const verify = () => {
+      request.abort();
+      request = new AbortController();
+      setVerifiedWatchRole(null);
+      if (!moderationRole || !moderationWatchTarget) return;
+      const { platform, channelId, channelName } = moderationWatchTarget;
+      const signal = request.signal;
+      void moderationRole
+        .read(
+          { platform, id: channelId, login: channelName, name: channelName },
+          signal,
+        )
+        .then((allowed) => {
+          if (!active || signal.aborted || !allowed) return;
+          setVerifiedWatchRole({ platform, channelId });
+        });
+    };
+    const unsubscribe = moderationRole?.subscribe(verify);
+    verify();
+    return () => {
+      active = false;
+      request.abort();
+      unsubscribe?.();
+    };
+  }, [
+    moderationRole,
+    moderationWatchTarget?.platform,
+    moderationWatchTarget?.channelId,
+  ]);
+  const canModerateWatch =
+    verifiedWatchRole !== null &&
+    verifiedWatchRole.platform === moderationWatchTarget?.platform &&
+    verifiedWatchRole.channelId === moderationWatchTarget?.channelId;
   const scrollView = useRef<ScrollView>(null);
   const scrollRequest = state.rootScrollRequests[state.activeDestination];
   const [diagnosticsTab, setDiagnosticsTab] =
@@ -1080,7 +1127,7 @@ function ShellScreen({
                   }),
               }
             : {})}
-          {...(target && moderation
+          {...(target && moderation && canModerateWatch
             ? {
                 onModerateMessage: (message) => {
                   setModerationTarget({

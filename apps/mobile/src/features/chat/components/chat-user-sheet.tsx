@@ -94,7 +94,14 @@ export function ChatUserSheet({
   const [profileStatus, setProfileStatus] = useState<
     "loading" | "ready" | "unavailable"
   >("loading");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ readonly message: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   const historyScroll = useRef<ScrollView>(null);
   const historyPositioned = useRef(false);
   const selectedRowLayout = useRef<{
@@ -173,16 +180,6 @@ export function ChatUserSheet({
           },
         ]
       : []),
-    ...(canCompose && selected.deletedAt === undefined
-      ? [
-          {
-            label: "Copy to chat",
-            testID: "chat-copy-to-chat",
-            onPress: onCopyToChat,
-            icon: Copy,
-          },
-        ]
-      : []),
     ...(canCompose && username
       ? [
           {
@@ -248,9 +245,9 @@ export function ChatUserSheet({
     if (!presentation || selected.deletedAt !== undefined) return;
     try {
       await presentation.copyText(selected.text);
-      setNotice("Message copied.");
+      setNotice({ message: "Message copied." });
     } catch {
-      setNotice("Could not copy message.");
+      setNotice({ message: "Could not copy message." });
     }
   };
   const hasOfficialPartnerBadge = selected.badges.some(
@@ -265,6 +262,30 @@ export function ChatUserSheet({
       size="expanded"
       title={selected.displayName}
       onDismiss={onDismiss}
+      headerBackground={
+        profile?.bannerUrl ? (
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <Image
+              testID="chat-user-banner"
+              source={{ uri: profile.bannerUrl }}
+              resizeMode="cover"
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[StyleSheet.absoluteFill, styles.bannerShade]} />
+          </View>
+        ) : undefined
+      }
+      notice={
+        notice ? (
+          <Text
+            testID="chat-copy-notice"
+            accessibilityLiveRegion="polite"
+            style={styles.notice}
+          >
+            {notice.message}
+          </Text>
+        ) : undefined
+      }
       heading={
         <View style={styles.identity}>
           <MobileAvatar
@@ -328,7 +349,14 @@ export function ChatUserSheet({
         presentation ? (
           <>
             <SheetAction
-              label="Copy message"
+              label="Copy to chat"
+              testID="chat-copy-to-chat"
+              onPress={onCopyToChat}
+              icon={Copy}
+              disabled={!canCompose || selected.deletedAt !== undefined}
+            />
+            <SheetAction
+              label="Copy to clipboard"
               testID="chat-copy-message"
               onPress={() => {
                 void copyMessage();
@@ -337,11 +365,6 @@ export function ChatUserSheet({
               tone="primary"
               disabled={selected.deletedAt !== undefined}
             />
-            {notice ? (
-              <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
-                {notice}
-              </Text>
-            ) : null}
           </>
         ) : undefined
       }
@@ -454,6 +477,16 @@ function SheetAction({
 }
 
 const styles = StyleSheet.create({
+  bannerShade: { backgroundColor: "rgba(0,0,0,0.55)" },
+  notice: {
+    ...mobileType.caption,
+    color: "#1D1B20",
+    backgroundColor: "#B5C4FF",
+    borderRadius: mobileRadii.full,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.xSmall,
+    overflow: "hidden",
+  },
   body: { gap: mobileSpacing.medium },
   identity: {
     flexDirection: "row",

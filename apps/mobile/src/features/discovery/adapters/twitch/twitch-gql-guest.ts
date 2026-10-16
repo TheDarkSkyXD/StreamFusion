@@ -168,7 +168,7 @@ export function createTwitchGqlGuestReader(input: {
       const outcome = await gqlJson({
         fetchImpl: input.fetch,
         query:
-          "query User($login: String!) { user(login: $login) { id login displayName description profileImageURL(width: 70) roles { isPartner isAffiliate } stream { " +
+          "query User($login: String!) { user(login: $login) { id login displayName description profileImageURL(width: 70) bannerImageURL roles { isPartner isAffiliate } stream { " +
           STREAM_FIELDS +
           " } } }",
         variables: { login: read.login },
@@ -391,6 +391,7 @@ function userFromRecord(value: unknown): Channel | null {
   const id = identifier(user, "id") || username;
   if (id === "" || username === "") return null;
   const bio = stringField(user, "description");
+  const bannerUrl = stringField(user, "bannerImageURL");
   return {
     avatarUrl: stringField(user, "profileImageURL"),
     displayName: stringField(user, "displayName") || username,
@@ -401,6 +402,7 @@ function userFromRecord(value: unknown): Channel | null {
     platform: "twitch",
     username,
     ...(bio === "" ? {} : { bio }),
+    ...(bannerUrl === "" ? {} : { bannerUrl }),
   };
 }
 

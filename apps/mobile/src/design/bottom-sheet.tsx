@@ -23,6 +23,8 @@ export function MobileBottomSheet({
   children,
   footer,
   heading,
+  headerBackground,
+  notice,
   onDismiss,
   size = "content",
   variant = "default",
@@ -33,6 +35,8 @@ export function MobileBottomSheet({
   readonly children: ReactNode;
   readonly footer?: ReactNode;
   readonly heading?: ReactNode;
+  readonly headerBackground?: ReactNode;
+  readonly notice?: ReactNode;
   readonly onDismiss: () => void;
   readonly size?: "content" | "expanded" | "selection";
   readonly variant?: "default" | "chat";
@@ -81,26 +85,30 @@ export function MobileBottomSheet({
             },
           ]}
         >
-          <View accessible={false} style={styles.handle} />
-          <View style={styles.header}>
-            <View style={styles.title}>
-              {heading ?? (
-                <Text accessibilityRole="header" style={mobileType.title}>
-                  {title}
-                </Text>
-              )}
+          <View>
+            {headerBackground}
+            <View accessible={false} style={styles.handle} />
+            {notice ? <View style={styles.notice}>{notice}</View> : null}
+            <View style={styles.header}>
+              <View style={styles.title}>
+                {heading ?? (
+                  <Text accessibilityRole="header" style={mobileType.title}>
+                    {title}
+                  </Text>
+                )}
+              </View>
+              <Pressable
+                accessibilityLabel="Close sheet"
+                accessibilityRole="button"
+                onPress={onDismiss}
+                style={({ pressed }) => [
+                  styles.close,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Text style={styles.closeLabel}>Close</Text>
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityLabel="Close sheet"
-              accessibilityRole="button"
-              onPress={onDismiss}
-              style={({ pressed }) => [
-                styles.close,
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <Text style={styles.closeLabel}>Close</Text>
-            </Pressable>
           </View>
           <ScrollView
             tabIndex={0}
@@ -157,6 +165,7 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.small,
   },
   title: { flex: 1, minWidth: 0, paddingVertical: mobileSpacing.small },
+  notice: { alignItems: "center", paddingTop: mobileSpacing.small },
   close: {
     minHeight: mobileSizing.minimumTouchTarget,
     minWidth: mobileSizing.minimumTouchTarget,

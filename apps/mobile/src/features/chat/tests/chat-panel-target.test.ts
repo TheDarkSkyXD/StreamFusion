@@ -1043,6 +1043,104 @@ describe("chat reading position", () => {
 });
 
 describe("chat user sheet", () => {
+  it("shows both copy destinations and disables chat insertion in read-only chat", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText: async () => undefined,
+      },
+    );
+    try {
+      await panel.render(channelA, [messageA], 0, { readOnly: true });
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(
+        panel.container.querySelector('[aria-label="Copy to clipboard"]'),
+      ).not.toBeNull();
+      const copyToChat = panel.container.querySelector<HTMLButtonElement>(
+        '[data-testid="chat-copy-to-chat"]',
+      );
+      expect(copyToChat).not.toBeNull();
+      expect(copyToChat?.disabled).toBe(true);
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("uses the selected user's banner behind the profile header", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      {
+        copyText: async () => undefined,
+        readChannel: async () => ({
+          id: "user-a",
+          username: "alpha-viewer",
+          displayName: "Alpha viewer",
+          avatarUrl: "",
+          bannerUrl: "https://example.test/banner.png",
+        }),
+      },
+    );
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(
+        panel.container
+          .querySelector('[data-testid="chat-user-banner"]')
+          ?.getAttribute("data-source-uri"),
+      ).toBe("https://example.test/banner.png");
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("shows copy feedback above the profile and clears it five seconds after the latest copy", async () => {
+    vi.useFakeTimers();
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [],
+      true,
+      { copyText: async () => undefined },
+    );
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.press('[data-testid="chat-copy-message"]');
+      const notice = panel.container.querySelector(
+        '[data-testid="chat-copy-notice"]',
+      );
+      const avatar = panel.container.querySelector(
+        '[data-testid="chat-user-avatar"]',
+      );
+      expect(notice?.textContent).toBe("Message copied.");
+      expect(avatar && notice?.compareDocumentPosition(avatar)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(4000);
+      });
+      await panel.press('[data-testid="chat-copy-message"]');
+      await act(async () => {
+        vi.advanceTimersByTime(4999);
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-copy-notice"]'),
+      ).not.toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-copy-notice"]'),
+      ).toBeNull();
+    } finally {
+      await panel.unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("opens overflowing history with the selected row visible once", async () => {
     const panel = renderPanel(
       chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
