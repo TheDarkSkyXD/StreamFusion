@@ -264,19 +264,21 @@ export const ChatMessageRow = memo(function ChatMessageRow({
         {message.displayName ? (
           <Text style={[styles.messageText, font]}>{": "}</Text>
         ) : null}
-        {parts.map((part, index) =>
+        {parts.flatMap((part, index) =>
           part.kind === "text" ? (
-            <Text
-              key={index}
-              selectable
-              style={[
-                styles.messageText,
-                font,
-                deleted ? styles.deleted : null,
-              ]}
-            >
-              {part.text}
-            </Text>
+            (part.text.match(/\S+\s*|\s+/gu) ?? []).map((word, wordIndex) => (
+              <Text
+                key={`${index}-${wordIndex}`}
+                selectable
+                style={[
+                  styles.messageText,
+                  font,
+                  deleted ? styles.deleted : null,
+                ]}
+              >
+                {word}
+              </Text>
+            ))
           ) : part.kind === "emote-stack" ? (
             <View
               key={index}

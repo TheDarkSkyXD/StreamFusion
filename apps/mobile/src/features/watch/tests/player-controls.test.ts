@@ -9,6 +9,22 @@ const pressableProps = vi.hoisted(
   () => new Map<string, Record<string, unknown>>(),
 );
 
+vi.mock("@mobile/design/bottom-sheet", () => ({
+  MobileBottomSheet: ({
+    children,
+    footer,
+    testID,
+  }: Parameters<
+    typeof import("@mobile/design/bottom-sheet").MobileBottomSheet
+  >[0]) =>
+    createElement(
+      "div",
+      { testID: testID ? `${testID}-menu` : undefined },
+      children,
+      footer,
+    ),
+}));
+
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
   const host = (tag: string) => (props: Record<string, unknown>) =>

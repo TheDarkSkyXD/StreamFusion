@@ -46,6 +46,7 @@ type Action = {
   readonly onPress: () => void;
   readonly icon: ComponentType<{ color: string; size: number }>;
   readonly tone?: "platform" | "danger" | "primary";
+  readonly disabled?: boolean;
 };
 
 export function ChatUserSheet({
@@ -170,16 +171,13 @@ export function ChatUserSheet({
     [selected, messages],
   );
   const actions: Action[] = [
-    ...(canReply
-      ? [
-          {
-            label: "Reply",
-            testID: "chat-reply",
-            onPress: onReply,
-            icon: CornerUpLeft,
-          },
-        ]
-      : []),
+    {
+      label: "Reply",
+      testID: "chat-reply",
+      onPress: onReply,
+      icon: CornerUpLeft,
+      disabled: !canReply || selected.deletedAt !== undefined,
+    },
     ...(canCompose && username
       ? [
           {
@@ -443,7 +441,6 @@ function SheetAction({
   tone,
   platform,
 }: Action & {
-  readonly disabled?: boolean;
   readonly platform?: Platform;
 }) {
   const platformColor =

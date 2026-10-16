@@ -1,9 +1,18 @@
-import { isValidElement, type ReactElement } from "react";
+import { createElement, isValidElement, type ReactElement } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { WatchCaptionBar } from "../components/watch-caption-bar";
 import { WatchCaptionOverlay } from "../components/watch-caption-overlay";
 import type { CaptionModelState } from "@mobile/features/native-contracts/capabilities/android-capability-contracts";
+
+vi.mock("@mobile/design/bottom-sheet", () => ({
+  MobileBottomSheet: ({
+    children,
+    footer,
+  }: Parameters<
+    typeof import("@mobile/design/bottom-sheet").MobileBottomSheet
+  >[0]) => createElement("View", null, children, footer),
+}));
 
 vi.mock("react-native", () => ({
   Pressable: "Pressable",

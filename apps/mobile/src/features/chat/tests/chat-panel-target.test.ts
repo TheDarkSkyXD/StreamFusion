@@ -61,6 +61,17 @@ let nativeListEvents: {
   }) => void;
 } = {};
 
+let sheetGesture: {
+  onMoveShouldSetPanResponder?: (
+    event: unknown,
+    gesture: { dx: number; dy: number; vy: number },
+  ) => boolean;
+  onPanResponderRelease?: (
+    event: unknown,
+    gesture: { dx: number; dy: number; vy: number },
+  ) => void;
+} = {};
+
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
   type HostProps = {
@@ -89,6 +100,24 @@ vi.mock("react-native", async () => {
       props.children,
     );
   return {
+    Animated: {
+      View: host("div"),
+      Value: class {
+        setValue() {}
+        stopAnimation() {}
+      },
+      timing: () => ({
+        start: (done?: (result: { finished: boolean }) => void) =>
+          done?.({ finished: true }),
+      }),
+      spring: () => ({ start: () => undefined }),
+    },
+    PanResponder: {
+      create: (handlers: typeof sheetGesture) => {
+        sheetGesture = handlers;
+        return { panHandlers: {} };
+      },
+    },
     requireNativeComponent: () => host("img"),
     ActivityIndicator: host("span"),
     Platform: { OS: "android" },
@@ -1063,6 +1092,11 @@ describe("chat user sheet", () => {
       );
       expect(copyToChat).not.toBeNull();
       expect(copyToChat?.disabled).toBe(true);
+      const reply = panel.container.querySelector<HTMLButtonElement>(
+        '[data-testid="chat-reply"]',
+      );
+      expect(reply).not.toBeNull();
+      expect(reply?.disabled).toBe(true);
     } finally {
       await panel.unmount();
     }
@@ -1215,7 +1249,7 @@ describe("chat user sheet", () => {
     }
   });
 
-  it("shows one profile heading and one close control that dismisses the sheet", async () => {
+  it("shows one profile heading without Close and dismisses from the backdrop", async () => {
     const panel = renderPanel(
       chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
     );
@@ -1232,8 +1266,61 @@ describe("chat user sheet", () => {
       const closeButtons = [...sheet.querySelectorAll("button")].filter(
         (element) => element.textContent === "Close",
       );
-      expect(closeButtons).toHaveLength(1);
-      await panel.press('[aria-label="Close sheet"]');
+      expect(closeButtons).toHaveLength(0);
+      await panel.press('[aria-label="Dismiss Alpha viewer"]');
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("dismisses on a downward header drag but keeps the sheet for small or sideways gestures", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(
+        sheetGesture.onMoveShouldSetPanResponder?.(undefined, {
+          dx: 100,
+          dy: 10,
+          vy: 0,
+        }),
+      ).toBe(false);
+      expect(
+        sheetGesture.onMoveShouldSetPanResponder?.(undefined, {
+          dx: 0,
+          dy: -100,
+          vy: 0,
+        }),
+      ).toBe(false);
+      expect(
+        sheetGesture.onMoveShouldSetPanResponder?.(undefined, {
+          dx: 0,
+          dy: 30,
+          vy: 0,
+        }),
+      ).toBe(true);
+      await act(async () => {
+        sheetGesture.onPanResponderRelease?.(undefined, {
+          dx: 0,
+          dy: 30,
+          vy: 0,
+        });
+      });
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).not.toBeNull();
+      await act(async () => {
+        sheetGesture.onPanResponderRelease?.(undefined, {
+          dx: 0,
+          dy: 140,
+          vy: 0,
+        });
+      });
       expect(
         panel.container.querySelector('[data-testid="chat-user-actions"]'),
       ).toBeNull();
