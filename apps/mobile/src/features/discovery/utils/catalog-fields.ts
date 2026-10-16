@@ -63,7 +63,7 @@ export function gqlBroadcasterVerified(
 ): boolean {
   if (broadcaster === null) return false;
   const roles = objectField(broadcaster, "roles");
-  return roles?.isPartner === true || roles?.isAffiliate === true;
+  return roles?.isPartner === true;
 }
 
 export function kickVerified(record: Record<string, unknown>): boolean {
