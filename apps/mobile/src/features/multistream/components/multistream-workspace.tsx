@@ -291,16 +291,12 @@ export function MultistreamWorkspace({
             busy={snapshot.busy}
             disabled={snapshot.tiles.length >= snapshot.limit || !login.trim()}
             onPress={() => {
+              const existingIds = new Set(
+                session.snapshot().tiles.map((tile) => tile.id),
+              );
               void session.add(platform, login).then(() => {
                 if (
-                  session
-                    .snapshot()
-                    .tiles.some(
-                      (tile) =>
-                        tile.target.platform === platform &&
-                        tile.target.channelName.toLowerCase() ===
-                          login.trim().toLowerCase(),
-                    )
+                  session.snapshot().tiles.some((tile) => !existingIds.has(tile.id))
                 ) {
                   setLogin("");
                   closeSheet();
