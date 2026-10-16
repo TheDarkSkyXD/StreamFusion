@@ -50,13 +50,13 @@ function findProgress(node: ReactNode): ElementProps | null {
 }
 
 describe("update dialog actions", () => {
-  it("dispatches Yes, No, and offer request-close to the intended commands", () => {
+  it("dispatches Download update, Later, and offer request-close to the intended commands", () => {
     const model = updatePresentation({ kind: "idle" }, release);
     if (model?.kind !== "offer") throw new Error("Expected offer");
     const actions: UpdateAction[] = [];
     const dialog = UpdateDialog({ model, visible: true, onAction: (action) => actions.push(action) });
     expect(findElement(dialog, "update-action-download")?.style)
-      .toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: "transparent" })]));
+      .toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: "#ffffff" })]));
     findElement(dialog, "update-action-download")?.onPress?.();
     findElement(dialog, "update-action-later")?.onPress?.();
     rootProps(dialog).onRequestClose?.();

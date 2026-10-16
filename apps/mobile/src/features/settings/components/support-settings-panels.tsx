@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
-import { mobileSpacing } from "@mobile/design/tokens";
+import { View } from "react-native";
+import { MobileButton } from "@mobile/design/button";
 import { UpdateDialog } from "@mobile/features/app-update/components/update-dialog";
 import { updatePresentation, type UpdateAction } from "@mobile/features/app-update/domain/update-presentation";
 
@@ -28,14 +28,6 @@ const MAINTENANCE_ACTIONS = [
   { kind: "reset-app", label: "Reset the app" },
 ] as const;
 
-const styles = StyleSheet.create({
-  updateNotice: {
-    paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
-    gap: mobileSpacing.small,
-  },
-});
-
 function logLinesCopy(logs: SupportSettingsView["logs"]): string {
   if (logs.length === 0) {
     return "No redacted runtime lines match this filter.";
@@ -62,6 +54,37 @@ export function UpdatesSettingsPanel({
         testID="update-status"
         value={view.updateCopy}
       />
+      {handoff ? (
+        <>
+          <SettingsCopy testID="update-handoff-status" value={handoff.detail} />
+          {handoff.installLabel ? (
+            <SettingsAction
+              label={handoff.installLabel}
+              onPress={() => { void session.installUpdate(); }}
+              testID="update-handoff-install"
+            />
+          ) : null}
+        </>
+      ) : view.update.status === "available" ? (
+        <MobileButton
+          accessibilityLabel={view.updater.kind === "idle" || view.updater.kind === "unsupported"
+            ? "View update" : "View update progress"}
+          onPress={() => { session.openUpdate(); }}
+          testID="open-update"
+          variant="primary"
+        >
+          {view.updater.kind === "idle" || view.updater.kind === "unsupported"
+            ? "View update" : "View update progress"}
+        </MobileButton>
+      ) : null}
+      {!handoff && view.updater.kind !== "idle" && view.updater.kind !== "unsupported" &&
+        view.update.status !== "available" ? (
+          <SettingsAction
+            label="View update progress"
+            onPress={() => { session.openUpdate(); }}
+            testID="open-update-progress"
+          />
+        ) : null}
       <SettingsCopy
         testID="update-last-checked"
         value={view.preferences.lastCheckAt === null
@@ -117,33 +140,6 @@ export function UpdatesSettingsPanel({
         }}
         testID="check-for-updates"
       />
-      {handoff ? (
-        <>
-          <SettingsCopy testID="update-handoff-status" value={handoff.detail} />
-          {handoff.installLabel ? (
-            <SettingsAction
-              label={handoff.installLabel}
-              onPress={() => { void session.installUpdate(); }}
-              testID="update-handoff-install"
-            />
-          ) : null}
-        </>
-      ) : view.update.status === "available" ? (
-        <SettingsAction
-          label={view.updater.kind === "idle" || view.updater.kind === "unsupported"
-            ? "Open update" : "Open update progress"}
-          onPress={() => { session.openUpdate(); }}
-          testID="open-update"
-        />
-      ) : null}
-      {!handoff && view.updater.kind !== "idle" && view.updater.kind !== "unsupported" &&
-        view.update.status !== "available" ? (
-          <SettingsAction
-            label="Open update progress"
-            onPress={() => { session.openUpdate(); }}
-            testID="open-update-progress"
-          />
-        ) : null}
       {view.updateOperationError ? (
         <SettingsCopy testID="update-operation-error" value={view.updateOperationError} />
       ) : null}
@@ -161,44 +157,6 @@ export function UpdatesSettingsPanel({
         </>
       ) : null}
     </SettingsSection>
-  );
-}
-
-export function UpdateAvailableNotice({
-  session,
-}: {
-  readonly session: SupportSettingsSession;
-}) {
-  const view = useSupportView(session);
-  if (view.update.status !== "available") return null;
-  const presentation = updatePresentation(view.updater, view.update.release);
-  const handoff = presentation?.kind === "handoff" ? presentation : null;
-  return (
-    <View style={styles.updateNotice} testID="update-available-notice">
-      <SettingsCopy
-        testID="update-available-notice-copy"
-        value={handoff?.detail ?? `StreamFusion Android ${view.update.release.version} is available.`}
-      />
-      {view.releaseOpenError ? (
-        <SettingsCopy testID="update-available-notice-error" value={view.releaseOpenError} />
-      ) : null}
-      {view.updateOperationError ? (
-        <SettingsCopy testID="update-available-notice-operation-error" value={view.updateOperationError} />
-      ) : null}
-      {handoff ? handoff.installLabel ? (
-        <SettingsAction
-          label={handoff.installLabel}
-          onPress={() => { void session.installUpdate(); }}
-          testID="notice-handoff-install"
-        />
-      ) : null : (
-        <SettingsAction
-          label="Open update"
-          onPress={() => { session.openUpdate(); }}
-          testID="open-available-update"
-        />
-      )}
-    </View>
   );
 }
 

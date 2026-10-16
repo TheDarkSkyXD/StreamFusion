@@ -6,7 +6,7 @@ import type { SupportSettingsSession, UpdateCheckState } from "../capabilities/s
 import type { AndroidUpdaterPort, UpdatePhase } from "@mobile/features/app-update/capabilities/android-updater";
 import { createSupportSettingsSession } from "../composition/support-settings-runtime";
 import { DEFAULT_SUPPORT_SETTINGS, composeSupportSettingsView } from "../domain/support-settings";
-import { UpdateAvailableNotice, UpdateDialogHost, UpdatesSettingsPanel } from "../components/support-settings-panels";
+import { UpdateDialogHost, UpdatesSettingsPanel } from "../components/support-settings-panels";
 
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
@@ -87,19 +87,20 @@ describe("mobile Updates panel", () => {
   it("keeps check controls before notes and shows the Android APK action", () => {
     const html = renderToStaticMarkup(createElement(UpdatesSettingsPanel, { session: session({ status: "available", release }) }));
     expect(html).toContain("Android 0.1.1-alpha is available");
-    expect(html).toContain("Open update");
+    expect(html).toContain("View update");
+    expect(html.indexOf('data-testid="open-update"')).toBeLessThan(html.indexOf('data-testid="allow-prerelease-updates"'));
     expect(html.indexOf("Check now")).toBeLessThan(html.indexOf("Player fixes and new controls"));
-    expect(renderToStaticMarkup(createElement(UpdateAvailableNotice, { session: session({ status: "available", release }) })))
-      .toContain("StreamFusion Android 0.1.1-alpha is available.");
   });
 
-  it("renders the exact offer with No before Yes", () => {
+  it("offers the version and download size with Later before Download update", () => {
     const html = renderToStaticMarkup(createElement(UpdateDialogHost, {
       session: session({ status: "available", release }, true),
     }));
-    expect(html).toContain("Update available");
-    expect(html).toContain("Download latest update?");
-    expect(html).toMatch(/data-testid="update-action-later"[^>]*><span[^>]*>No<\/span><\/button>.*data-testid="update-action-download"[^>]*><span[^>]*>Yes<\/span>/);
+    expect(html).toContain("Update StreamFusion");
+    expect(html).toContain("Version 0.1.1-alpha");
+    expect(html).toContain("MB");
+    expect(html).toContain("Android will ask before installing.");
+    expect(html).toMatch(/data-testid="update-action-later"[^>]*><span[^>]*>Later<\/span><\/button>.*data-testid="update-action-download"[^>]*><span[^>]*>Download update<\/span>/);
     expect(html).not.toContain('data-testid="update-action-install"');
   });
 
@@ -112,7 +113,7 @@ describe("mobile Updates panel", () => {
         session: session({ status: "available", release }, true, phase),
       }));
       expect(html).toContain(phase.kind === "verifying"
-        ? "Downloading update… 50.0 MB / 50.0 MB"
+        ? "Verifying update…"
         : "Downloading update… 12.5 MB / 50.0 MB");
       expect(html).toContain('data-testid="update-action-cancel"');
       expect(html).not.toContain('data-testid="update-dialog-title"');
@@ -121,22 +122,19 @@ describe("mobile Updates panel", () => {
     }
   });
 
-  it("keeps the global notice actionable during handoff", () => {
+  it("keeps installation recovery actions in Settings", () => {
     for (const [kind, action] of [
       ["ready", "Install"], ["permission-needed", "Open settings"],
       ["staging", null], ["awaiting-approval", "Continue install"],
     ] as const) {
       const setting = session({ status: "available", release }, false, { kind, operation: "op", release });
-      const notice = renderToStaticMarkup(createElement(UpdateAvailableNotice, { session: setting }));
       const panel = renderToStaticMarkup(createElement(UpdatesSettingsPanel, { session: setting }));
       expect(renderToStaticMarkup(createElement(UpdateDialogHost, { session: setting }))).not.toContain('data-testid="update-dialog"');
-      expect(notice).not.toContain('data-testid="open-available-update"');
       expect(panel).not.toContain('data-testid="open-update"');
       if (action) {
-        expect(notice).toContain(action);
         expect(panel).toContain(action);
       } else {
-        expect(notice).not.toContain('data-testid="notice-handoff-install"');
+        expect(panel).not.toContain('data-testid="update-handoff-install"');
       }
     }
   });

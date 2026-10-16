@@ -147,7 +147,6 @@ import {
   LogsSettingsPanel,
   ReportBugSettingsPanel,
   UpdatesSettingsPanel,
-  UpdateAvailableNotice,
   UpdateDialogHost,
 } from "@mobile/features/settings/components/support-settings-panels";
 import { useSettingsSession } from "@mobile/features/settings/components/use-settings-session";
@@ -560,9 +559,6 @@ export function AppShell({
             )}
             {playerOnlySurface ? null : (
               <MobileConnectivityBanner status={networkStatus.status} />
-            )}
-            {playerOnlySurface ? null : (
-              <UpdateAvailableNotice session={supportSession} />
             )}
             {notificationBanner && !playerOnlySurface ? (
               <InAppNotificationBannerView

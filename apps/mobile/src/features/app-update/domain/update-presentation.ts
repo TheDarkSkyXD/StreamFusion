@@ -1,5 +1,14 @@
 import type { UpdatePhase, UpdateRelease } from "../capabilities/android-updater";
 
+const byteNumberFormatter = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+export function formatUpdateBytes(bytes: number): string {
+  return `${byteNumberFormatter.format(bytes / 1_000_000)} MB`;
+}
+
 export type UpdateAction = "download" | "later" | "cancel" | "hide" | "retry" | "install";
 
 type DialogPresentation = {
@@ -31,7 +40,7 @@ export function updatePresentation(
     return offered
       ? phase.kind === "unsupported"
         ? { kind: "recovery", title: "Update unavailable", detail: phase.message, progress: null, actions: ["hide"], dismissAction: "hide" }
-        : { kind: "offer", title: "Update available", detail: "Download latest update?", progress: null, actions: ["later", "download"], dismissAction: "later" }
+        : { kind: "offer", title: "Update StreamFusion", detail: `Version ${offered.version} · ${formatUpdateBytes(offered.apkBytes)}\nAndroid will ask before installing.`, progress: null, actions: ["later", "download"], dismissAction: "later" }
       : null;
   }
   const title = `Android ${phase.release.version}`;
@@ -39,7 +48,7 @@ export function updatePresentation(
     case "downloading":
       return { kind: "download", title: null, detail: "", progress: { bytes: phase.bytes, total: phase.total }, actions: ["cancel"], dismissAction: "cancel" };
     case "verifying":
-      return { kind: "download", title: null, detail: "", progress: { bytes: phase.release.apkBytes, total: phase.release.apkBytes }, actions: ["cancel"], dismissAction: "cancel" };
+      return { kind: "download", title: null, detail: "Verifying update…", progress: { bytes: phase.release.apkBytes, total: phase.release.apkBytes }, actions: ["cancel"], dismissAction: "cancel" };
     case "ready":
       return { kind: "handoff", detail: "The verified update is ready for Android installation.", installLabel: "Install" };
     case "permission-needed":

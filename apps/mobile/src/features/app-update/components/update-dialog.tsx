@@ -6,21 +6,16 @@ import {
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
-import type { UpdateAction, UpdateDialogModel } from "../domain/update-presentation";
+import { formatUpdateBytes, type UpdateAction, type UpdateDialogModel } from "../domain/update-presentation";
 
 const LABELS: Record<UpdateAction, string> = {
-  download: "Yes",
-  later: "No",
+  download: "Download update",
+  later: "Later",
   cancel: "Cancel",
   hide: "Hide",
   retry: "Retry",
   install: "Install",
 };
-
-const byteNumberFormatter = new Intl.NumberFormat(undefined, {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
 
 export function UpdateDialog({
   model,
@@ -49,7 +44,7 @@ export function UpdateDialog({
           {model.title ? <Text style={styles.title} testID="update-dialog-title">{model.title}</Text> : null}
           {model.kind === "download" && model.progress ? (
             <Text style={styles.detail} testID="update-dialog-detail">
-              {`Downloading update… ${formatBytes(model.progress.bytes)} / ${formatBytes(model.progress.total)}`}
+              {model.detail || `Downloading update… ${formatUpdateBytes(model.progress.bytes)} / ${formatUpdateBytes(model.progress.total)}`}
             </Text>
           ) : <Text style={styles.detail} testID="update-dialog-detail">{model.detail}</Text>}
           {model.failureDetail ? (
@@ -80,13 +75,13 @@ export function UpdateDialog({
                 accessibilityRole="button"
                 key={action}
                 onPress={() => onAction(action)}
-                style={[styles.button, model.kind === "offer" || model.kind === "download"
+                style={[styles.button, action === "later" || model.kind === "download"
                   ? styles.textButton
                   : action === "download" || action === "install" || action === "retry"
                     ? styles.primary : styles.secondary]}
                 testID={`update-action-${action}`}
               >
-                <Text style={model.kind === "offer" || model.kind === "download"
+                <Text style={action === "later" || model.kind === "download"
                   ? styles.textButtonLabel
                   : action === "download" || action === "install" || action === "retry"
                     ? styles.primaryLabel : styles.secondaryLabel}>
@@ -99,10 +94,6 @@ export function UpdateDialog({
       </View>
     </Modal>
   );
-}
-
-function formatBytes(bytes: number): string {
-  return `${byteNumberFormatter.format(bytes / 1_000_000)} MB`;
 }
 
 const styles = StyleSheet.create({

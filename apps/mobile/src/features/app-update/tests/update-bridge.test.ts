@@ -46,8 +46,8 @@ describe("Android updater bridge", () => {
       release: previous,
     }, release)).toMatchObject({
       kind: "offer",
-      title: "Update available",
-      detail: "Download latest update?",
+      title: "Update StreamFusion",
+      detail: "Version 0.1.4-alpha.1 · 2.0 MB\nAndroid will ask before installing.",
       actions: ["later", "download"],
     });
   });
