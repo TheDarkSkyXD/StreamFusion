@@ -1894,6 +1894,14 @@
     "refreshStream": "സ്ട്രീം പുതുക്കുക",
     "blockingMidrollAds": "മിഡ്‌റോൾ പരസ്യങ്ങൾ തടയുന്നു",
     "playbackInterrupted": "പ്ലേബാക്ക് തടസ്സപ്പെട്ടു",
+    "protectedWindowOpening": "പ്ലേയർ വിൻഡോ തുറക്കുന്നു...",
+    "protectedWindowOpen": "പ്ലേയർ വിൻഡോ തുറന്നിരിക്കുന്നു",
+    "protectedWindowClosed": "പ്ലേയർ വിൻഡോ അടച്ചു",
+    "protectedWindowUnavailable": "പ്ലേയർ വിൻഡോ ലഭ്യമല്ല",
+    "protectedWindowNotice": "Twitch's ഔദ്യോഗിക പ്ലേയർ വെവ്വേറെ തുറക്കുന്നു. പരസ്യങ്ങൾ പ്രത്യക്ഷപ്പെടാം.",
+    "focusPlayerWindow": "ഫോക്കസ് പ്ലേയർ വിൻഡോ",
+    "closePlayerWindow": "പ്ലേയർ വിൻഡോ അടയ്ക്കുക",
+    "openPlayerWindow": "പ്ലേയർ വിൻഡോ തുറക്കുക",
     "unableToCheckStreamStatus": "സ്ട്രീം നില പരിശോധിക്കാനായില്ല",
     "unableToLoadStream": "സ്ട്രീം ലോഡ് ചെയ്യാനായില്ല",
     "currentlyOffline": "നിലവിൽ ഓഫ്‌ലൈനാണ്",
@@ -2129,7 +2137,10 @@
       "buffering": "ബഫറിംഗ്",
       "bufferingDetail": "പ്ലെയർ ഈ തത്സമയ സ്ട്രീം ബഫർ ചെയ്യുന്നു.",
       "focusedActive": "ഫോക്കസ് ചെയ്ത തത്സമയ പ്ലേബാക്ക് സജീവമാണ്."
-    }
+    },
+    "protectedWindowsOnly": "പരിരക്ഷിത പ്ലേബാക്കിന് Windows ആവശ്യമാണ്.",
+    "protectedRuntimeMissing": "ഈ സ്ട്രീം തുറക്കാൻ Microsoft Edge WebView2 റൺടൈം ഇൻസ്റ്റാൾ ചെയ്യുക.",
+    "installWebView2Runtime": "WebView2 റൺടൈം നേടുക"
   },
   "settings": {
     "general": "ജനറൽ",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "ചിത്രം-ബൈ-ചിത്രം",
     "thunderdome": "ഇടിമുഴക്കം",
     "desktopNotifications": "ഡെസ്ക്ടോപ്പ് അറിയിപ്പുകൾ",
+    "doNotDisturb": "ശല്യപ്പെടുത്തരുത്",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ചരിത്രം റെക്കോർഡ് ചെയ്യുമ്പോഴും ഇൻ-ആപ്പ് ബാനറുകൾ, അറിയിപ്പ് ശബ്‌ദങ്ങൾ, സിസ്റ്റം അലേർട്ടുകൾ എന്നിവ നിശബ്ദമാക്കുക.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "പിന്തുടരുന്ന സ്ട്രീമുകൾ തത്സമയമാകുമ്പോൾ നേറ്റീവ് OS അറിയിപ്പുകൾ കാണിക്കുക.",
     "liveNotifications": "തത്സമയ അറിയിപ്പുകൾ",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "ആപ്പ് അറിയിപ്പ് ചരിത്രത്തിൽ ലൈവ് സ്ട്രീം അലേർട്ടുകൾ സൂക്ഷിക്കുക.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "സൈൻ-ഇൻ, ടോക്കൺ സാധുത",
     "allowPreReleaseUpdates": "പ്രീ-റിലീസ് അപ്‌ഡേറ്റുകൾ അനുവദിക്കുക",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "സ്ഥിരമായ റിലീസിന് മുമ്പ് ബീറ്റ, പ്രിവ്യൂ പതിപ്പുകൾ സ്വീകരിക്കുക",
-    "checkForUpdatesOnStartup": "സ്റ്റാർട്ടപ്പിലെ അപ്‌ഡേറ്റുകൾക്കായി പരിശോധിക്കുക",
+    "checkForUpdatesOnStartup": "അപ്‌ഡേറ്റുകൾക്കായി പരിശോധിക്കുന്നത് തുടരുക",
     "checkForNewVersionsInTheBackgroundOnASchedule": "ഒരു ഷെഡ്യൂളിൽ പശ്ചാത്തലത്തിൽ പുതിയ പതിപ്പുകൾക്കായി പരിശോധിക്കുക",
     "checkFrequency": "ആവൃത്തി പരിശോധിക്കുക",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "ഓട്ടോമാറ്റിക് അപ്‌ഡേറ്റുകൾ ഓണായിരിക്കുമ്പോൾ എത്ര തവണ പരിശോധിക്കണം",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "നിലവിലെ പതിപ്പ്: വി",
     "updateCheckUrl": "ചെക്ക് URL അപ്ഡേറ്റ് ചെയ്യുക",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "പ്ലാറ്റ്ഫോം അപ്ഡേറ്റ് മെറ്റാഡാറ്റ അടങ്ങുന്ന ഇലക്ട്രോൺ അപ്ഡേറ്റ് ഫീഡ്",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "തിരഞ്ഞെടുത്ത ഇടവേള കഴിയുമ്പോൾ ലോഞ്ച് ചെയ്യുമ്പോൾ പരിശോധിക്കുക",
-    "minimumTimeBetweenStartupChecks": "സ്റ്റാർട്ടപ്പ് പരിശോധനകൾക്കിടയിലുള്ള ഏറ്റവും കുറഞ്ഞ സമയം",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "ആപ്പ് ഓരോ ലോഞ്ചും പരിശോധിക്കുന്നു. ഇത് തുറന്നിരിക്കുമ്പോൾ പരിശോധനകൾക്കായി ഇത് ഓണാക്കുക.",
+    "minimumTimeBetweenStartupChecks": "അധിക പരിശോധനകൾക്കിടയിലുള്ള സമയം",
     "selectFrequency": "ആവൃത്തി തിരഞ്ഞെടുക്കുക",
     "hourly": "മണിക്കൂറിൽ",
     "daily": "ദിവസേന",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} സെക്കൻഡ്",
     "unknown": "അജ്ഞാതം",
     "failedToDownloadUpdate": "അപ്ഡേറ്റ് ഡൗൺലോഡ് ചെയ്യാനായില്ല",
-    "failedToInstallUpdate": "അപ്ഡേറ്റ് ഇൻസ്റ്റാൾ ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു",
-    "doNotDisturb": "ശല്യപ്പെടുത്തരുത്",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ചരിത്രം റെക്കോർഡ് ചെയ്യുമ്പോഴും ഇൻ-ആപ്പ് ബാനറുകൾ, അറിയിപ്പ് ശബ്‌ദങ്ങൾ, സിസ്റ്റം അലേർട്ടുകൾ എന്നിവ നിശബ്ദമാക്കുക."
+    "failedToInstallUpdate": "അപ്ഡേറ്റ് ഇൻസ്റ്റാൾ ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു"
   },
   "shell": {
     "loadingPage": "പേജ് ലോഡ് ചെയ്യുന്നു",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "സൈഡ്‌ബാർ വികസിപ്പിക്കുക",
       "collapseSidebar": "സൈഡ്‌ബാർ ചുരുക്കുക",
       "notifications": "അറിയിപ്പുകൾ",
+      "doNotDisturb": "ശല്യപ്പെടുത്തരുത്",
+      "notificationsMuted": "അറിയിപ്പുകൾ നിശബ്ദമാക്കി",
       "markAllRead": "എല്ലാം വായിച്ചതായി അടയാളപ്പെടുത്തുക",
       "emptyNotifications": "പുതിയ അറിയിപ്പുകളൊന്നുമില്ല",
       "dismiss": "പിരിച്ചുവിടുക",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} മണിക്കൂർ മുമ്പ്",
       "hoursAgo_other": "{{count}} മണിക്കൂർ മുമ്പ്",
       "daysAgo_one": "{{count}} ദിവസം മുമ്പ്",
-      "daysAgo_other": "{{count}} ദിവസം മുമ്പ്",
-      "doNotDisturb": "ശല്യപ്പെടുത്തരുത്",
-      "notificationsMuted": "അറിയിപ്പുകൾ നിശബ്ദമാക്കി"
+      "daysAgo_other": "{{count}} ദിവസം മുമ്പ്"
     },
     "titleBar": {
       "minimize": "ചെറുതാക്കുക",

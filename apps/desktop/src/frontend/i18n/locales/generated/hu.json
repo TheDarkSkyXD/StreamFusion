@@ -1894,6 +1894,14 @@
     "refreshStream": "Adatfolyam frissítése",
     "blockingMidrollAds": "A tartalom közbeni hirdetések blokkolása",
     "playbackInterrupted": "A lejátszás megszakadt",
+    "protectedWindowOpening": "Lejátszóablak megnyitása...",
+    "protectedWindowOpen": "A lejátszó ablak nyitva van",
+    "protectedWindowClosed": "A lejátszó ablak bezárva",
+    "protectedWindowUnavailable": "A lejátszó ablak nem érhető el",
+    "protectedWindowNotice": "A Twitch's hivatalos lejátszó külön nyílik meg. Hirdetések jelenhetnek meg.",
+    "focusPlayerWindow": "Fókusz lejátszó ablak",
+    "closePlayerWindow": "Zárja be a lejátszó ablakát",
+    "openPlayerWindow": "Nyissa meg a lejátszó ablakát",
     "unableToCheckStreamStatus": "Nem lehet ellenőrizni az adatfolyam állapotát",
     "unableToLoadStream": "Nem sikerült betölteni az adatfolyamot",
     "currentlyOffline": "jelenleg offline állapotban van",
@@ -2129,7 +2137,10 @@
       "buffering": "Pufferelés",
       "bufferingDetail": "A játékos puffereli ezt az élő közvetítést.",
       "focusedActive": "A fókuszált élő lejátszás aktív."
-    }
+    },
+    "protectedWindowsOnly": "A védett lejátszáshoz Windows szükséges.",
+    "protectedRuntimeMissing": "Telepítse a Microsoft Edge WebView2 Runtime alkalmazást az adatfolyam megnyitásához.",
+    "installWebView2Runtime": "Szerezze be a WebView2 Runtime alkalmazást"
   },
   "settings": {
     "general": "tábornok",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "képről-képre",
     "thunderdome": "mennydörgés",
     "desktopNotifications": "Asztali értesítések",
+    "doNotDisturb": "Ne zavarjanak",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Elnémíthatja az alkalmazáson belüli szalaghirdetéseket, értesítési hangokat és rendszerriasztásokat, miközben továbbra is rögzíti az előzményeket.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Natív operációs rendszer értesítéseinek megjelenítése, amikor a követett adatfolyamok élő adásba kerülnek.",
     "liveNotifications": "Élő értesítések",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Tartsa az élő közvetítésről szóló figyelmeztetéseket az alkalmazás értesítési előzményeiben.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Bejelentkezés és token érvényessége",
     "allowPreReleaseUpdates": "Kiadás előtti frissítések engedélyezése",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Béta és előnézeti verziók fogadása a stabil kiadás előtt",
-    "checkForUpdatesOnStartup": "Indításkor ellenőrizze a frissítéseket",
+    "checkForUpdatesOnStartup": "Folyamatosan ellenőrizze a frissítéseket",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Új verziók keresése a háttérben ütemezetten",
     "checkFrequency": "Ellenőrizze a gyakoriságot",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Milyen gyakran ellenőrizhető az automatikus frissítések bekapcsolása",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Jelenlegi verzió: v",
     "updateCheckUrl": "Frissítse az ellenőrzési URL-t",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "A platformfrissítés metaadatait tartalmazó elektronfrissítési hírcsatorna",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Indításkor ellenőrizze, hogy a kiválasztott intervallum letelt-e",
-    "minimumTimeBetweenStartupChecks": "Minimális idő az indítási ellenőrzések között",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Az alkalmazás minden indítást ellenőriz. Kapcsolja be a csekkekhez, amíg nyitva marad.",
+    "minimumTimeBetweenStartupChecks": "A további ellenőrzések közötti idő",
     "selectFrequency": "Válassza ki a frekvenciát",
     "hourly": "Óránként",
     "daily": "Naponta",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} másodperc",
     "unknown": "ismeretlen",
     "failedToDownloadUpdate": "Nem sikerült letölteni a frissítést",
-    "failedToInstallUpdate": "Nem sikerült telepíteni a frissítést",
-    "doNotDisturb": "Ne zavarjanak",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Elnémíthatja az alkalmazáson belüli szalaghirdetéseket, értesítési hangokat és rendszerriasztásokat, miközben továbbra is rögzíti az előzményeket."
+    "failedToInstallUpdate": "Nem sikerült telepíteni a frissítést"
   },
   "shell": {
     "loadingPage": "Oldal betöltése",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Az oldalsáv kibontása",
       "collapseSidebar": "Oldalsáv összecsukása",
       "notifications": "Értesítések",
+      "doNotDisturb": "Ne zavarjanak",
+      "notificationsMuted": "Az értesítések elnémítva",
       "markAllRead": "Jelölje meg az összeset olvasottnak",
       "emptyNotifications": "Nincsenek új értesítések",
       "dismiss": "Elvetés",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} órája",
       "hoursAgo_other": "{{count}} órája",
       "daysAgo_one": "{{count}} napja",
-      "daysAgo_other": "{{count}} napja",
-      "doNotDisturb": "Ne zavarjanak",
-      "notificationsMuted": "Az értesítések elnémítva"
+      "daysAgo_other": "{{count}} napja"
     },
     "titleBar": {
       "minimize": "Minimalizálás",

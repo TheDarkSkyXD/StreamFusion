@@ -1894,6 +1894,14 @@
     "refreshStream": "Actualitza el flux",
     "blockingMidrollAds": "Bloqueig dels anuncis midroll",
     "playbackInterrupted": "La reproducció s'ha interromput",
+    "protectedWindowOpening": "S'està obrint la finestra del reproductor...",
+    "protectedWindowOpen": "La finestra del reproductor està oberta",
+    "protectedWindowClosed": "Finestra del jugador tancada",
+    "protectedWindowUnavailable": "La finestra del reproductor no està disponible",
+    "protectedWindowNotice": "Twitch's jugador oficial s'obre per separat. Els anuncis poden aparèixer.",
+    "focusPlayerWindow": "Enfoca la finestra del reproductor",
+    "closePlayerWindow": "Tanca la finestra del reproductor",
+    "openPlayerWindow": "Obre la finestra del reproductor",
     "unableToCheckStreamStatus": "No es pot comprovar l'estat de la reproducció",
     "unableToLoadStream": "No es pot carregar el flux",
     "currentlyOffline": "actualment està fora de línia",
@@ -2129,7 +2137,10 @@
       "buffering": "Buffering",
       "bufferingDetail": "El jugador està guardant aquesta emissió en directe.",
       "focusedActive": "La reproducció en directe centrada està activa."
-    }
+    },
+    "protectedWindowsOnly": "La reproducció protegida requereix Windows.",
+    "protectedRuntimeMissing": "Instal·leu Microsoft Edge WebView2 Runtime per obrir aquest flux.",
+    "installWebView2Runtime": "Obteniu WebView2 Runtime"
   },
   "settings": {
     "general": "General",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "imatge per imatge",
     "thunderdome": "tronera",
     "desktopNotifications": "Notificacions d'escriptori",
+    "doNotDisturb": "No Molestis",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silencia els bàners de l'aplicació, els sons de notificació i les alertes del sistema mentre continues enregistrant l'historial.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Mostra les notificacions del sistema operatiu natiu quan les reproduccions seguides es publiquen.",
     "liveNotifications": "Notificacions en directe",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Conserveu les alertes de transmissió en directe a l'historial de notificacions de l'aplicació.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Inici de sessió i validesa del testimoni",
     "allowPreReleaseUpdates": "Permet actualitzacions prèvies al llançament",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Rebeu versions beta i previsualització abans del llançament estable",
-    "checkForUpdatesOnStartup": "Comproveu si hi ha actualitzacions a l'inici",
+    "checkForUpdatesOnStartup": "Seguiu comprovant si hi ha actualitzacions",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Comproveu si hi ha versions noves en segon pla en una programació",
     "checkFrequency": "Comproveu la freqüència",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Amb quina freqüència cal comprovar quan les actualitzacions automàtiques estan activades",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Versió actual: v",
     "updateCheckUrl": "Actualitza l'URL de comprovació",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Font d'actualització d'electrons que conté les metadades d'actualització de la plataforma",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Comproveu al llançament quan hagi transcorregut l'interval seleccionat",
-    "minimumTimeBetweenStartupChecks": "Temps mínim entre comprovacions d'inici",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "L'aplicació comprova cada llançament. Activa aquesta opció per a comprovacions mentre roman oberta.",
+    "minimumTimeBetweenStartupChecks": "Temps entre comprovacions addicionals",
     "selectFrequency": "Seleccioneu la freqüència",
     "hourly": "Cada hora",
     "daily": "Diàriament",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} segons",
     "unknown": "desconegut",
     "failedToDownloadUpdate": "No s'ha pogut descarregar l'actualització",
-    "failedToInstallUpdate": "No s'ha pogut instal·lar l'actualització",
-    "doNotDisturb": "No Molestis",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silencia els bàners de l'aplicació, els sons de notificació i les alertes del sistema mentre continues enregistrant l'historial."
+    "failedToInstallUpdate": "No s'ha pogut instal·lar l'actualització"
   },
   "shell": {
     "loadingPage": "S'està carregant la pàgina",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Amplieu la barra lateral",
       "collapseSidebar": "Replega la barra lateral",
       "notifications": "Notificacions",
+      "doNotDisturb": "No Molestis",
+      "notificationsMuted": "Notificacions silenciades",
       "markAllRead": "Marca tot llegit",
       "emptyNotifications": "No hi ha notificacions noves",
       "dismiss": "Descartar",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "Fa {{count}} hora",
       "hoursAgo_other": "Fa {{count}} hores",
       "daysAgo_one": "fa {{count}} dia",
-      "daysAgo_other": "Fa {{count}} dies",
-      "doNotDisturb": "No Molestis",
-      "notificationsMuted": "Notificacions silenciades"
+      "daysAgo_other": "Fa {{count}} dies"
     },
     "titleBar": {
       "minimize": "Minimitzar",

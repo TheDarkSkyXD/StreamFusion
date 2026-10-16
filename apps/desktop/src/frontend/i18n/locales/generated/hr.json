@@ -1894,6 +1894,14 @@
     "refreshStream": "Osvježi stream",
     "blockingMidrollAds": "Blokiranje oglasa u sklopu videozapisa",
     "playbackInterrupted": "Reprodukcija prekinuta",
+    "protectedWindowOpening": "Otvaranje prozora playera...",
+    "protectedWindowOpen": "Prozor playera je otvoren",
+    "protectedWindowClosed": "Prozor igrača zatvoren",
+    "protectedWindowUnavailable": "Prozor playera nije dostupan",
+    "protectedWindowNotice": "Twitch's službeni player otvara se zasebno. Oglasi se mogu pojaviti.",
+    "focusPlayerWindow": "Fokusiraj prozor playera",
+    "closePlayerWindow": "Zatvori prozor playera",
+    "openPlayerWindow": "Otvaranje prozora playera",
     "unableToCheckStreamStatus": "Nije moguće provjeriti status streama",
     "unableToLoadStream": "Nije moguće učitati stream",
     "currentlyOffline": "trenutno je izvan mreže",
@@ -2129,7 +2137,10 @@
       "buffering": "Spremanje u međuspremnik",
       "bufferingDetail": "Igrač sprema ovaj prijenos uživo u međuspremnik.",
       "focusedActive": "Fokusirana reprodukcija uživo je aktivna."
-    }
+    },
+    "protectedWindowsOnly": "Zaštićena reprodukcija zahtijeva Windows.",
+    "protectedRuntimeMissing": "Instalirajte Microsoft Edge WebView2 Runtime da otvorite ovaj stream.",
+    "installWebView2Runtime": "Nabavite WebView2 Runtime"
   },
   "settings": {
     "general": "generalno",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "slika po slika",
     "thunderdome": "grmljavinska kupola",
     "desktopNotifications": "Obavijesti na radnoj površini",
+    "doNotDisturb": "Ne uznemiravaj",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Utišajte natpise unutar aplikacije, zvukove obavijesti i upozorenja sustava dok i dalje snimate povijest.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Prikaži obavijesti izvornog OS-a kada se prate streamovi pokrenu uživo.",
     "liveNotifications": "Obavijesti uživo",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Čuvajte upozorenja o prijenosu uživo u povijesti obavijesti aplikacije.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Prijava i valjanost tokena",
     "allowPreReleaseUpdates": "Dopusti ažuriranja prije izdanja",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Primite beta i verzije za pregled prije stabilnog izdanja",
-    "checkForUpdatesOnStartup": "Provjerite ima li ažuriranja pri pokretanju",
+    "checkForUpdatesOnStartup": "Nastavite provjeravati ažuriranja",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Provjerite nove verzije u pozadini prema rasporedu",
     "checkFrequency": "Provjerite učestalost",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Koliko često provjeravati kada su uključena automatska ažuriranja",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Trenutna verzija: v",
     "updateCheckUrl": "Ažurirajte URL provjere",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Feed ažuriranja Electron koji sadrži metapodatke ažuriranja platforme",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Prilikom pokretanja provjerite kada je odabrani interval prošao",
-    "minimumTimeBetweenStartupChecks": "Minimalno vrijeme između provjera pokretanja",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Aplikacija provjerava svako pokretanje. Uključi ovo za provjere dok je otvoreno.",
+    "minimumTimeBetweenStartupChecks": "Vrijeme između dodatnih provjera",
     "selectFrequency": "Odaberite učestalost",
     "hourly": "Svaki sat",
     "daily": "Dnevno",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekundi",
     "unknown": "nepoznato",
     "failedToDownloadUpdate": "Preuzimanje ažuriranja nije uspjelo",
-    "failedToInstallUpdate": "Instalacija ažuriranja nije uspjela",
-    "doNotDisturb": "Ne uznemiravaj",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Utišajte natpise unutar aplikacije, zvukove obavijesti i upozorenja sustava dok i dalje snimate povijest."
+    "failedToInstallUpdate": "Instalacija ažuriranja nije uspjela"
   },
   "shell": {
     "loadingPage": "Učitavanje stranice",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Proširi bočnu traku",
       "collapseSidebar": "Sažmi bočnu traku",
       "notifications": "Obavijesti",
+      "doNotDisturb": "Ne uznemiravaj",
+      "notificationsMuted": "Obavijesti isključene",
       "markAllRead": "Označi sve pročitano",
       "emptyNotifications": "Nema novih obavijesti",
       "dismiss": "Odbaciti",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "Prije {{count}} sat",
       "hoursAgo_other": "Prije {{count}} sati",
       "daysAgo_one": "Prije {{count}} dan",
-      "daysAgo_other": "Prije {{count}} dana",
-      "doNotDisturb": "Ne uznemiravaj",
-      "notificationsMuted": "Obavijesti isključene"
+      "daysAgo_other": "Prije {{count}} dana"
     },
     "titleBar": {
       "minimize": "Minimiziraj",

@@ -1894,6 +1894,14 @@
     "refreshStream": "ストリームをリフレッシュ",
     "blockingMidrollAds": "ミッドロール広告のブロック",
     "playbackInterrupted": "再生が中断されました",
+    "protectedWindowOpening": "プレーヤー ウィンドウを開いています...",
+    "protectedWindowOpen": "プレーヤーウィンドウが開いています",
+    "protectedWindowClosed": "プレーヤーウィンドウが閉じられました",
+    "protectedWindowUnavailable": "プレーヤーウィンドウが使用不可",
+    "protectedWindowNotice": "Twitch's 公式プレーヤーは別に開きます。広告が表示される場合があります。",
+    "focusPlayerWindow": "プレーヤーウィンドウにフォーカスを当てる",
+    "closePlayerWindow": "プレーヤーウィンドウを閉じる",
+    "openPlayerWindow": "プレーヤーウィンドウを開く",
     "unableToCheckStreamStatus": "ストリームのステータスを確認できません",
     "unableToLoadStream": "ストリームをロードできません",
     "currentlyOffline": "現在オフラインです",
@@ -2129,7 +2137,10 @@
       "buffering": "バッファリング",
       "bufferingDetail": "プレーヤーはこのライブ ストリームをバッファリングしています。",
       "focusedActive": "集中的なライブ再生がアクティブです。"
-    }
+    },
+    "protectedWindowsOnly": "保護された再生には Windows が必要です。",
+    "protectedRuntimeMissing": "このストリームを開くには、Microsoft Edge WebView2 ランタイムをインストールします。",
+    "installWebView2Runtime": "WebView2 ランタイムを取得する"
   },
   "settings": {
     "general": "一般",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "一枚一枚",
     "thunderdome": "サンダードーム",
     "desktopNotifications": "デスクトップ通知",
+    "doNotDisturb": "邪魔しないでください",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "履歴を記録しながら、アプリ内バナー、通知音、システム アラートを消音します。",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "フォローされているストリームがライブになったときにネイティブ OS 通知を表示します。",
     "liveNotifications": "ライブ通知",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "ライブ ストリーム アラートをアプリの通知履歴に保存します。",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "サインインとトークンの有効性",
     "allowPreReleaseUpdates": "プレリリースアップデートを許可する",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "安定版リリース前にベータ版とプレビュー版を受け取る",
-    "checkForUpdatesOnStartup": "起動時にアップデートを確認する",
+    "checkForUpdatesOnStartup": "アップデートをチェックし続ける",
     "checkForNewVersionsInTheBackgroundOnASchedule": "スケジュールに従ってバックグラウンドで新しいバージョンを確認する",
     "checkFrequency": "チェック頻度",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "自動更新がオンになっている場合に確認する頻度",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "現在のバージョン: v",
     "updateCheckUrl": "更新確認URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "プラットフォーム更新メタデータを含む Electron 更新フィード",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "選択した間隔が経過したときに起動時に確認します",
-    "minimumTimeBetweenStartupChecks": "起動チェック間の最小時間",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "アプリは起動するたびにチェックします。開いたままチェックする場合はこれをオンにします。",
+    "minimumTimeBetweenStartupChecks": "追加チェック間の時間",
     "selectFrequency": "周波数の選択",
     "hourly": "毎時",
     "daily": "毎日",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}}秒",
     "unknown": "不明",
     "failedToDownloadUpdate": "アップデートのダウンロードに失敗しました",
-    "failedToInstallUpdate": "アップデートのインストールに失敗しました",
-    "doNotDisturb": "邪魔しないでください",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "履歴を記録しながら、アプリ内バナー、通知音、システム アラートを消音します。"
+    "failedToInstallUpdate": "アップデートのインストールに失敗しました"
   },
   "shell": {
     "loadingPage": "ページを読み込み中",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "サイドバーを展開する",
       "collapseSidebar": "サイドバーを折りたたむ",
       "notifications": "通知",
+      "doNotDisturb": "邪魔しないでください",
+      "notificationsMuted": "通知をミュートしました",
       "markAllRead": "すべて既読としてマークする",
       "emptyNotifications": "新しい通知はありません",
       "dismiss": "解雇する",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} 時間前",
       "hoursAgo_other": "{{count}}時間前",
       "daysAgo_one": "{{count}} 日前",
-      "daysAgo_other": "{{count}}日前",
-      "doNotDisturb": "邪魔しないでください",
-      "notificationsMuted": "通知をミュートしました"
+      "daysAgo_other": "{{count}}日前"
     },
     "titleBar": {
       "minimize": "最小化する",

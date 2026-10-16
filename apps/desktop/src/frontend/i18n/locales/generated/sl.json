@@ -1894,6 +1894,14 @@
     "refreshStream": "Osveži tok",
     "blockingMidrollAds": "Blokiranje oglasov med predvajanjem",
     "playbackInterrupted": "Predvajanje je prekinjeno",
+    "protectedWindowOpening": "Odpiranje okna predvajalnika ...",
+    "protectedWindowOpen": "Okno predvajalnika je odprto",
+    "protectedWindowClosed": "Okno igralca zaprto",
+    "protectedWindowUnavailable": "Okno predvajalnika ni na voljo",
+    "protectedWindowNotice": "Uradni predvajalnik Twitch's se odpre ločeno. Lahko se prikažejo oglasi.",
+    "focusPlayerWindow": "Osredotočite se na okno predvajalnika",
+    "closePlayerWindow": "Zapri okno predvajalnika",
+    "openPlayerWindow": "Odpri okno predvajalnika",
     "unableToCheckStreamStatus": "Ni mogoče preveriti stanja toka",
     "unableToLoadStream": "Ni mogoče naložiti toka",
     "currentlyOffline": "je trenutno brez povezave",
@@ -2129,7 +2137,10 @@
       "buffering": "Medpomnjenje",
       "bufferingDetail": "Predvajalnik shranjuje to pretočno predvajanje v živo.",
       "focusedActive": "Osredotočeno predvajanje v živo je aktivno."
-    }
+    },
+    "protectedWindowsOnly": "Zaščiteno predvajanje zahteva Windows.",
+    "protectedRuntimeMissing": "Namestite Microsoft Edge WebView2 Runtime, da odprete ta tok.",
+    "installWebView2Runtime": "Pridobite WebView2 Runtime"
   },
   "settings": {
     "general": "Splošno",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "slika ob sliki",
     "thunderdome": "thunderdome",
     "desktopNotifications": "Obvestila na namizju",
+    "doNotDisturb": "Ne moti",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Utišajte pasice v aplikaciji, zvoke obvestil in sistemska opozorila, medtem ko še vedno beležite zgodovino.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Pokaži izvorna obvestila operacijskega sistema, ko sledijo tokovi v živo.",
     "liveNotifications": "Obvestila v živo",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Opozorila o pretakanju v živo hranite v zgodovini obvestil aplikacije.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Prijava in veljavnost žetona",
     "allowPreReleaseUpdates": "Dovoli posodobitve pred izdajo",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Prejmite različice beta in predogled pred stabilno izdajo",
-    "checkForUpdatesOnStartup": "Preverite posodobitve ob zagonu",
+    "checkForUpdatesOnStartup": "Še naprej preverjajte posodobitve",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Preverite nove različice v ozadju po urniku",
     "checkFrequency": "Preverite pogostost",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Kako pogosto preveriti, ali so samodejne posodobitve vklopljene",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Trenutna različica: v",
     "updateCheckUrl": "Posodobite URL za preverjanje",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Vir posodobitve Electron, ki vsebuje metapodatke posodobitve platforme",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Ob zagonu preverite, kdaj je potekel izbrani interval",
-    "minimumTimeBetweenStartupChecks": "Minimalni čas med preverjanji zagona",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Aplikacija preveri vsak zagon. Vklopite to za preglede, medtem ko ostane odprto.",
+    "minimumTimeBetweenStartupChecks": "Čas med dodatnimi pregledi",
     "selectFrequency": "Izberite frekvenco",
     "hourly": "Vsako uro",
     "daily": "Dnevno",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekund",
     "unknown": "neznano",
     "failedToDownloadUpdate": "Prenos posodobitve ni uspel",
-    "failedToInstallUpdate": "Namestitev posodobitve ni uspela",
-    "doNotDisturb": "Ne moti",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Utišajte pasice v aplikaciji, zvoke obvestil in sistemska opozorila, medtem ko še vedno beležite zgodovino."
+    "failedToInstallUpdate": "Namestitev posodobitve ni uspela"
   },
   "shell": {
     "loadingPage": "Nalaganje strani",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Razširite stransko vrstico",
       "collapseSidebar": "Strni stransko vrstico",
       "notifications": "Obvestila",
+      "doNotDisturb": "Ne moti",
+      "notificationsMuted": "Obvestila izklopljena",
       "markAllRead": "Označi vse prebrano",
       "emptyNotifications": "Ni novih obvestil",
       "dismiss": "Odpusti",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "pred {{count}} uro",
       "hoursAgo_other": "pred {{count}} urami",
       "daysAgo_one": "pred {{count}} dnevom",
-      "daysAgo_other": "pred {{count}} dnevi",
-      "doNotDisturb": "Ne moti",
-      "notificationsMuted": "Obvestila izklopljena"
+      "daysAgo_other": "pred {{count}} dnevi"
     },
     "titleBar": {
       "minimize": "Zmanjšaj",

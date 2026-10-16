@@ -1894,6 +1894,14 @@
     "refreshStream": "Stream aktualisieren",
     "blockingMidrollAds": "Blockieren von Mid-Roll-Anzeigen",
     "playbackInterrupted": "Wiedergabe unterbrochen",
+    "protectedWindowOpening": "Player-Fenster wird geöffnet...",
+    "protectedWindowOpen": "Das Player-Fenster ist geöffnet",
+    "protectedWindowClosed": "Spielerfenster geschlossen",
+    "protectedWindowUnavailable": "Player-Fenster nicht verfügbar",
+    "protectedWindowNotice": "Twitch's offizieller Player wird separat geöffnet. Es können Anzeigen erscheinen.",
+    "focusPlayerWindow": "Fokus-Player-Fenster",
+    "closePlayerWindow": "Schließen Sie das Player-Fenster",
+    "openPlayerWindow": "Player-Fenster öffnen",
     "unableToCheckStreamStatus": "Der Stream-Status kann nicht überprüft werden",
     "unableToLoadStream": "Stream kann nicht geladen werden",
     "currentlyOffline": "ist derzeit offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Pufferung",
       "bufferingDetail": "Der Player puffert diesen Livestream.",
       "focusedActive": "Die fokussierte Live-Wiedergabe ist aktiv."
-    }
+    },
+    "protectedWindowsOnly": "Für die geschützte Wiedergabe ist Windows erforderlich.",
+    "protectedRuntimeMissing": "Installieren Sie Microsoft Edge WebView2 Runtime, um diesen Stream zu öffnen.",
+    "installWebView2Runtime": "Holen Sie sich die WebView2-Laufzeit"
   },
   "settings": {
     "general": "Allgemein",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "Bild für Bild",
     "thunderdome": "Donnerkuppel",
     "desktopNotifications": "Desktop-Benachrichtigungen",
+    "doNotDisturb": "Bitte nicht stören",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Schalten Sie In-App-Banner, Benachrichtigungstöne und Systemwarnungen stumm, während Sie weiterhin den Verlauf aufzeichnen.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Zeigen Sie native Betriebssystembenachrichtigungen an, wenn verfolgte Streams live gehen.",
     "liveNotifications": "Live-Benachrichtigungen",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Behalten Sie Livestream-Benachrichtigungen im App-Benachrichtigungsverlauf.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Anmeldung und Token-Gültigkeit",
     "allowPreReleaseUpdates": "Vorab-Updates zulassen",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Erhalten Sie Beta- und Vorschauversionen vor der stabilen Veröffentlichung",
-    "checkForUpdatesOnStartup": "Suchen Sie beim Start nach Updates",
+    "checkForUpdatesOnStartup": "Suchen Sie weiterhin nach Updates",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Suchen Sie nach einem Zeitplan im Hintergrund nach neuen Versionen",
     "checkFrequency": "Frequenz prüfen",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Wie oft überprüft werden soll, ob automatische Updates aktiviert sind",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Aktuelle Version: v",
     "updateCheckUrl": "Prüf-URL aktualisieren",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Electron-Update-Feed mit den Plattform-Update-Metadaten",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Überprüfen Sie beim Start, wann das ausgewählte Intervall abgelaufen ist",
-    "minimumTimeBetweenStartupChecks": "Mindestzeit zwischen Startprüfungen",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Die App überprüft jeden Start. Schalten Sie dies für Schecks ein, während es geöffnet bleibt.",
+    "minimumTimeBetweenStartupChecks": "Zeit zwischen zusätzlichen Kontrollen",
     "selectFrequency": "Frequenz auswählen",
     "hourly": "Stündlich",
     "daily": "Täglich",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} Sekunden",
     "unknown": "unbekannt",
     "failedToDownloadUpdate": "Update konnte nicht heruntergeladen werden",
-    "failedToInstallUpdate": "Update konnte nicht installiert werden",
-    "doNotDisturb": "Bitte nicht stören",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Schalten Sie In-App-Banner, Benachrichtigungstöne und Systemwarnungen stumm, während Sie weiterhin den Verlauf aufzeichnen."
+    "failedToInstallUpdate": "Update konnte nicht installiert werden"
   },
   "shell": {
     "loadingPage": "Seite wird geladen",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Seitenleiste erweitern",
       "collapseSidebar": "Seitenleiste einklappen",
       "notifications": "Benachrichtigungen",
+      "doNotDisturb": "Bitte nicht stören",
+      "notificationsMuted": "Benachrichtigungen stummgeschaltet",
       "markAllRead": "Alles als gelesen markieren",
       "emptyNotifications": "Keine neuen Benachrichtigungen",
       "dismiss": "Entlassen",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "Vor {{count}} Stunde",
       "hoursAgo_other": "Vor {{count}} Stunden",
       "daysAgo_one": "Vor {{count}} Tagen",
-      "daysAgo_other": "Vor {{count}} Tagen",
-      "doNotDisturb": "Bitte nicht stören",
-      "notificationsMuted": "Benachrichtigungen stummgeschaltet"
+      "daysAgo_other": "Vor {{count}} Tagen"
     },
     "titleBar": {
       "minimize": "Minimieren",

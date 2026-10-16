@@ -1894,6 +1894,14 @@
     "refreshStream": "Actualizează fluxul",
     "blockingMidrollAds": "Blocarea anunțurilor midroll",
     "playbackInterrupted": "Redarea a fost întreruptă",
+    "protectedWindowOpening": "Se deschide fereastra playerului...",
+    "protectedWindowOpen": "Fereastra playerului este deschisă",
+    "protectedWindowClosed": "Fereastra jucătorului s-a închis",
+    "protectedWindowUnavailable": "Fereastra playerului nu este disponibilă",
+    "protectedWindowNotice": "Twitch's jucător oficial se deschide separat. Pot apărea anunțuri.",
+    "focusPlayerWindow": "Focalizează fereastra playerului",
+    "closePlayerWindow": "Închide fereastra playerului",
+    "openPlayerWindow": "Deschide fereastra playerului",
     "unableToCheckStreamStatus": "Nu se poate verifica starea fluxului",
     "unableToLoadStream": "Nu se poate încărca fluxul",
     "currentlyOffline": "este în prezent offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Buffering",
       "bufferingDetail": "Jucătorul memorează acest flux live.",
       "focusedActive": "Redarea live focalizată este activă."
-    }
+    },
+    "protectedWindowsOnly": "Redarea protejată necesită Windows.",
+    "protectedRuntimeMissing": "Instalați Microsoft Edge WebView2 Runtime pentru a deschide acest flux.",
+    "installWebView2Runtime": "Obțineți WebView2 Runtime"
   },
   "settings": {
     "general": "general",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "imagine cu imagine",
     "thunderdome": "thunderdome",
     "desktopNotifications": "Notificări de pe desktop",
+    "doNotDisturb": "Nu deranja",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silențiază bannerele din aplicație, sunetele de notificare și alertele de sistem în timp ce încă înregistrezi istoricul.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Afișează notificări ale sistemului de operare nativ atunci când streamurile urmărite sunt live.",
     "liveNotifications": "Notificări live",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Păstrați alertele live-stream în istoricul notificărilor aplicației.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Valabilitate de conectare și simbol",
     "allowPreReleaseUpdates": "Permite actualizările pre-lansare",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Primiți versiuni beta și previzualizați înainte de lansarea stabilă",
-    "checkForUpdatesOnStartup": "Verificați actualizările la pornire",
+    "checkForUpdatesOnStartup": "Continuați să verificați pentru actualizări",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Verificați dacă există versiuni noi în fundal într-un program",
     "checkFrequency": "Verificați frecvența",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Cât de des să verificați când sunt activate actualizările automate",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Versiunea curentă: v",
     "updateCheckUrl": "Actualizați adresa URL de verificare",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Flux de actualizare Electron care conține metadatele de actualizare a platformei",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Verificați la lansare când intervalul selectat a trecut",
-    "minimumTimeBetweenStartupChecks": "Timp minim între verificările de pornire",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Aplicația verifică fiecare lansare. Activați-l pentru verificări cât timp rămâne deschis.",
+    "minimumTimeBetweenStartupChecks": "Timp între verificări suplimentare",
     "selectFrequency": "Selectați frecvența",
     "hourly": "Orar",
     "daily": "Zilnic",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} secunde",
     "unknown": "necunoscut",
     "failedToDownloadUpdate": "Nu s-a putut descărca actualizarea",
-    "failedToInstallUpdate": "Nu s-a instalat actualizarea",
-    "doNotDisturb": "Nu deranja",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silențiază bannerele din aplicație, sunetele de notificare și alertele de sistem în timp ce încă înregistrezi istoricul."
+    "failedToInstallUpdate": "Nu s-a instalat actualizarea"
   },
   "shell": {
     "loadingPage": "Se încarcă pagina",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Extinde bara laterală",
       "collapseSidebar": "Restrângeți bara laterală",
       "notifications": "Notificări",
+      "doNotDisturb": "Nu deranja",
+      "notificationsMuted": "Notificările sunt dezactivate",
       "markAllRead": "Marcați toate citite",
       "emptyNotifications": "Fără notificări noi",
       "dismiss": "Respingeți",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "acum {{count}} oră",
       "hoursAgo_other": "acum {{count}} ore",
       "daysAgo_one": "acum {{count}} zi",
-      "daysAgo_other": "acum {{count}} zile",
-      "doNotDisturb": "Nu deranja",
-      "notificationsMuted": "Notificările sunt dezactivate"
+      "daysAgo_other": "acum {{count}} zile"
     },
     "titleBar": {
       "minimize": "Minimizați",

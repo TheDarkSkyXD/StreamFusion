@@ -1894,6 +1894,14 @@
     "refreshStream": "Oppdater strømmen",
     "blockingMidrollAds": "Blokkering av midroll-annonser",
     "playbackInterrupted": "Avspillingen ble avbrutt",
+    "protectedWindowOpening": "Åpner spillervinduet...",
+    "protectedWindowOpen": "Spillervinduet er åpent",
+    "protectedWindowClosed": "Spillervinduet er lukket",
+    "protectedWindowUnavailable": "Spillervinduet er utilgjengelig",
+    "protectedWindowNotice": "Twitch's offisiell spiller åpner separat. Annonser kan vises.",
+    "focusPlayerWindow": "Fokus spillervinduet",
+    "closePlayerWindow": "Lukk spillervinduet",
+    "openPlayerWindow": "Åpne spillervinduet",
     "unableToCheckStreamStatus": "Kan ikke sjekke strømstatus",
     "unableToLoadStream": "Kan ikke laste inn strømmen",
     "currentlyOffline": "er frakoblet for øyeblikket",
@@ -2129,7 +2137,10 @@
       "buffering": "Bufring",
       "bufferingDetail": "Spilleren buffrer denne direktesendingen.",
       "focusedActive": "Fokusert direkteavspilling er aktiv."
-    }
+    },
+    "protectedWindowsOnly": "Beskyttet avspilling krever Windows.",
+    "protectedRuntimeMissing": "Installer Microsoft Edge WebView2 Runtime for å åpne denne strømmen.",
+    "installWebView2Runtime": "Få WebView2 Runtime"
   },
   "settings": {
     "general": "Generelt",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "bilde for bilde",
     "thunderdome": "tordendome",
     "desktopNotifications": "Skrivebordsvarsler",
+    "doNotDisturb": "Ikke forstyrr",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Demp bannere i appen, varslingslyder og systemvarsler mens du fortsatt registrerer historikk.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Vis innebygde OS-varsler når fulgte strømmer går direkte.",
     "liveNotifications": "Live-varsler",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Behold direktestrømvarsler i appvarslingsloggen.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Innlogging og token gyldighet",
     "allowPreReleaseUpdates": "Tillat oppdateringer før utgivelsen",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Motta beta- og forhåndsvisningsversjoner før stabil utgivelse",
-    "checkForUpdatesOnStartup": "Se etter oppdateringer ved oppstart",
+    "checkForUpdatesOnStartup": "Fortsett å se etter oppdateringer",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Se etter nye versjoner i bakgrunnen på en tidsplan",
     "checkFrequency": "Sjekk frekvens",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Hvor ofte skal du sjekke når automatiske oppdateringer er på",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Gjeldende versjon: v",
     "updateCheckUrl": "Oppdater sjekk-URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Elektronoppdateringsfeed som inneholder metadataene for plattformoppdateringen",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Sjekk ved lansering når det valgte intervallet har gått",
-    "minimumTimeBetweenStartupChecks": "Minimum tid mellom oppstartskontroller",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Appen sjekker hver lansering. Slå denne på for sjekker mens den forblir åpen.",
+    "minimumTimeBetweenStartupChecks": "Tid mellom ekstra kontroller",
     "selectFrequency": "Velg frekvens",
     "hourly": "Hver time",
     "daily": "Daglig",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "ukjent",
     "failedToDownloadUpdate": "Kunne ikke laste ned oppdateringen",
-    "failedToInstallUpdate": "Kunne ikke installere oppdateringen",
-    "doNotDisturb": "Ikke forstyrr",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Demp bannere i appen, varslingslyder og systemvarsler mens du fortsatt registrerer historikk."
+    "failedToInstallUpdate": "Kunne ikke installere oppdateringen"
   },
   "shell": {
     "loadingPage": "Laster siden",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Utvid sidefeltet",
       "collapseSidebar": "Skjul sidefeltet",
       "notifications": "Varsler",
+      "doNotDisturb": "Ikke forstyrr",
+      "notificationsMuted": "Varsler er dempet",
       "markAllRead": "Merk alt som lest",
       "emptyNotifications": "Ingen nye varsler",
       "dismiss": "Avvis",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "for {{count}} time siden",
       "hoursAgo_other": "for {{count}} timer siden",
       "daysAgo_one": "for {{count}} dag siden",
-      "daysAgo_other": "for {{count}} dager siden",
-      "doNotDisturb": "Ikke forstyrr",
-      "notificationsMuted": "Varsler er dempet"
+      "daysAgo_other": "for {{count}} dager siden"
     },
     "titleBar": {
       "minimize": "Minimer",

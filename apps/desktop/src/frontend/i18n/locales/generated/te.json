@@ -1894,6 +1894,14 @@
     "refreshStream": "రిఫ్రెష్ స్ట్రీమ్",
     "blockingMidrollAds": "మిడ్‌రోల్ ప్రకటనలను నిరోధించడం",
     "playbackInterrupted": "ప్లేబ్యాక్ అంతరాయం కలిగింది",
+    "protectedWindowOpening": "ప్లేయర్ విండో తెరుస్తోంది...",
+    "protectedWindowOpen": "ప్లేయర్ విండో తెరిచి ఉంది",
+    "protectedWindowClosed": "ప్లేయర్ విండో మూసివేయబడింది",
+    "protectedWindowUnavailable": "ప్లేయర్ విండో అందుబాటులో లేదు",
+    "protectedWindowNotice": "Twitch's అధికారిక ప్లేయర్ విడిగా తెరవబడుతుంది. ప్రకటనలు కనిపించవచ్చు.",
+    "focusPlayerWindow": "ఫోకస్ ప్లేయర్ విండో",
+    "closePlayerWindow": "ప్లేయర్ విండోను మూసివేయండి",
+    "openPlayerWindow": "ప్లేయర్ విండోను తెరవండి",
     "unableToCheckStreamStatus": "స్ట్రీమ్ స్థితిని తనిఖీ చేయడం సాధ్యపడలేదు",
     "unableToLoadStream": "స్ట్రీమ్‌ను లోడ్ చేయడం సాధ్యపడలేదు",
     "currentlyOffline": "ప్రస్తుతం ఆఫ్‌లైన్‌లో ఉంది",
@@ -2129,7 +2137,10 @@
       "buffering": "బఫరింగ్",
       "bufferingDetail": "ప్లేయర్ ఈ ప్రత్యక్ష ప్రసారాన్ని బఫర్ చేస్తున్నారు.",
       "focusedActive": "ఫోకస్డ్ లైవ్ ప్లేబ్యాక్ సక్రియంగా ఉంది."
-    }
+    },
+    "protectedWindowsOnly": "రక్షిత ప్లేబ్యాక్‌కి Windows అవసరం.",
+    "protectedRuntimeMissing": "ఈ స్ట్రీమ్‌ను తెరవడానికి Microsoft Edge WebView2 రన్‌టైమ్‌ని ఇన్‌స్టాల్ చేయండి.",
+    "installWebView2Runtime": "WebView2 రన్‌టైమ్‌ని పొందండి"
   },
   "settings": {
     "general": "జనరల్",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "చిత్రం-ద్వారా-చిత్రం",
     "thunderdome": "ఉరుము",
     "desktopNotifications": "డెస్క్‌టాప్ నోటిఫికేషన్‌లు",
+    "doNotDisturb": "డిస్టర్బ్ చేయవద్దు",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "చరిత్రను రికార్డ్ చేస్తున్నప్పుడు యాప్‌లో బ్యానర్‌లు, నోటిఫికేషన్ సౌండ్‌లు మరియు సిస్టమ్ హెచ్చరికలను నిశ్శబ్దం చేయండి.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "అనుసరించిన స్ట్రీమ్‌లు ప్రత్యక్ష ప్రసారం అయినప్పుడు స్థానిక OS నోటిఫికేషన్‌లను చూపండి.",
     "liveNotifications": "ప్రత్యక్ష నోటిఫికేషన్‌లు",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "యాప్ నోటిఫికేషన్ చరిత్రలో ప్రత్యక్ష ప్రసార హెచ్చరికలను ఉంచండి.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "సైన్-ఇన్ మరియు టోకెన్ చెల్లుబాటు",
     "allowPreReleaseUpdates": "ప్రీ-రిలీజ్ అప్‌డేట్‌లను అనుమతించండి",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "స్థిరమైన విడుదలకు ముందు బీటా మరియు ప్రివ్యూ వెర్షన్‌లను స్వీకరించండి",
-    "checkForUpdatesOnStartup": "స్టార్టప్‌లో అప్‌డేట్‌ల కోసం తనిఖీ చేయండి",
+    "checkForUpdatesOnStartup": "అప్‌డేట్‌ల కోసం తనిఖీ చేస్తూ ఉండండి",
     "checkForNewVersionsInTheBackgroundOnASchedule": "షెడ్యూల్‌లో నేపథ్యంలో కొత్త వెర్షన్‌ల కోసం తనిఖీ చేయండి",
     "checkFrequency": "ఫ్రీక్వెన్సీని తనిఖీ చేయండి",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "ఆటోమేటిక్ అప్‌డేట్‌లు ఆన్‌లో ఉన్నప్పుడు ఎంత తరచుగా తనిఖీ చేయాలి",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "ప్రస్తుత వెర్షన్: v",
     "updateCheckUrl": "చెక్ URLని నవీకరించండి",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "ప్లాట్‌ఫారమ్ నవీకరణ మెటాడేటాను కలిగి ఉన్న ఎలక్ట్రాన్ నవీకరణ ఫీడ్",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "ఎంచుకున్న విరామం ముగిసినప్పుడు ప్రారంభించినప్పుడు తనిఖీ చేయండి",
-    "minimumTimeBetweenStartupChecks": "ప్రారంభ తనిఖీల మధ్య కనీస సమయం",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "యాప్ ప్రతి ప్రయోగాన్ని తనిఖీ చేస్తుంది. ఇది తెరిచి ఉన్నప్పుడు తనిఖీల కోసం దీన్ని ఆన్ చేయండి.",
+    "minimumTimeBetweenStartupChecks": "అదనపు తనిఖీల మధ్య సమయం",
     "selectFrequency": "ఫ్రీక్వెన్సీని ఎంచుకోండి",
     "hourly": "గంటకోసారి",
     "daily": "రోజువారీ",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} సెకన్లు",
     "unknown": "తెలియని",
     "failedToDownloadUpdate": "నవీకరణను డౌన్‌లోడ్ చేయడంలో విఫలమైంది",
-    "failedToInstallUpdate": "నవీకరణను ఇన్‌స్టాల్ చేయడంలో విఫలమైంది",
-    "doNotDisturb": "డిస్టర్బ్ చేయవద్దు",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "చరిత్రను రికార్డ్ చేస్తున్నప్పుడు యాప్‌లో బ్యానర్‌లు, నోటిఫికేషన్ సౌండ్‌లు మరియు సిస్టమ్ హెచ్చరికలను నిశ్శబ్దం చేయండి."
+    "failedToInstallUpdate": "నవీకరణను ఇన్‌స్టాల్ చేయడంలో విఫలమైంది"
   },
   "shell": {
     "loadingPage": "పేజీ లోడ్ అవుతోంది",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "సైడ్‌బార్‌ని విస్తరించండి",
       "collapseSidebar": "సైడ్‌బార్‌ను కుదించు",
       "notifications": "నోటిఫికేషన్‌లు",
+      "doNotDisturb": "డిస్టర్బ్ చేయవద్దు",
+      "notificationsMuted": "నోటిఫికేషన్‌లు మ్యూట్ చేయబడ్డాయి",
       "markAllRead": "అన్నీ చదివినట్లు గుర్తు పెట్టండి",
       "emptyNotifications": "కొత్త నోటిఫికేషన్‌లు లేవు",
       "dismiss": "తొలగించు",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} గంట క్రితం",
       "hoursAgo_other": "{{count}} గంటల క్రితం",
       "daysAgo_one": "{{count}} రోజు క్రితం",
-      "daysAgo_other": "{{count}} రోజుల క్రితం",
-      "doNotDisturb": "డిస్టర్బ్ చేయవద్దు",
-      "notificationsMuted": "నోటిఫికేషన్‌లు మ్యూట్ చేయబడ్డాయి"
+      "daysAgo_other": "{{count}} రోజుల క్రితం"
     },
     "titleBar": {
       "minimize": "కనిష్టీకరించు",

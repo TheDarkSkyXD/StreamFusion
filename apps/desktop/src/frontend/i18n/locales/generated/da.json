@@ -1894,6 +1894,14 @@
     "refreshStream": "Opdater stream",
     "blockingMidrollAds": "Blokering af midroll-annoncer",
     "playbackInterrupted": "Afspilning afbrudt",
+    "protectedWindowOpening": "Åbner spillervindue...",
+    "protectedWindowOpen": "Spillervinduet er åbent",
+    "protectedWindowClosed": "Spillervindue lukket",
+    "protectedWindowUnavailable": "Spillervinduet er ikke tilgængeligt",
+    "protectedWindowNotice": "Twitch's officiel spiller åbner separat. Annoncer kan blive vist.",
+    "focusPlayerWindow": "Fokus spiller vindue",
+    "closePlayerWindow": "Luk spillervinduet",
+    "openPlayerWindow": "Åbn spillervinduet",
     "unableToCheckStreamStatus": "Kan ikke tjekke streamstatus",
     "unableToLoadStream": "Strømmen kunne ikke indlæses",
     "currentlyOffline": "er offline i øjeblikket",
@@ -2129,7 +2137,10 @@
       "buffering": "Buffer",
       "bufferingDetail": "Afspilleren buffer denne livestream.",
       "focusedActive": "Fokuseret live-afspilning er aktiv."
-    }
+    },
+    "protectedWindowsOnly": "Beskyttet afspilning kræver Windows.",
+    "protectedRuntimeMissing": "Installer Microsoft Edge WebView2 Runtime for at åbne denne stream.",
+    "installWebView2Runtime": "Hent WebView2 Runtime"
   },
   "settings": {
     "general": "Generelt",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "billede for billede",
     "thunderdome": "thunderdome",
     "desktopNotifications": "Skrivebordsmeddelelser",
+    "doNotDisturb": "Forstyr ikke",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Slå bannere i appen, meddelelseslyde og systemadvarsler til lydløs, mens du stadig optager historik.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Vis native OS-notifikationer, når fulgte streams går live.",
     "liveNotifications": "Live notifikationer",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Behold livestream-advarsler i appnotifikationshistorikken.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Log-in og tokens gyldighed",
     "allowPreReleaseUpdates": "Tillad Pre-release-opdateringer",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Modtag beta- og forhåndsvisningsversioner før stabil udgivelse",
-    "checkForUpdatesOnStartup": "Se efter opdateringer ved opstart",
+    "checkForUpdatesOnStartup": "Hold øje med opdateringer",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Tjek efter nye versioner i baggrunden efter en tidsplan",
     "checkFrequency": "Tjek frekvens",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Hvor ofte skal du tjekke, hvornår automatiske opdateringer er aktiveret",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Nuværende version: v",
     "updateCheckUrl": "Opdater tjek-URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Elektronopdateringsfeed, der indeholder platformopdateringens metadata",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Tjek ved start, når det valgte interval er udløbet",
-    "minimumTimeBetweenStartupChecks": "Minimum tid mellem opstartstjek",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Appen tjekker hver lancering. Slå denne til for kontrol, mens den forbliver åben.",
+    "minimumTimeBetweenStartupChecks": "Tid mellem yderligere kontroller",
     "selectFrequency": "Vælg frekvens",
     "hourly": "Hver time",
     "daily": "Dagligt",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "ukendt",
     "failedToDownloadUpdate": "Kunne ikke downloade opdatering",
-    "failedToInstallUpdate": "Kunne ikke installere opdateringen",
-    "doNotDisturb": "Forstyr ikke",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Slå bannere i appen, meddelelseslyde og systemadvarsler til lydløs, mens du stadig optager historik."
+    "failedToInstallUpdate": "Kunne ikke installere opdateringen"
   },
   "shell": {
     "loadingPage": "Indlæser side",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Udvid sidebjælken",
       "collapseSidebar": "Skjul sidebjælken",
       "notifications": "Meddelelser",
+      "doNotDisturb": "Forstyr ikke",
+      "notificationsMuted": "Underretninger er slået fra",
       "markAllRead": "Marker alt som læst",
       "emptyNotifications": "Ingen nye meddelelser",
       "dismiss": "Afvis",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "for {{count}} time siden",
       "hoursAgo_other": "{{count}} timer siden",
       "daysAgo_one": "{{count}} dag siden",
-      "daysAgo_other": "{{count}} dage siden",
-      "doNotDisturb": "Forstyr ikke",
-      "notificationsMuted": "Underretninger er slået fra"
+      "daysAgo_other": "{{count}} dage siden"
     },
     "titleBar": {
       "minimize": "Minimer",

@@ -1894,6 +1894,14 @@
     "refreshStream": "রিফ্রেশ",
     "blockingMidrollAds": "মিডরোল বিজ্ঞাপন ব্লক করা",
     "playbackInterrupted": "প্লেব্যাক ব্যাহত",
+    "protectedWindowOpening": "প্লেয়ার উইন্ডো খোলা হচ্ছে...",
+    "protectedWindowOpen": "প্লেয়ার উইন্ডো খোলা আছে",
+    "protectedWindowClosed": "প্লেয়ারের জানালা বন্ধ",
+    "protectedWindowUnavailable": "প্লেয়ার উইন্ডো অনুপলব্ধ",
+    "protectedWindowNotice": "Twitch's অফিসিয়াল প্লেয়ার আলাদাভাবে খোলে। বিজ্ঞাপন প্রদর্শিত হতে পারে.",
+    "focusPlayerWindow": "ফোকাস প্লেয়ার উইন্ডো",
+    "closePlayerWindow": "প্লেয়ার উইন্ডো বন্ধ করুন",
+    "openPlayerWindow": "প্লেয়ার উইন্ডো খুলুন",
     "unableToCheckStreamStatus": "স্ট্রিম স্থিতি পরীক্ষা করতে অক্ষম",
     "unableToLoadStream": "স্ট্রিম লোড করতে অক্ষম",
     "currentlyOffline": "বর্তমানে অফলাইন",
@@ -2129,7 +2137,10 @@
       "buffering": "বাফারিং",
       "bufferingDetail": "প্লেয়ারটি এই লাইভ স্ট্রিমটি বাফার করছে৷",
       "focusedActive": "ফোকাসড লাইভ প্লেব্যাক সক্রিয়।"
-    }
+    },
+    "protectedWindowsOnly": "সুরক্ষিত প্লেব্যাকের প্রয়োজন Windows৷",
+    "protectedRuntimeMissing": "এই স্ট্রীমটি খুলতে Microsoft Edge WebView2 রানটাইম ইনস্টল করুন।",
+    "installWebView2Runtime": "WebView2 রানটাইম পান"
   },
   "settings": {
     "general": "সাধারণ",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "ছবি দ্বারা ছবি",
     "thunderdome": "বজ্রপাত",
     "desktopNotifications": "ডেস্কটপ বিজ্ঞপ্তি",
+    "doNotDisturb": "বিরক্ত করবেন না",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ইতিহাস রেকর্ড করার সময় অ্যাপ-মধ্যস্থ ব্যানার, বিজ্ঞপ্তির শব্দ এবং সিস্টেম সতর্কতা নীরব করুন।",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "অনুসরণ করা স্ট্রীম লাইভ হলে নেটিভ OS বিজ্ঞপ্তিগুলি দেখান৷",
     "liveNotifications": "লাইভ বিজ্ঞপ্তি",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "অ্যাপ বিজ্ঞপ্তির ইতিহাসে লাইভ-স্ট্রিম সতর্কতা রাখুন।",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "সাইন ইন এবং টোকেন বৈধতা",
     "allowPreReleaseUpdates": "প্রি-রিলিজ আপডেটের অনুমতি দিন",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "স্থিতিশীল প্রকাশের আগে বিটা এবং পূর্বরূপ সংস্করণ গ্রহণ করুন",
-    "checkForUpdatesOnStartup": "স্টার্টআপে আপডেটের জন্য চেক করুন",
+    "checkForUpdatesOnStartup": "আপডেটের জন্য চেক করতে থাকুন",
     "checkForNewVersionsInTheBackgroundOnASchedule": "একটি সময়সূচীতে ব্যাকগ্রাউন্ডে নতুন সংস্করণের জন্য পরীক্ষা করুন",
     "checkFrequency": "ফ্রিকোয়েন্সি পরীক্ষা করুন",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "স্বয়ংক্রিয় আপডেট চালু হলে কত ঘন ঘন চেক করতে হবে",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "বর্তমান সংস্করণ: v",
     "updateCheckUrl": "আপডেট চেক URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "প্ল্যাটফর্ম আপডেট মেটাডেটা ধারণকারী ইলেক্ট্রন আপডেট ফিড",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "নির্বাচিত ব্যবধান শেষ হয়ে গেলে লঞ্চের সময় পরীক্ষা করুন",
-    "minimumTimeBetweenStartupChecks": "স্টার্টআপ চেকের মধ্যে ন্যূনতম সময়",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "অ্যাপটি প্রতিটি লঞ্চ পরীক্ষা করে। এটি খোলা থাকাকালীন চেকের জন্য এটি চালু করুন।",
+    "minimumTimeBetweenStartupChecks": "অতিরিক্ত চেকের মধ্যে সময়",
     "selectFrequency": "ফ্রিকোয়েন্সি নির্বাচন করুন",
     "hourly": "ঘণ্টায়",
     "daily": "দৈনিক",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} সেকেন্ড",
     "unknown": "অজানা",
     "failedToDownloadUpdate": "আপডেট ডাউনলোড করতে ব্যর্থ হয়েছে",
-    "failedToInstallUpdate": "আপডেট ইনস্টল করতে ব্যর্থ হয়েছে",
-    "doNotDisturb": "বিরক্ত করবেন না",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ইতিহাস রেকর্ড করার সময় অ্যাপ-মধ্যস্থ ব্যানার, বিজ্ঞপ্তির শব্দ এবং সিস্টেম সতর্কতা নীরব করুন।"
+    "failedToInstallUpdate": "আপডেট ইনস্টল করতে ব্যর্থ হয়েছে"
   },
   "shell": {
     "loadingPage": "পৃষ্ঠা লোড হচ্ছে",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "সাইডবার প্রসারিত করুন",
       "collapseSidebar": "সাইডবার সঙ্কুচিত করুন",
       "notifications": "বিজ্ঞপ্তি",
+      "doNotDisturb": "বিরক্ত করবেন না",
+      "notificationsMuted": "বিজ্ঞপ্তিগুলি নিঃশব্দ৷",
       "markAllRead": "সব পড়া চিহ্নিত করুন",
       "emptyNotifications": "কোন নতুন বিজ্ঞপ্তি নেই",
       "dismiss": "খারিজ",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} ঘন্টা আগে",
       "hoursAgo_other": "{{count}} ঘন্টা আগে",
       "daysAgo_one": "{{count}} দিন আগে",
-      "daysAgo_other": "{{count}} দিন আগে",
-      "doNotDisturb": "বিরক্ত করবেন না",
-      "notificationsMuted": "বিজ্ঞপ্তিগুলি নিঃশব্দ৷"
+      "daysAgo_other": "{{count}} দিন আগে"
     },
     "titleBar": {
       "minimize": "ছোট করুন",

@@ -173,6 +173,13 @@ import type {
   StreamRecordingStartResult,
 } from "../../shared/stream-recording-types";
 import type { TwitchApiCommand, TwitchApiResult } from "../../shared/twitch-api-types";
+import type {
+  ProtectedPlaybackMuteRequest,
+  ProtectedPlaybackOpenRequest,
+  ProtectedPlaybackOpenResult,
+  ProtectedPlaybackOwnerRequest,
+  ProtectedPlaybackState,
+} from "../../shared/protected-playback-types";
 
 const featureAwareIpc = createFeatureAwareIpc(
   ipcRenderer.invoke.bind(ipcRenderer),
@@ -633,6 +640,25 @@ const electronAPI = {
       params: StreamPlaybackRequest
     ): Promise<IpcResult<{ url: string; format: string }>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL, params),
+  },
+
+  protectedPlayback: {
+    check: (channelSlug: string): Promise<boolean> =>
+      invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_CHECK, { channelSlug }),
+    open: (request: ProtectedPlaybackOpenRequest): Promise<ProtectedPlaybackOpenResult> =>
+      invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_OPEN, request),
+    focus: (request: ProtectedPlaybackOwnerRequest): Promise<void> =>
+      invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_FOCUS, request),
+    close: (request: ProtectedPlaybackOwnerRequest): Promise<void> =>
+      invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_CLOSE, request),
+    mute: (request: ProtectedPlaybackMuteRequest): Promise<void> =>
+      invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_MUTE, request),
+    onState: (callback: (state: ProtectedPlaybackState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: ProtectedPlaybackState) =>
+        callback(state);
+      ipcRenderer.on(IPC_CHANNELS.PROTECTED_PLAYBACK_STATE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.PROTECTED_PLAYBACK_STATE, handler);
+    },
   },
 
   // ========== Discovery: Categories ==========

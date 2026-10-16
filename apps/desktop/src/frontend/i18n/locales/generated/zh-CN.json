@@ -1894,6 +1894,14 @@
     "refreshStream": "刷新流",
     "blockingMidrollAds": "屏蔽中贴片广告",
     "playbackInterrupted": "播放中断",
+    "protectedWindowOpening": "正在打开播放器窗口...",
+    "protectedWindowOpen": "播放器窗口已打开",
+    "protectedWindowClosed": "播放器窗口已关闭",
+    "protectedWindowUnavailable": "播放器窗口不可用",
+    "protectedWindowNotice": "Twitch's官方播放器单独打开。可能会出现广告。",
+    "focusPlayerWindow": "焦点播放器窗口",
+    "closePlayerWindow": "关闭播放器窗口",
+    "openPlayerWindow": "打开播放器窗口",
     "unableToCheckStreamStatus": "无法检查流状态",
     "unableToLoadStream": "无法加载流",
     "currentlyOffline": "目前处于离线状态",
@@ -2129,7 +2137,10 @@
       "buffering": "缓冲",
       "bufferingDetail": "播放器正在缓冲该直播流。",
       "focusedActive": "聚焦实时回放已激活。"
-    }
+    },
+    "protectedWindowsOnly": "受保护的播放需要 Windows。",
+    "protectedRuntimeMissing": "安装 Microsoft Edge WebView2 运行时以打开此流。",
+    "installWebView2Runtime": "获取 WebView2 运行时"
   },
   "settings": {
     "general": "一般",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "逐个图片",
     "thunderdome": "雷霆穹顶",
     "desktopNotifications": "桌面通知",
+    "doNotDisturb": "请勿打扰",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "使应用内横幅、通知声音和系统警报静音，同时仍记录历史记录。",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "当关注的流上线时显示本机操作系统通知。",
     "liveNotifications": "实时通知",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "将实时流警报保留在应用程序通知历史记录中。",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "登录和令牌有效性",
     "allowPreReleaseUpdates": "允许预发布更新",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "在稳定版本发布之前接收测试版和预览版",
-    "checkForUpdatesOnStartup": "启动时检查更新",
+    "checkForUpdatesOnStartup": "继续检查更新",
     "checkForNewVersionsInTheBackgroundOnASchedule": "按计划在后台检查新版本",
     "checkFrequency": "检查频率",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "检查自动更新何时开启的频率",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "当前版本： v",
     "updateCheckUrl": "更新检查网址",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "包含平台更新元数据的 Electron 更新源",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "当选定的时间间隔已过时在启动时检查",
-    "minimumTimeBetweenStartupChecks": "启动检查之间的最短时间",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "该应用程序会检查每次启动。在其保持打开状态时将其打开以进行检查。",
+    "minimumTimeBetweenStartupChecks": "额外检查之间的时间",
     "selectFrequency": "选择频率",
     "hourly": "每小时",
     "daily": "每日",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} 秒",
     "unknown": "未知",
     "failedToDownloadUpdate": "下载更新失败",
-    "failedToInstallUpdate": "无法安装更新",
-    "doNotDisturb": "请勿打扰",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "使应用内横幅、通知声音和系统警报静音，同时仍记录历史记录。"
+    "failedToInstallUpdate": "无法安装更新"
   },
   "shell": {
     "loadingPage": "加载页面",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "展开侧边栏",
       "collapseSidebar": "折叠侧边栏",
       "notifications": "通知",
+      "doNotDisturb": "请勿打扰",
+      "notificationsMuted": "通知已静音",
       "markAllRead": "标记全部已读",
       "emptyNotifications": "没有新通知",
       "dismiss": "解雇",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} 小时前",
       "hoursAgo_other": "{{count}} 小时前",
       "daysAgo_one": "{{count}} 天前",
-      "daysAgo_other": "{{count}} 天前",
-      "doNotDisturb": "请勿打扰",
-      "notificationsMuted": "通知已静音"
+      "daysAgo_other": "{{count}} 天前"
     },
     "titleBar": {
       "minimize": "最小化",

@@ -1894,6 +1894,14 @@
     "refreshStream": "Uppdatera stream",
     "blockingMidrollAds": "Blockerar midroll-annonser",
     "playbackInterrupted": "Uppspelningen avbröts",
+    "protectedWindowOpening": "Öppnar spelarfönstret...",
+    "protectedWindowOpen": "Spelarfönstret är öppet",
+    "protectedWindowClosed": "Spelarfönstret stängt",
+    "protectedWindowUnavailable": "Spelarfönstret är inte tillgängligt",
+    "protectedWindowNotice": "Twitch's officiell spelare öppnar separat. Annonser kan visas.",
+    "focusPlayerWindow": "Fokus spelarens fönster",
+    "closePlayerWindow": "Stäng spelarfönstret",
+    "openPlayerWindow": "Öppna spelarfönstret",
     "unableToCheckStreamStatus": "Det gick inte att kontrollera streamstatus",
     "unableToLoadStream": "Det gick inte att ladda strömmen",
     "currentlyOffline": "är för närvarande offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Buffring",
       "bufferingDetail": "Spelaren buffrar den här liveströmmen.",
       "focusedActive": "Fokuserad liveuppspelning är aktiv."
-    }
+    },
+    "protectedWindowsOnly": "Skyddad uppspelning kräver Windows.",
+    "protectedRuntimeMissing": "Installera Microsoft Edge WebView2 Runtime för att öppna denna ström.",
+    "installWebView2Runtime": "Skaffa WebView2 Runtime"
   },
   "settings": {
     "general": "Allmänt",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "bild för bild",
     "thunderdome": "thunderdome",
     "desktopNotifications": "Skrivbordsmeddelanden",
+    "doNotDisturb": "Stör ej",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Stäng av banners i appen, aviseringsljud och systemvarningar medan du fortfarande spelar in historik.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Visa inbyggda OS-aviseringar när följda strömmar går live.",
     "liveNotifications": "Live-aviseringar",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Behåll varningar för livestreaming i appaviseringshistoriken.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Giltighet för inloggning och token",
     "allowPreReleaseUpdates": "Tillåt förhandsuppdateringar",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Ta emot beta- och förhandsgranskningsversioner innan stabil release",
-    "checkForUpdatesOnStartup": "Sök efter uppdateringar vid start",
+    "checkForUpdatesOnStartup": "Håll utkik efter uppdateringar",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Sök efter nya versioner i bakgrunden enligt ett schema",
     "checkFrequency": "Kontrollera frekvensen",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Hur ofta ska man kontrollera när automatiska uppdateringar är på",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Aktuell version: v",
     "updateCheckUrl": "Uppdatera kontroll-URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Elektronuppdateringsflöde som innehåller metadata för plattformsuppdateringen",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Kontrollera vid start när det valda intervallet har gått",
-    "minimumTimeBetweenStartupChecks": "Minsta tid mellan startkontroller",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Appen kontrollerar varje lansering. Slå på detta för kontroller medan det är öppet.",
+    "minimumTimeBetweenStartupChecks": "Tid mellan ytterligare kontroller",
     "selectFrequency": "Välj frekvens",
     "hourly": "Varje timme",
     "daily": "Dagligen",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekunder",
     "unknown": "okänt",
     "failedToDownloadUpdate": "Det gick inte att ladda ned uppdateringen",
-    "failedToInstallUpdate": "Det gick inte att installera uppdateringen",
-    "doNotDisturb": "Stör ej",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Stäng av banners i appen, aviseringsljud och systemvarningar medan du fortfarande spelar in historik."
+    "failedToInstallUpdate": "Det gick inte att installera uppdateringen"
   },
   "shell": {
     "loadingPage": "Laddar sida",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Expandera sidofältet",
       "collapseSidebar": "Dölj sidofältet",
       "notifications": "Aviseringar",
+      "doNotDisturb": "Stör ej",
+      "notificationsMuted": "Aviseringar har tystats",
       "markAllRead": "Markera allt som läst",
       "emptyNotifications": "Inga nya aviseringar",
       "dismiss": "Avvisa",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "för {{count}} timme sedan",
       "hoursAgo_other": "för {{count}} timmar sedan",
       "daysAgo_one": "{{count}} dag sedan",
-      "daysAgo_other": "för {{count}} dagar sedan",
-      "doNotDisturb": "Stör ej",
-      "notificationsMuted": "Aviseringar har tystats"
+      "daysAgo_other": "för {{count}} dagar sedan"
     },
     "titleBar": {
       "minimize": "Minimera",

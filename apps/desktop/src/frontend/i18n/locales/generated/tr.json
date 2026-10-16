@@ -1894,6 +1894,14 @@
     "refreshStream": "Akışı yenile",
     "blockingMidrollAds": "Videonun ortasında gösterilen reklamları engelleme",
     "playbackInterrupted": "Oynatma kesintiye uğradı",
+    "protectedWindowOpening": "Oyuncu penceresi açılıyor...",
+    "protectedWindowOpen": "Oyuncu penceresi açık",
+    "protectedWindowClosed": "Oyuncu penceresi kapatıldı",
+    "protectedWindowUnavailable": "Oynatıcı penceresi kullanılamıyor",
+    "protectedWindowNotice": "Twitch's resmi oynatıcı ayrı olarak açılır. Reklamlar görünebilir.",
+    "focusPlayerWindow": "Oynatıcı penceresine odaklan",
+    "closePlayerWindow": "Oynatıcı penceresini kapat",
+    "openPlayerWindow": "Oyuncu penceresini aç",
     "unableToCheckStreamStatus": "Akış durumu kontrol edilemiyor",
     "unableToLoadStream": "Akış yüklenemiyor",
     "currentlyOffline": "şu anda çevrimdışı",
@@ -2129,7 +2137,10 @@
       "buffering": "Tamponlama",
       "bufferingDetail": "Oyuncu bu canlı akışı arabelleğe alıyor.",
       "focusedActive": "Odaklanmış canlı oynatma etkin."
-    }
+    },
+    "protectedWindowsOnly": "Korumalı oynatma için Windows gerekir.",
+    "protectedRuntimeMissing": "Bu akışı açmak için Microsoft Edge WebView2 Runtime'ı yükleyin.",
+    "installWebView2Runtime": "WebView2 Çalışma Zamanını Alın"
   },
   "settings": {
     "general": "Genel",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "resim yan yana",
     "thunderdome": "gök gürültüsü kubbesi",
     "desktopNotifications": "Masaüstü bildirimleri",
+    "doNotDisturb": "Rahatsız Etmeyin",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Geçmişi kaydetmeye devam ederken uygulama içi banner'ları, bildirim seslerini ve sistem uyarılarını sessize alın.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Takip edilen yayınlar yayına girdiğinde yerel işletim sistemi bildirimlerini gösterin.",
     "liveNotifications": "Canlı Bildirimler",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Canlı yayın uyarılarını uygulama bildirim geçmişinde tutun.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Oturum açma ve belirteç geçerliliği",
     "allowPreReleaseUpdates": "Sürüm Öncesi Güncellemelere İzin Ver",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Kararlı sürümden önce beta ve önizleme sürümlerini alın",
-    "checkForUpdatesOnStartup": "Başlangıçta güncellemeleri kontrol edin",
+    "checkForUpdatesOnStartup": "Güncellemeleri kontrol etmeye devam edin",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Arka planda yeni sürümleri bir programa göre kontrol edin",
     "checkFrequency": "Frekansı kontrol edin",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Otomatik güncellemelerin açık olup olmadığı ne sıklıkta kontrol edilir?",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Güncel Sürüm: v",
     "updateCheckUrl": "Kontrol URL'sini güncelle",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Platform güncelleme meta verilerini içeren elektron güncelleme feed'i",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Başlatma sırasında seçilen aralığın ne zaman geçtiğini kontrol edin",
-    "minimumTimeBetweenStartupChecks": "Başlangıç kontrolleri arasındaki minimum süre",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Uygulama her başlatmayı kontrol eder. Açık kaldığı sürece kontroller için bunu açın.",
+    "minimumTimeBetweenStartupChecks": "Ek kontroller arasındaki süre",
     "selectFrequency": "Frekansı seçin",
     "hourly": "Saatlik",
     "daily": "Günlük",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} saniye",
     "unknown": "bilinmiyor",
     "failedToDownloadUpdate": "Güncelleme indirilemedi",
-    "failedToInstallUpdate": "Güncelleme yüklenemedi",
-    "doNotDisturb": "Rahatsız Etmeyin",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Geçmişi kaydetmeye devam ederken uygulama içi banner'ları, bildirim seslerini ve sistem uyarılarını sessize alın."
+    "failedToInstallUpdate": "Güncelleme yüklenemedi"
   },
   "shell": {
     "loadingPage": "Sayfa yükleniyor",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Kenar çubuğunu genişlet",
       "collapseSidebar": "Kenar çubuğunu daralt",
       "notifications": "Bildirimler",
+      "doNotDisturb": "Rahatsız Etmeyin",
+      "notificationsMuted": "Bildirimler yoksayıldı",
       "markAllRead": "Tümünü okundu olarak işaretle",
       "emptyNotifications": "Yeni bildirim yok",
       "dismiss": "Reddet",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} saat önce",
       "hoursAgo_other": "{{count}} saat önce",
       "daysAgo_one": "{{count}} gün önce",
-      "daysAgo_other": "{{count}} gün önce",
-      "doNotDisturb": "Rahatsız Etmeyin",
-      "notificationsMuted": "Bildirimler yoksayıldı"
+      "daysAgo_other": "{{count}} gün önce"
     },
     "titleBar": {
       "minimize": "Küçült",

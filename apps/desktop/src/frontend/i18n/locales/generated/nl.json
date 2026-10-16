@@ -1894,6 +1894,14 @@
     "refreshStream": "Vernieuw de stroom",
     "blockingMidrollAds": "Midroll-advertenties blokkeren",
     "playbackInterrupted": "Weergave onderbroken",
+    "protectedWindowOpening": "Spelervenster openen...",
+    "protectedWindowOpen": "Spelervenster is geopend",
+    "protectedWindowClosed": "Spelervenster gesloten",
+    "protectedWindowUnavailable": "Spelervenster niet beschikbaar",
+    "protectedWindowNotice": "Twitch's officiële speler wordt afzonderlijk geopend. Er kunnen advertenties verschijnen.",
+    "focusPlayerWindow": "Focusspelervenster",
+    "closePlayerWindow": "Sluit het spelervenster",
+    "openPlayerWindow": "Open het spelersvenster",
     "unableToCheckStreamStatus": "Kan de streamstatus niet controleren",
     "unableToLoadStream": "Kan stream niet laden",
     "currentlyOffline": "is momenteel offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Bufferen",
       "bufferingDetail": "De speler buffert deze livestream.",
       "focusedActive": "Gerichte liveweergave is actief."
-    }
+    },
+    "protectedWindowsOnly": "Voor beveiligd afspelen is Windows vereist.",
+    "protectedRuntimeMissing": "Installeer Microsoft Edge WebView2 Runtime om deze stream te openen.",
+    "installWebView2Runtime": "Verkrijg WebView2 Runtime"
   },
   "settings": {
     "general": "Algemeen",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "beeld voor beeld",
     "thunderdome": "donderkoepel",
     "desktopNotifications": "Bureaubladmeldingen",
+    "doNotDisturb": "Niet storen",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Schakel in-app-banners, meldingsgeluiden en systeemwaarschuwingen uit terwijl u nog steeds de geschiedenis vastlegt.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Toon native OS-meldingen wanneer gevolgde streams live gaan.",
     "liveNotifications": "Live-meldingen",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Houd livestreamwaarschuwingen bij in de app-meldingsgeschiedenis.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Inlog- en tokengeldigheid",
     "allowPreReleaseUpdates": "Pre-release-updates toestaan",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Ontvang bèta- en preview-versies vóór een stabiele release",
-    "checkForUpdatesOnStartup": "Controleer op updates bij het opstarten",
+    "checkForUpdatesOnStartup": "Blijf controleren op updates",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Controleer op een schema of er nieuwe versies op de achtergrond zijn",
     "checkFrequency": "Controleer frequentie",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Hoe vaak u moet controleren of automatische updates zijn ingeschakeld",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Huidige versie: v",
     "updateCheckUrl": "Update de controle-URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Electron-updatefeed met de metadata van de platformupdate",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Controleer bij het opstarten wanneer het geselecteerde interval is verstreken",
-    "minimumTimeBetweenStartupChecks": "Minimale tijd tussen opstartcontroles",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "De app controleert elke lancering. Schakel dit in voor controles terwijl het open blijft.",
+    "minimumTimeBetweenStartupChecks": "Tijd tussen extra controles",
     "selectFrequency": "Selecteer frequentie",
     "hourly": "Per uur",
     "daily": "Dagelijks",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} seconden",
     "unknown": "onbekend",
     "failedToDownloadUpdate": "Kan de update niet downloaden",
-    "failedToInstallUpdate": "Kan update niet installeren",
-    "doNotDisturb": "Niet storen",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Schakel in-app-banners, meldingsgeluiden en systeemwaarschuwingen uit terwijl u nog steeds de geschiedenis vastlegt."
+    "failedToInstallUpdate": "Kan update niet installeren"
   },
   "shell": {
     "loadingPage": "Pagina laden",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Vouw zijbalk uit",
       "collapseSidebar": "Zijbalk samenvouwen",
       "notifications": "Meldingen",
+      "doNotDisturb": "Niet storen",
+      "notificationsMuted": "Meldingen gedempt",
       "markAllRead": "Markeer alles als gelezen",
       "emptyNotifications": "Geen nieuwe meldingen",
       "dismiss": "Negeren",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} uur geleden",
       "hoursAgo_other": "{{count}} uur geleden",
       "daysAgo_one": "{{count}} dag geleden",
-      "daysAgo_other": "{{count}} dagen geleden",
-      "doNotDisturb": "Niet storen",
-      "notificationsMuted": "Meldingen gedempt"
+      "daysAgo_other": "{{count}} dagen geleden"
     },
     "titleBar": {
       "minimize": "Minimaliseer",

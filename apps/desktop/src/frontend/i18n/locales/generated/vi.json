@@ -1894,6 +1894,14 @@
     "refreshStream": "Làm mới luồng",
     "blockingMidrollAds": "Chặn quảng cáo giữa video",
     "playbackInterrupted": "Phát lại bị gián đoạn",
+    "protectedWindowOpening": "Đang mở cửa sổ trình phát...",
+    "protectedWindowOpen": "Cửa sổ trình phát đang mở",
+    "protectedWindowClosed": "Cửa sổ trình phát đã đóng",
+    "protectedWindowUnavailable": "Cửa sổ trình phát không có sẵn",
+    "protectedWindowNotice": "Twitch's người chơi chính thức mở riêng. Quảng cáo có thể xuất hiện.",
+    "focusPlayerWindow": "Cửa sổ trình phát tiêu điểm",
+    "closePlayerWindow": "Đóng cửa sổ trình phát",
+    "openPlayerWindow": "Mở cửa sổ trình phát",
     "unableToCheckStreamStatus": "Không thể kiểm tra trạng thái luồng",
     "unableToLoadStream": "Không thể tải luồng",
     "currentlyOffline": "hiện đang ngoại tuyến",
@@ -2129,7 +2137,10 @@
       "buffering": "Đang đệm",
       "bufferingDetail": "Trình phát đang lưu luồng trực tiếp này vào bộ nhớ đệm.",
       "focusedActive": "Phát lại trực tiếp tập trung đang hoạt động."
-    }
+    },
+    "protectedWindowsOnly": "Phát lại được bảo vệ yêu cầu Windows.",
+    "protectedRuntimeMissing": "Cài đặt Microsoft Edge WebView2 Runtime để mở luồng này.",
+    "installWebView2Runtime": "Nhận thời gian chạy WebView2"
   },
   "settings": {
     "general": "chung",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "từng bức ảnh",
     "thunderdome": "mái vòm sấm sét",
     "desktopNotifications": "Thông báo trên màn hình",
+    "doNotDisturb": "Đừng làm phiền",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Tắt tiếng các biểu ngữ trong ứng dụng, âm thanh thông báo và cảnh báo hệ thống trong khi vẫn ghi lại lịch sử.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Hiển thị thông báo của hệ điều hành gốc khi các luồng được theo dõi phát trực tiếp.",
     "liveNotifications": "Thông báo trực tiếp",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Giữ thông báo phát trực tiếp trong lịch sử thông báo ứng dụng.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Đăng nhập và hiệu lực của mã thông báo",
     "allowPreReleaseUpdates": "Cho phép cập nhật trước khi phát hành",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Nhận phiên bản beta và bản xem trước trước khi phát hành ổn định",
-    "checkForUpdatesOnStartup": "Kiểm tra cập nhật khi khởi động",
+    "checkForUpdatesOnStartup": "Tiếp tục kiểm tra các bản cập nhật",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Kiểm tra các phiên bản mới ở chế độ nền theo lịch trình",
     "checkFrequency": "Kiểm tra tần suất",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Tần suất kiểm tra thời điểm bật cập nhật tự động",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Phiên bản hiện tại: v",
     "updateCheckUrl": "Cập nhật URL kiểm tra",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Nguồn cấp dữ liệu cập nhật điện tử chứa siêu dữ liệu cập nhật nền tảng",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Kiểm tra khi khởi chạy khi khoảng thời gian đã chọn đã trôi qua",
-    "minimumTimeBetweenStartupChecks": "Thời gian tối thiểu giữa các lần kiểm tra khởi động",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Ứng dụng sẽ kiểm tra mỗi lần khởi chạy. Bật cái này lên để kiểm tra trong khi nó vẫn mở.",
+    "minimumTimeBetweenStartupChecks": "Thời gian giữa các lần kiểm tra bổ sung",
     "selectFrequency": "Chọn tần số",
     "hourly": "Hàng giờ",
     "daily": "hàng ngày",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} giây",
     "unknown": "không rõ",
     "failedToDownloadUpdate": "Không tải được bản cập nhật xuống",
-    "failedToInstallUpdate": "Không cài đặt được bản cập nhật",
-    "doNotDisturb": "Đừng làm phiền",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Tắt tiếng các biểu ngữ trong ứng dụng, âm thanh thông báo và cảnh báo hệ thống trong khi vẫn ghi lại lịch sử."
+    "failedToInstallUpdate": "Không cài đặt được bản cập nhật"
   },
   "shell": {
     "loadingPage": "Đang tải trang",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Mở rộng thanh bên",
       "collapseSidebar": "Thu gọn thanh bên",
       "notifications": "Thông báo",
+      "doNotDisturb": "Đừng làm phiền",
+      "notificationsMuted": "Thông báo bị tắt tiếng",
       "markAllRead": "Đánh dấu tất cả đã đọc",
       "emptyNotifications": "Không có thông báo mới",
       "dismiss": "Loại bỏ",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} giờ trước",
       "hoursAgo_other": "{{count}} giờ trước",
       "daysAgo_one": "{{count}} ngày trước",
-      "daysAgo_other": "{{count}} ngày trước",
-      "doNotDisturb": "Đừng làm phiền",
-      "notificationsMuted": "Thông báo bị tắt tiếng"
+      "daysAgo_other": "{{count}} ngày trước"
     },
     "titleBar": {
       "minimize": "Giảm thiểu",

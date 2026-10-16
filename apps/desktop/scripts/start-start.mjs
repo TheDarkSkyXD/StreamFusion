@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer as createHttpServer } from "node:http";
 import { createRequire } from "node:module";
@@ -74,6 +74,15 @@ try {
   const env = await createStartEnvironment(process.env);
   delete env.ELECTRON_RUN_AS_NODE;
   Object.assign(process.env, env);
+  signal.throwIfAborted();
+  if (process.platform === "win32" && env.STREAMFUSION_BROWSER_DEV !== "1") {
+    const native = spawnSync(process.execPath, [resolve(desktop, "scripts/build-protected-player.mjs")], {
+      cwd: desktop,
+      stdio: "inherit",
+    });
+    if (native.error) throw native.error;
+    if (native.status !== 0) throw new Error(`Protected player build failed (${native.status})`);
+  }
   signal.throwIfAborted();
   const httpServer = createHttpServer();
   const connections = new Set();

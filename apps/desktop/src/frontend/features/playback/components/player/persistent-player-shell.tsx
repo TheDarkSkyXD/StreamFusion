@@ -10,6 +10,7 @@ export interface DockedLivePlayerConfig {
   poster?: string;
   onError: (error: PlayerError) => boolean | void;
   onCleanPresentedFrame?: () => void;
+  onProtectedPlaybackSelected?: () => void;
   onRefresh: () => void;
   onToggleTheater: () => void;
 }

@@ -187,6 +187,12 @@ const featureLoaders = {
   },
   [IPC_FEATURES.PLAYBACK]: async ({ renderer }) => {
     await initializePlaybackFeature(renderer);
+    const [{ registerProtectedPlaybackRoutes }, { protectedPlaybackHost }] = await Promise.all([
+      import("../features/playback/routes/protected-playback-routes"),
+      import("../features/playback/adapters/windows/webview2-protected-playback-host"),
+    ]);
+    registerProtectedPlaybackRoutes(renderer, protectedPlaybackHost);
+    registerLoadedFeatureCleanup("protected-playback", () => protectedPlaybackHost.closeAll());
   },
   [IPC_FEATURES.PLATFORM_HEALTH]: async ({ renderer }) => {
     const [{ registerPlatformHealthHandlers }, { initStatusPagePoller }] = await Promise.all([

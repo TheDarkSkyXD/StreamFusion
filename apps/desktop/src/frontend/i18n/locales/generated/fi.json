@@ -1894,6 +1894,14 @@
     "refreshStream": "Päivitä stream",
     "blockingMidrollAds": "Videoon sisältyvien mainosten estäminen",
     "playbackInterrupted": "Toisto keskeytetty",
+    "protectedWindowOpening": "Avataan pelaajaikkunaa...",
+    "protectedWindowOpen": "Player-ikkuna on auki",
+    "protectedWindowClosed": "Soittimen ikkuna kiinni",
+    "protectedWindowUnavailable": "Soitinikkuna ei ole käytettävissä",
+    "protectedWindowNotice": "Twitch's virallinen pelaaja avautuu erikseen. Mainoksia saattaa näkyä.",
+    "focusPlayerWindow": "Tarkennussoitin-ikkuna",
+    "closePlayerWindow": "Sulje soitinikkuna",
+    "openPlayerWindow": "Avaa pelaajaikkuna",
     "unableToCheckStreamStatus": "Striimin tilaa ei voi tarkistaa",
     "unableToLoadStream": "Striimiä ei voi ladata",
     "currentlyOffline": "on tällä hetkellä offline-tilassa",
@@ -2129,7 +2137,10 @@
       "buffering": "Puskurointi",
       "bufferingDetail": "Pelaaja puskuroi tätä suoraa lähetystä.",
       "focusedActive": "Tarkennettu live-toisto on aktiivinen."
-    }
+    },
+    "protectedWindowsOnly": "Suojattu toisto vaatii Windows.",
+    "protectedRuntimeMissing": "Asenna Microsoft Edge WebView2 Runtime avataksesi tämän streamin.",
+    "installWebView2Runtime": "Hanki WebView2 Runtime"
   },
   "settings": {
     "general": "Kenraali",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "kuva kuvalta",
     "thunderdome": "ukkonen",
     "desktopNotifications": "Työpöydän ilmoitukset",
+    "doNotDisturb": "Älä häiritse",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Hiljennä sovelluksen sisäiset bannerit, ilmoitusäänet ja järjestelmähälytykset samalla kun tallennat historiaa.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Näytä alkuperäiset käyttöjärjestelmän ilmoitukset, kun seuratut streamit alkavat julkaista.",
     "liveNotifications": "Live-ilmoitukset",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Pidä suoratoistoilmoitukset sovelluksen ilmoitushistoriassa.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Sisäänkirjautuminen ja tunnuksen voimassaolo",
     "allowPreReleaseUpdates": "Salli julkaisua edeltävät päivitykset",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Vastaanota beta- ja esikatseluversiot ennen vakaata julkaisua",
-    "checkForUpdatesOnStartup": "Tarkista päivitykset käynnistyksen yhteydessä",
+    "checkForUpdatesOnStartup": "Jatka päivitysten tarkistamista",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Tarkista uudet versiot taustalla aikataulun mukaan",
     "checkFrequency": "Tarkista taajuus",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Kuinka usein tarkistetaan, kun automaattiset päivitykset ovat päällä",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Nykyinen versio: v",
     "updateCheckUrl": "Päivitä tarkistuksen URL-osoite",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Elektronipäivityssyöte, joka sisältää alustapäivityksen metatiedot",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Tarkista käynnistyksen yhteydessä, milloin valittu aikaväli on kulunut",
-    "minimumTimeBetweenStartupChecks": "Käynnistystarkastusten välinen vähimmäisaika",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Sovellus tarkistaa jokaisen käynnistyksen. Ota tämä käyttöön shekkejä varten, kun se pysyy auki.",
+    "minimumTimeBetweenStartupChecks": "Lisätarkastusten välinen aika",
     "selectFrequency": "Valitse taajuus",
     "hourly": "Tunneittain",
     "daily": "Päivittäin",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekuntia",
     "unknown": "tuntematon",
     "failedToDownloadUpdate": "Päivityksen lataaminen epäonnistui",
-    "failedToInstallUpdate": "Päivityksen asentaminen epäonnistui",
-    "doNotDisturb": "Älä häiritse",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Hiljennä sovelluksen sisäiset bannerit, ilmoitusäänet ja järjestelmähälytykset samalla kun tallennat historiaa."
+    "failedToInstallUpdate": "Päivityksen asentaminen epäonnistui"
   },
   "shell": {
     "loadingPage": "Ladataan sivua",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Laajenna sivupalkki",
       "collapseSidebar": "Tiivistä sivupalkki",
       "notifications": "Ilmoitukset",
+      "doNotDisturb": "Älä häiritse",
+      "notificationsMuted": "Ilmoitukset mykistetty",
       "markAllRead": "Merkitse kaikki luetuiksi",
       "emptyNotifications": "Ei uusia ilmoituksia",
       "dismiss": "Hylkää",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} tunti sitten",
       "hoursAgo_other": "{{count}} tuntia sitten",
       "daysAgo_one": "{{count}} päivä sitten",
-      "daysAgo_other": "{{count}} päivää sitten",
-      "doNotDisturb": "Älä häiritse",
-      "notificationsMuted": "Ilmoitukset mykistetty"
+      "daysAgo_other": "{{count}} päivää sitten"
     },
     "titleBar": {
       "minimize": "Minimoi",

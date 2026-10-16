@@ -1894,6 +1894,14 @@
     "refreshStream": "I-refresh ang stream",
     "blockingMidrollAds": "Pag-block ng mga midroll na ad",
     "playbackInterrupted": "Naputol ang pag-playback",
+    "protectedWindowOpening": "Binubuksan ang window ng player...",
+    "protectedWindowOpen": "Bukas ang window ng player",
+    "protectedWindowClosed": "Isinara ang window ng player",
+    "protectedWindowUnavailable": "Hindi available ang window ng player",
+    "protectedWindowNotice": "Ang Twitch's opisyal na manlalaro ay bubukas nang hiwalay. Maaaring lumitaw ang mga ad.",
+    "focusPlayerWindow": "Dalhin sa harap ang window ng player",
+    "closePlayerWindow": "Isara ang window ng player",
+    "openPlayerWindow": "Buksan ang window ng player",
     "unableToCheckStreamStatus": "Hindi masuri ang status ng stream",
     "unableToLoadStream": "Hindi ma-load ang stream",
     "currentlyOffline": "kasalukuyang offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Buffering",
       "bufferingDetail": "Bina-buffer ng player ang live stream na ito.",
       "focusedActive": "Aktibo ang nakatutok na live na pag-playback."
-    }
+    },
+    "protectedWindowsOnly": "Ang protektadong pag-playback ay nangangailangan ng Windows.",
+    "protectedRuntimeMissing": "I-install ang Microsoft Edge WebView2 Runtime para buksan ang stream na ito.",
+    "installWebView2Runtime": "Kunin ang WebView2 Runtime"
   },
   "settings": {
     "general": "Heneral",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "larawan-sa-larawan",
     "thunderdome": "kulog",
     "desktopNotifications": "Mga notification sa desktop",
+    "doNotDisturb": "Huwag Istorbohin",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Patahimikin ang mga in-app na banner, tunog ng notification, at alerto ng system habang nagre-record pa rin ng history.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Ipakita ang mga notification ng native na OS kapag naging live ang mga sinusundan na stream.",
     "liveNotifications": "Mga Live na Notification",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Panatilihin ang mga alerto sa live-stream sa history ng notification ng app.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Ang bisa ng pag-sign in at token",
     "allowPreReleaseUpdates": "Payagan ang Mga Pre-release na Update",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Makatanggap ng mga bersyon ng beta at preview bago ang stable na release",
-    "checkForUpdatesOnStartup": "Tingnan ang mga update sa startup",
+    "checkForUpdatesOnStartup": "Patuloy na suriin para sa mga update",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Tingnan ang mga bagong bersyon sa background sa isang iskedyul",
     "checkFrequency": "Suriin ang dalas",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Gaano kadalas tingnan kung naka-on ang mga awtomatikong pag-update",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Kasalukuyang Bersyon: v",
     "updateCheckUrl": "I-update ang check URL",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Electron update feed na naglalaman ng platform update metadata",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Suriin sa paglulunsad kung ang napiling agwat ay lumipas na",
-    "minimumTimeBetweenStartupChecks": "Pinakamababang oras sa pagitan ng mga pagsusuri sa pagsisimula",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Sinusuri ng app ang bawat paglulunsad. I-on ito para sa mga pagsusuri habang nananatiling bukas.",
+    "minimumTimeBetweenStartupChecks": "Oras sa pagitan ng mga karagdagang tseke",
     "selectFrequency": "Piliin ang dalas",
     "hourly": "Oras-oras",
     "daily": "Araw-araw",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} (na) segundo",
     "unknown": "hindi kilala",
     "failedToDownloadUpdate": "Nabigong i-download ang update",
-    "failedToInstallUpdate": "Nabigong i-install ang update",
-    "doNotDisturb": "Huwag Istorbohin",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Patahimikin ang mga in-app na banner, tunog ng notification, at alerto ng system habang nagre-record pa rin ng history."
+    "failedToInstallUpdate": "Nabigong i-install ang update"
   },
   "shell": {
     "loadingPage": "Naglo-load ng page",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Palawakin ang sidebar",
       "collapseSidebar": "I-collapse ang sidebar",
       "notifications": "Mga abiso",
+      "doNotDisturb": "Huwag Istorbohin",
+      "notificationsMuted": "Na-mute ang mga notification",
       "markAllRead": "Markahan ang lahat ng nabasa",
       "emptyNotifications": "Walang bagong notification",
       "dismiss": "I-dismiss",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} oras ang nakalipas",
       "hoursAgo_other": "{{count}} (na) oras ang nakalipas",
       "daysAgo_one": "{{count}} araw ang nakalipas",
-      "daysAgo_other": "{{count}} araw ang nakalipas",
-      "doNotDisturb": "Huwag Istorbohin",
-      "notificationsMuted": "Na-mute ang mga notification"
+      "daysAgo_other": "{{count}} araw ang nakalipas"
     },
     "titleBar": {
       "minimize": "I-minimize",

@@ -1894,6 +1894,14 @@
     "refreshStream": "بازخوانی جریان",
     "blockingMidrollAds": "مسدود کردن تبلیغات میانی",
     "playbackInterrupted": "پخش قطع شد",
+    "protectedWindowOpening": "باز کردن پنجره پخش کننده...",
+    "protectedWindowOpen": "پنجره پخش باز است",
+    "protectedWindowClosed": "پنجره پخش کننده بسته شد",
+    "protectedWindowUnavailable": "پنجره پخش کننده در دسترس نیست",
+    "protectedWindowNotice": "پخش کننده رسمی Twitch's به طور جداگانه باز می شود. ممکن است تبلیغات ظاهر شود.",
+    "focusPlayerWindow": "پنجره پخش کننده فوکوس",
+    "closePlayerWindow": "پنجره پخش کننده را ببندید",
+    "openPlayerWindow": "پنجره پخش کننده را باز کنید",
     "unableToCheckStreamStatus": "بررسی وضعیت جریان امکان‌پذیر نیست",
     "unableToLoadStream": "جریان بارگیری نشد",
     "currentlyOffline": "در حال حاضر آفلاین است",
@@ -2129,7 +2137,10 @@
       "buffering": "بافر کردن",
       "bufferingDetail": "پخش کننده این پخش زنده را بافر می کند.",
       "focusedActive": "پخش زنده متمرکز فعال است."
-    }
+    },
+    "protectedWindowsOnly": "پخش محافظت شده به Windows نیاز دارد.",
+    "protectedRuntimeMissing": "برای باز کردن این جریان، Microsoft Edge WebView2 Runtime را نصب کنید.",
+    "installWebView2Runtime": "WebView2 Runtime را دریافت کنید"
   },
   "settings": {
     "general": "ژنرال",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "تصویر به عکس",
     "thunderdome": "رعد و برق",
     "desktopNotifications": "اعلان های دسکتاپ",
+    "doNotDisturb": "مزاحم نشوید",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "بنرهای درون برنامه، صداهای اعلان و هشدارهای سیستم را در حین ضبط تاریخچه خاموش کنید.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "نمایش اعلان‌های سیستم عامل اصلی هنگام پخش جریانی که دنبال می‌کنید.",
     "liveNotifications": "اعلان های زنده",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "هشدارهای پخش زنده را در تاریخچه اعلان برنامه نگه دارید.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "ورود به سیستم و اعتبار رمز",
     "allowPreReleaseUpdates": "به‌روزرسانی‌های پیش از انتشار را مجاز کنید",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "قبل از انتشار پایدار نسخه های بتا و پیش نمایش را دریافت کنید",
-    "checkForUpdatesOnStartup": "به روز رسانی در راه اندازی را بررسی کنید",
+    "checkForUpdatesOnStartup": "به بررسی به‌روزرسانی‌ها ادامه دهید",
     "checkForNewVersionsInTheBackgroundOnASchedule": "نسخه‌های جدید را در پس‌زمینه براساس یک برنامه بررسی کنید",
     "checkFrequency": "فرکانس را بررسی کنید",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "هر چند وقت یکبار باید بررسی کرد که به‌روزرسانی‌های خودکار روشن هستند",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "نسخه فعلی: v",
     "updateCheckUrl": "URL چک را به روز کنید",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "فید به‌روزرسانی الکترونیکی حاوی فراداده به‌روزرسانی پلتفرم",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "زمانی که فاصله انتخابی سپری شده است، هنگام راه اندازی بررسی کنید",
-    "minimumTimeBetweenStartupChecks": "حداقل زمان بین بررسی های راه اندازی",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "برنامه هر راه اندازی را بررسی می کند. تا زمانی که باز می‌ماند، آن را برای بررسی روشن کنید.",
+    "minimumTimeBetweenStartupChecks": "زمان بین بررسی های اضافی",
     "selectFrequency": "فرکانس را انتخاب کنید",
     "hourly": "ساعتی",
     "daily": "روزانه",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} ثانیه",
     "unknown": "ناشناخته",
     "failedToDownloadUpdate": "به روز رسانی دانلود نشد",
-    "failedToInstallUpdate": "به روز رسانی نصب نشد",
-    "doNotDisturb": "مزاحم نشوید",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "بنرهای درون برنامه، صداهای اعلان و هشدارهای سیستم را در حین ضبط تاریخچه خاموش کنید."
+    "failedToInstallUpdate": "به روز رسانی نصب نشد"
   },
   "shell": {
     "loadingPage": "در حال بارگذاری صفحه",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "نوار کناری را گسترش دهید",
       "collapseSidebar": "کوچک کردن نوار کناری",
       "notifications": "اطلاعیه ها",
+      "doNotDisturb": "مزاحم نشوید",
+      "notificationsMuted": "اعلان‌ها بی‌صدا شدند",
       "markAllRead": "علامت گذاری به عنوان خوانده شده",
       "emptyNotifications": "اعلان جدیدی وجود ندارد",
       "dismiss": "رد کردن",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} ساعت قبل",
       "hoursAgo_other": "{{count}} ساعت قبل",
       "daysAgo_one": "{{count}} روز پیش",
-      "daysAgo_other": "{{count}} روز پیش",
-      "doNotDisturb": "مزاحم نشوید",
-      "notificationsMuted": "اعلان‌ها بی‌صدا شدند"
+      "daysAgo_other": "{{count}} روز پیش"
     },
     "titleBar": {
       "minimize": "به حداقل رساندن",

@@ -1894,6 +1894,14 @@
     "refreshStream": "प्रवाह रीफ्रेश करा",
     "blockingMidrollAds": "मिडरोल जाहिराती ब्लॉक करत आहे",
     "playbackInterrupted": "प्लेबॅकमध्ये व्यत्यय आला",
+    "protectedWindowOpening": "प्लेअर विंडो उघडत आहे...",
+    "protectedWindowOpen": "प्लेअर विंडो उघडी आहे",
+    "protectedWindowClosed": "प्लेअर विंडो बंद",
+    "protectedWindowUnavailable": "प्लेअर विंडो अनुपलब्ध",
+    "protectedWindowNotice": "Twitch's अधिकृत खेळाडू स्वतंत्रपणे उघडतो. जाहिराती दिसू शकतात.",
+    "focusPlayerWindow": "फोकस प्लेयर विंडो",
+    "closePlayerWindow": "प्लेअर विंडो बंद करा",
+    "openPlayerWindow": "प्लेयर विंडो उघडा",
     "unableToCheckStreamStatus": "प्रवाह स्थिती तपासण्यात अक्षम",
     "unableToLoadStream": "प्रवाह लोड करण्यात अक्षम",
     "currentlyOffline": "सध्या ऑफलाइन आहे",
@@ -2129,7 +2137,10 @@
       "buffering": "बफरिंग",
       "bufferingDetail": "खेळाडू हा थेट प्रवाह बफर करत आहे.",
       "focusedActive": "केंद्रित थेट प्लेबॅक सक्रिय आहे."
-    }
+    },
+    "protectedWindowsOnly": "संरक्षित प्लेबॅकसाठी Windows आवश्यक आहे.",
+    "protectedRuntimeMissing": "हा प्रवाह उघडण्यासाठी Microsoft Edge WebView2 रनटाइम इंस्टॉल करा.",
+    "installWebView2Runtime": "WebView2 रनटाइम मिळवा"
   },
   "settings": {
     "general": "सामान्य",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "चित्र-दर-चित्र",
     "thunderdome": "गडगडाट",
     "desktopNotifications": "डेस्कटॉप सूचना",
+    "doNotDisturb": "डू नॉट डिस्टर्ब",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "इतिहास रेकॉर्ड करत असताना ॲपमधील बॅनर, सूचना ध्वनी आणि सिस्टम अलर्ट शांत करा.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "फॉलो केलेले स्ट्रीम लाइव्ह झाल्यावर मूळ OS सूचना दाखवा.",
     "liveNotifications": "थेट सूचना",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "ॲप नोटिफिकेशन इतिहासामध्ये लाइव्ह-स्ट्रीम अलर्ट ठेवा.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "साइन-इन आणि टोकन वैधता",
     "allowPreReleaseUpdates": "पूर्व-रिलीझ अद्यतनांना अनुमती द्या",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "स्थिर रिलीझपूर्वी बीटा आणि पूर्वावलोकन आवृत्त्या प्राप्त करा",
-    "checkForUpdatesOnStartup": "स्टार्टअपवरील अद्यतनांसाठी तपासा",
+    "checkForUpdatesOnStartup": "अद्यतनांसाठी तपासत रहा",
     "checkForNewVersionsInTheBackgroundOnASchedule": "शेड्यूलवर पार्श्वभूमीत नवीन आवृत्त्या तपासा",
     "checkFrequency": "वारंवारता तपासा",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "स्वयंचलित अद्यतने चालू असताना किती वेळा तपासायचे",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "वर्तमान आवृत्ती: v",
     "updateCheckUrl": "चेक URL अपडेट करा",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "प्लॅटफॉर्म अपडेट मेटाडेटा असलेले इलेक्ट्रॉन अपडेट फीड",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "निवडलेला मध्यांतर संपल्यावर लॉन्च करताना तपासा",
-    "minimumTimeBetweenStartupChecks": "स्टार्टअप चेक दरम्यान किमान वेळ",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "ॲप प्रत्येक लॉन्च तपासतो. ते उघडे असताना तपासण्यासाठी हे चालू करा.",
+    "minimumTimeBetweenStartupChecks": "अतिरिक्त चेक दरम्यान वेळ",
     "selectFrequency": "वारंवारता निवडा",
     "hourly": "प्रति तास",
     "daily": "रोज",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} सेकंद",
     "unknown": "अज्ञात",
     "failedToDownloadUpdate": "अपडेट डाउनलोड करण्यात अयशस्वी",
-    "failedToInstallUpdate": "अपडेट स्थापित करण्यात अयशस्वी",
-    "doNotDisturb": "डू नॉट डिस्टर्ब",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "इतिहास रेकॉर्ड करत असताना ॲपमधील बॅनर, सूचना ध्वनी आणि सिस्टम अलर्ट शांत करा."
+    "failedToInstallUpdate": "अपडेट स्थापित करण्यात अयशस्वी"
   },
   "shell": {
     "loadingPage": "पृष्ठ लोड करत आहे",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "साइडबार विस्तृत करा",
       "collapseSidebar": "साइडबार संकुचित करा",
       "notifications": "सूचना",
+      "doNotDisturb": "डू नॉट डिस्टर्ब",
+      "notificationsMuted": "सूचना निःशब्द",
       "markAllRead": "सर्व वाचलेले चिन्हांकित करा",
       "emptyNotifications": "कोणत्याही नवीन सूचना नाहीत",
       "dismiss": "डिसमिस करा",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} तासापूर्वी",
       "hoursAgo_other": "{{count}} तासांपूर्वी",
       "daysAgo_one": "{{count}} दिवसापूर्वी",
-      "daysAgo_other": "{{count}} दिवसांपूर्वी",
-      "doNotDisturb": "डू नॉट डिस्टर्ब",
-      "notificationsMuted": "सूचना निःशब्द"
+      "daysAgo_other": "{{count}} दिवसांपूर्वी"
     },
     "titleBar": {
       "minimize": "कमी करा",

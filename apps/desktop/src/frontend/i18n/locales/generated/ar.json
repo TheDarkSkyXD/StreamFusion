@@ -1894,6 +1894,14 @@
     "refreshStream": "تحديث الدفق",
     "blockingMidrollAds": "منع الإعلانات أثناء التشغيل",
     "playbackInterrupted": "تمت مقاطعة التشغيل",
+    "protectedWindowOpening": "فتح نافذة اللاعب...",
+    "protectedWindowOpen": "نافذة المشغل مفتوحة",
+    "protectedWindowClosed": "نافذة اللاعب مغلقة",
+    "protectedWindowUnavailable": "نافذة المشغل غير متاحة",
+    "protectedWindowNotice": "Twitch's يتم فتح اللاعب الرسمي بشكل منفصل. قد تظهر الإعلانات.",
+    "focusPlayerWindow": "التركيز على نافذة اللاعب",
+    "closePlayerWindow": "إغلاق نافذة اللاعب",
+    "openPlayerWindow": "فتح نافذة اللاعب",
     "unableToCheckStreamStatus": "غير قادر على التحقق من حالة الدفق",
     "unableToLoadStream": "غير قادر على تحميل الدفق",
     "currentlyOffline": "غير متواجد حالياً",
@@ -2129,7 +2137,10 @@
       "buffering": "التخزين المؤقت",
       "bufferingDetail": "يقوم المشغل بتخزين هذا البث المباشر مؤقتًا.",
       "focusedActive": "التشغيل المباشر المركز نشط."
-    }
+    },
+    "protectedWindowsOnly": "يتطلب التشغيل المحمي Windows.",
+    "protectedRuntimeMissing": "قم بتثبيت Microsoft Edge WebView2 Runtime لفتح هذا الدفق.",
+    "installWebView2Runtime": "احصل على وقت تشغيل WebView2"
   },
   "settings": {
     "general": "عام",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "صورة تلو الصورة",
     "thunderdome": "ثوندردوم",
     "desktopNotifications": "إشعارات سطح المكتب",
+    "doNotDisturb": "لا تزعج",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "كتم صوت اللافتات داخل التطبيق وأصوات الإشعارات وتنبيهات النظام أثناء تسجيل السجل.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "عرض إشعارات نظام التشغيل الأصلي عند بدء البث المباشر.",
     "liveNotifications": "الإخطارات الحية",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "احتفظ بتنبيهات البث المباشر في سجل إشعارات التطبيق.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "تسجيل الدخول وصلاحية الرمز المميز",
     "allowPreReleaseUpdates": "السماح بتحديثات ما قبل الإصدار",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "احصل على الإصدارات التجريبية والمعاينة قبل الإصدار المستقر",
-    "checkForUpdatesOnStartup": "التحقق من وجود تحديثات عند بدء التشغيل",
+    "checkForUpdatesOnStartup": "استمر في التحقق من وجود تحديثات",
     "checkForNewVersionsInTheBackgroundOnASchedule": "تحقق من وجود إصدارات جديدة في الخلفية وفقًا لجدول زمني",
     "checkFrequency": "تحقق من التردد",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "عدد مرات التحقق من تشغيل التحديثات التلقائية",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "الإصدار الحالي: v",
     "updateCheckUrl": "تحديث عنوان URL الخاص بالتحقق",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "موجز التحديث الإلكتروني الذي يحتوي على البيانات التعريفية لتحديث النظام الأساسي",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "تحقق عند الإطلاق عند انقضاء الفاصل الزمني المحدد",
-    "minimumTimeBetweenStartupChecks": "الحد الأدنى من الوقت بين الشيكات بدء التشغيل",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "يتحقق التطبيق من كل عملية إطلاق. قم بتشغيل هذا لإجراء عمليات التحقق أثناء بقائه مفتوحًا.",
+    "minimumTimeBetweenStartupChecks": "الوقت بين الشيكات الإضافية",
     "selectFrequency": "حدد التردد",
     "hourly": "كل ساعة",
     "daily": "يوميا",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} ثانية",
     "unknown": "غير معروف",
     "failedToDownloadUpdate": "فشل تنزيل التحديث",
-    "failedToInstallUpdate": "فشل تثبيت التحديث",
-    "doNotDisturb": "لا تزعج",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "كتم صوت اللافتات داخل التطبيق وأصوات الإشعارات وتنبيهات النظام أثناء تسجيل السجل."
+    "failedToInstallUpdate": "فشل تثبيت التحديث"
   },
   "shell": {
     "loadingPage": "جارٍ تحميل الصفحة",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "قم بتوسيع الشريط الجانبي",
       "collapseSidebar": "طي الشريط الجانبي",
       "notifications": "الإخطارات",
+      "doNotDisturb": "لا تزعج",
+      "notificationsMuted": "تم كتم صوت الإشعارات",
       "markAllRead": "وضع علامة على كل قراءة",
       "emptyNotifications": "لا توجد إشعارات جديدة",
       "dismiss": "استبعاد",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} قبل ساعة",
       "hoursAgo_other": "{{count}} منذ ساعات",
       "daysAgo_one": "{{count}} منذ يوم واحد",
-      "daysAgo_other": "{{count}} منذ أيام",
-      "doNotDisturb": "لا تزعج",
-      "notificationsMuted": "تم كتم صوت الإشعارات"
+      "daysAgo_other": "{{count}} منذ أيام"
     },
     "titleBar": {
       "minimize": "تصغير",

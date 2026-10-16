@@ -1894,6 +1894,14 @@
     "refreshStream": "Обновить трансляцию",
     "blockingMidrollAds": "Блокировка рекламы в середине ролика",
     "playbackInterrupted": "Воспроизведение прервано",
+    "protectedWindowOpening": "Открытие окна плеера...",
+    "protectedWindowOpen": "Окно плеера открыто",
+    "protectedWindowClosed": "Окно плеера закрыто",
+    "protectedWindowUnavailable": "Окно плеера недоступно",
+    "protectedWindowNotice": "Официальный плеер Twitch's открывается отдельно. Возможно появление рекламы.",
+    "focusPlayerWindow": "Окно плеера в фокусе",
+    "closePlayerWindow": "Закрыть окно плеера",
+    "openPlayerWindow": "Открыть окно плеера",
     "unableToCheckStreamStatus": "Невозможно проверить статус трансляции",
     "unableToLoadStream": "Невозможно загрузить поток",
     "currentlyOffline": "в настоящее время оффлайн",
@@ -2129,7 +2137,10 @@
       "buffering": "Буферизация",
       "bufferingDetail": "Плеер буферизует этот прямой эфир.",
       "focusedActive": "Активно целенаправленное живое воспроизведение."
-    }
+    },
+    "protectedWindowsOnly": "Для защищенного воспроизведения требуется Windows.",
+    "protectedRuntimeMissing": "Установите среду выполнения Microsoft Edge WebView2, чтобы открыть этот поток.",
+    "installWebView2Runtime": "Получить среду выполнения WebView2"
   },
   "settings": {
     "general": "Общий",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "картинка за картинкой",
     "thunderdome": "громовой купол",
     "desktopNotifications": "Уведомления на рабочем столе",
+    "doNotDisturb": "Не беспокоить",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Отключите баннеры в приложении, звуки уведомлений и системные оповещения, сохраняя при этом историю.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Показывать встроенные уведомления ОС, когда отслеживаемые потоки выходят в эфир.",
     "liveNotifications": "Живые уведомления",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Сохраняйте оповещения о прямых трансляциях в истории уведомлений приложения.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Вход в систему и срок действия токена",
     "allowPreReleaseUpdates": "Разрешить предварительные обновления",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Получите бета-версии и предварительные версии перед стабильным выпуском.",
-    "checkForUpdatesOnStartup": "Проверка обновлений при запуске",
+    "checkForUpdatesOnStartup": "Продолжайте проверять обновления",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Проверяйте наличие новых версий в фоновом режиме по расписанию.",
     "checkFrequency": "Проверьте частоту",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Как часто проверять, включены ли автоматические обновления",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Текущая версия: v",
     "updateCheckUrl": "Обновить URL-адрес проверки",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Электронный канал обновлений, содержащий метаданные обновлений платформы.",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Проверка при запуске, когда выбранный интервал истек",
-    "minimumTimeBetweenStartupChecks": "Минимальное время между проверками запуска",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Приложение проверяет каждый запуск. Включите это для проверок, пока оно остается открытым.",
+    "minimumTimeBetweenStartupChecks": "Время между дополнительными проверками",
     "selectFrequency": "Выберите частоту",
     "hourly": "Ежечасно",
     "daily": "Ежедневно",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} секунд",
     "unknown": "неизвестно",
     "failedToDownloadUpdate": "Не удалось загрузить обновление",
-    "failedToInstallUpdate": "Не удалось установить обновление",
-    "doNotDisturb": "Не беспокоить",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Отключите баннеры в приложении, звуки уведомлений и системные оповещения, сохраняя при этом историю."
+    "failedToInstallUpdate": "Не удалось установить обновление"
   },
   "shell": {
     "loadingPage": "Загрузка страницы",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Развернуть боковую панель",
       "collapseSidebar": "Свернуть боковую панель",
       "notifications": "Уведомления",
+      "doNotDisturb": "Не беспокоить",
+      "notificationsMuted": "Уведомления отключены",
       "markAllRead": "Отметить все прочитанными",
       "emptyNotifications": "Нет новых уведомлений",
       "dismiss": "Уволить",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} час назад",
       "hoursAgo_other": "{{count}} часа назад",
       "daysAgo_one": "{{count}} день назад",
-      "daysAgo_other": "{{count}} дней назад",
-      "doNotDisturb": "Не беспокоить",
-      "notificationsMuted": "Уведомления отключены"
+      "daysAgo_other": "{{count}} дней назад"
     },
     "titleBar": {
       "minimize": "Свернуть",

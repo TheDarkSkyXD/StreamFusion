@@ -7,7 +7,7 @@
  * crashes on `app.isPackaged`. This wrapper guarantees a clean env.
  */
 "use strict";
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { createStartEnvironment } = require("./start-dev-lib");
 const { createDevelopmentRun, createElectronViteArguments } = require("./start-dev-run-lib");
@@ -26,6 +26,14 @@ const electronViteBin = path.join(
 void createStartEnvironment(process.env)
   .then(async (env) => {
     delete env.ELECTRON_RUN_AS_NODE;
+    if (process.platform === "win32" && env.STREAMFUSION_BROWSER_DEV !== "1") {
+      const native = spawnSync(process.execPath, [path.resolve(__dirname, "build-protected-player.mjs")], {
+        cwd: path.resolve(__dirname, ".."),
+        stdio: "inherit",
+      });
+      if (native.error) throw native.error;
+      if (native.status !== 0) throw new Error(`Protected player build failed (${native.status})`);
+    }
     const electronPath = require("electron");
     env.STREAMFUSION_DEV_ICON_PATH = path.resolve(__dirname, "../assets/icons/icon.ico");
     env.ELECTRON_EXEC_PATH = await prepareBrandedElectronExecutable({

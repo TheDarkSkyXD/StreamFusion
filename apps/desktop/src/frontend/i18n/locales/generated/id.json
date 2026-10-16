@@ -1894,6 +1894,14 @@
     "refreshStream": "Segarkan aliran",
     "blockingMidrollAds": "Memblokir iklan paruh-putar",
     "playbackInterrupted": "Pemutaran terhenti",
+    "protectedWindowOpening": "Membuka jendela pemutar...",
+    "protectedWindowOpen": "Jendela pemutar terbuka",
+    "protectedWindowClosed": "Jendela pemutar ditutup",
+    "protectedWindowUnavailable": "Jendela pemutar tidak tersedia",
+    "protectedWindowNotice": "Twitch's pemutar resmi dibuka secara terpisah. Iklan mungkin muncul.",
+    "focusPlayerWindow": "Jendela pemutar fokus",
+    "closePlayerWindow": "Tutup jendela pemutar",
+    "openPlayerWindow": "Buka jendela pemutar",
     "unableToCheckStreamStatus": "Tidak dapat memeriksa status streaming",
     "unableToLoadStream": "Tidak dapat memuat streaming",
     "currentlyOffline": "sedang offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Penyangga",
       "bufferingDetail": "Pemain sedang melakukan buffering pada streaming langsung ini.",
       "focusedActive": "Pemutaran langsung terfokus aktif."
-    }
+    },
+    "protectedWindowsOnly": "Pemutaran yang dilindungi memerlukan Windows.",
+    "protectedRuntimeMissing": "Instal Microsoft Edge WebView2 Runtime untuk membuka aliran ini.",
+    "installWebView2Runtime": "Dapatkan Waktu Proses WebView2"
   },
   "settings": {
     "general": "Umum",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "gambar demi gambar",
     "thunderdome": "kubah petir",
     "desktopNotifications": "Pemberitahuan desktop",
+    "doNotDisturb": "Jangan Ganggu",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Senyapkan spanduk dalam aplikasi, suara notifikasi, dan peringatan sistem sambil tetap mencatat riwayat.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Tampilkan notifikasi OS asli saat streaming yang diikuti ditayangkan.",
     "liveNotifications": "Notifikasi Langsung",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Simpan peringatan streaming langsung di riwayat notifikasi aplikasi.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Validitas masuk dan token",
     "allowPreReleaseUpdates": "Izinkan Pembaruan Pra-rilis",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Terima versi beta dan pratinjau sebelum rilis stabil",
-    "checkForUpdatesOnStartup": "Periksa pembaruan saat startup",
+    "checkForUpdatesOnStartup": "Terus periksa pembaruan",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Periksa versi baru di latar belakang sesuai jadwal",
     "checkFrequency": "Periksa frekuensi",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Seberapa sering memeriksa kapan pembaruan otomatis aktif",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Versi Saat Ini: v",
     "updateCheckUrl": "Perbarui URL pemeriksaan",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Umpan pembaruan elektron berisi metadata pembaruan platform",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Periksa saat peluncuran ketika interval yang dipilih telah berlalu",
-    "minimumTimeBetweenStartupChecks": "Waktu minimum antara pemeriksaan startup",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Aplikasi ini memeriksa setiap peluncuran. Aktifkan ini untuk pemeriksaan selagi masih terbuka.",
+    "minimumTimeBetweenStartupChecks": "Waktu antara pemeriksaan tambahan",
     "selectFrequency": "Pilih frekuensi",
     "hourly": "Setiap jam",
     "daily": "Setiap hari",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} detik",
     "unknown": "tidak diketahui",
     "failedToDownloadUpdate": "Gagal mengunduh pembaruan",
-    "failedToInstallUpdate": "Gagal menginstal pembaruan",
-    "doNotDisturb": "Jangan Ganggu",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Senyapkan spanduk dalam aplikasi, suara notifikasi, dan peringatan sistem sambil tetap mencatat riwayat."
+    "failedToInstallUpdate": "Gagal menginstal pembaruan"
   },
   "shell": {
     "loadingPage": "Memuat halaman",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Luaskan bilah sisi",
       "collapseSidebar": "Ciutkan bilah sisi",
       "notifications": "Pemberitahuan",
+      "doNotDisturb": "Jangan Ganggu",
+      "notificationsMuted": "Notifikasi dibisukan",
       "markAllRead": "Tandai semua telah dibaca",
       "emptyNotifications": "Tidak ada notifikasi baru",
       "dismiss": "Singkirkan",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} jam yang lalu",
       "hoursAgo_other": "{{count}} jam yang lalu",
       "daysAgo_one": "{{count}} hari yang lalu",
-      "daysAgo_other": "{{count}} hari yang lalu",
-      "doNotDisturb": "Jangan Ganggu",
-      "notificationsMuted": "Notifikasi dibisukan"
+      "daysAgo_other": "{{count}} hari yang lalu"
     },
     "titleBar": {
       "minimize": "Minimalkan",

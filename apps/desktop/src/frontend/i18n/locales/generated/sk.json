@@ -1894,6 +1894,14 @@
     "refreshStream": "Obnoviť stream",
     "blockingMidrollAds": "Blokovanie reklám uprostred videa",
     "playbackInterrupted": "Prehrávanie bolo prerušené",
+    "protectedWindowOpening": "Otvára sa okno prehrávača...",
+    "protectedWindowOpen": "Okno prehrávača je otvorené",
+    "protectedWindowClosed": "Okno prehrávača je zatvorené",
+    "protectedWindowUnavailable": "Okno prehrávača nie je k dispozícii",
+    "protectedWindowNotice": "Oficiálny prehrávač Twitch's sa otvára samostatne. Môžu sa zobraziť reklamy.",
+    "focusPlayerWindow": "Zamerajte okno prehrávača",
+    "closePlayerWindow": "Zatvorte okno prehrávača",
+    "openPlayerWindow": "Otvorte okno prehrávača",
     "unableToCheckStreamStatus": "Nie je možné skontrolovať stav streamu",
     "unableToLoadStream": "Nie je možné načítať stream",
     "currentlyOffline": "je momentálne offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Ukladanie do vyrovnávacej pamäte",
       "bufferingDetail": "Prehrávač ukladá tento priamy prenos do vyrovnávacej pamäte.",
       "focusedActive": "Zaostrené živé prehrávanie je aktívne."
-    }
+    },
+    "protectedWindowsOnly": "Chránené prehrávanie vyžaduje Windows.",
+    "protectedRuntimeMissing": "Ak chcete otvoriť tento stream, nainštalujte si Microsoft Edge WebView2 Runtime.",
+    "installWebView2Runtime": "Získajte WebView2 Runtime"
   },
   "settings": {
     "general": "generál",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "obraz za obrazom",
     "thunderdome": "hromobitie",
     "desktopNotifications": "Upozornenia na pracovnej ploche",
+    "doNotDisturb": "Nerušiť",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Stlmte bannery v aplikácii, zvuky upozornení a systémové upozornenia a zároveň stále zaznamenávajte históriu.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Zobrazovať upozornenia natívneho operačného systému pri spustení sledovaných streamov.",
     "liveNotifications": "Živé upozornenia",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Uchovávajte upozornenia na živé vysielanie v histórii upozornení aplikácie.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Prihlásenie a platnosť tokenu",
     "allowPreReleaseUpdates": "Povoliť predbežné aktualizácie",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Získajte beta a ukážkové verzie pred stabilným vydaním",
-    "checkForUpdatesOnStartup": "Pri spustení skontrolujte aktualizácie",
+    "checkForUpdatesOnStartup": "Pokračujte v kontrole aktualizácií",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Skontrolujte nové verzie na pozadí podľa plánu",
     "checkFrequency": "Skontrolujte frekvenciu",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Ako často kontrolovať, kedy sú zapnuté automatické aktualizácie",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Aktuálna verzia: v",
     "updateCheckUrl": "Aktualizujte kontrolnú webovú adresu",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Informačný kanál elektronickej aktualizácie obsahujúci metadáta aktualizácie platformy",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Po uplynutí zvoleného intervalu skontrolujte pri spustení",
-    "minimumTimeBetweenStartupChecks": "Minimálny čas medzi kontrolami spustenia",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Aplikácia kontroluje každé spustenie. Zapnite toto pre kontroly, kým zostane otvorené.",
+    "minimumTimeBetweenStartupChecks": "Čas medzi dodatočnými kontrolami",
     "selectFrequency": "Vyberte frekvenciu",
     "hourly": "Každú hodinu",
     "daily": "Denne",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekúnd",
     "unknown": "neznámy",
     "failedToDownloadUpdate": "Stiahnutie aktualizácie zlyhalo",
-    "failedToInstallUpdate": "Aktualizáciu sa nepodarilo nainštalovať",
-    "doNotDisturb": "Nerušiť",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Stlmte bannery v aplikácii, zvuky upozornení a systémové upozornenia a zároveň stále zaznamenávajte históriu."
+    "failedToInstallUpdate": "Aktualizáciu sa nepodarilo nainštalovať"
   },
   "shell": {
     "loadingPage": "Načítava sa stránka",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Rozbaliť bočný panel",
       "collapseSidebar": "Collapse sidebar",
       "notifications": "Upozornenia",
+      "doNotDisturb": "Nerušiť",
+      "notificationsMuted": "Upozornenia sú stlmené",
       "markAllRead": "Označte všetky prečítané",
       "emptyNotifications": "Žiadne nové upozornenia",
       "dismiss": "Odmietnuť",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "pred {{count}} hodinou",
       "hoursAgo_other": "pred {{count}} hodinami",
       "daysAgo_one": "pred {{count}} dňom",
-      "daysAgo_other": "pred {{count}} dňami",
-      "doNotDisturb": "Nerušiť",
-      "notificationsMuted": "Upozornenia sú stlmené"
+      "daysAgo_other": "pred {{count}} dňami"
     },
     "titleBar": {
       "minimize": "Minimize",

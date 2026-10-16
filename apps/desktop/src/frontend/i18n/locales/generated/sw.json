@@ -1894,6 +1894,14 @@
     "refreshStream": "Onyesha upya mtiririko",
     "blockingMidrollAds": "Inazuia matangazo ya katikati",
     "playbackInterrupted": "Uchezaji umekatizwa",
+    "protectedWindowOpening": "Inafungua dirisha la mchezaji...",
+    "protectedWindowOpen": "Dirisha la mchezaji limefunguliwa",
+    "protectedWindowClosed": "Dirisha la mchezaji limefungwa",
+    "protectedWindowUnavailable": "Dirisha la mchezaji halipatikani",
+    "protectedWindowNotice": "Twitch's mchezaji rasmi hufungua tofauti. Matangazo yanaweza kuonekana.",
+    "focusPlayerWindow": "Dirisha la mchezaji wa kuzingatia",
+    "closePlayerWindow": "Funga dirisha la wachezaji",
+    "openPlayerWindow": "Fungua dirisha la mchezaji",
     "unableToCheckStreamStatus": "Imeshindwa kuangalia hali ya mtiririko",
     "unableToLoadStream": "Imeshindwa kupakia mtiririko",
     "currentlyOffline": "kwa sasa iko nje ya mtandao",
@@ -2129,7 +2137,10 @@
       "buffering": "Kuakibisha",
       "bufferingDetail": "Mchezaji anaakibisha mtiririko huu wa moja kwa moja.",
       "focusedActive": "Uchezaji uliolenga wa moja kwa moja unatumika."
-    }
+    },
+    "protectedWindowsOnly": "Uchezaji uliolindwa unahitaji Windows.",
+    "protectedRuntimeMissing": "Sakinisha Muda wa Kuendesha wa Microsoft Edge WebView2 ili kufungua mtiririko huu.",
+    "installWebView2Runtime": "Pata Muda wa Kuendesha wa WebView2"
   },
   "settings": {
     "general": "Mkuu",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "picha kwa picha",
     "thunderdome": "ngurumo",
     "desktopNotifications": "Arifa za eneo-kazi",
+    "doNotDisturb": "Usinisumbue",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Nyamazisha mabango ya ndani ya programu, sauti za arifa na arifa za mfumo huku ukiendelea kurekodi historia.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Onyesha arifa asili za Mfumo wa Uendeshaji wakati mitiririko inafuatwa.",
     "liveNotifications": "Arifa za Moja kwa Moja",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Weka arifa za mtiririko wa moja kwa moja katika historia ya arifa za programu.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Ingia na uhalali wa tokeni",
     "allowPreReleaseUpdates": "Ruhusu Masasisho ya Mapema",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Pokea matoleo ya beta na ya kukagua kabla ya toleo thabiti",
-    "checkForUpdatesOnStartup": "Angalia sasisho wakati wa kuanza",
+    "checkForUpdatesOnStartup": "Endelea kuangalia masasisho",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Angalia matoleo mapya chinichini kwenye ratiba",
     "checkFrequency": "Angalia mzunguko",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Ni mara ngapi uangalie wakati masasisho ya kiotomatiki yamewashwa",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Toleo la Sasa: v",
     "updateCheckUrl": "Sasisha URL ya kuangalia",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Milisho ya sasisho ya elektroni iliyo na metadata ya sasisho la mfumo",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Angalia wakati wa uzinduzi wakati muda uliochaguliwa umepita",
-    "minimumTimeBetweenStartupChecks": "Muda wa chini kati ya ukaguzi wa kuanza",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Programu hukagua kila uzinduzi. Washa kipengele hiki kwa ukaguzi huku kikiwa wazi.",
+    "minimumTimeBetweenStartupChecks": "Muda kati ya ukaguzi wa ziada",
     "selectFrequency": "Chagua marudio",
     "hourly": "Kila saa",
     "daily": "Kila siku",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "Sekunde {{count}}",
     "unknown": "haijulikani",
     "failedToDownloadUpdate": "Imeshindwa kupakua sasisho",
-    "failedToInstallUpdate": "Imeshindwa kusakinisha sasisho",
-    "doNotDisturb": "Usinisumbue",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Nyamazisha mabango ya ndani ya programu, sauti za arifa na arifa za mfumo huku ukiendelea kurekodi historia."
+    "failedToInstallUpdate": "Imeshindwa kusakinisha sasisho"
   },
   "shell": {
     "loadingPage": "Inapakia ukurasa",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Panua utepe",
       "collapseSidebar": "Kunja utepe",
       "notifications": "Arifa",
+      "doNotDisturb": "Usinisumbue",
+      "notificationsMuted": "Arifa zimenyamazishwa",
       "markAllRead": "Weka alama kuwa zote zimesomwa",
       "emptyNotifications": "Hakuna arifa mpya",
       "dismiss": "Ondoa",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "saa {{count}} iliyopita",
       "hoursAgo_other": "saa {{count}} zilizopita",
       "daysAgo_one": "siku {{count}} iliyopita",
-      "daysAgo_other": "siku {{count}} zilizopita",
-      "doNotDisturb": "Usinisumbue",
-      "notificationsMuted": "Arifa zimenyamazishwa"
+      "daysAgo_other": "siku {{count}} zilizopita"
     },
     "titleBar": {
       "minimize": "Punguza",

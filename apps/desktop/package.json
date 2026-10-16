@@ -33,10 +33,11 @@
     "rebuild-deps": "electron-builder install-app-deps",
     "rebuild-deps:x64": "electron-builder install-app-deps --arch=x64",
     "rebuild-deps:arm64": "electron-builder install-app-deps --arch=arm64",
-    "package:x64": "electron-builder --publish never --x64",
-    "package:arm64": "electron-builder --publish never --arm64",
-    "package:windows:x64": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 --publish never",
-    "package:windows:x64:signed": "electron-builder --win --x64 --publish never -c.forceCodeSigning=true",
+    "package:x64": "node scripts/build-protected-player.mjs --if-windows --arch x64 && electron-builder --publish never --x64",
+    "package:arm64": "node scripts/build-protected-player.mjs --if-windows --arch arm64 && electron-builder --publish never --arm64",
+    "package:windows:x64": "node scripts/build-protected-player.mjs --arch x64 && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 --publish never",
+    "package:windows:arm64": "node scripts/build-protected-player.mjs --arch arm64 && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --arm64 --publish never",
+    "package:windows:x64:signed": "node scripts/build-protected-player.mjs --arch x64 && electron-builder --win --x64 --publish never -c.forceCodeSigning=true",
     "package:macos:x64": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --x64 --publish never",
     "package:macos:x64:signed": "electron-builder --mac --x64 --publish never -c.forceCodeSigning=true -c.mac.notarize=true",
     "package:macos:arm64": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --publish never",
@@ -48,13 +49,13 @@
     "dev:mcp": "node scripts/start-dev.js -- --remote-debugging-port=9222",
     "build": "electron-vite build",
     "build:start": "node scripts/build-start.mjs",
-    "package:start": "electron-builder --config start.builder.config.cjs --publish never",
+    "package:start": "node scripts/build-protected-player.mjs --if-windows && electron-builder --config start.builder.config.cjs --publish never",
     "preview:start": "electron-vite preview --skipBuild --entry .cache/start/app",
     "start": "npm run start:checked --",
     "start:checked": "npm run typecheck && npm run lint && node scripts/start-picker.js",
     "preview": "electron-vite preview",
-    "dist": "npm run rebuild-deps && npm run build && electron-builder --publish never",
-    "dist:win": "npm run rebuild-deps && npm run build && electron-builder --win --publish never",
+    "dist": "npm run rebuild-deps && npm run build && node scripts/build-protected-player.mjs --if-windows && electron-builder --publish never",
+    "dist:win": "npm run rebuild-deps && npm run build && node scripts/build-protected-player.mjs && electron-builder --win --publish never",
     "dist:mac": "npm run rebuild-deps && npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run rebuild-deps && npm run build && electron-builder --linux --publish never",
     "lint": "eslint src/ tests/ \"*.config.{js,mjs,cjs,jsx,ts,mts,tsx}\" start.routes.mts && node scripts/verify-feature-boundaries.mjs",
@@ -112,7 +113,14 @@
     },
     "win": {
       "target": "nsis",
-      "artifactName": "${productName}-${version}-Setup.${ext}"
+      "artifactName": "${productName}-${version}-Setup.${ext}",
+      "extraResources": [
+        {
+          "from": ".cache/native/protected-player",
+          "to": "protected-player",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,

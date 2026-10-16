@@ -1894,6 +1894,14 @@
     "refreshStream": "Atualizar fluxo",
     "blockingMidrollAds": "Bloqueio de anúncios intermediários",
     "playbackInterrupted": "Reprodução interrompida",
+    "protectedWindowOpening": "Abrindo janela do player...",
+    "protectedWindowOpen": "A janela do player está aberta",
+    "protectedWindowClosed": "Janela do jogador fechada",
+    "protectedWindowUnavailable": "Janela do player indisponível",
+    "protectedWindowNotice": "Twitch's player oficial abre separadamente. Os anúncios podem aparecer.",
+    "focusPlayerWindow": "Janela do player em foco",
+    "closePlayerWindow": "Fechar janela do player",
+    "openPlayerWindow": "Abrir janela do jogador",
     "unableToCheckStreamStatus": "Não foi possível verificar o status da transmissão",
     "unableToLoadStream": "Não foi possível carregar o fluxo",
     "currentlyOffline": "está off-line no momento",
@@ -2129,7 +2137,10 @@
       "buffering": "Buffer",
       "bufferingDetail": "O player está armazenando esta transmissão ao vivo em buffer.",
       "focusedActive": "A reprodução ao vivo focada está ativa."
-    }
+    },
+    "protectedWindowsOnly": "A reprodução protegida requer Windows.",
+    "protectedRuntimeMissing": "Instale o Microsoft Edge WebView2 Runtime para abrir este fluxo.",
+    "installWebView2Runtime": "Obtenha o tempo de execução do WebView2"
   },
   "settings": {
     "general": "Geral",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "foto por foto",
     "thunderdome": "Cúpula do trovão",
     "desktopNotifications": "Notificações na área de trabalho",
+    "doNotDisturb": "Não perturbe",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silencie banners no aplicativo, sons de notificação e alertas do sistema enquanto grava o histórico.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Mostre notificações nativas do sistema operacional quando as transmissões seguidas forem ao vivo.",
     "liveNotifications": "Notificações ao vivo",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Mantenha alertas de transmissão ao vivo no histórico de notificações do aplicativo.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Validade de login e token",
     "allowPreReleaseUpdates": "Permitir atualizações de pré-lançamento",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Receba versões beta e de visualização antes do lançamento estável",
-    "checkForUpdatesOnStartup": "Verifique se há atualizações na inicialização",
+    "checkForUpdatesOnStartup": "Continue verificando se há atualizações",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Verifique se há novas versões em segundo plano de acordo com uma programação",
     "checkFrequency": "Verifique a frequência",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Com que frequência verificar quando as atualizações automáticas estão ativadas",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Versão Atual: v",
     "updateCheckUrl": "Atualizar URL de verificação",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Feed de atualização do Electron contendo os metadados de atualização da plataforma",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Verifique na inicialização quando o intervalo selecionado expirou",
-    "minimumTimeBetweenStartupChecks": "Tempo mínimo entre verificações de inicialização",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "O aplicativo verifica cada inicialização. Ative isso para verificações enquanto permanece aberto.",
+    "minimumTimeBetweenStartupChecks": "Tempo entre verificações adicionais",
     "selectFrequency": "Selecione a frequência",
     "hourly": "De hora em hora",
     "daily": "Diariamente",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} segundos",
     "unknown": "desconhecido",
     "failedToDownloadUpdate": "Falha ao baixar a atualização",
-    "failedToInstallUpdate": "Falha ao instalar a atualização",
-    "doNotDisturb": "Não perturbe",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Silencie banners no aplicativo, sons de notificação e alertas do sistema enquanto grava o histórico."
+    "failedToInstallUpdate": "Falha ao instalar a atualização"
   },
   "shell": {
     "loadingPage": "Carregando página",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Expandir barra lateral",
       "collapseSidebar": "Recolher barra lateral",
       "notifications": "Notificações",
+      "doNotDisturb": "Não perturbe",
+      "notificationsMuted": "Notificações silenciadas",
       "markAllRead": "Marcar tudo como lido",
       "emptyNotifications": "Nenhuma nova notificação",
       "dismiss": "Dispensar",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} hora atrás",
       "hoursAgo_other": "{{count}} horas atrás",
       "daysAgo_one": "{{count}} dia atrás",
-      "daysAgo_other": "{{count}} dias atrás",
-      "doNotDisturb": "Não perturbe",
-      "notificationsMuted": "Notificações silenciadas"
+      "daysAgo_other": "{{count}} dias atrás"
     },
     "titleBar": {
       "minimize": "Minimizar",

@@ -1894,6 +1894,14 @@
     "refreshStream": "Obnovit stream",
     "blockingMidrollAds": "Blokování reklam uprostřed videa",
     "playbackInterrupted": "Přehrávání přerušeno",
+    "protectedWindowOpening": "Otevírání okna přehrávače...",
+    "protectedWindowOpen": "Okno přehrávače je otevřené",
+    "protectedWindowClosed": "Okno přehrávače zavřeno",
+    "protectedWindowUnavailable": "Okno přehrávače není k dispozici",
+    "protectedWindowNotice": "Oficiální přehrávač Twitch's se otevře samostatně. Mohou se objevit reklamy.",
+    "focusPlayerWindow": "Zaměřit okno přehrávače",
+    "closePlayerWindow": "Zavřít okno přehrávače",
+    "openPlayerWindow": "Otevřete okno přehrávače",
     "unableToCheckStreamStatus": "Nelze zkontrolovat stav streamu",
     "unableToLoadStream": "Nelze načíst stream",
     "currentlyOffline": "je momentálně offline",
@@ -2129,7 +2137,10 @@
       "buffering": "Ukládání do vyrovnávací paměti",
       "bufferingDetail": "Přehrávač ukládá tento přímý přenos do vyrovnávací paměti.",
       "focusedActive": "Zaostřené živé přehrávání je aktivní."
-    }
+    },
+    "protectedWindowsOnly": "Chráněné přehrávání vyžaduje Windows.",
+    "protectedRuntimeMissing": "Chcete-li tento stream otevřít, nainstalujte si Microsoft Edge WebView2 Runtime.",
+    "installWebView2Runtime": "Získejte WebView2 Runtime"
   },
   "settings": {
     "general": "Generál",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "obrázek po obrázku",
     "thunderdome": "bouřka",
     "desktopNotifications": "Oznámení na ploše",
+    "doNotDisturb": "Nerušit",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Ztišení bannerů v aplikaci, zvuků oznámení a systémových výstrah a zároveň zaznamenává historii.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Zobrazovat oznámení nativního operačního systému, když jsou sledované streamy spuštěny.",
     "liveNotifications": "Živá oznámení",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Udržujte upozornění na živé vysílání v historii oznámení aplikace.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Přihlášení a platnost tokenu",
     "allowPreReleaseUpdates": "Povolit předběžné aktualizace",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Získejte beta a náhledové verze před stabilním vydáním",
-    "checkForUpdatesOnStartup": "Zkontrolujte aktualizace při spuštění",
+    "checkForUpdatesOnStartup": "Pokračujte v kontrole aktualizací",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Kontrolujte nové verze na pozadí podle plánu",
     "checkFrequency": "Zkontrolujte frekvenci",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Jak často kontrolovat, kdy jsou automatické aktualizace zapnuté",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Aktuální verze: v",
     "updateCheckUrl": "Aktualizovat adresu URL kontroly",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Informační kanál Electron obsahující metadata aktualizace platformy",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Zkontrolujte při spuštění, kdy vybraný interval uplynul",
-    "minimumTimeBetweenStartupChecks": "Minimální doba mezi kontrolami spuštění",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Aplikace kontroluje každé spuštění. Zapněte toto pro kontroly, dokud zůstane otevřené.",
+    "minimumTimeBetweenStartupChecks": "Čas mezi dodatečnými kontrolami",
     "selectFrequency": "Vyberte frekvenci",
     "hourly": "Každou hodinu",
     "daily": "Denně",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekund",
     "unknown": "neznámý",
     "failedToDownloadUpdate": "Stažení aktualizace se nezdařilo",
-    "failedToInstallUpdate": "Aktualizaci se nepodařilo nainstalovat",
-    "doNotDisturb": "Nerušit",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Ztišení bannerů v aplikaci, zvuků oznámení a systémových výstrah a zároveň zaznamenává historii."
+    "failedToInstallUpdate": "Aktualizaci se nepodařilo nainstalovat"
   },
   "shell": {
     "loadingPage": "Načítání stránky",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Rozbalte postranní panel",
       "collapseSidebar": "Sbalit postranní panel",
       "notifications": "Oznámení",
+      "doNotDisturb": "Nerušit",
+      "notificationsMuted": "Oznámení ztlumena",
       "markAllRead": "Označte vše jako přečtené",
       "emptyNotifications": "Žádná nová oznámení",
       "dismiss": "Odmítnout",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "před {{count}} hodinou",
       "hoursAgo_other": "před {{count}} hodinami",
       "daysAgo_one": "před {{count}} dnem",
-      "daysAgo_other": "před {{count}} dny",
-      "doNotDisturb": "Nerušit",
-      "notificationsMuted": "Oznámení ztlumena"
+      "daysAgo_other": "před {{count}} dny"
     },
     "titleBar": {
       "minimize": "Minimalizovat",

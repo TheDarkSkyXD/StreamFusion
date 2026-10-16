@@ -178,6 +178,12 @@ export const IPC_CHANNELS = {
   STREAMS_GET_FOLLOWED: "streams:get-followed",
   STREAMS_GET_BY_CHANNEL: "streams:get-by-channel",
   STREAMS_GET_PLAYBACK_URL: "streams:get-playback-url",
+  PROTECTED_PLAYBACK_CHECK: "protected-playback:check",
+  PROTECTED_PLAYBACK_OPEN: "protected-playback:open",
+  PROTECTED_PLAYBACK_FOCUS: "protected-playback:focus",
+  PROTECTED_PLAYBACK_CLOSE: "protected-playback:close",
+  PROTECTED_PLAYBACK_MUTE: "protected-playback:mute",
+  PROTECTED_PLAYBACK_STATE: "protected-playback:state",
 
   // ========== Discovery: Categories ==========
   CATEGORIES_GET_TOP: "categories:get-top",

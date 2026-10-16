@@ -1894,6 +1894,14 @@
     "refreshStream": "Опресняване на потока",
     "blockingMidrollAds": "Блокиране на реклами по средата на видеоклипа",
     "playbackInterrupted": "Възпроизвеждането е прекъснато",
+    "protectedWindowOpening": "Отваряне на прозореца на плейъра...",
+    "protectedWindowOpen": "Прозорецът на плейъра е отворен",
+    "protectedWindowClosed": "Прозорецът на играча е затворен",
+    "protectedWindowUnavailable": "Прозорецът на плейъра е недостъпен",
+    "protectedWindowNotice": "Официалният плейър на Twitch's се отваря отделно. Може да се появят реклами.",
+    "focusPlayerWindow": "Фокусиране на прозореца на плейъра",
+    "closePlayerWindow": "Затворете прозореца на плейъра",
+    "openPlayerWindow": "Отворете прозореца на плейъра",
     "unableToCheckStreamStatus": "Не може да се провери състоянието на потока",
     "unableToLoadStream": "Потокът не може да се зареди",
     "currentlyOffline": "в момента е офлайн",
@@ -2129,7 +2137,10 @@
       "buffering": "Буфериране",
       "bufferingDetail": "Плейърът буферира този поток на живо.",
       "focusedActive": "Активно е фокусирано възпроизвеждане на живо."
-    }
+    },
+    "protectedWindowsOnly": "Защитеното възпроизвеждане изисква Windows.",
+    "protectedRuntimeMissing": "Инсталирайте Microsoft Edge WebView2 Runtime, за да отворите този поток.",
+    "installWebView2Runtime": "Вземете WebView2 Runtime"
   },
   "settings": {
     "general": "генерал",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "картина по картина",
     "thunderdome": "гръмотевичен купол",
     "desktopNotifications": "Известия на работния плот",
+    "doNotDisturb": "Не безпокойте",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Заглушете банерите в приложението, звуците на известия и системните сигнали, докато все още записвате хронология.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Показване на известия за собствена операционна система, когато последваните потоци се пуснат на живо.",
     "liveNotifications": "Известия на живо",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Съхранявайте сигнали за поток на живо в хронологията на известията на приложението.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Вход и валидност на токена",
     "allowPreReleaseUpdates": "Разрешаване на предварителни актуализации",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Получавайте бета версии и версии за предварителен преглед преди стабилна версия",
-    "checkForUpdatesOnStartup": "Проверете за актуализации при стартиране",
+    "checkForUpdatesOnStartup": "Продължавайте да проверявате за актуализации",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Проверете за нови версии във фонов режим по график",
     "checkFrequency": "Проверете честотата",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Колко често да проверявате кога са включени автоматичните актуализации",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Текуща версия: v",
     "updateCheckUrl": "Актуализирайте URL адреса за проверка",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Емисия за актуализиране на Electron, съдържаща метаданните за актуализиране на платформата",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Проверете при стартиране, когато избраният интервал е изтекъл",
-    "minimumTimeBetweenStartupChecks": "Минимално време между проверките при стартиране",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Приложението проверява всяко стартиране. Включете това за проверки, докато остава отворено.",
+    "minimumTimeBetweenStartupChecks": "Време между допълнителните проверки",
     "selectFrequency": "Изберете честота",
     "hourly": "Почасово",
     "daily": "Ежедневно",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} секунди",
     "unknown": "неизвестен",
     "failedToDownloadUpdate": "Неуспешно изтегляне на актуализация",
-    "failedToInstallUpdate": "Неуспешно инсталиране на актуализация",
-    "doNotDisturb": "Не безпокойте",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Заглушете банерите в приложението, звуците на известия и системните сигнали, докато все още записвате хронология."
+    "failedToInstallUpdate": "Неуспешно инсталиране на актуализация"
   },
   "shell": {
     "loadingPage": "Страницата се зарежда",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Разширете страничната лента",
       "collapseSidebar": "Свиване на страничната лента",
       "notifications": "Известия",
+      "doNotDisturb": "Не безпокойте",
+      "notificationsMuted": "Известията са заглушени",
       "markAllRead": "Маркирайте всички прочетени",
       "emptyNotifications": "Няма нови известия",
       "dismiss": "Отхвърляне",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "преди {{count}} час",
       "hoursAgo_other": "преди {{count}} часа",
       "daysAgo_one": "преди {{count}} ден",
-      "daysAgo_other": "преди {{count}} дни",
-      "doNotDisturb": "Не безпокойте",
-      "notificationsMuted": "Известията са заглушени"
+      "daysAgo_other": "преди {{count}} дни"
     },
     "titleBar": {
       "minimize": "Минимизиране",

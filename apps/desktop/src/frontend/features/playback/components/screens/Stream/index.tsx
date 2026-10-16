@@ -634,6 +634,7 @@ export function StreamPage() {
       poster: twitchPoster,
       onError: routePlatform === "twitch" ? handleTwitchPlayerError : handlePlayerError,
       onCleanPresentedFrame: routePlatform === "twitch" ? markTwitchPlaybackHealthy : undefined,
+      onProtectedPlaybackSelected: routePlatform === "twitch" ? twitchRecovery.suspend : undefined,
       onRefresh: reloadPlayback,
       onToggleTheater: handleToggleTheater,
     });
@@ -649,6 +650,7 @@ export function StreamPage() {
     twitchPoster,
     routePlatform,
     markTwitchPlaybackHealthy,
+    twitchRecovery.suspend,
   ]);
 
   const hasPlayback = Boolean(playback?.url);
@@ -860,6 +862,7 @@ export function StreamPage() {
                     onReady={() => logger.debug("Page:Stream", "twitch live player ready")}
                     onError={handleTwitchPlayerError}
                     onCleanPresentedFrame={markTwitchPlaybackHealthy}
+                    onProtectedPlaybackSelected={twitchRecovery.suspend}
                     recoveryManagedExternally
                     isTheater={isTheater}
                     onToggleTheater={handleToggleTheater}

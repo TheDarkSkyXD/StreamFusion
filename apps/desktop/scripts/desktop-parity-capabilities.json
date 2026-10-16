@@ -237,7 +237,8 @@
         "ipc-feature:playback"
       ],
       "mainProcess": [
-        "ipc-handler:stream-playback-handlers"
+        "ipc-handler:stream-playback-handlers",
+        "ipc-handler:protected-playback-handlers"
       ],
       "platformBranches": [],
       "state": [
@@ -246,7 +247,9 @@
       "persistence": [],
       "verification": [
         "apps/desktop/src/frontend/features/playback/tests/pages/Stream.test.tsx",
-        "apps/desktop/src/frontend/features/playback/tests/hooks/useStreamPlayback.network-recovery.test.tsx"
+        "apps/desktop/src/frontend/features/playback/tests/hooks/useStreamPlayback.network-recovery.test.tsx",
+        "apps/desktop/src/backend/features/playback/tests/routes/protected-playback-routes.test.ts",
+        "apps/desktop/src/backend/features/playback/tests/adapters/windows/webview2-protected-playback-host.test.ts"
       ]
     },
     {

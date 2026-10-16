@@ -1894,6 +1894,14 @@
     "refreshStream": "รีเฟรชสตรีม",
     "blockingMidrollAds": "การปิดกั้นโฆษณาตอนกลาง",
     "playbackInterrupted": "การเล่นถูกขัดจังหวะ",
+    "protectedWindowOpening": "กำลังเปิดหน้าต่างผู้เล่น...",
+    "protectedWindowOpen": "หน้าต่างผู้เล่นเปิดอยู่",
+    "protectedWindowClosed": "หน้าต่างผู้เล่นปิดลง",
+    "protectedWindowUnavailable": "หน้าต่างผู้เล่นไม่พร้อมใช้งาน",
+    "protectedWindowNotice": "ผู้เล่นอย่างเป็นทางการของ Twitch's เปิดแยกกัน โฆษณาอาจปรากฏขึ้น",
+    "focusPlayerWindow": "หน้าต่างโปรแกรมเล่นโฟกัส",
+    "closePlayerWindow": "ปิดหน้าต่างผู้เล่น",
+    "openPlayerWindow": "เปิดหน้าต่างผู้เล่น",
     "unableToCheckStreamStatus": "ไม่สามารถตรวจสอบสถานะการสตรีมได้",
     "unableToLoadStream": "ไม่สามารถโหลดสตรีมได้",
     "currentlyOffline": "กำลังออฟไลน์อยู่",
@@ -2129,7 +2137,10 @@
       "buffering": "การบัฟเฟอร์",
       "bufferingDetail": "โปรแกรมเล่นกำลังบัฟเฟอร์สตรีมแบบสดนี้",
       "focusedActive": "การเล่นสดแบบเน้นการใช้งานเปิดใช้งานอยู่"
-    }
+    },
+    "protectedWindowsOnly": "การเล่นที่มีการป้องกันต้องใช้ Windows",
+    "protectedRuntimeMissing": "ติดตั้ง Microsoft Edge WebView2 Runtime เพื่อเปิดสตรีมนี้",
+    "installWebView2Runtime": "รับรันไทม์ WebView2"
   },
   "settings": {
     "general": "ทั่วไป",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "ภาพต่อภาพ",
     "thunderdome": "ธันเดอร์โดม",
     "desktopNotifications": "การแจ้งเตือนบนเดสก์ท็อป",
+    "doNotDisturb": "ห้ามรบกวน",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ปิดเสียงแบนเนอร์ในแอป เสียงแจ้งเตือน และระบบแจ้งเตือนในขณะที่ยังคงบันทึกประวัติ",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "แสดงการแจ้งเตือนระบบปฏิบัติการดั้งเดิมเมื่อสตรีมที่ติดตามถ่ายทอดสด",
     "liveNotifications": "การแจ้งเตือนสด",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "เก็บการแจ้งเตือนสตรีมสดไว้ในประวัติการแจ้งเตือนของแอป",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "การลงชื่อเข้าใช้และความถูกต้องของโทเค็น",
     "allowPreReleaseUpdates": "อนุญาตการอัปเดตก่อนเผยแพร่",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "รับเวอร์ชันเบต้าและเวอร์ชันตัวอย่างก่อนที่จะเผยแพร่อย่างเสถียร",
-    "checkForUpdatesOnStartup": "ตรวจสอบการอัปเดตเมื่อเริ่มต้นระบบ",
+    "checkForUpdatesOnStartup": "ตรวจสอบการอัปเดตต่อไป",
     "checkForNewVersionsInTheBackgroundOnASchedule": "ตรวจสอบเวอร์ชันใหม่ในเบื้องหลังตามกำหนดเวลา",
     "checkFrequency": "ตรวจสอบความถี่",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "บ่อยแค่ไหนที่จะตรวจสอบเมื่อเปิดการอัปเดตอัตโนมัติ",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "เวอร์ชันปัจจุบัน: v",
     "updateCheckUrl": "อัปเดต URL การตรวจสอบ",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "ฟีดอัปเดตอิเล็กตรอนที่มีข้อมูลเมตาการอัปเดตแพลตฟอร์ม",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "ตรวจสอบเมื่อเปิดใช้งานเมื่อพ้นช่วงเวลาที่เลือกแล้ว",
-    "minimumTimeBetweenStartupChecks": "เวลาขั้นต่ำระหว่างการตรวจสอบการเริ่มต้น",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "แอพจะตรวจสอบทุกการเปิดตัว เปิดสิ่งนี้เพื่อตรวจสอบในขณะที่ยังคงเปิดอยู่",
+    "minimumTimeBetweenStartupChecks": "ระยะเวลาระหว่างการตรวจสอบเพิ่มเติม",
     "selectFrequency": "เลือกความถี่",
     "hourly": "รายชั่วโมง",
     "daily": "รายวัน",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} วินาที",
     "unknown": "ไม่ทราบ",
     "failedToDownloadUpdate": "ดาวน์โหลดการอัปเดตไม่สำเร็จ",
-    "failedToInstallUpdate": "ไม่สามารถติดตั้งการอัปเดต",
-    "doNotDisturb": "ห้ามรบกวน",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ปิดเสียงแบนเนอร์ในแอป เสียงแจ้งเตือน และระบบแจ้งเตือนในขณะที่ยังคงบันทึกประวัติ"
+    "failedToInstallUpdate": "ไม่สามารถติดตั้งการอัปเดต"
   },
   "shell": {
     "loadingPage": "กำลังโหลดหน้า",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "ขยายแถบด้านข้าง",
       "collapseSidebar": "ยุบแถบด้านข้าง",
       "notifications": "การแจ้งเตือน",
+      "doNotDisturb": "ห้ามรบกวน",
+      "notificationsMuted": "ปิดเสียงการแจ้งเตือน",
       "markAllRead": "ทำเครื่องหมายว่าอ่านแล้วทั้งหมด",
       "emptyNotifications": "ไม่มีการแจ้งเตือนใหม่",
       "dismiss": "ยกเลิก",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} ชั่วโมงที่แล้ว",
       "hoursAgo_other": "{{count}} ชั่วโมงที่แล้ว",
       "daysAgo_one": "{{count}} วันที่ผ่านมา",
-      "daysAgo_other": "{{count}} วันที่ผ่านมา",
-      "doNotDisturb": "ห้ามรบกวน",
-      "notificationsMuted": "ปิดเสียงการแจ้งเตือน"
+      "daysAgo_other": "{{count}} วันที่ผ่านมา"
     },
     "titleBar": {
       "minimize": "ย่อเล็กสุด",

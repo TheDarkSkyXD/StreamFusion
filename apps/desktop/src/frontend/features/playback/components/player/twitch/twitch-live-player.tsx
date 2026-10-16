@@ -7,6 +7,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -18,6 +19,8 @@ import { isTwitchPlaylistProxyMode } from "@/features/playback/adapters/browser/
 import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@shared/adblock-types";
+import type { ProtectedPlaybackFailure } from "@shared/protected-playback-types";
+import { protectedPlaybackController } from "@/features/playback/composition/protected-playback";
 import { useAdBlockStore } from "@/features/playback/components/state/adblock-store";
 import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
@@ -32,7 +35,11 @@ import { usePlayerNetworkRecovery } from "../hooks/use-player-network-recovery";
 import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
 import { CaptionOverlay } from "../caption-overlay";
-import { LOCAL_LIVE_CAPTION_TRACK, type PlayerError, type QualityLevel } from "../../../capabilities/media-types";
+import {
+  LOCAL_LIVE_CAPTION_TRACK,
+  type PlayerError,
+  type QualityLevel,
+} from "../../../capabilities/media-types";
 
 import { AdBlockFallbackOverlay } from "./ad-block-fallback-overlay";
 import { TwitchHlsPlayer } from "./twitch-hls-player";
@@ -44,6 +51,11 @@ const RETRY_DELAY_BASE_MS = 1500;
 const PLAYBACK_INTENT_STORAGE_PREFIX = "streamfusion:twitch-live-playback-intent:v1:";
 
 type PlaybackIntent = "playing" | "paused";
+type ProtectedMode =
+  | { kind: "opening" }
+  | { kind: "opened" }
+  | { kind: "closed" }
+  | { kind: "failed"; reason: ProtectedPlaybackFailure };
 
 function playbackIntentStorageKey(channelName: string): string {
   return `${PLAYBACK_INTENT_STORAGE_PREFIX}${channelName.trim().toLowerCase()}`;
@@ -77,6 +89,7 @@ export interface TwitchLivePlayerProps {
   onReady?: () => void;
   onError?: (error: PlayerError) => boolean | void;
   onCleanPresentedFrame?: () => void;
+  onProtectedPlaybackSelected?: () => void;
   onQualityChange?: (quality: QualityLevel) => void;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
   className?: string;
@@ -106,6 +119,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       onReady,
       onError,
       onCleanPresentedFrame,
+      onProtectedPlaybackSelected,
       onQualityChange,
       onAdBlockStatusChange,
       className,
@@ -118,6 +132,14 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     } = props;
     const isDockedChannelSurface = useDockedPlayerConfig() !== null;
     const shouldApplySavedQuality = isDockedChannelSurface;
+    const protectedOwnerId = useMemo(
+      () =>
+        `protected-${channelName.replace(/[^a-zA-Z0-9_]/g, "")}-${Math.random().toString(36).slice(2)}`,
+      [channelName]
+    );
+    const [protectedMode, setProtectedMode] = useState<ProtectedMode | null>(null);
+    const protectedProbeRef = useRef<"unchecked" | "checking" | "not-encrypted">("unchecked");
+    const protectedProbeGenerationRef = useRef(0);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -155,6 +177,9 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       setHasError(false);
       setIsLoading(true);
       setIsReady(false);
+      protectedProbeRef.current = "unchecked";
+      protectedProbeGenerationRef.current += 1;
+      setProtectedMode(null);
     }, [channelName]);
 
     const showAdPresentationCover = useCallback((cover: "frame" | "poster" | "placeholder") => {
@@ -255,9 +280,62 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       readPlaybackIntent(channelName, autoPlay)
     );
     const playbackIntentRef = useRef(playbackIntent);
+    const protectedMutedRef = useRef(isMuted);
     useLayoutEffect(() => {
       playbackIntentRef.current = playbackIntent;
     }, [playbackIntent]);
+    useLayoutEffect(() => {
+      protectedMutedRef.current = isMuted;
+    }, [isMuted]);
+    useEffect(() => {
+      if (!protectedPlaybackController.isAvailable()) return;
+      const unsubscribe = protectedPlaybackController.onState((state) => {
+        if (state.ownerId !== protectedOwnerId) return;
+        setProtectedMode((current) => {
+          if (!current) return current;
+          return state.kind === "closed"
+            ? { kind: "closed" }
+            : { kind: "failed", reason: state.reason };
+        });
+      });
+      return () => {
+        protectedProbeGenerationRef.current += 1;
+        unsubscribe();
+        void protectedPlaybackController.close(protectedOwnerId);
+      };
+    }, [protectedOwnerId]);
+
+    useEffect(() => {
+      if (protectedMode?.kind !== "opening") return;
+      if (!protectedPlaybackController.isAvailable()) return;
+      let active = true;
+      void protectedPlaybackController
+        .open({
+          ownerId: protectedOwnerId,
+          channelSlug: channelName,
+          muted: protectedMutedRef.current,
+        })
+        .then((result) => {
+          if (!active) return;
+          setProtectedMode((current) => {
+            if (current?.kind !== "opening") return current;
+            return result.kind === "opened"
+              ? { kind: "opened" }
+              : { kind: "failed", reason: result.reason };
+          });
+        })
+        .catch(() => {
+          if (active) setProtectedMode({ kind: "failed", reason: "host-start-failed" });
+        });
+      return () => {
+        active = false;
+      };
+    }, [channelName, protectedMode?.kind, protectedOwnerId]);
+
+    useEffect(() => {
+      if (protectedMode?.kind !== "opened") return;
+      void protectedPlaybackController.mute(protectedOwnerId, isMuted);
+    }, [isMuted, protectedMode?.kind, protectedOwnerId]);
     const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
     const [activeQualityId, setActiveQualityId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -499,12 +577,181 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         adBlockStatus.isStrippingSegments ||
         adBlockStatus.isUsingFallbackMode);
 
+    const handleRegularPlaybackError = (error: PlayerError) => {
+      if (recoveryManagedExternally) {
+        const recoveryScheduled = onError?.(error) === true;
+        setHasError(!recoveryScheduled);
+        setIsLoading(recoveryScheduled);
+        return;
+      }
+
+      const isRefreshableError =
+        error.shouldRefresh === true ||
+        error.code === "TOKEN_EXPIRED" ||
+        error.code === "NO_FRAGMENTS" ||
+        error.code === "STREAM_OFFLINE" ||
+        error.code === "DECODER_STALL" ||
+        error.code === "PLAYBACK_STALL";
+
+      const canRetry =
+        isRefreshableError &&
+        onRefresh &&
+        autoRetryCountRef.current < MAX_AUTO_RETRY_ATTEMPTS &&
+        !isRetryingRef.current;
+
+      if (canRetry) {
+        isRetryingRef.current = true;
+        autoRetryCountRef.current += 1;
+        const attemptNum = autoRetryCountRef.current;
+        const delay = RETRY_DELAY_BASE_MS * attemptNum;
+        logger.debug("Player:Twitch:Live", "twitch error detected, auto-refreshing", {
+          code: error.code,
+          attempt: attemptNum,
+          maxAttempts: MAX_AUTO_RETRY_ATTEMPTS,
+          delayMs: delay,
+        });
+        setIsLoading(true);
+        const retryDelay = createCancellableSleep(delay);
+        retryDelayRef.current = retryDelay;
+        void retryDelay.result.then((result) => {
+          if (retryDelayRef.current !== retryDelay) return;
+          retryDelayRef.current = null;
+          if (!result.ok || !isRetryingRef.current) return;
+          isRetryingRef.current = false;
+          onRefresh();
+        });
+        return;
+      }
+
+      logger.error("Player:Twitch:Live", "player error", {
+        refreshable: isRefreshableError,
+        retries: autoRetryCountRef.current,
+        error,
+      });
+      setHasError(true);
+      setIsLoading(false);
+      isRetryingRef.current = false;
+      onError?.(error);
+    };
+
+    const handlePlaybackError = (error: PlayerError) => {
+      const hasProtectedPlayback = protectedPlaybackController.isAvailable();
+      if (
+        protectedMode ||
+        (error.code === "TOKEN_EXPIRED" && protectedProbeRef.current === "checking")
+      )
+        return;
+      if (
+        error.code !== "TOKEN_EXPIRED" ||
+        protectedProbeRef.current !== "unchecked" ||
+        !hasProtectedPlayback
+      ) {
+        handleRegularPlaybackError(error);
+        return;
+      }
+      protectedProbeRef.current = "checking";
+      const generation = protectedProbeGenerationRef.current;
+      void protectedPlaybackController
+        .check(channelName)
+        .then((encrypted) => {
+          if (
+            protectedProbeGenerationRef.current !== generation ||
+            protectedProbeRef.current !== "checking"
+          )
+            return;
+          if (!encrypted) {
+            protectedProbeRef.current = "not-encrypted";
+            handleRegularPlaybackError(error);
+            return;
+          }
+          retryDelayRef.current?.cancel();
+          retryDelayRef.current = null;
+          isRetryingRef.current = false;
+          onProtectedPlaybackSelected?.();
+          hideAdPresentationCover();
+          setIsLoading(false);
+          setHasError(false);
+          setProtectedMode(
+            playbackIntentRef.current === "playing" ? { kind: "opening" } : { kind: "closed" }
+          );
+        })
+        .catch(() => {
+          if (
+            protectedProbeGenerationRef.current !== generation ||
+            protectedProbeRef.current !== "checking"
+          )
+            return;
+          protectedProbeRef.current = "unchecked";
+          handleRegularPlaybackError(error);
+        });
+    };
+
     return (
       <div
         ref={containerRef}
         className={`relative w-full h-full bg-black overflow-hidden group flex flex-col justify-center ${className || ""}`}
       >
-        {streamUrl ? (
+        {protectedMode && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black px-5 text-center text-white">
+            <p className="text-base font-semibold">
+              {protectedMode.kind === "opening"
+                ? t("playback.protectedWindowOpening")
+                : protectedMode.kind === "opened"
+                  ? t("playback.protectedWindowOpen")
+                  : protectedMode.kind === "failed"
+                    ? protectedMode.reason === "unsupported-platform"
+                      ? t("playback.protectedWindowsOnly")
+                      : protectedMode.reason === "runtime-missing"
+                        ? t("playback.protectedRuntimeMissing")
+                        : t("playback.protectedWindowUnavailable")
+                    : t("playback.protectedWindowClosed")}
+            </p>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              {t("playback.protectedWindowNotice")}
+            </p>
+            <div className="flex gap-2">
+              {protectedMode.kind === "opened" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    void protectedPlaybackController.focus(protectedOwnerId);
+                  }}
+                >
+                  {t("playback.focusPlayerWindow")}
+                </Button>
+              )}
+              {protectedMode.kind === "opened" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setProtectedMode({ kind: "closed" });
+                    void protectedPlaybackController.close(protectedOwnerId);
+                  }}
+                >
+                  {t("playback.closePlayerWindow")}
+                </Button>
+              )}
+              {protectedMode.kind === "failed" && protectedMode.reason === "runtime-missing" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    void protectedPlaybackController.installRuntime();
+                  }}
+                >
+                  {t("playback.installWebView2Runtime")}
+                </Button>
+              )}
+              {(protectedMode.kind === "closed" ||
+                (protectedMode.kind === "failed" &&
+                  protectedMode.reason !== "unsupported-platform")) && (
+                <Button variant="secondary" onClick={() => setProtectedMode({ kind: "opening" })}>
+                  {t("playback.openPlayerWindow")}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+        {streamUrl && !protectedMode ? (
           <TwitchHlsPlayer
             key={networkRecoveryRevision}
             ref={videoRef}
@@ -536,68 +783,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
               onCleanPresentedFrame?.();
             }}
             onVerifiedCleanAdPresentation={hideAdPresentationCover}
-            onError={(error: PlayerError) => {
-              if (recoveryManagedExternally) {
-                const recoveryScheduled = onError?.(error) === true;
-                setHasError(!recoveryScheduled);
-                setIsLoading(recoveryScheduled);
-                return;
-              }
-
-              // Determine if this error is recoverable via URL refresh
-              const isRefreshableError =
-                error.shouldRefresh === true ||
-                error.code === "TOKEN_EXPIRED" ||
-                error.code === "NO_FRAGMENTS" ||
-                error.code === "STREAM_OFFLINE" ||
-                error.code === "DECODER_STALL" ||
-                error.code === "PLAYBACK_STALL";
-
-              const canRetry =
-                isRefreshableError &&
-                onRefresh &&
-                autoRetryCountRef.current < MAX_AUTO_RETRY_ATTEMPTS &&
-                !isRetryingRef.current;
-
-              if (canRetry) {
-                isRetryingRef.current = true;
-                autoRetryCountRef.current += 1;
-
-                const attemptNum = autoRetryCountRef.current;
-                const delay = RETRY_DELAY_BASE_MS * attemptNum;
-
-                logger.debug("Player:Twitch:Live", "twitch error detected, auto-refreshing", {
-                  code: error.code,
-                  attempt: attemptNum,
-                  maxAttempts: MAX_AUTO_RETRY_ATTEMPTS,
-                  delayMs: delay,
-                });
-
-                setIsLoading(true);
-
-                const retryDelay = createCancellableSleep(delay);
-                retryDelayRef.current = retryDelay;
-                void retryDelay.result.then((result) => {
-                  if (retryDelayRef.current !== retryDelay) return;
-                  retryDelayRef.current = null;
-                  if (!result.ok || !isRetryingRef.current) return;
-                  isRetryingRef.current = false;
-                  onRefresh();
-                });
-
-                return;
-              }
-
-              logger.error("Player:Twitch:Live", "player error", {
-                refreshable: isRefreshableError,
-                retries: autoRetryCountRef.current,
-                error,
-              });
-              setHasError(true);
-              setIsLoading(false);
-              isRetryingRef.current = false;
-              onError?.(error);
-            }}
+            onError={handlePlaybackError}
             onHlsInstance={(hls: Hls | null) => {
               hlsRef.current = hls;
               setHls(hls);
@@ -606,11 +792,11 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             controls={false}
             onDoubleClick={toggleFullscreen}
           />
-        ) : (
+        ) : !streamUrl ? (
           <div className="absolute inset-0 flex items-center justify-center text-white z-0">
             <p>{t("playback.noStreamSource")}</p>
           </div>
-        )}
+        ) : null}
 
         <canvas
           ref={adPresentationCanvasRef}
@@ -705,7 +891,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         )}
 
         {/* Controls Overlay - Live stream (no progress bar) */}
-        {streamUrl && !hasError && !compact && (
+        {streamUrl && !protectedMode && !hasError && !compact && (
           <TwitchLivePlayerControls
             isPlaying={playbackIntent === "playing"}
             isLoading={isLoading}

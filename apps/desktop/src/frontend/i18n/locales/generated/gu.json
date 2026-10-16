@@ -1894,6 +1894,14 @@
     "refreshStream": "સ્ટ્રીમ રિફ્રેશ કરો",
     "blockingMidrollAds": "મિડરોલ જાહેરાતોને અવરોધિત કરી રહ્યાં છીએ",
     "playbackInterrupted": "પ્લેબેક વિક્ષેપિત",
+    "protectedWindowOpening": "પ્લેયર વિન્ડો ખોલી રહ્યું છે...",
+    "protectedWindowOpen": "પ્લેયર વિન્ડો ખુલ્લી છે",
+    "protectedWindowClosed": "પ્લેયર વિન્ડો બંધ",
+    "protectedWindowUnavailable": "પ્લેયર વિન્ડો અનુપલબ્ધ છે",
+    "protectedWindowNotice": "Twitch's સત્તાવાર ખેલાડી અલગથી ખુલે છે. જાહેરાતો દેખાઈ શકે છે.",
+    "focusPlayerWindow": "ફોકસ પ્લેયર વિન્ડો",
+    "closePlayerWindow": "પ્લેયર વિન્ડો બંધ કરો",
+    "openPlayerWindow": "પ્લેયર વિન્ડો ખોલો",
     "unableToCheckStreamStatus": "સ્ટ્રીમ સ્ટેટસ ચેક કરવામાં અસમર્થ",
     "unableToLoadStream": "સ્ટ્રીમ લોડ કરવામાં અસમર્થ",
     "currentlyOffline": "હાલમાં ઑફલાઇન છે",
@@ -2129,7 +2137,10 @@
       "buffering": "બફરિંગ",
       "bufferingDetail": "ખેલાડી આ લાઇવ સ્ટ્રીમને બફર કરી રહ્યો છે.",
       "focusedActive": "કેન્દ્રિત લાઇવ પ્લેબેક સક્રિય છે."
-    }
+    },
+    "protectedWindowsOnly": "સંરક્ષિત પ્લેબેક માટે Windows ની જરૂર છે.",
+    "protectedRuntimeMissing": "આ સ્ટ્રીમ ખોલવા માટે Microsoft Edge WebView2 રનટાઇમ ઇન્સ્ટોલ કરો.",
+    "installWebView2Runtime": "WebView2 રનટાઇમ મેળવો"
   },
   "settings": {
     "general": "જનરલ",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "ચિત્ર દ્વારા ચિત્ર",
     "thunderdome": "થંડરડોમ",
     "desktopNotifications": "ડેસ્કટોપ સૂચનાઓ",
+    "doNotDisturb": "ડુ નોટ ડિસ્ટર્બ",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ઇતિહાસ રેકોર્ડ કરતી વખતે પણ ઇન-એપ્લિકેશન બેનરો, સૂચના અવાજો અને સિસ્ટમ ચેતવણીઓને શાંત કરો.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "જ્યારે અનુસરવામાં આવેલી સ્ટ્રીમ્સ લાઇવ થાય ત્યારે મૂળ OS સૂચનાઓ બતાવો.",
     "liveNotifications": "લાઇવ સૂચનાઓ",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "એપ્લિકેશન સૂચના ઇતિહાસમાં લાઇવ-સ્ટ્રીમ ચેતવણીઓ રાખો.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "સાઇન-ઇન અને ટોકન માન્યતા",
     "allowPreReleaseUpdates": "પ્રી-રીલીઝ અપડેટ્સને મંજૂરી આપો",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "સ્થિર પ્રકાશન પહેલાં બીટા અને પૂર્વાવલોકન સંસ્કરણો પ્રાપ્ત કરો",
-    "checkForUpdatesOnStartup": "સ્ટાર્ટઅપ પર અપડેટ્સ માટે તપાસો",
+    "checkForUpdatesOnStartup": "અપડેટ્સ માટે તપાસ કરતા રહો",
     "checkForNewVersionsInTheBackgroundOnASchedule": "શેડ્યૂલ પર પૃષ્ઠભૂમિમાં નવા સંસ્કરણો માટે તપાસો",
     "checkFrequency": "આવર્તન તપાસો",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "ઑટોમેટિક અપડેટ ચાલુ હોય ત્યારે કેટલી વાર તપાસ કરવી",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "વર્તમાન સંસ્કરણ: વી",
     "updateCheckUrl": "ચેક URL અપડેટ કરો",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "પ્લેટફોર્મ અપડેટ મેટાડેટા ધરાવતી ઇલેક્ટ્રોન અપડેટ ફીડ",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "પસંદ કરેલ અંતરાલ વીતી જાય ત્યારે લોન્ચ સમયે તપાસો",
-    "minimumTimeBetweenStartupChecks": "સ્ટાર્ટઅપ ચેક્સ વચ્ચેનો ન્યૂનતમ સમય",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "એપ દરેક લોન્ચની તપાસ કરે છે. જ્યારે તે ખુલ્લું રહે ત્યારે તેને તપાસ માટે ચાલુ કરો.",
+    "minimumTimeBetweenStartupChecks": "વધારાની તપાસ વચ્ચેનો સમય",
     "selectFrequency": "આવર્તન પસંદ કરો",
     "hourly": "કલાકદીઠ",
     "daily": "દૈનિક",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} સેકન્ડ",
     "unknown": "અજ્ઞાત",
     "failedToDownloadUpdate": "અપડેટ ડાઉનલોડ કરવામાં નિષ્ફળ",
-    "failedToInstallUpdate": "અપડેટ ઇન્સ્ટોલ કરવામાં નિષ્ફળ",
-    "doNotDisturb": "ડુ નોટ ડિસ્ટર્બ",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ઇતિહાસ રેકોર્ડ કરતી વખતે પણ ઇન-એપ્લિકેશન બેનરો, સૂચના અવાજો અને સિસ્ટમ ચેતવણીઓને શાંત કરો."
+    "failedToInstallUpdate": "અપડેટ ઇન્સ્ટોલ કરવામાં નિષ્ફળ"
   },
   "shell": {
     "loadingPage": "પૃષ્ઠ લોડ કરી રહ્યું છે",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "સાઇડબાર વિસ્તૃત કરો",
       "collapseSidebar": "સાઇડબારને સંકુચિત કરો",
       "notifications": "સૂચનાઓ",
+      "doNotDisturb": "ડુ નોટ ડિસ્ટર્બ",
+      "notificationsMuted": "સૂચનાઓ મ્યૂટ કરી",
       "markAllRead": "બધા વાંચેલા ચિહ્નિત કરો",
       "emptyNotifications": "કોઈ નવી સૂચનાઓ નથી",
       "dismiss": "કાઢી નાખો",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} કલાક પહેલાં",
       "hoursAgo_other": "{{count}} કલાક પહેલા",
       "daysAgo_one": "{{count}} દિવસ પહેલા",
-      "daysAgo_other": "{{count}} દિવસ પહેલા",
-      "doNotDisturb": "ડુ નોટ ડિસ્ટર્બ",
-      "notificationsMuted": "સૂચનાઓ મ્યૂટ કરી"
+      "daysAgo_other": "{{count}} દિવસ પહેલા"
     },
     "titleBar": {
       "minimize": "નાનું કરો",

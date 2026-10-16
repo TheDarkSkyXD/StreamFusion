@@ -1894,6 +1894,14 @@
     "refreshStream": "רענן זרם",
     "blockingMidrollAds": "חסימת מודעות באמצע הסרט",
     "playbackInterrupted": "ההשמעה הופסקה",
+    "protectedWindowOpening": "פותח חלון שחקן...",
+    "protectedWindowOpen": "חלון הנגן פתוח",
+    "protectedWindowClosed": "חלון הנגן נסגר",
+    "protectedWindowUnavailable": "חלון הנגן אינו זמין",
+    "protectedWindowNotice": "שחקן רשמי של Twitch's נפתח בנפרד. מודעות עשויות להופיע.",
+    "focusPlayerWindow": "חלון נגן פוקוס",
+    "closePlayerWindow": "סגור חלון שחקן",
+    "openPlayerWindow": "פתח את חלון השחקן",
     "unableToCheckStreamStatus": "לא ניתן לבדוק את סטטוס הזרם",
     "unableToLoadStream": "לא ניתן לטעון זרם",
     "currentlyOffline": "כרגע במצב לא מקוון",
@@ -2129,7 +2137,10 @@
       "buffering": "חציצה",
       "bufferingDetail": "הנגן מאחסן את השידור החי הזה.",
       "focusedActive": "השמעה חיה ממוקדת פעילה."
-    }
+    },
+    "protectedWindowsOnly": "הפעלה מוגנת דורשת Windows.",
+    "protectedRuntimeMissing": "התקן את Microsoft Edge WebView2 Runtime כדי לפתוח את הזרם הזה.",
+    "installWebView2Runtime": "קבל את WebView2 Runtime"
   },
   "settings": {
     "general": "כללי",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "תמונה אחר תמונה",
     "thunderdome": "כיפת רעמים",
     "desktopNotifications": "הודעות על שולחן העבודה",
+    "doNotDisturb": "אל תפריע",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "השתקת באנרים בתוך האפליקציה, צלילי התראות והתראות מערכת תוך כדי הקלטת היסטוריה.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "הצג הודעות מערכת הפעלה מקוריות כאשר הזרמים שאחריהם עולים לשידור חי.",
     "liveNotifications": "הודעות בשידור חי",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "שמור התראות בשידור חי בהיסטוריית ההתראות של האפליקציה.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "תוקף הכניסה והאסימון",
     "allowPreReleaseUpdates": "אפשר עדכונים מוקדמים",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "קבל גרסאות בטא ותצוגה מקדימה לפני שחרור יציב",
-    "checkForUpdatesOnStartup": "בדוק אם יש עדכונים בעת ההפעלה",
+    "checkForUpdatesOnStartup": "המשך לחפש עדכונים",
     "checkForNewVersionsInTheBackgroundOnASchedule": "בדוק אם יש גרסאות חדשות ברקע לפי לוח זמנים",
     "checkFrequency": "בדוק תדירות",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "באיזו תדירות לבדוק מתי עדכונים אוטומטיים מופעלים",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "גרסה נוכחית: v",
     "updateCheckUrl": "עדכן את כתובת האתר של הבדיקה",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "עדכון עדכון אלקטרוני המכיל את המטא נתונים של עדכון הפלטפורמה",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "בדוק בעת ההשקה כאשר חלף המרווח שנבחר",
-    "minimumTimeBetweenStartupChecks": "זמן מינימלי בין בדיקות האתחול",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "האפליקציה בודקת כל השקה. הפעל את זה לצ'קים בזמן שהוא נשאר פתוח.",
+    "minimumTimeBetweenStartupChecks": "זמן בין בדיקות נוספות",
     "selectFrequency": "בחר תדר",
     "hourly": "מדי שעה",
     "daily": "יומי",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} שניות",
     "unknown": "לא ידוע",
     "failedToDownloadUpdate": "הורדת העדכון נכשלה",
-    "failedToInstallUpdate": "התקנת העדכון נכשלה",
-    "doNotDisturb": "אל תפריע",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "השתקת באנרים בתוך האפליקציה, צלילי התראות והתראות מערכת תוך כדי הקלטת היסטוריה."
+    "failedToInstallUpdate": "התקנת העדכון נכשלה"
   },
   "shell": {
     "loadingPage": "דף טוען",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "הרחב את סרגל הצד",
       "collapseSidebar": "כווץ את סרגל הצד",
       "notifications": "התראות",
+      "doNotDisturb": "אל תפריע",
+      "notificationsMuted": "ההתראות הושתקו",
       "markAllRead": "סמן הכל כנקראו",
       "emptyNotifications": "אין הודעות חדשות",
       "dismiss": "לבטל",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "לפני שעה {{count}}",
       "hoursAgo_other": "לפני {{count}} שעות",
       "daysAgo_one": "לפני יום {{count}}",
-      "daysAgo_other": "לפני {{count}} ימים",
-      "doNotDisturb": "אל תפריע",
-      "notificationsMuted": "ההתראות הושתקו"
+      "daysAgo_other": "לפני {{count}} ימים"
     },
     "titleBar": {
       "minimize": "הקטינו",

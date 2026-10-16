@@ -45,6 +45,7 @@ export function useTwitchLiveRecovery({
   const pendingRef = useRef<PendingRecovery | null>(null);
   const awaitingSourceRef = useRef(false);
   const exhaustedRef = useRef(false);
+  const suspendedRef = useRef(false);
   const handleErrorRef = useRef<(error: PlayerError) => boolean>(() => false);
 
   useLayoutEffect(() => {
@@ -60,6 +61,7 @@ export function useTwitchLiveRecovery({
     attemptsRef.current = 0;
     awaitingSourceRef.current = false;
     exhaustedRef.current = false;
+    suspendedRef.current = false;
   }, [sessionKey, sourceRevision]);
 
   useLayoutEffect(() => {
@@ -79,6 +81,7 @@ export function useTwitchLiveRecovery({
   );
 
   const handleError = useCallback((error: PlayerError): boolean => {
+    if (suspendedRef.current) return false;
     if (!isRefreshableTwitchError(error)) {
       callbacksRef.current.onExhausted(error);
       return false;
@@ -148,9 +151,19 @@ export function useTwitchLiveRecovery({
     exhaustedRef.current = false;
   }, []);
 
+  const suspend = useCallback(() => {
+    pendingRef.current?.delay.cancel();
+    pendingRef.current = null;
+    awaitingSourceRef.current = false;
+    suspendedRef.current = true;
+  }, []);
+
   useLayoutEffect(() => {
     handleErrorRef.current = handleError;
   }, [handleError]);
 
-  return useMemo(() => ({ handleError, markPlaybackHealthy }), [handleError, markPlaybackHealthy]);
+  return useMemo(
+    () => ({ handleError, markPlaybackHealthy, suspend }),
+    [handleError, markPlaybackHealthy, suspend]
+  );
 }

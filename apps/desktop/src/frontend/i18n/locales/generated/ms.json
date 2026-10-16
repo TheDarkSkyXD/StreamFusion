@@ -1894,6 +1894,14 @@
     "refreshStream": "Muat semula strim",
     "blockingMidrollAds": "Menyekat iklan midroll",
     "playbackInterrupted": "Main semula terganggu",
+    "protectedWindowOpening": "Membuka tingkap pemain...",
+    "protectedWindowOpen": "Tetingkap pemain dibuka",
+    "protectedWindowClosed": "Tingkap pemain ditutup",
+    "protectedWindowUnavailable": "Tetingkap pemain tidak tersedia",
+    "protectedWindowNotice": "Twitch's pemain rasmi dibuka secara berasingan. Iklan mungkin muncul.",
+    "focusPlayerWindow": "Fokus tetingkap pemain",
+    "closePlayerWindow": "Tutup tetingkap pemain",
+    "openPlayerWindow": "Buka tetingkap pemain",
     "unableToCheckStreamStatus": "Tidak dapat menyemak status strim",
     "unableToLoadStream": "Tidak dapat memuatkan strim",
     "currentlyOffline": "sedang di luar talian",
@@ -2129,7 +2137,10 @@
       "buffering": "Penimbalan",
       "bufferingDetail": "Pemain sedang menimbal strim langsung ini.",
       "focusedActive": "Main balik langsung terfokus aktif."
-    }
+    },
+    "protectedWindowsOnly": "Main balik yang dilindungi memerlukan Windows.",
+    "protectedRuntimeMissing": "Pasang Microsoft Edge WebView2 Runtime untuk membuka strim ini.",
+    "installWebView2Runtime": "Dapatkan WebView2 Runtime"
   },
   "settings": {
     "general": "Umum",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "gambar demi gambar",
     "thunderdome": "kubah petir",
     "desktopNotifications": "Pemberitahuan desktop",
+    "doNotDisturb": "Jangan Ganggu",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Senyapkan sepanduk dalam apl, bunyi pemberitahuan dan makluman sistem semasa masih merekodkan sejarah.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Tunjukkan pemberitahuan OS asli apabila strim yang diikuti disiarkan secara langsung.",
     "liveNotifications": "Pemberitahuan Langsung",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Simpan makluman strim langsung dalam sejarah pemberitahuan apl.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Log masuk dan kesahihan token",
     "allowPreReleaseUpdates": "Benarkan Kemas Kini Prakeluaran",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Terima versi beta dan pratonton sebelum keluaran stabil",
-    "checkForUpdatesOnStartup": "Semak kemas kini pada permulaan",
+    "checkForUpdatesOnStartup": "Teruskan menyemak kemas kini",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Semak versi baharu di latar belakang mengikut jadual",
     "checkFrequency": "Semak kekerapan",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Kekerapan untuk menyemak apabila kemas kini automatik dihidupkan",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Versi Semasa: v",
     "updateCheckUrl": "Kemas kini URL semak",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Suapan kemas kini elektron yang mengandungi metadata kemas kini platform",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Semak semasa pelancaran apabila selang yang dipilih telah berlalu",
-    "minimumTimeBetweenStartupChecks": "Masa minimum antara semakan permulaan",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Apl menyemak setiap pelancaran. Hidupkan ini untuk semakan semasa ia dibuka.",
+    "minimumTimeBetweenStartupChecks": "Masa antara cek tambahan",
     "selectFrequency": "Pilih kekerapan",
     "hourly": "setiap jam",
     "daily": "Setiap hari",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} saat",
     "unknown": "tidak diketahui",
     "failedToDownloadUpdate": "Gagal memuat turun kemas kini",
-    "failedToInstallUpdate": "Gagal memasang kemas kini",
-    "doNotDisturb": "Jangan Ganggu",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Senyapkan sepanduk dalam apl, bunyi pemberitahuan dan makluman sistem semasa masih merekodkan sejarah."
+    "failedToInstallUpdate": "Gagal memasang kemas kini"
   },
   "shell": {
     "loadingPage": "Memuatkan halaman",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Kembangkan bar sisi",
       "collapseSidebar": "Runtuhkan bar sisi",
       "notifications": "Pemberitahuan",
+      "doNotDisturb": "Jangan Ganggu",
+      "notificationsMuted": "Pemberitahuan diredamkan",
       "markAllRead": "Tandakan semua sudah dibaca",
       "emptyNotifications": "Tiada pemberitahuan baharu",
       "dismiss": "Tolak",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} jam yang lalu",
       "hoursAgo_other": "{{count}} jam yang lalu",
       "daysAgo_one": "{{count}} hari yang lalu",
-      "daysAgo_other": "{{count}} hari yang lalu",
-      "doNotDisturb": "Jangan Ganggu",
-      "notificationsMuted": "Pemberitahuan diredamkan"
+      "daysAgo_other": "{{count}} hari yang lalu"
     },
     "titleBar": {
       "minimize": "Minimumkan",

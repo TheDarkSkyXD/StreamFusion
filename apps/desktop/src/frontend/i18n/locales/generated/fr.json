@@ -1894,6 +1894,14 @@
     "refreshStream": "Actualiser le flux",
     "blockingMidrollAds": "Blocage des annonces mid-roll",
     "playbackInterrupted": "Lecture interrompue",
+    "protectedWindowOpening": "Ouverture de la fenêtre du lecteur...",
+    "protectedWindowOpen": "La fenêtre du joueur est ouverte",
+    "protectedWindowClosed": "Fenêtre du joueur fermée",
+    "protectedWindowUnavailable": "Fenêtre du lecteur indisponible",
+    "protectedWindowNotice": "Le lecteur officiel Twitch's s'ouvre séparément. Des publicités peuvent apparaître.",
+    "focusPlayerWindow": "Fenêtre du lecteur Focus",
+    "closePlayerWindow": "Fermer la fenêtre du lecteur",
+    "openPlayerWindow": "Ouvrir la fenêtre du joueur",
     "unableToCheckStreamStatus": "Impossible de vérifier l'état du flux",
     "unableToLoadStream": "Impossible de charger le flux",
     "currentlyOffline": "est actuellement hors ligne",
@@ -2129,7 +2137,10 @@
       "buffering": "Mise en mémoire tampon",
       "bufferingDetail": "Le joueur met en mémoire tampon ce flux en direct.",
       "focusedActive": "La lecture en direct ciblée est active."
-    }
+    },
+    "protectedWindowsOnly": "La lecture protégée nécessite Windows.",
+    "protectedRuntimeMissing": "Installez Microsoft Edge WebView2 Runtime pour ouvrir ce flux.",
+    "installWebView2Runtime": "Obtenir le moteur d'exécution WebView2"
   },
   "settings": {
     "general": "Général",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "image par image",
     "thunderdome": "coup de tonnerre",
     "desktopNotifications": "Notifications sur le bureau",
+    "doNotDisturb": "Ne pas déranger",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Faites taire les bannières dans l'application, les sons de notification et les alertes système tout en enregistrant l'historique.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Afficher les notifications natives du système d'exploitation lorsque les flux suivis sont mis en ligne.",
     "liveNotifications": "Notifications en direct",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Conservez les alertes en direct dans l'historique des notifications de l'application.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Connexion et validité du jeton",
     "allowPreReleaseUpdates": "Autoriser les mises à jour préliminaires",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Recevez les versions bêta et préliminaires avant la version stable",
-    "checkForUpdatesOnStartup": "Rechercher des mises à jour au démarrage",
+    "checkForUpdatesOnStartup": "Continuez à vérifier les mises à jour",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Vérifiez les nouvelles versions en arrière-plan selon un calendrier",
     "checkFrequency": "Vérifier la fréquence",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "À quelle fréquence vérifier quand les mises à jour automatiques sont activées",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Version actuelle : v",
     "updateCheckUrl": "Mettre à jour l'URL de vérification",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Flux de mise à jour électronique contenant les métadonnées de mise à jour de la plateforme",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Vérifier au lancement lorsque l'intervalle sélectionné est écoulé",
-    "minimumTimeBetweenStartupChecks": "Temps minimum entre les contrôles de démarrage",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "L'application vérifie chaque lancement. Activez-le pour les chèques pendant qu'il reste ouvert.",
+    "minimumTimeBetweenStartupChecks": "Délai entre les contrôles supplémentaires",
     "selectFrequency": "Sélectionnez la fréquence",
     "hourly": "Horaire",
     "daily": "Quotidiennement",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} secondes",
     "unknown": "inconnu",
     "failedToDownloadUpdate": "Échec du téléchargement de la mise à jour",
-    "failedToInstallUpdate": "Échec de l'installation de la mise à jour",
-    "doNotDisturb": "Ne pas déranger",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Faites taire les bannières dans l'application, les sons de notification et les alertes système tout en enregistrant l'historique."
+    "failedToInstallUpdate": "Échec de l'installation de la mise à jour"
   },
   "shell": {
     "loadingPage": "Chargement de la page",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Développer la barre latérale",
       "collapseSidebar": "Réduire la barre latérale",
       "notifications": "Notifications",
+      "doNotDisturb": "Ne pas déranger",
+      "notificationsMuted": "Notifications désactivées",
       "markAllRead": "Marquer tout comme lu",
       "emptyNotifications": "Aucune nouvelle notification",
       "dismiss": "Rejeter",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "il y a {{count}} heures",
       "hoursAgo_other": "Il y a {{count}} heures",
       "daysAgo_one": "il y a {{count}} jours",
-      "daysAgo_other": "il y a {{count}} jours",
-      "doNotDisturb": "Ne pas déranger",
-      "notificationsMuted": "Notifications désactivées"
+      "daysAgo_other": "il y a {{count}} jours"
     },
     "titleBar": {
       "minimize": "Réduire",

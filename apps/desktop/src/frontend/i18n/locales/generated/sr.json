@@ -1894,6 +1894,14 @@
     "refreshStream": "Освежите ток",
     "blockingMidrollAds": "Блокирање огласа током репродукције",
     "playbackInterrupted": "Репродукција је прекинута",
+    "protectedWindowOpening": "Отварање прозора плејера...",
+    "protectedWindowOpen": "Прозор плејера је отворен",
+    "protectedWindowClosed": "Прозор плејера је затворен",
+    "protectedWindowUnavailable": "Прозор плејера није доступан",
+    "protectedWindowNotice": "Twitch's званични плејер се отвара засебно. Огласи се могу појавити.",
+    "focusPlayerWindow": "Фокусирајте прозор плејера",
+    "closePlayerWindow": "Затвори прозор плејера",
+    "openPlayerWindow": "Отворите прозор плејера",
     "unableToCheckStreamStatus": "Није могуће проверити статус стрима",
     "unableToLoadStream": "Није могуће учитати стрим",
     "currentlyOffline": "је тренутно ван мреже",
@@ -2129,7 +2137,10 @@
       "buffering": "Пуферовање",
       "bufferingDetail": "Плејер чува овај стрим уживо.",
       "focusedActive": "Фокусирана репродукција уживо је активна."
-    }
+    },
+    "protectedWindowsOnly": "За заштићену репродукцију је потребан Windows.",
+    "protectedRuntimeMissing": "Инсталирајте Мицрософт Едге ВебВиев2 Рунтиме да бисте отворили овај стрим.",
+    "installWebView2Runtime": "Набавите ВебВиев2 Рунтиме"
   },
   "settings": {
     "general": "генерал",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "слика по слика",
     "thunderdome": "тхундердоме",
     "desktopNotifications": "Обавештења на радној површини",
+    "doNotDisturb": "Не узнемиравај",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Утишајте банере у апликацији, звукове обавештења и системска упозорења док још увек снимате историју.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Прикажите изворна обавештења ОС-а када пратите стримове уживо.",
     "liveNotifications": "Обавештења уживо",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Чувајте упозорења о стримовима уживо у историји обавештења апликације.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Ваљаност пријаве и токена",
     "allowPreReleaseUpdates": "Дозволите ажурирања пре издања",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Примите бета верзије и верзије за преглед пре стабилног издања",
-    "checkForUpdatesOnStartup": "Проверите да ли има ажурирања при покретању",
+    "checkForUpdatesOnStartup": "Наставите да проверавате да ли постоје ажурирања",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Проверите да ли постоје нове верзије у позадини према распореду",
     "checkFrequency": "Проверите фреквенцију",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Колико често да проверавате када су аутоматска ажурирања укључена",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Тренутна верзија: в",
     "updateCheckUrl": "Ажурирај УРЛ провере",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Фид електронских ажурирања који садржи метаподатке о ажурирању платформе",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Проверите при покретању када је изабрани интервал протекао",
-    "minimumTimeBetweenStartupChecks": "Минимално време између провера покретања",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Апликација проверава свако покретање. Укључите ово за провере док је отворено.",
+    "minimumTimeBetweenStartupChecks": "Време између додатних провера",
     "selectFrequency": "Изаберите фреквенцију",
     "hourly": "По сату",
     "daily": "Даили",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} секунди",
     "unknown": "непознато",
     "failedToDownloadUpdate": "Преузимање ажурирања није успело",
-    "failedToInstallUpdate": "Инсталирање ажурирања није успело",
-    "doNotDisturb": "Не узнемиравај",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Утишајте банере у апликацији, звукове обавештења и системска упозорења док још увек снимате историју."
+    "failedToInstallUpdate": "Инсталирање ажурирања није успело"
   },
   "shell": {
     "loadingPage": "Страница се учитава",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Проширите бочну траку",
       "collapseSidebar": "Скупи бочну траку",
       "notifications": "Обавештења",
+      "doNotDisturb": "Не узнемиравај",
+      "notificationsMuted": "Обавештења су искључена",
       "markAllRead": "Означи све као прочитано",
       "emptyNotifications": "Нема нових обавештења",
       "dismiss": "Одбаци",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "пре {{count}} сат",
       "hoursAgo_other": "пре {{count}} сати",
       "daysAgo_one": "пре {{count}} дан",
-      "daysAgo_other": "пре {{count}} дана",
-      "doNotDisturb": "Не узнемиравај",
-      "notificationsMuted": "Обавештења су искључена"
+      "daysAgo_other": "пре {{count}} дана"
     },
     "titleBar": {
       "minimize": "Минимизирајте",

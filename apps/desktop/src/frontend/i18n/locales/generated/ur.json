@@ -1894,6 +1894,14 @@
     "refreshStream": "سلسلہ کو ریفریش کریں۔",
     "blockingMidrollAds": "مڈرول اشتہارات کو مسدود کرنا",
     "playbackInterrupted": "پلے بیک میں خلل پڑا",
+    "protectedWindowOpening": "پلیئر کی کھڑکی کھل رہی ہے...",
+    "protectedWindowOpen": "پلیئر ونڈو کھلی ہے۔",
+    "protectedWindowClosed": "پلیئر کی کھڑکی بند",
+    "protectedWindowUnavailable": "پلیئر ونڈو دستیاب نہیں ہے۔",
+    "protectedWindowNotice": "Twitch's آفیشل پلیئر الگ سے کھلتا ہے۔ اشتہارات ظاہر ہو سکتے ہیں۔",
+    "focusPlayerWindow": "فوکس پلیئر ونڈو",
+    "closePlayerWindow": "پلیئر ونڈو بند کریں۔",
+    "openPlayerWindow": "پلیئر ونڈو کھولیں۔",
     "unableToCheckStreamStatus": "سلسلہ کی حیثیت چیک کرنے سے قاصر",
     "unableToLoadStream": "سلسلہ لوڈ کرنے سے قاصر",
     "currentlyOffline": "فی الحال آف لائن ہے۔",
@@ -2129,7 +2137,10 @@
       "buffering": "بفرنگ",
       "bufferingDetail": "کھلاڑی اس لائیو سلسلہ کو بفر کر رہا ہے۔",
       "focusedActive": "فوکسڈ لائیو پلے بیک فعال ہے۔"
-    }
+    },
+    "protectedWindowsOnly": "محفوظ پلے بیک کے لیے Windows کی ضرورت ہے۔",
+    "protectedRuntimeMissing": "اس سلسلے کو کھولنے کے لیے Microsoft Edge WebView2 رن ٹائم انسٹال کریں۔",
+    "installWebView2Runtime": "WebView2 رن ٹائم حاصل کریں۔"
   },
   "settings": {
     "general": "جنرل",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "تصویر بہ تصویر",
     "thunderdome": "گرج چمک",
     "desktopNotifications": "ڈیسک ٹاپ اطلاعات",
+    "doNotDisturb": "ڈسٹرب نہ کریں۔",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ہسٹری ریکارڈ کرتے وقت درون ایپ بینرز، اطلاع کی آوازیں اور سسٹم الرٹس کو خاموش کریں۔",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "جب پیروی کردہ سلسلے لائیو ہوں تو مقامی OS اطلاعات دکھائیں۔",
     "liveNotifications": "لائیو اطلاعات",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "ایپ کی اطلاع کی سرگزشت میں لائیو اسٹریم الرٹس رکھیں۔",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "سائن ان اور ٹوکن کی درستگی",
     "allowPreReleaseUpdates": "پری ریلیز اپڈیٹس کی اجازت دیں۔",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "مستحکم ریلیز سے پہلے بیٹا اور پیش نظارہ ورژن وصول کریں۔",
-    "checkForUpdatesOnStartup": "سٹارٹ اپ پر اپ ڈیٹس چیک کریں۔",
+    "checkForUpdatesOnStartup": "اپ ڈیٹس کی جانچ کرتے رہیں",
     "checkForNewVersionsInTheBackgroundOnASchedule": "شیڈول پر پس منظر میں نئے ورژن چیک کریں۔",
     "checkFrequency": "فریکوئنسی چیک کریں۔",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "خودکار اپ ڈیٹس آن ہونے پر کتنی بار چیک کریں۔",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "موجودہ ورژن: v",
     "updateCheckUrl": "چیک URL کو اپ ڈیٹ کریں۔",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "پلیٹ فارم اپ ڈیٹ میٹا ڈیٹا پر مشتمل الیکٹران اپ ڈیٹ فیڈ",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "منتخب وقفہ ختم ہونے پر لانچ کے وقت چیک کریں۔",
-    "minimumTimeBetweenStartupChecks": "سٹارٹ اپ چیکس کے درمیان کم از کم وقت",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "ایپ ہر لانچ کو چیک کرتی ہے۔ اسے چیک کرنے کے لیے آن کریں جب تک یہ کھلا رہے۔",
+    "minimumTimeBetweenStartupChecks": "اضافی چیکس کے درمیان وقت",
     "selectFrequency": "تعدد منتخب کریں۔",
     "hourly": "فی گھنٹہ",
     "daily": "روزانہ",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} سیکنڈ",
     "unknown": "نامعلوم",
     "failedToDownloadUpdate": "اپ ڈیٹ ڈاؤن لوڈ کرنے میں ناکام",
-    "failedToInstallUpdate": "اپ ڈیٹ انسٹال کرنے میں ناکام",
-    "doNotDisturb": "ڈسٹرب نہ کریں۔",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "ہسٹری ریکارڈ کرتے وقت درون ایپ بینرز، اطلاع کی آوازیں اور سسٹم الرٹس کو خاموش کریں۔"
+    "failedToInstallUpdate": "اپ ڈیٹ انسٹال کرنے میں ناکام"
   },
   "shell": {
     "loadingPage": "صفحہ لوڈ ہو رہا ہے۔",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "سائڈبار کو پھیلائیں۔",
       "collapseSidebar": "سائڈبار کو سکیڑیں۔",
       "notifications": "اطلاعات",
+      "doNotDisturb": "ڈسٹرب نہ کریں۔",
+      "notificationsMuted": "اطلاعات خاموش ہو گئیں۔",
       "markAllRead": "سب کو پڑھا ہوا نشان زد کریں۔",
       "emptyNotifications": "کوئی نئی اطلاعات نہیں ہیں۔",
       "dismiss": "برطرف کرنا",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} گھنٹہ پہلے",
       "hoursAgo_other": "{{count}} گھنٹے پہلے",
       "daysAgo_one": "{{count}} دن پہلے",
-      "daysAgo_other": "{{count}} دن پہلے",
-      "doNotDisturb": "ڈسٹرب نہ کریں۔",
-      "notificationsMuted": "اطلاعات خاموش ہو گئیں۔"
+      "daysAgo_other": "{{count}} دن پہلے"
     },
     "titleBar": {
       "minimize": "کم سے کم کرنا",

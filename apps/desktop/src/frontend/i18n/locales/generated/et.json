@@ -1894,6 +1894,14 @@
     "refreshStream": "Värskenda voogu",
     "blockingMidrollAds": "Esitusaegsete reklaamide blokeerimine",
     "playbackInterrupted": "Taasesitus katkestati",
+    "protectedWindowOpening": "Mängija akna avamine...",
+    "protectedWindowOpen": "Mängija aken on avatud",
+    "protectedWindowClosed": "Mängija aken suletud",
+    "protectedWindowUnavailable": "Mängija aken pole saadaval",
+    "protectedWindowNotice": "Twitch's ametlik mängija avaneb eraldi. Reklaamid võivad ilmuda.",
+    "focusPlayerWindow": "Fookuse mängija aken",
+    "closePlayerWindow": "Sulgege mängija aken",
+    "openPlayerWindow": "Avage mängija aken",
     "unableToCheckStreamStatus": "Voo olekut ei saa kontrollida",
     "unableToLoadStream": "Voogu ei saa laadida",
     "currentlyOffline": "on praegu võrguühenduseta",
@@ -2129,7 +2137,10 @@
       "buffering": "Puhverdamine",
       "bufferingDetail": "Mängija puhverdab seda otseülekannet.",
       "focusedActive": "Fokuseeritud otseesitus on aktiivne."
-    }
+    },
+    "protectedWindowsOnly": "Kaitstud taasesitus nõuab Windows.",
+    "protectedRuntimeMissing": "Selle voo avamiseks installige Microsoft Edge WebView2 Runtime.",
+    "installWebView2Runtime": "Hankige WebView2 Runtime"
   },
   "settings": {
     "general": "Kindral",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "pilt-pildilt",
     "thunderdome": "äike",
     "desktopNotifications": "Töölaua märguanded",
+    "doNotDisturb": "Mitte segada",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Vaigistage rakendusesisesed bännerid, märguandehelid ja süsteemihoiatused, salvestades samal ajal ajalugu.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Kuvage oma OS-i märguanded, kui jälgitavad vood avaldatakse.",
     "liveNotifications": "Reaalajas märguanded",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Hoidke otseülekande märguanded rakenduse teavitusajaloos.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Sisselogimine ja loa kehtivus",
     "allowPreReleaseUpdates": "Luba väljalaskeeelsed värskendused",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Enne stabiilset väljalaskmist saate beeta- ja eelvaateversioone",
-    "checkForUpdatesOnStartup": "Kontrollige käivitamisel värskendusi",
+    "checkForUpdatesOnStartup": "Jätkake värskenduste kontrollimist",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Kontrollige ajakava järgi taustal uusi versioone",
     "checkFrequency": "Kontrolli sagedust",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Kui sageli kontrollida, kas automaatsed värskendused on sisse lülitatud",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Praegune versioon: v",
     "updateCheckUrl": "Värskendage kontrolli URL-i",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Elektronide värskenduste voog, mis sisaldab platvormi värskenduse metaandmeid",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Kontrollige käivitamisel, kas valitud intervall on möödas",
-    "minimumTimeBetweenStartupChecks": "Minimaalne aeg käivituskontrollide vahel",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Rakendus kontrollib iga käivitamist. Lülitage see sisse tšekkide jaoks, kui see jääb avatuks.",
+    "minimumTimeBetweenStartupChecks": "Täiendavate kontrollide vaheline aeg",
     "selectFrequency": "Valige sagedus",
     "hourly": "Tunni kaupa",
     "daily": "Igapäevane",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} sekundit",
     "unknown": "teadmata",
     "failedToDownloadUpdate": "Värskenduse allalaadimine ebaõnnestus",
-    "failedToInstallUpdate": "Värskenduse installimine ebaõnnestus",
-    "doNotDisturb": "Mitte segada",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Vaigistage rakendusesisesed bännerid, märguandehelid ja süsteemihoiatused, salvestades samal ajal ajalugu."
+    "failedToInstallUpdate": "Värskenduse installimine ebaõnnestus"
   },
   "shell": {
     "loadingPage": "Lehe laadimine",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Laienda külgriba",
       "collapseSidebar": "Ahenda külgriba",
       "notifications": "Märguanded",
+      "doNotDisturb": "Mitte segada",
+      "notificationsMuted": "Märguanded on vaigistatud",
       "markAllRead": "Märgi kõik loetuks",
       "emptyNotifications": "Uusi teateid pole",
       "dismiss": "Loobu",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} tund tagasi",
       "hoursAgo_other": "{{count}} tundi tagasi",
       "daysAgo_one": "{{count}} päev tagasi",
-      "daysAgo_other": "{{count}} päeva tagasi",
-      "doNotDisturb": "Mitte segada",
-      "notificationsMuted": "Märguanded on vaigistatud"
+      "daysAgo_other": "{{count}} päeva tagasi"
     },
     "titleBar": {
       "minimize": "Minimeeri",

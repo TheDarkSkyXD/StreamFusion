@@ -1894,6 +1894,14 @@
     "refreshStream": "스트림 새로 고침",
     "blockingMidrollAds": "미드롤 광고 차단",
     "playbackInterrupted": "재생이 중단되었습니다.",
+    "protectedWindowOpening": "플레이어 창을 여는 중...",
+    "protectedWindowOpen": "플레이어 창이 열려있습니다",
+    "protectedWindowClosed": "플레이어 창이 닫혔습니다.",
+    "protectedWindowUnavailable": "플레이어 창을 사용할 수 없습니다",
+    "protectedWindowNotice": "Twitch's 공식 플레이어가 별도로 열립니다. 광고가 나타날 수 있습니다.",
+    "focusPlayerWindow": "포커스 플레이어 창",
+    "closePlayerWindow": "플레이어 창 닫기",
+    "openPlayerWindow": "플레이어 창 열기",
     "unableToCheckStreamStatus": "스트림 상태를 확인할 수 없습니다",
     "unableToLoadStream": "스트림을 로드할 수 없습니다.",
     "currentlyOffline": "현재 오프라인 상태입니다",
@@ -2129,7 +2137,10 @@
       "buffering": "버퍼링",
       "bufferingDetail": "플레이어가 이 실시간 스트림을 버퍼링하고 있습니다.",
       "focusedActive": "집중 라이브 재생이 활성화됩니다."
-    }
+    },
+    "protectedWindowsOnly": "보호된 재생에는 Windows이 필요합니다.",
+    "protectedRuntimeMissing": "이 스트림을 열려면 Microsoft Edge WebView2 런타임을 설치하세요.",
+    "installWebView2Runtime": "WebView2 런타임 가져오기"
   },
   "settings": {
     "general": "일반",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "사진별로",
     "thunderdome": "천둥돔",
     "desktopNotifications": "데스크톱 알림",
+    "doNotDisturb": "방해하지 마세요",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "기록을 기록하는 동안 앱 내 배너, 알림 소리, 시스템 알림을 무음으로 설정하세요.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "팔로우한 스트림이 라이브로 전환되면 기본 OS 알림을 표시합니다.",
     "liveNotifications": "실시간 알림",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "앱 알림 기록에 실시간 스트림 알림을 유지하세요.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "로그인 및 토큰 유효성",
     "allowPreReleaseUpdates": "시험판 업데이트 허용",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "안정적인 출시 전에 베타 및 미리보기 버전 받기",
-    "checkForUpdatesOnStartup": "시작 시 업데이트 확인",
+    "checkForUpdatesOnStartup": "업데이트를 계속 확인하세요",
     "checkForNewVersionsInTheBackgroundOnASchedule": "일정에 따라 백그라운드에서 새 버전 확인",
     "checkFrequency": "빈도 확인",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "자동 업데이트가 켜져 있는지 확인하는 빈도",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "현재 버전: v",
     "updateCheckUrl": "확인 URL 업데이트",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "플랫폼 업데이트 메타데이터가 포함된 전자 업데이트 피드",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "선택한 간격이 경과되면 시작 시 확인",
-    "minimumTimeBetweenStartupChecks": "시작 확인 사이의 최소 시간",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "앱은 실행될 때마다 확인합니다. 열려 있는 동안 확인하려면 이 기능을 켜세요.",
+    "minimumTimeBetweenStartupChecks": "추가 확인 사이의 시간",
     "selectFrequency": "주파수 선택",
     "hourly": "시간별",
     "daily": "매일",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}}초",
     "unknown": "알 수 없음",
     "failedToDownloadUpdate": "업데이트를 다운로드하지 못했습니다.",
-    "failedToInstallUpdate": "업데이트를 설치하지 못했습니다.",
-    "doNotDisturb": "방해하지 마세요",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "기록을 기록하는 동안 앱 내 배너, 알림 소리, 시스템 알림을 무음으로 설정하세요."
+    "failedToInstallUpdate": "업데이트를 설치하지 못했습니다."
   },
   "shell": {
     "loadingPage": "페이지 로드 중",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "사이드바 확장",
       "collapseSidebar": "사이드바 접기",
       "notifications": "알림",
+      "doNotDisturb": "방해하지 마세요",
+      "notificationsMuted": "알림이 음소거되었습니다",
       "markAllRead": "모두 읽은 것으로 표시",
       "emptyNotifications": "새로운 알림 없음",
       "dismiss": "닫기",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}}시간 전",
       "hoursAgo_other": "{{count}}시간 전",
       "daysAgo_one": "{{count}}일 전",
-      "daysAgo_other": "{{count}}일 전",
-      "doNotDisturb": "방해하지 마세요",
-      "notificationsMuted": "알림이 음소거되었습니다"
+      "daysAgo_other": "{{count}}일 전"
     },
     "titleBar": {
       "minimize": "최소화",

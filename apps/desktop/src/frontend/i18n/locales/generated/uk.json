@@ -1894,6 +1894,14 @@
     "refreshStream": "Оновити потік",
     "blockingMidrollAds": "Блокування реклами в середині відео",
     "playbackInterrupted": "Відтворення перервано",
+    "protectedWindowOpening": "Відкриття вікна програвача...",
+    "protectedWindowOpen": "Відкрито вікно плеєра",
+    "protectedWindowClosed": "Вікно гравця закрито",
+    "protectedWindowUnavailable": "Вікно плеєра недоступне",
+    "protectedWindowNotice": "Офіційний програвач Twitch's відкривається окремо. Можуть з'являтися оголошення.",
+    "focusPlayerWindow": "Перейти до вікна програвача",
+    "closePlayerWindow": "Закрити вікно програвача",
+    "openPlayerWindow": "Відкрити вікно плеєра",
     "unableToCheckStreamStatus": "Неможливо перевірити стан потоку",
     "unableToLoadStream": "Не вдалося завантажити потік",
     "currentlyOffline": "зараз офлайн",
@@ -2129,7 +2137,10 @@
       "buffering": "Буферизація",
       "bufferingDetail": "Програвач буферизує цю пряму трансляцію.",
       "focusedActive": "Сфокусоване живе відтворення активне."
-    }
+    },
+    "protectedWindowsOnly": "Для захищеного відтворення потрібен Windows.",
+    "protectedRuntimeMissing": "Установіть Microsoft Edge WebView2 Runtime, щоб відкрити цей потік.",
+    "installWebView2Runtime": "Отримайте WebView2 Runtime"
   },
   "settings": {
     "general": "Загальний",
@@ -2169,6 +2180,8 @@
     "pictureByPicture": "малюнок за малюнком",
     "thunderdome": "громовий купол",
     "desktopNotifications": "Сповіщення на робочому столі",
+    "doNotDisturb": "Не турбувати",
+    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Вимкніть банери в програмі, звуки сповіщень і системні сповіщення, продовжуючи записувати історію.",
     "showNativeOsNotificationsWhenFollowedStreamsGoLive": "Показувати рідні сповіщення ОС, коли трансляції, на які ви стежите, починають транслюватися.",
     "liveNotifications": "Сповіщення в реальному часі",
     "keepLiveStreamAlertsInTheAppNotificationHistory": "Зберігайте сповіщення про пряму трансляцію в історії сповіщень програми.",
@@ -2286,7 +2299,7 @@
     "signInAndTokenValidity": "Вхід і термін дії маркера",
     "allowPreReleaseUpdates": "Дозволити попередні оновлення",
     "receiveBetaAndPreviewVersionsBeforeStableRelease": "Отримайте бета-версії та попередні версії перед стабільним випуском",
-    "checkForUpdatesOnStartup": "Перевірте наявність оновлень під час запуску",
+    "checkForUpdatesOnStartup": "Продовжуйте перевіряти наявність оновлень",
     "checkForNewVersionsInTheBackgroundOnASchedule": "Перевірка наявності нових версій у фоновому режимі за розкладом",
     "checkFrequency": "Перевірте частоту",
     "howOftenToCheckWhenAutomaticUpdatesAreOn": "Як часто перевіряти, чи ввімкнено автоматичні оновлення",
@@ -2421,8 +2434,8 @@
     "currentVersionV": "Поточна версія: v",
     "updateCheckUrl": "Оновити перевірку URL-адреси",
     "electronUpdateFeedContainingThePlatformUpdateMetadata": "Канал оновлень Electron, що містить метадані оновлення платформи",
-    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Перевірте під час запуску, коли вибраний інтервал минув",
-    "minimumTimeBetweenStartupChecks": "Мінімальний час між перевірками запуску",
+    "checkAtLaunchWhenTheSelectedIntervalHasElapsed": "Додаток перевіряє кожен запуск. Увімкніть це для перевірок, поки воно залишається відкритим.",
+    "minimumTimeBetweenStartupChecks": "Час між додатковими перевірками",
     "selectFrequency": "Виберіть частоту",
     "hourly": "щогодини",
     "daily": "Щодня",
@@ -2862,9 +2875,7 @@
     "secondCount_other": "{{count}} секунд",
     "unknown": "невідомий",
     "failedToDownloadUpdate": "Не вдалося завантажити оновлення",
-    "failedToInstallUpdate": "Не вдалося встановити оновлення",
-    "doNotDisturb": "Не турбувати",
-    "silenceInAppBannersNotificationSoundsAndSystemAlertsWhileStillRecordingHistory": "Вимкніть банери в програмі, звуки сповіщень і системні сповіщення, продовжуючи записувати історію."
+    "failedToInstallUpdate": "Не вдалося встановити оновлення"
   },
   "shell": {
     "loadingPage": "Завантаження сторінки",
@@ -2927,6 +2938,8 @@
       "expandSidebar": "Розгорнути бічну панель",
       "collapseSidebar": "Згорнути бічну панель",
       "notifications": "Сповіщення",
+      "doNotDisturb": "Не турбувати",
+      "notificationsMuted": "Сповіщення вимкнено",
       "markAllRead": "Позначити все прочитане",
       "emptyNotifications": "Немає нових сповіщень",
       "dismiss": "Відхилити",
@@ -2938,9 +2951,7 @@
       "hoursAgo_one": "{{count}} годину тому",
       "hoursAgo_other": "{{count}} годин тому",
       "daysAgo_one": "{{count}} день тому",
-      "daysAgo_other": "{{count}} днів тому",
-      "doNotDisturb": "Не турбувати",
-      "notificationsMuted": "Сповіщення вимкнено"
+      "daysAgo_other": "{{count}} днів тому"
     },
     "titleBar": {
       "minimize": "Згорнути",

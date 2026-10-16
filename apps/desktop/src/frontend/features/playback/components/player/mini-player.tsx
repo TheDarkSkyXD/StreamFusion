@@ -622,6 +622,10 @@ export function MiniPlayer() {
                 ? dockedConfig.onCleanPresentedFrame
                 : miniTwitchRecovery.markPlaybackHealthy
             }
+            onProtectedPlaybackSelected={() => {
+              miniTwitchRecovery.suspend();
+              if (isDocked) dockedConfig?.onProtectedPlaybackSelected?.();
+            }}
             onRefresh={isDocked && dockedConfig ? dockedConfig.onRefresh : reload}
             recoveryManagedExternally
             className="size-full"
