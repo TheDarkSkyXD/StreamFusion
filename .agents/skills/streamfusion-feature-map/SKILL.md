@@ -24,6 +24,7 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 - Put feature tests in that feature's `tests/`; retain only shared test infrastructure and cross-feature integrations in workspace test directories.
 - Shared UI primitives, runtime bootstrap, translation infrastructure, and shared contracts remain outside feature roots when they have no single feature owner.
 - When another view previews existing content, reuse its renderer and display preferences so both views stay consistent.
+- Reuse identity styling in profile summaries as well as content rows, including provider colors, cosmetics, and display preferences.
 - Show privileged actions from the current account's verified capability for the active resource. A callback's presence does not establish permission.
 - Before removing a control, verify that its replacement interaction works and remains accessible.
 - Cross the Electron boundary only through `electronAPI`, shared contracts, preload, and a registered IPC handler.

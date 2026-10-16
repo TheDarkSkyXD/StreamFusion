@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatPanel } from "../components/chat-panel";
+import { ChatUserSheet } from "../components/chat-user-sheet";
 import type {
   ChatCommands,
   ChatCommandResult,
@@ -233,6 +234,85 @@ const messageA: WatchChatMessage = {
   text: "Alpha message",
   badges: [],
 };
+
+describe("user sheet username styling", () => {
+  it.each([
+    { platform: "twitch" as const, color: "#ff8800", expected: "#ff8800" },
+    { platform: "kick" as const, color: "#00ff88", expected: "#00ff88" },
+    { platform: "twitch" as const, color: "", expected: "#9146ff" },
+    { platform: "kick" as const, color: "", expected: "#53fc18" },
+    { platform: "twitch" as const, color: "#000000", expected: "#808080" },
+  ])(
+    "uses $platform chat color $color in the heading",
+    async ({ platform, color, expected }) => {
+      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+      const container = document.createElement("div");
+      const root = createRoot(container);
+      try {
+        for (const enable7tvUsernamePaints of [true, false]) {
+          await act(async () =>
+            root.render(
+              createElement(ChatUserSheet, {
+                selected: { ...messageA, userId: "viewer", color },
+                messages: [],
+                platform,
+                canCompose: false,
+                canReply: false,
+                emotes: [],
+                preferences: {
+                  ...defaultChatDisplaySettingsView().preferences,
+                  readableColorForUncolored: false,
+                  themeAdaptUsernameColor: true,
+                  enable7tvUsernamePaints,
+                },
+                cosmetics: new Map([
+                  [
+                    "viewer",
+                    {
+                      badges: [],
+                      paint: {
+                        kind: "linear",
+                        id: "paint",
+                        stops: [
+                          { at: 0, color: "#ff0000" },
+                          { at: 1, color: "#0000ff" },
+                        ],
+                        shadows: [
+                          {
+                            xOffset: 0,
+                            yOffset: 1,
+                            radius: 2,
+                            color: "#abcdef",
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                ]),
+                onSelect: vi.fn(),
+                onDismiss: vi.fn(),
+                onReply: vi.fn(),
+                onCopyToChat: vi.fn(),
+                onMention: vi.fn(),
+              }),
+            ),
+          );
+          const heading = container.querySelector(
+            '[data-testid="watch-chat-username-sheet-alpha-message"]',
+          );
+          expect(heading?.textContent).toBe("Alpha viewer");
+          const style = heading?.getAttribute("data-style");
+          expect(style).toContain(`"color":"${expected}"`);
+          if (enable7tvUsernamePaints)
+            expect(style).toContain('"textShadowColor":"#abcdef"');
+          else expect(style).not.toContain("textShadowColor");
+        }
+      } finally {
+        await act(async () => root.unmount());
+      }
+    },
+  );
+});
 
 function renderPanel(
   commands: ChatCommands,
@@ -1097,6 +1177,38 @@ describe("chat user sheet", () => {
       );
       expect(reply).not.toBeNull();
       expect(reply?.disabled).toBe(true);
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps Mention visible but disabled when chat is unavailable", async () => {
+    const panel = renderPanel({
+      ...chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      access: async () => ({ allowed: false, detail: "Sign in to chat." }),
+    });
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      expect(panel.buttonDisabled('[data-testid="chat-mention"]')).toBe(true);
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("mentions the selected login in the existing draft without sending", async () => {
+    const delivery = vi.fn<ChatCommands["send"]>();
+    const panel = renderPanel(chatCommands(delivery));
+    try {
+      await panel.render(channelA);
+      await panel.type("chat-draft", "Hello");
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.press('[data-testid="chat-mention"]');
+      expect(panel.draft()).toBe("Hello @alpha-viewer ");
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+      expect(delivery).not.toHaveBeenCalled();
     } finally {
       await panel.unmount();
     }

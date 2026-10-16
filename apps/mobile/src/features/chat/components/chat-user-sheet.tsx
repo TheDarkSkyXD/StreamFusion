@@ -39,6 +39,8 @@ import type { ChatDisplayPreferences } from "@mobile/features/settings/capabilit
 import { selectUserChatMessages } from "../domain/select-user-chat-messages";
 import { KickBadgeImage } from "./kick-badge-image";
 import { ChatMessageRow } from "./chat-message-row";
+import { ChatUsername } from "./chat-username";
+import { resolveChatUsernameColor } from "../domain/resolve-chat-username-color";
 
 type Action = {
   readonly label: string;
@@ -135,6 +137,17 @@ export function ChatUserSheet({
   };
   const userId = selected.userId;
   const username = selected.username;
+  const usernameColor = resolveChatUsernameColor({
+    ...(selected.color === undefined ? {} : { color: selected.color }),
+    platform,
+    readableColorForUncolored: preferences.readableColorForUncolored,
+    themeAdaptUsernameColor: preferences.themeAdaptUsernameColor,
+    username: selected.username || selected.displayName,
+  });
+  const paint =
+    preferences.enable7tvUsernamePaints && userId
+      ? cosmetics?.get(userId)?.paint
+      : undefined;
   const readChannel = presentation?.readChannel;
   const viewChannel = presentation?.viewChannel;
   useEffect(() => {
@@ -178,16 +191,13 @@ export function ChatUserSheet({
       icon: CornerUpLeft,
       disabled: !canReply || selected.deletedAt !== undefined,
     },
-    ...(canCompose && username
-      ? [
-          {
-            label: "Mention",
-            testID: "chat-mention",
-            onPress: onMention,
-            icon: AtSign,
-          },
-        ]
-      : []),
+    {
+      label: "Mention",
+      testID: "chat-mention",
+      onPress: onMention,
+      icon: AtSign,
+      disabled: !canCompose || !username,
+    },
     ...(profile && viewChannel
       ? [
           {
@@ -295,12 +305,16 @@ export function ChatUserSheet({
           />
           <View style={styles.identityCopy}>
             <View style={styles.nameRow}>
-              <Text
-                style={[mobileType.title, styles.nameText]}
-                numberOfLines={2}
-              >
-                {profile?.displayName ?? selected.displayName}
-              </Text>
+              <View style={styles.nameText}>
+                <ChatUsername
+                  name={profile?.displayName ?? selected.displayName}
+                  fontSize={mobileType.title.fontSize}
+                  bold={preferences.boldUsernames}
+                  color={usernameColor}
+                  id={`sheet-${selected.id}`}
+                  {...(paint ? { paint } : {})}
+                />
+              </View>
               {selected.badges
                 .filter((badge) => badge.imageUrl)
                 .map((badge) =>
