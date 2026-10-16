@@ -1,4 +1,4 @@
-import { isValidElement, type ReactElement } from "react";
+import { createElement, isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
@@ -11,7 +11,23 @@ import {
 import { emptySearchHistory } from "../domain/search-history";
 import { composeUnifiedSearch } from "../domain/unified-search";
 
+vi.mock("react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react")>()),
+  useCallback: (callback: unknown) => callback,
+}));
+
 vi.mock("react-native", () => ({
+  FlatList: (props: {
+    data: readonly unknown[];
+    renderItem: ({ item }: { item: unknown }) => unknown;
+    ListHeaderComponent?: unknown;
+  }) =>
+    createElement(
+      "View",
+      null,
+      props.ListHeaderComponent,
+      ...props.data.map((item) => props.renderItem({ item })),
+    ),
   Image: "Image",
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Pressable: "Pressable",

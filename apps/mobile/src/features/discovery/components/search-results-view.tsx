@@ -1,9 +1,19 @@
-import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import type { Clip, Video, Channel, Stream } from "@streamfusion/core/content";
+import { memo, useCallback, type ReactElement } from "react";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  type ListRenderItemInfo,
+} from "react-native";
+import type { Channel, Clip, Stream, Video } from "@streamfusion/core/content";
 
+import { MobileButton } from "@mobile/design/button";
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
-import type { UnifiedSearchView } from "../capabilities/platform-reads";
+import type {
+  MobileSearchKind,
+  UnifiedSearchView,
+} from "../capabilities/platform-reads";
+import { searchResultRows, type SearchRow } from "../domain/search-result-rows";
 
 import { HomeStreamCard } from "./home-stream-card";
 import {
@@ -14,184 +24,152 @@ import {
 } from "./search-cards";
 
 export function SearchResultsView({
+  header,
+  onLoadMore,
+  onOpenChannel,
+  onRefresh,
+  onWatchClip,
+  onWatchStream,
+  onWatchVideo,
+  refreshing = false,
+  view,
+}: {
+  readonly header?: ReactElement;
+  readonly onLoadMore?: (kind: MobileSearchKind) => void;
+  readonly onOpenChannel?: (channel: Channel) => void;
+  readonly onRefresh?: () => void | Promise<void>;
+  readonly onWatchClip?: (clip: Clip) => void;
+  readonly onWatchStream?: (stream: Stream) => void;
+  readonly onWatchVideo?: (video: Video) => void;
+  readonly refreshing?: boolean;
+  readonly view: UnifiedSearchView;
+}) {
+  const rows = searchResultRows(view);
+  const tab = view.intent?.resultType;
+  const loadAtEnd =
+    (tab === "channels" || tab === "streams" || tab === "categories") &&
+    view.canLoadMore?.[tab];
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<SearchRow>) => (
+      <SearchRowView
+        row={item}
+        loadingMore={view.loadingMore}
+        onLoadMore={onLoadMore}
+        onOpenChannel={onOpenChannel}
+        onWatchClip={onWatchClip}
+        onWatchStream={onWatchStream}
+        onWatchVideo={onWatchVideo}
+      />
+    ),
+    [
+      onLoadMore,
+      onOpenChannel,
+      onWatchClip,
+      onWatchStream,
+      onWatchVideo,
+      view.loadingMore,
+    ],
+  );
+  return (
+    <FlatList<SearchRow>
+      contentContainerStyle={styles.content}
+      data={rows}
+      key={JSON.stringify([
+        view.intent?.query,
+        view.intent?.resultType,
+        view.intent?.platform ?? "all",
+        view.intent?.liveOnly,
+      ])}
+      keyExtractor={(row) => row.key}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+      ListHeaderComponent={header}
+      onEndReached={() => {
+        if (loadAtEnd && tab && onLoadMore) onLoadMore(tab);
+      }}
+      onEndReachedThreshold={0.5}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+      renderItem={renderItem}
+      style={styles.list}
+      testID="search-results-list"
+    />
+  );
+}
+
+const SearchRowView = memo(function SearchRowView({
+  row,
+  loadingMore,
+  onLoadMore,
   onOpenChannel,
   onWatchClip,
   onWatchStream,
   onWatchVideo,
-  view,
 }: {
-  readonly onOpenChannel?: (channel: Channel) => void;
-  readonly onWatchClip?: (clip: Clip) => void;
-  readonly onWatchStream?: (stream: Stream) => void;
-  readonly onWatchVideo?: (video: Video) => void;
-  readonly view: UnifiedSearchView;
+  readonly row: SearchRow;
+  readonly loadingMore?: UnifiedSearchView["loadingMore"];
+  readonly onLoadMore?: ((kind: MobileSearchKind) => void) | undefined;
+  readonly onOpenChannel?: ((channel: Channel) => void) | undefined;
+  readonly onWatchClip?: ((clip: Clip) => void) | undefined;
+  readonly onWatchStream?: ((stream: Stream) => void) | undefined;
+  readonly onWatchVideo?: ((video: Video) => void) | undefined;
 }) {
-  const tab = view.intent?.resultType ?? "all";
-  const collection = view.collection;
-  if (tab === "channels") {
-    return (
-      <Section title="Channels">
-        {collection.channels.map((channel) => (
-          <SearchChannelCard
-            channel={channel}
-            key={`${channel.platform}:${channel.id}`}
-            {...watchProp(
-              "onOpen",
-              onOpenChannel ? () => onOpenChannel(channel) : undefined,
-            )}
-          />
-        ))}
-      </Section>
-    );
+  switch (row.kind) {
+    case "heading":
+      return (
+        <Text selectable style={styles.label}>
+          {row.title}
+        </Text>
+      );
+    case "channel":
+      return (
+        <SearchChannelCard
+          channel={row.item}
+          {...(onOpenChannel ? { onOpen: () => onOpenChannel(row.item) } : {})}
+        />
+      );
+    case "stream":
+      return (
+        <HomeStreamCard
+          stream={row.item}
+          {...(onWatchStream ? { onOpen: () => onWatchStream(row.item) } : {})}
+        />
+      );
+    case "category":
+      return <SearchCategoryCard category={row.item} />;
+    case "video":
+      return (
+        <SearchVideoCard
+          video={row.item}
+          {...(onWatchVideo ? { onWatch: onWatchVideo } : {})}
+        />
+      );
+    case "clip":
+      return (
+        <SearchClipCard
+          clip={row.item}
+          {...(onWatchClip ? { onWatch: onWatchClip } : {})}
+        />
+      );
+    case "more":
+      return (
+        <MobileButton
+          accessibilityLabel={`Load more ${row.resultKind}`}
+          busy={loadingMore?.[row.resultKind] === true}
+          onPress={() => onLoadMore?.(row.resultKind)}
+          testID={`search-more-${row.resultKind}`}
+          variant="secondary"
+        >{`Load more ${row.resultKind}`}</MobileButton>
+      );
   }
-  if (tab === "streams") {
-    return (
-      <Section title="Streams">
-        {streamCards(collection.streams, onWatchStream)}
-      </Section>
-    );
-  }
-  if (tab === "videos") {
-    return (
-      <Section title="Videos">
-        {videoCards(collection.videos, onWatchVideo)}
-      </Section>
-    );
-  }
-  if (tab === "clips") {
-    return (
-      <Section title="Clips">
-        {clipCards(collection.clips, onWatchClip)}
-      </Section>
-    );
-  }
-  if (tab === "categories") {
-    return (
-      <Section title="Categories">
-        {collection.categories.map((category) => (
-          <SearchCategoryCard
-            category={category}
-            key={`${category.platform}:${category.id}`}
-          />
-        ))}
-      </Section>
-    );
-  }
-  return (
-    <View style={styles.stack} testID="search-results-all">
-      {view.bestMatch ? (
-        <Section title="Best match">
-          <SearchChannelCard
-            channel={view.bestMatch}
-            {...watchProp(
-              "onOpen",
-              onOpenChannel
-                ? () => {
-                    const match = view.bestMatch;
-                    if (match) onOpenChannel(match);
-                  }
-                : undefined,
-            )}
-          />
-        </Section>
-      ) : null}
-      {collection.streams.length > 0 ? (
-        <Section title="Live streams">
-          {streamCards(collection.streams, onWatchStream)}
-        </Section>
-      ) : null}
-      {collection.videos.length > 0 ? (
-        <Section title="Videos">
-          {videoCards(collection.videos, onWatchVideo)}
-        </Section>
-      ) : null}
-      {collection.clips.length > 0 ? (
-        <Section title="Clips">
-          {clipCards(collection.clips, onWatchClip)}
-        </Section>
-      ) : null}
-      {collection.categories.length > 0 ? (
-        <Section title="Categories">
-          {collection.categories.map((category) => (
-            <SearchCategoryCard
-              category={category}
-              key={`${category.platform}:${category.id}`}
-            />
-          ))}
-        </Section>
-      ) : null}
-    </View>
-  );
-}
-
-function streamCards(
-  streams: readonly Stream[],
-  onWatchStream?: (stream: Stream) => void,
-) {
-  return streams.map((stream) => (
-    <HomeStreamCard
-      key={`${stream.platform}:${stream.id}`}
-      stream={stream}
-      {...watchProp(
-        "onOpen",
-        onWatchStream ? () => onWatchStream(stream) : undefined,
-      )}
-    />
-  ));
-}
-
-function videoCards(
-  videos: readonly Video[],
-  onWatchVideo?: (video: Video) => void,
-) {
-  return videos.map((video) => (
-    <SearchVideoCard
-      key={`${video.platform}:${video.id}`}
-      video={video}
-      {...watchProp("onWatch", onWatchVideo)}
-    />
-  ));
-}
-
-function clipCards(clips: readonly Clip[], onWatchClip?: (clip: Clip) => void) {
-  return clips.map((clip) => (
-    <SearchClipCard
-      clip={clip}
-      key={`${clip.platform}:${clip.id}`}
-      {...watchProp("onWatch", onWatchClip)}
-    />
-  ));
-}
-
-function watchProp<K extends string, V>(
-  key: K,
-  value: V | undefined,
-): { readonly [P in K]: V } | Record<string, never> {
-  return value === undefined
-    ? {}
-    : ({ [key]: value } as { readonly [P in K]: V });
-}
-
-function Section({
-  children,
-  title,
-}: {
-  readonly children: ReactNode;
-  readonly title: string;
-}) {
-  return (
-    <View style={styles.stack}>
-      <Text selectable style={styles.label}>
-        {title}
-      </Text>
-      {children}
-    </View>
-  );
-}
+});
 
 const styles = StyleSheet.create({
-  stack: {
+  list: { flex: 1, minHeight: 0 },
+  content: {
     gap: mobileSpacing.medium,
+    padding: mobileSpacing.medium,
+    paddingBottom: mobileSpacing.xLarge,
   },
   label: {
     color: mobileColors.textCategory,

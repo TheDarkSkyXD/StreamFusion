@@ -11,10 +11,7 @@ import type {
   CategoryIdentity,
   CategoryRequestIdentity,
 } from "./category-identity";
-import {
-  GUEST_CATEGORY_FOLLOW,
-  platformsForScope,
-} from "./category-identity";
+import { GUEST_CATEGORY_FOLLOW, platformsForScope } from "./category-identity";
 
 export type CategoryMediaPage =
   | { readonly kind: "live"; readonly items: readonly Stream[] }
@@ -26,6 +23,47 @@ export type CategoryMediaPage =
     };
 
 export type CategoryMediaItem = Stream | Clip | Video;
+
+export function collapseCategoryMediaPages(
+  pages: readonly PlatformReadOutcome<CategoryMediaItem>[],
+): PlatformReadOutcome<CategoryMediaItem> {
+  const first = pages[0];
+  if (first === undefined) throw new Error("category media has no first page");
+  const seen = new Set<string>();
+  const items = pages.flatMap((page) =>
+    page.items.filter((item) => {
+      const key = `${item.platform}:${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+  );
+  return { ...first, items };
+}
+
+export function nextCategoryMediaCursor(
+  last: PlatformReadOutcome<CategoryMediaItem>,
+  pages: readonly PlatformReadOutcome<CategoryMediaItem>[],
+): string | undefined {
+  const cursor = last.cursor;
+  const earlierIds = new Set(
+    pages
+      .slice(0, -1)
+      .flatMap((page) =>
+        page.items.map((item) => `${item.platform}:${item.id}`),
+      ),
+  );
+  return last.status === "complete" &&
+    cursor !== undefined &&
+    cursor !== "" &&
+    (last.items.length === 0 ||
+      last.items.some(
+        (item) => !earlierIds.has(`${item.platform}:${item.id}`),
+      )) &&
+    !pages.slice(0, -1).some((page) => page.cursor === cursor)
+    ? cursor
+    : undefined;
+}
 
 export type CategoryDetailView = {
   readonly phase: HomeLiveDiscoveryPhase;
@@ -94,10 +132,12 @@ function selectMedia(input: {
     if (input.twitchUnavailable?.kind === "unavailable")
       return input.twitchUnavailable;
     if (!twitchInScope) {
-      return input.kickUnavailable ?? {
-        kind: "unavailable",
-        reason: "kick-clips-unsupported",
-      };
+      return (
+        input.kickUnavailable ?? {
+          kind: "unavailable",
+          reason: "kick-clips-unsupported",
+        }
+      );
     }
     return {
       kind: "clips",
@@ -106,10 +146,12 @@ function selectMedia(input: {
   }
   if (input.identity.tab === "videos") {
     if (!twitchInScope) {
-      return input.kickUnavailable ?? {
-        kind: "unavailable",
-        reason: "kick-videos-unsupported",
-      };
+      return (
+        input.kickUnavailable ?? {
+          kind: "unavailable",
+          reason: "kick-videos-unsupported",
+        }
+      );
     }
     return {
       kind: "videos",
@@ -155,10 +197,7 @@ function filterLive(
   identity: CategoryRequestIdentity,
 ): Stream[] {
   return items.filter((item) => {
-    if (
-      identity.language !== "all" &&
-      item.language !== identity.language
-    ) {
+    if (identity.language !== "all" && item.language !== identity.language) {
       return false;
     }
     if (identity.tag !== "all" && !item.tags.includes(identity.tag)) {
@@ -168,7 +207,10 @@ function filterLive(
   });
 }
 
-function sortLive(items: readonly Stream[], sort: "viewers-desc" | "viewers-asc"): Stream[] {
+function sortLive(
+  items: readonly Stream[],
+  sort: "viewers-desc" | "viewers-asc",
+): Stream[] {
   return sortCopy(items, (left, right) =>
     sort === "viewers-asc"
       ? left.viewerCount - right.viewerCount

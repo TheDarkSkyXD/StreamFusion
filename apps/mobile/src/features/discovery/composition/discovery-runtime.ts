@@ -15,7 +15,7 @@ import type {
 } from "../capabilities/platform-reads";
 import { createDiscoveryCacheStore } from "../data/cache-discovery-store";
 import { createChannelDiscoverySession } from "./channel-discovery-runtime";
-import { readSearchCatalog } from "./search-runtime";
+import { readSearchPage } from "./search-runtime";
 import {
   availableMedia,
   cachedRead,
@@ -158,6 +158,7 @@ export function createDiscoveryRuntime(input: {
           platform === "twitch"
             ? twitch.getCategoryStreams({
                 categoryId: read.categoryId,
+                ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
                 ...extra,
                 ...(read.language === undefined
                   ? {}
@@ -165,6 +166,7 @@ export function createDiscoveryRuntime(input: {
               })
             : kick.getCategoryStreams({
                 categoryId: read.categoryId,
+                ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
                 ...extra,
                 ...(read.language === undefined
                   ? {}
@@ -173,6 +175,7 @@ export function createDiscoveryRuntime(input: {
         readRelay: (platform, extra) =>
           relay.getCategoryStreams({
             categoryId: read.categoryId,
+            ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
             platform,
             ...signalOf(extra),
             ...(read.language === undefined ? {} : { language: read.language }),
@@ -231,22 +234,47 @@ export function createDiscoveryRuntime(input: {
       network: input.network,
       readers,
     }),
-    async search(read) {
-      const userToken = await input.userTokens.read(read.platform);
-      const installation = await input.installation.read();
+    async searchPage(read) {
       const network = await input.network.read();
-      return readSearchCatalog({
+      return readSearchPage({
         cache,
-        installation,
         kick,
         network,
         platform: read.platform,
         query: read.query,
-        relay,
+        kind: read.kind,
+        liveOnly: read.liveOnly === true,
         twitch,
-        userToken,
+        ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
+    },
+    async searchMedia(read) {
+      const network = await input.network.read();
+      const identity =
+        network === "online"
+          ? await input.installation.read()
+          : { kind: "none" as const };
+      if (identity.kind !== "ready") {
+        return {
+          cache: { kind: "miss" },
+          clips: [],
+          path: { kind: "guest", platform: read.platform },
+          platform: read.platform,
+          status: "complete",
+          videos: [],
+        };
+      }
+      const outcome = await relay.search(read);
+      return {
+        cache: outcome.cache,
+        clips: outcome.catalog.clips,
+        path: outcome.path,
+        platform: outcome.platform,
+        status: outcome.status,
+        videos: outcome.catalog.videos,
+        ...(outcome.error === undefined ? {} : { error: outcome.error }),
+      };
     },
   };
 }

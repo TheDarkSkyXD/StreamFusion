@@ -97,6 +97,7 @@ describe("provider search pages", () => {
     expect(requests.at(-1)?.query).toMatch(
       /index:\s*CHANNEL,\s*cursor:\s*\$cursor/,
     );
+    expect(requests.at(-1)?.query).toMatch(/\$cursor:\s*String\b/);
     expect(requests.at(-1)?.variables.cursor).toBe("MTU=");
   });
 

@@ -41,6 +41,7 @@ export function createRelayCategoryReads(input: RelayInput) {
     },
     async getCategoryStreams(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly language?: string;
       readonly platform: Platform;
       readonly signal?: AbortSignal;
@@ -49,6 +50,7 @@ export function createRelayCategoryReads(input: RelayInput) {
         input,
         params: {
           categoryId: read.categoryId,
+          ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
           ...(read.language === undefined ? {} : { language: read.language }),
         },
         parse: relayCategoryStreamsOutcome,
@@ -107,7 +109,10 @@ export function createRelayCategoryReads(input: RelayInput) {
 export async function relayRead<T>(options: {
   readonly input: RelayInput;
   readonly params?: Record<string, string>;
-  readonly parse: (platform: Platform, value: unknown) => PlatformReadOutcome<T>;
+  readonly parse: (
+    platform: Platform,
+    value: unknown,
+  ) => PlatformReadOutcome<T>;
   readonly path: string;
   readonly platform: Platform;
   readonly signal?: AbortSignal;

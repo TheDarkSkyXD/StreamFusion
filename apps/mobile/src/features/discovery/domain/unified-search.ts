@@ -10,14 +10,10 @@ import type {
 } from "../capabilities/platform-reads";
 
 import {
+  dedupeChannelsByLogin,
   dedupeByIdentity,
   emptySearchCatalog,
 } from "./search-catalog";
-
-const ALL_CHANNEL_LIMIT = 12;
-const ALL_STREAM_LIMIT = 12;
-const ALL_CATEGORY_LIMIT = 12;
-const ALL_MEDIA_LIMIT = 6;
 
 const emptyOutcome = (platform: Platform): SearchReadOutcome => ({
   cache: { kind: "miss" },
@@ -71,11 +67,9 @@ function mergeCatalogs(
 ): SearchCatalogPage {
   return {
     categories: dedupeByIdentity([...twitch.categories, ...kick.categories]),
-    channels: dedupeByIdentity([...twitch.channels, ...kick.channels]),
+    channels: dedupeChannelsByLogin([...twitch.channels, ...kick.channels]),
     clips: dedupeByIdentity([...twitch.clips, ...kick.clips]),
-    streams: dedupeByIdentity(
-      liveFirst([...twitch.streams, ...kick.streams]),
-    ),
+    streams: dedupeByIdentity(liveFirst([...twitch.streams, ...kick.streams])),
     videos: dedupeByIdentity([...twitch.videos, ...kick.videos]),
   };
 }
@@ -90,13 +84,12 @@ function projectCollection(
     : catalog.channels;
   const liveStreams = catalog.streams.filter((stream) => stream.isLive);
   const hideMedia = intent.liveOnly;
-  const limits = tabLimits(intent);
   const projected: SearchCatalogPage = {
-    categories: take(catalog.categories, limits.categories),
-    channels: take(liveChannels, limits.channels),
-    clips: hideMedia ? [] : take(catalog.clips, limits.clips),
-    streams: take(liveStreams, limits.streams),
-    videos: hideMedia ? [] : take(catalog.videos, limits.videos),
+    categories: catalog.categories,
+    channels: liveChannels,
+    clips: hideMedia ? [] : catalog.clips,
+    streams: liveStreams,
+    videos: hideMedia ? [] : catalog.videos,
   };
   if (intent.resultType === "all") return projected;
   return {
@@ -105,32 +98,6 @@ function projectCollection(
     clips: intent.resultType === "clips" ? projected.clips : [],
     streams: intent.resultType === "streams" ? projected.streams : [],
     videos: intent.resultType === "videos" ? projected.videos : [],
-  };
-}
-
-function tabLimits(intent: SearchIntent): {
-  readonly categories: number;
-  readonly channels: number;
-  readonly clips: number;
-  readonly streams: number;
-  readonly videos: number;
-} {
-  const typed = intent.limits.resultLimit;
-  if (intent.resultType === "all") {
-    return {
-      categories: ALL_CATEGORY_LIMIT,
-      channels: ALL_CHANNEL_LIMIT,
-      clips: ALL_MEDIA_LIMIT,
-      streams: ALL_STREAM_LIMIT,
-      videos: ALL_MEDIA_LIMIT,
-    };
-  }
-  return {
-    categories: typed,
-    channels: typed,
-    clips: typed,
-    streams: typed,
-    videos: typed,
   };
 }
 
@@ -206,11 +173,8 @@ function catalogSize(catalog: SearchCatalogPage): number {
 function liveFirst<TItem extends { readonly isLive?: boolean }>(
   items: readonly TItem[],
 ): readonly TItem[] {
-  return [...items].sort((left, right) =>
-    Number(right.isLive === true) - Number(left.isLive === true),
+  return [...items].sort(
+    (left, right) =>
+      Number(right.isLive === true) - Number(left.isLive === true),
   );
-}
-
-function take<TItem>(items: readonly TItem[], limit: number): readonly TItem[] {
-  return items.slice(0, limit);
 }

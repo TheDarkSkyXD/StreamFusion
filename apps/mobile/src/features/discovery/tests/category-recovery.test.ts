@@ -180,7 +180,7 @@ describe("category read recovery", () => {
         });
       });
       await flushQueryUpdates();
-      expect(screen.container.textContent).toBe("ready:first:true");
+      expect(screen.container.textContent).toBe("ready:first:false");
       await act(async () => {
         await screen.queryClient.invalidateQueries({
           queryKey: ["discovery", "category-media"],

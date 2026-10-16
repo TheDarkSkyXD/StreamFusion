@@ -14,6 +14,7 @@ import { MobileStatusPanel } from "@mobile/design/status-panel";
 import { mobileSpacing, mobileType } from "@mobile/design/tokens";
 import type {
   DiscoveryFixtureMode,
+  MobileSearchKind,
   SearchHistoryEntry,
   SearchHistoryRepository,
   SearchHistoryScope,
@@ -142,6 +143,7 @@ export function UnifiedSearchScreen({
       onRequestClear={live.requestClear}
       onRefresh={() => live.refresh()}
       onRetry={live.retry}
+      onLoadMore={live.loadMore}
       refreshing={live.refreshing}
       onBack={() => changeMode("browse")}
       onSelectPlatform={setPlatform}
@@ -198,6 +200,7 @@ export function UnifiedSearchView({
   onRepeatHistory,
   onRequestClear,
   onRetry,
+  onLoadMore,
   onSelectPlatform,
   onSelectProofMode,
   onSelectTab,
@@ -227,6 +230,7 @@ export function UnifiedSearchView({
   readonly onRepeatHistory: (entry: SearchHistoryEntry) => void;
   readonly onRequestClear: () => void;
   readonly onRetry: (platform: "kick" | "twitch") => void;
+  readonly onLoadMore?: (kind: MobileSearchKind) => void;
   readonly onSelectPlatform: (platform: SearchPlatformFilter) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly onSelectTab: (tab: SearchResultType) => void;
@@ -243,42 +247,34 @@ export function UnifiedSearchView({
   readonly view: UnifiedSearchModel;
 }) {
   const activeHistoryScope = historyScope ?? historyScopeForTab(tab);
-  const resultsBlock =
-    view.phase === "idle" ? null : (
-      <>
-        {view.phase === "empty" ? (
-          <MobileStatusPanel tone="empty">
-            <Text selectable style={mobileType.body}>
-              No results.
-            </Text>
-          </MobileStatusPanel>
-        ) : null}
-        <SearchResultsView
-          view={view}
-          {...(onOpenChannel === undefined
-            ? {}
-            : {
-                onOpenChannel: (channel) =>
-                  onOpenChannel({
-                    id: channel.id,
-                    platform: channel.platform,
-                    username: channel.username,
-                    ...(channel.avatarUrl
-                      ? { avatarUrl: channel.avatarUrl }
-                      : {}),
-                  } as ChannelIdentity & { avatarUrl?: string }),
-              })}
-          {...(onWatch === undefined
-            ? {}
-            : {
-                onWatchClip: (clip) => onWatch(watchTargetFromClip(clip)),
-                onWatchStream: (stream) =>
-                  onWatch(watchTargetFromStream(stream)),
-                onWatchVideo: (video) => onWatch(watchTargetFromVideo(video)),
-              })}
-        />
-      </>
-    );
+  const resultHeader = (
+    <View style={styles.content}>
+      {proofMode && onSelectProofMode ? (
+        <SearchProofControls mode={proofMode} onSelect={onSelectProofMode} />
+      ) : null}
+      {view.intent ? (
+        <>
+          <SearchProviderBanner
+            onOpenAccounts={onOpenAccounts}
+            onRetry={onRetry}
+            outcome={view.providers.twitch}
+          />
+          <SearchProviderBanner
+            onOpenAccounts={onOpenAccounts}
+            onRetry={onRetry}
+            outcome={view.providers.kick}
+          />
+        </>
+      ) : null}
+      {view.phase === "empty" ? (
+        <MobileStatusPanel tone="empty">
+          <Text selectable style={mobileType.body}>
+            No results.
+          </Text>
+        </MobileStatusPanel>
+      ) : null}
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView style={styles.frame} testID="unified-search">
@@ -312,36 +308,22 @@ export function UnifiedSearchView({
             platform={platform}
             tab={tab}
           />
-          <MobileRefreshableScroll
-            contentContainerStyle={styles.content}
-            contentInsetAdjustmentBehavior="automatic"
-            keyboardDismissMode="on-drag"
-            keyboardShouldPersistTaps="handled"
-            onRefresh={onRefresh}
-            refreshing={refreshing}
-            style={styles.scroll}
-          >
-            {proofMode && onSelectProofMode ? (
-              <SearchProofControls
-                mode={proofMode}
-                onSelect={onSelectProofMode}
-              />
-            ) : null}
-            {view.intent ? (
-              <>
-                <SearchProviderBanner
-                  onOpenAccounts={onOpenAccounts}
-                  onRetry={onRetry}
-                  outcome={view.providers.twitch}
+          {view.phase === "idle" ? (
+            <MobileRefreshableScroll
+              contentContainerStyle={styles.content}
+              contentInsetAdjustmentBehavior="automatic"
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              onRefresh={onRefresh}
+              refreshing={refreshing}
+              style={styles.scroll}
+            >
+              {proofMode && onSelectProofMode ? (
+                <SearchProofControls
+                  mode={proofMode}
+                  onSelect={onSelectProofMode}
                 />
-                <SearchProviderBanner
-                  onOpenAccounts={onOpenAccounts}
-                  onRetry={onRetry}
-                  outcome={view.providers.kick}
-                />
-              </>
-            ) : null}
-            {view.phase === "idle" ? (
+              ) : null}
               <SearchHistoryPanel
                 confirmClear={view.historyConfirmClear}
                 history={view.history}
@@ -352,10 +334,38 @@ export function UnifiedSearchView({
                 onRepeat={onRepeatHistory}
                 scope={activeHistoryScope}
               />
-            ) : (
-              resultsBlock
-            )}
-          </MobileRefreshableScroll>
+            </MobileRefreshableScroll>
+          ) : (
+            <SearchResultsView
+              header={resultHeader}
+              {...(onLoadMore === undefined ? {} : { onLoadMore })}
+              {...(onRefresh === undefined ? {} : { onRefresh })}
+              refreshing={refreshing}
+              view={view}
+              {...(onOpenChannel === undefined
+                ? {}
+                : {
+                    onOpenChannel: (channel) =>
+                      onOpenChannel({
+                        id: channel.id,
+                        platform: channel.platform,
+                        username: channel.username,
+                        ...(channel.avatarUrl
+                          ? { avatarUrl: channel.avatarUrl }
+                          : {}),
+                      } as ChannelIdentity & { avatarUrl?: string }),
+                  })}
+              {...(onWatch === undefined
+                ? {}
+                : {
+                    onWatchClip: (clip) => onWatch(watchTargetFromClip(clip)),
+                    onWatchStream: (stream) =>
+                      onWatch(watchTargetFromStream(stream)),
+                    onWatchVideo: (video) =>
+                      onWatch(watchTargetFromVideo(video)),
+                  })}
+            />
+          )}
         </View>
       ) : null}
     </KeyboardAvoidingView>

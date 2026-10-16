@@ -6,23 +6,15 @@ export function createDiscoveryMultistreamChannels(
 ): MultistreamChannelReader {
   return {
     async find(platform, login, signal) {
-      const outcome = await discovery.search({
+      const outcome = await discovery.searchPage({
         platform,
+        kind: "channels",
         query: login,
         signal,
       });
-      const channel = outcome.catalog.channels.find(
+      const channel = outcome.items.find(
         (item) => item.username.toLowerCase() === login,
       );
-      const live = outcome.catalog.streams.find(
-        (item) => item.channelName.toLowerCase() === login,
-      );
-      if (live)
-        return {
-          platform,
-          channelId: live.channelId,
-          channelName: live.channelName,
-        };
       if (!channel || signal.aborted) return null;
       const page = await discovery.readChannel({
         channel: { platform, id: channel.id, username: channel.username },

@@ -36,4 +36,6 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 
 Before changing a feature, report its route or user entry point, renderer owner, process boundary, main-process owner, Platform-specific branch, state owner, and closest tests. Search by exported symbol and IPC channel instead of trusting this map blindly. The map routes investigation. Current source proves behavior.
 
+Verify discovery with exact and partial queries, each provider filter, and results beyond the first page. Check that All exposes available provider results. Compare unique item identities across pages; a changing cursor alone does not prove continuation.
+
 When a change adds a new top-level user capability or moves ownership between feature groups, update [`references/features.md`](references/features.md) in the same change.

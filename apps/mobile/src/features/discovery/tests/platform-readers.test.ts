@@ -180,42 +180,40 @@ describe("platform catalog readers", () => {
       },
       readAccessToken: async () => "user",
     });
-    await expect(reader.search({ query: "alice" })).resolves.toMatchObject({
-      catalog: {
-        channels: [{ id: "u1", isPartner: true, isVerified: true }],
-        streams: [
-          {
-            channelIsVerified: true,
-            id: "live-1",
-            tags: ["English"],
-            title: "Live search",
-            viewerCount: 58000,
-          },
-        ],
-      },
+    await expect(
+      reader.searchPage({ kind: "channels", query: "alice" }),
+    ).resolves.toMatchObject({
+      items: [{ id: "u1", isPartner: true, isVerified: true }],
       status: "complete",
     });
-    expect(urls.filter((url) => url.includes("/users"))).toHaveLength(1);
+    await expect(
+      reader.searchPage({ kind: "streams", query: "alice" }),
+    ).resolves.toMatchObject({
+      items: [{ id: "live-1", title: "Live search", viewerCount: 58000 }],
+      status: "complete",
+    });
+    expect(urls.filter((url) => url.includes("/users"))).toHaveLength(2);
   });
 
   it("maps signed-out Twitch GQL search and Kick public catalogs", async () => {
     const twitch = createTwitchHelixReader({
       clientId: null,
-      fetch: async () => json({ data: { user: null, games: { edges: [] } } }),
+      fetch: async () =>
+        json({ data: { user: null, searchFor: { channels: { edges: [] } } } }),
       readAccessToken: async () => null,
     });
     await expect(
-      twitch.search({ guest: true, query: "arcade" }),
+      twitch.searchPage({ kind: "channels", query: "arcade" }),
     ).resolves.toMatchObject({
       path: { kind: "guest", platform: "twitch" },
       status: "complete",
     });
     const kick = createKickOfficialReader({
-      fetch: async () => json({ data: [] }),
+      fetch: async () => json({ channels: [], categories: [] }),
       readAccessToken: async () => null,
     });
     await expect(
-      kick.search({ guest: true, query: "arcade" }),
+      kick.searchPage({ kind: "channels", query: "arcade" }),
     ).resolves.toMatchObject({
       path: { kind: "guest", platform: "kick" },
       status: "complete",
@@ -350,7 +348,8 @@ describe("platform catalog readers", () => {
   });
 
   it("reads category clips and completed videos through Twitch GQL", async () => {
-    const requests: { query: string; variables: Record<string, unknown> }[] = [];
+    const requests: { query: string; variables: Record<string, unknown> }[] =
+      [];
     const reader = createTwitchHelixReader({
       clientId: "client",
       fetch: async (input, init) => {
@@ -362,32 +361,82 @@ describe("platform catalog readers", () => {
         requests.push(request);
         if (request.query.includes("CategoryVideos")) {
           return json({
-            data: { game: { id: "509658", name: "Just Chatting", videos: { edges: [
-              { node: {
-                id: "live-1", status: "RECORDING", title: "Live leak",
-                publishedAt: "2026-09-11T00:00:00Z", previewThumbnailURL: "https://example.com/live.jpg",
-                broadcastType: "ARCHIVE", owner: { id: "u1", login: "alice", displayName: "Alice", profileImageURL: "" },
-                lengthSeconds: 3723, viewCount: 9,
-              } },
-              { node: {
-                id: "vod-1", status: "RECORDED", title: "Archive",
-                publishedAt: "2026-09-11T00:00:00Z", previewThumbnailURL: "https://example.com/vod.jpg",
-                broadcastType: "ARCHIVE", owner: { id: "u1", login: "alice", displayName: "Alice", profileImageURL: "" },
-                lengthSeconds: 3723, viewCount: 4,
-              } },
-            ] } } },
+            data: {
+              game: {
+                id: "509658",
+                name: "Just Chatting",
+                videos: {
+                  edges: [
+                    {
+                      node: {
+                        id: "live-1",
+                        status: "RECORDING",
+                        title: "Live leak",
+                        publishedAt: "2026-09-11T00:00:00Z",
+                        previewThumbnailURL: "https://example.com/live.jpg",
+                        broadcastType: "ARCHIVE",
+                        owner: {
+                          id: "u1",
+                          login: "alice",
+                          displayName: "Alice",
+                          profileImageURL: "",
+                        },
+                        lengthSeconds: 3723,
+                        viewCount: 9,
+                      },
+                    },
+                    {
+                      node: {
+                        id: "vod-1",
+                        status: "RECORDED",
+                        title: "Archive",
+                        publishedAt: "2026-09-11T00:00:00Z",
+                        previewThumbnailURL: "https://example.com/vod.jpg",
+                        broadcastType: "ARCHIVE",
+                        owner: {
+                          id: "u1",
+                          login: "alice",
+                          displayName: "Alice",
+                          profileImageURL: "",
+                        },
+                        lengthSeconds: 3723,
+                        viewCount: 4,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
           });
         }
         return json({
-          data: { game: { id: "509658", name: "Just Chatting", clips: { edges: [
-            { node: {
-              slug: "clip-1", title: "Clip", durationSeconds: 12,
-              viewCount: 3, createdAt: "2026-09-11T00:00:00Z",
-              thumbnailURL: "https://example.com/clip.jpg",
-              broadcaster: { id: "u1", login: "alice", displayName: "Alice", profileImageURL: "" },
-              curator: { displayName: "Bob" },
-            } },
-          ] } } },
+          data: {
+            game: {
+              id: "509658",
+              name: "Just Chatting",
+              clips: {
+                edges: [
+                  {
+                    node: {
+                      slug: "clip-1",
+                      title: "Clip",
+                      durationSeconds: 12,
+                      viewCount: 3,
+                      createdAt: "2026-09-11T00:00:00Z",
+                      thumbnailURL: "https://example.com/clip.jpg",
+                      broadcaster: {
+                        id: "u1",
+                        login: "alice",
+                        displayName: "Alice",
+                        profileImageURL: "",
+                      },
+                      curator: { displayName: "Bob" },
+                    },
+                  },
+                ],
+              },
+            },
+          },
         });
       },
       readAccessToken: async () => "user",

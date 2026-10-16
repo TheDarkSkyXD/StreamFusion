@@ -13,6 +13,8 @@ import type {
 import { useCategoryDetail } from "../components/use-category-detail";
 import { fixtureStream } from "../domain/discovery-fixture";
 import { createKickOfficialReader } from "../adapters/kick/kick-official-reader";
+import { createTwitchGqlGuestReader } from "../adapters/twitch/twitch-gql-guest";
+import { nextCategoryMediaCursor } from "../domain/category-detail";
 import type { Stream } from "@streamfusion/core/content";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -31,6 +33,7 @@ const category = {
   platform: "twitch" as const,
   boxArtUrl: "",
 };
+const categoryWithoutOtherId = { ...category, otherId: undefined };
 
 function outcome(
   platform: "twitch" | "kick",
@@ -48,6 +51,171 @@ function outcome(
 }
 
 describe("category live paging", () => {
+  it("continues past an empty filtered page with a valid cursor", () => {
+    const first = outcome("twitch", "t1", "one");
+    const empty: PlatformReadOutcome<Stream> = {
+      ...first,
+      items: [],
+      cursor: "two",
+    };
+    expect(nextCategoryMediaCursor(empty, [first, empty])).toBe("two");
+    const repeated = outcome("twitch", "t1", "three");
+    expect(
+      nextCategoryMediaCursor(repeated, [first, repeated]),
+    ).toBeUndefined();
+  });
+
+  it("advances Twitch game streams through GQL edge cursors", async () => {
+    const cursors: (string | null)[] = [];
+    const reader = createTwitchGqlGuestReader({
+      fetch: async (_input, init) => {
+        const request = JSON.parse(String(init?.body));
+        const cursor = request.variables.cursor as string | null;
+        cursors.push(cursor);
+        return new Response(
+          JSON.stringify({
+            data: {
+              game: {
+                id: "509658",
+                name: "Just Chatting",
+                streams: {
+                  edges: [
+                    {
+                      cursor: cursor ? "last" : "second",
+                      node: {
+                        id: cursor ? "t2" : "t1",
+                        title: "Chat",
+                        viewersCount: 10,
+                        broadcaster: {
+                          id: "1",
+                          login: "alice",
+                          displayName: "Alice",
+                        },
+                      },
+                    },
+                  ],
+                  pageInfo: { hasNextPage: cursor === null },
+                },
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      },
+    });
+    const first = await reader.getCategoryStreams({ categoryId: "509658" });
+    const second = await reader.getCategoryStreams({
+      categoryId: "509658",
+      cursor: first.cursor,
+    });
+    expect(first.items.map((item) => item.id)).toEqual(["t1"]);
+    expect(first.cursor).toBe("second");
+    expect(second.items.map((item) => item.id)).toEqual(["t2"]);
+    expect(second.cursor).toBeUndefined();
+    expect(cursors).toEqual([null, "second"]);
+  });
+
+  it("resolves an absent other-provider ID from a verified category search", async () => {
+    const reads: string[] = [];
+    let lookupFailed = true;
+    const unexpected = async (): Promise<never> => {
+      throw new Error("Unexpected read");
+    };
+    const session: DiscoverySession = {
+      readTopStreams: unexpected,
+      readCategories: unexpected,
+      searchCategories: unexpected,
+      searchPage: async ({ platform, query, cursor }) => {
+        reads.push(`lookup:${platform}:${query}:${cursor ?? "first"}`);
+        if (lookupFailed) {
+          return {
+            cache: { kind: "miss" },
+            error: { code: "kick-failed", retry: "manual" },
+            items: [],
+            path: { kind: "guest", platform },
+            platform,
+            resultKind: "categories",
+            status: "failed",
+          };
+        }
+        return {
+          cache: { kind: "miss" },
+          items:
+            cursor === undefined
+              ? []
+              : [
+                  {
+                    id: "15",
+                    name: "Just Chatting",
+                    boxArtUrl: "",
+                    platform: "kick",
+                  },
+                ],
+          path: { kind: "guest", platform },
+          platform,
+          resultKind: "categories",
+          status: "complete",
+          ...(cursor === undefined ? { cursor: "next" } : {}),
+        };
+      },
+      readCategory: unexpected,
+      readCategoryStreams: async ({ platform, categoryId }) => {
+        reads.push(`streams:${platform}:${categoryId}`);
+        return outcome(platform, platform === "twitch" ? "t1" : "k1");
+      },
+      readCategoryClips: unexpected,
+      readCategoryVideos: unexpected,
+      readChannel: unexpected,
+      readChannelVideos: unexpected,
+      readChannelClips: unexpected,
+    };
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const root = createRoot(document.createElement("div"));
+    let detail: ReturnType<typeof useCategoryDetail> | undefined;
+    function Probe() {
+      detail = useCategoryDetail({
+        category: categoryWithoutOtherId,
+        preferences,
+        session,
+      });
+      return createElement("span", null, detail.view.phase);
+    }
+    try {
+      await act(async () =>
+        root.render(
+          createElement(QueryClientProvider, { client }, createElement(Probe)),
+        ),
+      );
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(detail?.categoryMatch).toBe("failed");
+      expect(reads).not.toContain("streams:kick:15");
+      lookupFailed = false;
+      await act(async () => detail?.retryCategoryMatch());
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(detail?.categoryMatch).toBe("found");
+      expect(reads).toContain("lookup:kick:Just Chatting:first");
+      expect(reads).toContain("lookup:kick:Just Chatting:next");
+      expect(reads).toContain("streams:kick:15");
+      expect(
+        detail?.view.media.kind === "live"
+          ? detail.view.media.items.map((item) => item.id)
+          : [],
+      ).toEqual(["t1", "k1"]);
+    } finally {
+      await act(async () => root.unmount());
+      client.clear();
+    }
+  });
+
   it("loads each provider independently and retains prior pages when a next page fails", async () => {
     const calls: string[] = [];
     const failed: PlatformReadOutcome<Stream> = {
@@ -65,6 +233,7 @@ describe("category live paging", () => {
       readTopStreams: unexpected,
       readCategories: unexpected,
       searchCategories: unexpected,
+      searchPage: unexpected,
       readCategory: unexpected,
       readCategoryStreams: async ({ platform, cursor }) => {
         calls.push(`${platform}:${cursor ?? "first"}`);
@@ -76,7 +245,6 @@ describe("category live paging", () => {
       },
       readCategoryClips: unexpected,
       readCategoryVideos: unexpected,
-      search: unexpected,
       readChannel: unexpected,
       readChannelVideos: unexpected,
       readChannelClips: unexpected,
@@ -104,6 +272,9 @@ describe("category live paging", () => {
       expect(calls).toEqual(["twitch:first", "kick:first"]);
       expect(detail?.canLoadMore).toEqual({ twitch: true, kick: true });
       await act(async () => detail?.loadMore("all"));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
       expect(calls).toEqual([
         "twitch:first",
         "kick:first",
@@ -117,7 +288,7 @@ describe("category live paging", () => {
       expect(detail?.view.providers.kick.status).toBe("complete");
       expect(detail?.pageErrors.twitch).toBe("twitch-failed");
       expect(detail?.pageErrors.kick).toBeUndefined();
-      expect(detail?.canLoadMore).toEqual({ twitch: true, kick: false });
+      expect(detail?.canLoadMore).toEqual({ twitch: false, kick: false });
     } finally {
       await act(async () => root.unmount());
       client.clear();

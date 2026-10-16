@@ -1,11 +1,13 @@
 import type { Category, Channel, Stream } from "@streamfusion/core/content";
+import { rankProviderChannels } from "../../domain/search-catalog";
 
 import type {
   ChannelPageOutcome,
   PlatformReadOutcome,
-  SearchReadOutcome,
+  SearchPageOutcome,
+  SearchPageRequest,
+  MobileSearchKind,
 } from "../../capabilities/platform-reads";
-import { emptySearchCatalog } from "../../domain/search-catalog";
 import {
   gqlBroadcasterPartner,
   gqlBroadcasterVerified,
@@ -94,72 +96,124 @@ export function createTwitchGqlGuestReader(input: {
     },
     async getCategoryStreams(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Stream>> {
       return gqlCollection({
         fetchImpl: input.fetch,
         map: gameStreamsFromPayload,
+        nextCursor: gameStreamsNextCursor,
         query:
-          "query GameStreams($id: ID!, $limit: Int!) { game(id: $id) { id name streams(first: $limit) { edges { node { " +
+          "query GameStreams($id: ID!, $limit: Int!, $cursor: Cursor) { game(id: $id) { id name streams(first: $limit, after: $cursor) { edges { cursor node { " +
           STREAM_FIELDS +
-          " } } } } }",
-        variables: { id: read.categoryId, limit: 20 },
+          " } } pageInfo { hasNextPage } } } }",
+        variables: {
+          id: read.categoryId,
+          limit: 20,
+          cursor: read.cursor ?? null,
+        },
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
-    async search(read: {
-      readonly query: string;
-      readonly signal?: AbortSignal;
-    }): Promise<SearchReadOutcome> {
-      const [channels, categories] = await Promise.all([
-        gqlCollection({
-          fetchImpl: input.fetch,
-          map: usersFromPayload,
-          query:
-            "query User($login: String!) { user(login: $login) { id login displayName profileImageURL(width: 70) stream { id } } }",
-          variables: { login: read.query },
-          ...(read.signal === undefined ? {} : { signal: read.signal }),
-        }),
-        gqlCollection({
-          fetchImpl: input.fetch,
-          map: gamesFromPayload,
-          query:
-            "query GetTopGames($limit: Int!) { games(first: $limit) { edges { node { id name slug boxArtURL displayName } } } }",
-          variables: { limit: 20 },
-          ...(read.signal === undefined ? {} : { signal: read.signal }),
-        }),
-      ]);
-      if (channels.status === "failed") return searchFrom(channels);
-      if (categories.status === "failed") return searchFrom(categories);
-      const matchedCategories = categories.items.filter((item) =>
-        item.name.toLowerCase().includes(read.query.trim().toLowerCase()),
+    async searchPage<K extends MobileSearchKind>(
+      read: SearchPageRequest<K>,
+    ): Promise<SearchPageOutcome<K>> {
+      const field = read.kind === "categories" ? "games" : "channels";
+      const search = await gqlJson({
+        fetchImpl: input.fetch,
+        query:
+          field === "games"
+            ? 'query Search($query: String!, $cursor: String) { searchFor(userQuery: $query, platform: "web", options: { targets: [{ index: GAME, cursor: $cursor }] }) { games { cursor edges { item { ... on Game { id name displayName boxArtURL viewersCount } } } } } }'
+            : 'query Search($query: String!, $cursor: String) { searchFor(userQuery: $query, platform: "web", options: { targets: [{ index: CHANNEL, cursor: $cursor }] }) { channels { cursor edges { item { ... on User { id login displayName profileImageURL(width: 70) roles { isPartner isAffiliate } stream { ' +
+              STREAM_FIELDS +
+              " } } } } } } }",
+        variables: { query: read.query, cursor: read.cursor ?? null },
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
+      const exact =
+        read.kind === "channels" && read.cursor === undefined
+          ? await gqlJson({
+              fetchImpl: input.fetch,
+              query:
+                "query User($login: String!) { user(login: $login) { id login displayName profileImageURL(width: 70) roles { isPartner isAffiliate } stream { id } } }",
+              variables: { login: read.query },
+              ...(read.signal === undefined ? {} : { signal: read.signal }),
+            })
+          : null;
+      const path = { kind: "guest", platform: "twitch" } as const;
+      const cache = { kind: "miss" } as const;
+      if (search.kind === "failed") {
+        const exactChannel =
+          exact?.kind === "ready" ? usersFromPayload(exact.value) : [];
+        return {
+          cache,
+          error: {
+            code: search.code,
+            retry: search.code === "cancelled" ? "none" : "manual",
+          },
+          items: exactChannel,
+          path,
+          platform: "twitch",
+          resultKind: read.kind,
+          status: exactChannel.length > 0 ? "partial" : "failed",
+        } as unknown as SearchPageOutcome<K>;
+      }
+      const connection = asRecord(
+        asRecord(dataRecord(search.value)?.searchFor)?.[field],
       );
-      const liveChannels = channels.items.filter((channel) => channel.isLive);
-      const details = await Promise.all(
-        liveChannels.map((channel) =>
-          this.getChannel({
-            login: channel.username,
-            ...(read.signal === undefined ? {} : { signal: read.signal }),
-          }),
-        ),
-      );
-      return {
-        cache: { kind: "miss" },
-        catalog: {
-          categories: matchedCategories,
-          channels: channels.items,
-          clips: [],
-          streams: details.flatMap((detail) =>
-            detail.status === "complete" && detail.live !== null
-              ? [detail.live]
-              : [],
-          ),
-          videos: [],
-        },
-        path: { kind: "guest", platform: "twitch" },
-        platform: "twitch",
-        status: "complete",
+      const rows = Array.isArray(connection?.edges) ? connection.edges : [];
+      const nodes = rows.flatMap((edge) => {
+        const item = asRecord(asRecord(edge)?.item);
+        return item === null ? [] : [item];
+      });
+      const rawCursor = stringField(connection ?? {}, "cursor");
+      const cursor =
+        rawCursor && rawCursor !== read.cursor ? rawCursor : undefined;
+      const common = {
+        cache,
+        path,
+        platform: "twitch" as const,
+        resultKind: read.kind,
+        status:
+          exact?.kind === "failed"
+            ? ("partial" as const)
+            : ("complete" as const),
+        ...(exact?.kind === "failed"
+          ? { error: { code: exact.code, retry: "manual" as const } }
+          : {}),
+        ...(cursor === undefined ? {} : { cursor }),
       };
+      if (read.kind === "categories") {
+        return {
+          ...common,
+          items: nodes.flatMap((node) => {
+            const category = gameFromNode(node);
+            return category === null ? [] : [category];
+          }),
+        } as unknown as SearchPageOutcome<K>;
+      }
+      const channels = rankProviderChannels(
+        [
+          ...(exact?.kind === "ready" ? usersFromPayload(exact.value) : []),
+          ...nodes.flatMap((node) => {
+            const channel = userFromRecord(node);
+            return channel === null ? [] : [channel];
+          }),
+        ],
+        read.query,
+      );
+      if (read.kind === "channels") {
+        return {
+          ...common,
+          items: channels,
+        } as unknown as SearchPageOutcome<K>;
+      }
+      const streams = nodes.flatMap((node) => {
+        const channel = userFromRecord(node);
+        const stream = streamFromNode(node.stream, channel ?? undefined);
+        return stream === null ? [] : [stream];
+      });
+      return { ...common, items: streams } as unknown as SearchPageOutcome<K>;
     },
     async getChannel(read: {
       readonly login: string;
@@ -229,6 +283,12 @@ async function gqlCollection<T>(input: {
 
 function topStreamsNextCursor(value: unknown): string | undefined {
   return connectionNextCursor(value, "streams");
+}
+
+function gameStreamsNextCursor(value: unknown): string | undefined {
+  const game = asRecord(dataRecord(value)?.game);
+  if (game === null) return undefined;
+  return connectionNextCursor({ data: game }, "streams");
 }
 
 function connectionNextCursor(
@@ -403,17 +463,6 @@ function userFromRecord(value: unknown): Channel | null {
     username,
     ...(bio === "" ? {} : { bio }),
     ...(bannerUrl === "" ? {} : { bannerUrl }),
-  };
-}
-
-function searchFrom<T>(outcome: PlatformReadOutcome<T>): SearchReadOutcome {
-  return {
-    cache: outcome.cache,
-    catalog: emptySearchCatalog(),
-    path: outcome.path,
-    platform: "twitch",
-    status: outcome.status,
-    ...(outcome.error === undefined ? {} : { error: outcome.error }),
   };
 }
 

@@ -104,6 +104,30 @@ export type SearchReadOutcome = {
   readonly error?: { readonly code: string; readonly retry: PlatformReadRetry };
 };
 
+export type MobileSearchKind = "channels" | "streams" | "categories";
+
+export type SearchItemByKind = {
+  readonly channels: Channel;
+  readonly streams: Stream;
+  readonly categories: Category;
+};
+
+export type SearchPageRequest<K extends MobileSearchKind = MobileSearchKind> = {
+  readonly kind: K;
+  readonly query: string;
+  readonly liveOnly?: boolean;
+  readonly cursor?: string;
+  readonly signal?: AbortSignal;
+};
+
+export type SearchPageOutcome<K extends MobileSearchKind = MobileSearchKind> =
+  K extends MobileSearchKind
+    ? PlatformReadOutcome<SearchItemByKind[K]> & { readonly resultKind: K }
+    : never;
+
+export type SearchMediaOutcome = Omit<SearchReadOutcome, "catalog"> &
+  Pick<SearchCatalogPage, "videos" | "clips">;
+
 export type UnifiedSearchPhase =
   | "idle"
   | "loading"
@@ -122,6 +146,8 @@ export type UnifiedSearchView = {
   readonly retryablePlatforms: readonly Platform[];
   readonly history: SearchHistoryByScope;
   readonly historyConfirmClear: boolean;
+  readonly canLoadMore?: Readonly<Record<MobileSearchKind, boolean>>;
+  readonly loadingMore?: Readonly<Record<MobileSearchKind, boolean>>;
 };
 
 export interface PlatformCatalogReader {
@@ -134,11 +160,6 @@ export interface PlatformCatalogReader {
     readonly cursor?: string;
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Category>>;
-  search(input: {
-    readonly query: string;
-    readonly guest?: boolean;
-    readonly signal?: AbortSignal;
-  }): Promise<SearchReadOutcome>;
   getFollowedStreams(input?: {
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Stream>>;
@@ -216,11 +237,16 @@ export interface SearchHistoryRepository {
 }
 
 export interface SearchSession {
-  search(input: {
+  searchPage<K extends MobileSearchKind>(
+    input: {
+      readonly platform: Platform;
+    } & SearchPageRequest<K>,
+  ): Promise<SearchPageOutcome<K>>;
+  searchMedia(input: {
     readonly platform: Platform;
     readonly query: string;
     readonly signal?: AbortSignal;
-  }): Promise<SearchReadOutcome>;
+  }): Promise<SearchMediaOutcome>;
 }
 
 export interface DiscoverySession {
@@ -246,6 +272,7 @@ export interface DiscoverySession {
   }): Promise<PlatformReadOutcome<Category>>;
   readCategoryStreams(input: {
     readonly categoryId: string;
+    readonly cursor?: string;
     readonly language?: string;
     readonly platform: Platform;
     readonly signal?: AbortSignal;
@@ -276,11 +303,16 @@ export interface DiscoverySession {
         readonly platform: Platform;
       }
   >;
-  search(input: {
+  searchPage<K extends MobileSearchKind>(
+    input: {
+      readonly platform: Platform;
+    } & SearchPageRequest<K>,
+  ): Promise<SearchPageOutcome<K>>;
+  searchMedia(input: {
     readonly platform: Platform;
     readonly query: string;
     readonly signal?: AbortSignal;
-  }): Promise<SearchReadOutcome>;
+  }): Promise<SearchMediaOutcome>;
   readChannel(input: {
     readonly channel: ChannelIdentity;
     readonly signal?: AbortSignal;

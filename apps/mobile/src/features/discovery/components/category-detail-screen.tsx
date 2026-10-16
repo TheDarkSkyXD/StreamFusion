@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
@@ -21,7 +20,6 @@ export function CategoryDetailScreen({
   readonly preferences: DiscoveryPreferenceStore;
   readonly session: DiscoverySession;
 }) {
-  const [query, setQuery] = useState("");
   const live = useCategoryDetail({
     category,
     preferences,
@@ -30,10 +28,15 @@ export function CategoryDetailScreen({
   return (
     <CategoryDetailView
       onChangeIdentity={live.change}
-      onChangeQuery={setQuery}
+      canLoadMore={live.canLoadMore.twitch || live.canLoadMore.kick}
+      categoryMatch={live.categoryMatch}
+      onLoadMore={() => live.loadMore("all")}
+      onRetryPage={live.retryPage}
+      onRetryCategoryMatch={live.retryCategoryMatch}
+      onRetryProvider={live.retryProvider}
+      pageErrors={live.pageErrors}
       onOpenAccounts={onOpenAccounts}
       {...(onWatch === undefined ? {} : { onWatch })}
-      query={query}
       recovering={live.recovering}
       view={live.view}
     />

@@ -24,6 +24,11 @@ import {
 import { emptySearchHistory } from "@mobile/features/discovery/domain/search-history";
 import { composeUnifiedSearch } from "@mobile/features/discovery/domain/unified-search";
 
+vi.mock("react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react")>()),
+  useCallback: (callback: unknown) => callback,
+}));
+
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
   FlatList(props: FlatListProps<Stream>) {

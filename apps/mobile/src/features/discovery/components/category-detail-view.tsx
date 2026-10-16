@@ -1,14 +1,18 @@
 import {
   ActivityIndicator,
+  FlatList,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
   View,
+  type ListRenderItemInfo,
 } from "react-native";
+import { useCallback } from "react";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+import type { Platform } from "@streamfusion/core/platform";
 
 import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
+import { MobileButton } from "@mobile/design/button";
 import {
   mobileColors,
   mobileRadii,
@@ -17,12 +21,14 @@ import {
 } from "@mobile/design/tokens";
 import type { DiscoveryFixtureMode } from "../capabilities/platform-reads";
 import type { CategoryDetailView as CategoryDetailModel } from "../domain/category-detail";
+import type { CategoryMediaItem } from "../domain/category-detail";
 import {
   watchTargetFromClip,
   watchTargetFromStream,
   watchTargetFromVideo,
 } from "../domain/channel-watch-target";
 import {
+  categoryIdForPlatform,
   defaultCategoryRequest,
   platformsForScope,
   type CategoryRequestIdentity,
@@ -32,94 +38,270 @@ import { CategoryDiscoveryProofControls } from "./category-discovery-proof-contr
 import { CategoryFilterBar } from "./category-filter-bar";
 import { CategoryFollowControl } from "./category-follow-control";
 import { CategoryRecordedRow } from "./category-recorded-row";
-import { DiscoverySearchDock } from "./discovery-search-dock";
 import { HomeProviderBanner } from "./home-provider-banner";
 import { HomeStreamCard } from "./home-stream-card";
 
 export function CategoryDetailView({
   onChangeIdentity,
-  onChangeQuery,
+  canLoadMore = false,
+  categoryMatch = "found",
+  onLoadMore,
+  onRetryPage,
+  onRetryCategoryMatch,
+  onRetryProvider,
   onOpenAccounts,
   onWatch,
   onSelectProofMode,
   proofMode,
-  query,
+  pageErrors,
   recovering = false,
   view,
 }: {
   readonly onChangeIdentity: (identity: CategoryRequestIdentity) => void;
-  readonly onChangeQuery: (query: string) => void;
+  readonly canLoadMore?: boolean;
+  readonly categoryMatch?: "loading" | "found" | "missing" | "failed";
+  readonly onLoadMore?: () => void;
+  readonly onRetryPage?: (platform: Platform) => void;
+  readonly onRetryCategoryMatch?: () => void;
+  readonly onRetryProvider?: (platform: Platform) => void;
   readonly onOpenAccounts: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
   readonly onSelectProofMode?: (mode: DiscoveryFixtureMode) => void;
   readonly proofMode?: DiscoveryFixtureMode;
-  readonly query: string;
+  readonly pageErrors?: Readonly<Record<Platform, string | undefined>>;
   readonly recovering?: boolean;
   readonly view: CategoryDetailModel;
 }) {
-  const media = filterMedia(view, query);
-  const phase = phaseCopy(view);
-  const scopedPlatforms = platformsForScope(
-    view.identity.platformScope,
-    view.identity.category,
+  const media = view.media;
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<CategoryMediaItem>) => (
+      <MediaRow item={item} {...(onWatch === undefined ? {} : { onWatch })} />
+    ),
+    [onWatch],
   );
   return (
-    <ScrollView
+    <FlatList<CategoryMediaItem>
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
+      data={media.kind === "unavailable" ? [] : media.items}
+      key={JSON.stringify([
+        view.identity.category.platform,
+        view.identity.category.id,
+        view.identity.platformScope,
+        view.identity.tab,
+        view.identity.language,
+        view.identity.clipTimeRange,
+        view.identity.videoSort,
+        view.identity.tag,
+      ])}
+      keyExtractor={(item) => `${item.platform}:${item.id}`}
+      renderItem={renderItem}
+      onEndReached={canLoadMore ? onLoadMore : undefined}
+      onEndReachedThreshold={0.4}
       style={styles.scroll}
       testID="category-detail-screen"
-    >
+      ListHeaderComponent={
+        <CategoryListHeader
+          categoryMatch={categoryMatch}
+          onChangeIdentity={onChangeIdentity}
+          onOpenAccounts={onOpenAccounts}
+          onRetryCategoryMatch={onRetryCategoryMatch}
+          onRetryProvider={onRetryProvider}
+          onSelectProofMode={onSelectProofMode}
+          proofMode={proofMode}
+          recovering={recovering}
+          view={view}
+        />
+      }
+      ListFooterComponent={
+        <CategoryListFooter pageErrors={pageErrors} onRetryPage={onRetryPage} />
+      }
+    />
+  );
+}
+
+function CategoryListHeader({
+  categoryMatch,
+  onChangeIdentity,
+  onOpenAccounts,
+  onRetryCategoryMatch,
+  onRetryProvider,
+  onSelectProofMode,
+  proofMode,
+  recovering,
+  view,
+}: {
+  readonly categoryMatch: "loading" | "found" | "missing" | "failed";
+  readonly onChangeIdentity: (identity: CategoryRequestIdentity) => void;
+  readonly onOpenAccounts: () => void;
+  readonly onRetryCategoryMatch?: (() => void) | undefined;
+  readonly onRetryProvider?: ((platform: Platform) => void) | undefined;
+  readonly onSelectProofMode?:
+    ((mode: DiscoveryFixtureMode) => void) | undefined;
+  readonly proofMode?: DiscoveryFixtureMode | undefined;
+  readonly recovering: boolean;
+  readonly view: CategoryDetailModel;
+}) {
+  return (
+    <View style={styles.section}>
       <Header view={view} />
       <CategoryFollowControl follow={view.follow} />
+      <CategoryMatchStatus
+        status={categoryMatch}
+        onRetry={onRetryCategoryMatch}
+      />
       <TabRow identity={view.identity} onChangeIdentity={onChangeIdentity} />
       <CategoryFilterBar
         availableTags={availableTags(view)}
         identity={view.identity}
         onChange={onChangeIdentity}
       />
-      {phase ? (
-        <Text selectable style={styles.summary} testID="category-detail-phase">
-          {phase}
-        </Text>
-      ) : null}
+      <CategoryMediaStatus view={view} />
       {proofMode && onSelectProofMode ? (
         <CategoryDiscoveryProofControls
           mode={proofMode}
           onSelect={onSelectProofMode}
         />
       ) : null}
-      {scopedPlatforms.includes("twitch") ? (
-        <HomeProviderBanner
-          onOpenAccounts={onOpenAccounts}
-          outcome={view.providers.twitch}
-        />
+      <CategoryProviderBanners
+        view={view}
+        onOpenAccounts={onOpenAccounts}
+        onRetryProvider={onRetryProvider}
+      />
+      <CategoryMediaAvailability view={view} recovering={recovering} />
+    </View>
+  );
+}
+
+function CategoryMatchStatus({
+  status,
+  onRetry,
+}: {
+  readonly status: "loading" | "found" | "missing" | "failed";
+  readonly onRetry?: (() => void) | undefined;
+}) {
+  if (status === "missing")
+    return (
+      <Text selectable style={styles.summary}>
+        This category was not found on the other platform.
+      </Text>
+    );
+  if (status !== "failed") return null;
+  return (
+    <View>
+      <Text selectable style={styles.summary}>
+        Could not check the matching category on the other platform.
+      </Text>
+      {onRetry ? (
+        <MobileButton
+          accessibilityLabel="Retry category match"
+          onPress={onRetry}
+          testID="category-match-retry"
+          variant="secondary"
+        >
+          Retry
+        </MobileButton>
       ) : null}
-      {view.identity.tab === "live" && scopedPlatforms.includes("kick") ? (
-        <HomeProviderBanner
-          onOpenAccounts={onOpenAccounts}
-          outcome={view.providers.kick}
-        />
-      ) : null}
+    </View>
+  );
+}
+
+function CategoryMediaStatus({ view }: { readonly view: CategoryDetailModel }) {
+  const phase = phaseCopy(view);
+  return phase ? (
+    <Text selectable style={styles.summary} testID="category-detail-phase">
+      {phase}
+    </Text>
+  ) : null;
+}
+
+function CategoryMediaAvailability({
+  view,
+  recovering,
+}: {
+  readonly view: CategoryDetailModel;
+  readonly recovering: boolean;
+}) {
+  return (
+    <>
       {(view.phase === "loading" || recovering) &&
-      media.kind !== "unavailable" ? (
+      view.media.kind !== "unavailable" ? (
         <ActivityIndicator
           accessibilityLabel="Loading category"
           color={mobileColors.textPrimary}
           testID="category-loading"
         />
       ) : null}
-      <MediaList
-        media={media}
-        {...(onWatch === undefined ? {} : { onWatch })}
-      />
-      <DiscoverySearchDock
-        onChangeQuery={onChangeQuery}
-        placeholder={`Search in ${view.header.name}`}
-        query={query}
-        testID="category-detail-search"
-      />
-    </ScrollView>
+      {view.media.kind === "unavailable" ? (
+        <UnavailableMedia reason={view.media.reason} />
+      ) : null}
+    </>
+  );
+}
+
+function CategoryProviderBanners({
+  view,
+  onOpenAccounts,
+  onRetryProvider,
+}: {
+  readonly view: CategoryDetailModel;
+  readonly onOpenAccounts: () => void;
+  readonly onRetryProvider?: ((platform: Platform) => void) | undefined;
+}) {
+  const scopedPlatforms = platformsForScope(
+    view.identity.platformScope,
+    view.identity.category,
+  );
+  const showTwitch =
+    scopedPlatforms.includes("twitch") &&
+    categoryIdForPlatform(view.identity.category, "twitch") !== null;
+  const showKick =
+    view.identity.tab === "live" &&
+    scopedPlatforms.includes("kick") &&
+    categoryIdForPlatform(view.identity.category, "kick") !== null;
+  return (
+    <>
+      {showTwitch ? (
+        <HomeProviderBanner
+          onOpenAccounts={onOpenAccounts}
+          {...(onRetryProvider ? { onRetry: onRetryProvider } : {})}
+          outcome={view.providers.twitch}
+        />
+      ) : null}
+      {showKick ? (
+        <HomeProviderBanner
+          onOpenAccounts={onOpenAccounts}
+          {...(onRetryProvider ? { onRetry: onRetryProvider } : {})}
+          outcome={view.providers.kick}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function CategoryListFooter({
+  pageErrors,
+  onRetryPage,
+}: {
+  readonly pageErrors?:
+    Readonly<Record<Platform, string | undefined>> | undefined;
+  readonly onRetryPage?: ((platform: Platform) => void) | undefined;
+}) {
+  return (
+    <View style={styles.section}>
+      {pageErrors?.twitch ? (
+        <PageRetry
+          platform="twitch"
+          {...(onRetryPage === undefined ? {} : { onRetryPage })}
+        />
+      ) : null}
+      {pageErrors?.kick ? (
+        <PageRetry
+          platform="kick"
+          {...(onRetryPage === undefined ? {} : { onRetryPage })}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -195,71 +377,79 @@ function TabRow({
   );
 }
 
-function MediaList({
-  media,
+function MediaRow({
+  item,
   onWatch,
 }: {
-  readonly media: CategoryDetailModel["media"];
+  readonly item: CategoryMediaItem;
   readonly onWatch?: (target: WatchTarget) => void;
 }) {
-  if (media.kind === "unavailable") {
+  if ("isLive" in item) {
     return (
-      <Text selectable style={styles.unsupported} testID="category-unsupported">
-        {media.reason === "kick-clips-unsupported"
-          ? "Kick clips are not available on the official guest catalog."
-          : "Kick videos are not available. Videos are Twitch VODs only."}
-      </Text>
-    );
-  }
-  if (media.kind === "live") {
-    return (
-      <>
-        {media.items.map((stream) => (
-          <HomeStreamCard
-            key={`${stream.platform}:${stream.id}`}
-            stream={stream}
-            {...(onWatch === undefined
-              ? {}
-              : { onOpen: () => onWatch(watchTargetFromStream(stream)) })}
-          />
-        ))}
-      </>
+      <HomeStreamCard
+        stream={item}
+        {...(onWatch === undefined
+          ? {}
+          : { onOpen: () => onWatch(watchTargetFromStream(item)) })}
+      />
     );
   }
   return (
-    <>
-      {media.items.map((item) => (
-        <CategoryRecordedRow
-          item={item}
-          key={`${item.platform}:${item.id}`}
-          {...(onWatch === undefined
-            ? {}
-            : {
-                onPress: () =>
-                  onWatch(
-                    "clipUrl" in item
-                      ? watchTargetFromClip(item)
-                      : watchTargetFromVideo(item),
-                  ),
-              })}
-        />
-      ))}
-    </>
+    <CategoryRecordedRow
+      item={item}
+      {...(onWatch === undefined
+        ? {}
+        : {
+            onPress: () =>
+              onWatch(
+                "clipUrl" in item
+                  ? watchTargetFromClip(item)
+                  : watchTargetFromVideo(item),
+              ),
+          })}
+    />
   );
 }
 
-function filterMedia(
-  view: CategoryDetailModel,
-  query: string,
-): CategoryDetailModel["media"] {
-  const needle = query.trim().toLowerCase();
-  if (needle === "" || view.media.kind === "unavailable") return view.media;
-  return {
-    ...view.media,
-    items: view.media.items.filter((item) =>
-      item.title.toLowerCase().includes(needle),
-    ),
-  } as CategoryDetailModel["media"];
+function UnavailableMedia({
+  reason,
+}: {
+  readonly reason: "kick-clips-unsupported" | "kick-videos-unsupported";
+}) {
+  return (
+    <Text selectable style={styles.unsupported} testID="category-unsupported">
+      {reason === "kick-clips-unsupported"
+        ? "Kick clips are not available on the official guest catalog."
+        : "Kick videos are not available. Videos are Twitch VODs only."}
+    </Text>
+  );
+}
+
+function PageRetry({
+  platform,
+  onRetryPage,
+}: {
+  readonly platform: Platform;
+  readonly onRetryPage?: (platform: Platform) => void;
+}) {
+  return (
+    <View>
+      <Text
+        selectable
+        style={styles.summary}
+      >{`${platform === "twitch" ? "Twitch" : "Kick"} could not load more streams.`}</Text>
+      {onRetryPage ? (
+        <MobileButton
+          accessibilityLabel={`Retry ${platform} streams`}
+          onPress={() => onRetryPage(platform)}
+          testID={`category-page-retry-${platform}`}
+          variant={platform}
+        >
+          Retry
+        </MobileButton>
+      ) : null}
+    </View>
+  );
 }
 
 function availableTags(view: CategoryDetailModel): readonly string[] {
@@ -297,6 +487,7 @@ const styles = StyleSheet.create({
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
   },
+  section: { gap: mobileSpacing.medium },
   header: { flexDirection: "row", gap: mobileSpacing.medium },
   artWrap: {
     aspectRatio: 3 / 4,

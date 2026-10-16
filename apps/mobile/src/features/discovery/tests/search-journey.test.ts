@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
+  MobileSearchKind,
+  SearchPageOutcome,
   SearchHistoryByScope,
   SearchHistoryRepository,
 } from "../capabilities/platform-reads";
@@ -12,7 +14,13 @@ import {
   UnifiedSearchScreen,
   type SearchPresentationState,
 } from "../components/unified-search-screen";
-import { fixtureSearchOutcome } from "../domain/search-fixture";
+import { useUnifiedSearch } from "../components/use-unified-search";
+import {
+  fixtureChannel,
+  fixtureClip,
+  fixtureSearchOutcome,
+  fixtureVideo,
+} from "../domain/search-fixture";
 import { emptySearchHistory } from "../domain/search-history";
 
 type InputProps = {
@@ -90,6 +98,104 @@ vi.mock("../components/search-provider-banner", () => ({
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 describe("search journey", () => {
+  it("does not continue Kick pages after the platform filter switches to Twitch", async () => {
+    const calls: string[] = [];
+    const history: SearchHistoryRepository = {
+      read: async () => emptySearchHistory(),
+      write: async () => undefined,
+    };
+    const session = {
+      async searchPage<K extends MobileSearchKind>(read: {
+        readonly platform: "twitch" | "kick";
+        readonly kind: K;
+        readonly cursor?: string;
+      }): Promise<SearchPageOutcome<K>> {
+        calls.push(`${read.platform}:${read.kind}:${read.cursor ?? "first"}`);
+        return {
+          cache: { kind: "miss" },
+          items:
+            read.kind === "channels" && read.cursor === undefined
+              ? [fixtureChannel(read.platform, `${read.platform}-broad`)]
+              : [],
+          path: { kind: "guest", platform: read.platform },
+          platform: read.platform,
+          resultKind: read.kind,
+          status: "complete",
+          ...(read.cursor === undefined
+            ? { cursor: `${read.platform}-next` }
+            : {}),
+        } as SearchPageOutcome<K>;
+      },
+      async searchMedia({ platform }: { platform: "twitch" | "kick" }) {
+        return {
+          cache: { kind: "miss" as const },
+          clips:
+            platform === "twitch" ? [fixtureClip("twitch", "relay-clip")] : [],
+          path: { kind: "guest" as const, platform },
+          platform,
+          status: "complete" as const,
+          videos:
+            platform === "twitch"
+              ? [fixtureVideo("twitch", "relay-video")]
+              : [],
+        };
+      },
+    };
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    let latest: ReturnType<typeof useUnifiedSearch> | null = null;
+    function Search({ platform }: { platform: "all" | "twitch" }) {
+      latest = useUnifiedSearch({
+        history,
+        liveOnly: false,
+        platform,
+        query: "henny",
+        resultType: "all",
+        session,
+      });
+      return null;
+    }
+    try {
+      await act(async () =>
+        root.render(
+          createElement(
+            QueryClientProvider,
+            { client },
+            createElement(Search, { platform: "all" }),
+          ),
+        ),
+      );
+      expect(calls).toContain("kick:channels:first");
+      expect(
+        latest?.view.collection.channels.map((channel) => channel.id),
+      ).toEqual(["twitch-broad", "kick-broad"]);
+      expect(latest?.view.collection.videos.map((video) => video.id)).toEqual([
+        "relay-video",
+      ]);
+      expect(latest?.view.collection.clips.map((clip) => clip.id)).toEqual([
+        "relay-clip",
+      ]);
+      await act(async () =>
+        root.render(
+          createElement(
+            QueryClientProvider,
+            { client },
+            createElement(Search, { platform: "twitch" }),
+          ),
+        ),
+      );
+      await act(async () => latest?.loadMore("channels"));
+      expect(calls).toContain("twitch:channels:twitch-next");
+      expect(calls).not.toContain("kick:channels:kick-next");
+    } finally {
+      await act(async () => root.unmount());
+      client.clear();
+    }
+  });
+
   it("returns from browse and preview to the same tab with independent saved queries", async () => {
     let stored: SearchHistoryByScope = emptySearchHistory();
     const history: SearchHistoryRepository = {
@@ -102,15 +208,35 @@ describe("search journey", () => {
     };
     const reads: string[] = [];
     const session = {
-      async search({
+      async searchMedia({ platform }: { platform: "twitch" | "kick" }) {
+        return {
+          cache: { kind: "miss" as const },
+          clips: [],
+          path: { kind: "guest" as const, platform },
+          platform,
+          status: "complete" as const,
+          videos: [],
+        };
+      },
+      async searchPage<K extends MobileSearchKind>({
         platform,
         query,
+        kind,
       }: {
         platform: "twitch" | "kick";
         query: string;
-      }) {
-        reads.push(`${platform}:${query}`);
-        return fixtureSearchOutcome(platform, "ready");
+        kind: K;
+      }): Promise<SearchPageOutcome<K>> {
+        reads.push(`${platform}:${kind}:${query}`);
+        const outcome = fixtureSearchOutcome(platform, "ready");
+        return {
+          cache: outcome.cache,
+          items: outcome.catalog[kind],
+          path: outcome.path,
+          platform,
+          resultKind: kind,
+          status: outcome.status,
+        } as SearchPageOutcome<K>;
       },
     };
     const client = new QueryClient({
@@ -185,7 +311,14 @@ describe("search journey", () => {
       expect(find("search-tab-all")).not.toBeNull();
       expect(find("search-tab-categories")).not.toBeNull();
       await submit("shroud");
-      expect(reads).toEqual(["twitch:shroud", "kick:shroud"]);
+      expect(reads).toEqual([
+        "twitch:channels:shroud",
+        "twitch:streams:shroud",
+        "twitch:categories:shroud",
+        "kick:channels:shroud",
+        "kick:streams:shroud",
+        "kick:categories:shroud",
+      ]);
       await click("clear-search-field");
       expect(find("repeat-search-shroud")).not.toBeNull();
 

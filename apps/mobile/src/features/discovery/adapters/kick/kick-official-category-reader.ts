@@ -2,17 +2,15 @@ import type { Category, Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type { PlatformReadOutcome } from "../../capabilities/platform-reads";
-import type { LiveStreamCatalog } from "../../capabilities/live-stream-catalog";
 import { requestInit } from "../../utils/optional";
 import { mapKickOfficialStreams } from "./kick-official-streams";
 import {
   readKickPublicCategories,
-  readKickPublicCategoryStreams,
+  readKickPublicStreamsPage,
 } from "./kick-public-reads";
 
 type KickInput = {
   readonly fetch: typeof globalThis.fetch;
-  readonly liveCatalog?: LiveStreamCatalog;
   readonly readAccessToken: () => Promise<string | null>;
 };
 
@@ -42,51 +40,37 @@ export function createKickOfficialCategoryReads(input: KickInput) {
     },
     async getCategoryStreams(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly language?: string;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Stream>> {
       if (read.signal?.aborted) return failed("cancelled");
       if ((await input.readAccessToken()) === null) {
-        if (input.liveCatalog) {
-          const catalog = await input.liveCatalog.read(
-            read.signal === undefined ? {} : { signal: read.signal },
-          );
-          if (read.signal?.aborted) return failed("cancelled");
-          if (catalog.kind === "ready") {
-            const items = catalog.entries
-              .map((entry) => entry.stream)
-              .filter(
-                (stream) =>
-                  stream.categoryId === read.categoryId &&
-                  (!read.language || stream.language === read.language),
-              );
-            if (items.length > 0) {
-              return {
-                cache: { kind: "miss" },
-                items,
-                path: { kind: "guest", platform: "kick" },
-                platform: "kick",
-                status: "complete",
-              };
-            }
-          } else if (catalog.failure.kind === "cancelled") {
-            return failed("cancelled");
-          }
-        }
-        return readKickPublicCategoryStreams({
+        const outcome = await readKickPublicStreamsPage({
           categoryId: read.categoryId,
+          ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
           fetchImpl: input.fetch,
           ...(read.signal === undefined ? {} : { signal: read.signal }),
         });
+        return read.language === undefined
+          ? outcome
+          : {
+              ...outcome,
+              items: outcome.items.filter(
+                (stream) => stream.language === read.language,
+              ),
+            };
       }
       const params = new URLSearchParams({
         category_id: read.categoryId,
         limit: "20",
       });
       if (read.language) params.set("language_code", read.language);
+      if (read.cursor) params.set("after", read.cursor);
       return kickCollection({
         input,
         map: mapKickOfficialStreams,
+        nextCursor: officialStreamCursor,
         path: `https://api.kick.com/public/v2/livestreams?${params}`,
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
@@ -144,6 +128,7 @@ export function createKickOfficialCategoryReads(input: KickInput) {
 async function kickCollection<T>(input: {
   readonly input: KickInput;
   readonly map: (value: unknown) => readonly T[];
+  readonly nextCursor?: (value: unknown) => string | undefined;
   readonly path: string;
   readonly signal?: AbortSignal;
 }): Promise<PlatformReadOutcome<T>> {
@@ -161,17 +146,34 @@ async function kickCollection<T>(input: {
     }
     const payload: unknown = await response.json();
     if (input.signal?.aborted) return failed("cancelled");
+    const cursor = input.nextCursor?.(payload);
     return {
       cache: { kind: "miss" },
       items: input.map(payload),
       path: { kind: "direct", platform: "kick" },
       platform: "kick",
       status: "complete",
+      ...(cursor === undefined ? {} : { cursor }),
     };
   } catch (error) {
     if (input.signal?.aborted || isAbort(error)) return failed("cancelled");
     return failed("kick-failed");
   }
+}
+
+function officialStreamCursor(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || !("pagination" in value))
+    return undefined;
+  const pagination = value.pagination;
+  if (
+    typeof pagination !== "object" ||
+    pagination === null ||
+    !("cursor" in pagination)
+  )
+    return undefined;
+  return typeof pagination.cursor === "string" && pagination.cursor !== ""
+    ? pagination.cursor
+    : undefined;
 }
 
 function kickCategories(value: unknown): readonly Category[] {

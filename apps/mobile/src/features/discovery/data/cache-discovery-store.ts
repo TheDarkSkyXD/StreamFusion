@@ -2,9 +2,7 @@ import type { Category, Stream } from "@streamfusion/core/content";
 import {
   categorySchema,
   channelSchema,
-  clipSchema,
   streamSchema,
-  videoSchema,
 } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 
@@ -12,7 +10,8 @@ import type { DisposableCache } from "@mobile/features/storage/capabilities/pers
 
 import type {
   CacheProjection,
-  SearchCatalogPage,
+  MobileSearchKind,
+  SearchItemByKind,
 } from "../capabilities/platform-reads";
 
 const TOP_STREAMS_FRESHNESS_MS = 5 * 60 * 1_000;
@@ -25,8 +24,13 @@ export function topStreamsCacheKey(
   return `discovery:top-streams:${platform}:${language ?? "all"}`;
 }
 
-export function searchCacheKey(platform: Platform, query: string): string {
-  return `discovery:search:${platform}:${query}`;
+export function searchPageCacheKey(input: {
+  readonly platform: Platform;
+  readonly kind: MobileSearchKind;
+  readonly query: string;
+  readonly liveOnly: boolean;
+}): string {
+  return `discovery:search-page:v2:${input.platform}:${input.kind}:${input.query.trim().toLowerCase()}:${input.liveOnly}`;
 }
 
 export function categoriesCacheKey(platform: Platform): string {
@@ -86,28 +90,30 @@ export function createDiscoveryCacheStore(cache: DisposableCache) {
         ...(parsed.cursor === undefined ? {} : { cursor: parsed.cursor }),
       };
     },
-    async readSearch(
-      platform: Platform,
-      query: string,
-    ): Promise<
+    async readSearchPage<K extends MobileSearchKind>(input: {
+      readonly platform: Platform;
+      readonly kind: K;
+      readonly query: string;
+      readonly liveOnly: boolean;
+    }): Promise<
       | { readonly kind: "miss" }
       | {
           readonly kind: "hit";
           readonly cache: CacheProjection;
-          readonly catalog: SearchCatalogPage;
+          readonly items: readonly SearchItemByKind[K][];
         }
     > {
-      const stored = await cache.get(searchCacheKey(platform, query));
+      const stored = await cache.get(searchPageCacheKey(input));
       if (stored.kind === "miss") return { kind: "miss" };
-      const catalog = parseSearchPayload(stored.payload);
-      if (catalog === null) return { kind: "miss" };
+      const items = parseSearchPagePayload(stored.payload, input.kind);
+      if (items === null) return { kind: "miss" };
       return {
         cache: {
           ageMilliseconds: stored.ageMilliseconds,
           kind: "hit",
           stale: stored.stale,
         },
-        catalog,
+        items,
         kind: "hit",
       };
     },
@@ -125,15 +131,17 @@ export function createDiscoveryCacheStore(cache: DisposableCache) {
         }),
       });
     },
-    async writeSearch(input: {
-      readonly catalog: SearchCatalogPage;
+    async writeSearchPage(input: {
+      readonly items: readonly SearchItemByKind[MobileSearchKind][];
+      readonly kind: MobileSearchKind;
+      readonly liveOnly: boolean;
       readonly platform: Platform;
       readonly query: string;
     }): Promise<void> {
       await cache.put({
         freshnessMilliseconds: SEARCH_FRESHNESS_MS,
-        key: searchCacheKey(input.platform, input.query),
-        payload: JSON.stringify(input.catalog),
+        key: searchPageCacheKey(input),
+        payload: JSON.stringify(input.items),
       });
     },
     async writeTopStreams(input: {
@@ -193,30 +201,19 @@ function parseCachedItems<T>(
   }
 }
 
-function parseSearchPayload(payload: string): SearchCatalogPage | null {
+function parseSearchPagePayload<K extends MobileSearchKind>(
+  payload: string,
+  kind: K,
+): readonly SearchItemByKind[K][] | null {
   try {
     const value: unknown = JSON.parse(payload);
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return null;
-    }
-    const record = value as Record<string, unknown>;
-    return {
-      categories: Array.isArray(record.categories)
-        ? record.categories.filter(categorySchema.is)
-        : [],
-      channels: Array.isArray(record.channels)
-        ? record.channels.filter(channelSchema.is)
-        : [],
-      clips: Array.isArray(record.clips)
-        ? record.clips.filter(clipSchema.is)
-        : [],
-      streams: Array.isArray(record.streams)
-        ? record.streams.filter(streamSchema.is)
-        : [],
-      videos: Array.isArray(record.videos)
-        ? record.videos.filter(videoSchema.is)
-        : [],
-    };
+    if (!Array.isArray(value)) return null;
+    const isItem = {
+      categories: categorySchema.is,
+      channels: channelSchema.is,
+      streams: streamSchema.is,
+    }[kind];
+    return value.filter(isItem) as readonly SearchItemByKind[K][];
   } catch {
     return null;
   }

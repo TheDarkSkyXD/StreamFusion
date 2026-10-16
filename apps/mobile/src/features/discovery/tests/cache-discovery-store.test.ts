@@ -39,10 +39,12 @@ describe("discovery cache store", () => {
       key: "discovery:top-streams:kick:all",
       payload: "{not-json",
     });
-    await expect(store.readTopStreams("kick")).resolves.toEqual({ kind: "miss" });
+    await expect(store.readTopStreams("kick")).resolves.toEqual({
+      kind: "miss",
+    });
   });
 
-  it("round-trips search catalogs", async () => {
+  it("stores only the requested search kind and filter's first page", async () => {
     const rows = new Map<string, string>();
     const cache: DisposableCache = {
       async clear() {
@@ -64,21 +66,40 @@ describe("discovery cache store", () => {
       },
     };
     const store = createDiscoveryCacheStore(cache);
-    await store.writeSearch({
-      catalog: {
-        categories: [],
-        channels: [],
-        clips: [],
-        streams: [fixtureStream("kick", "search-cached", 2)],
-        videos: [],
-      },
+    await store.writeSearchPage({
+      items: [fixtureStream("kick", "search-cached", 2)],
+      kind: "streams",
+      liveOnly: false,
       platform: "kick",
       query: "arcade",
     });
-    await expect(store.readSearch("kick", "arcade")).resolves.toMatchObject({
-      catalog: { streams: [{ id: "search-cached" }] },
+    await expect(
+      store.readSearchPage({
+        platform: "kick",
+        kind: "streams",
+        query: "arcade",
+        liveOnly: false,
+      }),
+    ).resolves.toMatchObject({
+      items: [{ id: "search-cached" }],
       kind: "hit",
     });
+    await expect(
+      store.readSearchPage({
+        platform: "kick",
+        kind: "channels",
+        query: "arcade",
+        liveOnly: false,
+      }),
+    ).resolves.toEqual({ kind: "miss" });
+    await expect(
+      store.readSearchPage({
+        platform: "kick",
+        kind: "streams",
+        query: "arcade",
+        liveOnly: true,
+      }),
+    ).resolves.toEqual({ kind: "miss" });
   });
 
   it("round-trips category catalog pages", async () => {

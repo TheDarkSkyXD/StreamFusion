@@ -6,7 +6,8 @@ export const KICK_PUBLIC_ACCEPT = { Accept: "application/json" } as const;
 export const KICK_FEATURED_LIVESTREAMS =
   "https://kick.com/stream/featured-livestreams/en";
 export const KICK_PUBLIC_LIVESTREAMS = "https://kick.com/stream/livestreams/en";
-export const KICK_PUBLIC_SUBCATEGORIES = "https://kick.com/api/v1/subcategories";
+export const KICK_PUBLIC_SUBCATEGORIES =
+  "https://kick.com/api/v1/subcategories";
 
 export function kickPublicChannelUrl(slug: string): string {
   return `https://kick.com/api/v1/channels/${encodeURIComponent(slug)}`;
@@ -31,7 +32,8 @@ export function mapKickPublicStreams(value: unknown): readonly Stream[] {
     const user = objectField(channel, "user") ?? channel;
     const id = identifier(record, "id");
     const channelName =
-      stringField(channel, "slug") || stringField(record, "broadcaster_username");
+      stringField(channel, "slug") ||
+      stringField(record, "broadcaster_username");
     if (id === "" || channelName === "") return [];
     const category = firstCategory(record);
     return [
@@ -40,9 +42,9 @@ export function mapKickPublicStreams(value: unknown): readonly Stream[] {
           stringField(user, "profilepic") ||
           stringField(user, "profile_pic") ||
           stringField(user, "profile_picture"),
-        channelDisplayName:
-          stringField(user, "username") || channelName,
-        channelId: identifier(channel, "id") || identifier(record, "channel_id"),
+        channelDisplayName: stringField(user, "username") || channelName,
+        channelId:
+          identifier(channel, "id") || identifier(record, "channel_id"),
         channelName,
         id,
         isLive: record.is_live !== false,
@@ -95,12 +97,9 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
   }
   const record = value as Record<string, unknown>;
   const user = objectField(record, "user") ?? record;
-  const username =
-    stringField(record, "slug") || stringField(user, "username");
+  const username = stringField(record, "slug") || stringField(user, "username");
   const id =
-    identifier(record, "id") ||
-    identifier(record, "user_id") ||
-    username;
+    identifier(record, "id") || identifier(record, "user_id") || username;
   if (id === "" || username === "") return null;
   const livestream =
     objectField(record, "livestream") ?? objectField(record, "stream");
@@ -108,11 +107,15 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
   return {
     avatarUrl:
       stringField(user, "profilepic") ||
+      stringField(user, "profilePic") ||
       stringField(user, "profile_pic") ||
       stringField(user, "profile_picture"),
     displayName: stringField(user, "username") || username,
     id,
-    isLive: livestream?.is_live === true || record.is_live === true,
+    isLive:
+      livestream?.is_live === true ||
+      record.is_live === true ||
+      record.isLive === true,
     isPartner: record.is_partner === true,
     isVerified: kickVerified(record) || kickVerified(user),
     platform: "kick",
@@ -166,7 +169,11 @@ export function mapKickPublicLive(
 function firstCategory(
   record: Record<string, unknown>,
 ): { readonly id: string; readonly name: string } | null {
-  const rows = Array.isArray(record.categories) ? record.categories : [];
+  const rows = Array.isArray(record.categories)
+    ? record.categories
+    : record.category === undefined
+      ? []
+      : [record.category];
   for (const row of rows) {
     if (typeof row !== "object" || row === null) continue;
     const category = row as Record<string, unknown>;
@@ -183,7 +190,9 @@ function thumbnailUrl(record: Record<string, unknown>): string {
     return stringField(thumbnail, "src") || stringField(thumbnail, "url");
   }
   const value = record.thumbnail;
-  return typeof value === "string" ? value : stringField(record, "thumbnail_url");
+  return typeof value === "string"
+    ? value
+    : stringField(record, "thumbnail_url");
 }
 
 function records(value: unknown): readonly Record<string, unknown>[] {

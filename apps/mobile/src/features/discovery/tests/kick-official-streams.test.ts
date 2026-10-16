@@ -94,7 +94,10 @@ describe("Kick official V2 livestreams", () => {
       fetch: async (url) => {
         urls.push(String(url));
         return Response.json({
-          data: [officialStream, { ...officialStream, id: "live-tl", language_code: "tl" }],
+          data: [
+            officialStream,
+            { ...officialStream, id: "live-tl", language_code: "tl" },
+          ],
         });
       },
       readAccessToken: async () => "user-token",
@@ -178,122 +181,57 @@ describe("Kick official V2 livestreams", () => {
     expect(items[0]?.viewerCount).toBe(0);
   });
 
-  it("uses matching guest catalog streams and falls back for categories outside the catalog", async () => {
-    const streams = mapKickOfficialStreams({ data: [officialStream] });
-    const stream = streams[0];
-    if (!stream) throw new Error("Expected normalized stream");
-    const liveCatalog: LiveStreamCatalog = {
-      async read() {
-        return {
-          kind: "ready",
-          entries: [
-            {
-              stream,
-              channel: {
-                avatarUrl: stream.channelAvatar,
-                displayName: stream.channelDisplayName,
-                id: stream.channelId,
-                isLive: true,
-                isPartner: false,
-                isVerified: false,
-                platform: "kick",
-                username: stream.channelName,
-              },
-              playbackUrl: null,
-            },
-          ],
-        };
-      },
-    };
+  it("reads guest category streams from the paged category endpoint", async () => {
     const urls: string[] = [];
     const reader = createKickOfficialCategoryReads({
       fetch: async (url) => {
         urls.push(String(url));
-        return Response.json([
-          {
-            id: "legacy-live",
-            channel: {
-              id: 51,
-              slug: "legacy-creator",
-              user: { username: "Legacy Creator" },
-            },
-            categories: [{ id: 8, name: "Legacy Category" }],
-            language: "en",
-            session_title: "Legacy category stream",
-            viewer_count: 5,
+        return Response.json({
+          data: {
+            livestreams: [
+              {
+                id: "web-live",
+                title: "Live conversation",
+                viewer_count: 12,
+                channel: {
+                  id: 19,
+                  slug: "kick-creator",
+                  username: "Kick Creator",
+                },
+                category: { id: 7, name: "Just Chatting" },
+                language: "en",
+              },
+            ],
+            pagination: { next_cursor: "next" },
           },
-          {
-            id: "french-live",
-            channel: {
-              id: 52,
-              slug: "french-creator",
-              user: { username: "French Creator" },
-            },
-            categories: [{ id: 7, name: "Just Chatting" }],
-            language: "fr",
-            session_title: "French category stream",
-            viewer_count: 6,
-          },
-        ]);
+        });
       },
-      liveCatalog,
       readAccessToken: async () => null,
     });
-
     const outcome = await reader.getCategoryStreams({
       categoryId: "7",
       language: "en",
     });
-    expect(outcome.path).toEqual({ kind: "guest", platform: "kick" });
-    expect(outcome.items).toEqual([expectedStream]);
-    expect(urls).toEqual([]);
-
-    const fallback = await reader.getCategoryStreams({ categoryId: "8" });
     expect(urls).toEqual([
-      "https://kick.com/stream/featured-livestreams/en",
-      "https://kick.com/stream/livestreams/en",
+      "https://web.kick.com/api/v1/livestreams?limit=24&sort=viewer_count_desc&category_id=7",
     ]);
-    expect(fallback.status).toBe("complete");
-    expect(fallback.items).toEqual([
-      expect.objectContaining({
-        categoryId: "8",
-        channelName: "legacy-creator",
-        id: "legacy-live",
-        title: "Legacy category stream",
-      }),
-    ]);
-
-    const languageFallback = await reader.getCategoryStreams({
-      categoryId: "7",
-      language: "fr",
-    });
-    expect(urls).toHaveLength(4);
-    expect(languageFallback.items).toEqual([
-      expect.objectContaining({
-        categoryId: "7",
-        channelName: "french-creator",
-        id: "french-live",
-        language: "fr",
-      }),
-    ]);
+    expect(outcome.items.map((stream) => stream.id)).toEqual(["web-live"]);
+    expect(outcome.cursor).toBe("next");
   });
 
-  it("does not fall back to public requests when catalog reading is cancelled", async () => {
+  it("does not publish a guest response that arrives after cancellation", async () => {
+    const controller = new AbortController();
     const reader = createKickOfficialCategoryReads({
       fetch: async () => {
-        throw new Error("Cancelled reads must not fetch fallback data");
-      },
-      liveCatalog: {
-        read: async () => ({
-          kind: "unavailable",
-          failure: { kind: "cancelled" },
-        }),
+        controller.abort();
+        return Response.json({ data: { livestreams: [], pagination: {} } });
       },
       readAccessToken: async () => null,
     });
-
-    const outcome = await reader.getCategoryStreams({ categoryId: "7" });
-
+    const outcome = await reader.getCategoryStreams({
+      categoryId: "7",
+      signal: controller.signal,
+    });
     expect(outcome.error).toEqual({ code: "cancelled", retry: "none" });
     expect(outcome.path).toEqual({
       kind: "unavailable",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { Platform } from "@streamfusion/core/platform";
 
 import type { DiscoveryPreferenceStore } from "../capabilities/discovery-preferences";
@@ -8,7 +8,11 @@ import type {
   PlatformReadOutcome,
 } from "../capabilities/platform-reads";
 import type { CategoryMediaItem } from "../domain/category-detail";
-import { composeCategoryDetail } from "../domain/category-detail";
+import {
+  collapseCategoryMediaPages,
+  composeCategoryDetail,
+  nextCategoryMediaCursor,
+} from "../domain/category-detail";
 import {
   categoryIdForPlatform,
   defaultCategoryRequest,
@@ -16,6 +20,7 @@ import {
   type CategoryIdentity,
   type CategoryRequestIdentity,
 } from "../domain/category-identity";
+import { normalizeCategoryName } from "../domain/category-name";
 
 class CategoryReadError extends Error {
   constructor(readonly outcome: PlatformReadOutcome<CategoryMediaItem>) {
@@ -67,50 +72,48 @@ export function useCategoryDetail(input: {
       cancelled = true;
     };
   }, [input.category, input.preferences]);
-  const scoped = platformsForScope(identity.platformScope, identity.category);
-  const readTwitch = enabled && scoped.includes("twitch");
-  const readKick =
-    enabled && scoped.includes("kick") && identity.tab === "live";
-  const twitch = useQuery({
-    enabled: readTwitch,
-    queryFn: async ({ signal }) => {
-      const outcome = await readMedia(
-        input.session,
-        identity,
-        "twitch",
-        signal,
-      );
-      if (shouldRetryCategoryRead(outcome))
-        throw new CategoryReadError(outcome);
-      return outcome;
-    },
-    queryKey: categoryMediaQueryKey(identity, "twitch"),
-    refetchInterval: ({ state }) =>
-      shouldRetryCategoryRead(
-        state.error instanceof CategoryReadError
-          ? state.error.outcome
-          : state.data,
-      ),
-    retry: false,
-  });
-  const kick = useQuery({
-    enabled: readKick,
-    queryFn: async ({ signal }) => {
-      const outcome = await readMedia(input.session, identity, "kick", signal);
-      if (shouldRetryCategoryRead(outcome))
-        throw new CategoryReadError(outcome);
-      return outcome;
-    },
-    queryKey: categoryMediaQueryKey(identity, "kick"),
-    refetchInterval: ({ state }) =>
-      shouldRetryCategoryRead(
-        state.error instanceof CategoryReadError
-          ? state.error.outcome
-          : state.data,
-      ),
-    retry: false,
-  });
+  const lookup = useCategoryMatch(input, enabled);
+  const resolvedIdentity =
+    lookup.data === undefined || lookup.data === null
+      ? identity
+      : {
+          ...identity,
+          category: { ...identity.category, otherId: lookup.data },
+        };
+  const scoped = platformsForScope(
+    resolvedIdentity.platformScope,
+    resolvedIdentity.category,
+  );
+  const readTwitch = shouldReadCategoryPlatform(
+    resolvedIdentity,
+    "twitch",
+    enabled,
+  );
+  const readKick = shouldReadCategoryPlatform(
+    resolvedIdentity,
+    "kick",
+    enabled,
+  );
+  const twitch = useCategoryMediaQuery(
+    input.session,
+    resolvedIdentity,
+    "twitch",
+    readTwitch,
+  );
+  const kick = useCategoryMediaQuery(
+    input.session,
+    resolvedIdentity,
+    "kick",
+    readKick,
+  );
+  const queries = { twitch, kick };
+  const canLoadMore = {
+    twitch: twitch.canLoadMore,
+    kick: kick.canLoadMore,
+  };
   return {
+    canLoadMore,
+    categoryMatch: categoryMatchStatus(input.category, lookup),
     async change(next: CategoryRequestIdentity) {
       setIdentity(next);
       if (next.language !== identity.language) {
@@ -120,20 +123,177 @@ export function useCategoryDetail(input: {
         await input.preferences.writeClipTimeRange(next.clipTimeRange);
       }
     },
+    loadMore(platform: "all" | Platform) {
+      for (const provider of ["twitch", "kick"] as const)
+        if (
+          (platform === "all" || platform === provider) &&
+          canLoadMore[provider]
+        )
+          void queries[provider].fetchNextPage({ cancelRefetch: false });
+    },
+    retryPage(platform: Platform) {
+      const query = queries[platform];
+      if (query.enabled && query.hasNextPage && !query.isFetching)
+        void query.fetchNextPage({ cancelRefetch: false });
+    },
+    retryCategoryMatch() {
+      void lookup.refetch();
+    },
+    retryProvider(platform: Platform) {
+      if (queries[platform].enabled) void queries[platform].refetch();
+    },
+    pageErrors: {
+      twitch: twitch.pageError,
+      kick: kick.pageError,
+    },
     view: composeCategoryDetail({
-      identity,
-      loading: (readTwitch && twitch.isPending) || (readKick && kick.isPending),
+      identity: resolvedIdentity,
+      loading:
+        (readTwitch && twitch.isPending) ||
+        (readKick && kick.isPending) ||
+        (lookup.isPending &&
+          scoped.some(
+            (platform) =>
+              categoryIdForPlatform(resolvedIdentity.category, platform) ===
+              null,
+          )),
       ...detailOutcomes(
-        identity,
-        readTwitch ? twitch.data : undefined,
-        readKick ? kick.data : undefined,
+        resolvedIdentity,
+        readTwitch ? twitch.outcome : undefined,
+        readKick ? kick.outcome : undefined,
       ),
     }),
-    recovering:
-      (readTwitch &&
-        (twitch.error instanceof CategoryReadError || twitch.isFetching)) ||
-      (readKick &&
-        (kick.error instanceof CategoryReadError || kick.isFetching)),
+    recovering: twitch.recovering || kick.recovering,
+  };
+}
+
+function useCategoryMatch(
+  input: {
+    readonly category: CategoryIdentity;
+    readonly session: DiscoverySession;
+  },
+  enabled: boolean,
+) {
+  const otherPlatform =
+    input.category.platform === "twitch" ? "kick" : "twitch";
+  return useQuery({
+    enabled: enabled && input.category.otherId === undefined,
+    queryKey: [
+      "discovery",
+      "category-match",
+      otherPlatform,
+      input.category.name,
+    ],
+    queryFn: async ({ signal }) => {
+      let cursor: string | undefined;
+      const seen = new Set<string>();
+      while (true) {
+        const outcome = await input.session.searchPage({
+          kind: "categories",
+          platform: otherPlatform,
+          query: input.category.name,
+          ...(cursor === undefined ? {} : { cursor }),
+          ...(signal === undefined ? {} : { signal }),
+        });
+        const match = outcome.items.find(
+          (item) =>
+            normalizeCategoryName(item.name) ===
+            normalizeCategoryName(input.category.name),
+        );
+        if (match) return match.id;
+        if (outcome.status !== "complete")
+          throw new Error(outcome.error?.code ?? "category-search-failed");
+        if (!outcome.cursor) return null;
+        if (seen.has(outcome.cursor))
+          throw new Error("category-search-cursor-loop");
+        seen.add(outcome.cursor);
+        cursor = outcome.cursor;
+      }
+    },
+    retry: false,
+  });
+}
+
+function categoryMatchStatus(
+  category: CategoryIdentity,
+  lookup: ReturnType<typeof useCategoryMatch>,
+): "found" | "loading" | "failed" | "missing" {
+  if (category.otherId !== undefined || lookup.data) return "found";
+  if (lookup.isPending) return "loading";
+  return lookup.isError ? "failed" : "missing";
+}
+
+function shouldReadCategoryPlatform(
+  identity: CategoryRequestIdentity,
+  platform: Platform,
+  enabled: boolean,
+): boolean {
+  return (
+    enabled &&
+    platformsForScope(identity.platformScope, identity.category).includes(
+      platform,
+    ) &&
+    categoryIdForPlatform(identity.category, platform) !== null &&
+    (platform === "twitch" || identity.tab === "live")
+  );
+}
+
+function useCategoryMediaQuery(
+  session: DiscoverySession,
+  identity: CategoryRequestIdentity,
+  platform: Platform,
+  enabled: boolean,
+) {
+  const query = useInfiniteQuery({
+    enabled,
+    initialPageParam: "",
+    queryFn: async ({ pageParam, signal }) => {
+      const outcome = await readMedia(
+        session,
+        identity,
+        platform,
+        pageParam,
+        signal,
+      );
+      if (outcome.status === "failed") throw new CategoryReadError(outcome);
+      return outcome;
+    },
+    queryKey: categoryMediaQueryKey(identity, platform),
+    getNextPageParam:
+      identity.tab === "live" ? nextCategoryMediaCursor : () => undefined,
+    staleTime: ({ state }) =>
+      state.error instanceof CategoryReadError &&
+      state.fetchMeta?.fetchMore?.direction === "forward"
+        ? "static"
+        : 0,
+    refetchInterval: ({ state }) =>
+      state.error instanceof CategoryReadError &&
+      state.fetchMeta?.fetchMore?.direction === "forward"
+        ? false
+        : shouldRetryCategoryRead(
+            state.error instanceof CategoryReadError
+              ? state.error.outcome
+              : state.data?.pages.at(-1),
+          ),
+    retry: false,
+  });
+  return {
+    ...query,
+    enabled,
+    canLoadMore:
+      enabled && query.hasNextPage && !query.isFetching && query.error === null,
+    outcome: query.data
+      ? collapseCategoryMediaPages(query.data.pages)
+      : query.error instanceof CategoryReadError
+        ? query.error.outcome
+        : undefined,
+    pageError:
+      enabled &&
+      query.error instanceof CategoryReadError &&
+      query.data !== undefined
+        ? query.error.outcome.error?.code
+        : undefined,
+    recovering: enabled && query.isFetching && query.data !== undefined,
   };
 }
 
@@ -164,6 +324,7 @@ async function readMedia(
   session: DiscoverySession,
   identity: CategoryRequestIdentity,
   platform: Platform,
+  cursor: string,
   signal?: AbortSignal,
 ): Promise<PlatformReadOutcome<CategoryMediaItem>> {
   const categoryId = categoryIdForPlatform(identity.category, platform);
@@ -200,6 +361,7 @@ async function readMedia(
   }
   return session.readCategoryStreams({
     categoryId,
+    ...(cursor === "" ? {} : { cursor }),
     platform,
     ...extra,
     ...(identity.language === "all" ? {} : { language: identity.language }),

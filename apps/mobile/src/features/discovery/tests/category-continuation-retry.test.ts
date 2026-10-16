@@ -31,6 +31,7 @@ it("keeps a failed continuation available for explicit retry without refreshing 
     readCategories: unexpected,
     searchCategories: unexpected,
     searchPage: unexpected,
+    searchMedia: unexpected,
     readCategory: unexpected,
     readCategoryClips: unexpected,
     readCategoryVideos: unexpected,
@@ -87,11 +88,7 @@ it("keeps a failed continuation available for explicit retry without refreshing 
   try {
     await act(async () => {
       root.render(
-        createElement(
-          QueryClientProvider,
-          { client },
-          createElement(Probe),
-        ),
+        createElement(QueryClientProvider, { client }, createElement(Probe)),
       );
     });
     expect(reads).toEqual(["twitch:first", "kick:first"]);
@@ -111,6 +108,22 @@ it("keeps a failed continuation available for explicit retry without refreshing 
       await new Promise((resolve) => setTimeout(resolve, 5_100));
     });
     expect(reads).toEqual(["twitch:first", "kick:first", "twitch:next"]);
+    expect(detail?.pageErrors.twitch).toBe("twitch-failed");
+
+    await act(async () => {
+      if (detail)
+        await detail.change({ ...detail.view.identity, platformScope: "kick" });
+    });
+    expect(detail?.pageErrors.twitch).toBeUndefined();
+    await act(async () => {
+      detail?.retryPage("twitch");
+      detail?.retryProvider("twitch");
+    });
+    expect(reads).toEqual(["twitch:first", "kick:first", "twitch:next"]);
+    await act(async () => {
+      if (detail)
+        await detail.change({ ...detail.view.identity, platformScope: "all" });
+    });
     expect(detail?.pageErrors.twitch).toBe("twitch-failed");
 
     await act(async () => detail?.retryPage("twitch"));

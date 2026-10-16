@@ -18,6 +18,7 @@ import {
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
   Image: "Image",
+  FlatList: "FlatList",
   Pressable: "Pressable",
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
@@ -50,6 +51,7 @@ vi.mock("@mobile/design/bottom-sheet", () => ({
 }));
 vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react")>()),
+  useCallback: (callback: unknown) => callback,
   useState: (initial: unknown) => [
     typeof initial === "boolean" ? true : initial,
     () => undefined,
@@ -64,6 +66,10 @@ type ElementProps = Readonly<{
   onPress?: () => void;
   onChange?: (value: string) => void;
   options?: readonly { readonly label: string; readonly value: string }[];
+  data?: readonly unknown[];
+  ListHeaderComponent?: unknown;
+  ListFooterComponent?: unknown;
+  renderItem?: (input: { item: unknown; index: number }) => unknown;
   testID?: string;
 }>;
 type Element = ReactElement<ElementProps>;
@@ -83,6 +89,16 @@ function descendants(node: unknown): readonly Element[] {
         ? (candidate.type as (props: ElementProps) => unknown)
         : null;
   if (component) return [element, ...descendants(component(element.props))];
+  if (element.type === "FlatList") {
+    return [
+      element,
+      ...descendants(element.props.ListHeaderComponent),
+      ...(element.props.data ?? []).flatMap((item, index) =>
+        descendants(element.props.renderItem?.({ item, index })),
+      ),
+      ...descendants(element.props.ListFooterComponent),
+    ];
+  }
   const children = element.props.children;
   const childNodes = Array.isArray(children) ? children : [children];
   return [element, ...childNodes.flatMap((child) => descendants(child))];
@@ -97,14 +113,32 @@ const chatting = {
 };
 
 describe("Category detail screen", () => {
+  it("virtualizes category streams and has no local search dock", () => {
+    const root = CategoryDetailView({
+      onChangeIdentity: () => undefined,
+      onOpenAccounts: () => undefined,
+      view: composeCategoryDetail({
+        identity: defaultCategoryRequest(chatting, "all", "all"),
+        loading: false,
+        twitch: {
+          ...fixtureOutcome("twitch", "ready"),
+          items: [fixtureStream("twitch", "live", 10)],
+        },
+      }),
+    });
+    expect(root.type).toBe("FlatList");
+    expect(
+      descendants(root).some(
+        (node) => node.props.testID === "category-detail-search",
+      ),
+    ).toBe(false);
+  });
   it("uses underline tabs and opens live and recorded items", () => {
     const onWatch = vi.fn();
     const live = CategoryDetailView({
       onChangeIdentity: () => undefined,
-      onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
       onWatch,
-      query: "",
       view: composeCategoryDetail({
         identity: defaultCategoryRequest(chatting, "all", "all"),
         loading: false,
@@ -132,10 +166,8 @@ describe("Category detail screen", () => {
           : fixtureVideo("twitch", "video", 10);
       const recorded = CategoryDetailView({
         onChangeIdentity: () => undefined,
-        onChangeQuery: () => undefined,
         onOpenAccounts: () => undefined,
         onWatch,
-        query: "",
         view: composeCategoryDetail({
           identity: { ...defaultCategoryRequest(chatting, "all", "all"), tab },
           loading: false,
@@ -160,11 +192,9 @@ describe("Category detail screen", () => {
   it("renders Follow as explained-unavailable and stamps the D07 token", () => {
     const root = CategoryDetailView({
       onChangeIdentity: () => undefined,
-      onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
       onSelectProofMode: () => undefined,
       proofMode: "ready",
-      query: "",
       view: composeCategoryDetail({
         identity: defaultCategoryRequest(chatting, "all", "all"),
         loading: false,
@@ -186,9 +216,7 @@ describe("Category detail screen", () => {
   it("explains Kick clips as unsupported", () => {
     const root = CategoryDetailView({
       onChangeIdentity: () => undefined,
-      onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
-      query: "",
       view: composeCategoryDetail({
         identity: {
           ...defaultCategoryRequest(chatting, "all", "all"),
@@ -216,9 +244,7 @@ describe("Category detail screen", () => {
     };
     const root = CategoryDetailView({
       onChangeIdentity,
-      onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
-      query: "",
       view: composeCategoryDetail({
         identity,
         loading: false,
@@ -244,9 +270,7 @@ describe("Category detail screen", () => {
   it("offers language choices for live streams", () => {
     const root = CategoryDetailView({
       onChangeIdentity: () => undefined,
-      onChangeQuery: () => undefined,
       onOpenAccounts: () => undefined,
-      query: "",
       view: composeCategoryDetail({
         identity: defaultCategoryRequest(chatting, "all", "all"),
         loading: false,

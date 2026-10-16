@@ -6,7 +6,6 @@ import { requestInit } from "../../utils/optional";
 import {
   KICK_FEATURED_LIVESTREAMS,
   KICK_PUBLIC_ACCEPT,
-  KICK_PUBLIC_LIVESTREAMS,
   KICK_PUBLIC_SUBCATEGORIES,
   mapKickPublicCategories,
   mapKickPublicStreams,
@@ -78,45 +77,52 @@ export async function readKickPublicCategories(
   });
 }
 
-export async function readKickPublicCategoryStreams(input: {
-  readonly categoryId: string;
+export async function readKickPublicStreamsPage(input: {
+  readonly categoryId?: string;
+  readonly cursor?: string;
   readonly fetchImpl: typeof globalThis.fetch;
   readonly signal?: AbortSignal;
 }): Promise<PlatformReadOutcome<Stream>> {
-  const pages = await Promise.all([
-    kickPublicCollection({
-      fetchImpl: input.fetchImpl,
-      map: mapKickPublicStreams,
-      url: KICK_FEATURED_LIVESTREAMS,
-      ...(input.signal === undefined ? {} : { signal: input.signal }),
-    }),
-    kickPublicCollection({
-      fetchImpl: input.fetchImpl,
-      map: mapKickPublicStreams,
-      url: KICK_PUBLIC_LIVESTREAMS,
-      ...(input.signal === undefined ? {} : { signal: input.signal }),
-    }),
-  ]);
-  const failed = pages.find((page) => page.status === "failed");
-  if (failed && pages.every((page) => page.status === "failed")) return failed;
-  const items = uniqueStreams(
-    pages.flatMap((page) =>
-      page.items.filter((stream) => stream.categoryId === input.categoryId),
-    ),
-  );
-  return {
-    cache: { kind: "miss" },
-    items,
-    path: { kind: "guest", platform: "kick" },
-    platform: "kick",
-    status: "complete",
-  };
+  const url = new URL("https://web.kick.com/api/v1/livestreams");
+  url.searchParams.set("limit", "24");
+  url.searchParams.set("sort", "viewer_count_desc");
+  if (input.categoryId) url.searchParams.set("category_id", input.categoryId);
+  if (input.cursor) url.searchParams.set("after", input.cursor);
+  const outcome = await kickPublicCollection({
+    fetchImpl: input.fetchImpl,
+    headers: {
+      Accept: "application/json",
+      Referer: "https://kick.com/",
+      Origin: "https://kick.com",
+      "x-app-platform": "web",
+      "User-Agent":
+        "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    },
+    map: mapKickWebCategoryStreams,
+    nextCursor: kickWebCategoryCursor,
+    valid: isKickWebStreamsPage,
+    url: url.toString(),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+  });
+  const items =
+    input.categoryId === undefined
+      ? outcome.items
+      : outcome.items.filter(
+          (stream) => stream.categoryId === input.categoryId,
+        );
+  if (outcome.cursor === input.cursor) {
+    const { cursor: _cursor, ...page } = outcome;
+    return { ...page, items };
+  }
+  return { ...outcome, items };
 }
 
 async function kickPublicCollection<T>(input: {
   readonly fetchImpl: typeof globalThis.fetch;
+  readonly headers?: Record<string, string>;
   readonly map: (value: unknown) => readonly T[];
   readonly nextCursor?: (value: unknown) => string | undefined;
+  readonly valid?: (value: unknown) => boolean;
   readonly signal?: AbortSignal;
   readonly url: string;
 }): Promise<PlatformReadOutcome<T>> {
@@ -133,7 +139,7 @@ async function kickPublicCollection<T>(input: {
   try {
     const response = await input.fetchImpl(
       input.url,
-      requestInit(KICK_PUBLIC_ACCEPT, input.signal),
+      requestInit(input.headers ?? KICK_PUBLIC_ACCEPT, input.signal),
     );
     if (!response.ok) {
       return {
@@ -146,6 +152,26 @@ async function kickPublicCollection<T>(input: {
       };
     }
     const payload: unknown = await response.json();
+    if (input.valid && !input.valid(payload)) {
+      return {
+        cache: { kind: "miss" },
+        error: { code: "kick-failed", retry: "manual" },
+        items: [],
+        path: { kind: "guest", platform: "kick" },
+        platform: "kick",
+        status: "failed",
+      };
+    }
+    if (input.signal?.aborted) {
+      return {
+        cache: { kind: "miss" },
+        error: { code: "cancelled", retry: "none" },
+        items: [],
+        path: { kind: "unavailable", platform: "kick", reason: "cancelled" },
+        platform: "kick",
+        status: "failed",
+      };
+    }
     const cursor = input.nextCursor?.(payload);
     return {
       cache: { kind: "miss" },
@@ -192,11 +218,34 @@ function kickCategoryCursor(value: unknown): string | undefined {
     : undefined;
 }
 
-function uniqueStreams(items: readonly Stream[]): readonly Stream[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
+function webCategoryData(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || !("data" in value))
+    return null;
+  const data = value.data;
+  return typeof data === "object" && data !== null && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : null;
+}
+
+function isKickWebStreamsPage(value: unknown): boolean {
+  return Array.isArray(webCategoryData(value)?.livestreams);
+}
+
+function mapKickWebCategoryStreams(value: unknown): readonly Stream[] {
+  const data = webCategoryData(value);
+  return mapKickPublicStreams(data?.livestreams);
+}
+
+function kickWebCategoryCursor(value: unknown): string | undefined {
+  const pagination = webCategoryData(value)?.pagination;
+  if (
+    typeof pagination !== "object" ||
+    pagination === null ||
+    !("next_cursor" in pagination)
+  )
+    return undefined;
+  return typeof pagination.next_cursor === "string" &&
+    pagination.next_cursor !== ""
+    ? pagination.next_cursor
+    : undefined;
 }

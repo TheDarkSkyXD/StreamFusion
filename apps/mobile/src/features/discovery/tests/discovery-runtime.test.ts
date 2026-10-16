@@ -1,10 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
+import { createRelaySuccessEnvelope } from "@streamfusion/core/relay";
 import { describe, expect, it } from "vitest";
 
 import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
 import { createDiscoveryRuntime } from "../composition/discovery-runtime";
 import { topStreamsQueryKey } from "../components/use-home-live-discovery";
 import { fixtureStream } from "../domain/discovery-fixture";
+import { fixtureClip, fixtureVideo } from "../domain/search-fixture";
 
 function memoryCache(): DisposableCache {
   const rows = new Map<
@@ -72,20 +74,22 @@ describe("createDiscoveryRuntime", () => {
         return jsonResponse({
           data: {
             streams: {
-              edges: [{
-                cursor: second ? "last" : "next",
-                node: {
-                  broadcaster: {
-                    broadcastSettings: { language: second ? "TL" : "EN" },
-                    displayName: "Alice",
-                    id: "c1",
-                    login: "alice",
+              edges: [
+                {
+                  cursor: second ? "last" : "next",
+                  node: {
+                    broadcaster: {
+                      broadcastSettings: { language: second ? "TL" : "EN" },
+                      displayName: "Alice",
+                      id: "c1",
+                      login: "alice",
+                    },
+                    id: second ? "tagalog" : "english",
+                    title: "Live",
+                    viewersCount: 5,
                   },
-                  id: second ? "tagalog" : "english",
-                  title: "Live",
-                  viewersCount: 5,
                 },
-              }],
+              ],
               pageInfo: { hasNextPage: !second },
             },
           },
@@ -98,9 +102,14 @@ describe("createDiscoveryRuntime", () => {
       twitchClientId: null,
       userTokens: { read: async () => ({ kind: "none" }) },
     });
-    const outcome = await session.readTopStreams({ platform: "twitch", language: "tl" });
+    const outcome = await session.readTopStreams({
+      platform: "twitch",
+      language: "tl",
+    });
     expect(cursors).toEqual([null, "next"]);
-    expect(outcome.items.map((stream) => [stream.id, stream.language])).toEqual([["tagalog", "tl"]]);
+    expect(outcome.items.map((stream) => [stream.id, stream.language])).toEqual(
+      [["tagalog", "tl"]],
+    );
   });
 
   it("uses Helix for Home when a user token is present", async () => {
@@ -162,7 +171,9 @@ describe("createDiscoveryRuntime", () => {
           },
         ]);
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -172,7 +183,9 @@ describe("createDiscoveryRuntime", () => {
     const outcome = await session.readTopStreams({ platform: "kick" });
     expect(outcome.path).toEqual({ kind: "guest", platform: "kick" });
     expect(outcome.items[0]?.channelName).toBe("absi");
-    expect(urls.some((url) => url.includes("kick.com/stream/featured-livestreams"))).toBe(true);
+    expect(
+      urls.some((url) => url.includes("kick.com/stream/featured-livestreams")),
+    ).toBe(true);
     expect(urls.some((url) => url.includes("relay.test"))).toBe(false);
   });
 
@@ -190,7 +203,9 @@ describe("createDiscoveryRuntime", () => {
       fetch: async () => {
         throw new Error("offline");
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -213,7 +228,9 @@ describe("createDiscoveryRuntime", () => {
         if (calls === 1) throw new Error("offline");
         return jsonResponse(gqlTopStreams("retry"));
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -244,7 +261,9 @@ describe("createDiscoveryRuntime", () => {
           },
         });
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -283,7 +302,9 @@ describe("createDiscoveryRuntime", () => {
           },
         });
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -306,7 +327,9 @@ describe("createDiscoveryRuntime", () => {
         calls += 1;
         throw new Error("should not fetch");
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -356,7 +379,9 @@ describe("createDiscoveryRuntime", () => {
       queryKey: topStreamsQueryKey("kick"),
     });
     reads.length = 0;
-    await client.refetchQueries({ queryKey: ["discovery", "top-streams", "twitch"] });
+    await client.refetchQueries({
+      queryKey: ["discovery", "top-streams", "twitch"],
+    });
     expect(reads).toEqual(["twitch"]);
   });
 
@@ -393,7 +418,9 @@ describe("createDiscoveryRuntime", () => {
         }
         throw new Error(url);
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
@@ -441,8 +468,16 @@ describe("createDiscoveryRuntime", () => {
       twitchClientId: null,
       userTokens: { read: async () => ({ kind: "none" }) },
     });
-    const twitch = await session.search({ platform: "twitch", query: "arcade" });
-    const kick = await session.search({ platform: "kick", query: "arcade" });
+    const twitch = await session.searchPage({
+      platform: "twitch",
+      kind: "channels",
+      query: "arcade",
+    });
+    const kick = await session.searchPage({
+      platform: "kick",
+      kind: "channels",
+      query: "arcade",
+    });
     expect(twitch.path).toEqual({ kind: "guest", platform: "twitch" });
     expect(kick.path).toEqual({ kind: "guest", platform: "kick" });
     expect(urls.some((url) => url.includes("kick.com"))).toBe(true);
@@ -458,7 +493,22 @@ describe("createDiscoveryRuntime", () => {
         urls.push(String(input));
         return jsonResponse({
           data: {
-            games: { edges: [] },
+            searchFor: {
+              channels: {
+                cursor: null,
+                edges: [
+                  {
+                    item: {
+                      displayName: "Arcade",
+                      id: "search-1",
+                      login: "arcade",
+                      profileImageURL: "https://example.com/a.png",
+                      stream: null,
+                    },
+                  },
+                ],
+              },
+            },
             user: {
               displayName: "Arcade",
               id: "search-1",
@@ -469,18 +519,94 @@ describe("createDiscoveryRuntime", () => {
           },
         });
       },
-      installation: { read: async () => ({ credential: "install", kind: "ready" }) },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
       kickAccessToken: async () => null,
       network: { read: async () => "online" },
       relayBaseUrl: "http://relay.test/",
       twitchClientId: null,
       userTokens: { read: async () => ({ kind: "none" }) },
     });
-    const outcome = await session.search({ platform: "twitch", query: "arcade" });
+    const outcome = await session.searchPage({
+      platform: "twitch",
+      kind: "channels",
+      query: "arcade",
+    });
     expect(outcome.path).toEqual({ kind: "guest", platform: "twitch" });
-    expect(outcome.catalog.channels[0]?.username).toBe("arcade");
+    expect(outcome.items[0]?.username).toBe("arcade");
     expect(urls.every((url) => url.includes("gql.twitch.tv"))).toBe(true);
     expect(urls.some((url) => url.includes("relay.test"))).toBe(false);
+  });
+
+  it("keeps existing Relay videos and clips beside broad public channel pages", async () => {
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (url, init) => {
+        if (String(url).includes("relay.test")) {
+          return jsonResponse(
+            createRelaySuccessEnvelope({
+              requestId: "req_media_search_1",
+              body: {
+                platform: "twitch",
+                query: "arcade",
+                channels: [],
+                streams: [],
+                categories: [],
+                videos: [fixtureVideo("twitch", "relay-video")],
+                clips: [fixtureClip("twitch", "relay-clip")],
+              },
+            }),
+          );
+        }
+        const body = JSON.parse(String(init?.body)) as { query: string };
+        return jsonResponse(
+          body.query.includes("user(login:")
+            ? { data: { user: null } }
+            : {
+                data: {
+                  searchFor: {
+                    channels: {
+                      cursor: null,
+                      edges: [
+                        {
+                          item: {
+                            id: "1",
+                            login: "arcade_live",
+                            displayName: "Arcade Live",
+                            stream: null,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+        );
+      },
+      installation: {
+        read: async () => ({ credential: "install", kind: "ready" }),
+      },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: null,
+      userTokens: { read: async () => ({ kind: "none" }) },
+    });
+    const channels = await session.searchPage({
+      platform: "twitch",
+      kind: "channels",
+      query: "arcade",
+    });
+    const media = await session.searchMedia({
+      platform: "twitch",
+      query: "arcade",
+    });
+    expect(channels.items.map((channel) => channel.username)).toEqual([
+      "arcade_live",
+    ]);
+    expect(media.videos.map((video) => video.id)).toEqual(["relay-video"]);
+    expect(media.clips.map((clip) => clip.id)).toEqual(["relay-clip"]);
   });
 });
 

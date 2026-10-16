@@ -3,13 +3,15 @@ import type { Platform } from "@streamfusion/core/platform";
 
 import type {
   PlatformReadOutcome,
-  SearchReadOutcome,
+  MobileSearchKind,
+  SearchPageOutcome,
+  SearchPageRequest,
 } from "../../capabilities/platform-reads";
-import { emptySearchCatalog } from "../../domain/search-catalog";
 import { requestInit } from "../../utils/optional";
 import { createTwitchHelixCategoryReads } from "./twitch-helix-category-reader";
 import { createTwitchHelixChannelReader } from "./twitch-helix-channel-reader";
 import { createTwitchGqlGuestReader } from "./twitch-gql-guest";
+import { rankProviderChannels } from "../../domain/search-catalog";
 
 import {
   helixCategories,
@@ -35,6 +37,57 @@ export function createTwitchHelixReader(input: {
     ...createTwitchHelixCategoryReads(input),
     ...createTwitchHelixChannelReader(input),
     platform: "twitch" as const,
+    async searchPage<K extends MobileSearchKind>(
+      read: SearchPageRequest<K>,
+    ): Promise<SearchPageOutcome<K>> {
+      if (input.clientId === null || (await input.readAccessToken()) === null) {
+        return guest.searchPage(read);
+      }
+      const params = new URLSearchParams({ query: read.query, first: "20" });
+      if (read.cursor !== undefined) params.set("after", read.cursor);
+      if (read.kind === "categories") {
+        const outcome = await helixCollection({
+          input,
+          map: helixCategories,
+          includeCursor: true,
+          path: `/search/categories?${params}`,
+          ...(read.signal === undefined ? {} : { signal: read.signal }),
+        });
+        return {
+          ...outcome,
+          resultKind: read.kind,
+        } as unknown as SearchPageOutcome<K>;
+      }
+      const outcome = await helixPayload({
+        input,
+        path: `/search/channels?${params}`,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
+      if (outcome.status === "failed") {
+        return {
+          ...outcome,
+          resultKind: read.kind,
+        } as unknown as SearchPageOutcome<K>;
+      }
+      const catalog = await completeHelixSearchCatalog({
+        ...input,
+        payload: outcome.payload,
+        ...(read.signal === undefined ? {} : { signal: read.signal }),
+      });
+      const cursor = helixPaginationCursor(outcome.payload);
+      return {
+        cache: outcome.cache,
+        items:
+          read.kind === "channels"
+            ? rankProviderChannels(catalog.channels, read.query)
+            : catalog.streams,
+        path: outcome.path,
+        platform: "twitch",
+        resultKind: read.kind,
+        status: "complete",
+        ...(cursor === undefined || cursor === read.cursor ? {} : { cursor }),
+      } as SearchPageOutcome<K>;
+    },
     async getCategories(
       read: {
         readonly cursor?: string;
@@ -54,9 +107,11 @@ export function createTwitchHelixReader(input: {
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
-    async getFollowedChannels(read: {
-      readonly signal?: AbortSignal;
-    } = {}): Promise<PlatformReadOutcome<HelixFollowedChannel>> {
+    async getFollowedChannels(
+      read: {
+        readonly signal?: AbortSignal;
+      } = {},
+    ): Promise<PlatformReadOutcome<HelixFollowedChannel>> {
       const userId = (await input.readUserId?.()) ?? null;
       if (userId === null) {
         return missingToken("twitch", "signed-out-login-required");
@@ -68,9 +123,11 @@ export function createTwitchHelixReader(input: {
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
-    async getFollowedStreams(read: {
-      readonly signal?: AbortSignal;
-    } = {}): Promise<PlatformReadOutcome<Stream>> {
+    async getFollowedStreams(
+      read: {
+        readonly signal?: AbortSignal;
+      } = {},
+    ): Promise<PlatformReadOutcome<Stream>> {
       const userId = (await input.readUserId?.()) ?? null;
       if (userId === null) {
         return missingToken("twitch", "signed-out-login-required");
@@ -90,58 +147,12 @@ export function createTwitchHelixReader(input: {
         },
       );
     },
-    async search(read: {
-      readonly guest?: boolean;
-      readonly query: string;
-      readonly signal?: AbortSignal;
-    }): Promise<SearchReadOutcome> {
-      if (read.guest === true || (await input.readAccessToken()) === null) {
-        return guest.search(read);
-      }
-      const [channels, categories] = await Promise.all([
-        helixPayload({
-          input,
-          path: `/search/channels?query=${encodeURIComponent(read.query)}&first=20`,
-          ...(read.signal === undefined ? {} : { signal: read.signal }),
-        }),
-        helixCollection({
-          input,
-          map: helixCategories,
-          path: `/search/categories?query=${encodeURIComponent(read.query)}&first=20`,
-          ...(read.signal === undefined ? {} : { signal: read.signal }),
-        }),
-      ]);
-      if (channels.status === "failed") {
-        return searchFromOutcome(channels);
-      }
-      if (categories.status === "failed") {
-        return searchFromOutcome(categories);
-      }
-      const catalog = await completeHelixSearchCatalog({
-        clientId: input.clientId,
-        fetch: input.fetch,
-        payload: channels.payload,
-        readAccessToken: input.readAccessToken,
-        ...(read.signal === undefined ? {} : { signal: read.signal }),
-      });
-      return {
-        cache: { kind: "miss" },
-        catalog: {
-          categories: categories.items,
-          channels: catalog.channels,
-          clips: [],
-          streams: catalog.streams,
-          videos: [],
-        },
-        path: { kind: "direct", platform: "twitch" },
-        platform: "twitch",
-        status: "complete",
-      };
-    },
-    async getTopStreams(read: {
-      readonly language?: string;
-      readonly signal?: AbortSignal;
-    } = {}): Promise<PlatformReadOutcome<Stream>> {
+    async getTopStreams(
+      read: {
+        readonly language?: string;
+        readonly signal?: AbortSignal;
+      } = {},
+    ): Promise<PlatformReadOutcome<Stream>> {
       if (read.signal?.aborted) return cancelled("twitch");
       const accessToken = await input.readAccessToken();
       if (accessToken === null || input.clientId === null) {
@@ -161,7 +172,9 @@ export function createTwitchHelixReader(input: {
           ),
         );
         if (!response.ok) {
-          return failed(response.status === 401 ? "auth-lost" : "twitch-failed");
+          return failed(
+            response.status === 401 ? "auth-lost" : "twitch-failed",
+          );
         }
         return completeHelixStreams(
           {
@@ -294,19 +307,6 @@ function helixPaginationCursor(value: unknown): string | undefined {
   return typeof pagination.cursor === "string" && pagination.cursor !== ""
     ? pagination.cursor
     : undefined;
-}
-
-function searchFromOutcome<T>(
-  outcome: PlatformReadOutcome<T>,
-): SearchReadOutcome {
-  return {
-    cache: outcome.cache,
-    catalog: emptySearchCatalog(),
-    path: outcome.path,
-    platform: "twitch",
-    status: outcome.status,
-    ...(outcome.error === undefined ? {} : { error: outcome.error }),
-  };
 }
 
 function missingToken<T>(

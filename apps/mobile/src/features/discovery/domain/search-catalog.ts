@@ -1,4 +1,6 @@
 import type { SearchCatalogPage } from "../capabilities/platform-reads";
+import type { Channel } from "@streamfusion/core/content";
+import { rankSearchChannels } from "@streamfusion/core/discovery";
 
 export function emptySearchCatalog(): SearchCatalogPage {
   return {
@@ -22,4 +24,24 @@ export function dedupeByIdentity<
     next.push(item);
   }
   return next;
+}
+
+export function rankProviderChannels(
+  channels: readonly Channel[],
+  query: string,
+): readonly Channel[] {
+  const ranked = rankSearchChannels(channels, query);
+  return dedupeByIdentity([...ranked, ...channels]);
+}
+
+export function dedupeChannelsByLogin(
+  channels: readonly Channel[],
+): readonly Channel[] {
+  const seen = new Set<string>();
+  return channels.filter((channel) => {
+    const key = `${channel.platform}:${channel.username.trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
