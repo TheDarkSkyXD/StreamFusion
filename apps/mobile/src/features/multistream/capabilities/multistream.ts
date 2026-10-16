@@ -27,6 +27,7 @@ export interface MultistreamSession {
   snapshot(): MultistreamSnapshot;
   subscribe(listener: () => void): () => void;
   add(platform: Platform, login: string): Promise<void>;
+  clearAddFeedback(): void;
   focus(id: string): Promise<void>;
   mute(): Promise<void>;
   remove(id: string): Promise<void>;

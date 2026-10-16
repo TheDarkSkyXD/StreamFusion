@@ -31,7 +31,7 @@ export function createMultistreamSession(input: {
   let tiles: readonly MultistreamTile[] = [];
   let audioOwner: string | null = null;
   let busy = false;
-  let status: string | null = null;
+  let status: { scope: "add" | "workspace"; detail: string } | null = null;
   let resourcePressure: MultistreamResourcePressure = { kind: "clear" };
   let releaseResourceMonitor: (() => void) | null = null;
   let epoch = 0;
@@ -42,8 +42,11 @@ export function createMultistreamSession(input: {
   const emit = () => {
     for (const listener of listeners) listener();
   };
-  const publish = (detail: string | null) => {
-    status = detail;
+  const publish = (
+    detail: string | null,
+    scope: "add" | "workspace" = "workspace",
+  ) => {
+    status = detail === null ? null : { scope, detail };
     emit();
   };
   const update = (id: string, values: Partial<MultistreamTile>) => {
@@ -166,7 +169,14 @@ export function createMultistreamSession(input: {
   };
   return {
     snapshot(): MultistreamSnapshot {
-      return { tiles, audioOwner, busy, limit: limit(), status, resourcePressure };
+      return {
+        tiles,
+        audioOwner,
+        busy,
+        limit: limit(),
+        status: status?.detail ?? null,
+        resourcePressure,
+      };
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -174,14 +184,17 @@ export function createMultistreamSession(input: {
         listeners.delete(listener);
       };
     },
+    clearAddFeedback() {
+      if (status?.scope === "add") publish(null);
+    },
     add(platform, rawLogin) {
       const generation = epoch;
       return run(async () => {
         const login = rawLogin.trim().replace(/^@/u, "").toLowerCase();
         if (!/^[a-z0-9_-]{1,64}$/u.test(login))
-          return publish("Enter a channel username.");
+          return publish("Enter a channel username.", "add");
         if (tiles.length >= limit())
-          return publish(`This workspace is limited to ${limit()} streams.`);
+          return publish(`This workspace is limited to ${limit()} streams.`, "add");
         if (
           tiles.some(
             (tile) =>
@@ -189,7 +202,7 @@ export function createMultistreamSession(input: {
               tile.target.channelName.toLowerCase() === login,
           )
         )
-          return publish("That channel is already in the workspace.");
+          return publish("That channel is already in the workspace.", "add");
         const controller = new AbortController();
         pending = controller;
         const active = () =>

@@ -68,7 +68,10 @@ export function MultistreamWorkspace({
     sheet.kind === "tile"
       ? snapshot.tiles.find((tile) => tile.id === sheet.id)
       : undefined;
-  const closeSheet = () => setSheet({ kind: "closed" });
+  const closeSheet = () => {
+    if (sheet.kind === "add") session.clearAddFeedback();
+    setSheet({ kind: "closed" });
+  };
   useEffect(() => {
     const unsubscribe = session.subscribe(refresh);
     return () => {

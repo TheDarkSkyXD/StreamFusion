@@ -80,6 +80,30 @@ function setup(
   return { session, playback, channels, resolve, log };
 }
 describe("Multistream session", () => {
+  it("clears dismissed add validation without hiding a player error", async () => {
+    const { session, playback } = setup();
+    await session.add("twitch", "https://twitch.tv/alpha");
+    expect(session.snapshot().status).toBe("Enter a channel username.");
+    session.clearAddFeedback();
+    expect(session.snapshot().status).toBeNull();
+
+    await session.add("twitch", "alpha");
+    expect(session.snapshot().tiles.map((tile) => tile.target.channelName)).toEqual([
+      "alpha",
+    ]);
+    playback.setPlaying = async (id) => ({ kind: "missing", sessionId: id });
+    await session.pause("player-1", true);
+    expect(session.snapshot().status).toBe(
+      "The player could not change playback.",
+    );
+    session.clearAddFeedback();
+    expect(session.snapshot().status).toBe(
+      "The player could not change playback.",
+    );
+    expect(session.snapshot().tiles.map((tile) => tile.target.channelName)).toEqual([
+      "alpha",
+    ]);
+  });
   it("starts each player muted and switches one audio owner in order", async () => {
     const { session, log } = setup();
     await session.add("twitch", "alpha");
