@@ -22,6 +22,7 @@ import {
 export function MobileBottomSheet({
   children,
   footer,
+  heading,
   onDismiss,
   size = "content",
   testID,
@@ -30,6 +31,7 @@ export function MobileBottomSheet({
 }: {
   readonly children: ReactNode;
   readonly footer?: ReactNode;
+  readonly heading?: ReactNode;
   readonly onDismiss: () => void;
   readonly size?: "content" | "expanded" | "selection";
   readonly testID?: string;
@@ -78,12 +80,13 @@ export function MobileBottomSheet({
         >
           <View accessible={false} style={styles.handle} />
           <View style={styles.header}>
-            <Text
-              accessibilityRole="header"
-              style={[mobileType.title, styles.title]}
-            >
-              {title}
-            </Text>
+            <View style={styles.title}>
+              {heading ?? (
+                <Text accessibilityRole="header" style={mobileType.title}>
+                  {title}
+                </Text>
+              )}
+            </View>
             <Pressable
               accessibilityLabel="Close sheet"
               accessibilityRole="button"
@@ -146,7 +149,7 @@ const styles = StyleSheet.create({
     paddingRight: mobileSpacing.small,
     gap: mobileSpacing.small,
   },
-  title: { flex: 1, paddingVertical: mobileSpacing.small },
+  title: { flex: 1, minWidth: 0, paddingVertical: mobileSpacing.small },
   close: {
     minHeight: mobileSizing.minimumTouchTarget,
     minWidth: mobileSizing.minimumTouchTarget,

@@ -268,6 +268,7 @@ features/<feature>/
 
 ## UI DESIGN
 
+- Give each sheet or dialog one owner for its heading and dismiss control. Check the composed UI for duplicates, and use icons that match the actual navigation destination.
 - Always follow the UI design system when creating or reviewing components or pages.
 - Design System: @DESIGN.md
 - If the project does NOT have a frontend ignore this.

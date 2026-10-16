@@ -22,6 +22,7 @@ import type { ChatPresentation } from "../capabilities/chat-presentation";
 vi.mock("lucide-react-native", () => ({
   AtSign: () => null,
   ArrowDown: () => createElement("svg", { "data-testid": "resume-arrow" }),
+  ArrowRight: () => null,
   Ban: () => null,
   Copy: () => null,
   CornerUpLeft: () => null,
@@ -1010,6 +1011,34 @@ describe("chat reading position", () => {
 });
 
 describe("chat user sheet", () => {
+  it("shows one profile name and one close control that dismisses the sheet", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      const sheet = panel.container.querySelector(
+        '[aria-label="Alpha viewer"]',
+      );
+      if (!sheet) throw new Error("Missing user sheet.");
+      const names = [...sheet.querySelectorAll("span")].filter(
+        (element) => element.textContent === "Alpha viewer",
+      );
+      expect(names).toHaveLength(1);
+      const closeButtons = [...sheet.querySelectorAll("button")].filter(
+        (element) => element.textContent === "Close",
+      );
+      expect(closeButtons).toHaveLength(1);
+      await panel.press('[aria-label="Close sheet"]');
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
   it("uses a matching Kick login when chat and discovery IDs differ", async () => {
     const viewChannel = vi.fn();
     const panel = renderPanel(

@@ -13,10 +13,9 @@ import {
   Ban,
   Copy,
   CornerUpLeft,
-  ExternalLink,
+  ArrowRight,
   Flag,
   Shield,
-  X,
 } from "lucide-react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileAvatar } from "@mobile/design/avatar";
@@ -163,7 +162,7 @@ export function ChatUserSheet({
               });
               onDismiss();
             },
-            icon: ExternalLink,
+            icon: ArrowRight,
             tone: "platform" as const,
           },
         ]
@@ -200,7 +199,6 @@ export function ChatUserSheet({
           },
         ]
       : []),
-    { label: "Close", testID: "chat-user-close", onPress: onDismiss, icon: X },
   ];
   const copyMessage = async () => {
     if (!presentation || selected.deletedAt !== undefined) return;
@@ -221,29 +219,7 @@ export function ChatUserSheet({
       visible
       title={selected.displayName}
       onDismiss={onDismiss}
-      footer={
-        presentation ? (
-          <>
-            <SheetAction
-              label="Copy message"
-              testID="chat-copy-message"
-              onPress={() => {
-                void copyMessage();
-              }}
-              icon={Copy}
-              tone="primary"
-              disabled={selected.deletedAt !== undefined}
-            />
-            {notice ? (
-              <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
-                {notice}
-              </Text>
-            ) : null}
-          </>
-        ) : undefined
-      }
-    >
-      <View style={styles.body} testID="chat-user-actions">
+      heading={
         <View style={styles.identity}>
           <MobileAvatar
             name={selected.displayName}
@@ -301,6 +277,30 @@ export function ChatUserSheet({
             ) : null}
           </View>
         </View>
+      }
+      footer={
+        presentation ? (
+          <>
+            <SheetAction
+              label="Copy message"
+              testID="chat-copy-message"
+              onPress={() => {
+                void copyMessage();
+              }}
+              icon={Copy}
+              tone="primary"
+              disabled={selected.deletedAt !== undefined}
+            />
+            {notice ? (
+              <Text accessibilityLiveRegion="polite" style={mobileType.caption}>
+                {notice}
+              </Text>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    >
+      <View style={styles.body} testID="chat-user-actions">
         <View style={styles.history}>
           <Text style={mobileType.label}>Recent messages</Text>
           <ScrollView style={styles.historyScroll} nestedScrollEnabled>
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     backgroundColor: mobileColors.surfaceMuted,
   },
   wide: { backgroundColor: mobileColors.textPrimary },
-  danger: { backgroundColor: "#3a2228" },
+  danger: { backgroundColor: mobileColors.danger },
   disabled: { opacity: 0.5 },
   actionText: {
     ...mobileType.label,
