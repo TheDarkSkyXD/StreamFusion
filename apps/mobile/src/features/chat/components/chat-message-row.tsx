@@ -29,6 +29,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   cosmetics,
   roleBadges,
   onSelect,
+  selectOnPress = false,
 }: {
   readonly message: WatchChatMessage;
   readonly platform: Platform;
@@ -37,6 +38,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   readonly cosmetics?: ChatUserCosmetics | undefined;
   readonly roleBadges?: readonly ChatCosmeticBadge[] | undefined;
   readonly onSelect: (message: WatchChatMessage) => void;
+  readonly selectOnPress?: boolean;
 }) {
   const { t } = useTranslation();
   const font = {
@@ -115,6 +117,19 @@ export const ChatMessageRow = memo(function ChatMessageRow({
     themeAdaptUsernameColor: preferences.themeAdaptUsernameColor,
     username: message.username || message.displayName,
   });
+  const username = (
+    <ChatUsername
+      name={message.displayName}
+      fontSize={preferences.fontSizePx}
+      bold={preferences.boldUsernames}
+      color={color}
+      id={message.id}
+      style={styles.name}
+      {...(preferences.enable7tvUsernamePaints && cosmetics?.paint
+        ? { paint: cosmetics.paint }
+        : {})}
+    />
+  );
   const highlight =
     !notice && message.firstMessage && preferences.firstMsgHighlight;
   const framedDeletion =
@@ -149,7 +164,16 @@ export const ChatMessageRow = memo(function ChatMessageRow({
         </Text>
       ) : null}
       <Pressable
-        onLongPress={notice ? undefined : () => onSelect(message)}
+        accessibilityLabel={
+          selectOnPress
+            ? `Select message from ${message.displayName}`
+            : undefined
+        }
+        accessibilityRole={selectOnPress ? "button" : undefined}
+        onPress={selectOnPress && !notice ? () => onSelect(message) : undefined}
+        onLongPress={
+          !selectOnPress && !notice ? () => onSelect(message) : undefined
+        }
         style={[
           styles.messageRow,
           {
@@ -222,25 +246,19 @@ export const ChatMessageRow = memo(function ChatMessageRow({
                 />
               </View>
             ))}
-            <Pressable
-              accessibilityLabel={`Actions for ${message.displayName}`}
-              accessibilityRole="button"
-              disabled={notice}
-              onPress={() => onSelect(message)}
-              hitSlop={8}
-            >
-              <ChatUsername
-                name={message.displayName}
-                fontSize={preferences.fontSizePx}
-                bold={preferences.boldUsernames}
-                color={color}
-                id={message.id}
-                style={styles.name}
-                {...(preferences.enable7tvUsernamePaints && cosmetics?.paint
-                  ? { paint: cosmetics.paint }
-                  : {})}
-              />
-            </Pressable>
+            {selectOnPress ? (
+              username
+            ) : (
+              <Pressable
+                accessibilityLabel={`Actions for ${message.displayName}`}
+                accessibilityRole="button"
+                disabled={notice}
+                onPress={() => onSelect(message)}
+                hitSlop={8}
+              >
+                {username}
+              </Pressable>
+            )}
           </View>
         ) : null}
         {message.displayName ? (

@@ -47,6 +47,7 @@ import { ChatMessageRow } from "./chat-message-row";
 import { ChatUserSheet } from "./chat-user-sheet";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@mobile/features/settings/domain/chat-display-preferences";
 import { selectQuickEmotes } from "../domain/quick-emotes";
+import { applyWatchChatModeration } from "../domain/apply-watch-chat-moderation";
 
 const READ_ONLY: ChatInteractionView = {
   access: "blocked",
@@ -300,6 +301,10 @@ function ChatPanelBody({
     chat.kind === "live" || chat.kind === "empty"
       ? (chat.moderationRevision ?? 0)
       : 0;
+  const moderationEvents =
+    chat.kind === "live" || chat.kind === "empty"
+      ? chat.moderationEvents
+      : undefined;
   const replayLoading = recorded && chat.kind === "connecting";
   const messageMetadataRevision =
     chat.kind === "live" || chat.kind === "empty"
@@ -327,23 +332,36 @@ function ChatPanelBody({
       setReply(null);
     } else {
       const moderated = appliedSource.moderationRevision !== moderationRevision;
+      const unseenEvents = moderationEvents?.filter(
+        ({ revision }) =>
+          revision > appliedSource.moderationRevision &&
+          revision <= moderationRevision,
+      );
+      const completeEvents =
+        !moderated ||
+        (unseenEvents?.length ===
+          moderationRevision - appliedSource.moderationRevision &&
+          unseenEvents[0]?.revision === appliedSource.moderationRevision + 1);
       const current = new Map(messages.map((message) => [message.id, message]));
       const reconcile = (held: readonly WatchChatMessage[]) =>
         held.flatMap((message) => {
           const updated = current.get(message.id);
-          return updated ? [updated] : moderated ? [] : [message];
+          if (updated) return [updated];
+          if (!moderated) return [message];
+          if (!completeEvents) return [];
+          return (
+            unseenEvents?.reduce<readonly WatchChatMessage[]>(
+              (rows, { event }) => applyWatchChatModeration(rows, event),
+              [message],
+            ) ?? []
+          );
         });
       setPausedMessages((held) => (held ? reconcile(held) : null));
       setPickerMessages(reconcile);
       const reconcileSelection = (held: WatchChatMessage | null) => {
-        const updated = held ? current.get(held.id) : undefined;
-        return updated
-          ? updated.deletedAt === undefined
-            ? updated
-            : null
-          : moderated
-            ? null
-            : held;
+        if (!held) return null;
+        const [updated] = reconcile([held]);
+        return updated && updated.deletedAt === undefined ? updated : null;
       };
       setSelected(reconcileSelection);
       setReply(reconcileSelection);
@@ -485,6 +503,12 @@ function ChatPanelBody({
           {...(presentation ? { presentation } : {})}
           canCompose={!recorded && !readOnly && view.access === "ready"}
           canReply={!recorded && !readOnly && view.access === "ready"}
+          emotes={emotes}
+          preferences={preferences}
+          {...(view.cosmetics ? { cosmetics: view.cosmetics } : {})}
+          {...(view.cosmeticRoleBadges
+            ? { roleBadges: view.cosmeticRoleBadges }
+            : {})}
           onSelect={setSelected}
           onDismiss={() => setSelected(null)}
           onReply={() => {

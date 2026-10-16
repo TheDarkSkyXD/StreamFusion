@@ -47,6 +47,11 @@ export type WatchChatEvent =
     }
   | { readonly kind: "clear-room"; readonly at: number };
 
+export type WatchChatModeration = {
+  readonly revision: number;
+  readonly event: Exclude<WatchChatEvent, { readonly kind: "message" }>;
+};
+
 export type WatchChatEventPreferences = {
   readonly showUserNotices: boolean;
   readonly showClearMsg: boolean;
@@ -90,6 +95,7 @@ export type WatchChatAvailability =
       readonly detail: string;
       readonly kind: "empty";
       readonly moderationRevision?: number;
+      readonly moderationEvents?: readonly WatchChatModeration[];
       readonly messageMetadataRevision?: number;
       readonly historyDetail?: string;
     }
@@ -98,6 +104,7 @@ export type WatchChatAvailability =
       readonly kind: "live";
       readonly messages: readonly WatchChatMessage[];
       readonly moderationRevision?: number;
+      readonly moderationEvents?: readonly WatchChatModeration[];
       readonly messageMetadataRevision?: number;
       readonly historyDetail?: string;
     }

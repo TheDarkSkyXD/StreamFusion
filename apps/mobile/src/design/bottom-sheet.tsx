@@ -25,6 +25,7 @@ export function MobileBottomSheet({
   heading,
   onDismiss,
   size = "content",
+  variant = "default",
   testID,
   title,
   visible,
@@ -34,6 +35,7 @@ export function MobileBottomSheet({
   readonly heading?: ReactNode;
   readonly onDismiss: () => void;
   readonly size?: "content" | "expanded" | "selection";
+  readonly variant?: "default" | "chat";
   readonly testID?: string;
   readonly title: string;
   readonly visible: boolean;
@@ -67,6 +69,7 @@ export function MobileBottomSheet({
           testID={testID ? `${testID}-menu` : undefined}
           style={[
             styles.sheet,
+            variant === "chat" ? styles.chat : null,
             size === "expanded"
               ? styles.expanded
               : size === "selection"
@@ -130,6 +133,10 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: mobileSizing.readableContentMaximum,
     overflow: "hidden",
+  },
+  chat: {
+    backgroundColor: "#1D1B20",
+    borderColor: "#1D1B20",
   },
   content: { maxHeight: "60%" },
   selection: { maxHeight: mobileSizing.selectSheetMaxHeight },

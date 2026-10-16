@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import {
   Image,
@@ -30,8 +30,15 @@ import {
 } from "@mobile/design/tokens";
 import type { ChatPresentation } from "../capabilities/chat-presentation";
 import type { WatchChatMessage } from "../capabilities/watch-chat";
+import type {
+  ChatCosmeticBadge,
+  ChatEmote,
+  ChatUserCosmetics,
+} from "../capabilities/chat-interactions";
+import type { ChatDisplayPreferences } from "@mobile/features/settings/capabilities/chat-display-settings";
 import { selectUserChatMessages } from "../domain/select-user-chat-messages";
 import { KickBadgeImage } from "./kick-badge-image";
+import { ChatMessageRow } from "./chat-message-row";
 
 type Action = {
   readonly label: string;
@@ -48,6 +55,10 @@ export function ChatUserSheet({
   presentation,
   canCompose,
   canReply,
+  emotes,
+  preferences,
+  cosmetics,
+  roleBadges,
   onSelect,
   onDismiss,
   onReply,
@@ -63,6 +74,10 @@ export function ChatUserSheet({
   readonly presentation?: ChatPresentation;
   readonly canCompose: boolean;
   readonly canReply: boolean;
+  readonly emotes: readonly ChatEmote[];
+  readonly preferences: ChatDisplayPreferences;
+  readonly cosmetics?: ReadonlyMap<string, ChatUserCosmetics>;
+  readonly roleBadges?: readonly ChatCosmeticBadge[];
   readonly onSelect: (message: WatchChatMessage) => void;
   readonly onDismiss: () => void;
   readonly onReply: () => void;
@@ -80,6 +95,36 @@ export function ChatUserSheet({
     "loading" | "ready" | "unavailable"
   >("loading");
   const [notice, setNotice] = useState("");
+  const historyScroll = useRef<ScrollView>(null);
+  const historyPositioned = useRef(false);
+  const selectedRowLayout = useRef<{
+    readonly y: number;
+    readonly height: number;
+  } | null>(null);
+  const historyHeight = useRef<number | null>(null);
+  const historyContentHeight = useRef<number | null>(null);
+  const positionSelectedRow = () => {
+    if (
+      historyPositioned.current ||
+      !selectedRowLayout.current ||
+      historyHeight.current === null ||
+      historyContentHeight.current === null ||
+      !historyScroll.current
+    )
+      return;
+    const { y, height } = selectedRowLayout.current;
+    historyScroll.current.scrollTo({
+      y: Math.min(
+        Math.max(
+          0,
+          y + Math.min(height, historyHeight.current) - historyHeight.current,
+        ),
+        Math.max(0, historyContentHeight.current - historyHeight.current),
+      ),
+      animated: false,
+    });
+    historyPositioned.current = true;
+  };
   const userId = selected.userId;
   const username = selected.username;
   const readChannel = presentation?.readChannel;
@@ -99,9 +144,8 @@ export function ChatUserSheet({
         const sameLogin = Boolean(
           login && channel?.username.trim().toLowerCase() === login,
         );
-        const sameUser = platform === "kick" || !userId
-          ? sameLogin
-          : channel?.id === userId;
+        const sameUser =
+          platform === "kick" || !userId ? sameLogin : channel?.id === userId;
         if (channel && sameUser) {
           setProfile(channel);
           setProfileStatus("ready");
@@ -217,6 +261,8 @@ export function ChatUserSheet({
   return (
     <MobileBottomSheet
       visible
+      variant="chat"
+      size="expanded"
       title={selected.displayName}
       onDismiss={onDismiss}
       heading={
@@ -303,27 +349,53 @@ export function ChatUserSheet({
       <View style={styles.body} testID="chat-user-actions">
         <View style={styles.history}>
           <Text style={mobileType.label}>Recent messages</Text>
-          <ScrollView style={styles.historyScroll} nestedScrollEnabled>
+          <ScrollView
+            ref={historyScroll}
+            testID="chat-user-history-scroll"
+            style={styles.historyScroll}
+            contentContainerStyle={styles.historyContent}
+            nestedScrollEnabled
+            onLayout={(event) => {
+              historyHeight.current = event.nativeEvent.layout.height;
+              positionSelectedRow();
+            }}
+            onContentSizeChange={(_, height) => {
+              historyContentHeight.current = height;
+              positionSelectedRow();
+            }}
+          >
             {history.map((message) => (
-              <Pressable
+              <View
                 key={message.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Select message from ${selected.displayName}`}
-                onPress={() => {
-                  if (message.deletedAt === undefined) onSelect(message);
-                }}
                 style={[
                   styles.historyRow,
                   message.id === selected.id ? styles.selected : null,
                 ]}
                 testID={`chat-user-message-${message.id}`}
+                onLayout={
+                  message.id === selected.id
+                    ? (event) => {
+                        selectedRowLayout.current = event.nativeEvent.layout;
+                        positionSelectedRow();
+                      }
+                    : undefined
+                }
               >
-                <Text style={mobileType.body}>
-                  {message.deletedAt === undefined
-                    ? message.text
-                    : "Message deleted"}
-                </Text>
-              </Pressable>
+                <ChatMessageRow
+                  message={message}
+                  platform={platform}
+                  emotes={emotes}
+                  preferences={preferences}
+                  cosmetics={
+                    message.userId ? cosmetics?.get(message.userId) : undefined
+                  }
+                  roleBadges={roleBadges}
+                  selectOnPress
+                  onSelect={(row) => {
+                    if (row.deletedAt === undefined) onSelect(row);
+                  }}
+                />
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -354,9 +426,11 @@ function SheetAction({
   const platformColor =
     platform === "kick" ? mobileColors.kick : mobileColors.twitch;
   const color =
-    tone === "primary" || (tone === "platform" && platform === "kick")
-      ? mobileColors.background
-      : mobileColors.textPrimary;
+    tone === "primary"
+      ? chatSheetPrimaryText
+      : tone === "platform" && platform === "kick"
+        ? mobileColors.background
+        : mobileColors.textPrimary;
   return (
     <Pressable
       accessibilityLabel={label}
@@ -396,12 +470,12 @@ const styles = StyleSheet.create({
   nameText: { flexShrink: 1 },
   badge: { width: 18, height: 18 },
   history: { gap: mobileSpacing.xSmall },
-  historyScroll: { maxHeight: 144 },
+  historyScroll: { height: 200 },
+  historyContent: { flexGrow: 1, justifyContent: "flex-end" },
   historyRow: {
-    padding: mobileSpacing.small,
-    borderRadius: mobileRadii.medium,
+    paddingHorizontal: mobileSpacing.small,
   },
-  selected: { backgroundColor: mobileColors.surfaceRaised },
+  selected: { backgroundColor: "rgba(22,53,132,0.5)" },
   actions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -416,10 +490,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: mobileSpacing.small,
     padding: mobileSpacing.small,
-    borderRadius: mobileRadii.medium,
-    backgroundColor: mobileColors.surfaceMuted,
+    borderRadius: mobileRadii.full,
+    backgroundColor: "#29272e",
   },
-  wide: { backgroundColor: mobileColors.textPrimary },
+  wide: { backgroundColor: "#B5C4FF" },
   danger: { backgroundColor: mobileColors.danger },
   disabled: { opacity: 0.5 },
   actionText: {
@@ -429,3 +503,5 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 });
+
+const chatSheetPrimaryText = "#1D1B20";

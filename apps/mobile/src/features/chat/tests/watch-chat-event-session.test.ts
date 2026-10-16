@@ -62,6 +62,34 @@ describe("watch chat event session", () => {
     session.dispose();
   });
 
+  it("retains a bounded, revisioned moderation history for held chat rows", () => {
+    const irc = socket();
+    const session = createWatchChatSession({
+      fetch: async () => new Response("{}"),
+      socketFactory: () => irc,
+    });
+    session.attach({ platform: "twitch", channelId: "1", channelName: "room" });
+    irc.onopen?.();
+    for (let revision = 1; revision <= 257; revision += 1) {
+      irc.onmessage?.({
+        data: `@target-msg-id=missing-${revision};tmi-sent-ts=${revision} :tmi.twitch.tv CLEARMSG #room :text`,
+      });
+    }
+    const snapshot = session.snapshot();
+    expect(snapshot).toMatchObject({ kind: "empty", moderationRevision: 257 });
+    if (snapshot.kind !== "empty") throw new Error("Expected empty chat");
+    expect(snapshot.moderationEvents?.length).toBe(256);
+    expect(snapshot.moderationEvents?.[0]).toMatchObject({
+      revision: 2,
+      event: { messageId: "missing-2" },
+    });
+    expect(snapshot.moderationEvents?.at(-1)).toMatchObject({
+      revision: 257,
+      event: { messageId: "missing-257" },
+    });
+    session.dispose();
+  });
+
   it("does not restore deleted content when history arrives after moderation", async () => {
     const irc = socket();
     let resolveHistory: ((response: Response) => void) | undefined;

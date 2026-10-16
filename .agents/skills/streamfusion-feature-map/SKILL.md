@@ -23,6 +23,7 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 - Keep business rules in `domain/`, provider-neutral ports in `capabilities/`, concrete integrations in `adapters/`, persistence in `data/`, and dependency wiring in `composition/`.
 - Put feature tests in that feature's `tests/`; retain only shared test infrastructure and cross-feature integrations in workspace test directories.
 - Shared UI primitives, runtime bootstrap, translation infrastructure, and shared contracts remain outside feature roots when they have no single feature owner.
+- When another view previews existing content, reuse its renderer and display preferences so both views stay consistent.
 - Cross the Electron boundary only through `electronAPI`, shared contracts, preload, and a registered IPC handler.
 - Put provider-neutral reads behind `IPlatformReader`. Put Twitch-only or Kick-only behavior behind a narrow capability interface or the provider adapter.
 - Put filesystem, database, network, FFmpeg, Electron, and credential work in the main process.

@@ -13,6 +13,7 @@ import type {
 import type {
   WatchChatConnectInput,
   WatchChatMessage,
+  WatchChatModeration,
 } from "../capabilities/watch-chat";
 import { createChatInteractions } from "../domain/chat-interactions";
 import { defaultChatDisplaySettingsView } from "@mobile/features/settings/domain/chat-display-preferences";
@@ -34,6 +35,17 @@ vi.mock("lucide-react-native", () => ({
 }));
 
 const scrollToOffset = vi.fn();
+const scrollToHistory = vi.fn();
+type LayoutEvent = {
+  readonly nativeEvent: {
+    readonly layout: { readonly y: number; readonly height: number };
+  };
+};
+let selectedHistoryLayout: ((event: LayoutEvent) => void) | undefined;
+let historyScrollEvents: {
+  readonly onLayout?: (event: LayoutEvent) => void;
+  readonly onContentSizeChange?: (width: number, height: number) => void;
+} = {};
 let nativeListEvents: {
   readonly maintainVisibleContentPosition?: {
     readonly minIndexForVisible: number;
@@ -61,6 +73,7 @@ vi.mock("react-native", async () => {
     readonly onRequestClose?: () => void;
     readonly source?: { readonly uri?: string };
     readonly style?: unknown;
+    readonly onLayout?: (event: LayoutEvent) => void;
   };
   const host = (tag: string) => (props: HostProps) =>
     createElement(
@@ -92,11 +105,25 @@ vi.mock("react-native", async () => {
           )
         : null,
     KeyboardAvoidingView: host("div"),
-    View: host("div"),
+    View: (props: HostProps) => {
+      if (props.testID?.startsWith("chat-user-message-") && props.onLayout)
+        selectedHistoryLayout = props.onLayout;
+      return host("div")(props);
+    },
     Text: host("span"),
     Pressable: (props: HostProps) =>
       host(props.onPress ? "button" : "div")(props),
-    ScrollView: host("div"),
+    ScrollView: (
+      props: HostProps & {
+        readonly ref?: React.Ref<unknown>;
+        readonly onContentSizeChange?: (width: number, height: number) => void;
+      },
+    ) => {
+      if (props.testID === "chat-user-history-scroll")
+        historyScrollEvents = props;
+      useImperativeHandle(props.ref, () => ({ scrollTo: scrollToHistory }));
+      return host("div")(props);
+    },
     FlatList: (
       props: HostProps & {
         readonly onScrollBeginDrag?: () => void;
@@ -219,9 +246,10 @@ function renderPanel(
       readonly recorded?: boolean;
       readonly readOnly?: boolean;
       readonly moderationRevision?: number;
+      readonly moderationEvents?: readonly WatchChatModeration[];
     } = {},
   ) => {
-    const { moderationRevision, ...panelMode } = mode;
+    const { moderationRevision, moderationEvents, ...panelMode } = mode;
     return act(async () => {
       root.render(
         createElement(ChatPanel, {
@@ -231,6 +259,7 @@ function renderPanel(
             messages,
             messageMetadataRevision,
             ...(moderationRevision === undefined ? {} : { moderationRevision }),
+            ...(moderationEvents === undefined ? {} : { moderationEvents }),
           },
           platform: target.platform,
           target,
@@ -285,6 +314,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   scrollToOffset.mockClear();
   nativeListEvents = {};
+  selectedHistoryLayout = undefined;
+  historyScrollEvents = {};
+  scrollToHistory.mockClear();
 });
 
 describe("chat panel target identity", () => {
@@ -1011,7 +1043,81 @@ describe("chat reading position", () => {
 });
 
 describe("chat user sheet", () => {
-  it("shows one profile name and one close control that dismisses the sheet", async () => {
+  it("opens overflowing history with the selected row visible once", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    const messages = Array.from({ length: 12 }, (_, index) => ({
+      ...messageA,
+      id: `message-${index}`,
+      text: `Message ${index}`,
+    }));
+    try {
+      await panel.render(channelA, messages);
+      await panel.press(
+        '[data-testid="watch-chat-row-message-11"] [aria-label="Actions for Alpha viewer"]',
+      );
+      await act(async () => {
+        historyScrollEvents.onLayout?.({
+          nativeEvent: { layout: { y: 0, height: 200 } },
+        });
+        selectedHistoryLayout?.({
+          nativeEvent: { layout: { y: 300, height: 30 } },
+        });
+        historyScrollEvents.onContentSizeChange?.(300, 400);
+      });
+      expect(scrollToHistory).toHaveBeenCalledExactlyOnceWith({
+        y: 130,
+        animated: false,
+      });
+      await panel.press(
+        '[data-testid="chat-user-message-message-10"] [data-testid="watch-chat-message-message-10"]',
+      );
+      await act(async () => {
+        selectedHistoryLayout?.({
+          nativeEvent: { layout: { y: 270, height: 30 } },
+        });
+        historyScrollEvents.onContentSizeChange?.(300, 410);
+      });
+      expect(scrollToHistory).toHaveBeenCalledTimes(1);
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("starts a selected row taller than the history viewport at its username", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    const messages = Array.from({ length: 12 }, (_, index) => ({
+      ...messageA,
+      id: `message-${index}`,
+      text: `Message ${index}`,
+    }));
+    try {
+      await panel.render(channelA, messages);
+      await panel.press(
+        '[data-testid="watch-chat-row-message-11"] [aria-label="Actions for Alpha viewer"]',
+      );
+      await act(async () => {
+        historyScrollEvents.onLayout?.({
+          nativeEvent: { layout: { y: 0, height: 200 } },
+        });
+        selectedHistoryLayout?.({
+          nativeEvent: { layout: { y: 300, height: 250 } },
+        });
+        historyScrollEvents.onContentSizeChange?.(300, 700);
+      });
+      expect(scrollToHistory).toHaveBeenCalledExactlyOnceWith({
+        y: 300,
+        animated: false,
+      });
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("shows one profile heading and one close control that dismisses the sheet", async () => {
     const panel = renderPanel(
       chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
     );
@@ -1022,15 +1128,155 @@ describe("chat user sheet", () => {
         '[aria-label="Alpha viewer"]',
       );
       if (!sheet) throw new Error("Missing user sheet.");
-      const names = [...sheet.querySelectorAll("span")].filter(
-        (element) => element.textContent === "Alpha viewer",
-      );
-      expect(names).toHaveLength(1);
+      expect(
+        sheet.querySelectorAll('[data-testid="chat-user-avatar"]'),
+      ).toHaveLength(1);
       const closeButtons = [...sheet.querySelectorAll("button")].filter(
         (element) => element.textContent === "Close",
       );
       expect(closeButtons).toHaveLength(1);
       await panel.press('[aria-label="Close sheet"]');
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("renders badges, sender names, and emotes in history, then copies the selected row", async () => {
+    const copyText = vi.fn(async () => undefined);
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+      [
+        {
+          provider: "twitch",
+          id: "25",
+          name: "Kappa",
+          insertion: "Kappa",
+          imageUrl: "https://example.test/kappa",
+          isGlobal: true,
+        },
+      ],
+      true,
+      { copyText, readChannel: async () => null, viewChannel: () => undefined },
+    );
+    const other = {
+      ...messageA,
+      id: "second",
+      text: "Kappa",
+      badges: [
+        {
+          setId: "subscriber",
+          version: "1",
+          imageUrl: "https://example.test/badge",
+          title: "Subscriber",
+        },
+      ],
+    };
+    try {
+      await panel.render(channelA, [messageA, other]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      const history = panel.container.querySelector(
+        '[data-testid="chat-user-message-second"]',
+      );
+      expect(history?.textContent).toContain("Alpha viewer");
+      expect(
+        history?.querySelector(
+          '[data-testid="watch-chat-badge-second-subscriber"]',
+        ),
+      ).not.toBeNull();
+      expect(history?.querySelector('[aria-label="Kappa"]')).not.toBeNull();
+      await panel.press(
+        '[data-testid="chat-user-message-second"] [data-testid="watch-chat-message-second"]',
+      );
+      await panel.press('[data-testid="chat-copy-message"]');
+      expect(copyText).toHaveBeenCalledWith("Kappa");
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("keeps an evicted selection through unrelated moderation but closes it for its own deletion", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA, [messageA]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.render(
+        channelA,
+        [{ ...messageA, id: "new", text: "New arrival" }],
+        0,
+        {
+          moderationRevision: 1,
+          moderationEvents: [
+            {
+              revision: 1,
+              event: { kind: "delete", messageId: "someone-else", at: 1 },
+            },
+          ],
+        },
+      );
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).not.toBeNull();
+      expect(panel.container.textContent).toContain("Alpha message");
+      await panel.render(
+        channelA,
+        [{ ...messageA, id: "new", text: "New arrival" }],
+        0,
+        {
+          moderationRevision: 2,
+          moderationEvents: [
+            {
+              revision: 1,
+              event: { kind: "delete", messageId: "someone-else", at: 1 },
+            },
+            {
+              revision: 2,
+              event: { kind: "delete", messageId: messageA.id, at: 2 },
+            },
+          ],
+        },
+      );
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
+  it("applies batched user moderation to an evicted selected message", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    try {
+      await panel.render(channelA, [messageA]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.render(
+        channelA,
+        [{ ...messageA, id: "new", text: "New arrival" }],
+        0,
+        {
+          moderationRevision: 2,
+          moderationEvents: [
+            {
+              revision: 1,
+              event: { kind: "delete", messageId: "other", at: 1 },
+            },
+            {
+              revision: 2,
+              event: {
+                kind: "clear-user",
+                username: "alpha-viewer",
+                at: 2,
+              },
+            },
+          ],
+        },
+      );
       expect(
         panel.container.querySelector('[data-testid="chat-user-actions"]'),
       ).toBeNull();
@@ -1252,7 +1498,9 @@ describe("chat user sheet", () => {
       expect(panel.container.textContent).toContain(
         "Channel details unavailable",
       );
-      await panel.press('[data-testid="chat-user-message-alpha-message"]');
+      await panel.press(
+        '[data-testid="chat-user-message-alpha-message"] [data-testid="watch-chat-message-alpha-message"]',
+      );
       await panel.press('[data-testid="chat-copy-message"]');
       expect(copyText).toHaveBeenCalledWith("Alpha message");
     } finally {

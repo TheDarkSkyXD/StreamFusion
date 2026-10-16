@@ -3,6 +3,7 @@ import type {
   WatchChatConnectInput,
   WatchChatMessage,
   WatchChatEvent,
+  WatchChatModeration,
   WatchChatEventPreferences,
   WatchChatSession,
   WatchChatSocketFactory,
@@ -62,6 +63,7 @@ export function createWatchChatSession(input: {
   let publicationTimer: ReturnType<typeof setTimeout> | undefined;
   let historyAbort: AbortController | null = null;
   let moderationRevision = 0;
+  let recentModeration: readonly WatchChatModeration[] = [];
   let moderationEvents: Exclude<
     WatchChatEvent,
     { readonly kind: "message" }
@@ -142,6 +144,7 @@ export function createWatchChatSession(input: {
     messages = [];
     moderationEvents = [];
     moderationRevision = 0;
+    recentModeration = [];
     historyDetail = undefined;
     badgeCatalog = new Map();
     badgeRevision += 1;
@@ -191,6 +194,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          moderationEvents: recentModeration,
           messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
@@ -219,6 +223,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          moderationEvents: recentModeration,
           messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
@@ -232,6 +237,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          moderationEvents: recentModeration,
           messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
@@ -260,6 +266,10 @@ export function createWatchChatSession(input: {
       }
       messages = applyWatchChatModeration(messages, event);
       moderationRevision += 1;
+      recentModeration = [
+        ...recentModeration.slice(-255),
+        { revision: moderationRevision, event },
+      ];
       clearTimeout(publicationTimer);
       publicationTimer = undefined;
       const preferences =
@@ -304,6 +314,7 @@ export function createWatchChatSession(input: {
               kind: "live",
               messages,
               moderationRevision,
+              moderationEvents: recentModeration,
               messageMetadataRevision: badgeRevision,
               ...(historyDetail ? { historyDetail } : {}),
             }
@@ -311,6 +322,7 @@ export function createWatchChatSession(input: {
               detail: "Chat is live.",
               kind: "empty",
               moderationRevision,
+              moderationEvents: recentModeration,
               messageMetadataRevision: badgeRevision,
               ...(historyDetail ? { historyDetail } : {}),
             },
@@ -404,6 +416,7 @@ export function createWatchChatSession(input: {
           kind: "live",
           messages,
           moderationRevision,
+          moderationEvents: recentModeration,
           messageMetadataRevision: badgeRevision,
           ...(historyDetail ? { historyDetail } : {}),
         });
