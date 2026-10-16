@@ -5,6 +5,7 @@ import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
 import { MobileChoiceGroup } from "@mobile/design/choice-group";
 import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileDialog } from "@mobile/design/dialog";
 import { MobileListRow, MobileSwitchRow } from "@mobile/design/list-row";
 import { MobileTextField } from "@mobile/design/text-input";
@@ -256,18 +257,17 @@ export function ProviderToolSheet({
         ) : null}
         {supported && validContext && tool === "stream" ? (
           <>
-            <View style={styles.row}>
-              {streamTools.map((item) => (
-                <MobileFilterChip
-                  key={item.id}
-                  label={item.title}
-                  accessibilityLabel={`Open ${item.title}`}
-                  selected={streamTool === item.id}
-                  onPress={() => setStreamTool(item.id)}
-                  testID={`mod-stream-${item.id}`}
-                />
-              ))}
-            </View>
+            <MobileUnderlineTabs
+              accessibilityLabel="Stream tools"
+              selectedId={streamTool}
+              onSelect={setStreamTool}
+              tabs={streamTools.map((item) => ({
+                id: item.id,
+                label: item.title,
+                accessibilityLabel: `Open ${item.title}`,
+                testID: `mod-stream-${item.id}`,
+              }))}
+            />
             <Text style={mobileType.label}>
               Stream information and raids require the broadcaster account.
               Other tools use their own moderator permissions.

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 import { MobileButton } from "@mobile/design/button";
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileTextField } from "@mobile/design/text-input";
 import { MobileProgress } from "@mobile/design/feedback";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -60,18 +60,16 @@ export function DownloadsScreen({
         value={query}
         onChange={setQuery}
       />
-      <View style={styles.filters}>
-        {filters.map((item) => (
-          <MobileFilterChip
-            key={item.value}
-            label={item.label}
-            accessibilityLabel={item.label}
-            selected={filter === item.value}
-            onPress={() => setFilter(item.value)}
-            testID={`downloads-filter-${item.value}`}
-          />
-        ))}
-      </View>
+      <MobileUnderlineTabs
+        accessibilityLabel="Download types"
+        selectedId={filter}
+        onSelect={setFilter}
+        tabs={filters.map((item) => ({
+          id: item.value,
+          label: item.label,
+          testID: `downloads-filter-${item.value}`,
+        }))}
+      />
       {offline ? (
         <MobileStatusPanel tone="info" testID="downloads-offline">
           <Text style={mobileType.body}>
@@ -175,7 +173,6 @@ const styles = StyleSheet.create({
     gap: mobileSpacing.medium,
     paddingBottom: 96,
   },
-  filters: { flexDirection: "row", flexWrap: "wrap", gap: mobileSpacing.small },
   row: {
     gap: mobileSpacing.small,
     borderBottomWidth: 1,

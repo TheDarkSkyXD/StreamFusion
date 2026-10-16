@@ -5,7 +5,7 @@ import { Text, View } from "react-native";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
 import { MobileDialog } from "@mobile/design/dialog";
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileIconButton } from "@mobile/design/icon-button";
 import { MobileListRow } from "@mobile/design/list-row";
 import { MobileListState } from "@mobile/design/list-state";
@@ -221,18 +221,18 @@ export function LibraryMockup({
               value={query}
               onChange={setQuery}
             />
-            <View style={ui.row}>
-              {["all", "videos", "clips", "recordings"].map((id) => (
-                <MobileFilterChip
-                  accessibilityLabel={id}
-                  key={id}
-                  label={id.slice(0, 1).toUpperCase() + id.slice(1)}
-                  onPress={() => setFilter(id)}
-                  selected={filter === id}
-                  testID={id}
-                />
-              ))}
-            </View>
+            <MobileUnderlineTabs
+              accessibilityLabel={
+                screen === "history" ? "History types" : "Download types"
+              }
+              onSelect={setFilter}
+              selectedId={filter}
+              tabs={["all", "videos", "clips", "recordings"].map((id) => ({
+                id,
+                label: id.slice(0, 1).toUpperCase() + id.slice(1),
+                testID: id,
+              }))}
+            />
             {ready ? (
               <PreviewSection
                 title={screen === "history" ? "Today" : "On this device"}
@@ -345,18 +345,16 @@ export function LibraryMockup({
         ) : null}
         {screen === "activity" ? (
           <>
-            <View style={ui.row}>
-              {["all", "live", "downloads"].map((id) => (
-                <MobileFilterChip
-                  accessibilityLabel={id}
-                  key={id}
-                  label={id.slice(0, 1).toUpperCase() + id.slice(1)}
-                  onPress={() => setFilter(id)}
-                  selected={filter === id}
-                  testID={id}
-                />
-              ))}
-            </View>
+            <MobileUnderlineTabs
+              accessibilityLabel="Activity sections"
+              onSelect={setFilter}
+              selectedId={filter}
+              tabs={["all", "live", "downloads"].map((id) => ({
+                id,
+                label: id.slice(0, 1).toUpperCase() + id.slice(1),
+                testID: id,
+              }))}
+            />
             {ready ? (
               <PreviewSection title="Today">
                 {filter !== "downloads" ? (

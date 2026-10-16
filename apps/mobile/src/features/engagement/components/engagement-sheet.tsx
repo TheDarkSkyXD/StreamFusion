@@ -4,7 +4,7 @@ import { AppState, StyleSheet, Text, View } from "react-native";
 import type { Platform } from "@streamfusion/core/platform";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileProgress } from "@mobile/design/feedback";
 import { MobileDialog } from "@mobile/design/dialog";
 import { MobileTextField } from "@mobile/design/text-input";
@@ -130,24 +130,23 @@ function EngagementSheetBody({
             }
           />
         ) : null}
-        <View style={styles.row}>
-          {(["poll", "prediction"] as const).map((tool) => (
-            <MobileFilterChip
-              key={tool}
-              accessibilityLabel={`Show ${tool}s`}
-              label={t(
-                `moderation.tools.${tool === "poll" ? "polls" : "predictions"}`,
-                { defaultValue: tool === "poll" ? "Polls" : "Predictions" },
-              )}
-              selected={selectedTool === tool}
-              onPress={() => {
-                setSelectedTool(tool);
-                setForm(null);
-              }}
-              testID={`engagement-tab-${tool}`}
-            />
-          ))}
-        </View>
+        <MobileUnderlineTabs
+          accessibilityLabel="Engagement tools"
+          selectedId={selectedTool}
+          onSelect={(tool) => {
+            setSelectedTool(tool);
+            setForm(null);
+          }}
+          tabs={(["poll", "prediction"] as const).map((tool) => ({
+            id: tool,
+            accessibilityLabel: `Show ${tool}s`,
+            label: t(
+              `moderation.tools.${tool === "poll" ? "polls" : "predictions"}`,
+              { defaultValue: tool === "poll" ? "Polls" : "Predictions" },
+            ),
+            testID: `engagement-tab-${tool}`,
+          }))}
+        />
         {!owner && !pending ? (
           <Text style={mobileType.body}>
             {channel.platform === "kick"

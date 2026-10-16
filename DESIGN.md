@@ -124,6 +124,13 @@ components:
 
 # Design System: StreamFusion
 
+## Mobile tabs
+
+Use `MobileUnderlineTabs` for section and content tabs, matching Search.
+The selected tab has white text and a white underline. Tab strips scroll
+horizontally instead of wrapping. Use `MobileFilterChip` for filters and choices,
+and keep primary navigation in the bottom bar or navigation rail.
+
 ## Moderation workspace
 
 The `/mod` pages intentionally follow Twitch Mod View at the user's request. Use Inter at

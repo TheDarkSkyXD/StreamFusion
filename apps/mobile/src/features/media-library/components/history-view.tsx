@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileTextField } from "@mobile/design/text-input";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -89,25 +89,23 @@ export function HistoryView({
         placeholder="Channel or title"
         value={model.query}
       />
-      <View style={styles.confirmActions}>
-        {(
+      <MobileUnderlineTabs
+        accessibilityLabel="History types"
+        selectedId={filter}
+        onSelect={setFilter}
+        tabs={(
           [
             { value: "all", label: "All" },
             { value: "video", label: "Videos" },
             { value: "clip", label: "Clips" },
             { value: "stream", label: "Live" },
           ] as const
-        ).map((item) => (
-          <MobileFilterChip
-            key={item.value}
-            label={item.label}
-            accessibilityLabel={item.label}
-            testID={`history-filter-${item.value}`}
-            selected={filter === item.value}
-            onPress={() => setFilter(item.value)}
-          />
-        ))}
-      </View>
+        ).map((item) => ({
+          id: item.value,
+          label: item.label,
+          testID: `history-filter-${item.value}`,
+        }))}
+      />
       {model.confirmation ? (
         <HistoryConfirmation
           confirmation={model.confirmation}
@@ -172,7 +170,9 @@ function HistoryConfirmation({
           testID="history-confirm"
           variant="primary"
         >
-          {confirmation.kind === "clear" ? "Clear History" : "Remove from history"}
+          {confirmation.kind === "clear"
+            ? "Clear History"
+            : "Remove from history"}
         </MobileButton>
         <MobileButton
           accessibilityLabel="Cancel history change"

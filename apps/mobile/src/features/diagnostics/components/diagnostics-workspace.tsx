@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { MobileButton } from "@mobile/design/button";
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileListRow } from "@mobile/design/list-row";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
-import { mobileColors, mobileRadii, mobileSpacing, mobileType } from "@mobile/design/tokens";
+import {
+  mobileColors,
+  mobileRadii,
+  mobileSpacing,
+  mobileType,
+} from "@mobile/design/tokens";
 import {
   MOBILE_DIAGNOSTICS_TABS,
   type MobileDiagnosticsTab,
@@ -34,28 +39,17 @@ export function DiagnosticsWorkspace({
 }: DiagnosticsWorkspaceProps) {
   return (
     <View style={styles.screen} testID="screen-diagnostics">
-      <View
-        accessibilityLabel="Diagnostics sections"
-        accessibilityRole="tablist"
-        style={styles.tabs}
-      >
-        <ScrollView
-          contentContainerStyle={styles.tabRow}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-        >
-          {MOBILE_DIAGNOSTICS_TABS.map((tab) => (
-            <MobileFilterChip
-              accessibilityLabel={DIAGNOSTICS_TAB_LABELS[tab]}
-              accessibilityRole="tab"
-              key={tab}
-              label={DIAGNOSTICS_TAB_LABELS[tab]}
-              onPress={() => onSelectTab(tab)}
-              selected={tab === selectedTab}
-              testID={`diagnostics-tab-${tab}`}
-            />
-          ))}
-        </ScrollView>
+      <View style={styles.tabs}>
+        <MobileUnderlineTabs
+          accessibilityLabel="Diagnostics sections"
+          onSelect={onSelectTab}
+          selectedId={selectedTab}
+          tabs={MOBILE_DIAGNOSTICS_TABS.map((id) => ({
+            id,
+            label: DIAGNOSTICS_TAB_LABELS[id],
+            testID: `diagnostics-tab-${id}`,
+          }))}
+        />
       </View>
       <MobileRefreshableScroll
         contentContainerStyle={styles.content}
@@ -66,8 +60,16 @@ export function DiagnosticsWorkspace({
         testID={`diagnostics-panel-${selectedTab}`}
       >
         <View style={styles.summary}>
-          <MobileListRow description={observationCopy} testID="diagnostics-observation" title="Observation" />
-          <MobileListRow description={collectionCopy} testID="diagnostics-collection" title="Collection" />
+          <MobileListRow
+            description={observationCopy}
+            testID="diagnostics-observation"
+            title="Observation"
+          />
+          <MobileListRow
+            description={collectionCopy}
+            testID="diagnostics-collection"
+            title="Collection"
+          />
         </View>
         <Text
           selectable
@@ -99,11 +101,7 @@ const styles = StyleSheet.create({
   tabs: {
     borderBottomColor: mobileColors.dividerMuted,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tabRow: {
-    gap: mobileSpacing.small,
     paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
   },
   body: {
     flex: 1,

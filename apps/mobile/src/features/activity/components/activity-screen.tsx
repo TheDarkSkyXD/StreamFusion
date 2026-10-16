@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 
-import { MobileFilterChip } from "@mobile/design/chip";
+import { MobileUnderlineTabs } from "@mobile/design/underline-tabs";
 import { MobileTextField } from "@mobile/design/text-input";
 import { MobileButton } from "@mobile/design/button";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
@@ -121,28 +121,22 @@ export function ActivityScreen({
             value={query}
             onChange={setQuery}
           />
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: mobileSpacing.small,
-            }}
-          >
-            {(["all", "unread", "jobs", "alerts"] as const).map((item) => (
-              <MobileFilterChip
-                key={item}
-                label={
+          <MobileUnderlineTabs
+            accessibilityLabel="Activity sections"
+            selectedId={filter}
+            onSelect={setFilter}
+            tabs={(["all", "unread", "jobs", "alerts"] as const).map(
+              (item) => ({
+                id: item,
+                label:
                   item === "jobs"
                     ? "Downloads"
-                    : item[0]!.toUpperCase() + item.slice(1)
-                }
-                accessibilityLabel={item}
-                selected={filter === item}
-                onPress={() => setFilter(item)}
-                testID={`activity-filter-${item}`}
-              />
-            ))}
-          </View>
+                    : item[0]!.toUpperCase() + item.slice(1),
+                accessibilityLabel: item,
+                testID: `activity-filter-${item}`,
+              }),
+            )}
+          />
           <DevelopmentActivityProofBanner
             model={developmentProof ?? null}
             {...(onExitDevelopmentProof

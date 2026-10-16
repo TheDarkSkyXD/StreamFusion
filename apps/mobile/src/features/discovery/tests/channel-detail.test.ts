@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MediaTab } from "../components/channel-detail-media";
 import { ChannelDetailBody } from "../components/channel-detail-screen";
+import { ChannelTabs } from "../components/channel-tabs";
 import { composeChannelDetail } from "../domain/channel-detail";
 import {
   fixtureChannel,
@@ -29,8 +30,11 @@ vi.mock("../components/live-stream-card-content", () => ({
 }));
 
 type ElementProps = Readonly<{
+  accessibilityRole?: string;
+  accessibilityState?: { readonly selected?: boolean };
   children?: unknown;
   disabled?: boolean;
+  horizontal?: boolean;
   onPress?: () => void;
   testID?: string;
 }>;
@@ -168,6 +172,23 @@ function bodyProps(
 }
 
 describe("channel detail screen", () => {
+  it("keeps channel tabs scrollable and selects their existing destinations", () => {
+    const select = vi.fn();
+    const nodes = descendants(ChannelTabs({ tab: "videos", onSelect: select }));
+    const tablist = nodes.find(
+      (node) => node.props.accessibilityRole === "tablist",
+    );
+    expect(tablist?.props.horizontal).toBe(true);
+    expect(
+      nodes.find((node) => node.props.testID === "channel-tab-videos")?.props
+        .accessibilityState?.selected,
+    ).toBe(true);
+    nodes
+      .find((node) => node.props.testID === "channel-tab-clips")
+      ?.props.onPress?.();
+    expect(select).toHaveBeenCalledWith("clips");
+  });
+
   it("shows one offline status and recent broadcasts without a disabled Watch action", () => {
     const channel = {
       id: "kick-c1",

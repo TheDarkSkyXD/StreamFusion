@@ -9,14 +9,12 @@ import {
 
 export function MobileFilterChip({
   accessibilityLabel,
-  accessibilityRole = "button",
   label,
   onPress,
   selected,
   testID,
 }: {
   readonly accessibilityLabel: string;
-  readonly accessibilityRole?: "button" | "tab";
   readonly label: string;
   readonly onPress: () => void;
   readonly selected: boolean;
@@ -25,7 +23,7 @@ export function MobileFilterChip({
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
-      accessibilityRole={accessibilityRole}
+      accessibilityRole="button"
       accessibilityState={{ selected }}
       android_ripple={{ color: mobileColors.tagSurfaceHover }}
       onPress={onPress}

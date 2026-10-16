@@ -23,6 +23,7 @@ vi.mock("react-native", () => ({
 
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
+  accessibilityRole?: string;
   accessibilityState?: Readonly<{ disabled?: boolean; selected?: boolean }>;
   children?: unknown;
   d?: string;
@@ -163,15 +164,15 @@ describe("mobile design primitives", () => {
   it("makes selected filters distinct from passive tags", () => {
     const nodes = descendants(
       MobileFilterChip({
-        accessibilityLabel: "Live tab",
-        accessibilityRole: "tab",
+        accessibilityLabel: "Live only",
         label: "Live",
         onPress: () => undefined,
         selected: true,
-        testID: "search-tab-streams",
+        testID: "filter-live",
       }),
     );
-    const chip = nodes.find((node) => node.props.testID === "search-tab-streams");
+    const chip = nodes.find((node) => node.props.testID === "filter-live");
+    expect(chip?.props.accessibilityRole).toBe("button");
     expect(resolveStyle(chip?.props.style).borderRadius).toBe(mobileRadii.full);
     expect(resolveStyle(chip?.props.style).backgroundColor).toBe(
       mobileColors.textPrimary,
