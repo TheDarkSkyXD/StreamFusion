@@ -51,7 +51,7 @@
     "@react-native/metro-config": "0.86.3",
     "@react-native/typescript-config": "0.86.3",
     "@storybook/addon-a11y": "10.5.10",
-    "@storybook/addon-docs": "10.5.10",
+    "@storybook/addon-docs": "10.6.1",
     "@storybook/react-native-web-vite": "10.5.10",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.3",
