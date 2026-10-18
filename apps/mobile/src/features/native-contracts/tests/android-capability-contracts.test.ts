@@ -160,6 +160,59 @@ function reader<TBinding>(binding: TBinding): NativeBindingReader<TBinding> {
 }
 
 describe("Android capability module contracts", () => {
+  it("delivers source recovery events only with valid interruption identities", () => {
+    let publish: ((event: unknown) => void) | undefined;
+    const port = createAndroidPlaybackContractPort(reader({
+      ...playbackBinding,
+      addListener: (_name, listener) => {
+        publish = listener;
+        return { remove() {} };
+      },
+    }));
+    const events: unknown[] = [];
+    const unsubscribe = port.subscribe((event) => events.push(event));
+    for (const kind of ["source-recovery-required", "source-recovered"]) {
+      publish?.({ kind, sessionId: "watch:1", interruptionId: 1 });
+      for (const interruptionId of [undefined, 0, -1, 1.5, "1", NaN]) {
+        publish?.({ kind, sessionId: "watch:1", interruptionId });
+      }
+      publish?.({ kind, sessionId: "", interruptionId: 1 });
+    }
+    expect(events).toEqual([
+      { kind: "source-recovery-required", sessionId: "watch:1", interruptionId: 1 },
+      { kind: "source-recovered", sessionId: "watch:1", interruptionId: 1 },
+    ]);
+    unsubscribe();
+  });
+
+  it("renews an existing source and rejects a response for another session", async () => {
+    const requests: unknown[] = [];
+    const request = {
+      interruptionId: 2,
+      requestHeaders: { Accept: "application/vnd.apple.mpegurl" },
+      sessionId: "watch:1",
+      sourceUri: "https://example.test/renewed.m3u8",
+    };
+    const port = createAndroidPlaybackContractPort(reader({
+      ...playbackBinding,
+      recoverSource: async (input) => {
+        requests.push(input);
+        return { kind: "completed", value: { pictureInPictureEligible: true, sessionId: input.sessionId } };
+      },
+    }));
+    await expect(port.recoverSource?.(request)).resolves.toEqual({
+      kind: "completed", value: { pictureInPictureEligible: true, sessionId: "watch:1" },
+    });
+    expect(requests).toEqual([request]);
+    const mismatched = createAndroidPlaybackContractPort(reader({
+      ...playbackBinding,
+      recoverSource: async () => ({ kind: "completed", value: { pictureInPictureEligible: true, sessionId: "other" } }),
+    }));
+    await expect(mismatched.recoverSource?.(request)).resolves.toMatchObject({
+      kind: "unavailable", failure: { code: "NATIVE_RESULT_INVALID" },
+    });
+  });
+
   it("parses native PiP entry and exit events with a session identity", () => {
     let publish: ((event: unknown) => void) | undefined;
     const port = createAndroidPlaybackContractPort(

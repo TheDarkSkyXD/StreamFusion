@@ -5,6 +5,8 @@ import android.os.Looper
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,6 +81,39 @@ class CaptionPlaybackLifecycleTest {
   @Test
   fun failedPlaybackReleasesItsPlayerAndCaptionsWithoutPublishingEnded() {
     assertTerminalCleanup("failed") { it.onPlayerError(playbackError()) }
+  }
+
+  @Test
+  fun exhausted503RequestsSourceRecoveryWithoutReleasingThePlayerOrCaptions() = withCaptions { owner ->
+    val events = mutableListOf<Map<String, Any>>()
+    FocusedPlaybackSessionOwner.attachEmitter { events.add(it) }
+    val result = FocusedPlaybackSessionOwner.start(context, mapOf(
+      "sessionId" to "caption-player",
+      "sourceUri" to "https://127.0.0.1:1/live.m3u8",
+      "sourceRecovery" to "resolve-live-source",
+    ))
+    assertEquals("completed", result["kind"])
+    val player = playbackPlayer("caption-player")
+    startCaptions(owner)
+
+    val httpError = HttpDataSource.InvalidResponseCodeException(
+      503, "Unavailable", null, emptyMap(),
+      DataSpec.Builder().setUri("https://127.0.0.1:1/live.m3u8").build(), byteArrayOf(),
+    )
+    playbackListener(player).onPlayerError(PlaybackException(
+      "HTTP 503", httpError, PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+    ))
+    shadowOf(Looper.getMainLooper()).idle()
+
+    assertFalse(player.isReleased)
+    assertTrue(player === playbackPlayer("caption-player"))
+    assertEquals("active", owner.proof()["state"])
+    assertEquals(listOf("source-recovery-required"), events.filter {
+      it["kind"] == "source-recovery-required"
+    }.map { it["kind"] })
+    assertEquals("caption-player", events.single { it["kind"] == "source-recovery-required" }["sessionId"])
+    assertEquals(1, events.single { it["kind"] == "source-recovery-required" }["interruptionId"])
+    assertEquals(emptyList<String>(), terminalEvents(events))
   }
 
   @Test
