@@ -3,6 +3,11 @@ package expo.modules.streamfusionnativecontracts
 import android.app.Activity
 import android.os.Looper
 import android.widget.FrameLayout
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -79,17 +84,61 @@ class FocusedPlaybackScreenAwakeTest {
     assertTrue(view.keepScreenOn)
   }
 
-  private fun start(sessionId: String) {
+  @Test
+  fun pendingLiveSourceRecoveryKeepsTheScreenAwakeUntilPausedOrEnded() {
+    val sessionId = "watch"
+    start(sessionId, sourceRecovery = true)
+    val player = player(sessionId)
+    player.stop()
+    assertTrue(player.playWhenReady)
+    listener(player).onPlayerError(httpError())
+
+    assertTrue(keepsScreenOn(sessionId))
+    FocusedPlaybackSessionOwner.setPlaying(sessionId, false)
+    assertFalse(keepsScreenOn(sessionId))
+    FocusedPlaybackSessionOwner.setPlaying(sessionId, true)
+    assertTrue(keepsScreenOn(sessionId))
+    FocusedPlaybackSessionOwner.end(sessionId)
+    assertFalse(keepsScreenOn(sessionId))
+  }
+
+  private fun start(sessionId: String, sourceRecovery: Boolean = false) {
     val view = StreamFusionPlaybackView(activity)
     view.setSessionId(sessionId)
     container.addView(view)
     views[sessionId] = view
     FocusedPlaybackSessionOwner.rememberActivity(activity)
-    FocusedPlaybackSessionOwner.start(activity, mapOf(
+    val request = mutableMapOf<String, Any>(
       "sessionId" to sessionId,
       "sourceUri" to "https://127.0.0.1:1/awake.m3u8",
-    ))
+    )
+    if (sourceRecovery) request["sourceRecovery"] = "resolve-live-source"
+    FocusedPlaybackSessionOwner.start(activity, request)
     shadowOf(Looper.getMainLooper()).idle()
+  }
+
+  private fun player(sessionId: String): ExoPlayer {
+    val sessions = field(FocusedPlaybackSessionOwner, "sessions") as Map<*, *>
+    return field(requireNotNull(sessions[sessionId]), "player") as ExoPlayer
+  }
+
+  private fun listener(player: ExoPlayer): Player.Listener {
+    val listeners = field(player, "listeners")!!
+    val holders = field(listeners, "listeners") as Set<*>
+    return holders.map { field(requireNotNull(it), "listener") }
+      .filterIsInstance<Player.Listener>()
+      .single { it.javaClass.enclosingClass == FocusedPlaybackSessionOwner.javaClass }
+  }
+
+  private fun field(owner: Any, name: String): Any? =
+    owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
+
+  private fun httpError(): PlaybackException {
+    val cause = HttpDataSource.InvalidResponseCodeException(
+      503, "Unavailable", null, emptyMap(),
+      DataSpec.Builder().setUri("https://127.0.0.1:1/awake.m3u8").build(), byteArrayOf(),
+    )
+    return PlaybackException("HTTP 503", cause, PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS)
   }
 
   private fun keepsScreenOn(sessionId: String): Boolean =

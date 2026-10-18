@@ -7,6 +7,7 @@ import type {
 } from "../../capabilities/watch";
 import { kickHlsRequestHeaders } from "../../domain/hls-request-headers";
 import { asHlsSourceUri } from "../../domain/hls-source";
+import { isAbortError } from "../../utils/is-abort-error";
 
 export function createKickLivePlaybackSource(input: {
   readonly fetch: typeof globalThis.fetch;
@@ -110,7 +111,7 @@ export function createKickLivePlaybackSource(input: {
           sourceUri,
         };
       } catch (error) {
-        if (signal.aborted || isAbort(error)) return cancelled();
+        if (signal.aborted || isAbortError(error)) return cancelled();
         return {
           failure: {
             detail: "Could not reach Kick for live playback.",
@@ -153,7 +154,7 @@ async function requestGuestPlaybackSource(input: {
       sourceUri,
     };
   } catch (error) {
-    return input.signal.aborted || isAbort(error) ? cancelled() : null;
+    return input.signal.aborted || isAbortError(error) ? cancelled() : null;
   }
 }
 
@@ -192,13 +193,6 @@ function rejected(status: number): LivePlaybackSourceResolution {
     integration: "kick-v1-playback-url",
     kind: "unavailable",
   };
-}
-
-function isAbort(error: unknown): boolean {
-  return (
-    (error instanceof DOMException && error.name === "AbortError") ||
-    (error instanceof Error && error.name === "AbortError")
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

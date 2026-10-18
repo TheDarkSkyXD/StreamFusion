@@ -7,6 +7,7 @@ export interface NativeUnsupportedResponse {
 }
 
 interface NativePlaybackModule {
+  recoverSource(request: unknown): Promise<unknown>;
   addListener(event: "onNativePlayback", listener: (event: unknown) => void): { remove(): void };
   removeListeners(count: number): void;
   readPlaybackObservation(sessionId: unknown): Promise<unknown>;
@@ -131,7 +132,7 @@ function withEvents<T extends object>(module: T, moduleName: string): T {
 
 export function getPlaybackModule(): NativePlaybackModule | null {
   const module = optionalNativeModule<NativePlaybackModule>("StreamFusionPlayback", [
-    "getContractVersion", "startFocusedSession", "endFocusedSession", "readPlaybackObservation",
+    "getContractVersion", "startFocusedSession", "recoverSource", "endFocusedSession", "readPlaybackObservation",
     "setPlaybackSpeed", "setPlaying", "setMuted", "setVolume", "listQualities",
     "setQuality", "seekTo", "enterPictureInPicture", "addListener", "removeListeners",
   ]);

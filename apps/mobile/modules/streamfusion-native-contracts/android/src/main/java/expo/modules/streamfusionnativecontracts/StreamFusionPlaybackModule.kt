@@ -21,7 +21,7 @@ class StreamFusionPlaybackModule(private val context: ReactApplicationContext) :
   override fun getName() = "StreamFusionPlayback"
 
   @ReactMethod(isBlockingSynchronousMethod = true)
-  fun getContractVersion() = 5
+  fun getContractVersion() = 6
 
   @ReactMethod fun addListener(eventName: String) = Unit
   @ReactMethod fun removeListeners(count: Int) = Unit
@@ -49,6 +49,10 @@ class StreamFusionPlaybackModule(private val context: ReactApplicationContext) :
 
   @ReactMethod fun endFocusedSession(sessionId: String, promise: Promise) = NativeBridge.onMain(promise) {
     FocusedPlaybackSessionOwner.end(sessionId)
+  }
+
+  @ReactMethod fun recoverSource(request: ReadableMap, promise: Promise) = NativeBridge.onMain(promise) {
+    FocusedPlaybackSessionOwner.recoverSource(NativeBridge.nonNullMap(request))
   }
 
   @ReactMethod fun setPlaying(sessionId: String, playing: Boolean, promise: Promise) = NativeBridge.onMain(promise) {

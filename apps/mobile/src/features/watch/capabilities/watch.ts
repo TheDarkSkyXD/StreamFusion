@@ -192,6 +192,16 @@ export type NativePlaybackFailureCode =
   | "PLAYBACK_UNKNOWN";
 
 export type NativePlaybackEvent =
+  | {
+      readonly kind: "source-recovery-required";
+      readonly interruptionId: number;
+      readonly sessionId: string;
+    }
+  | {
+      readonly kind: "source-recovered";
+      readonly interruptionId: number;
+      readonly sessionId: string;
+    }
   | { readonly kind: "buffering"; readonly sessionId: string }
   | { readonly kind: "playing"; readonly sessionId: string }
   | {
@@ -274,6 +284,9 @@ export type FocusedPictureInPictureResult =
   | { readonly kind: "unsupported"; readonly failure: FocusedPlaybackFailure };
 
 export interface FocusedPlaybackPort {
+  recoverSource?(
+    input: FocusedPlaybackSourceRecoveryRequest,
+  ): Promise<FocusedPlaybackControlResult>;
   readPlaybackObservation?(
     sessionId: string,
   ): Promise<PlaybackObservationResult>;
@@ -307,6 +320,7 @@ export interface FocusedPlaybackPort {
     volume: number,
   ): Promise<FocusedPlaybackControlResult>;
   start(input: {
+    readonly sourceRecovery?: "resolve-live-source";
     readonly muted?: boolean;
     readonly allowHevc?: boolean;
     readonly buffer?: {
@@ -322,6 +336,11 @@ export interface FocusedPlaybackPort {
   }): Promise<FocusedPlaybackStartResult>;
   subscribe(listener: (event: NativePlaybackEvent) => void): () => void;
 }
+
+export type FocusedPlaybackSourceRecoveryRequest = Pick<
+  Parameters<FocusedPlaybackPort["start"]>[0],
+  "sessionId" | "sourceUri" | "requestHeaders" | "filtering"
+> & { readonly interruptionId: number };
 
 export type FocusedPlaybackProtection =
   | { readonly kind: "normal" }

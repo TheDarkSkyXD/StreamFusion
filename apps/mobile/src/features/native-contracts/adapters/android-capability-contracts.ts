@@ -75,8 +75,8 @@ function describe(capability: AndroidCapabilityId): string {
 
 function expectedContractVersion(
   capability: AndroidCapabilityId,
-): 1 | 2 | 3 | 4 | 5 {
-  if (capability === "playback") return 5;
+): 1 | 2 | 3 | 4 | 5 | 6 {
+  if (capability === "playback") return 6;
   if (capability === "diagnostics" || capability === "media-jobs") {
     return 3;
   }
@@ -353,6 +353,17 @@ function nativePlaybackEvent(value: unknown): NativePlaybackEvent | undefined {
   const event = object(value);
   const sessionId = event ? nonEmptyString(event.sessionId) : undefined;
   if (!event || !sessionId) return undefined;
+  if (
+    event.kind === "source-recovery-required" ||
+    event.kind === "source-recovered"
+  ) {
+    const interruptionId = finiteNumber(event.interruptionId);
+    return interruptionId !== undefined &&
+      Number.isSafeInteger(interruptionId) &&
+      interruptionId > 0
+      ? { kind: event.kind, sessionId, interruptionId }
+      : undefined;
+  }
   if (event.kind === "buffering") return { kind: "buffering", sessionId };
   if (event.kind === "playing") return { kind: "playing", sessionId };
   if (event.kind === "ended") return { kind: "ended", sessionId };
@@ -792,6 +803,23 @@ export function createAndroidPlaybackContractPort(
 ): AndroidPlaybackContractPort {
   return {
     readiness: () => readiness("playback", reader),
+    recoverSource: (request) =>
+      invoke(
+        "playback",
+        reader,
+        (binding) =>
+          binding.recoverSource
+            ? binding.recoverSource(request)
+            : Promise.resolve({
+                kind: "unsupported",
+                code: "NATIVE_OPERATION_UNSUPPORTED",
+                diagnostic: "Playback recovery is unavailable in this host.",
+              }),
+        (value) => {
+          const state = playbackState(value);
+          return state?.sessionId === request.sessionId ? state : undefined;
+        },
+      ),
     readPlaybackObservation: (sessionId) =>
       invoke(
         "playback",

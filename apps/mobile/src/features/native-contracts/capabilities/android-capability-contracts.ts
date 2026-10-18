@@ -29,7 +29,7 @@ export type AndroidNativeFailure =
 export type AndroidCapabilityReadiness =
   | {
       readonly capability: AndroidCapabilityId;
-      readonly contractVersion: 1 | 2 | 3 | 4 | 5;
+      readonly contractVersion: 1 | 2 | 3 | 4 | 5 | 6;
       readonly kind: "ready";
     }
   | {
@@ -64,6 +64,7 @@ export type PlaybackBufferRequest = {
 };
 
 export interface PlaybackSessionRequest {
+  readonly sourceRecovery?: "resolve-live-source";
   readonly muted?: boolean;
   readonly allowHevc?: boolean;
   readonly buffer?: PlaybackBufferRequest;
@@ -77,6 +78,11 @@ export interface PlaybackSessionRequest {
   readonly sessionId: string;
   readonly sourceUri: string;
 }
+
+export type PlaybackSourceRecoveryRequest = Pick<
+  PlaybackSessionRequest,
+  "sessionId" | "sourceUri" | "requestHeaders" | "filtering"
+> & { readonly interruptionId: number };
 
 export interface PlaybackSessionState {
   readonly pictureInPictureEligible: boolean;
@@ -100,6 +106,16 @@ export type NativePlaybackFailureCode =
   | "PLAYBACK_UNKNOWN";
 
 export type NativePlaybackEvent =
+  | {
+      readonly kind: "source-recovery-required";
+      readonly interruptionId: number;
+      readonly sessionId: string;
+    }
+  | {
+      readonly kind: "source-recovered";
+      readonly interruptionId: number;
+      readonly sessionId: string;
+    }
   | { readonly kind: "buffering"; readonly sessionId: string }
   | { readonly kind: "playing"; readonly sessionId: string }
   | {
@@ -156,6 +172,9 @@ export type PlaybackQualityCatalog = {
 };
 
 export interface AndroidPlaybackContractPort extends AndroidCapabilityContractPort {
+  recoverSource?(
+    request: PlaybackSourceRecoveryRequest,
+  ): Promise<AndroidNativeOperationResult<PlaybackSessionState>>;
   readPlaybackObservation?(
     sessionId: string,
   ): Promise<AndroidNativeOperationResult<PlaybackObservation>>;

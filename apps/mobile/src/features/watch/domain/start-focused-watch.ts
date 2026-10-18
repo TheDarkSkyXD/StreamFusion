@@ -1,4 +1,7 @@
-import type { PlaybackFiltering, PlaybackFilterRequest } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
+import type {
+  PlaybackFiltering,
+  PlaybackFilterRequest,
+} from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { TwitchPlaylistProxyPreferences } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 import type { PlaybackSessionPolicy } from "@mobile/features/settings/capabilities/settings";
 import type {
@@ -28,6 +31,7 @@ export type FocusedWatchStartOutcome =
   | {
       readonly integration: PlaybackIntegration;
       readonly kind: "started";
+      readonly candidateIndex: number;
       readonly lease: { release(): void };
       readonly policySequence: number;
       readonly session: PlaybackSessionState;
@@ -51,7 +55,63 @@ type FocusedWatchStartInput = {
 };
 
 type SourceFailure = Exclude<LivePlaybackSourceFailure, { kind: "cancelled" }>;
-type ResolvedSource = Extract<LivePlaybackSourceResolution, { kind: "resolved" }>;
+type ResolvedSource = Extract<
+  LivePlaybackSourceResolution,
+  { kind: "resolved" }
+>;
+
+type SourcePreparationInput = Pick<
+  FocusedWatchStartInput,
+  "filtering" | "playlistProxy" | "target"
+>;
+
+export async function prepareWatchSourceAttempts(
+  input: SourcePreparationInput,
+  resolved: ResolvedSource,
+) {
+  const filtering = await input.filtering?.effective(input.target.platform);
+  const targetFiltering: PlaybackFilterRequest | undefined =
+    filtering === undefined
+      ? undefined
+      : input.target.media
+        ? { ...filtering, enabled: false, mode: "passthrough" }
+        : input.target.platform === "twitch"
+          ? { ...filtering, channelName: input.target.channelName }
+          : filtering;
+  const proxyPreferences = await input.playlistProxy?.snapshot();
+  const attempts = playlistProxyPlaybackAttempts({
+    direct: {
+      requestHeaders: resolved.requestHeaders,
+      sourceUri: resolved.sourceUri,
+    },
+    preferences:
+      targetFiltering?.enabled === true &&
+      targetFiltering.mode !== "passthrough"
+        ? undefined
+        : proxyPreferences,
+    target: input.target,
+  });
+  return attempts.map((attempt) => {
+    const isProxyAttempt = attempt.sourceUri !== resolved.sourceUri;
+    const attemptFiltering =
+      targetFiltering === undefined
+        ? undefined
+        : isProxyAttempt
+          ? {
+              enabled: false,
+              mode: "passthrough" as const,
+              platform: input.target.platform,
+            }
+          : targetFiltering;
+    return {
+      ...(attemptFiltering === undefined
+        ? {}
+        : { filtering: attemptFiltering }),
+      requestHeaders: attempt.requestHeaders,
+      sourceUri: attempt.sourceUri,
+    };
+  });
+}
 
 export async function runFocusedWatchStart(
   input: FocusedWatchStartInput,
@@ -65,7 +125,11 @@ export async function runFocusedWatchStart(
     return { kind: "cancelled" };
   }
   if (policy.kind === "disabled") {
-    return compatibilityDisabled(integration, input.target.platform, policy.reason);
+    return compatibilityDisabled(
+      integration,
+      input.target.platform,
+      policy.reason,
+    );
   }
   const resolved = await resolveWatchSource(
     input.sources,
@@ -76,7 +140,11 @@ export async function runFocusedWatchStart(
   if (stale()) return { kind: "cancelled" };
   if (resolved.kind === "unavailable") {
     if (resolved.failure.kind === "cancelled") return { kind: "cancelled" };
-    return sourceUnavailable(integration, input.target.platform, resolved.failure);
+    return sourceUnavailable(
+      integration,
+      input.target.platform,
+      resolved.failure,
+    );
   }
   return startAuthorizedSession(
     input,
@@ -106,62 +174,24 @@ async function startAuthorizedSession(
   stale: () => boolean,
   policySequence: number,
 ): Promise<FocusedWatchStartOutcome> {
-  const filtering =
-    input.filtering === undefined
-      ? undefined
-      : await input.filtering.effective(input.target.platform);
-  const targetFiltering: PlaybackFilterRequest | undefined =
-    filtering === undefined
-      ? undefined
-      : input.target.media
-        ? { ...filtering, enabled: false, mode: "passthrough" }
-        : input.target.platform === "twitch"
-          ? { ...filtering, channelName: input.target.channelName }
-          : filtering;
-  if (stale()) {
-    controller.abort();
-    return { kind: "cancelled" };
-  }
   const settings = input.playbackSettings?.snapshot();
-  const proxyPreferences =
-    input.playlistProxy === undefined
-      ? undefined
-      : await input.playlistProxy.snapshot();
+  const attempts = await prepareWatchSourceAttempts(input, resolved);
   if (stale()) {
     controller.abort();
     return { kind: "cancelled" };
   }
-  const attempts = playlistProxyPlaybackAttempts({
-    direct: {
-      requestHeaders: resolved.requestHeaders,
-      sourceUri: resolved.sourceUri,
-    },
-    preferences:
-      targetFiltering?.enabled === true && targetFiltering.mode !== "passthrough"
-        ? undefined
-        : proxyPreferences,
-    target: input.target,
-  });
   let lastDetail = "Native playback could not start.";
-  for (const attempt of attempts) {
+  for (const [candidateIndex, attempt] of attempts.entries()) {
     if (stale()) {
       controller.abort();
       return { kind: "cancelled" };
     }
-    const isProxyAttempt = attempt.sourceUri !== resolved.sourceUri;
-    const attemptFiltering =
-      targetFiltering === undefined
-        ? undefined
-        : isProxyAttempt
-          ? {
-              enabled: false,
-              mode: "passthrough" as const,
-              platform: input.target.platform,
-            }
-          : targetFiltering;
     const sessionId = input.sessionIds.create();
     const started = await input.playback.start({
-      ...(attemptFiltering === undefined ? {} : { filtering: attemptFiltering }),
+      ...attempt,
+      ...(input.target.media === undefined && input.playback.recoverSource
+        ? { sourceRecovery: "resolve-live-source" as const }
+        : {}),
       ...(settings === undefined
         ? {}
         : {
@@ -173,9 +203,7 @@ async function startAuthorizedSession(
               maxMaxBufferLengthSec: settings.maxBufferSec,
             },
           }),
-      requestHeaders: attempt.requestHeaders,
       sessionId,
-      sourceUri: attempt.sourceUri,
     });
     if (stale()) {
       void input.playback.end(sessionId);
@@ -189,6 +217,7 @@ async function startAuthorizedSession(
       await input.playback.setQuality(sessionId, settings.quality);
     }
     return {
+      candidateIndex,
       integration,
       kind: "started",
       lease: input.protection.acquire(started.session.sessionId),

@@ -275,7 +275,7 @@ const connectivitySession = createConnectivityRuntime({
   settings: persistenceRuntime.productState.settings,
 });
 const kickLiveCatalog = createKickLiveCatalog({
-  fetch: connectivitySession.fetch,
+  fetch: connectivitySession.backgroundFetch,
 });
 const adblockSession = createAdBlockSession({
   policy: createEffectiveCapabilityPolicyReader({
@@ -668,7 +668,7 @@ export function MobileRuntime() {
         chatPresentation: chatRuntime.presentation,
         discovery: homeDiscovery,
         kickLiveCatalog,
-        fetch: connectivitySession.fetch,
+        fetch: connectivitySession.backgroundFetch,
         filtering: adblockSession,
         history: persistenceRuntime.productState.watchHistory,
         playback: androidCapabilityRuntime.contracts.playback,

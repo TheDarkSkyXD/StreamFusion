@@ -12,6 +12,7 @@ export function nativeProxyAvailability(): "ready" | "unavailable" {
 }
 
 export function createProxyFetch(input: {
+  readonly directFetch?: typeof globalThis.fetch;
   readonly readTransport: () => Promise<ProxyTransport>;
   readonly readCredentials: () => Promise<{
     readonly username: string;
@@ -21,7 +22,7 @@ export function createProxyFetch(input: {
   return async (resource, init) => {
     const transport = await input.readTransport();
     if (transport.kind !== "on") {
-      return globalThis.fetch(resource, init);
+      return (input.directFetch ?? globalThis.fetch)(resource, init);
     }
     if (nativeProxyAvailability() !== "ready") {
       throw new TypeError(
@@ -99,6 +100,8 @@ function headersFrom(headers: HeadersInit | undefined): Record<string, string> {
   return { ...headers };
 }
 
-function abortError(): DOMException {
-  return new DOMException("The request was aborted.", "AbortError");
+function abortError(): Error {
+  const error = new Error("The request was aborted.");
+  error.name = "AbortError";
+  return error;
 }

@@ -3,7 +3,11 @@ import type {
   SecureSecretStore,
 } from "@mobile/features/storage/capabilities/persistence";
 
-import { createProxyFetch, nativeProxyAvailability } from "../adapters/native-proxy-fetch";
+import {
+  createProxyFetch,
+  nativeProxyAvailability,
+} from "../adapters/native-proxy-fetch";
+import { backgroundFetch as directBackgroundFetch } from "../adapters/background-fetch";
 import { readAndroidNetwork } from "../adapters/android-network-source";
 import type {
   ConnectivitySession,
@@ -30,7 +34,9 @@ export function createConnectivityRuntime(input: {
   const credentials = createProxyCredentialStore({ secrets: input.secrets });
   const readNetwork = input.readNetwork ?? readAndroidNetwork;
 
-  async function snapshot(saveDetail: string | null = null): Promise<ConnectivityView> {
+  async function snapshot(
+    saveDetail: string | null = null,
+  ): Promise<ConnectivityView> {
     const [stored, secret, network] = await Promise.all([
       preferences.read(),
       credentials.read(),
@@ -54,8 +60,14 @@ export function createConnectivityRuntime(input: {
     readCredentials: () => credentials.read(),
     readTransport: currentTransport,
   });
+  const backgroundFetch = createProxyFetch({
+    directFetch: directBackgroundFetch,
+    readCredentials: () => credentials.read(),
+    readTransport: currentTransport,
+  });
 
   return {
+    backgroundFetch,
     fetch,
     load: () => snapshot(),
     readNetwork,

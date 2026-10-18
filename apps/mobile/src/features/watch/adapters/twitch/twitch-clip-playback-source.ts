@@ -4,6 +4,7 @@ import type {
 } from "../../capabilities/watch";
 import { twitchHlsRequestHeaders } from "../../domain/hls-request-headers";
 import { asHlsSourceUri } from "../../domain/hls-source";
+import { isAbortError } from "../../utils/is-abort-error";
 
 const TWITCH_GQL_URL = "https://gql.twitch.tv/gql";
 const TWITCH_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
@@ -100,10 +101,7 @@ function rejected(status: number): LivePlaybackSourceResolution {
 }
 
 function failureFrom(error: unknown): LivePlaybackSourceResolution {
-  if (
-    (error instanceof DOMException && error.name === "AbortError") ||
-    (error instanceof Error && error.name === "AbortError")
-  ) {
+  if (isAbortError(error)) {
     return {
       failure: { kind: "cancelled" },
       integration: "twitch-gql-clip",

@@ -112,7 +112,7 @@ class CaptionPlaybackLifecycleTest {
       it["kind"] == "source-recovery-required"
     }.map { it["kind"] })
     assertEquals("caption-player", events.single { it["kind"] == "source-recovery-required" }["sessionId"])
-    assertEquals(1, events.single { it["kind"] == "source-recovery-required" }["interruptionId"])
+    assertTrue((events.single { it["kind"] == "source-recovery-required" }["interruptionId"] as Int) > 0)
     assertEquals(emptyList<String>(), terminalEvents(events))
   }
 

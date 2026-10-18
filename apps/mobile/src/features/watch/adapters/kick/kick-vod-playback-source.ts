@@ -4,6 +4,7 @@ import type {
 } from "../../capabilities/watch";
 import { kickHlsRequestHeaders } from "../../domain/hls-request-headers";
 import { asHlsSourceUri } from "../../domain/hls-source";
+import { isAbortError } from "../../utils/is-abort-error";
 
 export function createKickVideoPlaybackSource(input: {
   readonly fetch: typeof globalThis.fetch;
@@ -98,10 +99,7 @@ function rejected(status: number): LivePlaybackSourceResolution {
 }
 
 function failureFrom(error: unknown): LivePlaybackSourceResolution {
-  if (
-    (error instanceof DOMException && error.name === "AbortError") ||
-    (error instanceof Error && error.name === "AbortError")
-  ) {
+  if (isAbortError(error)) {
     return {
       failure: { kind: "cancelled" },
       integration: "kick-v2-video",

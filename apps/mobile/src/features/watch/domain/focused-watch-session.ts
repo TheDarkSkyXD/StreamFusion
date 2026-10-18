@@ -44,6 +44,22 @@ import {
   type CurrentSession,
 } from "./focused-watch-session-state";
 import { runFocusedWatchStart, startResultFrom } from "./start-focused-watch";
+import { prepareWatchSourceAttempts } from "./start-focused-watch";
+import { resolveWatchSource } from "./watch-source-resolution";
+
+const RECOVERY_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 15_000] as const;
+
+type SourceRecovery = {
+  readonly sessionId: string;
+  readonly interruptionId: number;
+  readonly generation: number;
+  attempt: number;
+  run: number;
+  retryAtMs: number | null;
+  controller: AbortController | null;
+  busy: boolean;
+  awaitingReady: boolean;
+};
 
 function afterPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -76,6 +92,9 @@ export function createFocusedWatchSession(input: {
   let generation = 0;
   let current: CurrentSession | null = null;
   let refreshingSessionId: string | null = null;
+  let recovery: SourceRecovery | null = null;
+  let playIntent = true;
+  let sourceCandidateIndex = 0;
   let presentation: PlayerPresentationState = INITIAL_PLAYER_PRESENTATION;
   let muted = false;
   let volume = 1;
@@ -140,6 +159,200 @@ export function createFocusedWatchSession(input: {
     }
   });
 
+  function stopRecoveryWork(record: SourceRecovery): void {
+    record.run += 1;
+    record.retryAtMs = null;
+    record.controller?.abort();
+    record.controller = null;
+    record.busy = false;
+  }
+
+  function cancelRecovery(): void {
+    if (recovery) stopRecoveryWork(recovery);
+    recovery = null;
+  }
+
+  function recoveryIsCurrent(record: SourceRecovery, run: number): boolean {
+    return (
+      recovery === record &&
+      record.run === run &&
+      record.generation === generation &&
+      current?.kind === "active" &&
+      current.session.sessionId === record.sessionId
+    );
+  }
+
+  function finishRecovery(failure: WatchPlaybackFailure): void {
+    const active = current;
+    if (active?.kind !== "active") return;
+    cancelRecovery();
+    active.lease.release();
+    applyPresentation(INITIAL_PLAYER_PRESENTATION);
+    current = { failure, kind: "failed", target: active.target };
+    notify();
+    void abandon(active.session.sessionId);
+  }
+
+  function scheduleRecovery(record: SourceRecovery): void {
+    if (
+      !playIntent ||
+      record.retryAtMs !== null ||
+      record.busy ||
+      record.awaitingReady
+    )
+      return;
+    const delay =
+      RECOVERY_DELAYS_MS[
+        Math.min(record.attempt, RECOVERY_DELAYS_MS.length - 1)
+      ] ?? 15_000;
+    record.retryAtMs = Date.now() + delay;
+  }
+
+  function recoverWhenDue(record: SourceRecovery): void {
+    if (record.retryAtMs === null || Date.now() < record.retryAtMs) return;
+    record.retryAtMs = null;
+    void recoverSource(record);
+  }
+
+  async function recoverSource(record: SourceRecovery): Promise<void> {
+    if (
+      !recoveryIsCurrent(record, record.run) ||
+      !playIntent ||
+      !input.playback.recoverSource
+    )
+      return;
+    const run = ++record.run;
+    record.busy = true;
+    const controller = new AbortController();
+    record.controller = controller;
+    const active = current;
+    if (active?.kind !== "active") return;
+    const stillCurrent = () =>
+      recoveryIsCurrent(record, run) &&
+      !controller.signal.aborted &&
+      playIntent;
+    try {
+      const policy = await input.policy.read(active.target.platform);
+      if (!stillCurrent()) return;
+      if (policy.kind === "disabled") {
+        finishRecovery({
+          integration: active.integration,
+          kind: "compatibility-disabled",
+          lastSuccessfulStage: "none",
+          platform: active.target.platform,
+          reason: policy.reason,
+          recovery: ["refresh-policy", "open-provider"],
+        });
+        return;
+      }
+      const resolved = await resolveWatchSource(
+        input.sources,
+        input.recorded,
+        active.target,
+        controller.signal,
+      );
+      if (!stillCurrent()) return;
+      if (resolved.kind === "unavailable") {
+        const sourceFailure = resolved.failure;
+        if (
+          sourceFailure.kind === "cancelled" ||
+          sourceFailure.kind === "offline" ||
+          (sourceFailure.kind === "provider-rejected" &&
+            (sourceFailure.status === 408 ||
+              sourceFailure.status === 429 ||
+              (sourceFailure.status >= 500 && sourceFailure.status <= 599)))
+        ) {
+          record.attempt += 1;
+          record.busy = false;
+          record.controller = null;
+          scheduleRecovery(record);
+          return;
+        }
+        finishRecovery({
+          code: sourceFailure.kind,
+          detail: sourceFailure.detail,
+          integration: active.integration,
+          kind: "source-unavailable",
+          lastSuccessfulStage: "policy-authorized",
+          platform: active.target.platform,
+          recovery: ["retry", "open-provider"],
+        });
+        return;
+      }
+      const attempts = await prepareWatchSourceAttempts(
+        {
+          target: active.target,
+          ...(input.filtering === undefined
+            ? {}
+            : { filtering: input.filtering }),
+          ...(input.playlistProxy === undefined
+            ? {}
+            : { playlistProxy: input.playlistProxy }),
+        },
+        resolved,
+      );
+      if (!stillCurrent()) return;
+      const source =
+        attempts[Math.min(sourceCandidateIndex, attempts.length - 1)];
+      if (!source) {
+        finishRecovery({
+          code: "invalid-response",
+          detail: "No playback source is available.",
+          integration: active.integration,
+          kind: "source-unavailable",
+          lastSuccessfulStage: "policy-authorized",
+          platform: active.target.platform,
+          recovery: ["retry", "open-provider"],
+        });
+        return;
+      }
+      record.awaitingReady = true;
+      const result = await input.playback.recoverSource({
+        ...source,
+        interruptionId: record.interruptionId,
+        sessionId: record.sessionId,
+      });
+      if (!stillCurrent() && recovery === record && result.kind !== "applied") {
+        record.awaitingReady = false;
+        scheduleRecovery(record);
+        return;
+      }
+      if (!stillCurrent()) return;
+      if (result.kind !== "applied") {
+        finishRecovery({
+          detail:
+            result.kind === "unavailable"
+              ? result.failure.detail
+              : "The playback session ended.",
+          integration: active.integration,
+          kind: "native-unavailable",
+          lastSuccessfulStage: "source-resolved",
+          platform: active.target.platform,
+          recovery: ["retry", "open-provider"],
+        });
+        return;
+      }
+      record.busy = false;
+      record.controller = null;
+    } catch {
+      if (!stillCurrent() && recovery === record && record.awaitingReady) {
+        record.awaitingReady = false;
+        scheduleRecovery(record);
+        return;
+      }
+      if (!stillCurrent()) return;
+      finishRecovery({
+        code: "invalid-response",
+        detail: "The stream source could not be resolved.",
+        integration: active.integration,
+        kind: "source-unavailable",
+        lastSuccessfulStage: "policy-authorized",
+        platform: active.target.platform,
+        recovery: ["retry", "open-provider"],
+      });
+    }
+  }
+
   async function refreshQualities(): Promise<void> {
     if (current?.kind !== "active") return;
     const sessionId = current.session.sessionId;
@@ -158,7 +371,73 @@ export function createFocusedWatchSession(input: {
 
   function applyNativeEvent(event: NativePlaybackEvent): void {
     if (event.sessionId === refreshingSessionId) return;
-    if (!current) return;
+    if (
+      current?.kind !== "active" ||
+      current.session.sessionId !== event.sessionId
+    )
+      return;
+    if (event.kind === "source-recovery-required") {
+      if (
+        current.kind !== "active" ||
+        current.target.media ||
+        current.session.sessionId !== event.sessionId ||
+        !input.playback.recoverSource
+      )
+        return;
+      if (
+        recovery?.interruptionId === event.interruptionId &&
+        recovery.sessionId === event.sessionId
+      )
+        return;
+      const attempt =
+        recovery?.sessionId === event.sessionId ? recovery.attempt + 1 : 0;
+      cancelRecovery();
+      sourceCandidateIndex += 1;
+      recovery = {
+        sessionId: event.sessionId,
+        interruptionId: event.interruptionId,
+        generation,
+        attempt,
+        run: 0,
+        retryAtMs: null,
+        controller: null,
+        busy: false,
+        awaitingReady: false,
+      };
+      current = { ...current, phase: playIntent ? "buffering" : "paused" };
+      notify();
+      scheduleRecovery(recovery);
+      return;
+    }
+    if (event.kind === "source-recovered") {
+      if (
+        recovery?.sessionId === event.sessionId &&
+        recovery.interruptionId === event.interruptionId
+      ) {
+        cancelRecovery();
+        sourceCandidateIndex = 0;
+      }
+      return;
+    }
+    if (recovery && recovery.sessionId === event.sessionId) {
+      if (event.kind === "progress") recoverWhenDue(recovery);
+      if (event.kind === "paused") {
+        playIntent = false;
+        stopRecoveryWork(recovery);
+        if (current.kind === "active") {
+          current = { ...current, phase: "paused" };
+          notify();
+        }
+      }
+      if (
+        event.kind === "playing" ||
+        event.kind === "paused" ||
+        event.kind === "buffering"
+      )
+        return;
+    }
+    if (event.kind === "paused") playIntent = false;
+    if (event.kind === "playing") playIntent = true;
     const next = nextNativePlayback({
       adsDetected,
       current,
@@ -167,6 +446,7 @@ export function createFocusedWatchSession(input: {
       progress,
     });
     if (next.kind === "ignore") return;
+    if (next.current.kind !== "active") cancelRecovery();
     if (next.releaseLease && current.kind === "active") {
       current.lease.release();
     }
@@ -188,6 +468,7 @@ export function createFocusedWatchSession(input: {
   }
 
   async function resetToReady(target: WatchTarget): Promise<void> {
+    cancelRecovery();
     generation += 1;
     const endingSessionId = refreshingSessionId;
     refreshingSessionId = null;
@@ -217,6 +498,9 @@ export function createFocusedWatchSession(input: {
       previous?.kind === "active" &&
       sameWatchTarget(previous.target, target);
     if (intent === "refresh" && !refreshing) return { kind: "cancelled" };
+
+    cancelRecovery();
+    playIntent = true;
 
     const attempt = ++generation;
     if (!refreshing) applyPresentation(INITIAL_PLAYER_PRESENTATION);
@@ -270,6 +554,7 @@ export function createFocusedWatchSession(input: {
     }
 
     const sessionId = outcome.session.sessionId;
+    sourceCandidateIndex = outcome.candidateIndex;
     current = {
       integration: outcome.integration,
       kind: "active",
@@ -467,7 +752,15 @@ export function createFocusedWatchSession(input: {
     },
     async setPlaying(playing) {
       if (current?.kind !== "active") return;
-      await input.playback.setPlaying(current.session.sessionId, playing);
+      const sessionId = current.session.sessionId;
+      playIntent = playing;
+      if (!playing && recovery) stopRecoveryWork(recovery);
+      if (playing && recovery) scheduleRecovery(recovery);
+      if (recovery) {
+        current = { ...current, phase: playing ? "buffering" : "paused" };
+        notify();
+      }
+      await input.playback.setPlaying(sessionId, playing);
     },
     async setMuted(nextMuted) {
       if (current?.kind !== "active") return;
@@ -556,6 +849,7 @@ export function createFocusedWatchSession(input: {
       await resetToReady(current.target);
     },
     async dispose() {
+      cancelRecovery();
       generation += 1;
       const endingSessionId = refreshingSessionId;
       refreshingSessionId = null;

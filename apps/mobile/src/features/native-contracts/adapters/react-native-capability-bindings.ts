@@ -10,6 +10,7 @@ import type {
   CaptionModelRequest,
   CaptionSessionRequest,
   PlaybackSessionRequest,
+  PlaybackSourceRecoveryRequest,
   VerifiedApk,
   VerifyDownloadedApkRequest,
 } from "../capabilities/android-capability-contracts";
@@ -19,6 +20,9 @@ export interface NativeBindingReader<TBinding> {
 }
 
 export interface NativePlaybackBinding {
+  readonly recoverSource?: (
+    request: PlaybackSourceRecoveryRequest,
+  ) => Promise<unknown>;
   readonly readPlaybackObservation?: (sessionId: string) => Promise<unknown>;
   readonly setPlaybackSpeed?: (
     sessionId: string,

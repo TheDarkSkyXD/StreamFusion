@@ -26,7 +26,7 @@ const unsupported = async () => ({
 const playbackBinding: NativePlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
-  getContractVersion: () => 5,
+  getContractVersion: () => 6,
   listQualities: unsupported,
   seekTo: unsupported,
   setMuted: unsupported,
@@ -162,13 +162,15 @@ function reader<TBinding>(binding: TBinding): NativeBindingReader<TBinding> {
 describe("Android capability module contracts", () => {
   it("delivers source recovery events only with valid interruption identities", () => {
     let publish: ((event: unknown) => void) | undefined;
-    const port = createAndroidPlaybackContractPort(reader({
-      ...playbackBinding,
-      addListener: (_name, listener) => {
-        publish = listener;
-        return { remove() {} };
-      },
-    }));
+    const port = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        addListener: (_name, listener) => {
+          publish = listener;
+          return { remove() {} };
+        },
+      }),
+    );
     const events: unknown[] = [];
     const unsubscribe = port.subscribe((event) => events.push(event));
     for (const kind of ["source-recovery-required", "source-recovered"]) {
@@ -179,7 +181,11 @@ describe("Android capability module contracts", () => {
       publish?.({ kind, sessionId: "", interruptionId: 1 });
     }
     expect(events).toEqual([
-      { kind: "source-recovery-required", sessionId: "watch:1", interruptionId: 1 },
+      {
+        kind: "source-recovery-required",
+        sessionId: "watch:1",
+        interruptionId: 1,
+      },
       { kind: "source-recovered", sessionId: "watch:1", interruptionId: 1 },
     ]);
     unsubscribe();
@@ -193,23 +199,38 @@ describe("Android capability module contracts", () => {
       sessionId: "watch:1",
       sourceUri: "https://example.test/renewed.m3u8",
     };
-    const port = createAndroidPlaybackContractPort(reader({
-      ...playbackBinding,
-      recoverSource: async (input) => {
-        requests.push(input);
-        return { kind: "completed", value: { pictureInPictureEligible: true, sessionId: input.sessionId } };
-      },
-    }));
+    const port = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        recoverSource: async (input) => {
+          requests.push(input);
+          return {
+            kind: "completed",
+            value: {
+              pictureInPictureEligible: true,
+              sessionId: input.sessionId,
+            },
+          };
+        },
+      }),
+    );
     await expect(port.recoverSource?.(request)).resolves.toEqual({
-      kind: "completed", value: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      kind: "completed",
+      value: { pictureInPictureEligible: true, sessionId: "watch:1" },
     });
     expect(requests).toEqual([request]);
-    const mismatched = createAndroidPlaybackContractPort(reader({
-      ...playbackBinding,
-      recoverSource: async () => ({ kind: "completed", value: { pictureInPictureEligible: true, sessionId: "other" } }),
-    }));
+    const mismatched = createAndroidPlaybackContractPort(
+      reader({
+        ...playbackBinding,
+        recoverSource: async () => ({
+          kind: "completed",
+          value: { pictureInPictureEligible: true, sessionId: "other" },
+        }),
+      }),
+    );
     await expect(mismatched.recoverSource?.(request)).resolves.toMatchObject({
-      kind: "unavailable", failure: { code: "NATIVE_RESULT_INVALID" },
+      kind: "unavailable",
+      failure: { code: "NATIVE_RESULT_INVALID" },
     });
   });
 
@@ -258,7 +279,7 @@ describe("Android capability module contracts", () => {
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 3, kind: "ready" },
-      { capability: "playback", contractVersion: 5, kind: "ready" },
+      { capability: "playback", contractVersion: 6, kind: "ready" },
     ]);
     await expect(
       contracts.playback.enterPictureInPicture("watch-1"),

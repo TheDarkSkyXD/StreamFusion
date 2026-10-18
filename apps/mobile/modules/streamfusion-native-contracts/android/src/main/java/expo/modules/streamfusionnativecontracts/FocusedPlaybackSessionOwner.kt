@@ -20,11 +20,13 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerView
 import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
@@ -36,6 +38,7 @@ object FocusedPlaybackSessionOwner {
   private val main = Handler(Looper.getMainLooper())
   private val views = mutableSetOf<StreamFusionPlaybackView>()
   private val sessions = LinkedHashMap<String, Session>()
+  private var nextInterruptionId = 1
   private var emit: ((Map<String, Any>) -> Unit)? = null
   private var pictureInPictureActive = false
   private var pictureInPictureRequested = false
@@ -94,39 +97,9 @@ object FocusedPlaybackSessionOwner {
     if (sourceUri.isNullOrBlank() || !isHttpsMedia(sourceUri)) {
       return@onMain mapOf("kind" to "invalid")
     }
-    val requestHeaders = requestHeaders(request)
-    val httpFactory = DefaultHttpDataSource.Factory()
-      .setAllowCrossProtocolRedirects(true)
-      .setDefaultRequestProperties(requestHeaders)
-    requestHeaders["User-Agent"]?.let(httpFactory::setUserAgent)
-    val filterMode = playlistFilterMode(request)
-    val filteringFactory =
-      if (filterMode == "passthrough") {
-        null
-      } else {
-        FilteringDataSource.Factory(
-          httpFactory,
-          filterMode,
-          { diagnostic, adsDetected ->
-            publish(
-              mapOf(
-                "kind" to "filtering",
-                "sessionId" to sessionId,
-                "diagnostic" to diagnostic,
-                "adsDetected" to adsDetected,
-              ),
-            )
-          },
-          sourceUri,
-          (request["filtering"] as? Map<*, *>)?.get("channelName") as? String,
-        )
-      }
-    val dataSourceFactory = filteringFactory ?: httpFactory
+    val source = playbackSource(sessionId, sourceUri, request, request)
     val exo = ExoPlayer.Builder(context.applicationContext)
-      .setMediaSourceFactory(
-        DefaultMediaSourceFactory(dataSourceFactory)
-          .setLoadErrorHandlingPolicy(PlaybackLoadErrorHandlingPolicy()),
-      )
+      .setMediaSourceFactory(source.factory)
       .setRenderersFactory(captionRenderers(context.applicationContext, sessionId))
       .setLoadControl(PlaybackPreferenceConfig.loadControl(request))
       .setTrackSelector(
@@ -136,16 +109,17 @@ object FocusedPlaybackSessionOwner {
     val initiallyMuted = request["muted"] == true
     if (initiallyMuted) exo.volume = 0f
     exo.addListener(SessionListener(sessionId, exo))
-    exo.setMediaItem(
-      PlaybackPreferenceConfig.mediaItem(sourceUri, mimeType(sourceUri), request),
-    )
+    exo.setMediaItem(source.mediaItem)
     val previous = synchronized(lock) {
       applicationContext = context.applicationContext
       if (context is Activity) {
         hostActivity = WeakReference(context)
       }
       val outgoing = sessions.remove(sessionId)
-      sessions[sessionId] = Session(sessionId, exo, filteringFactory).also { it.muted = initiallyMuted }
+      sessions[sessionId] = Session(
+        sessionId, exo, source.filteringFactory, request,
+        sourceRecovery = request["sourceRecovery"] == "resolve-live-source",
+      ).also { it.muted = initiallyMuted }
       bindViewsLocked()
       outgoing
     }
@@ -169,6 +143,30 @@ object FocusedPlaybackSessionOwner {
         ),
       ),
     )
+  }
+
+  fun recoverSource(request: Map<String, Any>): Map<String, Any> = onMain {
+    val sessionId = request["sessionId"] as? String
+    if (sessionId.isNullOrBlank() || !SESSION_ID.matches(sessionId)) return@onMain mapOf("kind" to "invalid")
+    val interruptionId = (request["interruptionId"] as? Number)?.toDouble()
+      ?.takeIf { it > 0 && it <= Int.MAX_VALUE && it.isFinite() && it % 1.0 == 0.0 }?.toInt()
+      ?: return@onMain mapOf("kind" to "invalid")
+    val sourceUri = request["sourceUri"] as? String
+    if (sourceUri.isNullOrBlank() || !isHttpsMedia(sourceUri)) return@onMain mapOf("kind" to "invalid")
+    val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
+    val interruption = current.interruption
+    if (interruption?.id != interruptionId || interruption.phase != RecoveryPhase.WAITING) {
+      return@onMain mapOf("kind" to "invalid")
+    }
+    val source = playbackSource(sessionId, sourceUri, request, current.startRequest)
+    val outgoingFactory = current.filteringFactory
+    current.filteringFactory = source.filteringFactory
+    current.interruption = interruption.copy(phase = RecoveryPhase.PREPARING)
+    current.player.setMediaSource(source.mediaSource)
+    outgoingFactory?.dispose()
+    current.player.prepare()
+    updateScreenAwakeRequests()
+    sessionCompleted(null, sessionId)
   }
 
   fun setPlaying(sessionId: String, playing: Boolean): Map<String, Any> = onMain {
@@ -382,10 +380,10 @@ object FocusedPlaybackSessionOwner {
 
   fun bindIfMatches(view: StreamFusionPlaybackView, sessionId: String?) = onMain {
     synchronized(lock) {
-      val player = if (pictureInPictureRequested || pictureInPictureActive) null else sessionId?.let { sessions[it]?.player }
-      if (player != null) {
-        view.attachPlayer(player)
-        view.keepScreenOn = view.isAttachedToWindow && shouldKeepScreenAwake(player)
+      val session = if (pictureInPictureRequested || pictureInPictureActive) null else sessionId?.let(sessions::get)
+      if (session != null) {
+        view.attachPlayer(session.player)
+        view.keepScreenOn = view.isAttachedToWindow && shouldKeepScreenAwake(session)
       } else {
         view.detachPlayer()
       }
@@ -394,30 +392,34 @@ object FocusedPlaybackSessionOwner {
 
   private fun bindViewsLocked() {
     views.forEach { view ->
-      val player = if (pictureInPictureRequested || pictureInPictureActive) null else view.boundSessionId()?.let { sessions[it]?.player }
-      if (player != null) {
-        view.attachPlayer(player)
-        view.keepScreenOn = view.isAttachedToWindow && shouldKeepScreenAwake(player)
+      val session = if (pictureInPictureRequested || pictureInPictureActive) null else view.boundSessionId()?.let(sessions::get)
+      if (session != null) {
+        view.attachPlayer(session.player)
+        view.keepScreenOn = view.isAttachedToWindow && shouldKeepScreenAwake(session)
       } else {
         view.detachPlayer()
       }
     }
   }
 
-  private fun shouldKeepScreenAwake(player: ExoPlayer): Boolean =
-    player.playWhenReady &&
-      player.playerError == null &&
-      (player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY)
+  private fun shouldKeepScreenAwake(session: Session): Boolean {
+    val player = session.player
+    return player.playWhenReady && (
+      session.interruption != null ||
+        (player.playerError == null &&
+          (player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY))
+      )
+  }
 
   private fun updateScreenAwakeRequests() {
     synchronized(lock) {
       views.forEach { view ->
-        val player = view.boundSessionId()?.let { sessions[it]?.player }
+        val session = view.boundSessionId()?.let(sessions::get)
         view.keepScreenOn = view.isAttachedToWindow &&
           !pictureInPictureRequested && !pictureInPictureActive &&
-          player != null && shouldKeepScreenAwake(player)
+          session != null && shouldKeepScreenAwake(session)
       }
-      pipView?.keepScreenOn = pictureInPictureSessionId?.let { sessions[it]?.player }
+      pipView?.keepScreenOn = pictureInPictureSessionId?.let(sessions::get)
         ?.let(::shouldKeepScreenAwake) == true
     }
   }
@@ -451,7 +453,7 @@ object FocusedPlaybackSessionOwner {
       useController = false
       layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
       player = session.player
-      keepScreenOn = shouldKeepScreenAwake(session.player)
+      keepScreenOn = shouldKeepScreenAwake(session)
     }
     content.addView(view)
     pipView = view
@@ -583,6 +585,48 @@ object FocusedPlaybackSessionOwner {
     return headers
   }
 
+  private class PlaybackSource(
+    val factory: DefaultMediaSourceFactory,
+    val mediaItem: androidx.media3.common.MediaItem,
+    val filteringFactory: FilteringDataSource.Factory?,
+  ) {
+    val mediaSource: MediaSource get() = factory.createMediaSource(mediaItem)
+  }
+
+  private fun playbackSource(
+    sessionId: String,
+    sourceUri: String,
+    sourceRequest: Map<String, Any>,
+    preferences: Map<String, Any>,
+  ): PlaybackSource {
+    val headers = requestHeaders(sourceRequest)
+    val httpFactory = DefaultHttpDataSource.Factory()
+      .setAllowCrossProtocolRedirects(true)
+      .setDefaultRequestProperties(headers)
+    headers["User-Agent"]?.let(httpFactory::setUserAgent)
+    val filterMode = playlistFilterMode(sourceRequest)
+    val filteringFactory = if (filterMode == "passthrough") null else FilteringDataSource.Factory(
+      httpFactory,
+      filterMode,
+      { diagnostic, adsDetected ->
+        publish(mapOf(
+          "kind" to "filtering",
+          "sessionId" to sessionId,
+          "diagnostic" to diagnostic,
+          "adsDetected" to adsDetected,
+        ))
+      },
+      sourceUri,
+      (sourceRequest["filtering"] as? Map<*, *>)?.get("channelName") as? String,
+    )
+    return PlaybackSource(
+      DefaultMediaSourceFactory(filteringFactory ?: httpFactory)
+        .setLoadErrorHandlingPolicy(PlaybackLoadErrorHandlingPolicy()),
+      PlaybackPreferenceConfig.mediaItem(sourceUri, mimeType(sourceUri), preferences),
+      filteringFactory,
+    )
+  }
+
   private fun playlistFilterMode(request: Map<String, Any>): String {
     val filtering = request["filtering"] as? Map<*, *> ?: return "passthrough"
     val enabled = isTruthy(filtering["enabled"])
@@ -671,17 +715,26 @@ object FocusedPlaybackSessionOwner {
   private class Session(
     val sessionId: String,
     val player: ExoPlayer,
-    val filteringFactory: FilteringDataSource.Factory?,
+    var filteringFactory: FilteringDataSource.Factory?,
+    val startRequest: Map<String, Any>,
+    val sourceRecovery: Boolean,
     var muted: Boolean = false,
     var selectedQuality: String = "auto",
     var volumeBeforeMute: Float = 1f,
   ) {
+    var interruption: RecoveryInterruption? = null
+    var lastRecoverableError: PlaybackException? = null
+
     fun dispose() {
       CaptionPcmTap.endSession(sessionId)
       player.release()
       filteringFactory?.dispose()
     }
   }
+
+  private enum class RecoveryPhase { WAITING, PREPARING }
+
+  private data class RecoveryInterruption(val id: Int, val phase: RecoveryPhase)
 
   private class SessionListener(
     private val sessionId: String,
@@ -704,6 +757,15 @@ object FocusedPlaybackSessionOwner {
       when (playbackState) {
         Player.STATE_BUFFERING -> publish(mapOf("kind" to "buffering", "sessionId" to sessionId))
         Player.STATE_READY -> {
+          val recovered = session.interruption?.takeIf { it.phase == RecoveryPhase.PREPARING }
+          if (recovered != null) {
+            session.interruption = null
+            publish(mapOf(
+              "kind" to "source-recovered",
+              "sessionId" to sessionId,
+              "interruptionId" to recovered.id,
+            ))
+          }
           if (session.player.playWhenReady) {
             publish(mapOf("kind" to "playing", "sessionId" to sessionId))
           } else {
@@ -753,6 +815,20 @@ object FocusedPlaybackSessionOwner {
         session.player.prepare()
         return
       }
+      if (session.sourceRecovery && isRecoverableSourceError(error)) {
+        if (session.lastRecoverableError === error) return
+        if (session.interruption?.phase == RecoveryPhase.WAITING) return
+        session.lastRecoverableError = error
+        val interruptionId = nextInterruptionId++
+        session.interruption = RecoveryInterruption(interruptionId, RecoveryPhase.WAITING)
+        updateScreenAwakeRequests()
+        publish(mapOf(
+          "kind" to "source-recovery-required",
+          "sessionId" to sessionId,
+          "interruptionId" to interruptionId,
+        ))
+        return
+      }
       if (!disposeSession(sessionId, player)) return
       publish(
         mapOf(
@@ -763,6 +839,13 @@ object FocusedPlaybackSessionOwner {
         ),
       )
     }
+  }
+
+  private fun isRecoverableSourceError(error: PlaybackException): Boolean {
+    val response = generateSequence<Throwable>(error) { it.cause }
+      .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
+      .firstOrNull() ?: return false
+    return response.responseCode in setOf(401, 403, 404, 408, 429) || response.responseCode >= 500
   }
 
   private fun failureCode(error: PlaybackException): String {

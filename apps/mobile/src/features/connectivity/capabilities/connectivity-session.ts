@@ -42,6 +42,7 @@ export type ConnectivityView = {
 };
 
 export interface ConnectivitySession {
+  backgroundFetch: typeof globalThis.fetch;
   load(): Promise<ConnectivityView>;
   saveDraft(draft: ProxyDraft): Promise<ConnectivityView>;
   fetch: typeof globalThis.fetch;

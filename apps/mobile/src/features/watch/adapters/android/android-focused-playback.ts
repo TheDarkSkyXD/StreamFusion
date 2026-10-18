@@ -18,6 +18,21 @@ export function createAndroidFocusedPlaybackPort(
   contract: AndroidPlaybackContractPort,
 ): FocusedPlaybackPort {
   return {
+    async recoverSource(input) {
+      const result = await contract.recoverSource?.(input);
+      if (!result) {
+        return {
+          kind: "unavailable",
+          failure: {
+            code: "OPERATION_UNSUPPORTED",
+            detail: "Playback recovery is unavailable in this host.",
+          },
+        };
+      }
+      return result.kind === "completed"
+        ? { kind: "applied", session: result.value }
+        : { kind: "unavailable", failure: mapFailure(result.failure) };
+    },
     async readPlaybackObservation(sessionId) {
       const result = await contract.readPlaybackObservation?.(sessionId);
       if (!result)
@@ -48,6 +63,9 @@ export function createAndroidFocusedPlaybackPort(
     },
     async start(input) {
       const result = await contract.startFocusedSession({
+        ...(input.sourceRecovery === undefined
+          ? {}
+          : { sourceRecovery: input.sourceRecovery }),
         ...(input.muted === undefined ? {} : { muted: input.muted }),
         ...(input.allowHevc === undefined
           ? {}
