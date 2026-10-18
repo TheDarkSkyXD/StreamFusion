@@ -52,6 +52,7 @@ export function createWatchChatSession(input: {
   readonly replayReader?: ChatReplayReader;
   readonly messageLimit?: () => number;
   readonly eventPreferences?: () => WatchChatEventPreferences;
+  readonly randomUuid: () => string;
 }): WatchChatSession {
   const socketFactory =
     input.socketFactory ??
@@ -334,9 +335,15 @@ export function createWatchChatSession(input: {
       publicationTimer = undefined;
       setSnapshot({ detail, kind: "failed", retry: "manual" });
     };
+    const onReconnect = () => {
+      if (current !== generation) return;
+      clearTimeout(publicationTimer);
+      publicationTimer = undefined;
+      setSnapshot({ detail: "Reconnecting chat.", kind: "connecting" });
+    };
     if (target.platform === "twitch") {
       disposeConnection = connectTwitchGuestIrc({
-        onClose: () => onError("Twitch chat disconnected. Retry to reconnect."),
+        onClose: onReconnect,
         onError,
         onMessage,
         onEvent,
@@ -348,11 +355,12 @@ export function createWatchChatSession(input: {
       const abort = new AbortController();
       void connectKickGuestChat({
         fetch: input.fetch,
-        onClose: () => onError("Kick chat disconnected. Retry to reconnect."),
+        onClose: onReconnect,
         onError,
         onMessage,
         onEvent,
         onOpen,
+        randomUuid: input.randomUuid,
         signal: abort.signal,
         socketFactory,
         target,

@@ -56,7 +56,10 @@ export function createGuestWatchScreen(input: {
   return {
     ...(filtering === undefined ? {} : { adblock: filtering }),
     ...(playlistProxy === undefined ? {} : { playlistProxy }),
-    chat: input.chat ?? createWatchChatSession({ fetch: input.fetch }),
+    chat: input.chat ?? createWatchChatSession({
+      fetch: input.fetch,
+      randomUuid: () => input.sessionIds.create(),
+    }),
     ...(input.chatInteractions === undefined
       ? {}
       : { chatInteractions: input.chatInteractions }),

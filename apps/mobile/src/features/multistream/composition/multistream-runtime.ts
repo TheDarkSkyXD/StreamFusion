@@ -55,7 +55,10 @@ export function createMultistreamRuntime(input: {
   return {
     ...(input.presentation ? { presentation: input.presentation } : {}),
     chat: createMultistreamChat(() =>
-      createWatchChatSession({ fetch: input.fetch }),
+      createWatchChatSession({
+        fetch: input.fetch,
+        randomUuid: () => input.sessionIds.create(),
+      }),
     ),
     interactions: createChatInteractions(
       createPlatformChatCommands(input),

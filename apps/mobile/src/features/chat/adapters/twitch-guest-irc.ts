@@ -33,7 +33,6 @@ export function connectTwitchGuestIrc(input: {
   let socket: WatchChatSocket | null = null;
   let reconnectAttempt = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  let opened = false;
   let buffer = "";
 
   const clearReconnect = () => {
@@ -78,7 +77,6 @@ export function connectTwitchGuestIrc(input: {
     socket = next;
     next.onopen = () => {
       if (disposed || socket !== next) return;
-      opened = true;
       reconnectAttempt = 0;
       next.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
       next.send("PASS SCHMOOPIIE");
@@ -108,23 +106,18 @@ export function connectTwitchGuestIrc(input: {
       }
     };
     next.onerror = () => {
-      if (disposed || socket !== next || opened) return;
-      input.onError("Twitch chat closed before messages arrived.");
+      if (disposed || socket !== next) return;
+      socket = null;
+      next.close();
+      input.onClose();
+      scheduleReconnect();
     };
     next.onclose = () => {
       if (socket !== next) return;
-      const wasOpen = opened;
-      opened = false;
       socket = null;
-      if (disposed) {
-        input.onClose();
-        return;
-      }
-      if (wasOpen) {
-        scheduleReconnect();
-        return;
-      }
+      if (disposed) return;
       input.onClose();
+      scheduleReconnect();
     };
   };
 

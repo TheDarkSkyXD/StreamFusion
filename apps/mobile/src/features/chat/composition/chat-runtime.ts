@@ -18,6 +18,7 @@ export function createChatRuntime(input: {
   readonly display?: ChatDisplaySettingsSession;
   readonly discovery: Pick<DiscoverySession, "readChannel">;
   readonly copyText: (text: string) => Promise<void>;
+  readonly randomUuid: () => string;
 }) {
   const presentation: ChatPresentation = {
     copyText: input.copyText,
@@ -47,6 +48,7 @@ export function createChatRuntime(input: {
     presentation,
     chat: createWatchChatSession({
       fetch: input.fetch,
+      randomUuid: input.randomUuid,
       replayReader: createRecordedChatReader(input.fetch),
       messageLimit: () => input.display?.peek().preferences.messageLimit ?? 100,
       eventPreferences: () =>

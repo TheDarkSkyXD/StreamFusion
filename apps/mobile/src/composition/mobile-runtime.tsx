@@ -568,6 +568,7 @@ export function MobileRuntime() {
   const chatRuntime = useMemo(
     () =>
       createChatRuntime({
+        randomUuid: secureRandom.uuid,
         display: chatDisplaySession,
         discovery: homeDiscovery,
         copyText: copyTextToClipboard,
@@ -582,6 +583,7 @@ export function MobileRuntime() {
   const moderationChatRuntime = useMemo(
     () =>
       createChatRuntime({
+        randomUuid: secureRandom.uuid,
         display: chatDisplaySession,
         discovery: homeDiscovery,
         copyText: copyTextToClipboard,
