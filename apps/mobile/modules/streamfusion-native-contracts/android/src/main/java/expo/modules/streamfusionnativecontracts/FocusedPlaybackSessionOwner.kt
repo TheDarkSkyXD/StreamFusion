@@ -152,6 +152,7 @@ object FocusedPlaybackSessionOwner {
     previous?.dispose()
     exo.prepare()
     exo.playWhenReady = true
+    updateScreenAwakeRequests()
     startProgressTicker()
     sessionCompleted(context, sessionId)
   }
@@ -173,6 +174,7 @@ object FocusedPlaybackSessionOwner {
   fun setPlaying(sessionId: String, playing: Boolean): Map<String, Any> = onMain {
     val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
     current.player.playWhenReady = playing
+    updateScreenAwakeRequests()
     sessionCompleted(null, sessionId)
   }
 
@@ -332,6 +334,7 @@ object FocusedPlaybackSessionOwner {
       sessions.values.filter { it.sessionId != pipSessionId }.map { it.player }
     }
     players.forEach { it.playWhenReady = false }
+    updateScreenAwakeRequests()
   }
 
   fun onForeground(activity: Activity?) = onMain {
@@ -380,14 +383,42 @@ object FocusedPlaybackSessionOwner {
   fun bindIfMatches(view: StreamFusionPlaybackView, sessionId: String?) = onMain {
     synchronized(lock) {
       val player = if (pictureInPictureRequested || pictureInPictureActive) null else sessionId?.let { sessions[it]?.player }
-      if (player != null) view.attachPlayer(player) else view.detachPlayer()
+      if (player != null) {
+        view.attachPlayer(player)
+        view.keepScreenOn = view.isAttachedToWindow && shouldKeepScreenAwake(player)
+      } else {
+        view.detachPlayer()
+      }
     }
   }
 
   private fun bindViewsLocked() {
     views.forEach { view ->
       val player = if (pictureInPictureRequested || pictureInPictureActive) null else view.boundSessionId()?.let { sessions[it]?.player }
-      if (player != null) view.attachPlayer(player) else view.detachPlayer()
+      if (player != null) {
+        view.attachPlayer(player)
+        view.keepScreenOn = view.isAttachedToWindow && shouldKeepScreenAwake(player)
+      } else {
+        view.detachPlayer()
+      }
+    }
+  }
+
+  private fun shouldKeepScreenAwake(player: ExoPlayer): Boolean =
+    player.playWhenReady &&
+      player.playerError == null &&
+      (player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY)
+
+  private fun updateScreenAwakeRequests() {
+    synchronized(lock) {
+      views.forEach { view ->
+        val player = view.boundSessionId()?.let { sessions[it]?.player }
+        view.keepScreenOn = view.isAttachedToWindow &&
+          !pictureInPictureRequested && !pictureInPictureActive &&
+          player != null && shouldKeepScreenAwake(player)
+      }
+      pipView?.keepScreenOn = pictureInPictureSessionId?.let { sessions[it]?.player }
+        ?.let(::shouldKeepScreenAwake) == true
     }
   }
 
@@ -420,6 +451,7 @@ object FocusedPlaybackSessionOwner {
       useController = false
       layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
       player = session.player
+      keepScreenOn = shouldKeepScreenAwake(session.player)
     }
     content.addView(view)
     pipView = view
@@ -427,6 +459,7 @@ object FocusedPlaybackSessionOwner {
 
   private fun removePipView() {
     pipView?.let { view ->
+      view.keepScreenOn = false
       view.player = null
       (view.parent as? ViewGroup)?.removeView(view)
     }
@@ -667,6 +700,7 @@ object FocusedPlaybackSessionOwner {
 
     override fun onPlaybackStateChanged(playbackState: Int) {
       val session = currentSession() ?: return
+      updateScreenAwakeRequests()
       when (playbackState) {
         Player.STATE_BUFFERING -> publish(mapOf("kind" to "buffering", "sessionId" to sessionId))
         Player.STATE_READY -> {
@@ -692,6 +726,7 @@ object FocusedPlaybackSessionOwner {
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
       currentSession() ?: return
+      updateScreenAwakeRequests()
       if (playWhenReady) {
         publish(mapOf("kind" to "playing", "sessionId" to sessionId))
         return

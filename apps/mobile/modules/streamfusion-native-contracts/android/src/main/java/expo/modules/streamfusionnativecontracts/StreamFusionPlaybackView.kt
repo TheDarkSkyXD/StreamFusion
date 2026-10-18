@@ -29,6 +29,7 @@ class StreamFusionPlaybackView(context: Context) : FrameLayout(context) {
   }
 
   fun detachPlayer() {
+    keepScreenOn = false
     playerView.player = null
   }
 
