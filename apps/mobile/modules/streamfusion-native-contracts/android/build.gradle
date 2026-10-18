@@ -53,3 +53,24 @@ dependencies {
   androidTestImplementation "com.squareup.okhttp3:okhttp-tls:4.12.0"
   androidTestImplementation "androidx.work:work-testing:2.12.0"
 }
+
+afterEvaluate {
+  tasks.withType(Test).toList().each { unitTest ->
+    def resourceClasspath = unitTest.classpath
+    def testDependencies = unitTest.dependsOn.toList()
+    def resourceTests = tasks.register(unitTest.name.replace('UnitTest', 'ResourceUnitTest'), Test) {
+      dependsOn testDependencies
+      testClassesDirs = unitTest.testClassesDirs
+      classpath = resourceClasspath
+      workingDir = unitTest.workingDir
+      systemProperties = unitTest.systemProperties
+      jvmArgs = unitTest.jvmArgs
+      include '**/FocusedPlaybackScreenAwakeTest.class'
+    }
+    unitTest.exclude '**/FocusedPlaybackScreenAwakeTest.class'
+    unitTest.classpath = resourceClasspath.filter {
+      !new File(it, 'com/android/tools/test_config.properties').isFile()
+    }
+    unitTest.dependsOn resourceTests
+  }
+}
