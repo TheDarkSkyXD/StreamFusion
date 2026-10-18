@@ -24,6 +24,7 @@ function runtime(page: ChannelPageOutcome) {
       subscribe: () => () => undefined,
     },
     fetch: globalThis.fetch,
+    randomUuid: () => "test-client-id",
     openUrl: async () => undefined,
     discovery: { readChannel: async () => page },
     copyText: async () => undefined,

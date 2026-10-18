@@ -61,7 +61,7 @@ describe("watch chat session", () => {
     });
   });
 
-  it("retries a failed Twitch socket and reads Kick chatroom then Pusher events", async () => {
+  it("allows an immediate Twitch retry and reads Kick Pusher events", async () => {
     let twitch: WatchChatSocket | null = null;
     const twitchSession = createWatchChatSession({
       fetch: async () => json({}),
@@ -76,14 +76,30 @@ describe("watch chat session", () => {
       platform: "twitch",
     });
     twitch?.onerror?.();
-    expect(twitchSession.snapshot().kind).toBe("failed");
+    expect(twitchSession.snapshot().kind).toBe("connecting");
     twitchSession.retry();
     twitch?.onopen?.(undefined as never);
     expect(twitchSession.snapshot().kind).toBe("empty");
 
     let kick: WatchChatSocket | null = null;
     const kickSession = createWatchChatSession({
-      fetch: async () => json({ chatroom: { id: 44 } }),
+      fetch: async (url) =>
+        json(
+          String(url).includes("realtime/connection")
+            ? {
+                data: {
+                  mode: "websocket",
+                  connections: [
+                    {
+                      provider: "pusher",
+                      credentials: { app_key: "currentkey", cluster: "us2" },
+                    },
+                  ],
+                },
+              }
+            : { chatroom: { id: 44 } },
+        ),
+      randomUuid: () => "test-client-id",
       socketFactory: (url) => {
         expect(url).toContain("pusher.com");
         kick = memorySocket();

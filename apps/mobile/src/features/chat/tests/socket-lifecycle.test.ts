@@ -1,8 +1,74 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createWatchChatSession } from "../adapters/create-watch-chat-session";
 import type { WatchChatSocket } from "../capabilities/watch-chat";
 
 describe("guest socket generations", () => {
+  it("reconnects Twitch after an initial socket failure without manual retry", async () => {
+    vi.useFakeTimers();
+    try {
+      const sockets: WatchChatSocket[] = [];
+      const session = createWatchChatSession({
+        fetch: async () => new Response("{}"),
+        socketFactory: () => {
+          const wire: WatchChatSocket = {
+            onopen: null,
+            onclose: null,
+            onerror: null,
+            onmessage: null,
+            send: () => undefined,
+            close: () => wire.onclose?.({ code: 1006 }),
+          };
+          sockets.push(wire);
+          return wire;
+        },
+      });
+      session.attach({ channelId: "1", channelName: "one", platform: "twitch" });
+      sockets[0]?.onerror?.();
+      sockets[0]?.onclose?.({ code: 1006 });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(sockets).toHaveLength(2);
+      sockets[1]?.onopen?.();
+      expect(session.snapshot()).toMatchObject({ kind: "empty", detail: "Chat is live." });
+      session.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("keeps chat in reconnecting state while a queued message update expires", async () => {
+    vi.useFakeTimers();
+    try {
+      let wire: WatchChatSocket | undefined;
+      const session = createWatchChatSession({
+        fetch: async () => new Response("{}"),
+        socketFactory: () => {
+          wire = {
+            onopen: null,
+            onclose: null,
+            onerror: null,
+            onmessage: null,
+            send: () => undefined,
+            close: () => undefined,
+          };
+          return wire;
+        },
+      });
+      session.attach({ channelId: "1", channelName: "one", platform: "twitch" });
+      wire?.onopen?.();
+      wire?.onmessage?.({
+        data: "@id=m1;display-name=Ada :ada!ada@ada PRIVMSG #one :hello",
+      });
+      wire?.onclose?.({ code: 1006 });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(session.snapshot()).toEqual({
+        kind: "connecting",
+        detail: "Reconnecting chat.",
+      });
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("ignores old channel frames and closes without reconnecting after disposal", () => {
     const sockets: WatchChatSocket[] = [];
     const session = createWatchChatSession({
