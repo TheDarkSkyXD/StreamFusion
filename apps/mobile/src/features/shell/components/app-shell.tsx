@@ -32,13 +32,11 @@ import {
 import {
   BackHandler,
   Keyboard,
-  type NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  type TextLayoutEventData,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -170,11 +168,7 @@ import { DestinationIcon, MoreRouteIcon } from "./destination-icon";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { resolveHardwareBack } from "../domain/hardware-back";
 import { safeFrameBottomInset } from "../domain/keyboard-overlay-inset";
-import {
-  applyCompactNavigationTextMeasurement,
-  shouldShowBottomNavigation,
-  type CompactNavigationLayout,
-} from "../domain/shell-layout";
+import { shouldShowBottomNavigation } from "../domain/shell-layout";
 import {
   bottomNavigationSafeInset,
   canNavigateBack,
@@ -443,7 +437,7 @@ export function AppShell({
     workflow: mediaJobs,
   });
   const captionsController = useLocalCaptionsController({ port: captions });
-  const { fontScale, height, width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardInset();
   const keyboardInset = keyboard.inset;
@@ -511,7 +505,6 @@ export function AppShell({
       activityUnreadCount={activity.model.unreadCount}
       bottomInset={bottomInset}
       dispatch={dispatch}
-      key={`${placement}:${width}:${fontScale}`}
       placement={placement}
       state={navigation}
     />
@@ -2301,30 +2294,6 @@ function PrimaryNavigation({
   const { t } = useTranslation();
   const destinationLabel = (id: (typeof SHELL_DESTINATIONS)[number]["id"]) =>
     t(`navigation.${id}`);
-  const measurementActive = useRef(true);
-  const [layout, setLayout] = useState<CompactNavigationLayout>("row");
-
-  useEffect(() => {
-    measurementActive.current = true;
-    return () => {
-      measurementActive.current = false;
-    };
-  }, []);
-
-  const onTextLayout = useCallback(
-    (measuredLayout: CompactNavigationLayout) =>
-      (event: NativeSyntheticEvent<TextLayoutEventData>) => {
-        if (!measurementActive.current) return;
-        const lineCount = event.nativeEvent.lines.length;
-        setLayout((current) =>
-          applyCompactNavigationTextMeasurement(current, {
-            layout: measuredLayout,
-            lineCount,
-          }),
-        );
-      },
-    [],
-  );
 
   return (
     <View
@@ -2332,9 +2301,6 @@ function PrimaryNavigation({
       accessibilityRole="tablist"
       style={[
         placement === "rail" ? styles.navigationRail : styles.navigationBottom,
-        placement === "bottom" && layout !== "row"
-          ? styles.navigationBottomGrid
-          : null,
         // Extend the bar background through the system inset; icons stay above.
         placement === "bottom" ? { paddingBottom: bottomInset } : null,
       ]}
@@ -2366,12 +2332,6 @@ function PrimaryNavigation({
             style={({ pressed }) => [
               styles.navigationItem,
               placement === "rail" ? styles.navigationItemRail : null,
-              placement === "bottom" && layout === "grid-3"
-                ? styles.navigationItemGridThree
-                : null,
-              placement === "bottom" && layout === "grid-2"
-                ? styles.navigationItemGridTwo
-                : null,
               pressed ? styles.pressed : null,
             ]}
             testID={`nav-${destination.id}`}
@@ -2392,9 +2352,6 @@ function PrimaryNavigation({
               />
             </View>
             <Text
-              onTextLayout={
-                placement === "bottom" ? onTextLayout(layout) : undefined
-              }
               selectable
               style={[
                 styles.navigationLabel,
@@ -2572,11 +2529,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileSpacing.xSmall,
     paddingTop: mobileSpacing.xSmall,
   },
-  navigationBottomGrid: {
-    flexWrap: "wrap",
-    gap: 0,
-    justifyContent: "flex-start",
-  },
   navigationRail: {
     alignItems: "stretch",
     backgroundColor: mobileColors.surface,
@@ -2603,19 +2555,13 @@ const styles = StyleSheet.create({
     minHeight: 56,
     width: "100%",
   },
-  navigationItemGridThree: {
-    flex: 0,
-    width: "33.333333%",
-  },
-  navigationItemGridTwo: {
-    flex: 0,
-    width: "50%",
-  },
   navigationLabel: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: "500",
     lineHeight: 14,
     textAlign: "center",
+    width: "100%",
   },
   navigationLabelSelected: { fontWeight: "700" },
   navigationIcon: {
