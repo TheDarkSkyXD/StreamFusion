@@ -22,6 +22,48 @@ const tokenResponse = new Response(
 );
 
 describe("twitch live playback source", () => {
+  it("returns offline when a request fails without DOMException in the runtime", async () => {
+    vi.stubGlobal("DOMException", undefined);
+    try {
+      const source = createTwitchLivePlaybackSource({
+        fetch: async () => {
+          throw new TypeError("Network request failed");
+        },
+      });
+
+      await expect(
+        source.resolve({ signal: new AbortController().signal, target }),
+      ).resolves.toMatchObject({
+        failure: { kind: "offline" },
+        kind: "unavailable",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("still returns cancelled for an aborted request without DOMException", async () => {
+    vi.stubGlobal("DOMException", undefined);
+    try {
+      const source = createTwitchLivePlaybackSource({
+        fetch: async () => {
+          throw Object.assign(new Error("The operation was aborted"), {
+            name: "AbortError",
+          });
+        },
+      });
+
+      await expect(
+        source.resolve({ signal: new AbortController().signal, target }),
+      ).resolves.toMatchObject({
+        failure: { kind: "cancelled" },
+        kind: "unavailable",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("builds an HTTPS Usher URL from a guest token", async () => {
     const source = createTwitchLivePlaybackSource({
       fetch: async () => tokenResponse.clone(),
