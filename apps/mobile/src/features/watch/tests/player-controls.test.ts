@@ -59,6 +59,7 @@ vi.mock("lucide-react-native", async () => {
     createElement("i", {
       "data-icon": name,
       "data-fill": props.fill,
+      "data-size": props.size,
       "data-stroke": props.strokeWidth,
     });
   return {
@@ -165,6 +166,52 @@ describe("player controls chrome", () => {
     i18nTest.t = (key: string, options?: Record<string, unknown>) =>
       i18n.t(key, options as never);
   });
+
+  it.each([false, true])(
+    "keeps large centered play and pause glyphs in fullscreen=%s",
+    (fullscreen) => {
+      const rendered = renderVodControls({
+        ...base,
+        fullscreen,
+        paused: false,
+      });
+      try {
+        const pause = findRendered(rendered.container, "player-play-pause");
+        expect(
+          pause
+            ?.querySelector('[data-icon="TwitchPause"]')
+            ?.getAttribute("data-size"),
+        ).toBe("82");
+        const style = pressableProps.get("player-play-pause")?.style;
+        if (typeof style !== "function")
+          throw new Error("Missing play/pause style");
+        expect(Object.assign({}, ...style({ pressed: false }))).toMatchObject({
+          height: 88,
+          width: 88,
+          alignItems: "center",
+          justifyContent: "center",
+        });
+        const transport = findByTestId(
+          descendants(PlayerControls({ ...base, fullscreen })),
+          "player-live-transport",
+        );
+        expect(transport?.props.style).toMatchObject({
+          marginTop: -44,
+          top: "50%",
+        });
+        rendered.render({ ...base, fullscreen, paused: true });
+        const play = findRendered(rendered.container, "player-play-pause");
+        expect(
+          play
+            ?.querySelector('[data-icon="TwitchPlay"]')
+            ?.getAttribute("data-size"),
+        ).toBe("66");
+        expect(play?.getAttribute("data-testid")).toBe("player-play-pause");
+      } finally {
+        rendered.unmount();
+      }
+    },
+  );
 
   it("shows one centered live transport with visible back, scrim, and stream facts", () => {
     vi.useFakeTimers();

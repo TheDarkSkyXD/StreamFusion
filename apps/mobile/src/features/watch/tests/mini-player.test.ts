@@ -293,6 +293,49 @@ describe("mini-player controls", () => {
     }
   });
 
+  it("dims the video behind visible controls without blocking reveal taps", () => {
+    vi.useFakeTimers();
+    const player = renderedMiniPlayer();
+    try {
+      const video = player.container.querySelector(
+        '[data-testid="mini-player-video"]',
+      );
+      const scrim = player.container.querySelector(
+        '[data-testid="mini-player-scrim"]',
+      );
+      expect(scrim?.parentElement).toBe(video);
+      expect(viewProps.get("mini-player-scrim")?.pointerEvents).toBe("none");
+      expect(viewProps.get("mini-player-scrim")?.style).toMatchObject({
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.46)",
+      });
+      expect(scrim?.previousElementSibling?.getAttribute("data-testid")).toBe(
+        "mini-player-video-reveal",
+      );
+      expect(
+        scrim?.nextElementSibling
+          ?.querySelector("button")
+          ?.getAttribute("data-testid"),
+      ).toBe("mini-player-expand");
+      act(() => vi.advanceTimersByTime(3_000));
+      expect(
+        player.container.querySelector('[data-testid="mini-player-scrim"]'),
+      ).toBeNull();
+      press("mini-player-video-reveal");
+      expect(
+        player.container.querySelector('[data-testid="mini-player-scrim"]'),
+      ).not.toBeNull();
+      press("mini-player-pause");
+      expect(player.onPause).toHaveBeenCalledTimes(1);
+    } finally {
+      player.unmount();
+    }
+  });
+
   it("hides controls after three seconds while paused and reveals them on video tap", () => {
     vi.useFakeTimers();
     const player = renderedMiniPlayer();
