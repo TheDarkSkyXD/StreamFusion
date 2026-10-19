@@ -7,6 +7,7 @@ import { MobileFilterChip } from "@mobile/design/chip";
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileButton } from "@mobile/design/button";
 import { MobileSelect, type MobileSelectOption } from "@mobile/design/select";
+import { MobileTextField } from "@mobile/design/text-input";
 import {
   mobileColors,
   mobileRadii,
@@ -28,16 +29,17 @@ import type {
 import { defaultCategoryRequest } from "../domain/category-identity";
 
 export function CategoryFilterBar({
-  availableTags = [],
   identity,
   onChange,
 }: {
-  readonly availableTags?: readonly string[];
   readonly identity: CategoryRequestIdentity;
   readonly onChange: (next: CategoryRequestIdentity) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(identity);
+  const [tagInput, setTagInput] = useState(
+    identity.tag === "all" ? "" : identity.tag,
+  );
   const platform =
     identity.platformScope === "all"
       ? "All platforms"
@@ -82,6 +84,7 @@ export function CategoryFilterBar({
         accessibilityState={{ expanded }}
         onPress={() => {
           setDraft(identity);
+          setTagInput(identity.tag === "all" ? "" : identity.tag);
           setExpanded(true);
         }}
         style={({ pressed }) => [
@@ -100,12 +103,13 @@ export function CategoryFilterBar({
           <View style={styles.actions}>
             <MobileButton
               accessibilityLabel="Reset category filters"
-              onPress={() =>
+              onPress={() => {
                 setDraft({
                   ...defaultCategoryRequest(draft.category, "all", "all"),
                   tab: draft.tab,
-                })
-              }
+                });
+                setTagInput("");
+              }}
               testID="category-filters-reset"
               variant="secondary"
             >
@@ -114,7 +118,11 @@ export function CategoryFilterBar({
             <MobileButton
               accessibilityLabel="Apply category filters"
               onPress={() => {
-                onChange(draft);
+                onChange(
+                  draft.tab === "live"
+                    ? { ...draft, tag: tagInput.trim() || "all" }
+                    : draft,
+                );
                 setExpanded(false);
               }}
               testID="category-filters-apply"
@@ -148,16 +156,6 @@ export function CategoryFilterBar({
               onChange={(language) => setDraft({ ...draft, language })}
             />
           ) : null}
-          {draft.tab === "live" &&
-          (availableTags.length > 0 || draft.tag !== "all") ? (
-            <ChipRow
-              label="Tag"
-              options={tagOptions(draft, availableTags)}
-              selected={draft.tag}
-              testID="category-tag"
-              onSelect={(tag) => setDraft({ ...draft, tag })}
-            />
-          ) : null}
           {draft.tab === "live" ? (
             <MobileSelect<LiveSort>
               accessibilityLabel="Sort"
@@ -186,6 +184,17 @@ export function CategoryFilterBar({
               onChange={(videoSort) => setDraft({ ...draft, videoSort })}
             />
           )}
+          {draft.tab === "live" ? (
+            <MobileTextField
+              autoCapitalize="none"
+              autoCorrect={false}
+              label="Search tags"
+              onChange={setTagInput}
+              placeholder="Search tags"
+              testID="category-tag-search"
+              value={tagInput}
+            />
+          ) : null}
           {draft.tab === "clips" ? (
             <ChipRow
               label="Time"
@@ -265,26 +274,6 @@ function languageOptions(): readonly {
       label: languageLabel(language),
       value: language,
     })),
-  ];
-}
-
-function tagOptions(
-  identity: CategoryRequestIdentity,
-  availableTags: readonly string[],
-): readonly {
-  readonly label: string;
-  readonly value: string;
-}[] {
-  return [
-    { label: "All tags", value: "all" },
-    ...[
-      ...new Set([
-        ...availableTags,
-        ...(identity.tag === "all" ? [] : [identity.tag]),
-      ]),
-    ]
-      .sort((left, right) => left.localeCompare(right))
-      .map((tag) => ({ label: tag, value: tag })),
   ];
 }
 

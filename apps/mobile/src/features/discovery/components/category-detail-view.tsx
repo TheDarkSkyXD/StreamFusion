@@ -151,11 +151,7 @@ function CategoryListHeader({
         onRetry={onRetryCategoryMatch}
       />
       <TabRow identity={view.identity} onChangeIdentity={onChangeIdentity} />
-      <CategoryFilterBar
-        availableTags={availableTags(view)}
-        identity={view.identity}
-        onChange={onChangeIdentity}
-      />
+      <CategoryFilterBar identity={view.identity} onChange={onChangeIdentity} />
       <CategoryMediaStatus view={view} />
       {proofMode && onSelectProofMode ? (
         <CategoryDiscoveryProofControls
@@ -450,14 +446,6 @@ function PageRetry({
       ) : null}
     </View>
   );
-}
-
-function availableTags(view: CategoryDetailModel): readonly string[] {
-  if (view.identity.tab !== "live") return [];
-  const tags = [view.providers.twitch, view.providers.kick]
-    .flatMap((provider) => provider.items)
-    .flatMap((item) => ("isLive" in item && "tags" in item ? item.tags : []));
-  return [...new Set(tags)].sort((left, right) => left.localeCompare(right));
 }
 
 function phaseCopy(view: CategoryDetailModel): string {

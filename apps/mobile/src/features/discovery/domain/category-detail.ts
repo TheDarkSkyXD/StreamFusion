@@ -196,11 +196,16 @@ function filterLive(
   items: readonly Stream[],
   identity: CategoryRequestIdentity,
 ): Stream[] {
+  const tagQuery = identity.tag.trim().toLowerCase();
   return items.filter((item) => {
     if (identity.language !== "all" && item.language !== identity.language) {
       return false;
     }
-    if (identity.tag !== "all" && !item.tags.includes(identity.tag)) {
+    if (
+      tagQuery !== "" &&
+      tagQuery !== "all" &&
+      !item.tags.some((tag) => tag.toLowerCase().includes(tagQuery))
+    ) {
       return false;
     }
     return true;

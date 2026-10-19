@@ -1,6 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Clip, Video } from "@streamfusion/core/content";
 
+import { MobilePlatformBadge } from "@mobile/design/platform-badge";
 import {
   mobileColors,
   mobileRadii,
@@ -40,15 +41,20 @@ export function CategoryRecordedRow({
         )}
       </View>
       <View style={styles.copy}>
-        <Text selectable style={styles.title}>
+        <Text numberOfLines={2} selectable style={styles.title}>
           {item.title}
         </Text>
-        <Text selectable style={styles.meta}>
-          {`${item.channelDisplayName} · ${item.viewCount} views`}
-        </Text>
-        <Text selectable style={styles.kind}>
-          {isClip ? "CLIP" : item.type.toUpperCase()}
-        </Text>
+        <View style={styles.metadata}>
+          <Text selectable style={styles.meta}>
+            {`${item.channelDisplayName} · ${item.viewCount} views`}
+          </Text>
+          <View style={styles.identity}>
+            <Text selectable style={styles.kind}>
+              {isClip ? "CLIP" : item.type.toUpperCase()}
+            </Text>
+            <MobilePlatformBadge platform={item.platform} />
+          </View>
+        </View>
       </View>
     </Pressable>
   );
@@ -58,14 +64,12 @@ const styles = StyleSheet.create({
   row: {
     backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
-    flexDirection: "row",
-    gap: mobileSpacing.medium,
     overflow: "hidden",
   },
   thumbWrap: {
     aspectRatio: 16 / 9,
     backgroundColor: mobileColors.surfaceMuted,
-    width: 148,
+    width: "100%",
   },
   thumb: {
     height: "100%",
@@ -84,11 +88,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   copy: {
-    flex: 1,
     gap: mobileSpacing.xSmall,
-    justifyContent: "center",
-    paddingVertical: mobileSpacing.small,
-    paddingRight: mobileSpacing.medium,
+    padding: mobileSpacing.medium,
   },
   title: {
     color: mobileColors.textPrimary,
@@ -98,8 +99,19 @@ const styles = StyleSheet.create({
   },
   meta: {
     color: mobileColors.textSecondary,
+    flex: 1,
     fontSize: 13,
     lineHeight: 18,
+  },
+  metadata: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
+  },
+  identity: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: mobileSpacing.small,
   },
   kind: {
     color: mobileColors.textCategory,
