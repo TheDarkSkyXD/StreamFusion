@@ -99,6 +99,7 @@ export function createFocusedWatchSession(input: {
   let muted = false;
   let volume = 1;
   let quality = "auto";
+  let qualityPreference = "auto";
   let qualities: readonly string[] = ["auto"];
   let qualityRequestSequence = 0;
   let progress: PlaybackProgress = IDLE_PROGRESS;
@@ -571,6 +572,7 @@ export function createFocusedWatchSession(input: {
       muted = false;
       volume = 1;
       quality = "auto";
+      qualityPreference = input.playbackSettings?.snapshot().quality ?? "auto";
       qualities = ["auto"];
     }
     progress = IDLE_PROGRESS;
@@ -620,7 +622,7 @@ export function createFocusedWatchSession(input: {
         stopped = interrupted();
         if (stopped) return stopped;
       }
-      const requestedQuality = quality;
+      const requestedQuality = qualityPreference;
       const qualitySequence = qualityRequestSequence;
       const qualityResult = await input.playback.setQuality(
         sessionId,
@@ -778,13 +780,17 @@ export function createFocusedWatchSession(input: {
       if (current?.kind !== "active") return;
       const sessionId = current.session.sessionId;
       const requestSequence = ++qualityRequestSequence;
-      const listed = await input.playback.setQuality(sessionId, nextQuality);
+      const changingQuality = nextQuality !== quality;
+      const listed = await (!changingQuality
+        ? input.playback.listQualities(sessionId)
+        : input.playback.setQuality(sessionId, nextQuality));
       if (
         listed.kind === "listed" &&
         current?.kind === "active" &&
         current.session.sessionId === sessionId &&
         requestSequence === qualityRequestSequence
       ) {
+        if (changingQuality) qualityPreference = nextQuality;
         quality = listed.catalog.selected;
         qualities = listed.catalog.qualities;
         notify();

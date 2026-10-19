@@ -5,6 +5,7 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import org.junit.After
@@ -39,6 +40,10 @@ class FocusedPlaybackQualityTest {
     val catalog = catalog()
     assertEquals("1080p", catalog["selected"])
     assertFalse((catalog["qualities"] as List<*>).contains("highest"))
+    assertEquals(
+      TrackSelectionOverride(videoTracks().groups.single().mediaTrackGroup, 1),
+      player().trackSelectionParameters.overrides.values.single(),
+    )
   }
 
   @Test
@@ -52,6 +57,7 @@ class FocusedPlaybackQualityTest {
     assertEquals("auto", catalog()["selected"])
     assertFalse(player().trackSelectionParameters.forceHighestSupportedBitrate)
     assertEquals(Int.MAX_VALUE, player().trackSelectionParameters.maxVideoHeight)
+    assertTrue(player().trackSelectionParameters.overrides.isEmpty())
 
     assertEquals("completed", FocusedPlaybackSessionOwner.setQuality("watch", "highest")["kind"])
     val manual = FocusedPlaybackSessionOwner.setQuality("watch", "720p")
@@ -59,6 +65,7 @@ class FocusedPlaybackQualityTest {
     assertEquals("720p", catalog()["selected"])
     assertFalse(player().trackSelectionParameters.forceHighestSupportedBitrate)
     assertEquals(720, player().trackSelectionParameters.maxVideoHeight)
+    assertTrue(player().trackSelectionParameters.overrides.isEmpty())
   }
 
   private fun start() {

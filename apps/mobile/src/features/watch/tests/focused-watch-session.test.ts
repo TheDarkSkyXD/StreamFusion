@@ -1260,11 +1260,70 @@ describe("focused watch session", () => {
     expect(session.snapshot(target).kind).toBe("failed");
   });
 
+  it("keeps Highest after opening quality controls and refreshing the stream", async () => {
+    let requested = "auto";
+    let highest = "1080p";
+    let sequence = 0;
+    let emit: ((event: NativePlaybackEvent) => void) | undefined;
+    const catalog = (sessionId: string) => ({
+      qualities: ["auto", highest, "720p"],
+      selected: requested === "highest" ? highest : requested,
+      sessionId,
+    });
+    const session = createFocusedWatchSession({
+      playback: playbackPort({
+        listQualities: async (sessionId) => ({
+          kind: "listed",
+          catalog: catalog(sessionId),
+        }),
+        setQuality: async (sessionId, value) => {
+          requested = value;
+          return { kind: "listed", catalog: catalog(sessionId) };
+        },
+        subscribe: (listener) => {
+          emit = listener;
+          return () => undefined;
+        },
+      }),
+      playbackSettings: {
+        snapshot: () => ({
+          allowHevc: true,
+          backgroundQuality: "160p",
+          captionsEnabled: false,
+          forwardBufferSec: 15,
+          liveSyncDurationCount: 4,
+          lowLatencyMode: false,
+          maxBufferSec: 30,
+          quality: "highest",
+        }),
+      },
+      policy: { read: async () => ({ kind: "enabled", sequence: 1 }) },
+      protection: protection(),
+      sessionIds: { create: () => `watch:${++sequence}` },
+      sources: sources(),
+    });
+    await session.start(target);
+    emit?.({ kind: "playing", sessionId: "watch:1" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(session.peek()).toMatchObject({ quality: "1080p" });
+
+    await session.setQuality("1080p");
+    highest = "1440p";
+    await session.refresh(target);
+
+    expect(session.peek()).toMatchObject({ quality: "1440p" });
+  });
+
   it("updates the quality catalog when the current selection is queried again", async () => {
     const playback = playbackPort({
-      setQuality: async (sessionId, selected) => ({
+      listQualities: async (sessionId) => ({
         kind: "listed",
-        catalog: { qualities: ["auto", "1080p", "720p"], selected, sessionId },
+        catalog: {
+          qualities: ["auto", "1080p", "720p"],
+          selected: "auto",
+          sessionId,
+        },
       }),
     });
     const session = createFocusedWatchSession({

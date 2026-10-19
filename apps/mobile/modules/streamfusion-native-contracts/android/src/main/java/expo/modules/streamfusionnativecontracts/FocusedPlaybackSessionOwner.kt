@@ -17,6 +17,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -240,8 +241,22 @@ object FocusedPlaybackSessionOwner {
       current.player.trackSelectionParameters = current.player.trackSelectionParameters
         .buildUpon()
         .clearVideoSizeConstraints()
+        .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+        .setForceHighestSupportedBitrate(false)
         .build()
       current.selectedQuality = "auto"
+      current.resolvedHighestQuality = null
+      return@onMain qualityCompleted(current)
+    }
+    if (quality == "highest") {
+      current.player.trackSelectionParameters = current.player.trackSelectionParameters
+        .buildUpon()
+        .clearVideoSizeConstraints()
+        .setForceHighestSupportedBitrate(true)
+        .build()
+      current.selectedQuality = "highest"
+      current.resolvedHighestQuality = highestSelectedQuality(current.player.currentTracks)
+      applyHighestQuality(current, current.player.currentTracks)
       return@onMain qualityCompleted(current)
     }
     val height = quality.removeSuffix("p").toIntOrNull()
@@ -249,8 +264,11 @@ object FocusedPlaybackSessionOwner {
     current.player.trackSelectionParameters = current.player.trackSelectionParameters
       .buildUpon()
       .setMaxVideoSize(Int.MAX_VALUE, height)
+      .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+      .setForceHighestSupportedBitrate(false)
       .build()
     current.selectedQuality = quality
+    current.resolvedHighestQuality = null
     qualityCompleted(current)
   }
 
@@ -557,7 +575,11 @@ object FocusedPlaybackSessionOwner {
     "kind" to "completed",
     "value" to mapOf(
       "qualities" to videoQualities(current.player),
-      "selected" to current.selectedQuality,
+      "selected" to if (current.selectedQuality == "highest") {
+        current.resolvedHighestQuality ?: "auto"
+      } else {
+        current.selectedQuality
+      },
       "sessionId" to current.sessionId,
     ),
   )
@@ -573,6 +595,40 @@ object FocusedPlaybackSessionOwner {
     }
     return listOf("auto") + heights.sortedDescending().map { "${it}p" }
   }
+
+  private fun applyHighestQuality(current: Session, tracks: Tracks) {
+    val override = tracks.groups.asSequence()
+      .filter { it.type == C.TRACK_TYPE_VIDEO }
+      .flatMap { group ->
+        (0 until group.length).asSequence()
+          .filter { group.isTrackSupported(it) && group.getTrackFormat(it).height > 0 }
+          .map { TrackSelectionOverride(group.mediaTrackGroup, it) }
+      }
+      .maxWithOrNull(compareBy<TrackSelectionOverride> {
+        it.mediaTrackGroup.getFormat(it.trackIndices.single()).height
+      }.thenBy {
+        it.mediaTrackGroup.getFormat(it.trackIndices.single()).frameRate
+      }.thenBy {
+        it.mediaTrackGroup.getFormat(it.trackIndices.single()).bitrate
+      }) ?: return
+    val parameters = current.player.trackSelectionParameters
+    if (parameters.overrides[override.mediaTrackGroup] == override) return
+    current.player.trackSelectionParameters = parameters.buildUpon()
+      .setOverrideForType(override)
+      .build()
+  }
+
+  private fun highestSelectedQuality(tracks: Tracks): String? = tracks.groups
+    .asSequence()
+    .filter { it.type == C.TRACK_TYPE_VIDEO }
+    .flatMap { group ->
+      (0 until group.length).asSequence()
+        .filter { group.isTrackSelected(it) && group.isTrackSupported(it) }
+        .map { group.getTrackFormat(it).height }
+    }
+    .filter { it > 0 }
+    .maxOrNull()
+    ?.let { "${it}p" }
 
   private fun requestHeaders(request: Map<String, Any>): Map<String, String> {
     val raw = request["requestHeaders"] as? Map<*, *> ?: return emptyMap()
@@ -720,6 +776,7 @@ object FocusedPlaybackSessionOwner {
     val sourceRecovery: Boolean,
     var muted: Boolean = false,
     var selectedQuality: String = "auto",
+    var resolvedHighestQuality: String? = null,
     var volumeBeforeMute: Float = 1f,
   ) {
     var interruption: RecoveryInterruption? = null
@@ -746,6 +803,10 @@ object FocusedPlaybackSessionOwner {
 
     override fun onTracksChanged(tracks: Tracks) {
       val session = currentSession() ?: return
+      if (session.selectedQuality == "highest") {
+        session.resolvedHighestQuality = highestSelectedQuality(tracks)
+        applyHighestQuality(session, tracks)
+      }
       if (session.player.playWhenReady) {
         publish(mapOf("kind" to "playing", "sessionId" to sessionId))
       }
