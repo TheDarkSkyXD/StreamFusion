@@ -41,8 +41,8 @@ test("the committed native config stays on the development identity", () => {
   assert.equal(resolved.slug, "streamfusion-development");
   assert.equal(resolved.scheme, "streamfusion-development");
   assert.equal(resolved.android.package, "com.thedarkskyxd.streamfusion.dev");
-  assert.equal(resolved.version, "0.1.14");
-  assert.equal(resolved.android.versionCode, 17);
+  assert.equal(resolved.version, "0.1.15");
+  assert.equal(resolved.android.versionCode, 18);
   assert.deepEqual(resolved, committed);
 });
 
