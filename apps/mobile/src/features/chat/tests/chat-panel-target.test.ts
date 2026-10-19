@@ -989,8 +989,15 @@ describe("chat reading position", () => {
             '[data-testid="watch-chat-badge-alpha-message-subscriber"]',
           ),
         ).toHaveProperty("ariaLabel", "1-Year Subscriber");
-        expect(panel.container.textContent).toContain("Older reading row");
-        expect(panel.container.textContent).not.toContain("New arrival");
+        const underlay = panel.container.querySelector(
+          '[data-testid="watch-chat-scroll"]',
+        );
+        const history = panel.container.querySelector(
+          '[data-testid="chat-user-history-scroll"]',
+        );
+        expect(underlay?.textContent).toContain("Older reading row");
+        expect(underlay?.textContent).not.toContain("New arrival");
+        expect(history?.textContent).toContain("New arrival");
         expect(
           panel.container.querySelector('[data-testid="chat-user-actions"]'),
         ).not.toBeNull();
@@ -1152,6 +1159,66 @@ describe("chat reading position", () => {
 });
 
 describe("chat user sheet", () => {
+  it("adds the selected user's live messages while keeping the chat beneath the sheet frozen", async () => {
+    const panel = renderPanel(
+      chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
+    );
+    const selected = { ...messageA, userId: "user-a" };
+    const arrival = {
+      ...selected,
+      id: "latest-from-user-a",
+      username: "renamed-viewer",
+      text: "New message from Alpha",
+    };
+    const unrelated = {
+      ...messageA,
+      id: "latest-from-user-b",
+      userId: "user-b",
+      text: "Unrelated message",
+    };
+    try {
+      await panel.render(channelA, [selected]);
+      await panel.press('[aria-label="Actions for Alpha viewer"]');
+      await panel.render(channelA, [arrival, unrelated]);
+
+      const history = panel.container.querySelector(
+        '[data-testid="chat-user-history-scroll"]',
+      );
+      const underlay = panel.container.querySelector(
+        '[data-testid="watch-chat-scroll"]',
+      );
+      expect(
+        panel.container.querySelector('[data-testid="chat-user-actions"]'),
+      ).not.toBeNull();
+      expect(
+        history?.querySelector(
+          '[data-testid="chat-user-message-alpha-message"]',
+        ),
+      ).not.toBeNull();
+      expect(history?.textContent).toContain("New message from Alpha");
+      expect(
+        history?.querySelector(
+          '[data-testid="chat-user-message-latest-from-user-b"]',
+        ),
+      ).toBeNull();
+      expect(
+        underlay?.querySelector('[data-testid="watch-chat-row-alpha-message"]'),
+      ).not.toBeNull();
+      expect(
+        underlay?.querySelector(
+          '[data-testid="watch-chat-row-latest-from-user-a"]',
+        ),
+      ).toBeNull();
+      expect(
+        underlay?.querySelector(
+          '[data-testid="watch-chat-row-latest-from-user-b"]',
+        ),
+      ).toBeNull();
+    } finally {
+      await panel.unmount();
+    }
+  });
+
   it("shows both copy destinations and disables chat insertion in read-only chat", async () => {
     const panel = renderPanel(
       chatCommands(async () => ({ kind: "sent", messageId: "sent" })),
