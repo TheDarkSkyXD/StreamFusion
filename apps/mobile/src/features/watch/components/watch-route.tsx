@@ -19,6 +19,7 @@ import { getDisplayLanguage } from "@streamfusion/core/display-language";
 import type { DiscoverySession } from "@mobile/features/discovery/capabilities/platform-reads";
 import type {
   FocusedWatchSession,
+  WatchInspection,
   WatchPeek,
   WatchTab,
   WatchTarget,
@@ -307,16 +308,46 @@ function WatchSessionRoute({
         job.intent.kind === "download",
     ) ?? jobForEligibility(download?.jobs, eligibility);
   const recordingJob = jobForEligibility(recording?.jobs, recordingEligibility);
+  const inspectionQueryKey = [
+    "watch-inspection",
+    target.platform,
+    target.channelId,
+    target.channelName,
+    target.media?.kind ?? "live",
+    target.media?.id ?? "",
+  ];
   const inspection = useQuery({
-    queryFn: ({ signal }) => screen.runtime.inspection.read({ signal, target }),
-    queryKey: [
-      "watch-inspection",
-      target.platform,
-      target.channelId,
-      target.channelName,
-      target.media?.kind ?? "live",
-      target.media?.id ?? "",
-    ],
+    queryFn: async ({ signal }) => {
+      const next = await screen.runtime.inspection.read({ signal, target });
+      const previous =
+        queryClient.getQueryData<WatchInspection>(inspectionQueryKey);
+      if (next.info.kind === "unavailable" && previous?.info.kind === "live") {
+        return { ...next, info: previous.info };
+      }
+      if (
+        next.info.kind === "live" &&
+        next.info.stream.startedAt === null &&
+        previous?.info.kind === "live" &&
+        previous.info.stream.startedAt !== null &&
+        previous.info.stream.id === next.info.stream.id &&
+        previous.info.stream.platform === next.info.stream.platform &&
+        previous.info.stream.channelId === next.info.stream.channelId
+      ) {
+        return {
+          ...next,
+          info: {
+            ...next.info,
+            stream: {
+              ...next.info.stream,
+              startedAt: previous.info.stream.startedAt,
+            },
+          },
+        };
+      }
+      return next;
+    },
+    queryKey: inspectionQueryKey,
+    refetchInterval: target.media ? false : 30_000,
   });
   useEffect(() => {
     void screen.adblock?.load().then(setAdblockView);

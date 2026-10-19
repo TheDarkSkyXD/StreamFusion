@@ -32,7 +32,8 @@ import { formatWatchLiveMetaParts } from "../domain/watch-live-meta";
 
 const RAIL_ICON = 26;
 const RAIL_HIT = 48;
-const RECORDED_CONTROL_SPACING = 72;
+const TRANSPORT_HIT = 88;
+const RECORDED_CONTROL_SPACING = 88;
 
 const TwitchPauseIcon = createLucideIcon("TwitchPause", [
   ["rect", { x: "5", y: "4", width: "5", height: "16", key: "left" }],
@@ -206,7 +207,8 @@ export function PlayerControls({
                     paused ? t("playback.play") : t("playback.pause")
                   }
                   filled
-                  iconSize={paused ? 50 : 24}
+                  hitSize={TRANSPORT_HIT}
+                  iconSize={paused ? 66 : 82}
                   strokeWidth={0}
                   onPress={onPlayPause}
                   testID="player-play-pause"
@@ -594,13 +596,14 @@ const styles = StyleSheet.create({
   recordedTransport: {
     alignItems: "center",
     left: 0,
-    marginTop: -RAIL_HIT / 2,
+    marginTop: -TRANSPORT_HIT / 2,
     position: "absolute",
     right: 0,
     top: "50%",
     zIndex: 1,
   },
   recordedTransportButtons: {
+    alignItems: "center",
     flexDirection: "row",
     width: RECORDED_CONTROL_SPACING * 3,
   },

@@ -322,6 +322,11 @@ export function MiniPlayer({
         />
         {controlsVisible ? (
           <>
+            <View
+              pointerEvents="none"
+              style={styles.scrim}
+              testID="mini-player-scrim"
+            />
             <View style={styles.expandSpot}>
               <IconControl
                 Icon={Maximize2}
@@ -422,6 +427,10 @@ const styles = StyleSheet.create({
   },
   videoReveal: {
     ...StyleSheet.absoluteFill,
+  },
+  scrim: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.46)",
   },
   expandSpot: {
     left: 0,
