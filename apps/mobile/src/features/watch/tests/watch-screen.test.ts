@@ -147,14 +147,58 @@ const target: WatchTarget = {
 
 describe("watch screen", () => {
   it.each(
-    (["twitch", "kick"] as const).flatMap((platform) =>
-      [false, true].flatMap((expanded) =>
-        [false, true].map((isPartner) => ({ platform, expanded, isPartner })),
-      ),
+    (
+      [
+        {
+          platform: "twitch",
+          isPartner: false,
+          isVerified: false,
+          hasBadge: false,
+        },
+        {
+          platform: "twitch",
+          isPartner: false,
+          isVerified: true,
+          hasBadge: false,
+        },
+        {
+          platform: "twitch",
+          isPartner: true,
+          isVerified: false,
+          hasBadge: true,
+        },
+        {
+          platform: "twitch",
+          isPartner: true,
+          isVerified: true,
+          hasBadge: true,
+        },
+        {
+          platform: "kick",
+          isPartner: false,
+          isVerified: false,
+          hasBadge: false,
+        },
+        {
+          platform: "kick",
+          isPartner: false,
+          isVerified: true,
+          hasBadge: true,
+        },
+        {
+          platform: "kick",
+          isPartner: true,
+          isVerified: false,
+          hasBadge: true,
+        },
+        { platform: "kick", isPartner: true, isVerified: true, hasBadge: true },
+      ] as const
+    ).flatMap((entry) =>
+      [false, true].map((expanded) => ({ ...entry, expanded })),
     ),
   )(
-    "shows the avatar, live ring and partner or brand badge on $platform, expanded=$expanded, partner=$isPartner",
-    ({ platform, expanded, isPartner }) => {
+    "shows the avatar, live ring and provider badge on $platform, expanded=$expanded, partner=$isPartner, verified=$isVerified",
+    ({ platform, expanded, isPartner, isVerified, hasBadge }) => {
       const nodes = descendants(
         WatchChannelCard({
           info: {
@@ -165,7 +209,7 @@ describe("watch screen", () => {
               id: "1",
               isLive: true,
               isPartner,
-              isVerified: !isPartner,
+              isVerified,
               platform,
               username: "ada",
             },
@@ -202,7 +246,7 @@ describe("watch screen", () => {
       expect(
         descendants(avatar).find((node) => node.type === "Image")?.props.source,
       ).toEqual({ uri: "https://cdn.example/avatar.png" });
-      const badgeLabel = isPartner
+      const badgeLabel = hasBadge
         ? `Verified on ${platform === "twitch" ? "Twitch" : "Kick"}`
         : platform === "twitch"
           ? "Twitch"
@@ -220,7 +264,14 @@ describe("watch screen", () => {
         nodes.some(
           (node) => node.props.testID === `verified-badge-${platform}`,
         ),
-      ).toBe(isPartner);
+      ).toBe(hasBadge);
+      expect(
+        nodes.some(
+          (node) =>
+            node.props.accessibilityLabel ===
+            (platform === "twitch" ? "Twitch" : "Kick"),
+        ),
+      ).toBe(!hasBadge);
     },
   );
 

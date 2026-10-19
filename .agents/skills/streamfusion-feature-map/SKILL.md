@@ -25,6 +25,7 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 - Shared UI primitives, runtime bootstrap, translation infrastructure, and shared contracts remain outside feature roots when they have no single feature owner.
 - When another view previews existing content, reuse its renderer and display preferences so both views stay consistent.
 - Reuse identity styling in profile summaries as well as content rows, including provider colors, cosmetics, and display preferences.
+- Choose identity badges from each provider's badge status. Keep verification, affiliation, and partnership flags distinct, and cover payloads that omit optional flags.
 - Show privileged actions from the current account's verified capability for the active resource. A callback's presence does not establish permission.
 - Before removing a control, verify that its replacement interaction works and remains accessible.
 - When matching reference controls, compare visible glyph bounds at the same display density. Equal icon canvas sizes do not establish equal visual sizes.
