@@ -366,6 +366,7 @@ describe("platform catalog readers", () => {
                 id: "509658",
                 name: "Just Chatting",
                 videos: {
+                  pageInfo: { hasNextPage: false },
                   edges: [
                     {
                       node: {
@@ -415,6 +416,7 @@ describe("platform catalog readers", () => {
               id: "509658",
               name: "Just Chatting",
               clips: {
+                pageInfo: { hasNextPage: false },
                 edges: [
                   {
                     node: {

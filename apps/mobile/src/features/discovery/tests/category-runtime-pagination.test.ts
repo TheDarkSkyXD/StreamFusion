@@ -9,6 +9,78 @@ function json(value: unknown) {
 }
 
 describe("category runtime pagination", () => {
+  it("forwards category clip continuation through the signed-in runtime", async () => {
+    const afters: (string | null)[] = [];
+    const session = createDiscoveryRuntime({
+      cache: {
+        clear: async () => undefined,
+        get: async () => ({ kind: "miss" }),
+        put: async () => undefined,
+      },
+      installation: { read: async () => ({ kind: "none" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "https://relay.test/",
+      twitchClientId: "client",
+      userTokens: {
+        read: async () => ({ kind: "ready", accessToken: "token" }),
+      },
+      fetch: async (_url, init) => {
+        const request = JSON.parse(String(init?.body));
+        const after = request.variables.after as string | null;
+        afters.push(after);
+        return json({
+          data: {
+            game: {
+              id: "509658",
+              name: "Just Chatting",
+              clips: {
+                edges: [
+                  {
+                    cursor: after === null ? "next-page" : "last-page",
+                    node: {
+                      slug: after === null ? "first" : "second",
+                      title: "Moment",
+                      durationSeconds: 10,
+                      viewCount: 5,
+                      createdAt: "2026-09-01T10:00:00Z",
+                      thumbnailURL: "https://cdn.example/clip.jpg",
+                      broadcaster: {
+                        id: "42",
+                        login: "ada",
+                        displayName: "Ada",
+                        profileImageURL: "https://cdn.example/avatar.jpg",
+                      },
+                      curator: { displayName: "Viewer" },
+                    },
+                  },
+                ],
+                pageInfo: { hasNextPage: after === null },
+              },
+            },
+          },
+        });
+      },
+    });
+    const first = await session.readCategoryClips({
+      platform: "twitch",
+      categoryId: "509658",
+      timeRange: "all",
+    });
+    if (!("items" in first)) throw new Error("Expected Twitch clip page");
+    const second = await session.readCategoryClips({
+      platform: "twitch",
+      categoryId: "509658",
+      timeRange: "all",
+      cursor: first.cursor,
+    });
+    if (!("items" in second)) throw new Error("Expected Twitch clip page");
+    expect(first.items.map((item) => item.id)).toEqual(["first"]);
+    expect(first.cursor).toBe("next-page");
+    expect(second.items.map((item) => item.id)).toEqual(["second"]);
+    expect(second.cursor).toBeUndefined();
+    expect(afters).toEqual([null, "next-page"]);
+  });
   it("advances guest Twitch pages and surfaces GraphQL failures", async () => {
     const requests: { variables: { cursor: string | null } }[] = [];
     const reader = createTwitchGqlGuestReader({

@@ -8,9 +8,90 @@ import {
   mergeCategories,
   nextCategoryCursor,
 } from "../domain/category-catalog";
-import { fixtureCategory, fixtureOutcome } from "../domain/discovery-fixture";
+import {
+  fixtureCategory,
+  fixtureClip,
+  fixtureOutcome,
+  fixtureVideo,
+} from "../domain/discovery-fixture";
 
 describe("category catalog pagination", () => {
+  it.each(["clips", "videos"] as const)(
+    "forwards signed-out %s cursors through Relay",
+    async (kind) => {
+      const urls: string[] = [];
+      const reader = createRelaySignedOutReader({
+        baseUrl: "https://relay.test/",
+        fetch: async (input) => {
+          const url = String(input);
+          urls.push(url);
+          const first = new URL(url).searchParams.get("cursor") === null;
+          return new Response(
+            JSON.stringify(
+              createRelaySuccessEnvelope({
+                body:
+                  kind === "clips"
+                    ? {
+                        kind: "available",
+                        platform: "twitch",
+                        clips: [
+                          fixtureClip("twitch", first ? "one" : "two", 1),
+                        ],
+                        ...(first ? { cursor: "next-page" } : {}),
+                      }
+                    : {
+                        kind: "available",
+                        platform: "twitch",
+                        videos: [
+                          fixtureVideo("twitch", first ? "one" : "two", 1),
+                        ],
+                        ...(first ? { cursor: "next-page" } : {}),
+                      },
+                requestId: "req_category_media_page",
+              }),
+            ),
+            { status: 200 },
+          );
+        },
+        installation: async () => ({ credential: "install", kind: "ready" }),
+      });
+      const first =
+        kind === "clips"
+          ? await reader.getCategoryClips({
+              platform: "twitch",
+              categoryId: "509658",
+              timeRange: "all",
+            })
+          : await reader.getCategoryVideos({
+              platform: "twitch",
+              categoryId: "509658",
+              sort: "recent",
+            });
+      if (!("items" in first)) throw new Error("Expected Twitch media page");
+      const second =
+        kind === "clips"
+          ? await reader.getCategoryClips({
+              platform: "twitch",
+              categoryId: "509658",
+              timeRange: "all",
+              cursor: first.cursor,
+            })
+          : await reader.getCategoryVideos({
+              platform: "twitch",
+              categoryId: "509658",
+              sort: "recent",
+              cursor: first.cursor,
+            });
+      if (!("items" in second)) throw new Error("Expected Twitch media page");
+      expect(first.items.map((item) => item.id)).toEqual(["one"]);
+      expect(first.cursor).toBe("next-page");
+      expect(second.items.map((item) => item.id)).toEqual(["two"]);
+      expect(second.cursor).toBeUndefined();
+      expect(new URL(urls[1] ?? "").searchParams.get("cursor")).toBe(
+        "next-page",
+      );
+    },
+  );
   it("requests 60 Helix games and forwards the opaque continuation cursor", async () => {
     const urls: string[] = [];
     const reader = createTwitchHelixReader({

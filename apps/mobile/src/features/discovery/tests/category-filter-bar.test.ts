@@ -13,8 +13,11 @@ vi.mock("react-native", () => {
     readonly children?: ReactNode;
     readonly disabled?: boolean;
     readonly onPress?: () => void;
+    readonly onChangeText?: (value: string) => void;
+    readonly placeholder?: string;
     readonly role?: string;
     readonly testID?: string;
+    readonly value?: string;
     readonly visible?: boolean;
   };
   const host = (tag: string) =>
@@ -39,6 +42,15 @@ vi.mock("react-native", () => {
     ScrollView: host("div"),
     StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
     Text: host("span"),
+    TextInput: (props: HostProps) =>
+      createElement("input", {
+        "aria-label": props.accessibilityLabel,
+        "data-testid": props.testID,
+        onChange: (event: { currentTarget: HTMLInputElement }) =>
+          props.onChangeText?.(event.currentTarget.value),
+        placeholder: props.placeholder,
+        value: props.value,
+      }),
     View: host("div"),
   };
 });
@@ -82,15 +94,11 @@ const initialIdentity: CategoryRequestIdentity = {
   videoSort: "recent",
 };
 
-async function mountFilter(
-  initial = initialIdentity,
-  availableTags: readonly string[] = [],
-) {
+async function mountFilter(initial = initialIdentity) {
   const changes: CategoryRequestIdentity[] = [];
   function ControlledFilter() {
     const [identity, setIdentity] = useState(initial);
     return createElement(CategoryFilterBar, {
-      availableTags,
       identity,
       onChange: (next) => {
         changes.push(next);
@@ -110,7 +118,22 @@ async function mountFilter(
     if (!button) throw new Error(`Missing ${testID}`);
     await act(async () => button.click());
   }
-  return { changes, click, container: mounted };
+  async function typeTag(value: string) {
+    const input = mounted.querySelector<HTMLInputElement>(
+      "[data-testid='category-tag-search']",
+    );
+    if (!input) throw new Error("Missing tag search");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      if (!setter) throw new Error("Missing native input setter");
+      setter.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  return { changes, click, container: mounted, typeTag };
 }
 
 describe("category filters", () => {
@@ -140,8 +163,10 @@ describe("category filters", () => {
       screen.container.querySelector("[data-testid='category-platform-kick']"),
     ).not.toBeNull();
     expect(
-      screen.container.querySelector("[data-testid='category-tag-all']"),
-    ).toBeNull();
+      screen.container.querySelector<HTMLInputElement>(
+        "[data-testid='category-tag-search']",
+      )?.placeholder,
+    ).toBe("Search tags");
     await screen.click("category-language-trigger");
     await screen.click("category-language-option-en");
     expect(screen.changes).toEqual([]);
@@ -182,7 +207,7 @@ describe("category filters", () => {
     ).toBe("Sort, Fewest viewers");
   });
 
-  it("shows the selected live tag control only while a tag is active", async () => {
+  it("edits an active tag as a draft and clears it on apply", async () => {
     const screen = await mountFilter({ ...initialIdentity, tag: "Cozy" });
     const toggle = screen.container.querySelector<HTMLButtonElement>(
       "[data-testid='category-filters-toggle']",
@@ -192,15 +217,16 @@ describe("category filters", () => {
       "Filters, All platforms · All languages · Most viewers · Cozy",
     );
     await screen.click("category-filters-toggle");
-    expect(
-      screen.container.querySelector("[data-testid='category-tag-Cozy']"),
-    ).not.toBeNull();
-    await screen.click("category-tag-all");
+    const input = screen.container.querySelector<HTMLInputElement>(
+      "[data-testid='category-tag-search']",
+    );
+    expect(input?.value).toBe("Cozy");
+    await screen.typeTag("   ");
     expect(screen.changes).toEqual([]);
     await screen.click("category-filters-apply");
     expect(screen.changes).toEqual([{ ...initialIdentity, tag: "all" }]);
     expect(
-      screen.container.querySelector("[data-testid='category-tag-all']"),
+      screen.container.querySelector("[data-testid='category-tag-search']"),
     ).toBeNull();
     expect(toggle.getAttribute("aria-label")).toBe(
       "Filters, All platforms · All languages · Most viewers",
@@ -215,22 +241,45 @@ describe("category filters", () => {
     });
     await screen.click("category-filters-toggle");
     expect(
-      screen.container.querySelector("[data-testid='category-tag-Cozy']"),
+      screen.container.querySelector("[data-testid='category-tag-search']"),
     ).toBeNull();
     expect(
       screen.container.querySelector("[data-testid='category-clip-time-all']"),
     ).not.toBeNull();
   });
 
-  it("offers real stream tags and resets pending choices", async () => {
-    const screen = await mountFilter(initialIdentity, ["Cozy", "English"]);
+  it("keeps tag search below sort and resets pending choices", async () => {
+    const screen = await mountFilter();
+    await screen.click("category-filters-toggle");
+    const sort = screen.container.querySelector(
+      "[data-testid='category-sort']",
+    );
+    const tag = screen.container.querySelector(
+      "[data-testid='category-tag-search']",
+    );
+    expect(tag).not.toBeNull();
+    expect(
+      sort?.compareDocumentPosition(tag ?? sort) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.container.querySelectorAll("[data-testid^='category-tag-']"),
+    ).toHaveLength(1);
+    await screen.typeTag("  coz  ");
+    expect(screen.changes).toEqual([]);
+    await screen.click("category-filters-apply");
+    expect(screen.changes).toEqual([{ ...initialIdentity, tag: "coz" }]);
     await screen.click("category-filters-toggle");
     expect(
-      screen.container.querySelector("[data-testid='category-tag-Cozy']"),
-    ).not.toBeNull();
-    await screen.click("category-tag-Cozy");
+      screen.container.querySelector<HTMLInputElement>(
+        "[data-testid='category-tag-search']",
+      )?.value,
+    ).toBe("coz");
     await screen.click("category-filters-reset");
     await screen.click("category-filters-apply");
-    expect(screen.changes).toEqual([initialIdentity]);
+    expect(screen.changes).toEqual([
+      { ...initialIdentity, tag: "coz" },
+      initialIdentity,
+    ]);
   });
 });

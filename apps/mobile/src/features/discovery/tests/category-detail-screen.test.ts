@@ -2,6 +2,7 @@ import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { D07_PROOF_TOKEN } from "../components/category-discovery-proof-controls";
+import { CategoryRecordedRow } from "../components/category-recorded-row";
 import { CategoryDetailView } from "../components/category-detail-screen";
 import { composeCategoryDetail } from "../domain/category-detail";
 import {
@@ -71,6 +72,7 @@ type ElementProps = Readonly<{
   ListFooterComponent?: unknown;
   renderItem?: (input: { item: unknown; index: number }) => unknown;
   testID?: string;
+  style?: unknown;
 }>;
 type Element = ReactElement<ElementProps>;
 
@@ -113,6 +115,52 @@ const chatting = {
 };
 
 describe("Category detail screen", () => {
+  it("shows recorded media as wide cards with provider and view count", () => {
+    for (const item of [
+      fixtureClip("kick", "clip", 42),
+      fixtureVideo("twitch", "video", 7),
+    ]) {
+      const nodes = descendants(CategoryRecordedRow({ item }));
+      expect(nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "View",
+            props: expect.objectContaining({
+              style: expect.objectContaining({
+                aspectRatio: 16 / 9,
+                width: "100%",
+              }),
+            }),
+          }),
+        ]),
+      );
+      expect(
+        nodes.some(
+          (node) =>
+            node.props.accessibilityLabel ===
+            (item.platform === "kick" ? "Kick" : "Twitch"),
+        ),
+      ).toBe(true);
+      expect(
+        nodes.some(
+          (node) =>
+            node.props.children ===
+            `${item.channelDisplayName} · ${item.viewCount} views`,
+        ),
+      ).toBe(true);
+      expect(nodes.some((node) => node.props.children === item.title)).toBe(
+        true,
+      );
+      expect(
+        nodes.some(
+          (node) =>
+            node.props.children ===
+            ("clipUrl" in item ? "CLIP" : item.type.toUpperCase()),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("virtualizes category streams and has no local search dock", () => {
     const root = CategoryDetailView({
       onChangeIdentity: () => undefined,

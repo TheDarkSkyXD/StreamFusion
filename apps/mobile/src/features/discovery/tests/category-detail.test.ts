@@ -22,6 +22,52 @@ const chatting = {
 };
 
 describe("composeCategoryDetail", () => {
+  it("matches a live tag search across providers by trimmed, case-insensitive substring", () => {
+    const twitchCozy = {
+      ...fixtureStream("twitch", "cozy", 30),
+      tags: ["Cozy Games"],
+    };
+    const kickCozy = {
+      ...fixtureStream("kick", "late", 20),
+      tags: ["Late Night", "COZY"],
+    };
+    const unrelated = {
+      ...fixtureStream("kick", "other", 10),
+      tags: ["Strategy"],
+    };
+    const input = {
+      identity: {
+        ...defaultCategoryRequest(chatting, "all", "all"),
+        tag: "  coz  ",
+      },
+      loading: false,
+      twitch: { ...fixtureOutcome("twitch", "ready"), items: [twitchCozy] },
+      kick: {
+        ...fixtureOutcome("kick", "ready"),
+        items: [kickCozy, unrelated],
+      },
+    };
+    const filtered = composeCategoryDetail(input);
+    expect(filtered.media.kind).toBe("live");
+    if (filtered.media.kind !== "live") throw new Error("expected live");
+    expect(filtered.media.items.map((item) => item.id)).toEqual([
+      "cozy",
+      "late",
+    ]);
+
+    const cleared = composeCategoryDetail({
+      ...input,
+      identity: { ...input.identity, tag: "all" },
+    });
+    expect(cleared.media.kind).toBe("live");
+    if (cleared.media.kind !== "live") throw new Error("expected live");
+    expect(cleared.media.items.map((item) => item.id)).toEqual([
+      "cozy",
+      "late",
+      "other",
+    ]);
+  });
+
   it("keeps guest Follow explained-unavailable", () => {
     const view = composeCategoryDetail({
       identity: defaultCategoryRequest(chatting, "all", "all"),
