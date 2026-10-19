@@ -58,6 +58,8 @@ Adopt an adversarial stance toward your own work. Your goal is not to confirm yo
 
 ## The core loop
 
+Perform authorized emulator actions yourself. If the user asks you to operate a control after an input method fails, switch to another supported method instead of repeating the request for manual input. Report debugger-invoked handlers separately from successful touch input.
+
 1. **Pin down the claim.** State precisely what "working" means for this feature — the specific user-visible behavior(s) that must hold. Vague claims can't be proven. If the feature has several behaviors (happy path, validation, error states), list them; you'll need evidence for each that matters.
 
 2. **Re-read your own implementation.** Before touching the running app, look at the code you wrote with fresh, skeptical eyes. Trace the actual path the feature takes. Look for the things that compile fine but break at runtime: a handler wired to the wrong route, a missing await, state that never updates, an API call with no error handling, a button with no onClick. This catches a class of bugs faster than the browser will.
