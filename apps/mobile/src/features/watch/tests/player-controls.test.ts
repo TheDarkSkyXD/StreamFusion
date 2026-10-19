@@ -62,6 +62,7 @@ vi.mock("lucide-react-native", async () => {
       "data-stroke": props.strokeWidth,
     });
   return {
+    createLucideIcon: icon,
     Maximize: icon("Maximize"),
     ChevronDown: icon("ChevronDown"),
     UserRound: icon("UserRound"),
@@ -412,7 +413,7 @@ describe("player controls chrome", () => {
       const rail = findRendered(rendered.container, "player-controls-rail");
       expect(
         findRendered(rendered.container, "player-live-transport")
-          ?.querySelector('[data-icon="Pause"]')
+          ?.querySelector("[data-fill]")
           ?.getAttribute("data-fill"),
       ).toBe("#ffffff");
       expect(

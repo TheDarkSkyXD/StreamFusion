@@ -41,6 +41,7 @@ vi.mock("react-native", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  createLucideIcon: (name: string) => name,
   ArrowLeft: "ArrowLeft",
   Settings2: "Settings2",
   Captions: "Captions",

@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
-  Pause,
-  Play,
   RotateCcw,
   RotateCw,
   ShieldCheck,
@@ -11,6 +9,7 @@ import {
   Volume1,
   Volume2,
   VolumeX,
+  createLucideIcon,
   type LucideIcon,
 } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -33,6 +32,14 @@ import { formatWatchLiveMetaParts } from "../domain/watch-live-meta";
 const RAIL_ICON = 26;
 const RAIL_HIT = 48;
 const RECORDED_CONTROL_SPACING = 72;
+
+const TwitchPauseIcon = createLucideIcon("TwitchPause", [
+  ["rect", { x: "5", y: "4", width: "5", height: "16", key: "left" }],
+  ["rect", { x: "14", y: "4", width: "5", height: "16", key: "right" }],
+]);
+const TwitchPlayIcon = createLucideIcon("TwitchPlay", [
+  ["path", { d: "M6 2 L20 12 L6 22 Z", key: "triangle" }],
+]);
 
 export function PlayerControls({
   adBlockStatus = null,
@@ -191,12 +198,12 @@ export function PlayerControls({
               </View>
               <View pointerEvents="box-none" style={styles.transportSlot}>
                 <IconControl
-                  Icon={paused ? Play : Pause}
+                  Icon={paused ? TwitchPlayIcon : TwitchPauseIcon}
                   accessibilityLabel={
                     paused ? t("playback.play") : t("playback.pause")
                   }
                   filled
-                  iconSize={24}
+                  iconSize={paused ? 50 : 24}
                   strokeWidth={0}
                   onPress={onPlayPause}
                   testID="player-play-pause"
