@@ -47,7 +47,11 @@ vi.mock("../components/watch-screen", async () => {
           inspection?.info.kind === "live" ? inspection.info.stream.id : "",
         "data-started-at":
           inspection?.info.kind === "live"
-            ? inspection.info.stream.startedAt ?? ""
+            ? (inspection.info.stream.startedAt ?? "")
+            : "",
+        "data-viewer-count":
+          inspection?.info.kind === "live"
+            ? inspection.info.stream.viewerCount
             : "",
       }),
   };
@@ -65,6 +69,7 @@ function liveInspection(
   watchTarget: WatchTarget,
   streamId: string,
   startedAt: ReturnType<typeof toSerializedTimestamp> | null,
+  viewerCount = 42,
 ): WatchInspection {
   return {
     target: watchTarget,
@@ -73,7 +78,7 @@ function liveInspection(
       kind: "live",
       channel: fixtureChannel(watchTarget.platform, true),
       stream: {
-        ...fixtureStream(watchTarget.platform, streamId, 42),
+        ...fixtureStream(watchTarget.platform, streamId, viewerCount),
         channelId: watchTarget.channelId,
         channelName: watchTarget.channelName,
         startedAt,
@@ -148,7 +153,10 @@ function shown(host: HTMLElement) {
 describe("watch inspection lifecycle", () => {
   it("keeps a known start on a sparse read of the same broadcast, then accepts a new broadcast", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-    const watch = mountedWatch(target, liveInspection(target, "broadcast-1", firstStart));
+    const watch = mountedWatch(
+      target,
+      liveInspection(target, "broadcast-1", firstStart),
+    );
     try {
       await watch.render();
       expect(shown(watch.host)).toEqual({
@@ -157,9 +165,11 @@ describe("watch inspection lifecycle", () => {
         startedAt: firstStart,
       });
 
-      watch.setNext(liveInspection(target, "broadcast-1", null));
+      watch.setNext(liveInspection(target, "broadcast-1", null, 84));
       await act(async () => {
-        await watch.client.invalidateQueries({ queryKey: ["watch-inspection"] });
+        await watch.client.invalidateQueries({
+          queryKey: ["watch-inspection"],
+        });
       });
       await watch.settle();
       expect(shown(watch.host)).toEqual({
@@ -167,10 +177,26 @@ describe("watch inspection lifecycle", () => {
         streamId: "broadcast-1",
         startedAt: firstStart,
       });
+      expect(
+        watch.host
+          .querySelector("[data-kind]")
+          ?.getAttribute("data-viewer-count"),
+      ).toBe("84");
+
+      watch.setNext(liveInspection(target, "broadcast-1", nextStart));
+      await act(async () => {
+        await watch.client.invalidateQueries({
+          queryKey: ["watch-inspection"],
+        });
+      });
+      await watch.settle();
+      expect(shown(watch.host).startedAt).toBe(nextStart);
 
       watch.setNext(liveInspection(target, "broadcast-2", nextStart));
       await act(async () => {
-        await watch.client.invalidateQueries({ queryKey: ["watch-inspection"] });
+        await watch.client.invalidateQueries({
+          queryKey: ["watch-inspection"],
+        });
       });
       await watch.settle();
       expect(shown(watch.host)).toEqual({
@@ -181,7 +207,9 @@ describe("watch inspection lifecycle", () => {
 
       watch.setNext(liveInspection(target, "broadcast-3", null));
       await act(async () => {
-        await watch.client.invalidateQueries({ queryKey: ["watch-inspection"] });
+        await watch.client.invalidateQueries({
+          queryKey: ["watch-inspection"],
+        });
       });
       await watch.settle();
       expect(shown(watch.host)).toEqual({
@@ -197,7 +225,10 @@ describe("watch inspection lifecycle", () => {
 
   it("does not carry a live start into an ended stream or another channel", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-    const watch = mountedWatch(target, liveInspection(target, "broadcast-1", firstStart));
+    const watch = mountedWatch(
+      target,
+      liveInspection(target, "broadcast-1", firstStart),
+    );
     try {
       await watch.render();
       watch.setNext({
@@ -206,7 +237,9 @@ describe("watch inspection lifecycle", () => {
         info: { kind: "ended", channel: fixtureChannel("twitch", false) },
       });
       await act(async () => {
-        await watch.client.invalidateQueries({ queryKey: ["watch-inspection"] });
+        await watch.client.invalidateQueries({
+          queryKey: ["watch-inspection"],
+        });
       });
       await watch.settle();
       expect(shown(watch.host).kind).toBe("ended");
@@ -229,6 +262,51 @@ describe("watch inspection lifecycle", () => {
     }
   });
 
+  it("keeps confirmed live metadata through a failed read and refreshes after recovery", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.useFakeTimers();
+    const watch = mountedWatch(
+      target,
+      liveInspection(target, "broadcast-1", firstStart),
+    );
+    try {
+      await watch.render();
+      watch.setNext({
+        target,
+        related: { kind: "empty" },
+        info: {
+          kind: "unavailable",
+          failure: {
+            kind: "provider-unavailable",
+            detail: "Try again",
+            retry: "manual",
+          },
+        },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(shown(watch.host)).toEqual({
+        kind: "live",
+        streamId: "broadcast-1",
+        startedAt: firstStart,
+      });
+      watch.setNext(liveInspection(target, "broadcast-1", firstStart, 84));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(
+        watch.host
+          .querySelector("[data-kind]")
+          ?.getAttribute("data-viewer-count"),
+      ).toBe("84");
+    } finally {
+      await watch.unmount();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("retries an unavailable live inspection while mounted", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.useFakeTimers();
@@ -237,7 +315,11 @@ describe("watch inspection lifecycle", () => {
       related: { kind: "empty" },
       info: {
         kind: "unavailable",
-        failure: { kind: "provider-unavailable", detail: "Try again", retry: "manual" },
+        failure: {
+          kind: "provider-unavailable",
+          detail: "Try again",
+          retry: "manual",
+        },
       },
     };
     const watch = mountedWatch(target, unavailable);
@@ -266,7 +348,12 @@ describe("watch inspection lifecycle", () => {
     vi.useFakeTimers();
     const recordedTarget: WatchTarget = {
       ...target,
-      media: { kind: "video", id: "vod-1", title: "Archive", durationSeconds: 90 },
+      media: {
+        kind: "video",
+        id: "vod-1",
+        title: "Archive",
+        durationSeconds: 90,
+      },
     };
     const watch = mountedWatch(recordedTarget, {
       target: recordedTarget,
