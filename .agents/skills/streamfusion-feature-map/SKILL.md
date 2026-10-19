@@ -34,6 +34,8 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 
 ## Working contract
 
+Identify the affected app before choosing a feature owner or verification tool. When a report leaves the platform unclear, keep investigation read-only until the target is confirmed.
+
 Before changing a feature, report its route or user entry point, renderer owner, process boundary, main-process owner, Platform-specific branch, state owner, and closest tests. Search by exported symbol and IPC channel instead of trusting this map blindly. The map routes investigation. Current source proves behavior.
 
 Verify discovery with exact and partial queries, each provider filter, and results beyond the first page. Check that All exposes available provider results. Compare unique item identities across pages; a changing cursor alone does not prove continuation.
