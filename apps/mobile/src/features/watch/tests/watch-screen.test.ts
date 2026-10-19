@@ -835,17 +835,17 @@ describe("watch screen", () => {
       settings.find((node) => node.props.testID === id)?.props.onPress?.();
       expect(pages.at(-1)).toBe(page);
     }
-    settings
-      .find((node) => node.props.testID === "watch-settings-refresh")
-      ?.props.onPress?.();
+    expect(
+      settings.some((node) => node.props.testID === "watch-settings-refresh"),
+    ).toBe(false);
     settings
       .find((node) => node.props.testID === "watch-engagement")
       ?.props.onPress?.();
-    expect(actions).toEqual(["refresh", "engagement"]);
+    expect(actions).toEqual(["engagement"]);
     settings
       .find((node) => node.props.testID === "player-refresh")
       ?.props.onPress?.();
-    expect(actions).toEqual(["refresh", "engagement", "refresh"]);
+    expect(actions).toEqual(["engagement", "refresh"]);
     pages.length = 0;
     const quality = descendants(
       WatchScreen({

@@ -28,6 +28,7 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 - Choose identity badges from each provider's badge status. Keep verification, affiliation, and partnership flags distinct, and cover payloads that omit optional flags.
 - Show privileged actions from the current account's verified capability for the active resource. A callback's presence does not establish permission.
 - Before removing a control, verify that its replacement interaction works and remains accessible.
+- When moving an action between player controls and a menu, remove its old entry unless duplication is requested.
 - When matching reference controls, compare visible glyph bounds at the same display density. Equal icon canvas sizes do not establish equal visual sizes.
 - Cross the Electron boundary only through `electronAPI`, shared contracts, preload, and a registered IPC handler.
 - Put provider-neutral reads behind `IPlatformReader`. Put Twitch-only or Kick-only behavior behind a narrow capability interface or the provider adapter.

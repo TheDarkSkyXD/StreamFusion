@@ -5,7 +5,6 @@ import {
   ChevronDown,
   Download,
   Gauge,
-  RotateCw,
   SlidersHorizontal,
   Vote,
 } from "lucide-react-native";
@@ -479,21 +478,8 @@ export function WatchScreen({
                   onPress={() => toolSheet.onChange("stats")}
                 />
               ) : null}
-              {!target.media && (onRefresh || onOpenEngagement) ? (
+              {!target.media && onOpenEngagement ? (
                 <View style={styles.optionsDivider} />
-              ) : null}
-              {!target.media && onRefresh ? (
-                <MobileListRow
-                  title={t("playback.refreshStream")}
-                  leading={
-                    <RotateCw color={mobileColors.textSecondary} size={22} />
-                  }
-                  testID="watch-settings-refresh"
-                  onPress={() => {
-                    toolSheet.onChange(null);
-                    onRefresh();
-                  }}
-                />
               ) : null}
               {!target.media && onOpenEngagement ? (
                 <MobileListRow
