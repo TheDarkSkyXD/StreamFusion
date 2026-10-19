@@ -1,8 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Captions, Download, Ellipsis } from "lucide-react-native";
+import { ChevronDown, RotateCw } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, type ComponentType } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Stream } from "@streamfusion/core/content";
 import type {
   MediaJobCommandName,
@@ -15,7 +14,7 @@ import type {
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
 import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
-import { MobileIconButton } from "@mobile/design/icon-button";
+import { MobileListRow } from "@mobile/design/list-row";
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
 import { MobileStatusPanel } from "@mobile/design/status-panel";
@@ -48,7 +47,7 @@ import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
 import { PlayerTools } from "./player-tools";
-import { PlayerControls } from "./player-controls";
+import { PlayerControls, RotatePhoneIcon } from "./player-controls";
 import {
   WatchCaptionBar,
   type WatchCaptionBarProps,
@@ -97,7 +96,7 @@ export type WatchMediaJobControls<Eligibility> = {
 };
 
 export type WatchToolSheet =
-  "captions" | "media" | "more" | "speed" | "stats" | null;
+  "settings" | "quality" | "captions" | "media" | "speed" | "stats" | null;
 
 export type WatchToolSheetControl = {
   readonly active: WatchToolSheet;
@@ -134,10 +133,7 @@ export function WatchScreen({
   onRetry,
   onSelectTab,
   onMute,
-  onVolumeChange,
   onPlayPause,
-  onQualityPress,
-  onCloseQualityMenu,
   onSelectQuality,
   onSeekBack,
   onSeekForward,
@@ -146,7 +142,6 @@ export function WatchScreen({
   onToggleControls,
   controlsVisible = true,
   notificationStatus,
-  qualityMenuOpen = false,
   peek,
   playback,
   rewindSeconds,
@@ -156,7 +151,10 @@ export function WatchScreen({
   toolSheet,
 }: {
   readonly PlayerSurface: ComponentType<PlayerSurfaceProps>;
-  readonly playerTools?: FocusedWatchSession;
+  readonly playerTools?: Pick<
+    FocusedWatchSession,
+    "readPlaybackObservation" | "setPlaybackSpeed"
+  >;
   readonly adblockView?: AdBlockView | null;
   readonly captions?: WatchCaptionControls;
   readonly chat: WatchChatAvailability;
@@ -167,7 +165,6 @@ export function WatchScreen({
   readonly chrome?: {
     readonly showFullscreen: boolean;
     readonly showQuality: boolean;
-    readonly showVolume: boolean;
     readonly showSpeed?: boolean;
     readonly showVideoStats?: boolean;
   };
@@ -183,7 +180,6 @@ export function WatchScreen({
   readonly onBack?: () => void;
   readonly onChatRetry?: () => void;
   readonly onModerateMessage?: (message: WatchChatMessage) => void;
-  readonly onCloseQualityMenu?: () => void;
   readonly onFollow?: () => void;
   readonly onOpenChannel?: () => void;
   readonly onOpenEngagement?: () => void;
@@ -194,9 +190,7 @@ export function WatchScreen({
   readonly onSelectQuality?: (quality: string) => void;
   readonly onSelectTab: (tab: WatchTab) => void;
   readonly onMute?: () => void;
-  readonly onVolumeChange?: (volume: number) => void;
   readonly onPlayPause?: () => void;
-  readonly onQualityPress?: () => void;
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
   readonly onSeekTo?: (positionMs: number) => void;
@@ -204,14 +198,12 @@ export function WatchScreen({
   readonly onToggleFullscreen?: () => void;
   readonly peek?: WatchPeek;
   readonly playback: FocusedWatchState;
-  readonly qualityMenuOpen?: boolean;
   readonly rewindSeconds?: number;
   readonly fastForwardSeconds?: number;
   readonly tab: WatchTab;
   readonly target: WatchTarget;
   readonly toolSheet: WatchToolSheetControl;
 }) {
-  const insets = useSafeAreaInsets();
   const positionMs = peek?.kind === "active" ? peek.progress.positionMs : null;
   useEffect(() => {
     if (positionMs !== null) chatSession?.syncPlayback?.(positionMs);
@@ -233,7 +225,6 @@ export function WatchScreen({
     !pipSurface &&
     onMute &&
     onPlayPause &&
-    onQualityPress &&
     onToggleFullscreen &&
     onToggleControls;
   return (
@@ -261,7 +252,7 @@ export function WatchScreen({
             </Text>
           </View>
         )}
-        {onBack && !fullscreen && !pipSurface ? (
+        {onBack && !showControls && !fullscreen && !pipSurface ? (
           <Pressable
             accessibilityLabel="Back"
             accessibilityRole="button"
@@ -269,7 +260,7 @@ export function WatchScreen({
             style={styles.stageBack}
             testID="watch-back"
           >
-            <ArrowLeft color={mobileColors.textPrimary} size={22} />
+            <ChevronDown color={mobileColors.textPrimary} size={30} />
           </Pressable>
         ) : null}
         {!showControls && onToggleControls && !pipSurface ? (
@@ -289,16 +280,25 @@ export function WatchScreen({
             })}
             fullscreen={fullscreen}
             live={!target.media}
+            liveMeta={
+              inspection?.info.kind === "live"
+                ? {
+                    startedAt: inspection.info.stream.startedAt ?? null,
+                    viewerCount: inspection.info.stream.viewerCount,
+                  }
+                : null
+            }
             muted={peek.muted}
-            {...(target.media || onRefresh === undefined ? {} : { onRefresh })}
+            {...(fullscreen
+              ? { onBack: onToggleFullscreen }
+              : onBack
+                ? { onBack }
+                : {})}
             onFullscreen={onToggleFullscreen}
             onMute={onMute}
-            {...(onVolumeChange === undefined ? {} : { onVolumeChange })}
             onPlayPause={onPlayPause}
-            onQualityPress={onQualityPress}
+            onSettingsPress={() => toolSheet.onChange("settings")}
             onToggleVisible={onToggleControls}
-            qualities={peek.qualities}
-            qualityMenuOpen={qualityMenuOpen}
             visible={controlsVisible}
             {...(chrome === undefined ? {} : { chrome })}
             {...(fastForwardSeconds === undefined
@@ -315,58 +315,12 @@ export function WatchScreen({
                     onSeekTo(position);
                   },
                 })}
-            {...(onSelectQuality === undefined ? {} : { onSelectQuality })}
-            {...(onCloseQualityMenu === undefined
-              ? {}
-              : { onCloseQualityMenu })}
             paused={peek.state.phase === "paused"}
             platform={target.platform}
             progress={peek.progress}
-            quality={peek.quality}
             seekable={peek.progress.seekable}
             volume={peek.volume}
           />
-        ) : null}
-        {showControls && controlsVisible ? (
-          <View
-            pointerEvents="box-none"
-            style={[
-              styles.stageTools,
-              fullscreen
-                ? {
-                    top: Math.max(insets.top, mobileSpacing.small),
-                    right: Math.max(insets.right, mobileSpacing.small),
-                  }
-                : null,
-            ]}
-            testID="watch-tools"
-          >
-            <MobileIconButton
-              label={t("playback.captions")}
-              testID="watch-tool-captions"
-              disabled={!captions}
-              onPress={() => toolSheet.onChange("captions")}
-            >
-              <Captions color={mobileColors.textPrimary} size={22} />
-            </MobileIconButton>
-            <MobileIconButton
-              label={
-                target.media ? t("playback.download") : t("mediaLibrary.record")
-              }
-              testID="watch-tool-media"
-              disabled={!download && !recording}
-              onPress={() => toolSheet.onChange("media")}
-            >
-              <Download color={mobileColors.textPrimary} size={22} />
-            </MobileIconButton>
-            <MobileIconButton
-              label={t("navigation.more")}
-              testID="watch-tool-more"
-              onPress={() => toolSheet.onChange("more")}
-            >
-              <Ellipsis color={mobileColors.textPrimary} size={22} />
-            </MobileIconButton>
-          </View>
         ) : null}
         {pipSurface ? null : (
           <WatchCaptionOverlay
@@ -427,33 +381,125 @@ export function WatchScreen({
       {pipSurface ? null : (
         <MobileBottomSheet
           title={
-            toolSheet.active === "captions"
-              ? "Local captions"
-              : toolSheet.active === "media"
-                ? "Downloads and recordings"
-                : toolSheet.active === "speed"
-                  ? "Playback speed"
-                  : toolSheet.active === "stats"
-                    ? "Video Stats"
-                    : "Player tools"
+            toolSheet.active === "quality"
+              ? t("settings.quality")
+              : toolSheet.active === "captions"
+                ? "Local captions"
+                : toolSheet.active === "media"
+                  ? "Downloads and recordings"
+                  : toolSheet.active === "speed"
+                    ? "Playback speed"
+                    : toolSheet.active === "stats"
+                      ? "Video Stats"
+                      : t("playback.settings")
           }
           visible={toolSheet.active !== null}
           testID="watch-tools-sheet"
           onDismiss={() => toolSheet.onChange(null)}
           size="expanded"
         >
-          {toolSheet.active === "more" && !target.media && onOpenEngagement ? (
-            <MobileButton
-              accessibilityLabel="Polls and predictions"
-              onPress={() => {
-                toolSheet.onChange(null);
-                onOpenEngagement();
-              }}
-              testID="watch-engagement"
-              variant="secondary"
-            >
-              Polls and predictions
-            </MobileButton>
+          {toolSheet.active && toolSheet.active !== "settings" ? (
+            <MobileListRow
+              title="Back to Settings"
+              testID="watch-sheet-back"
+              onPress={() => toolSheet.onChange("settings")}
+            />
+          ) : null}
+          {toolSheet.active === "settings" ? (
+            <View testID="watch-settings-menu">
+              {chrome?.showQuality !== false && peek?.kind === "active" ? (
+                <MobileListRow
+                  title={t("settings.quality")}
+                  description={peek.quality}
+                  testID="watch-settings-quality"
+                  onPress={() => toolSheet.onChange("quality")}
+                />
+              ) : null}
+              {onToggleFullscreen ? (
+                <MobileListRow
+                  title={
+                    fullscreen
+                      ? t("playback.watch.exitFullscreen")
+                      : t("playback.watch.fullscreen")
+                  }
+                  leading={<RotatePhoneIcon />}
+                  testID="watch-settings-fullscreen"
+                  onPress={() => {
+                    toolSheet.onChange(null);
+                    onToggleFullscreen();
+                  }}
+                />
+              ) : null}
+              <MobileListRow
+                title={t("playback.captions")}
+                disabled={!captions}
+                testID="watch-settings-captions"
+                onPress={() => toolSheet.onChange("captions")}
+              />
+              <MobileListRow
+                title="Downloads and recordings"
+                disabled={!download && !recording}
+                testID="watch-settings-media"
+                onPress={() => toolSheet.onChange("media")}
+              />
+              {playerTools && target.media && chrome?.showSpeed !== false ? (
+                <MobileListRow
+                  title="Playback speed"
+                  testID="watch-settings-speed"
+                  onPress={() => toolSheet.onChange("speed")}
+                />
+              ) : null}
+              {playerTools && chrome?.showVideoStats !== false ? (
+                <MobileListRow
+                  title="Video Stats"
+                  testID="watch-settings-stats"
+                  onPress={() => toolSheet.onChange("stats")}
+                />
+              ) : null}
+              {!target.media && onRefresh ? (
+                <MobileListRow
+                  title={t("playback.refreshStream")}
+                  leading={
+                    <RotateCw color={mobileColors.textPrimary} size={22} />
+                  }
+                  testID="watch-settings-refresh"
+                  onPress={() => {
+                    toolSheet.onChange(null);
+                    onRefresh();
+                  }}
+                />
+              ) : null}
+              {!target.media && onOpenEngagement ? (
+                <MobileListRow
+                  title="Polls and predictions"
+                  testID="watch-engagement"
+                  onPress={() => {
+                    toolSheet.onChange(null);
+                    onOpenEngagement();
+                  }}
+                />
+              ) : null}
+            </View>
+          ) : null}
+          {toolSheet.active === "quality" && peek?.kind === "active" ? (
+            <View testID="player-quality-menu">
+              {(peek.qualities.length ? peek.qualities : [peek.quality]).map(
+                (option) => (
+                  <MobileListRow
+                    key={option}
+                    title={option}
+                    {...(option === peek.quality
+                      ? { description: "Selected" }
+                      : {})}
+                    testID={`player-quality-option-${option}`}
+                    onPress={() => {
+                      onSelectQuality?.(option);
+                      toolSheet.onChange(null);
+                    }}
+                  />
+                ),
+              )}
+            </View>
           ) : null}
           {toolSheet.active === "captions" && captions ? (
             <WatchCaptionBar {...captions} session={captionSession} />
@@ -464,20 +510,13 @@ export function WatchScreen({
               {recording ? <WatchRecordingBar {...recording} /> : null}
             </>
           ) : null}
-          {(toolSheet.active === "more" ||
-            toolSheet.active === "speed" ||
-            toolSheet.active === "stats") &&
+          {(toolSheet.active === "speed" || toolSheet.active === "stats") &&
           playerTools &&
           peek?.kind === "active" ? (
             <PlayerTools
               session={playerTools}
-              tool={toolSheet.active === "more" ? "menu" : toolSheet.active}
-              onSelectTool={toolSheet.onChange}
+              tool={toolSheet.active}
               sessionId={peek.state.session.sessionId}
-              recorded={
-                target.media !== undefined && chrome?.showSpeed !== false
-              }
-              showStats={chrome?.showVideoStats !== false}
             />
           ) : null}
         </MobileBottomSheet>
@@ -575,17 +614,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     overflow: "hidden",
     width: "100%",
-  },
-  stageTools: {
-    position: "absolute",
-    top: mobileSpacing.small,
-    right: mobileSpacing.small,
-    alignItems: "center",
-    flexDirection: "row",
-    gap: mobileSpacing.xSmall,
-    backgroundColor: "rgba(15, 15, 15, 0.76)",
-    borderRadius: mobileRadii.medium,
-    zIndex: 2,
   },
   stageBack: {
     position: "absolute",

@@ -29,7 +29,6 @@ const PLAYER_CHROME_TOGGLES = [
     labelKey: "settings.playbackSpeed",
     testID: "control-1",
   },
-  { field: "showVolume", labelKey: "settings.volume", testID: "control-2" },
   {
     field: "showFullscreen",
     labelKey: "settings.fullscreen",

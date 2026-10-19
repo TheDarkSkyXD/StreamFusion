@@ -243,7 +243,6 @@ function WatchSessionRoute({
       : notifications.isError
         ? "Could not load live alerts. Tap the bell to retry."
         : null;
-  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [idleToken, setIdleToken] = useState(0);
   const session = screen.runtime.session;
   const chatPresentation = useMemo(() => {
@@ -336,12 +335,13 @@ function WatchSessionRoute({
   const selectToolSheet = useCallback(
     (next: WatchToolSheet) => {
       setToolSheet(next);
+      if (next === "settings" && toolSheet === null && peek.kind === "active")
+        void session.setQuality(peek.quality);
       revealControls();
     },
-    [revealControls],
+    [peek, revealControls, session, toolSheet],
   );
-  const controlsForcedVisible =
-    !playing || qualityMenuOpen || toolSheet !== null;
+  const controlsForcedVisible = !playing || toolSheet !== null;
   useEffect(() => {
     if (controlsForcedVisible) {
       return undefined;
@@ -375,7 +375,6 @@ function WatchSessionRoute({
       }
       notificationStatus={notificationStatus}
       toolSheet={{ active: toolSheet, onChange: selectToolSheet }}
-      onCloseQualityMenu={() => setQualityMenuOpen(false)}
       {...(onBack === undefined ? {} : { onBack })}
       {...(following === undefined
         ? {}
@@ -383,13 +382,6 @@ function WatchSessionRoute({
       onMute={() => {
         revealControls();
         if (peek.kind === "active") void session.setMuted(!peek.muted);
-      }}
-      onVolumeChange={(volume) => {
-        revealControls();
-        if (peek.kind === "active") {
-          void session.setVolume(volume);
-          if (volume > 0 && peek.muted) void session.setMuted(false);
-        }
       }}
       {...(onOpenChannel === undefined
         ? {}
@@ -435,11 +427,6 @@ function WatchSessionRoute({
           void session.setPlaying(peek.state.phase === "paused");
         }
       }}
-      onQualityPress={() => {
-        revealControls();
-        setQualityMenuOpen(true);
-        if (peek.kind === "active") void session.setQuality(peek.quality);
-      }}
       onRetry={() => {
         revealControls();
         void session.start(target);
@@ -481,7 +468,6 @@ function WatchSessionRoute({
       }}
       peek={peek}
       playback={playback}
-      qualityMenuOpen={qualityMenuOpen}
       tab={tab}
       target={target}
       {...(playerPrefs === undefined
@@ -490,7 +476,6 @@ function WatchSessionRoute({
             chrome: {
               showFullscreen: playerPrefs.showFullscreen,
               showQuality: playerPrefs.showQuality,
-              showVolume: playerPrefs.showVolume,
               showSpeed: playerPrefs.showSpeed,
               showVideoStats: playerPrefs.showVideoStats,
             },

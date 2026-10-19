@@ -58,6 +58,9 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("lucide-react-native", () => ({
   ArrowLeft: "ArrowLeft",
+  ChevronDown: "ChevronDown",
+  ChevronRight: "ChevronRight",
+  UserRound: "UserRound",
   Captions: "Captions",
   Download: "Download",
   Ellipsis: "Ellipsis",
@@ -77,6 +80,7 @@ vi.mock("lucide-react-native", () => ({
 }));
 
 vi.mock("../components/player-controls", () => ({
+  RotatePhoneIcon: () => createElement("span"),
   PlayerControls: (props: { onToggleVisible: () => void; visible: boolean }) =>
     createElement(
       "button",
@@ -275,12 +279,21 @@ describe("watch fullscreen player mount", () => {
       });
 
     await act(async () => root.render(renderWatch("watch")));
-    for (const sheet of ["captions", "media", "more"] as const) {
+    for (const sheet of [
+      "settings",
+      "quality",
+      "captions",
+      "media",
+      "speed",
+      "stats",
+    ] as const) {
       await act(async () => root.render(renderWatch("fullscreen", sheet)));
       expect(
         host.querySelector('[data-testid="watch-tools-sheet-menu"]'),
       ).not.toBeNull();
-      expect(host.querySelector('[data-testid="watch-tools"]')).not.toBeNull();
+      expect(
+        host.querySelector('[data-testid="player-controls"]'),
+      ).not.toBeNull();
     }
     await act(async () => root.render(renderWatch("fullscreen", null, false)));
     expect(host.querySelector('[data-testid="watch-tools"]')).toBeNull();

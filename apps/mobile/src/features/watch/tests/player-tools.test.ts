@@ -37,9 +37,7 @@ it("reads the selected player, polls without overlap, and releases its timer on 
         createElement(PlayerTools, {
           session: { readPlaybackObservation: read },
           sessionId: "selected",
-          recorded: false,
           tool: "stats",
-          onSelectTool: () => undefined,
         }),
       ),
     );

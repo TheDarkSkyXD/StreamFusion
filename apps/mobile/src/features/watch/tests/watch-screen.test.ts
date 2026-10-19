@@ -48,6 +48,8 @@ vi.mock("lucide-react-native", () => ({
   Ellipsis: "Ellipsis",
   Smile: "Smile",
   ChevronRight: "ChevronRight",
+  ChevronDown: "ChevronDown",
+  UserRound: "UserRound",
   Heart: "Heart",
   Bell: "Bell",
   BellOff: "BellOff",
@@ -390,66 +392,31 @@ describe("watch screen", () => {
     );
     const stageNodes = descendants(stage);
     expect(
-      stageNodes.filter((node) => node.props.testID === "watch-tools"),
-    ).toHaveLength(1);
-    expect(
-      stageNodes.filter((node) => node.props.testID === "player-quality"),
-    ).toHaveLength(1);
-    expect(
-      stageNodes.filter(
-        (node) =>
-          node.type === "Pressable" &&
-          node.props.testID === "player-fullscreen",
-      ),
-    ).toHaveLength(1);
-    expect(
-      nodes.some((node) => node.props.testID === "watch-tool-quality"),
-    ).toBe(false);
-    expect(
-      nodes.some((node) => node.props.testID === "watch-tool-fullscreen"),
-    ).toBe(false);
-    expect(
-      stageNodes.find((node) => node.props.testID === "watch-tool-captions")
-        ?.props.disabled,
+      stageNodes.some((node) => node.props.testID === "player-settings"),
     ).toBe(true);
     expect(
-      stageNodes.find((node) => node.props.testID === "watch-tool-media")?.props
-        .disabled,
+      stageNodes.some((node) => node.props.testID === "player-live-transport"),
     ).toBe(true);
+    expect(
+      stageNodes.some((node) => node.props.testID === "player-scrim"),
+    ).toBe(true);
+    expect(
+      stageNodes.some((node) => node.props.testID === "player-fullscreen"),
+    ).toBe(true);
+    expect(stageNodes.some((node) => node.props.testID === "watch-tools")).toBe(
+      false,
+    );
     stageNodes
-      .find((node) => node.props.testID === "watch-tool-more")
+      .find((node) => node.props.testID === "player-settings")
       ?.props.onPress?.();
-    expect(selected).toEqual(["more"]);
+    expect(selected).toEqual(["settings"]);
     expect(tapped).toEqual([]);
-    expect(
-      nodes.some((node) => node.props.testID === "player-play-pause"),
-    ).toBe(true);
     expect(nodes.some((node) => node.props.testID === "player-mute")).toBe(
       true,
-    );
-    expect(nodes.some((node) => node.props.testID === "player-quality")).toBe(
-      true,
-    );
-    expect(
-      nodes.some((node) => node.props.testID === "player-fullscreen"),
-    ).toBe(true);
-    expect(nodes.some((node) => node.props.testID === "player-pip")).toBe(
-      false,
     );
     expect(
       nodes.some((node) => node.props.testID === "player-live-badge"),
     ).toBe(true);
-    expect(
-      nodes.some((node) => node.props.testID === "player-controls-rail"),
-    ).toBe(true);
-    expect(
-      nodes.some((node) =>
-        String(node.props.children).includes("Theater and stats"),
-      ),
-    ).toBe(false);
-    expect(
-      nodes.some((node) => node.props.testID === "player-pip-status"),
-    ).toBe(false);
   });
 
   it.each(["live", "video", "clip"] as const)(
@@ -528,7 +495,7 @@ describe("watch screen", () => {
       expect(has("player-scrubber")).toBe(recorded);
       expect(has("player-progress")).toBe(recorded);
       expect(has("player-live-badge")).toBe(!recorded);
-      expect(has("player-refresh")).toBe(!recorded);
+      expect(has("player-refresh")).toBe(false);
     },
   );
 
@@ -611,21 +578,210 @@ describe("watch screen", () => {
           },
         }),
       );
-      for (const [testID, sheet] of [
-        ["watch-tool-captions", "captions"],
-        ["watch-tool-media", "media"],
-        ["watch-tool-more", "more"],
-      ] as const) {
-        const control = nodes.find(
-          (node) => node.type === "Pressable" && node.props.testID === testID,
-        );
-        expect(control?.props.disabled).toBe(false);
-        control?.props.onPress?.();
-        expect(selected.at(-1)).toBe(sheet);
-      }
+      const settings = nodes.find(
+        (node) =>
+          node.type === "Pressable" && node.props.testID === "player-settings",
+      );
+      settings?.props.onPress?.();
+      expect(selected).toEqual(["settings"]);
+      expect(
+        nodes.some((node) => node.props.testID === "watch-tool-captions"),
+      ).toBe(false);
+      expect(
+        nodes.some((node) => node.props.testID === "watch-tool-media"),
+      ).toBe(false);
       expect(tapped).toEqual([]);
     },
   );
+
+  it("navigates one settings sheet through quality and fullscreen", () => {
+    const selected: string[] = [];
+    const pages: string[] = [];
+    const actions: string[] = [];
+    const playback = {
+      integration: "twitch-gql-usher" as const,
+      kind: "active" as const,
+      phase: "playing" as const,
+      policySequence: 1,
+      protection: { kind: "normal" as const },
+      session: { pictureInPictureEligible: true, sessionId: "watch:1" },
+      target,
+    };
+    const props: Parameters<typeof WatchScreen>[0] = {
+      PlayerSurface: () => null,
+      chat: { detail: "Connecting guest chat.", kind: "connecting" },
+      chrome: { showFullscreen: true, showQuality: true },
+      captions: {
+        busy: false,
+        cueText: "",
+        eligibility: {
+          kind: "eligible",
+          label: "Captions",
+          sessionId: "watch:1",
+        },
+        model: null,
+        onInstall: () => undefined,
+        onRemove: () => undefined,
+        onStart: () => undefined,
+        onStop: () => undefined,
+        session: null,
+        status: null,
+      },
+      download: {
+        busy: false,
+        eligibility: { kind: "hidden" },
+        job: null,
+        onCommand: () => undefined,
+        onDelete: () => undefined,
+        onExport: () => undefined,
+        onOpenArtifact: () => undefined,
+        onStart: () => undefined,
+      },
+      inspection: null,
+      onBack: () => selected.push("back"),
+      onMute: () => undefined,
+      onOpenRelated: () => undefined,
+      onOpenEngagement: () => actions.push("engagement"),
+      onPlayPause: () => undefined,
+      onRefresh: () => actions.push("refresh"),
+      onRetry: () => undefined,
+      onSelectQuality: (quality) => selected.push(quality),
+      onSelectTab: () => undefined,
+      onToggleControls: () => undefined,
+      onToggleFullscreen: () => selected.push("fullscreen"),
+      peek: {
+        adsDetected: false,
+        kind: "active",
+        muted: false,
+        presentation: {
+          pip: "idle",
+          presentation: "watch",
+          previous: null,
+          snapRegion: "bottom-end",
+        },
+        quality: "720p",
+        qualities: ["auto", "720p"],
+        progress: { durationMs: 0, positionMs: 0, seekable: false },
+        state: playback,
+        volume: 1,
+      },
+      playback,
+      playerTools: {},
+      tab: "info",
+      target,
+      toolSheet: {
+        active: "settings",
+        onChange: (next) => pages.push(String(next)),
+      },
+    };
+    const settings = descendants(WatchScreen(props));
+    expect(
+      settings.filter((node) => node.props.testID === "watch-tools-sheet-menu"),
+    ).toHaveLength(1);
+    expect(
+      settings.some((node) => node.props.testID === "player-volume-slider"),
+    ).toBe(false);
+    settings
+      .find((node) => node.props.testID === "watch-settings-quality")
+      ?.props.onPress?.();
+    expect(pages).toEqual(["quality"]);
+    for (const [id, page] of [
+      ["watch-settings-captions", "captions"],
+      ["watch-settings-media", "media"],
+      ["watch-settings-stats", "stats"],
+    ] as const) {
+      settings.find((node) => node.props.testID === id)?.props.onPress?.();
+      expect(pages.at(-1)).toBe(page);
+    }
+    settings
+      .find((node) => node.props.testID === "watch-settings-refresh")
+      ?.props.onPress?.();
+    settings
+      .find((node) => node.props.testID === "watch-engagement")
+      ?.props.onPress?.();
+    expect(actions).toEqual(["refresh", "engagement"]);
+    pages.length = 0;
+    const quality = descendants(
+      WatchScreen({
+        ...props,
+        toolSheet: { ...props.toolSheet, active: "quality" },
+      }),
+    );
+    quality
+      .find((node) => node.props.testID === "player-quality-option-auto")
+      ?.props.onPress?.();
+    expect(selected).toEqual(["auto"]);
+    expect(pages).toEqual(["null"]);
+    quality
+      .find((node) => node.props.testID === "watch-sheet-back")
+      ?.props.onPress?.();
+    expect(pages.at(-1)).toBe("settings");
+    settings
+      .find((node) => node.props.testID === "watch-settings-fullscreen")
+      ?.props.onPress?.();
+    expect(selected.at(-1)).toBe("fullscreen");
+    expect(pages.at(-1)).toBe("null");
+    const withoutQuality = descendants(
+      WatchScreen({
+        ...props,
+        chrome: { showFullscreen: true, showQuality: false },
+      }),
+    );
+    expect(
+      withoutQuality.some(
+        (node) => node.props.testID === "watch-settings-quality",
+      ),
+    ).toBe(false);
+    expect(
+      withoutQuality.some((node) => node.props.testID === "player-settings"),
+    ).toBe(true);
+    const recordedTarget: WatchTarget = {
+      ...target,
+      media: {
+        durationSeconds: 90,
+        id: "v1",
+        kind: "video",
+        title: "Recording",
+      },
+    };
+    const recordedSettings = descendants(
+      WatchScreen({ ...props, target: recordedTarget }),
+    );
+    recordedSettings
+      .find((node) => node.props.testID === "watch-settings-speed")
+      ?.props.onPress?.();
+    expect(pages.at(-1)).toBe("speed");
+    if (props.peek?.kind !== "active") throw new Error("Missing active player");
+    const fullscreen = descendants(
+      WatchScreen({
+        ...props,
+        peek: {
+          ...props.peek,
+          presentation: {
+            ...props.peek.presentation,
+            presentation: "fullscreen",
+            previous: "watch",
+          },
+        },
+        toolSheet: { ...props.toolSheet, active: null },
+      }),
+    );
+    fullscreen
+      .find((node) => node.props.testID === "watch-back")
+      ?.props.onPress?.();
+    expect(selected.at(-1)).toBe("fullscreen");
+    expect(selected).not.toContain("back");
+    const hidden = descendants(
+      WatchScreen({
+        ...props,
+        controlsVisible: false,
+        toolSheet: { ...props.toolSheet, active: null },
+      }),
+    );
+    expect(hidden.some((node) => node.props.testID === "watch-back")).toBe(
+      false,
+    );
+  });
 
   it("hides Watch chrome while Picture-in-Picture owns the surface", () => {
     const playback = {
@@ -1548,6 +1704,9 @@ describe("watch screen", () => {
     expect(
       nodes.some((node) => node.props.testID === "watch-channel-chrome"),
     ).toBe(true);
+    expect(
+      nodes.some((node) => node.props.testID === "watch-meta-viewers"),
+    ).toBe(false);
     expect(nodes.some((node) => node.props.testID === "watch-back")).toBe(true);
     expect(
       nodes.some((node) => node.props.testID === "watch-open-channel"),

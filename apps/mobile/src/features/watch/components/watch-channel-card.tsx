@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, BellOff, Heart } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -19,10 +18,6 @@ import {
   languageLabel,
 } from "@mobile/features/discovery/domain/broadcast-languages";
 import type { WatchInfo, WatchTarget } from "../capabilities/watch";
-import {
-  formatLiveUptime,
-  formatWatchViewerCount,
-} from "../domain/watch-live-meta";
 
 export type WatchChannelCardProps = {
   readonly info: WatchInfo | null;
@@ -51,28 +46,13 @@ export function WatchChannelCard({
   onOpenChannel,
   onToggleLiveAlerts,
 }: WatchChannelCardProps) {
-  const { i18n, t } = useTranslation();
+  const { t } = useTranslation();
   const name =
     info && info.kind !== "unavailable"
       ? info.channel.displayName
       : target.channelName;
   const channel = info && info.kind !== "unavailable" ? info.channel : null;
   const live = info?.kind === "live" ? info.stream : null;
-  const [uptime, setUptime] = useState(() =>
-    formatLiveUptime(live?.startedAt, Date.now()),
-  );
-
-  useEffect(() => {
-    const tick = () => setUptime(formatLiveUptime(live?.startedAt, Date.now()));
-    tick();
-    if (!live?.startedAt) return;
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [live?.startedAt]);
-
-  const meta = live
-    ? `${formatWatchViewerCount(live.viewerCount, i18n.resolvedLanguage ?? i18n.language ?? "en")} ${t("playback.viewers")}${uptime ? ` · ${uptime}` : ""}`
-    : null;
   const title =
     info?.kind === "live"
       ? info.stream.title
@@ -190,17 +170,10 @@ export function WatchChannelCard({
             >
               {name}
             </Text>
-            {meta ? (
-              <Text
-                numberOfLines={1}
-                style={styles.meta}
-                testID="watch-meta-viewers"
-              >
-                {meta}
-              </Text>
-            ) : (
-              <MobilePlatformBadge platform={target.platform} />
-            )}
+            <MobilePlatformBadge
+              platform={target.platform}
+              style={{ alignSelf: "flex-start" }}
+            />
           </Pressable>
         ) : null}
         {onFollow ? (
@@ -349,7 +322,6 @@ const styles = StyleSheet.create({
   },
   compactIdentity: { flex: 1, minWidth: 0, justifyContent: "center" },
   compactName: { ...mobileType.title, fontSize: 14 },
-  meta: { ...mobileType.caption, color: mobileColors.textSecondary },
   action: {
     height: 40,
     borderRadius: mobileRadii.full,
