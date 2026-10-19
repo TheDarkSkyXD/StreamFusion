@@ -407,6 +407,7 @@ describe("player controls chrome", () => {
       onFullscreen: () => actions.push("fullscreen"),
       onMute: () => actions.push("mute"),
       onPlayPause: () => actions.push("play"),
+      onRefresh: () => actions.push("refresh"),
       onSettingsPress: () => actions.push("settings"),
     });
     try {
@@ -434,13 +435,32 @@ describe("player controls chrome", () => {
         "player-mute",
         "player-settings",
         "player-fullscreen",
+        "player-refresh",
       ]) {
         const onPress = pressableProps.get(id)?.onPress;
         if (typeof onPress !== "function")
           throw new Error(`${id} is not pressable`);
         onPress();
       }
-      expect(actions).toEqual(["play", "mute", "settings", "fullscreen"]);
+      expect(actions).toEqual([
+        "play",
+        "mute",
+        "settings",
+        "fullscreen",
+        "refresh",
+      ]);
+      rendered.render({
+        ...base,
+        onRefresh: () => actions.push("refresh"),
+        visible: false,
+      });
+      expect(findRendered(rendered.container, "player-refresh")).toBeNull();
+      rendered.render({
+        ...base,
+        live: false,
+        onRefresh: () => actions.push("refresh"),
+      });
+      expect(findRendered(rendered.container, "player-refresh")).toBeNull();
     } finally {
       rendered.unmount();
     }

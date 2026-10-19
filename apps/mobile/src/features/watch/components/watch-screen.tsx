@@ -297,6 +297,7 @@ export function WatchScreen({
             onFullscreen={onToggleFullscreen}
             onMute={onMute}
             onPlayPause={onPlayPause}
+            {...(onRefresh === undefined ? {} : { onRefresh })}
             onSettingsPress={() => toolSheet.onChange("settings")}
             onToggleVisible={onToggleControls}
             visible={controlsVisible}

@@ -496,7 +496,7 @@ describe("watch screen", () => {
       expect(has("player-scrubber")).toBe(recorded);
       expect(has("player-progress")).toBe(recorded);
       expect(has("player-live-badge")).toBe(!recorded);
-      expect(has("player-refresh")).toBe(false);
+      expect(has("player-refresh")).toBe(!recorded);
     },
   );
 
@@ -701,6 +701,10 @@ describe("watch screen", () => {
       .find((node) => node.props.testID === "watch-engagement")
       ?.props.onPress?.();
     expect(actions).toEqual(["refresh", "engagement"]);
+    settings
+      .find((node) => node.props.testID === "player-refresh")
+      ?.props.onPress?.();
+    expect(actions).toEqual(["refresh", "engagement", "refresh"]);
     pages.length = 0;
     const quality = descendants(
       WatchScreen({

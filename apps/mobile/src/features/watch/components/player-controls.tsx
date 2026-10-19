@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
+  RefreshCw,
   RotateCcw,
   RotateCw,
   ShieldCheck,
@@ -52,6 +53,7 @@ export function PlayerControls({
   onFullscreen,
   onMute,
   onPlayPause,
+  onRefresh,
   onSettingsPress,
   onSeekBack,
   onSeekForward,
@@ -85,6 +87,7 @@ export function PlayerControls({
   readonly onFullscreen: () => void;
   readonly onMute: () => void;
   readonly onPlayPause: () => void;
+  readonly onRefresh?: () => void;
   readonly onSettingsPress: () => void;
   readonly onSeekBack?: () => void;
   readonly onSeekForward?: () => void;
@@ -293,6 +296,15 @@ export function PlayerControls({
                 ) : null}
               </View>
               <View style={styles.right}>
+                {live && onRefresh ? (
+                  <IconControl
+                    Icon={RefreshCw}
+                    accessibilityLabel={t("playback.refreshStream")}
+                    onPress={onRefresh}
+                    strokeWidth={3}
+                    testID="player-refresh"
+                  />
+                ) : null}
                 <IconControl
                   Icon={
                     muted || volume === 0
