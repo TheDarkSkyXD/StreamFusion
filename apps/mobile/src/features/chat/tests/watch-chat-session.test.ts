@@ -111,10 +111,9 @@ describe("watch chat session", () => {
       channelName: "absi",
       platform: "kick",
     });
-    for (let attempt = 0; attempt < 10 && kick === null; attempt += 1) {
-      await Promise.resolve();
-    }
-    expect(kick).not.toBeNull();
+    await vi.waitFor(() => {
+      expect(kick).not.toBeNull();
+    });
     kick?.onmessage?.({
       data: JSON.stringify({
         data: "{}",
