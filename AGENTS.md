@@ -89,6 +89,8 @@ failing test first.
 
 ## Verify before claiming "done"
 
+For platform-wide requirements, check the complete setup and lifecycle across supported versions. A passing isolated test does not establish that the user's full flow works.
+
 Never report something as working without running it. "Done" means: relevant tests green,
 typecheck clean, and for user-facing flows exercised end to end (e.g. Electron app
 flows). If tests fail or a step was skipped, say so plainly with the output.

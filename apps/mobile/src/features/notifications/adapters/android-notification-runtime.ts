@@ -18,7 +18,15 @@ import {
 export function createAndroidNotificationPolicy(): NativeNotificationPolicy {
   return {
     async apply({ enabled, sound }) {
-      await getNativeNotifications().configureLiveAlerts(enabled, sound);
+      const notifications = getNativeNotifications();
+      await notifications.configureLiveAlerts(enabled, sound);
+      if (
+        enabled &&
+        Number(Platform.Version) >= 33 &&
+        (await notifications.getPermissionStatus()) === "not-requested"
+      ) {
+        await notifications.requestPermission();
+      }
     },
   };
 }
