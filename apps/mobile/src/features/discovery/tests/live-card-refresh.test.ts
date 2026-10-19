@@ -10,9 +10,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HomeStreamCard } from "../components/home-stream-card";
 import { LiveStreamCardsProvider } from "../components/live-stream-cards-provider";
+import { categoryMediaQueryKey } from "../components/use-category-detail";
+import { channelQueryKey } from "../components/use-channel-detail";
+import { topStreamsQueryKey } from "../components/use-home-live-discovery";
+import { searchPageQueryKey } from "../components/use-unified-search";
 import { isLiveCardQueryKey } from "../domain/live-card-refresh";
+import { defaultCategoryRequest } from "../domain/category-identity";
 import { fixtureStream } from "../domain/discovery-fixture";
 import { FollowingStreamCard } from "@mobile/features/follows/components/following-stream-card";
+import { followingQueryKey } from "@mobile/features/follows/components/use-following-view";
+import type { Platform } from "@streamfusion/core/platform";
 
 const appState = vi.hoisted(() => ({
   state: "active",
@@ -360,13 +367,185 @@ describe("shared live stream cards", () => {
 });
 
 describe("live card query refresh scope", () => {
+  it("updates live card thumbnails from every source on the timer and foreground return", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const category = {
+      id: "123",
+      name: "Music",
+      platform: "twitch" as const,
+      otherId: "456",
+      boxArtUrl: "https://example.com/music.jpg",
+    };
+    const categoryRequest = defaultCategoryRequest(category, "all", "all");
+    const sources = (["twitch", "kick"] as const).flatMap((platform) => [
+      {
+        id: `home-${platform}`,
+        platform,
+        queryKey: topStreamsQueryKey(platform),
+      },
+      {
+        id: `category-${platform}`,
+        platform,
+        queryKey: categoryMediaQueryKey(categoryRequest, platform),
+      },
+      {
+        id: `channel-${platform}`,
+        platform,
+        queryKey: channelQueryKey({
+          platform,
+          id: "channel",
+          username: "live",
+        }),
+      },
+      {
+        id: `search-${platform}`,
+        platform,
+        queryKey: searchPageQueryKey(platform, "streams", "music", false),
+      },
+    ]);
+    const reads = new Map<string, number>();
+    function liveStream(id: string, platform: Platform) {
+      const next = (reads.get(id) ?? 0) + 1;
+      reads.set(id, next);
+      return {
+        ...fixtureStream(platform, id, 50),
+        thumbnailUrl: `https://example.com/${id}/${next}.jpg`,
+      };
+    }
+    function SourceCard({
+      source,
+    }: {
+      readonly source: (typeof sources)[number];
+    }) {
+      const stream = useQuery({
+        queryKey: source.queryKey,
+        queryFn: () => liveStream(source.id, source.platform),
+      });
+      return stream.data
+        ? createElement(HomeStreamCard, { stream: stream.data })
+        : null;
+    }
+    function FollowingCards() {
+      const following = useQuery({
+        queryKey: followingQueryKey("live"),
+        queryFn: () =>
+          (["twitch", "kick"] as const).map((platform) =>
+            liveStream(`following-${platform}`, platform),
+          ),
+      });
+      return (
+        following.data?.map((stream) =>
+          createElement(FollowingStreamCard, {
+            key: stream.id,
+            stream,
+            onOpen: () => {},
+          }),
+        ) ?? null
+      );
+    }
+    const excludedReads = { channels: 0, categories: 0, recorded: 0 };
+    function OtherSearchResults() {
+      useQuery({
+        queryKey: searchPageQueryKey("twitch", "channels", "music", false),
+        queryFn: () => ++excludedReads.channels,
+      });
+      useQuery({
+        queryKey: searchPageQueryKey("kick", "categories", "music", false),
+        queryFn: () => ++excludedReads.categories,
+      });
+      useQuery({
+        queryKey: ["discovery", "search-media", "twitch", "music"],
+        queryFn: () => ++excludedReads.recorded,
+      });
+      return null;
+    }
+    function expectImages(version: number) {
+      for (const source of sources) {
+        expect(reads.get(source.id)).toBe(version);
+        expect(
+          container
+            .querySelector(
+              `[data-testid="home-stream-${source.platform}-${source.id}"] [data-testid="live-card-thumbnail"]`,
+            )
+            ?.getAttribute("src"),
+        ).toBe(`https://example.com/${source.id}/${version}.jpg`);
+      }
+      for (const platform of ["twitch", "kick"] as const) {
+        const id = `following-${platform}`;
+        expect(reads.get(id)).toBe(version);
+        expect(
+          container
+            .querySelector(
+              `[data-testid="following-stream-${platform}-${id}"] [data-testid="live-card-thumbnail"]`,
+            )
+            ?.getAttribute("src"),
+        ).toBe(`https://example.com/${id}/${version}.jpg`);
+      }
+    }
+    try {
+      await act(async () => {
+        root.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(
+              LiveStreamCardsProvider,
+              { queryClient, showLargeStreamCards: false },
+              ...sources.map((source) =>
+                createElement(SourceCard, { key: source.id, source }),
+              ),
+              createElement(FollowingCards),
+              createElement(OtherSearchResults),
+            ),
+          ),
+        );
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      expectImages(1);
+      expect(excludedReads).toEqual({
+        channels: 1,
+        categories: 1,
+        recorded: 1,
+      });
+
+      await act(async () => vi.advanceTimersByTimeAsync(300_000));
+      await act(async () => vi.advanceTimersByTimeAsync(10));
+      expectImages(2);
+      expect(excludedReads).toEqual({
+        channels: 1,
+        categories: 1,
+        recorded: 1,
+      });
+
+      changeAppState("background");
+      await act(async () => vi.advanceTimersByTimeAsync(600_000));
+      expectImages(2);
+      changeAppState("active");
+      await act(async () => vi.advanceTimersByTimeAsync(10));
+      expectImages(3);
+      expect(excludedReads).toEqual({
+        channels: 1,
+        categories: 1,
+        recorded: 1,
+      });
+    } finally {
+      act(() => root.unmount());
+      queryClient.clear();
+    }
+  });
+
   it("includes live catalog queries and excludes recorded media and settings", () => {
     expect(
       isLiveCardQueryKey(["discovery", "top-streams", "twitch", "all"]),
     ).toBe(true);
-    expect(isLiveCardQueryKey(["discovery", "search", "kick", "game"])).toBe(
-      true,
-    );
+    expect(
+      isLiveCardQueryKey(searchPageQueryKey("kick", "streams", "game", false)),
+    ).toBe(true);
     expect(
       isLiveCardQueryKey([
         "discovery",
