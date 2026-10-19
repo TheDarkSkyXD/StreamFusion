@@ -117,6 +117,7 @@ type ElementProps = Readonly<{
   disabled?: boolean;
   hitSlop?: number;
   onPress?: () => void;
+  onRequestClose?: () => void;
   source?: { readonly uri?: string };
   style?: unknown;
   testID?: string;
@@ -819,6 +820,9 @@ describe("watch screen", () => {
       true,
     );
     expect(quality.some((node) => node.type === "ChevronRight")).toBe(false);
+    quality.find((node) => node.type === "Modal")?.props.onRequestClose?.();
+    expect(pages.at(-1)).toBe("settings");
+    pages.length = 0;
     quality
       .find((node) => node.props.testID === "player-quality-option-auto")
       ?.props.onPress?.();

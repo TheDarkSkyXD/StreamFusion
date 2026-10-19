@@ -3,7 +3,6 @@ import {
   Captions,
   ChartNoAxesCombined,
   ChevronDown,
-  ChevronLeft,
   Download,
   Gauge,
   RotateCw,
@@ -23,7 +22,6 @@ import type {
 } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 import type { TwitchPlaylistProxySession } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
 
-import { MobileBottomSheet } from "@mobile/design/bottom-sheet";
 import { MobileListRow } from "@mobile/design/list-row";
 import { MobileButton } from "@mobile/design/button";
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -32,7 +30,6 @@ import {
   mobileColors,
   mobileRadii,
   mobileSelectSelectedIndicator,
-  mobileSizing,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
@@ -60,6 +57,7 @@ import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
 import { PlayerTools } from "./player-tools";
 import { PlayerControls } from "./player-controls";
+import { WatchOptionsScreen } from "./watch-options-screen";
 import {
   WatchCaptionBar,
   type WatchCaptionBarProps,
@@ -230,6 +228,8 @@ export function WatchScreen({
   const detail = resolveWatchCopy(view.detail, translate);
   const fullscreen =
     peek?.kind === "active" && peek.presentation.presentation === "fullscreen";
+  const isOptionsSubpage =
+    toolSheet.active !== null && toolSheet.active !== "settings";
   const pipSurface =
     peek?.kind === "active" && isPictureInPictureSurface(peek.presentation);
   const showControls =
@@ -392,7 +392,7 @@ export function WatchScreen({
         </>
       )}
       {pipSurface ? null : (
-        <MobileBottomSheet
+        <WatchOptionsScreen
           title={
             toolSheet.active === "quality"
               ? t("settings.quality")
@@ -407,29 +407,23 @@ export function WatchScreen({
                       : t("playback.watch.options")
           }
           visible={toolSheet.active !== null}
-          testID="watch-tools-sheet"
-          onDismiss={() => toolSheet.onChange(null)}
-          size="expanded"
+          backLabel={t(
+            isOptionsSubpage
+              ? "playback.watch.backToOptions"
+              : "playback.watch.backToPlayer",
+          )}
+          backTestID={
+            isOptionsSubpage ? "watch-sheet-back" : "watch-options-back"
+          }
+          onBack={() =>
+            toolSheet.onChange(isOptionsSubpage ? "settings" : null)
+          }
         >
-          {toolSheet.active && toolSheet.active !== "settings" ? (
-            <Pressable
-              accessibilityLabel={t("playback.watch.backToOptions")}
-              accessibilityRole="button"
-              testID="watch-sheet-back"
-              onPress={() => toolSheet.onChange("settings")}
-              style={({ pressed }) => [
-                styles.sheetBack,
-                pressed ? styles.optionPressed : null,
-              ]}
-            >
-              <ChevronLeft color={mobileColors.textSecondary} size={22} />
-              <Text style={styles.sheetBackLabel}>
-                {t("playback.watch.backToOptions")}
-              </Text>
-            </Pressable>
-          ) : null}
           {toolSheet.active === "settings" ? (
-            <View style={styles.optionsList} testID="watch-settings-menu">
+            <View
+              style={[styles.optionsList, styles.optionsRoot]}
+              testID="watch-settings-menu"
+            >
               {chrome?.showQuality !== false && peek?.kind === "active" ? (
                 <MobileListRow
                   title={t("settings.quality")}
@@ -583,7 +577,7 @@ export function WatchScreen({
               sessionId={peek.state.session.sessionId}
             />
           ) : null}
-        </MobileBottomSheet>
+        </WatchOptionsScreen>
       )}
     </View>
   );
@@ -661,21 +655,13 @@ export function WatchEmptyState({
 
 const styles = StyleSheet.create({
   optionsList: { gap: mobileSpacing.xSmall },
+  optionsRoot: { marginHorizontal: -mobileSpacing.medium },
   optionsDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: mobileColors.border,
     marginHorizontal: mobileSpacing.medium,
     marginVertical: mobileSpacing.small,
   },
-  sheetBack: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: mobileSpacing.small,
-    minHeight: mobileSizing.minimumTouchTarget,
-    paddingHorizontal: mobileSpacing.medium,
-    borderRadius: mobileRadii.medium,
-  },
-  sheetBackLabel: { ...mobileType.body, color: mobileColors.textSecondary },
   qualityOption: {
     flexDirection: "row",
     alignItems: "center",

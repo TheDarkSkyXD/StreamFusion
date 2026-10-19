@@ -265,6 +265,7 @@ export const playbackEs = {
     watch: {
       options: "Opciones",
       backToOptions: "Volver a opciones",
+      backToPlayer: "Volver al reproductor",
       hideControls: "Ocultar controles del reproductor",
       showControls: "Mostrar controles del reproductor",
       seekBack: "Retroceder {{seconds}} segundos",

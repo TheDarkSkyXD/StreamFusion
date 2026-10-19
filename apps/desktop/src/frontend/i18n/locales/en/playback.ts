@@ -253,6 +253,7 @@ export const playbackEn = {
     watch: {
       options: "Options",
       backToOptions: "Back to options",
+      backToPlayer: "Back to player",
       hideControls: "Hide player controls",
       showControls: "Show player controls",
       seekBack: "Back {{seconds}} seconds",
