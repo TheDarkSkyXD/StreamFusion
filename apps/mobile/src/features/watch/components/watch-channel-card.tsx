@@ -72,6 +72,28 @@ export function WatchChannelCard({
               : info.failure.detail
             : t("playback.watch.loadingChannelDetails");
   const tags = live ? streamTagLabels(live.language, live.tags) : [];
+  const avatar = (
+    <MobileAvatar
+      livePlatform={channel?.isLive ? channel.platform : null}
+      name={name}
+      size={expanded ? 48 : 40}
+      testID={
+        channel?.avatarUrl
+          ? "watch-channel-avatar"
+          : "watch-channel-avatar-placeholder"
+      }
+      uri={channel?.avatarUrl ?? null}
+    />
+  );
+  const badge = channel?.isPartner ? (
+    <MobileVerifiedBadge platform={target.platform} />
+  ) : (
+    <MobilePlatformBadge
+      platform={target.platform}
+      style={styles.platformIcon}
+      variant="icon"
+    />
+  );
 
   return (
     <View style={styles.card} testID="watch-channel-chrome">
@@ -88,17 +110,7 @@ export function WatchChannelCard({
             ]}
             testID="watch-open-channel"
           >
-            <MobileAvatar
-              livePlatform={channel?.isLive ? channel.platform : null}
-              name={name}
-              size={48}
-              testID={
-                channel?.avatarUrl
-                  ? "watch-channel-avatar"
-                  : "watch-channel-avatar-placeholder"
-              }
-              uri={channel?.avatarUrl ?? null}
-            />
+            {avatar}
           </Pressable>
           <View style={styles.copy}>
             <View style={styles.nameRow}>
@@ -110,9 +122,7 @@ export function WatchChannelCard({
               >
                 {name}
               </Text>
-              {channel?.isVerified ? (
-                <MobileVerifiedBadge platform={target.platform} />
-              ) : null}
+              {badge}
             </View>
             {title ? (
               <Text
@@ -163,17 +173,17 @@ export function WatchChannelCard({
             ]}
             testID="watch-open-channel"
           >
-            <Text
-              numberOfLines={1}
-              style={styles.compactName}
-              testID="watch-target"
-            >
-              {name}
-            </Text>
-            <MobilePlatformBadge
-              platform={target.platform}
-              style={{ alignSelf: "flex-start" }}
-            />
+            {avatar}
+            <View style={[styles.copy, styles.nameRow]}>
+              <Text
+                numberOfLines={1}
+                style={styles.compactName}
+                testID="watch-target"
+              >
+                {name}
+              </Text>
+              {badge}
+            </View>
           </Pressable>
         ) : null}
         {onFollow ? (
@@ -320,8 +330,15 @@ const styles = StyleSheet.create({
     minHeight: 48,
     marginTop: 4,
   },
-  compactIdentity: { flex: 1, minWidth: 0, justifyContent: "center" },
-  compactName: { ...mobileType.title, fontSize: 14 },
+  compactIdentity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: mobileSpacing.small,
+  },
+  compactName: { ...mobileType.title, fontSize: 14, flexShrink: 1 },
+  platformIcon: { backgroundColor: "transparent", padding: 0 },
   action: {
     height: 40,
     borderRadius: mobileRadii.full,

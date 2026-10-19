@@ -117,6 +117,7 @@ type ElementProps = Readonly<{
   disabled?: boolean;
   hitSlop?: number;
   onPress?: () => void;
+  source?: { readonly uri?: string };
   style?: unknown;
   testID?: string;
 }>;
@@ -144,6 +145,84 @@ const target: WatchTarget = {
 };
 
 describe("watch screen", () => {
+  it.each(
+    (["twitch", "kick"] as const).flatMap((platform) =>
+      [false, true].flatMap((expanded) =>
+        [false, true].map((isPartner) => ({ platform, expanded, isPartner })),
+      ),
+    ),
+  )(
+    "shows the avatar, live ring and partner or brand badge on $platform, expanded=$expanded, partner=$isPartner",
+    ({ platform, expanded, isPartner }) => {
+      const nodes = descendants(
+        WatchChannelCard({
+          info: {
+            kind: "live",
+            channel: {
+              avatarUrl: "https://cdn.example/avatar.png",
+              displayName: "Ada",
+              id: "1",
+              isLive: true,
+              isPartner,
+              isVerified: !isPartner,
+              platform,
+              username: "ada",
+            },
+            stream: {
+              categoryId: "cat",
+              categoryName: "Just Chatting",
+              channelDisplayName: "Ada",
+              channelId: "1",
+              channelName: "ada",
+              id: "live-1",
+              isLive: true,
+              platform,
+              tags: [],
+              thumbnailUrl: "https://cdn.example/stream.png",
+              title: "Live now",
+              viewerCount: 42,
+            },
+          },
+          target: { ...target, platform },
+          expanded,
+          followed: false,
+          followBusy: false,
+        }),
+      );
+      const avatar = nodes.find(
+        (node) =>
+          node.type === "View" && node.props.testID === "watch-channel-avatar",
+      );
+      expect(avatar).toBeDefined();
+      expect(Object.assign({}, ...[avatar?.props.style].flat())).toMatchObject({
+        borderColor: platform === "twitch" ? "#9146ff" : "#53fc18",
+        borderWidth: 2,
+      });
+      expect(
+        descendants(avatar).find((node) => node.type === "Image")?.props.source,
+      ).toEqual({ uri: "https://cdn.example/avatar.png" });
+      const badgeLabel = isPartner
+        ? `Verified on ${platform === "twitch" ? "Twitch" : "Kick"}`
+        : platform === "twitch"
+          ? "Twitch"
+          : "Kick";
+      const badge = nodes.find(
+        (node) => node.props.accessibilityLabel === badgeLabel,
+      );
+      expect(badge).toBeDefined();
+      expect(
+        nodes.findIndex((node) => node.props.accessibilityLabel === badgeLabel),
+      ).toBeGreaterThan(
+        nodes.findIndex((node) => node.props.testID === "watch-target"),
+      );
+      expect(
+        nodes.some(
+          (node) => node.props.testID === `verified-badge-${platform}`,
+        ),
+      ).toBe(isPartner);
+    },
+  );
+
   it("shows all distinct stream tags with a readable language label", () => {
     expect(
       streamTagLabels("en", [
