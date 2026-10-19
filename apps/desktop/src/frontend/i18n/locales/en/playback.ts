@@ -251,6 +251,8 @@ export const playbackEn = {
     servingId: "Serving ID",
     liveStreamAlt: "{{channel}} live stream",
     watch: {
+      options: "Options",
+      backToOptions: "Back to options",
       hideControls: "Hide player controls",
       showControls: "Show player controls",
       seekBack: "Back {{seconds}} seconds",

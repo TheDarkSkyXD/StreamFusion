@@ -57,6 +57,11 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("lucide-react-native", () => ({
+  ChartNoAxesCombined: "ChartNoAxesCombined",
+  ChevronLeft: "ChevronLeft",
+  Gauge: "Gauge",
+  SlidersHorizontal: "SlidersHorizontal",
+  Vote: "Vote",
   ArrowLeft: "ArrowLeft",
   ChevronDown: "ChevronDown",
   ChevronRight: "ChevronRight",
@@ -80,7 +85,6 @@ vi.mock("lucide-react-native", () => ({
 }));
 
 vi.mock("../components/player-controls", () => ({
-  RotatePhoneIcon: () => createElement("span"),
   PlayerControls: (props: { onToggleVisible: () => void; visible: boolean }) =>
     createElement(
       "button",

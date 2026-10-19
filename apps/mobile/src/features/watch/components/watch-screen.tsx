@@ -1,5 +1,15 @@
 import { useTranslation } from "react-i18next";
-import { ChevronDown, RotateCw } from "lucide-react-native";
+import {
+  Captions,
+  ChartNoAxesCombined,
+  ChevronDown,
+  ChevronLeft,
+  Download,
+  Gauge,
+  RotateCw,
+  SlidersHorizontal,
+  Vote,
+} from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, type ComponentType } from "react";
 import type { Stream } from "@streamfusion/core/content";
@@ -21,6 +31,8 @@ import { MobileStatusPanel } from "@mobile/design/status-panel";
 import {
   mobileColors,
   mobileRadii,
+  mobileSelectSelectedIndicator,
+  mobileSizing,
   mobileSpacing,
   mobileType,
 } from "@mobile/design/tokens";
@@ -392,7 +404,7 @@ export function WatchScreen({
                     ? "Playback speed"
                     : toolSheet.active === "stats"
                       ? "Video Stats"
-                      : t("playback.settings")
+                      : t("playback.watch.options")
           }
           visible={toolSheet.active !== null}
           testID="watch-tools-sheet"
@@ -400,30 +412,52 @@ export function WatchScreen({
           size="expanded"
         >
           {toolSheet.active && toolSheet.active !== "settings" ? (
-            <MobileListRow
-              title="Back to Settings"
+            <Pressable
+              accessibilityLabel={t("playback.watch.backToOptions")}
+              accessibilityRole="button"
               testID="watch-sheet-back"
               onPress={() => toolSheet.onChange("settings")}
-            />
+              style={({ pressed }) => [
+                styles.sheetBack,
+                pressed ? styles.optionPressed : null,
+              ]}
+            >
+              <ChevronLeft color={mobileColors.textSecondary} size={22} />
+              <Text style={styles.sheetBackLabel}>
+                {t("playback.watch.backToOptions")}
+              </Text>
+            </Pressable>
           ) : null}
           {toolSheet.active === "settings" ? (
-            <View testID="watch-settings-menu">
+            <View style={styles.optionsList} testID="watch-settings-menu">
               {chrome?.showQuality !== false && peek?.kind === "active" ? (
                 <MobileListRow
                   title={t("settings.quality")}
                   description={peek.quality}
+                  leading={
+                    <SlidersHorizontal
+                      color={mobileColors.textSecondary}
+                      size={22}
+                    />
+                  }
                   testID="watch-settings-quality"
                   onPress={() => toolSheet.onChange("quality")}
                 />
               ) : null}
               <MobileListRow
                 title={t("playback.captions")}
+                leading={
+                  <Captions color={mobileColors.textSecondary} size={22} />
+                }
                 disabled={!captions}
                 testID="watch-settings-captions"
                 onPress={() => toolSheet.onChange("captions")}
               />
               <MobileListRow
                 title="Downloads and recordings"
+                leading={
+                  <Download color={mobileColors.textSecondary} size={22} />
+                }
                 disabled={!download && !recording}
                 testID="watch-settings-media"
                 onPress={() => toolSheet.onChange("media")}
@@ -431,6 +465,9 @@ export function WatchScreen({
               {playerTools && target.media && chrome?.showSpeed !== false ? (
                 <MobileListRow
                   title="Playback speed"
+                  leading={
+                    <Gauge color={mobileColors.textSecondary} size={22} />
+                  }
                   testID="watch-settings-speed"
                   onPress={() => toolSheet.onChange("speed")}
                 />
@@ -438,15 +475,24 @@ export function WatchScreen({
               {playerTools && chrome?.showVideoStats !== false ? (
                 <MobileListRow
                   title="Video Stats"
+                  leading={
+                    <ChartNoAxesCombined
+                      color={mobileColors.textSecondary}
+                      size={22}
+                    />
+                  }
                   testID="watch-settings-stats"
                   onPress={() => toolSheet.onChange("stats")}
                 />
+              ) : null}
+              {!target.media && (onRefresh || onOpenEngagement) ? (
+                <View style={styles.optionsDivider} />
               ) : null}
               {!target.media && onRefresh ? (
                 <MobileListRow
                   title={t("playback.refreshStream")}
                   leading={
-                    <RotateCw color={mobileColors.textPrimary} size={22} />
+                    <RotateCw color={mobileColors.textSecondary} size={22} />
                   }
                   testID="watch-settings-refresh"
                   onPress={() => {
@@ -458,6 +504,9 @@ export function WatchScreen({
               {!target.media && onOpenEngagement ? (
                 <MobileListRow
                   title="Polls and predictions"
+                  leading={
+                    <Vote color={mobileColors.textSecondary} size={22} />
+                  }
                   testID="watch-engagement"
                   onPress={() => {
                     toolSheet.onChange(null);
@@ -468,21 +517,50 @@ export function WatchScreen({
             </View>
           ) : null}
           {toolSheet.active === "quality" && peek?.kind === "active" ? (
-            <View testID="player-quality-menu">
+            <View
+              accessibilityRole="radiogroup"
+              style={styles.optionsList}
+              testID="player-quality-menu"
+            >
               {(peek.qualities.length ? peek.qualities : [peek.quality]).map(
                 (option) => (
-                  <MobileListRow
+                  <Pressable
                     key={option}
-                    title={option}
-                    {...(option === peek.quality
-                      ? { description: "Selected" }
-                      : {})}
+                    accessibilityLabel={
+                      option === "auto" ? t("playback.auto") : option
+                    }
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: option === peek.quality }}
                     testID={`player-quality-option-${option}`}
+                    style={({ pressed }) => [
+                      styles.qualityOption,
+                      option === peek.quality
+                        ? styles.qualityOptionSelected
+                        : null,
+                      pressed ? styles.optionPressed : null,
+                    ]}
                     onPress={() => {
                       onSelectQuality?.(option);
                       toolSheet.onChange(null);
                     }}
-                  />
+                  >
+                    <Text style={styles.qualityOptionLabel}>
+                      {option === "auto" ? t("playback.auto") : option}
+                    </Text>
+                    <View
+                      accessible={false}
+                      style={[
+                        styles.qualityRadio,
+                        option === peek.quality
+                          ? styles.qualityRadioSelected
+                          : null,
+                      ]}
+                    >
+                      {option === peek.quality ? (
+                        <View style={styles.qualityRadioDot} />
+                      ) : null}
+                    </View>
+                  </Pressable>
                 ),
               )}
             </View>
@@ -582,6 +660,55 @@ export function WatchEmptyState({
 }
 
 const styles = StyleSheet.create({
+  optionsList: { gap: mobileSpacing.xSmall },
+  optionsDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: mobileColors.border,
+    marginHorizontal: mobileSpacing.medium,
+    marginVertical: mobileSpacing.small,
+  },
+  sheetBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: mobileSpacing.small,
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+    borderRadius: mobileRadii.medium,
+  },
+  sheetBackLabel: { ...mobileType.body, color: mobileColors.textSecondary },
+  qualityOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: mobileSpacing.medium,
+    minHeight: 56,
+    paddingHorizontal: mobileSpacing.medium,
+    paddingVertical: mobileSpacing.small,
+    borderRadius: mobileRadii.medium,
+  },
+  qualityOptionSelected: { backgroundColor: mobileColors.surfaceMuted },
+  qualityOptionLabel: {
+    ...mobileType.body,
+    color: mobileColors.textPrimary,
+    flex: 1,
+  },
+  qualityRadio: {
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    borderRadius: mobileRadii.full,
+    borderColor: mobileColors.textSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qualityRadioSelected: { borderColor: mobileSelectSelectedIndicator.color },
+  qualityRadioDot: {
+    width: mobileSelectSelectedIndicator.diameter,
+    height: mobileSelectSelectedIndicator.diameter,
+    borderRadius: mobileRadii.full,
+    backgroundColor: mobileSelectSelectedIndicator.color,
+  },
+  optionPressed: { backgroundColor: mobileColors.surfaceRaised },
   scroll: { flex: 1, minHeight: 0 },
   screen: {
     flex: 1,

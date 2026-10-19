@@ -50,6 +50,11 @@ vi.mock("react-native-safe-area-context", () => ({
 
 vi.mock("lucide-react-native", () => ({
   createLucideIcon: (name: string) => name,
+  ChartNoAxesCombined: "ChartNoAxesCombined",
+  ChevronLeft: "ChevronLeft",
+  Gauge: "Gauge",
+  SlidersHorizontal: "SlidersHorizontal",
+  Vote: "Vote",
   Smile: "Smile",
   Bell: "Bell",
   Maximize: "Maximize",

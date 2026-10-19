@@ -42,6 +42,11 @@ vi.mock("react-native", () => ({
 
 vi.mock("lucide-react-native", () => ({
   createLucideIcon: (name: string) => name,
+  ChartNoAxesCombined: "ChartNoAxesCombined",
+  ChevronLeft: "ChevronLeft",
+  Gauge: "Gauge",
+  SlidersHorizontal: "SlidersHorizontal",
+  Vote: "Vote",
   ArrowLeft: "ArrowLeft",
   Settings2: "Settings2",
   Captions: "Captions",
@@ -107,6 +112,7 @@ vi.mock("react", async (importOriginal) => {
 type ElementProps = Readonly<{
   accessibilityLabel?: string;
   accessibilityRole?: string;
+  accessibilityState?: { readonly checked?: boolean };
   children?: unknown;
   disabled?: boolean;
   hitSlop?: number;
@@ -680,6 +686,10 @@ describe("watch screen", () => {
       settings.filter((node) => node.props.testID === "watch-tools-sheet-menu"),
     ).toHaveLength(1);
     expect(
+      settings.find((node) => node.props.testID === "watch-tools-sheet-menu")
+        ?.props.accessibilityLabel,
+    ).toBe("Options");
+    expect(
       settings.some((node) => node.props.testID === "player-volume-slider"),
     ).toBe(false);
     settings
@@ -712,6 +722,24 @@ describe("watch screen", () => {
         toolSheet: { ...props.toolSheet, active: "quality" },
       }),
     );
+    const radios = quality.filter(
+      (node) => node.props.accessibilityRole === "radio",
+    );
+    expect(radios.map((node) => node.props.accessibilityLabel)).toEqual([
+      "Auto",
+      "720p",
+    ]);
+    expect(
+      radios.map((node) => node.props.accessibilityState?.checked),
+    ).toEqual([false, true]);
+    const back = quality.find(
+      (node) => node.props.testID === "watch-sheet-back",
+    );
+    expect(back?.props.accessibilityLabel).toBe("Back to options");
+    expect(descendants(back).some((node) => node.type === "ChevronLeft")).toBe(
+      true,
+    );
+    expect(quality.some((node) => node.type === "ChevronRight")).toBe(false);
     quality
       .find((node) => node.props.testID === "player-quality-option-auto")
       ?.props.onPress?.();
@@ -722,7 +750,9 @@ describe("watch screen", () => {
       ?.props.onPress?.();
     expect(pages.at(-1)).toBe("settings");
     expect(
-      settings.some((node) => node.props.testID === "watch-settings-fullscreen"),
+      settings.some(
+        (node) => node.props.testID === "watch-settings-fullscreen",
+      ),
     ).toBe(false);
     settings
       .find((node) => node.props.testID === "player-fullscreen")

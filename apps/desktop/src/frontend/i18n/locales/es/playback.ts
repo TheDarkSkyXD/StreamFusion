@@ -263,6 +263,8 @@ export const playbackEs = {
     servingId: "ID de servicio",
     liveStreamAlt: "Stream en directo de {{channel}}",
     watch: {
+      options: "Opciones",
+      backToOptions: "Volver a opciones",
       hideControls: "Ocultar controles del reproductor",
       showControls: "Mostrar controles del reproductor",
       seekBack: "Retroceder {{seconds}} segundos",

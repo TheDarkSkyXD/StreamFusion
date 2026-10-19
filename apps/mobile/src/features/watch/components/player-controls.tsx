@@ -156,7 +156,7 @@ export function PlayerControls({
             </Pressable>
           ) : null}
           <Pressable
-            accessibilityLabel={t("playback.settings")}
+            accessibilityLabel={t("playback.watch.options")}
             accessibilityRole="button"
             onPress={() => {
               void impactHaptic("light");
