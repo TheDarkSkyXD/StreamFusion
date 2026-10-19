@@ -498,7 +498,7 @@ function ChatPanelBody({
       {selected ? (
         <ChatUserSheet
           selected={selected}
-          messages={pickerMessages}
+          messages={messages}
           platform={platform}
           {...(presentation ? { presentation } : {})}
           canCompose={!recorded && !readOnly && view.access === "ready"}
