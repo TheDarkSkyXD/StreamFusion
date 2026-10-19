@@ -61,6 +61,7 @@ export function createRelayCategoryReads(input: RelayInput) {
     },
     async getCategoryClips(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly platform: Platform;
       readonly signal?: AbortSignal;
       readonly timeRange: ClipTimeRange;
@@ -74,7 +75,11 @@ export function createRelayCategoryReads(input: RelayInput) {
     > {
       return relayMediaRead({
         input,
-        params: { categoryId: read.categoryId, timeRange: read.timeRange },
+        params: {
+          categoryId: read.categoryId,
+          ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
+          timeRange: read.timeRange,
+        },
         parse: relayCategoryClipsOutcome,
         path: "v1/discovery/category-clips",
         platform: read.platform,
@@ -83,6 +88,7 @@ export function createRelayCategoryReads(input: RelayInput) {
     },
     async getCategoryVideos(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly platform: Platform;
       readonly signal?: AbortSignal;
       readonly sort: "views" | "recent";
@@ -96,7 +102,11 @@ export function createRelayCategoryReads(input: RelayInput) {
     > {
       return relayMediaRead({
         input,
-        params: { categoryId: read.categoryId, sort: read.sort },
+        params: {
+          categoryId: read.categoryId,
+          ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
+          sort: read.sort,
+        },
         parse: relayCategoryVideosOutcome,
         path: "v1/discovery/category-videos",
         platform: read.platform,

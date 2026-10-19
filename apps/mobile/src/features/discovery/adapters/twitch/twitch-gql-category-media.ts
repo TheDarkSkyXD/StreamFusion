@@ -7,21 +7,23 @@ import { requestInit } from "../../utils/optional";
 
 const GQL = "https://gql.twitch.tv/gql";
 const CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
-const VIDEO_QUERY = `query CategoryVideos($id: ID!, $first: Int!, $sort: VideoSort) {
-  game(id: $id) { id name videos(first: $first, sort: $sort) {
-    edges { node {
+const VIDEO_QUERY = `query CategoryVideos($id: ID!, $first: Int!, $sort: VideoSort, $after: Cursor) {
+  game(id: $id) { id name videos(first: $first, sort: $sort, after: $after) {
+    edges { cursor node {
       id title lengthSeconds viewCount publishedAt previewThumbnailURL(width: 320, height: 180)
       status broadcastType owner { id login displayName profileImageURL(width: 70) }
     } }
+    pageInfo { hasNextPage }
   } }
 }`;
-const CLIP_QUERY = `query CategoryClips($id: ID!, $first: Int!, $filter: ClipsFilter) {
-  game(id: $id) { id name clips(first: $first, criteria: { filter: $filter }) {
-    edges { node {
+const CLIP_QUERY = `query CategoryClips($id: ID!, $first: Int!, $filter: ClipsFilter, $after: Cursor) {
+  game(id: $id) { id name clips(first: $first, after: $after, criteria: { filter: $filter }) {
+    edges { cursor node {
       slug title durationSeconds viewCount createdAt thumbnailURL
       broadcaster { id login displayName profileImageURL(width: 70) }
       curator { displayName }
     } }
+    pageInfo { hasNextPage }
   } }
 }`;
 
@@ -31,6 +33,7 @@ export function createTwitchGqlCategoryMediaReader(input: {
   return {
     getCategoryClips(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
       readonly timeRange: ClipTimeRange;
     }): Promise<PlatformReadOutcome<Clip>> {
@@ -43,9 +46,11 @@ export function createTwitchGqlCategoryMediaReader(input: {
       return requestCategory({
         fetchImpl: input.fetch,
         map: clipsFromGame,
+        connection: "clips",
         query: CLIP_QUERY,
         variables: {
           id: read.categoryId,
+          after: read.cursor ?? null,
           first: 20,
           filter: periods[read.timeRange],
         },
@@ -54,15 +59,18 @@ export function createTwitchGqlCategoryMediaReader(input: {
     },
     getCategoryVideos(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
       readonly sort: "views" | "recent";
     }): Promise<PlatformReadOutcome<Video>> {
       return requestCategory({
         fetchImpl: input.fetch,
         map: videosFromGame,
+        connection: "videos",
         query: VIDEO_QUERY,
         variables: {
           id: read.categoryId,
+          after: read.cursor ?? null,
           first: 60,
           sort: read.sort === "views" ? "VIEWS" : "TIME",
         },
@@ -73,6 +81,7 @@ export function createTwitchGqlCategoryMediaReader(input: {
 }
 
 async function requestCategory<T>(input: {
+  readonly connection: "clips" | "videos";
   readonly fetchImpl: typeof globalThis.fetch;
   readonly map: (game: Record<string, unknown>) => readonly T[];
   readonly query: string;
@@ -101,9 +110,12 @@ async function requestCategory<T>(input: {
     }
     const game = record(record(envelope.data)?.game);
     if (!game) return failed("twitch-failed");
+    const items = input.map(game);
+    const cursor = mediaCursor(game, input.connection);
     return {
       cache: { kind: "miss" },
-      items: input.map(game),
+      ...(cursor === undefined ? {} : { cursor }),
+      items,
       path: { kind: "guest", platform: "twitch" },
       platform: "twitch",
       status: "complete",
@@ -113,6 +125,24 @@ async function requestCategory<T>(input: {
       input.signal?.aborted || isAbort(error) ? "cancelled" : "twitch-failed",
     );
   }
+}
+
+function mediaCursor(
+  game: Record<string, unknown>,
+  key: "clips" | "videos",
+): string | undefined {
+  const connection = requiredRecord(game, key);
+  const pageInfo = requiredRecord(connection, "pageInfo");
+  if (typeof pageInfo.hasNextPage !== "boolean")
+    throw new Error("Invalid Twitch media page info");
+  if (!pageInfo.hasNextPage) return undefined;
+  if (!Array.isArray(connection.edges))
+    throw new Error("Invalid Twitch media edges");
+  const last = record(connection.edges.at(-1));
+  const cursor = last?.cursor;
+  if (typeof cursor !== "string" || cursor.length === 0)
+    throw new Error("Invalid Twitch media cursor");
+  return cursor;
 }
 
 function clipsFromGame(game: Record<string, unknown>): readonly Clip[] {

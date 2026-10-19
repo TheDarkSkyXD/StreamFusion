@@ -259,8 +259,7 @@ function useCategoryMediaQuery(
       return outcome;
     },
     queryKey: categoryMediaQueryKey(identity, platform),
-    getNextPageParam:
-      identity.tab === "live" ? nextCategoryMediaCursor : () => undefined,
+    getNextPageParam: nextCategoryMediaCursor,
     staleTime: ({ state }) =>
       state.error instanceof CategoryReadError &&
       state.fetchMeta?.fetchMore?.direction === "forward"
@@ -277,6 +276,26 @@ function useCategoryMediaQuery(
           ),
     retry: false,
   });
+  useEffect(() => {
+    if (
+      enabled &&
+      identity.tab !== "live" &&
+      query.data?.pages.at(-1)?.items.length === 0 &&
+      query.hasNextPage &&
+      !query.isFetching &&
+      query.error === null
+    ) {
+      void query.fetchNextPage({ cancelRefetch: false });
+    }
+  }, [
+    enabled,
+    identity.tab,
+    query.data,
+    query.hasNextPage,
+    query.isFetching,
+    query.error,
+    query.fetchNextPage,
+  ]);
   return {
     ...query,
     enabled,
@@ -339,11 +358,13 @@ async function readMedia(
     };
   }
   const extra = signal === undefined ? {} : { signal };
+  const continuation = cursor === "" ? {} : { cursor };
   if (identity.tab === "clips") {
     const result = await session.readCategoryClips({
       categoryId,
       platform,
       timeRange: identity.clipTimeRange,
+      ...continuation,
       ...extra,
     });
     if ("items" in result) return result;
@@ -354,6 +375,7 @@ async function readMedia(
       categoryId,
       platform,
       sort: identity.videoSort,
+      ...continuation,
       ...extra,
     });
     if ("items" in result) return result;
@@ -361,7 +383,7 @@ async function readMedia(
   }
   return session.readCategoryStreams({
     categoryId,
-    ...(cursor === "" ? {} : { cursor }),
+    ...continuation,
     platform,
     ...extra,
     ...(identity.language === "all" ? {} : { language: identity.language }),

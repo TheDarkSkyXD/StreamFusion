@@ -190,6 +190,7 @@ export function createDiscoveryRuntime(input: {
         readDirect: (_platform, extra) =>
           twitch.getCategoryClips({
             categoryId: read.categoryId,
+            ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
             timeRange: read.timeRange,
             ...extra,
           }),
@@ -197,6 +198,7 @@ export function createDiscoveryRuntime(input: {
           availableMedia(
             await relay.getCategoryClips({
               categoryId: read.categoryId,
+              ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
               platform,
               timeRange: read.timeRange,
               ...signalOf(extra),
@@ -212,6 +214,7 @@ export function createDiscoveryRuntime(input: {
         readDirect: (_platform, extra) =>
           twitch.getCategoryVideos({
             categoryId: read.categoryId,
+            ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
             sort: read.sort,
             ...extra,
           }),
@@ -219,6 +222,7 @@ export function createDiscoveryRuntime(input: {
           availableMedia(
             await relay.getCategoryVideos({
               categoryId: read.categoryId,
+              ...(read.cursor === undefined ? {} : { cursor: read.cursor }),
               platform,
               sort: read.sort,
               ...signalOf(extra),

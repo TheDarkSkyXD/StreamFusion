@@ -279,6 +279,7 @@ export interface DiscoverySession {
   }): Promise<PlatformReadOutcome<Stream>>;
   readCategoryClips(input: {
     readonly categoryId: string;
+    readonly cursor?: string;
     readonly platform: Platform;
     readonly signal?: AbortSignal;
     readonly timeRange: ClipTimeRange;
@@ -292,6 +293,7 @@ export interface DiscoverySession {
   >;
   readCategoryVideos(input: {
     readonly categoryId: string;
+    readonly cursor?: string;
     readonly platform: Platform;
     readonly signal?: AbortSignal;
     readonly sort: "views" | "recent";

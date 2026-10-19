@@ -70,6 +70,7 @@ export function createTwitchHelixCategoryReads(input: TwitchInput) {
     },
     async getCategoryClips(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
       readonly timeRange: ClipTimeRange;
     }): Promise<PlatformReadOutcome<Clip>> {
@@ -77,6 +78,7 @@ export function createTwitchHelixCategoryReads(input: TwitchInput) {
     },
     async getCategoryVideos(read: {
       readonly categoryId: string;
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
       readonly sort: "views" | "recent";
     }): Promise<PlatformReadOutcome<Video>> {
