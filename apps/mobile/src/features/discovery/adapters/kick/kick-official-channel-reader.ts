@@ -57,20 +57,18 @@ export function createKickOfficialChannelReader(input: {
                 )
               : undefined;
           if (entry) {
-            const publicPage =
-              entry.channel.followerCount === undefined
-                ? await readKickPublicChannel(input.fetch, slug, read.signal)
-                : null;
+            const publicPage = await readKickPublicChannel(
+              input.fetch,
+              slug,
+              read.signal,
+            );
             if (read.signal?.aborted) return failed("cancelled");
             return {
               cache: { kind: "miss" },
-              channel:
-                publicPage?.channel.followerCount === undefined
-                  ? entry.channel
-                  : {
-                      ...entry.channel,
-                      followerCount: publicPage.channel.followerCount,
-                    },
+              channel: withPublicProfile(
+                entry.channel,
+                publicPage?.channel ?? null,
+              ),
               live: entry.stream,
               path: { kind: "guest", platform: "kick" },
               platform: "kick",
@@ -92,17 +90,15 @@ export function createKickOfficialChannelReader(input: {
         if (row === undefined) return failed("kick-failed");
         const officialChannel = toChannel(row);
         const publicPage =
-          officialChannel.followerCount === undefined
+          officialChannel.followerCount === undefined ||
+          officialChannel.bannerUrl === undefined
             ? await readKickPublicChannel(input.fetch, slug, read.signal)
             : null;
         if (read.signal?.aborted) return failed("cancelled");
-        const channel =
-          publicPage?.channel.followerCount === undefined
-            ? officialChannel
-            : {
-                ...officialChannel,
-                followerCount: publicPage.channel.followerCount,
-              };
+        const channel = withPublicProfile(
+          officialChannel,
+          publicPage?.channel ?? null,
+        );
         return {
           cache: { kind: "miss" },
           channel,
@@ -125,6 +121,23 @@ export function createKickOfficialChannelReader(input: {
         ...(read.signal === undefined ? {} : { signal: read.signal }),
       });
     },
+  };
+}
+
+function withPublicProfile(
+  channel: Channel,
+  publicChannel: Channel | null,
+): Channel {
+  if (publicChannel === null) return channel;
+  return {
+    ...channel,
+    ...(publicChannel.bannerUrl === undefined
+      ? {}
+      : { bannerUrl: publicChannel.bannerUrl }),
+    ...(channel.followerCount !== undefined ||
+    publicChannel.followerCount === undefined
+      ? {}
+      : { followerCount: publicChannel.followerCount }),
   };
 }
 

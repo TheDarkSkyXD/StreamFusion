@@ -117,6 +117,10 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
   const livestream =
     objectField(record, "livestream") ?? objectField(record, "stream");
   const bio = stringField(user, "bio") || stringField(record, "bio");
+  const bannerUrl = stringField(
+    objectField(record, "banner_image") ?? {},
+    "url",
+  );
   const followerCount = kickFollowerCount(record);
   return {
     avatarUrl:
@@ -135,6 +139,7 @@ export function mapKickPublicChannel(value: unknown): Channel | null {
     isVerified: kickVerified(record) || kickVerified(user),
     platform: "kick",
     username,
+    ...(bannerUrl === "" ? {} : { bannerUrl }),
     ...(bio === "" ? {} : { bio }),
     ...(followerCount === undefined ? {} : { followerCount }),
   };
