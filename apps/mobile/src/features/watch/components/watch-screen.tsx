@@ -47,7 +47,7 @@ import { isPictureInPictureSurface } from "../domain/player-presentation";
 import type { WatchDownloadEligibility } from "../domain/watch-download";
 import type { WatchRecordingEligibility } from "../domain/watch-recording";
 import { PlayerTools } from "./player-tools";
-import { PlayerControls, RotatePhoneIcon } from "./player-controls";
+import { PlayerControls } from "./player-controls";
 import {
   WatchCaptionBar,
   type WatchCaptionBarProps,
@@ -413,21 +413,6 @@ export function WatchScreen({
                   description={peek.quality}
                   testID="watch-settings-quality"
                   onPress={() => toolSheet.onChange("quality")}
-                />
-              ) : null}
-              {onToggleFullscreen ? (
-                <MobileListRow
-                  title={
-                    fullscreen
-                      ? t("playback.watch.exitFullscreen")
-                      : t("playback.watch.fullscreen")
-                  }
-                  leading={<RotatePhoneIcon />}
-                  testID="watch-settings-fullscreen"
-                  onPress={() => {
-                    toolSheet.onChange(null);
-                    onToggleFullscreen();
-                  }}
                 />
               ) : null}
               <MobileListRow

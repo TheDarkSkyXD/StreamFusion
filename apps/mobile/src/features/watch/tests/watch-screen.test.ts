@@ -595,7 +595,7 @@ describe("watch screen", () => {
     },
   );
 
-  it("navigates one settings sheet through quality and fullscreen", () => {
+  it("navigates settings while keeping fullscreen on the player", () => {
     const selected: string[] = [];
     const pages: string[] = [];
     const actions: string[] = [];
@@ -717,11 +717,13 @@ describe("watch screen", () => {
       .find((node) => node.props.testID === "watch-sheet-back")
       ?.props.onPress?.();
     expect(pages.at(-1)).toBe("settings");
+    expect(
+      settings.some((node) => node.props.testID === "watch-settings-fullscreen"),
+    ).toBe(false);
     settings
-      .find((node) => node.props.testID === "watch-settings-fullscreen")
+      .find((node) => node.props.testID === "player-fullscreen")
       ?.props.onPress?.();
     expect(selected.at(-1)).toBe("fullscreen");
-    expect(pages.at(-1)).toBe("null");
     const withoutQuality = descendants(
       WatchScreen({
         ...props,
