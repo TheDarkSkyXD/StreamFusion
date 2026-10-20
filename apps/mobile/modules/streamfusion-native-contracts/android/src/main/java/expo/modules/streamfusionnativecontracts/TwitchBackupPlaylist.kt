@@ -77,6 +77,22 @@ internal object TwitchBackupPlaylist {
     return false
   }
 
+  fun mediaUrls(playlist: String, baseUrl: String): Set<String> = buildSet {
+    for (line in playlist.lineSequence().map(String::trim)) {
+      val reference = when {
+        line.isEmpty() -> null
+        !line.startsWith('#') -> line
+        line.startsWith("#EXT-X-TWITCH-PREFETCH:") -> line.substringAfter(':')
+        line.startsWith("#EXT-X-PART:") -> uriAttribute.find(line)?.groupValues?.get(1)
+        line.startsWith("#EXT-X-PRELOAD-HINT:") && attribute.findAll(line).any {
+          it.groupValues[1] == "TYPE" && it.groupValues[2].ifEmpty { it.groupValues[3] } == "PART"
+        } -> uriAttribute.find(line)?.groupValues?.get(1)
+        else -> null
+      }
+      if (reference != null) resolve(baseUrl, reference)?.let(::add)
+    }
+  }
+
   fun absoluteMedia(playlist: String, baseUrl: String): String? {
     val lines = playlist.replace("\r", "").lines().map { line ->
       when {

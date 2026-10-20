@@ -24,6 +24,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.playlist.HlsPlaylistTracker
+import androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -98,7 +100,8 @@ object FocusedPlaybackSessionOwner {
     if (sourceUri.isNullOrBlank() || !isHttpsMedia(sourceUri)) {
       return@onMain mapOf("kind" to "invalid")
     }
-    val source = playbackSource(sessionId, sourceUri, request, request)
+    val quarantine = TwitchAdMediaQuarantine()
+    val source = playbackSource(sessionId, sourceUri, request, request, quarantine)
     val exo = ExoPlayer.Builder(context.applicationContext)
       .setMediaSourceFactory(source.factory)
       .setRenderersFactory(captionRenderers(context.applicationContext, sessionId))
@@ -118,7 +121,7 @@ object FocusedPlaybackSessionOwner {
       }
       val outgoing = sessions.remove(sessionId)
       sessions[sessionId] = Session(
-        sessionId, exo, source.filteringFactory, request,
+        sessionId, exo, source.filteringFactory, request, quarantine,
         sourceRecovery = request["sourceRecovery"] == "resolve-live-source",
       ).also { it.muted = initiallyMuted }
       bindViewsLocked()
@@ -159,7 +162,7 @@ object FocusedPlaybackSessionOwner {
     if (interruption?.id != interruptionId || interruption.phase != RecoveryPhase.WAITING) {
       return@onMain mapOf("kind" to "invalid")
     }
-    val source = playbackSource(sessionId, sourceUri, request, current.startRequest)
+    val source = playbackSource(sessionId, sourceUri, request, current.startRequest, current.quarantine)
     val outgoingFactory = current.filteringFactory
     current.filteringFactory = source.filteringFactory
     current.interruption = interruption.copy(phase = RecoveryPhase.PREPARING)
@@ -654,6 +657,7 @@ object FocusedPlaybackSessionOwner {
     sourceUri: String,
     sourceRequest: Map<String, Any>,
     preferences: Map<String, Any>,
+    quarantine: TwitchAdMediaQuarantine,
   ): PlaybackSource {
     val headers = requestHeaders(sourceRequest)
     val httpFactory = DefaultHttpDataSource.Factory()
@@ -674,6 +678,7 @@ object FocusedPlaybackSessionOwner {
       },
       sourceUri,
       (sourceRequest["filtering"] as? Map<*, *>)?.get("channelName") as? String,
+      quarantine,
     )
     return PlaybackSource(
       DefaultMediaSourceFactory(filteringFactory ?: httpFactory)
@@ -773,6 +778,7 @@ object FocusedPlaybackSessionOwner {
     val player: ExoPlayer,
     var filteringFactory: FilteringDataSource.Factory?,
     val startRequest: Map<String, Any>,
+    val quarantine: TwitchAdMediaQuarantine,
     val sourceRecovery: Boolean,
     var muted: Boolean = false,
     var selectedQuality: String = "auto",
@@ -781,6 +787,7 @@ object FocusedPlaybackSessionOwner {
   ) {
     var interruption: RecoveryInterruption? = null
     var lastRecoverableError: PlaybackException? = null
+    var decoderRestarted = false
 
     fun dispose() {
       CaptionPcmTap.endSession(sessionId)
@@ -876,6 +883,14 @@ object FocusedPlaybackSessionOwner {
         session.player.prepare()
         return
       }
+      if (session.sourceRecovery && !session.decoderRestarted &&
+        error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED &&
+        generateSequence<Throwable>(error) { it.cause }.any { it is MediaCodecDecoderException }) {
+        session.decoderRestarted = true
+        session.player.prepare()
+        updateScreenAwakeRequests()
+        return
+      }
       if (session.sourceRecovery && isRecoverableSourceError(error)) {
         if (session.lastRecoverableError === error) return
         if (session.interruption?.phase == RecoveryPhase.WAITING) return
@@ -903,6 +918,9 @@ object FocusedPlaybackSessionOwner {
   }
 
   private fun isRecoverableSourceError(error: PlaybackException): Boolean {
+    if (generateSequence<Throwable>(error) { it.cause }.any {
+        it is HlsPlaylistTracker.PlaylistStuckException || it is HlsPlaylistTracker.PlaylistResetException
+      }) return true
     val response = generateSequence<Throwable>(error) { it.cause }
       .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
       .firstOrNull() ?: return false

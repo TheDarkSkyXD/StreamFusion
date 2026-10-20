@@ -7,12 +7,29 @@ import java.util.concurrent.RejectedExecutionException
 import kotlin.math.min
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
+internal class TwitchAdMediaQuarantine {
+  private val blocked = mutableMapOf<String, MutableSet<String>>()
+
+  @Synchronized
+  fun observe(scope: String, marked: Boolean, mediaUrls: Set<String>): Boolean {
+    if (marked && mediaUrls.isNotEmpty()) blocked.getOrPut(scope) { mutableSetOf() }.addAll(mediaUrls)
+    return marked || rejects(mediaUrls)
+  }
+
+  @Synchronized
+  fun rejects(mediaUrls: Set<String>): Boolean = blocked.values.any { urls -> mediaUrls.any(urls::contains) }
+
+  @Synchronized
+  fun endEpisode(scope: String) { blocked.remove(scope) }
+}
+
 internal class TwitchBackupOrchestrator(
   sourceUri: String,
   requestedChannel: String?,
   private val transport: TwitchBackupTransport = TwitchBackupHttp(),
   private val executor: ExecutorService = Executors.newSingleThreadExecutor(),
   private val now: () -> Long = System::currentTimeMillis,
+  private val quarantine: TwitchAdMediaQuarantine = TwitchAdMediaQuarantine(),
 ) {
   private enum class OutputSource { ORIGINAL, BACKUP }
 
@@ -63,13 +80,16 @@ internal class TwitchBackupOrchestrator(
     val marked = PlaybackPlaylistFilter.hasAds(playlist)
     val target = renditions[uri]
     val scope = target?.let { "${it.resolution}:${it.frameRate}:${it.codecs}" } ?: uri
+    val quarantineScope = target?.let { "${it.resolution}:${it.frameRate}:${it.codecs}" } ?: "unknown"
     val state = states.getOrPut(scope) { RenditionState() }
     val moment = now()
-    if (!marked) {
+    val unsafe = quarantine.observe(quarantineScope, marked, TwitchBackupPlaylist.mediaUrls(playlist, uri))
+    if (!unsafe) {
+      state.cleanSince = state.cleanSince ?: moment
+      state.cleanPolls++
+      val cleanStable = state.cleanPolls >= 2 && moment - state.cleanSince!! >= 20_000
       if (state.outputSource == OutputSource.BACKUP) {
-        state.cleanSince = state.cleanSince ?: moment
-        state.cleanPolls++
-        if (state.cleanPolls < 2 || moment - state.cleanSince!! < 20_000) {
+        if (!cleanStable) {
           val backup = playableBackup(state, moment)
           if (backup != null) {
             scheduleRefresh(state)
@@ -88,8 +108,11 @@ internal class TwitchBackupOrchestrator(
         scheduleSearch(state, target)
       }
       state.lastCleanEnd = TwitchBackupPlaylist.endSequence(playlist)
-      state.cleanPolls = 0
-      state.cleanSince = null
+      if (cleanStable && !state.searching) {
+        quarantine.endEpisode(quarantineScope)
+        state.cleanPolls = 0
+        state.cleanSince = null
+      }
       val output = if (
         state.outputSource == OutputSource.ORIGINAL &&
         state.originalSequenceOffset == 0L &&
@@ -106,7 +129,8 @@ internal class TwitchBackupOrchestrator(
     state.cleanPolls = 0
     state.cleanSince = null
     val candidate = state.candidate
-    if (candidate != null && moment - candidate.fetchedAt <= 8_000) {
+    if (candidate != null && moment - candidate.fetchedAt <= 8_000 &&
+      !containsBlockedMedia(candidate.playlist, candidate.rendition.url)) {
       val start = state.outputEnd ?: state.lastCleanEnd ?: TwitchBackupPlaylist.sequence(playlist)
       val candidateSequence = TwitchBackupPlaylist.sequence(candidate.playlist)
       if (start != null && candidateSequence != null) {
@@ -143,8 +167,12 @@ internal class TwitchBackupOrchestrator(
 
   private fun playableBackup(state: RenditionState, moment: Long): Backup? {
     val backup = state.served ?: return null
-    return backup.takeIf { moment - it.fetchedAt <= 12_000 }
+    return backup.takeIf { moment - it.fetchedAt <= 12_000 &&
+      !containsBlockedMedia(it.playlist, it.rendition.url) }
   }
+
+  private fun containsBlockedMedia(playlist: String, baseUrl: String): Boolean =
+    quarantine.rejects(TwitchBackupPlaylist.mediaUrls(playlist, baseUrl))
 
   private fun backed(state: RenditionState, backup: Backup, ad: Boolean, diagnostic: String): PlaybackPlaylistFilter.Result {
     val output = TwitchBackupPlaylist.rebase(
@@ -229,6 +257,7 @@ internal class TwitchBackupOrchestrator(
     if (PlaybackPlaylistFilter.hasAds(playlist) || !TwitchBackupPlaylist.hasPlayableSegment(playlist)) return null
     val absolute = TwitchBackupPlaylist.absoluteMedia(playlist, rendition.url) ?: return null
     if (TwitchBackupPlaylist.sequence(absolute) == null) return null
+    if (containsBlockedMedia(absolute, rendition.url)) return null
     return Backup(playerType, rendition, absolute, now())
   }
 
@@ -248,7 +277,7 @@ internal class TwitchBackupOrchestrator(
           if (disposed) return@synchronized
           state.refreshing = false
           if (state.served !== served) return@synchronized
-          if (refreshed == null) {
+          if (refreshed == null || containsBlockedMedia(refreshed, served.rendition.url)) {
             state.served = null
             state.nextRetryAt = 0
           } else if (TwitchBackupPlaylist.aligned(served.playlist, refreshed)) {

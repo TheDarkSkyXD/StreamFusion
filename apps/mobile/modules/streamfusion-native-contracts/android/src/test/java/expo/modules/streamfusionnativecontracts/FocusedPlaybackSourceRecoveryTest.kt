@@ -1,12 +1,16 @@
 package expo.modules.streamfusionnativecontracts
 
 import android.app.Application
+import android.net.Uri
 import android.os.Looper
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.playlist.HlsPlaylistTracker
+import androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException
+import java.io.IOException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -146,6 +150,104 @@ class FocusedPlaybackSourceRecoveryTest {
     assertSame(player, player())
     assertEquals("watch", ownerField("pictureInPictureSessionId"))
     assertEquals(true, ownerField("pictureInPictureActive"))
+  }
+
+  @Test
+  fun stalledLivePlaylistCanRecoverWithoutReleasingThePlayer() {
+    assertPlaylistRecovery(HlsPlaylistTracker.PlaylistStuckException(Uri.parse(firstUri)))
+  }
+
+  @Test
+  fun resetLivePlaylistCanRecoverWithoutReleasingThePlayer() {
+    assertPlaylistRecovery(HlsPlaylistTracker.PlaylistResetException(Uri.parse(firstUri)))
+  }
+
+  @Test
+  fun liveCodecFailureRestartsOnceWithoutChangingPlayerPreferences() {
+    start(filtering = true)
+    val currentPlayer = player()
+    val currentListener = listener(currentPlayer)
+    FocusedPlaybackSessionOwner.setPlaying("watch", false)
+    FocusedPlaybackSessionOwner.setMuted("watch", true)
+    val tracks = currentPlayer.trackSelectionParameters
+    currentPlayer.stop()
+    shadowOf(Looper.getMainLooper()).idle()
+    currentListener.onPlayerError(codecError())
+    shadowOf(Looper.getMainLooper()).idle()
+    assertFalse(currentPlayer.isReleased)
+    assertSame(currentPlayer, player())
+    assertEquals(Player.STATE_BUFFERING, currentPlayer.playbackState)
+    assertFalse(currentPlayer.playWhenReady)
+    assertEquals(0f, currentPlayer.volume)
+    assertEquals(tracks, currentPlayer.trackSelectionParameters)
+    assertEquals(0, events.count { it["kind"] == "failed" })
+    currentListener.onPlaybackStateChanged(Player.STATE_READY)
+
+    currentListener.onPlayerError(codecError())
+    shadowOf(Looper.getMainLooper()).idle()
+    assertTrue(currentPlayer.isReleased)
+    assertEquals(1, events.count { it["kind"] == "failed" })
+  }
+
+  @Test
+  fun sourceRecoveryKeepsKnownAdSegmentsBlockedOnTheFreshFactory() {
+    start(filtering = true)
+    val media = "https://origin.example/live/720p.m3u8"
+    val master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720\n$media"
+    val marked = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:100\n" +
+      "#EXT-X-DATERANGE:CLASS=\"twitch-stitched-ad\"\n#EXTINF:2.0,live\nblocked.ts"
+    val original = field(filteringFactory(), "backup") as TwitchBackupOrchestrator
+    original.process(firstUri, master)
+    original.process(media, marked)
+    listener(player()).onPlayerError(PlaybackException(
+      "Playlist stuck", HlsPlaylistTracker.PlaylistStuckException(Uri.parse(media)),
+      PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+    ))
+    val request = recovery(interruptionId()) + mapOf(
+      "filtering" to mapOf("enabled" to true, "platform" to "twitch", "mode" to "strip"),
+    )
+
+    assertEquals("completed", FocusedPlaybackSessionOwner.recoverSource(request)["kind"])
+
+    val replacement = field(filteringFactory(), "backup") as TwitchBackupOrchestrator
+    replacement.process(secondUri, master)
+    val output = replacement.process(media, marked.replace("#EXT-X-DATERANGE:CLASS=\"twitch-stitched-ad\"\n", ""))
+    assertTrue(output.adsDetected)
+    assertFalse(output.playlist.contains("blocked.ts"))
+    assertFalse(output.playlist.contains("#EXTINF"))
+  }
+
+  @Test
+  fun unoptedCodecFailureRemainsTerminal() {
+    start(sourceRecovery = false)
+    val currentPlayer = player()
+    listener(currentPlayer).onPlayerError(codecError())
+    shadowOf(Looper.getMainLooper()).idle()
+    assertTrue(currentPlayer.isReleased)
+    assertEquals(1, events.count { it["kind"] == "failed" })
+  }
+
+  private fun codecError() = PlaybackException(
+    "Decoder failed",
+    MediaCodecDecoderException(IllegalStateException("Codec stopped"), null),
+    PlaybackException.ERROR_CODE_DECODING_FAILED,
+  )
+
+  private fun assertPlaylistRecovery(cause: IOException) {
+    start(filtering = true)
+    val currentPlayer = player()
+    listener(currentPlayer).onPlayerError(PlaybackException(
+      "Playlist refresh failed", cause, PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+    ))
+    shadowOf(Looper.getMainLooper()).idle()
+    assertFalse(currentPlayer.isReleased)
+    assertSame(currentPlayer, player())
+    assertEquals(0, events.count { it["kind"] == "failed" })
+    assertEquals("completed", FocusedPlaybackSessionOwner.recoverSource(recovery(interruptionId()))["kind"])
+    assertEquals(secondUri, currentPlayer.currentMediaItem?.localConfiguration?.uri.toString())
+    listener(currentPlayer).onPlaybackStateChanged(Player.STATE_READY)
+    shadowOf(Looper.getMainLooper()).idle()
+    assertEquals(1, events.count { it["kind"] == "source-recovered" })
   }
 
   private fun start(filtering: Boolean = false, sourceRecovery: Boolean = true) {

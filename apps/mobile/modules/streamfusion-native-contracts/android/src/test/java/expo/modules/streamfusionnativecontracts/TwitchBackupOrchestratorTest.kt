@@ -80,6 +80,143 @@ class TwitchBackupOrchestratorTest {
     assertTrue(transport.cancelled)
   }
 
+  @Test fun markerDropoutDoesNotReleasePreviouslyBlockedMedia() {
+    val transport = FakeTransport(null, null)
+    val orchestrator = TwitchBackupOrchestrator(source, null, transport, InlineExecutor())
+    val marked = """
+      #EXTM3U
+      #EXT-X-TARGETDURATION:2
+      #EXT-X-MEDIA-SEQUENCE:100
+      #EXT-X-DATERANGE:ID="break-1",CLASS="twitch-stitched-ad",DURATION=30
+      #EXTINF:2.0,live
+      segment100.ts
+      #EXTINF:2.0,live
+      segment101.ts
+    """.trimIndent()
+    val overlap = """
+      #EXTM3U
+      #EXT-X-TARGETDURATION:2
+      #EXT-X-MEDIA-SEQUENCE:101
+      #EXTINF:2.0,live
+      segment101.ts
+      #EXTINF:2.0,live
+      segment102.ts
+    """.trimIndent()
+    val recovered = """
+      #EXTM3U
+      #EXT-X-TARGETDURATION:2
+      #EXT-X-MEDIA-SEQUENCE:102
+      #EXTINF:2.0,live
+      segment102.ts
+      #EXTINF:2.0,live
+      segment103.ts
+    """.trimIndent()
+    try {
+      orchestrator.process(source, master)
+      assertFalse(orchestrator.process(media, marked).playlist.contains("#EXTINF"))
+      val held = orchestrator.process(media, overlap)
+      assertTrue(held.adsDetected)
+      assertFalse(held.playlist.contains("#EXTINF"))
+      val live = orchestrator.process(media, recovered)
+      assertFalse(live.adsDetected)
+      assertEquals(recovered, live.playlist)
+    } finally {
+      orchestrator.dispose()
+    }
+  }
+
+  @Test fun markerDropoutDoesNotReleaseBlockedPrefetchMedia() {
+    val orchestrator = TwitchBackupOrchestrator(source, null, FakeTransport(null, null), InlineExecutor())
+    try {
+      orchestrator.process(source, master)
+      orchestrator.process(media, ad + "\n#EXT-X-TWITCH-PREFETCH:blocked-prefetch.ts")
+      val overlap = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-TWITCH-PREFETCH:blocked-prefetch.ts"
+      val held = orchestrator.process(media, overlap)
+      assertTrue(held.adsDetected)
+      assertFalse(held.playlist.contains("blocked-prefetch.ts"))
+    } finally {
+      orchestrator.dispose()
+    }
+  }
+
+  @Test fun backupCannotReplayMediaFromTheBlockedAdWindow() {
+    val marked = ad.replace("commercial.ts", "https://origin.example/live/blocked.ts")
+    val taintedBackup = clean.replace("live100.ts", "https://origin.example/live/blocked.ts")
+    val orchestrator = TwitchBackupOrchestrator(
+      source, null, FakeTransport(backupMaster, taintedBackup), InlineExecutor(),
+    )
+    try {
+      orchestrator.process(source, master)
+      orchestrator.process(media, marked)
+      val held = orchestrator.process(media, marked)
+      assertTrue(held.adsDetected)
+      assertFalse(held.playlist.contains("#EXTINF"))
+      assertFalse(held.playlist.contains("blocked.ts"))
+    } finally {
+      orchestrator.dispose()
+    }
+  }
+
+  @Test fun backupCannotReplayAnEarlierWindowFromTheSameAdBreak() {
+    val firstWindow = ad.replace("commercial.ts", "https://origin.example/live/first-ad.ts")
+    val nextWindow = ad.replace("commercial.ts", "https://origin.example/live/next-ad.ts")
+    val transport = FakeTransport(backupMaster, ad)
+    var time = 1_000L
+    val orchestrator = TwitchBackupOrchestrator(source, null, transport, InlineExecutor(), { time })
+    try {
+      orchestrator.process(source, master)
+      orchestrator.process(media, firstWindow)
+      transport.backupPlaylist = clean.replace("live100.ts", "https://origin.example/live/first-ad.ts")
+      time += 2_001
+      orchestrator.process(media, nextWindow)
+      val held = orchestrator.process(media, nextWindow)
+      assertFalse(held.playlist.contains("first-ad.ts"))
+      assertFalse(held.playlist.contains("#EXTINF"))
+    } finally {
+      orchestrator.dispose()
+    }
+  }
+
+  @Test fun cleanAudioRenditionCannotClearBlockedVideoMedia() {
+    var time = 1_000L
+    val orchestrator = TwitchBackupOrchestrator(source, null, FakeTransport(null, null), InlineExecutor(), { time })
+    val audio = "https://origin.example/live/audio.m3u8"
+    val marked = ad.replace("commercial.ts", "https://origin.example/live/blocked-video.ts")
+    try {
+      orchestrator.process(source, master + "\n#EXT-X-STREAM-INF:BANDWIDTH=128000,CODECS=\"mp4a.40.2\"\n$audio")
+      orchestrator.process(media, marked)
+      orchestrator.process(audio, clean)
+      time += 20_001
+      orchestrator.process(audio, clean)
+      val held = orchestrator.process(media, marked.replace("#EXT-X-DATERANGE:CLASS=\"twitch-stitched-ad\"\n", ""))
+      assertTrue(held.adsDetected)
+      assertFalse(held.playlist.contains("blocked-video.ts"))
+    } finally {
+      orchestrator.dispose()
+    }
+  }
+
+  @Test fun backupRefreshCannotReplayBlockedMediaWhileOriginalRecoverySettles() {
+    val marked = ad.replace("commercial.ts", "https://origin.example/live/blocked.ts")
+    val transport = FakeTransport(backupMaster, clean)
+    var time = 1_000L
+    val orchestrator = TwitchBackupOrchestrator(source, null, transport, InlineExecutor(), { time })
+    try {
+      orchestrator.process(source, master)
+      orchestrator.process(media, clean)
+      orchestrator.process(media, marked)
+      transport.backupPlaylist = clean.replace("SEQUENCE:100", "SEQUENCE:101")
+        .replace("live100.ts", "https://origin.example/live/blocked.ts")
+      time += 3_000
+      orchestrator.process(media, clean)
+      val output = orchestrator.process(media, clean)
+      assertFalse(output.playlist.contains("blocked.ts"))
+      assertFalse(output.playlist.contains("#EXTINF"))
+    } finally {
+      orchestrator.dispose()
+    }
+  }
+
   @Test fun backupStaysUntilTwoCleanPollsAcrossTwentySeconds() {
     val transport = FakeTransport(backupMaster, clean)
     var time = 1_000L
