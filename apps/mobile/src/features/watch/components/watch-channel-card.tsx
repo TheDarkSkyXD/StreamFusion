@@ -89,11 +89,13 @@ export function WatchChannelCard({
     channel?.isPartner || (channel?.platform === "kick" && channel.isVerified);
   const badges = (
     <>
-      <MobilePlatformBadge
-        platform={target.platform}
-        style={styles.platformIcon}
-        variant="icon"
-      />
+      {!channel?.isPartner ? (
+        <MobilePlatformBadge
+          platform={target.platform}
+          style={styles.platformIcon}
+          variant="icon"
+        />
+      ) : null}
       {hasVerifiedBadge ? (
         <MobileVerifiedBadge platform={target.platform} />
       ) : null}

@@ -44,6 +44,7 @@ I wanted to share some of my preferences here so we can be more aligned as we wo
   explain why the real fix is out of scope.
 - Keep semantic flags faithful to their source meaning at the adapter boundary.
   Correct an inaccurate mapping there instead of compensating in consumers.
+  When UI visibility depends on a status, test it independently from related statuses.
 - **Name the library.** If the task has an obvious well-known tool for it, use
   that tool. Do not hand-roll a worse version because nobody named it.
 - **Don't invent content.** If you need real data real names, real products,
