@@ -108,8 +108,9 @@ function AppearanceSessionRows({ onChange, view }: SettingsPanelProps) {
         testID="restore-session"
       />
       <PreferenceSwitch
-        checked={prefs.resumePlayback}
+        checked={prefs.restoreSession && prefs.resumePlayback}
         copy={view.effective.resumePlayback}
+        disabled={!prefs.restoreSession}
         label="Resume playback"
         onToggle={() => onChange({ resumePlayback: !prefs.resumePlayback })}
         testID="resume-playback"
@@ -326,12 +327,14 @@ function qualityLabel(
 function PreferenceSwitch({
   checked,
   copy,
+  disabled = false,
   label,
   onToggle,
   testID,
 }: {
   readonly checked: boolean;
   readonly copy: string;
+  readonly disabled?: boolean;
   readonly label: string;
   readonly onToggle: () => void;
   readonly testID: string;
@@ -340,6 +343,7 @@ function PreferenceSwitch({
     <>
       <SettingsSwitch
         checked={checked}
+        disabled={disabled}
         label={label}
         onToggle={onToggle}
         testID={testID}

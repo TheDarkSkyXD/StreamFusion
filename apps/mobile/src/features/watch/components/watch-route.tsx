@@ -44,7 +44,7 @@ import {
 } from "./watch-screen";
 import { isPictureInPictureSurface } from "../domain/player-presentation";
 import { watchDownloadCopyId } from "../domain/watch-download-copy";
-import { recordedWatchStartPositionMs } from "../domain/watch-target";
+import { startWatchThenResume } from "./start-watch-session";
 import {
   watchDownloadEligibility,
   type WatchDownloadEligibility,
@@ -115,6 +115,7 @@ export function WatchRoute({
   onOpenSearch,
   playerPrefs,
   screen,
+  startup = "automatic",
   target,
 }: {
   readonly inlineEngagement?: ChatEngagementInlineBindings;
@@ -134,6 +135,7 @@ export function WatchRoute({
   readonly onOpenSearch?: () => void;
   readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
+  readonly startup?: "automatic" | "manual" | "resuming";
   readonly target: WatchTarget | null;
 }) {
   const peek = useWatchPeek(screen.runtime.session);
@@ -168,6 +170,7 @@ export function WatchRoute({
       {...(onModerateMessage === undefined ? {} : { onModerateMessage })}
       onOpenRelated={onOpenRelated}
       screen={screen}
+      startup={startup}
       target={resolved}
       {...(captions === undefined ? {} : { captions })}
       {...(download === undefined ? {} : { download })}
@@ -193,6 +196,7 @@ function WatchSessionRoute({
   onOpenRelated,
   playerPrefs,
   screen,
+  startup,
   target,
 }: {
   readonly inlineEngagement?: ChatEngagementInlineBindings;
@@ -207,6 +211,7 @@ function WatchSessionRoute({
   readonly onOpenRelated: (stream: Stream) => void;
   readonly playerPrefs?: ProductPreferences;
   readonly screen: WatchScreenRuntime;
+  readonly startup: "automatic" | "manual" | "resuming";
   readonly target: WatchTarget;
 }) {
   const tabTargetKey = `${target.platform}:${target.channelId}:${target.media?.kind ?? "live"}:${target.media?.id ?? ""}`;
@@ -285,9 +290,9 @@ function WatchSessionRoute({
     setToolSheet(null);
   }
   useEffect(() => {
-    if (playback.kind !== "ready") return;
-    void startWatchThenResume(session, target);
-  }, [playback.kind, session, target]);
+    if (startup !== "automatic" || playback.kind !== "ready") return;
+    void startWatchThenResume({ session, target });
+  }, [playback.kind, session, startup, target]);
   const lastCopyCommandTime = useRef(0);
   const eligibility = watchDownloadEligibility(target);
   const recordingEligibility = watchRecordingEligibility(target);
@@ -460,7 +465,7 @@ function WatchSessionRoute({
       }}
       onRetry={() => {
         revealControls();
-        void session.start(target);
+        void startWatchThenResume({ session, target, history: screen.history });
       }}
       onRefresh={() => {
         revealControls();
@@ -499,6 +504,7 @@ function WatchSessionRoute({
       }}
       peek={peek}
       playback={playback}
+      manualStart={startup === "manual"}
       tab={tab}
       target={target}
       {...(playerPrefs === undefined
@@ -618,17 +624,6 @@ function seekWatchSession(
   }
   const duration = peek.progress.durationMs;
   void session.seekTo(duration > 0 ? Math.min(duration, next) : next);
-}
-
-async function startWatchThenResume(
-  session: FocusedWatchSession,
-  target: WatchTarget,
-): Promise<void> {
-  const result = await session.start(target);
-  if (result.kind !== "started") return;
-  const seekMs = recordedWatchStartPositionMs(target);
-  if (seekMs === null) return;
-  await session.seekTo(seekMs);
 }
 
 function jobForEligibility(

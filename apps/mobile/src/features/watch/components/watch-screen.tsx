@@ -126,6 +126,7 @@ export function WatchScreen({
   download,
   recording,
   inspection,
+  manualStart = false,
   onChatRetry,
   onModerateMessage,
   followBusy = false,
@@ -184,6 +185,7 @@ export function WatchScreen({
   readonly download?: WatchMediaJobControls<WatchDownloadEligibility>;
   readonly recording?: WatchMediaJobControls<WatchRecordingEligibility>;
   readonly inspection: WatchInspection | null;
+  readonly manualStart?: boolean;
   readonly followBusy?: boolean;
   readonly followed?: boolean;
   readonly onBack?: () => void;
@@ -223,8 +225,17 @@ export function WatchScreen({
   const view = composeWatchView(playback);
   const captionSession =
     captions?.session?.sessionId === view.sessionId ? captions.session : null;
-  const title = resolveWatchCopy(view.title, translate);
-  const detail = resolveWatchCopy(view.detail, translate);
+  const waitingForStart = manualStart && playback.kind === "ready";
+  const title = waitingForStart
+    ? t("playback.watch.readyTitle")
+    : resolveWatchCopy(view.title, translate);
+  const detail = waitingForStart
+    ? t(
+        target.media
+          ? "playback.watch.startRecordingDetail"
+          : "playback.watch.startLiveDetail",
+      )
+    : resolveWatchCopy(view.detail, translate);
   const fullscreen =
     peek?.kind === "active" && peek.presentation.presentation === "fullscreen";
   const isOptionsSubpage =
@@ -361,6 +372,16 @@ export function WatchScreen({
       )}
       {pipSurface || fullscreen ? null : (
         <>
+          {waitingForStart ? (
+            <MobileButton
+              accessibilityLabel={t("home.watchNow")}
+              onPress={onRetry}
+              testID="watch-start"
+              variant="primary"
+            >
+              {t("home.watchNow")}
+            </MobileButton>
+          ) : null}
           {view.primaryAction === "retry" ? (
             <MobileButton
               accessibilityLabel={t("playback.retry")}

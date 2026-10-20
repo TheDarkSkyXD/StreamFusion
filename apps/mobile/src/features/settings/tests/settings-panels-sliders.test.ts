@@ -7,6 +7,7 @@ import {
 } from "@streamfusion/core/settings";
 
 import {
+  AppearanceSettingsPanel,
   BufferSettingsPanel,
   PlaybackSettingsPanel,
 } from "../components/settings-panels";
@@ -44,6 +45,7 @@ vi.mock("react-i18next", () => ({
 
 type ElementProps = Readonly<{
   children?: unknown;
+  disabled?: boolean;
   onValueChange?: (value: number) => void;
   testID?: string;
   minimumValue?: number;
@@ -78,6 +80,25 @@ function descendants(node: unknown): readonly Element[] {
 }
 
 describe("settings panel sliders", () => {
+  it("disables Resume playback while session restoration is off", () => {
+    const nodes = descendants(
+      AppearanceSettingsPanel({
+        onChange: () => undefined,
+        view: composeSettingsView({
+          preferences: {
+            ...DEFAULT_PRODUCT_PREFERENCES,
+            restoreSession: false,
+            resumePlayback: true,
+          },
+        }),
+      }),
+    );
+    expect(
+      nodes.find((node) => node.props.testID === "resume-playback")?.props
+        .disabled,
+    ).toBe(true);
+  });
+
   it("shows one 1440p option and accepts a saved 2k preference", () => {
     let quality: ProductPreferences["quality"] = "2k";
     const nodes = descendants(
@@ -118,7 +139,9 @@ describe("settings panel sliders", () => {
         view,
       }),
     );
-    expect(playbackNodes.some((node) => node.props.testID === "carousel-input")).toBe(false);
+    expect(
+      playbackNodes.some((node) => node.props.testID === "carousel-input"),
+    ).toBe(false);
 
     const bufferNodes = descendants(
       BufferSettingsPanel({

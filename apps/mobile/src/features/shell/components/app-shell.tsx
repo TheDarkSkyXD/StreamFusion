@@ -155,6 +155,7 @@ import {
   type WatchDownloadSession,
 } from "@mobile/features/watch/components/watch-route";
 import { WatchMiniPlayerHost } from "@mobile/features/watch/components/mini-player";
+import { startWatchThenResume } from "@mobile/features/watch/components/start-watch-session";
 import { useWatchPeek } from "@mobile/features/watch/components/use-focused-watch-session";
 import { isPictureInPictureSurface } from "@mobile/features/watch/domain/player-presentation";
 import { watchDownloadJobId } from "@mobile/features/watch/domain/watch-download";
@@ -191,6 +192,7 @@ import {
 import {
   useShellLifecycleController,
   type ShellLifecycleStatus,
+  type StartupWatch,
 } from "./shell-lifecycle-controller";
 
 const previewRoutes: Readonly<
@@ -375,9 +377,28 @@ export function AppShell({
     appLinks,
     restoration: shellRestoration,
     restoreSession: settings.view.preferences.restoreSession,
+    resumePlayback: settings.view.preferences.resumePlayback,
     settingsReady: settings.ready,
   });
-  const { dispatch, launchSearchQuery, state: navigation } = lifecycle;
+  const {
+    dispatch,
+    launchSearchQuery,
+    state: navigation,
+    startupWatch,
+  } = lifecycle;
+  const startupPlaybackStarted = useRef(false);
+  useEffect(() => {
+    if (!startupWatch?.resume || startupPlaybackStarted.current) return;
+    startupPlaybackStarted.current = true;
+    const request = new AbortController();
+    void startWatchThenResume({
+      session: watch.runtime.session,
+      target: watchTargetFromLocation(startupWatch.target),
+      history: watch.history,
+      signal: request.signal,
+    });
+    return () => request.abort();
+  }, [startupWatch, watch.history, watch.runtime.session]);
   const [searchFocused, setSearchFocused] = useState(false);
   const searchPresentation = useRef<SearchPresentationState | null>(null);
   const saveSearchPresentation = useCallback(
@@ -608,6 +629,7 @@ export function AppShell({
               onRunPersistenceProof={onRunPersistenceProof}
               persistenceStatus={persistenceStatus}
               state={navigation}
+              startupWatch={startupWatch}
               twitchAccount={twitchAccount}
               twitchAccountActions={twitchAccountActions}
               twitchAccountDevelopmentFixture={twitchAccountDevelopmentFixture}
@@ -829,6 +851,7 @@ function ShellScreen({
   onRunPersistenceProof,
   persistenceStatus,
   state,
+  startupWatch,
   twitchAccount,
   twitchAccountActions,
   twitchAccountDevelopmentFixture,
@@ -899,6 +922,7 @@ function ShellScreen({
   readonly onRunPersistenceProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly state: ShellNavigationState;
+  readonly startupWatch: StartupWatch | null;
   readonly twitchAccount: TwitchAccountViewModel;
   readonly twitchAccountActions: TwitchAccountActions;
   readonly twitchAccountDevelopmentFixture: boolean;
@@ -1095,6 +1119,18 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-watch-root">
         <WatchRoute
+          startup={
+            startupWatch &&
+            location.route === "watch/session-preview" &&
+            location.target.kind === "channel" &&
+            startupWatch.target.platform === location.target.platform &&
+            startupWatch.target.channelId === location.target.channelId &&
+            startupWatch.target.media?.id === location.target.media?.id
+              ? startupWatch.resume
+                ? "resuming"
+                : "manual"
+              : "automatic"
+          }
           {...(target && inlineEngagement && workflowNavigation
             ? {
                 inlineEngagement: {

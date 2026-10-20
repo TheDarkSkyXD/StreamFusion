@@ -349,6 +349,25 @@ describe("watch screen", () => {
     ).toBe(true);
   });
 
+  it("offers Start watching for a restored Watch route when automatic resume is off", () => {
+    const root = WatchScreen({
+      toolSheet: { active: null, onChange: () => undefined },
+      PlayerSurface: () => null,
+      chat: { detail: "Connecting guest chat.", kind: "connecting" },
+      inspection: null,
+      onOpenRelated: () => undefined,
+      onRetry: () => undefined,
+      onSelectTab: () => undefined,
+      playback: { kind: "ready", target },
+      manualStart: true,
+      tab: "chat",
+      target,
+    });
+    expect(
+      descendants(root).some((node) => node.props.testID === "watch-start"),
+    ).toBe(true);
+  });
+
   it("renders live guest chat messages and retries a failed chat pane", () => {
     const retried: string[] = [];
     const liveNodes = descendants(

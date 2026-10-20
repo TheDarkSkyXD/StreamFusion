@@ -89,10 +89,14 @@ export function composeEffectiveCopy(
       "Choose the player controls to display. Playback speed applies to videos and clips. Theater mode is unavailable on mobile.",
     restoreSession: enabledCopy(
       preferences.restoreSession,
-      "Reopen your last screen. Playback starts when you select Start watching.",
-      "Open Watch when starting StreamFusion.",
+      "Reopen your last screen and remember your last stream or recording.",
+      "Open Search when starting StreamFusion.",
     ),
-    resumePlayback: "Playback starts when you select Start watching.",
+    resumePlayback: !preferences.restoreSession
+      ? "Turn on Restore session to resume playback when you reopen the app."
+      : preferences.resumePlayback
+        ? "Your last stream or recording starts automatically when you reopen the app."
+        : "Your last stream or recording waits for Watch now when you reopen the app.",
     tokenPlayer: "Native ExoPlayer is the only eligible player.",
   };
 }

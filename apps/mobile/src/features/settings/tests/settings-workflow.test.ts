@@ -4,7 +4,10 @@ import { DEFAULT_PRODUCT_PREFERENCES } from "@streamfusion/core/settings";
 
 import type { ProductSettingsStore } from "@mobile/features/storage/capabilities/persistence";
 import { createSettingsSession } from "../composition/settings-runtime";
-import { playbackSessionPolicy } from "../domain/settings-view";
+import {
+  composeEffectiveCopy,
+  playbackSessionPolicy,
+} from "../domain/settings-view";
 import { activateDisplayLanguage, i18n } from "@mobile/i18n";
 
 vi.mock("../adapters/appearance-scheme", () => ({
@@ -139,5 +142,27 @@ describe("settings workflow", () => {
       captionsEnabled: false,
       quality: "720p",
     });
+  });
+
+  it("explains that Resume playback applies to restored sessions", () => {
+    const enabled = composeEffectiveCopy({
+      ...DEFAULT_PRODUCT_PREFERENCES,
+      restoreSession: true,
+      resumePlayback: true,
+    });
+    expect(enabled.resumePlayback).toContain("reopen");
+    expect(enabled.resumePlayback).toContain("automatically");
+    const paused = composeEffectiveCopy({
+      ...DEFAULT_PRODUCT_PREFERENCES,
+      restoreSession: true,
+      resumePlayback: false,
+    });
+    expect(paused.resumePlayback).toContain("Watch now");
+    const unavailable = composeEffectiveCopy({
+      ...DEFAULT_PRODUCT_PREFERENCES,
+      restoreSession: false,
+      resumePlayback: true,
+    });
+    expect(unavailable.resumePlayback).toContain("Restore session");
   });
 });

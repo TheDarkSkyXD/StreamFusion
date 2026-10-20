@@ -15,8 +15,9 @@ import { WatchRoute } from "../components/watch-route";
 const routeState = vi.hoisted(
   (): {
     paused: boolean;
+    ready: boolean;
     notifications: LiveNotificationPreferences | null;
-  } => ({ paused: false, notifications: null }),
+  } => ({ paused: false, ready: false, notifications: null }),
 );
 
 vi.mock("@tanstack/react-query", () => ({
@@ -50,7 +51,8 @@ vi.mock("@mobile/features/discovery/components/use-channel-follow", () => ({
   }),
 }));
 vi.mock("../components/use-focused-watch-session", () => ({
-  useFocusedWatchSession: () => ({ kind: "active" }),
+  useFocusedWatchSession: (_session: unknown, selected: WatchTarget) =>
+    routeState.ready ? { kind: "ready", target: selected } : { kind: "active" },
   useWatchPeek: () => ({
     kind: "active",
     state: {
@@ -69,6 +71,7 @@ vi.mock("../components/watch-screen", async () => {
     WatchEmptyState: () => null,
     WatchScreen: (props: {
       controlsVisible: boolean;
+      manualStart?: boolean;
       onToggleControls: () => void;
       onToggleLiveAlerts?: () => void;
       notificationStatus?: string | null;
@@ -80,6 +83,7 @@ vi.mock("../components/watch-screen", async () => {
         "div",
         {
           "data-testid": "watch-route",
+          "data-manual": String(props.manualStart),
           "data-controls": String(props.controlsVisible),
           "data-tab": props.tab,
           "data-status": props.notificationStatus ?? "",
@@ -113,6 +117,68 @@ const screen = {
 } as unknown as WatchScreenRuntime;
 
 describe("watch route control timing", () => {
+  it("starts a newly selected target once while deferring a restored target to shell startup", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    const start = vi.fn(async () => ({
+      kind: "started" as const,
+      session: {},
+    }));
+    const startupScreen = {
+      ...screen,
+      runtime: {
+        ...screen.runtime,
+        session: { start, seekTo: vi.fn(async () => undefined) },
+      },
+    } as unknown as WatchScreenRuntime;
+    routeState.ready = true;
+    try {
+      await act(async () =>
+        root.render(
+          createElement(WatchRoute, {
+            screen: startupScreen,
+            startup: "resuming",
+            target,
+            onOpenRelated: () => undefined,
+          }),
+        ),
+      );
+      expect(start).not.toHaveBeenCalled();
+      await act(async () =>
+        root.render(
+          createElement(WatchRoute, {
+            screen: startupScreen,
+            startup: "automatic",
+            target,
+            onOpenRelated: () => undefined,
+          }),
+        ),
+      );
+      expect(start).toHaveBeenCalledOnce();
+      await act(async () =>
+        root.render(
+          createElement(WatchRoute, {
+            screen: startupScreen,
+            startup: "manual",
+            target,
+            onOpenRelated: () => undefined,
+          }),
+        ),
+      );
+      expect(start).toHaveBeenCalledOnce();
+      expect(
+        host
+          .querySelector('[data-testid="watch-route"]')
+          ?.getAttribute("data-manual"),
+      ).toBe("true");
+    } finally {
+      routeState.ready = false;
+      await act(async () => root.unmount());
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("saves live alerts for Twitch and Kick and shows a failed save", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const host = document.createElement("div");
