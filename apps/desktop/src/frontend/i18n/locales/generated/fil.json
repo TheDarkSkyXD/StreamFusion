@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Bukas ang window ng player",
     "protectedWindowClosed": "Isinara ang window ng player",
     "protectedWindowUnavailable": "Hindi available ang window ng player",
+    "protectedWindowsOnly": "Ang protektadong pag-playback ay nangangailangan ng Windows.",
+    "protectedRuntimeMissing": "I-install ang Microsoft Edge WebView2 Runtime para buksan ang stream na ito.",
+    "installWebView2Runtime": "Kunin ang WebView2 Runtime",
     "protectedWindowNotice": "Ang Twitch's opisyal na manlalaro ay bubukas nang hiwalay. Maaaring lumitaw ang mga ad.",
     "focusPlayerWindow": "Dalhin sa harap ang window ng player",
     "closePlayerWindow": "Isara ang window ng player",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Hindi available ang live na source",
       "buffering": "Buffering",
       "bufferingDetail": "Bina-buffer ng player ang live stream na ito.",
-      "focusedActive": "Aktibo ang nakatutok na live na pag-playback."
-    },
-    "protectedWindowsOnly": "Ang protektadong pag-playback ay nangangailangan ng Windows.",
-    "protectedRuntimeMissing": "I-install ang Microsoft Edge WebView2 Runtime para buksan ang stream na ito.",
-    "installWebView2Runtime": "Kunin ang WebView2 Runtime"
+      "focusedActive": "Aktibo ang nakatutok na live na pag-playback.",
+      "options": "Mga pagpipilian",
+      "backToOptions": "Bumalik sa mga pagpipilian",
+      "backToPlayer": "Bumalik sa player"
+    }
   },
   "settings": {
     "general": "Heneral",

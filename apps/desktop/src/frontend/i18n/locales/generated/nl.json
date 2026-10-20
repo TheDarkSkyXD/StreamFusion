@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Spelervenster is geopend",
     "protectedWindowClosed": "Spelervenster gesloten",
     "protectedWindowUnavailable": "Spelervenster niet beschikbaar",
+    "protectedWindowsOnly": "Voor beveiligd afspelen is Windows vereist.",
+    "protectedRuntimeMissing": "Installeer Microsoft Edge WebView2 Runtime om deze stream te openen.",
+    "installWebView2Runtime": "Verkrijg WebView2 Runtime",
     "protectedWindowNotice": "Twitch's officiële speler wordt afzonderlijk geopend. Er kunnen advertenties verschijnen.",
     "focusPlayerWindow": "Focusspelervenster",
     "closePlayerWindow": "Sluit het spelervenster",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Livebron niet beschikbaar",
       "buffering": "Bufferen",
       "bufferingDetail": "De speler buffert deze livestream.",
-      "focusedActive": "Gerichte liveweergave is actief."
-    },
-    "protectedWindowsOnly": "Voor beveiligd afspelen is Windows vereist.",
-    "protectedRuntimeMissing": "Installeer Microsoft Edge WebView2 Runtime om deze stream te openen.",
-    "installWebView2Runtime": "Verkrijg WebView2 Runtime"
+      "focusedActive": "Gerichte liveweergave is actief.",
+      "options": "Opties",
+      "backToOptions": "Terug naar opties",
+      "backToPlayer": "Terug naar speler"
+    }
   },
   "settings": {
     "general": "Algemeen",

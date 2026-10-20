@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "A lejátszó ablak nyitva van",
     "protectedWindowClosed": "A lejátszó ablak bezárva",
     "protectedWindowUnavailable": "A lejátszó ablak nem érhető el",
+    "protectedWindowsOnly": "A védett lejátszáshoz Windows szükséges.",
+    "protectedRuntimeMissing": "Telepítse a Microsoft Edge WebView2 Runtime alkalmazást az adatfolyam megnyitásához.",
+    "installWebView2Runtime": "Szerezze be a WebView2 Runtime alkalmazást",
     "protectedWindowNotice": "A Twitch's hivatalos lejátszó külön nyílik meg. Hirdetések jelenhetnek meg.",
     "focusPlayerWindow": "Fókusz lejátszó ablak",
     "closePlayerWindow": "Zárja be a lejátszó ablakát",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Élő forrás nem érhető el",
       "buffering": "Pufferelés",
       "bufferingDetail": "A játékos puffereli ezt az élő közvetítést.",
-      "focusedActive": "A fókuszált élő lejátszás aktív."
-    },
-    "protectedWindowsOnly": "A védett lejátszáshoz Windows szükséges.",
-    "protectedRuntimeMissing": "Telepítse a Microsoft Edge WebView2 Runtime alkalmazást az adatfolyam megnyitásához.",
-    "installWebView2Runtime": "Szerezze be a WebView2 Runtime alkalmazást"
+      "focusedActive": "A fókuszált élő lejátszás aktív.",
+      "options": "Opciók",
+      "backToOptions": "Vissza a lehetőségekhez",
+      "backToPlayer": "Vissza a lejátszóhoz"
+    }
   },
   "settings": {
     "general": "tábornok",

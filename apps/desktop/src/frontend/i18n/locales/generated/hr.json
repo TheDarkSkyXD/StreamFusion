@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Prozor playera je otvoren",
     "protectedWindowClosed": "Prozor igrača zatvoren",
     "protectedWindowUnavailable": "Prozor playera nije dostupan",
+    "protectedWindowsOnly": "Zaštićena reprodukcija zahtijeva Windows.",
+    "protectedRuntimeMissing": "Instalirajte Microsoft Edge WebView2 Runtime da otvorite ovaj stream.",
+    "installWebView2Runtime": "Nabavite WebView2 Runtime",
     "protectedWindowNotice": "Twitch's službeni player otvara se zasebno. Oglasi se mogu pojaviti.",
     "focusPlayerWindow": "Fokusiraj prozor playera",
     "closePlayerWindow": "Zatvori prozor playera",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Izvor uživo nije dostupan",
       "buffering": "Spremanje u međuspremnik",
       "bufferingDetail": "Igrač sprema ovaj prijenos uživo u međuspremnik.",
-      "focusedActive": "Fokusirana reprodukcija uživo je aktivna."
-    },
-    "protectedWindowsOnly": "Zaštićena reprodukcija zahtijeva Windows.",
-    "protectedRuntimeMissing": "Instalirajte Microsoft Edge WebView2 Runtime da otvorite ovaj stream.",
-    "installWebView2Runtime": "Nabavite WebView2 Runtime"
+      "focusedActive": "Fokusirana reprodukcija uživo je aktivna.",
+      "options": "Mogućnosti",
+      "backToOptions": "Povratak na opcije",
+      "backToPlayer": "Povratak na igrača"
+    }
   },
   "settings": {
     "general": "generalno",

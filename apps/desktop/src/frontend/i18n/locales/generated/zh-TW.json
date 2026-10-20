@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "播放器視窗已開啟",
     "protectedWindowClosed": "播放器視窗已關閉",
     "protectedWindowUnavailable": "播放器視窗不可用",
+    "protectedWindowsOnly": "受保護的播放需要 Windows。",
+    "protectedRuntimeMissing": "安裝 Microsoft Edge WebView2 執行階段以開啟此流。",
+    "installWebView2Runtime": "取得 WebView2 運行時",
     "protectedWindowNotice": "Twitch's官方播放器單獨開啟。可能會出現廣告。",
     "focusPlayerWindow": "焦點播放器視窗",
     "closePlayerWindow": "關閉播放器視窗",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "直播源不可用",
       "buffering": "緩衝",
       "bufferingDetail": "播放器正在緩衝該直播串流。",
-      "focusedActive": "聚焦即時回放已啟動。"
-    },
-    "protectedWindowsOnly": "受保護的播放需要 Windows。",
-    "protectedRuntimeMissing": "安裝 Microsoft Edge WebView2 執行階段以開啟此流。",
-    "installWebView2Runtime": "取得 WebView2 運行時"
+      "focusedActive": "聚焦即時回放已啟動。",
+      "options": "選項",
+      "backToOptions": "返回選項",
+      "backToPlayer": "返回播放器"
+    }
   },
   "settings": {
     "general": "一般",

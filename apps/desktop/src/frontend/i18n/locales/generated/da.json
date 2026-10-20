@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Spillervinduet er åbent",
     "protectedWindowClosed": "Spillervindue lukket",
     "protectedWindowUnavailable": "Spillervinduet er ikke tilgængeligt",
+    "protectedWindowsOnly": "Beskyttet afspilning kræver Windows.",
+    "protectedRuntimeMissing": "Installer Microsoft Edge WebView2 Runtime for at åbne denne stream.",
+    "installWebView2Runtime": "Hent WebView2 Runtime",
     "protectedWindowNotice": "Twitch's officiel spiller åbner separat. Annoncer kan blive vist.",
     "focusPlayerWindow": "Fokus spiller vindue",
     "closePlayerWindow": "Luk spillervinduet",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Livekilde er ikke tilgængelig",
       "buffering": "Buffer",
       "bufferingDetail": "Afspilleren buffer denne livestream.",
-      "focusedActive": "Fokuseret live-afspilning er aktiv."
-    },
-    "protectedWindowsOnly": "Beskyttet afspilning kræver Windows.",
-    "protectedRuntimeMissing": "Installer Microsoft Edge WebView2 Runtime for at åbne denne stream.",
-    "installWebView2Runtime": "Hent WebView2 Runtime"
+      "focusedActive": "Fokuseret live-afspilning er aktiv.",
+      "options": "Valgmuligheder",
+      "backToOptions": "Tilbage til muligheder",
+      "backToPlayer": "Tilbage til afspilleren"
+    }
   },
   "settings": {
     "general": "Generelt",

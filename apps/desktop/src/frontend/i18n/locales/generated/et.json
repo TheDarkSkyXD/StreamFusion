@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Mängija aken on avatud",
     "protectedWindowClosed": "Mängija aken suletud",
     "protectedWindowUnavailable": "Mängija aken pole saadaval",
+    "protectedWindowsOnly": "Kaitstud taasesitus nõuab Windows.",
+    "protectedRuntimeMissing": "Selle voo avamiseks installige Microsoft Edge WebView2 Runtime.",
+    "installWebView2Runtime": "Hankige WebView2 Runtime",
     "protectedWindowNotice": "Twitch's ametlik mängija avaneb eraldi. Reklaamid võivad ilmuda.",
     "focusPlayerWindow": "Fookuse mängija aken",
     "closePlayerWindow": "Sulgege mängija aken",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Reaalajas allikas pole saadaval",
       "buffering": "Puhverdamine",
       "bufferingDetail": "Mängija puhverdab seda otseülekannet.",
-      "focusedActive": "Fokuseeritud otseesitus on aktiivne."
-    },
-    "protectedWindowsOnly": "Kaitstud taasesitus nõuab Windows.",
-    "protectedRuntimeMissing": "Selle voo avamiseks installige Microsoft Edge WebView2 Runtime.",
-    "installWebView2Runtime": "Hankige WebView2 Runtime"
+      "focusedActive": "Fokuseeritud otseesitus on aktiivne.",
+      "options": "Valikud",
+      "backToOptions": "Tagasi valikute juurde",
+      "backToPlayer": "Tagasi mängija juurde"
+    }
   },
   "settings": {
     "general": "Kindral",

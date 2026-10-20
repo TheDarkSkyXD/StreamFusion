@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "பிளேயர் சாளரம் திறந்திருக்கும்",
     "protectedWindowClosed": "பிளேயர் சாளரம் மூடப்பட்டது",
     "protectedWindowUnavailable": "பிளேயர் சாளரம் கிடைக்கவில்லை",
+    "protectedWindowsOnly": "பாதுகாக்கப்பட்ட பிளேபேக்கிற்கு Windows தேவை.",
+    "protectedRuntimeMissing": "இந்த ஸ்ட்ரீமைத் திறக்க Microsoft Edge WebView2 இயக்க நேரத்தை நிறுவவும்.",
+    "installWebView2Runtime": "WebView2 இயக்க நேரத்தைப் பெறுங்கள்",
     "protectedWindowNotice": "Twitch's அதிகாரப்பூர்வ பிளேயர் தனித்தனியாக திறக்கப்படும். விளம்பரங்கள் தோன்றலாம்.",
     "focusPlayerWindow": "ஃபோகஸ் பிளேயர் சாளரம்",
     "closePlayerWindow": "பிளேயர் சாளரத்தை மூடு",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "நேரடி ஆதாரம் கிடைக்கவில்லை",
       "buffering": "தாங்கல்",
       "bufferingDetail": "பிளேயர் இந்த லைவ் ஸ்ட்ரீமை இடையகப்படுத்துகிறார்.",
-      "focusedActive": "ஃபோகஸ்டு லைவ் பிளேபேக் செயலில் உள்ளது."
-    },
-    "protectedWindowsOnly": "பாதுகாக்கப்பட்ட பிளேபேக்கிற்கு Windows தேவை.",
-    "protectedRuntimeMissing": "இந்த ஸ்ட்ரீமைத் திறக்க Microsoft Edge WebView2 இயக்க நேரத்தை நிறுவவும்.",
-    "installWebView2Runtime": "WebView2 இயக்க நேரத்தைப் பெறுங்கள்"
+      "focusedActive": "ஃபோகஸ்டு லைவ் பிளேபேக் செயலில் உள்ளது.",
+      "options": "விருப்பங்கள்",
+      "backToOptions": "விருப்பங்களுக்குத் திரும்பு",
+      "backToPlayer": "வீரருக்குத் திரும்பு"
+    }
   },
   "settings": {
     "general": "பொது",

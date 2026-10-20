@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Прозорецът на плейъра е отворен",
     "protectedWindowClosed": "Прозорецът на играча е затворен",
     "protectedWindowUnavailable": "Прозорецът на плейъра е недостъпен",
+    "protectedWindowsOnly": "Защитеното възпроизвеждане изисква Windows.",
+    "protectedRuntimeMissing": "Инсталирайте Microsoft Edge WebView2 Runtime, за да отворите този поток.",
+    "installWebView2Runtime": "Вземете WebView2 Runtime",
     "protectedWindowNotice": "Официалният плейър на Twitch's се отваря отделно. Може да се появят реклами.",
     "focusPlayerWindow": "Фокусиране на прозореца на плейъра",
     "closePlayerWindow": "Затворете прозореца на плейъра",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Източникът на живо не е наличен",
       "buffering": "Буфериране",
       "bufferingDetail": "Плейърът буферира този поток на живо.",
-      "focusedActive": "Активно е фокусирано възпроизвеждане на живо."
-    },
-    "protectedWindowsOnly": "Защитеното възпроизвеждане изисква Windows.",
-    "protectedRuntimeMissing": "Инсталирайте Microsoft Edge WebView2 Runtime, за да отворите този поток.",
-    "installWebView2Runtime": "Вземете WebView2 Runtime"
+      "focusedActive": "Активно е фокусирано възпроизвеждане на живо.",
+      "options": "Опции",
+      "backToOptions": "Назад към опциите",
+      "backToPlayer": "Обратно към играча"
+    }
   },
   "settings": {
     "general": "генерал",

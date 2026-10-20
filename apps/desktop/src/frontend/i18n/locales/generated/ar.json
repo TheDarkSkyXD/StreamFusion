@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "نافذة المشغل مفتوحة",
     "protectedWindowClosed": "نافذة اللاعب مغلقة",
     "protectedWindowUnavailable": "نافذة المشغل غير متاحة",
+    "protectedWindowsOnly": "يتطلب التشغيل المحمي Windows.",
+    "protectedRuntimeMissing": "قم بتثبيت Microsoft Edge WebView2 Runtime لفتح هذا الدفق.",
+    "installWebView2Runtime": "احصل على وقت تشغيل WebView2",
     "protectedWindowNotice": "Twitch's يتم فتح اللاعب الرسمي بشكل منفصل. قد تظهر الإعلانات.",
     "focusPlayerWindow": "التركيز على نافذة اللاعب",
     "closePlayerWindow": "إغلاق نافذة اللاعب",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "المصدر المباشر غير متاح",
       "buffering": "التخزين المؤقت",
       "bufferingDetail": "يقوم المشغل بتخزين هذا البث المباشر مؤقتًا.",
-      "focusedActive": "التشغيل المباشر المركز نشط."
-    },
-    "protectedWindowsOnly": "يتطلب التشغيل المحمي Windows.",
-    "protectedRuntimeMissing": "قم بتثبيت Microsoft Edge WebView2 Runtime لفتح هذا الدفق.",
-    "installWebView2Runtime": "احصل على وقت تشغيل WebView2"
+      "focusedActive": "التشغيل المباشر المركز نشط.",
+      "options": "خيارات",
+      "backToOptions": "العودة إلى الخيارات",
+      "backToPlayer": "العودة إلى اللاعب"
+    }
   },
   "settings": {
     "general": "عام",

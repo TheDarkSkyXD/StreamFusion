@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "プレーヤーウィンドウが開いています",
     "protectedWindowClosed": "プレーヤーウィンドウが閉じられました",
     "protectedWindowUnavailable": "プレーヤーウィンドウが使用不可",
+    "protectedWindowsOnly": "保護された再生には Windows が必要です。",
+    "protectedRuntimeMissing": "このストリームを開くには、Microsoft Edge WebView2 ランタイムをインストールします。",
+    "installWebView2Runtime": "WebView2 ランタイムを取得する",
     "protectedWindowNotice": "Twitch's 公式プレーヤーは別に開きます。広告が表示される場合があります。",
     "focusPlayerWindow": "プレーヤーウィンドウにフォーカスを当てる",
     "closePlayerWindow": "プレーヤーウィンドウを閉じる",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "ライブソースが利用できない",
       "buffering": "バッファリング",
       "bufferingDetail": "プレーヤーはこのライブ ストリームをバッファリングしています。",
-      "focusedActive": "集中的なライブ再生がアクティブです。"
-    },
-    "protectedWindowsOnly": "保護された再生には Windows が必要です。",
-    "protectedRuntimeMissing": "このストリームを開くには、Microsoft Edge WebView2 ランタイムをインストールします。",
-    "installWebView2Runtime": "WebView2 ランタイムを取得する"
+      "focusedActive": "集中的なライブ再生がアクティブです。",
+      "options": "オプション",
+      "backToOptions": "オプションに戻る",
+      "backToPlayer": "プレーヤーに戻る"
+    }
   },
   "settings": {
     "general": "一般",

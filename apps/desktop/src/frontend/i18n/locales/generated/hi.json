@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "प्लेयर विंडो खुली है",
     "protectedWindowClosed": "प्लेयर विंडो बंद",
     "protectedWindowUnavailable": "प्लेयर विंडो अनुपलब्ध है",
+    "protectedWindowsOnly": "संरक्षित प्लेबैक के लिए Windows की आवश्यकता होती है.",
+    "protectedRuntimeMissing": "इस स्ट्रीम को खोलने के लिए Microsoft Edge WebView2 रनटाइम इंस्टॉल करें।",
+    "installWebView2Runtime": "WebView2 रनटाइम प्राप्त करें",
     "protectedWindowNotice": "Twitch's आधिकारिक प्लेयर अलग से खुलता है। विज्ञापन दिख सकते हैं.",
     "focusPlayerWindow": "फोकस प्लेयर विंडो",
     "closePlayerWindow": "प्लेयर विंडो बंद करें",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "लाइव स्रोत अनुपलब्ध",
       "buffering": "बफ़रिंग",
       "bufferingDetail": "प्लेयर इस लाइव स्ट्रीम को बफ़र कर रहा है।",
-      "focusedActive": "फोकस्ड लाइव प्लेबैक सक्रिय है।"
-    },
-    "protectedWindowsOnly": "संरक्षित प्लेबैक के लिए Windows की आवश्यकता होती है.",
-    "protectedRuntimeMissing": "इस स्ट्रीम को खोलने के लिए Microsoft Edge WebView2 रनटाइम इंस्टॉल करें।",
-    "installWebView2Runtime": "WebView2 रनटाइम प्राप्त करें"
+      "focusedActive": "फोकस्ड लाइव प्लेबैक सक्रिय है।",
+      "options": "विकल्प",
+      "backToOptions": "विकल्पों पर वापस जाएँ",
+      "backToPlayer": "खिलाड़ी पर वापस जाएँ"
+    }
   },
   "settings": {
     "general": "सामान्य",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Fereastra playerului este deschisă",
     "protectedWindowClosed": "Fereastra jucătorului s-a închis",
     "protectedWindowUnavailable": "Fereastra playerului nu este disponibilă",
+    "protectedWindowsOnly": "Redarea protejată necesită Windows.",
+    "protectedRuntimeMissing": "Instalați Microsoft Edge WebView2 Runtime pentru a deschide acest flux.",
+    "installWebView2Runtime": "Obțineți WebView2 Runtime",
     "protectedWindowNotice": "Twitch's jucător oficial se deschide separat. Pot apărea anunțuri.",
     "focusPlayerWindow": "Focalizează fereastra playerului",
     "closePlayerWindow": "Închide fereastra playerului",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Sursa live indisponibilă",
       "buffering": "Buffering",
       "bufferingDetail": "Jucătorul memorează acest flux live.",
-      "focusedActive": "Redarea live focalizată este activă."
-    },
-    "protectedWindowsOnly": "Redarea protejată necesită Windows.",
-    "protectedRuntimeMissing": "Instalați Microsoft Edge WebView2 Runtime pentru a deschide acest flux.",
-    "installWebView2Runtime": "Obțineți WebView2 Runtime"
+      "focusedActive": "Redarea live focalizată este activă.",
+      "options": "Opțiuni",
+      "backToOptions": "Înapoi la opțiuni",
+      "backToPlayer": "Înapoi la jucător"
+    }
   },
   "settings": {
     "general": "general",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Okno přehrávače je otevřené",
     "protectedWindowClosed": "Okno přehrávače zavřeno",
     "protectedWindowUnavailable": "Okno přehrávače není k dispozici",
+    "protectedWindowsOnly": "Chráněné přehrávání vyžaduje Windows.",
+    "protectedRuntimeMissing": "Chcete-li tento stream otevřít, nainstalujte si Microsoft Edge WebView2 Runtime.",
+    "installWebView2Runtime": "Získejte WebView2 Runtime",
     "protectedWindowNotice": "Oficiální přehrávač Twitch's se otevře samostatně. Mohou se objevit reklamy.",
     "focusPlayerWindow": "Zaměřit okno přehrávače",
     "closePlayerWindow": "Zavřít okno přehrávače",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Živý zdroj není k dispozici",
       "buffering": "Ukládání do vyrovnávací paměti",
       "bufferingDetail": "Přehrávač ukládá tento přímý přenos do vyrovnávací paměti.",
-      "focusedActive": "Zaostřené živé přehrávání je aktivní."
-    },
-    "protectedWindowsOnly": "Chráněné přehrávání vyžaduje Windows.",
-    "protectedRuntimeMissing": "Chcete-li tento stream otevřít, nainstalujte si Microsoft Edge WebView2 Runtime.",
-    "installWebView2Runtime": "Získejte WebView2 Runtime"
+      "focusedActive": "Zaostřené živé přehrávání je aktivní.",
+      "options": "Možnosti",
+      "backToOptions": "Zpět k možnostem",
+      "backToPlayer": "Zpět k přehrávači"
+    }
   },
   "settings": {
     "general": "Generál",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "La finestra del reproductor està oberta",
     "protectedWindowClosed": "Finestra del jugador tancada",
     "protectedWindowUnavailable": "La finestra del reproductor no està disponible",
+    "protectedWindowsOnly": "La reproducció protegida requereix Windows.",
+    "protectedRuntimeMissing": "Instal·leu Microsoft Edge WebView2 Runtime per obrir aquest flux.",
+    "installWebView2Runtime": "Obteniu WebView2 Runtime",
     "protectedWindowNotice": "Twitch's jugador oficial s'obre per separat. Els anuncis poden aparèixer.",
     "focusPlayerWindow": "Enfoca la finestra del reproductor",
     "closePlayerWindow": "Tanca la finestra del reproductor",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Font en directe no disponible",
       "buffering": "Buffering",
       "bufferingDetail": "El jugador està guardant aquesta emissió en directe.",
-      "focusedActive": "La reproducció en directe centrada està activa."
-    },
-    "protectedWindowsOnly": "La reproducció protegida requereix Windows.",
-    "protectedRuntimeMissing": "Instal·leu Microsoft Edge WebView2 Runtime per obrir aquest flux.",
-    "installWebView2Runtime": "Obteniu WebView2 Runtime"
+      "focusedActive": "La reproducció en directe centrada està activa.",
+      "options": "Opcions",
+      "backToOptions": "Torna a opcions",
+      "backToPlayer": "Tornar al jugador"
+    }
   },
   "settings": {
     "general": "General",

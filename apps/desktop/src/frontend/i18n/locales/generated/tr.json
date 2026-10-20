@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Oyuncu penceresi açık",
     "protectedWindowClosed": "Oyuncu penceresi kapatıldı",
     "protectedWindowUnavailable": "Oynatıcı penceresi kullanılamıyor",
+    "protectedWindowsOnly": "Korumalı oynatma için Windows gerekir.",
+    "protectedRuntimeMissing": "Bu akışı açmak için Microsoft Edge WebView2 Runtime'ı yükleyin.",
+    "installWebView2Runtime": "WebView2 Çalışma Zamanını Alın",
     "protectedWindowNotice": "Twitch's resmi oynatıcı ayrı olarak açılır. Reklamlar görünebilir.",
     "focusPlayerWindow": "Oynatıcı penceresine odaklan",
     "closePlayerWindow": "Oynatıcı penceresini kapat",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Canlı kaynak kullanılamıyor",
       "buffering": "Tamponlama",
       "bufferingDetail": "Oyuncu bu canlı akışı arabelleğe alıyor.",
-      "focusedActive": "Odaklanmış canlı oynatma etkin."
-    },
-    "protectedWindowsOnly": "Korumalı oynatma için Windows gerekir.",
-    "protectedRuntimeMissing": "Bu akışı açmak için Microsoft Edge WebView2 Runtime'ı yükleyin.",
-    "installWebView2Runtime": "WebView2 Çalışma Zamanını Alın"
+      "focusedActive": "Odaklanmış canlı oynatma etkin.",
+      "options": "Seçenekler",
+      "backToOptions": "Seçeneklere geri dön",
+      "backToPlayer": "Oyuncuya geri dön"
+    }
   },
   "settings": {
     "general": "Genel",

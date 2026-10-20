@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "پنجره پخش باز است",
     "protectedWindowClosed": "پنجره پخش کننده بسته شد",
     "protectedWindowUnavailable": "پنجره پخش کننده در دسترس نیست",
+    "protectedWindowsOnly": "پخش محافظت شده به Windows نیاز دارد.",
+    "protectedRuntimeMissing": "برای باز کردن این جریان، Microsoft Edge WebView2 Runtime را نصب کنید.",
+    "installWebView2Runtime": "WebView2 Runtime را دریافت کنید",
     "protectedWindowNotice": "پخش کننده رسمی Twitch's به طور جداگانه باز می شود. ممکن است تبلیغات ظاهر شود.",
     "focusPlayerWindow": "پنجره پخش کننده فوکوس",
     "closePlayerWindow": "پنجره پخش کننده را ببندید",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "منبع زنده در دسترس نیست",
       "buffering": "بافر کردن",
       "bufferingDetail": "پخش کننده این پخش زنده را بافر می کند.",
-      "focusedActive": "پخش زنده متمرکز فعال است."
-    },
-    "protectedWindowsOnly": "پخش محافظت شده به Windows نیاز دارد.",
-    "protectedRuntimeMissing": "برای باز کردن این جریان، Microsoft Edge WebView2 Runtime را نصب کنید.",
-    "installWebView2Runtime": "WebView2 Runtime را دریافت کنید"
+      "focusedActive": "پخش زنده متمرکز فعال است.",
+      "options": "گزینه ها",
+      "backToOptions": "بازگشت به گزینه ها",
+      "backToPlayer": "بازگشت به بازیکن"
+    }
   },
   "settings": {
     "general": "ژنرال",

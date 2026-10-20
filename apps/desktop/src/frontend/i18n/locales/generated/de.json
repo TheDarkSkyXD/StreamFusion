@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Das Player-Fenster ist geöffnet",
     "protectedWindowClosed": "Spielerfenster geschlossen",
     "protectedWindowUnavailable": "Player-Fenster nicht verfügbar",
+    "protectedWindowsOnly": "Für die geschützte Wiedergabe ist Windows erforderlich.",
+    "protectedRuntimeMissing": "Installieren Sie Microsoft Edge WebView2 Runtime, um diesen Stream zu öffnen.",
+    "installWebView2Runtime": "Holen Sie sich die WebView2-Laufzeit",
     "protectedWindowNotice": "Twitch's offizieller Player wird separat geöffnet. Es können Anzeigen erscheinen.",
     "focusPlayerWindow": "Fokus-Player-Fenster",
     "closePlayerWindow": "Schließen Sie das Player-Fenster",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Live-Quelle nicht verfügbar",
       "buffering": "Pufferung",
       "bufferingDetail": "Der Player puffert diesen Livestream.",
-      "focusedActive": "Die fokussierte Live-Wiedergabe ist aktiv."
-    },
-    "protectedWindowsOnly": "Für die geschützte Wiedergabe ist Windows erforderlich.",
-    "protectedRuntimeMissing": "Installieren Sie Microsoft Edge WebView2 Runtime, um diesen Stream zu öffnen.",
-    "installWebView2Runtime": "Holen Sie sich die WebView2-Laufzeit"
+      "focusedActive": "Die fokussierte Live-Wiedergabe ist aktiv.",
+      "options": "Optionen",
+      "backToOptions": "Zurück zu den Optionen",
+      "backToPlayer": "Zurück zum Spieler"
+    }
   },
   "settings": {
     "general": "Allgemein",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Cửa sổ trình phát đang mở",
     "protectedWindowClosed": "Cửa sổ trình phát đã đóng",
     "protectedWindowUnavailable": "Cửa sổ trình phát không có sẵn",
+    "protectedWindowsOnly": "Phát lại được bảo vệ yêu cầu Windows.",
+    "protectedRuntimeMissing": "Cài đặt Microsoft Edge WebView2 Runtime để mở luồng này.",
+    "installWebView2Runtime": "Nhận thời gian chạy WebView2",
     "protectedWindowNotice": "Twitch's người chơi chính thức mở riêng. Quảng cáo có thể xuất hiện.",
     "focusPlayerWindow": "Cửa sổ trình phát tiêu điểm",
     "closePlayerWindow": "Đóng cửa sổ trình phát",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Nguồn trực tiếp không có sẵn",
       "buffering": "Đang đệm",
       "bufferingDetail": "Trình phát đang lưu luồng trực tiếp này vào bộ nhớ đệm.",
-      "focusedActive": "Phát lại trực tiếp tập trung đang hoạt động."
-    },
-    "protectedWindowsOnly": "Phát lại được bảo vệ yêu cầu Windows.",
-    "protectedRuntimeMissing": "Cài đặt Microsoft Edge WebView2 Runtime để mở luồng này.",
-    "installWebView2Runtime": "Nhận thời gian chạy WebView2"
+      "focusedActive": "Phát lại trực tiếp tập trung đang hoạt động.",
+      "options": "Tùy chọn",
+      "backToOptions": "Quay lại tùy chọn",
+      "backToPlayer": "Quay lại trình phát"
+    }
   },
   "settings": {
     "general": "chung",

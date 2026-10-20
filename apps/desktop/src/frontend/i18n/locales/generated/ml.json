@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "പ്ലേയർ വിൻഡോ തുറന്നിരിക്കുന്നു",
     "protectedWindowClosed": "പ്ലേയർ വിൻഡോ അടച്ചു",
     "protectedWindowUnavailable": "പ്ലേയർ വിൻഡോ ലഭ്യമല്ല",
+    "protectedWindowsOnly": "പരിരക്ഷിത പ്ലേബാക്കിന് Windows ആവശ്യമാണ്.",
+    "protectedRuntimeMissing": "ഈ സ്ട്രീം തുറക്കാൻ Microsoft Edge WebView2 റൺടൈം ഇൻസ്റ്റാൾ ചെയ്യുക.",
+    "installWebView2Runtime": "WebView2 റൺടൈം നേടുക",
     "protectedWindowNotice": "Twitch's ഔദ്യോഗിക പ്ലേയർ വെവ്വേറെ തുറക്കുന്നു. പരസ്യങ്ങൾ പ്രത്യക്ഷപ്പെടാം.",
     "focusPlayerWindow": "ഫോക്കസ് പ്ലേയർ വിൻഡോ",
     "closePlayerWindow": "പ്ലേയർ വിൻഡോ അടയ്ക്കുക",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "തത്സമയ ഉറവിടം ലഭ്യമല്ല",
       "buffering": "ബഫറിംഗ്",
       "bufferingDetail": "പ്ലെയർ ഈ തത്സമയ സ്ട്രീം ബഫർ ചെയ്യുന്നു.",
-      "focusedActive": "ഫോക്കസ് ചെയ്ത തത്സമയ പ്ലേബാക്ക് സജീവമാണ്."
-    },
-    "protectedWindowsOnly": "പരിരക്ഷിത പ്ലേബാക്കിന് Windows ആവശ്യമാണ്.",
-    "protectedRuntimeMissing": "ഈ സ്ട്രീം തുറക്കാൻ Microsoft Edge WebView2 റൺടൈം ഇൻസ്റ്റാൾ ചെയ്യുക.",
-    "installWebView2Runtime": "WebView2 റൺടൈം നേടുക"
+      "focusedActive": "ഫോക്കസ് ചെയ്ത തത്സമയ പ്ലേബാക്ക് സജീവമാണ്.",
+      "options": "ഓപ്ഷനുകൾ",
+      "backToOptions": "ഓപ്ഷനുകളിലേക്ക് മടങ്ങുക",
+      "backToPlayer": "കളിക്കാരനിലേക്ക് മടങ്ങുക"
+    }
   },
   "settings": {
     "general": "ജനറൽ",

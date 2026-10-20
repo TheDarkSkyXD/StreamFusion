@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Player-ikkuna on auki",
     "protectedWindowClosed": "Soittimen ikkuna kiinni",
     "protectedWindowUnavailable": "Soitinikkuna ei ole käytettävissä",
+    "protectedWindowsOnly": "Suojattu toisto vaatii Windows.",
+    "protectedRuntimeMissing": "Asenna Microsoft Edge WebView2 Runtime avataksesi tämän streamin.",
+    "installWebView2Runtime": "Hanki WebView2 Runtime",
     "protectedWindowNotice": "Twitch's virallinen pelaaja avautuu erikseen. Mainoksia saattaa näkyä.",
     "focusPlayerWindow": "Tarkennussoitin-ikkuna",
     "closePlayerWindow": "Sulje soitinikkuna",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Live-lähde ei ole käytettävissä",
       "buffering": "Puskurointi",
       "bufferingDetail": "Pelaaja puskuroi tätä suoraa lähetystä.",
-      "focusedActive": "Tarkennettu live-toisto on aktiivinen."
-    },
-    "protectedWindowsOnly": "Suojattu toisto vaatii Windows.",
-    "protectedRuntimeMissing": "Asenna Microsoft Edge WebView2 Runtime avataksesi tämän streamin.",
-    "installWebView2Runtime": "Hanki WebView2 Runtime"
+      "focusedActive": "Tarkennettu live-toisto on aktiivinen.",
+      "options": "Vaihtoehdot",
+      "backToOptions": "Takaisin vaihtoehtoihin",
+      "backToPlayer": "Takaisin soittimeen"
+    }
   },
   "settings": {
     "general": "Kenraali",

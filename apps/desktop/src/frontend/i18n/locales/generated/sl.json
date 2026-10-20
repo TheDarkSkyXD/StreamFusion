@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Okno predvajalnika je odprto",
     "protectedWindowClosed": "Okno igralca zaprto",
     "protectedWindowUnavailable": "Okno predvajalnika ni na voljo",
+    "protectedWindowsOnly": "Zaščiteno predvajanje zahteva Windows.",
+    "protectedRuntimeMissing": "Namestite Microsoft Edge WebView2 Runtime, da odprete ta tok.",
+    "installWebView2Runtime": "Pridobite WebView2 Runtime",
     "protectedWindowNotice": "Uradni predvajalnik Twitch's se odpre ločeno. Lahko se prikažejo oglasi.",
     "focusPlayerWindow": "Osredotočite se na okno predvajalnika",
     "closePlayerWindow": "Zapri okno predvajalnika",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Vir v živo ni na voljo",
       "buffering": "Medpomnjenje",
       "bufferingDetail": "Predvajalnik shranjuje to pretočno predvajanje v živo.",
-      "focusedActive": "Osredotočeno predvajanje v živo je aktivno."
-    },
-    "protectedWindowsOnly": "Zaščiteno predvajanje zahteva Windows.",
-    "protectedRuntimeMissing": "Namestite Microsoft Edge WebView2 Runtime, da odprete ta tok.",
-    "installWebView2Runtime": "Pridobite WebView2 Runtime"
+      "focusedActive": "Osredotočeno predvajanje v živo je aktivno.",
+      "options": "Možnosti",
+      "backToOptions": "Nazaj na možnosti",
+      "backToPlayer": "Nazaj k igralcu"
+    }
   },
   "settings": {
     "general": "Splošno",

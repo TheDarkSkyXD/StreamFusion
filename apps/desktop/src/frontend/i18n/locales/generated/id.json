@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Jendela pemutar terbuka",
     "protectedWindowClosed": "Jendela pemutar ditutup",
     "protectedWindowUnavailable": "Jendela pemutar tidak tersedia",
+    "protectedWindowsOnly": "Pemutaran yang dilindungi memerlukan Windows.",
+    "protectedRuntimeMissing": "Instal Microsoft Edge WebView2 Runtime untuk membuka aliran ini.",
+    "installWebView2Runtime": "Dapatkan Waktu Proses WebView2",
     "protectedWindowNotice": "Twitch's pemutar resmi dibuka secara terpisah. Iklan mungkin muncul.",
     "focusPlayerWindow": "Jendela pemutar fokus",
     "closePlayerWindow": "Tutup jendela pemutar",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Sumber langsung tidak tersedia",
       "buffering": "Penyangga",
       "bufferingDetail": "Pemain sedang melakukan buffering pada streaming langsung ini.",
-      "focusedActive": "Pemutaran langsung terfokus aktif."
-    },
-    "protectedWindowsOnly": "Pemutaran yang dilindungi memerlukan Windows.",
-    "protectedRuntimeMissing": "Instal Microsoft Edge WebView2 Runtime untuk membuka aliran ini.",
-    "installWebView2Runtime": "Dapatkan Waktu Proses WebView2"
+      "focusedActive": "Pemutaran langsung terfokus aktif.",
+      "options": "Pilihan",
+      "backToOptions": "Kembali ke opsi",
+      "backToPlayer": "Kembali ke pemain"
+    }
   },
   "settings": {
     "general": "Umum",

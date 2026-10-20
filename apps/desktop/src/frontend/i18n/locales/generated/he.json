@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "חלון הנגן פתוח",
     "protectedWindowClosed": "חלון הנגן נסגר",
     "protectedWindowUnavailable": "חלון הנגן אינו זמין",
+    "protectedWindowsOnly": "הפעלה מוגנת דורשת Windows.",
+    "protectedRuntimeMissing": "התקן את Microsoft Edge WebView2 Runtime כדי לפתוח את הזרם הזה.",
+    "installWebView2Runtime": "קבל את WebView2 Runtime",
     "protectedWindowNotice": "שחקן רשמי של Twitch's נפתח בנפרד. מודעות עשויות להופיע.",
     "focusPlayerWindow": "חלון נגן פוקוס",
     "closePlayerWindow": "סגור חלון שחקן",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "מקור חי אינו זמין",
       "buffering": "חציצה",
       "bufferingDetail": "הנגן מאחסן את השידור החי הזה.",
-      "focusedActive": "השמעה חיה ממוקדת פעילה."
-    },
-    "protectedWindowsOnly": "הפעלה מוגנת דורשת Windows.",
-    "protectedRuntimeMissing": "התקן את Microsoft Edge WebView2 Runtime כדי לפתוח את הזרם הזה.",
-    "installWebView2Runtime": "קבל את WebView2 Runtime"
+      "focusedActive": "השמעה חיה ממוקדת פעילה.",
+      "options": "אפשרויות",
+      "backToOptions": "חזרה לאפשרויות",
+      "backToPlayer": "חזרה לנגן"
+    }
   },
   "settings": {
     "general": "כללי",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Dirisha la mchezaji limefunguliwa",
     "protectedWindowClosed": "Dirisha la mchezaji limefungwa",
     "protectedWindowUnavailable": "Dirisha la mchezaji halipatikani",
+    "protectedWindowsOnly": "Uchezaji uliolindwa unahitaji Windows.",
+    "protectedRuntimeMissing": "Sakinisha Muda wa Kuendesha wa Microsoft Edge WebView2 ili kufungua mtiririko huu.",
+    "installWebView2Runtime": "Pata Muda wa Kuendesha wa WebView2",
     "protectedWindowNotice": "Twitch's mchezaji rasmi hufungua tofauti. Matangazo yanaweza kuonekana.",
     "focusPlayerWindow": "Dirisha la mchezaji wa kuzingatia",
     "closePlayerWindow": "Funga dirisha la wachezaji",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Chanzo cha moja kwa moja hakipatikani",
       "buffering": "Kuakibisha",
       "bufferingDetail": "Mchezaji anaakibisha mtiririko huu wa moja kwa moja.",
-      "focusedActive": "Uchezaji uliolenga wa moja kwa moja unatumika."
-    },
-    "protectedWindowsOnly": "Uchezaji uliolindwa unahitaji Windows.",
-    "protectedRuntimeMissing": "Sakinisha Muda wa Kuendesha wa Microsoft Edge WebView2 ili kufungua mtiririko huu.",
-    "installWebView2Runtime": "Pata Muda wa Kuendesha wa WebView2"
+      "focusedActive": "Uchezaji uliolenga wa moja kwa moja unatumika.",
+      "options": "Chaguo",
+      "backToOptions": "Rudi kwa chaguo",
+      "backToPlayer": "Rudi kwa mchezaji"
+    }
   },
   "settings": {
     "general": "Mkuu",

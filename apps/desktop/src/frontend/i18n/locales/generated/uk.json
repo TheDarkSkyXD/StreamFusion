@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Відкрито вікно плеєра",
     "protectedWindowClosed": "Вікно гравця закрито",
     "protectedWindowUnavailable": "Вікно плеєра недоступне",
+    "protectedWindowsOnly": "Для захищеного відтворення потрібен Windows.",
+    "protectedRuntimeMissing": "Установіть Microsoft Edge WebView2 Runtime, щоб відкрити цей потік.",
+    "installWebView2Runtime": "Отримайте WebView2 Runtime",
     "protectedWindowNotice": "Офіційний програвач Twitch's відкривається окремо. Можуть з'являтися оголошення.",
     "focusPlayerWindow": "Перейти до вікна програвача",
     "closePlayerWindow": "Закрити вікно програвача",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Пряме джерело недоступне",
       "buffering": "Буферизація",
       "bufferingDetail": "Програвач буферизує цю пряму трансляцію.",
-      "focusedActive": "Сфокусоване живе відтворення активне."
-    },
-    "protectedWindowsOnly": "Для захищеного відтворення потрібен Windows.",
-    "protectedRuntimeMissing": "Установіть Microsoft Edge WebView2 Runtime, щоб відкрити цей потік.",
-    "installWebView2Runtime": "Отримайте WebView2 Runtime"
+      "focusedActive": "Сфокусоване живе відтворення активне.",
+      "options": "Опції",
+      "backToOptions": "Повернутися до параметрів",
+      "backToPlayer": "Назад до гравця"
+    }
   },
   "settings": {
     "general": "Загальний",

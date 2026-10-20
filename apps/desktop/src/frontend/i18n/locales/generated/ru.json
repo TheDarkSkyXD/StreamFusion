@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Окно плеера открыто",
     "protectedWindowClosed": "Окно плеера закрыто",
     "protectedWindowUnavailable": "Окно плеера недоступно",
+    "protectedWindowsOnly": "Для защищенного воспроизведения требуется Windows.",
+    "protectedRuntimeMissing": "Установите среду выполнения Microsoft Edge WebView2, чтобы открыть этот поток.",
+    "installWebView2Runtime": "Получить среду выполнения WebView2",
     "protectedWindowNotice": "Официальный плеер Twitch's открывается отдельно. Возможно появление рекламы.",
     "focusPlayerWindow": "Окно плеера в фокусе",
     "closePlayerWindow": "Закрыть окно плеера",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Живой источник недоступен.",
       "buffering": "Буферизация",
       "bufferingDetail": "Плеер буферизует этот прямой эфир.",
-      "focusedActive": "Активно целенаправленное живое воспроизведение."
-    },
-    "protectedWindowsOnly": "Для защищенного воспроизведения требуется Windows.",
-    "protectedRuntimeMissing": "Установите среду выполнения Microsoft Edge WebView2, чтобы открыть этот поток.",
-    "installWebView2Runtime": "Получить среду выполнения WebView2"
+      "focusedActive": "Активно целенаправленное живое воспроизведение.",
+      "options": "Опции",
+      "backToOptions": "Вернуться к опциям",
+      "backToPlayer": "Вернуться к игроку"
+    }
   },
   "settings": {
     "general": "Общий",

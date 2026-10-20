@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Tetingkap pemain dibuka",
     "protectedWindowClosed": "Tingkap pemain ditutup",
     "protectedWindowUnavailable": "Tetingkap pemain tidak tersedia",
+    "protectedWindowsOnly": "Main balik yang dilindungi memerlukan Windows.",
+    "protectedRuntimeMissing": "Pasang Microsoft Edge WebView2 Runtime untuk membuka strim ini.",
+    "installWebView2Runtime": "Dapatkan WebView2 Runtime",
     "protectedWindowNotice": "Twitch's pemain rasmi dibuka secara berasingan. Iklan mungkin muncul.",
     "focusPlayerWindow": "Fokus tetingkap pemain",
     "closePlayerWindow": "Tutup tetingkap pemain",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Sumber langsung tidak tersedia",
       "buffering": "Penimbalan",
       "bufferingDetail": "Pemain sedang menimbal strim langsung ini.",
-      "focusedActive": "Main balik langsung terfokus aktif."
-    },
-    "protectedWindowsOnly": "Main balik yang dilindungi memerlukan Windows.",
-    "protectedRuntimeMissing": "Pasang Microsoft Edge WebView2 Runtime untuk membuka strim ini.",
-    "installWebView2Runtime": "Dapatkan WebView2 Runtime"
+      "focusedActive": "Main balik langsung terfokus aktif.",
+      "options": "Pilihan",
+      "backToOptions": "Kembali ke pilihan",
+      "backToPlayer": "Kembali kepada pemain"
+    }
   },
   "settings": {
     "general": "Umum",

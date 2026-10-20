@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Okno odtwarzacza jest otwarte",
     "protectedWindowClosed": "Okno odtwarzacza zamknięte",
     "protectedWindowUnavailable": "Okno odtwarzacza jest niedostępne",
+    "protectedWindowsOnly": "Odtwarzanie chronione wymaga Windows.",
+    "protectedRuntimeMissing": "Zainstaluj środowisko wykonawcze Microsoft Edge WebView2, aby otworzyć ten strumień.",
+    "installWebView2Runtime": "Pobierz środowisko uruchomieniowe WebView2",
     "protectedWindowNotice": "Oficjalny odtwarzacz Twitch's otwiera się osobno. Mogą pojawić się reklamy.",
     "focusPlayerWindow": "Skup okno odtwarzacza",
     "closePlayerWindow": "Zamknij okno odtwarzacza",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Źródło na żywo niedostępne",
       "buffering": "Buforowanie",
       "bufferingDetail": "Odtwarzacz buforuje tę transmisję na żywo.",
-      "focusedActive": "Skoncentrowane odtwarzanie na żywo jest aktywne."
-    },
-    "protectedWindowsOnly": "Odtwarzanie chronione wymaga Windows.",
-    "protectedRuntimeMissing": "Zainstaluj środowisko wykonawcze Microsoft Edge WebView2, aby otworzyć ten strumień.",
-    "installWebView2Runtime": "Pobierz środowisko uruchomieniowe WebView2"
+      "focusedActive": "Skoncentrowane odtwarzanie na żywo jest aktywne.",
+      "options": "Opcje",
+      "backToOptions": "Powrót do opcji",
+      "backToPlayer": "Powrót do gracza"
+    }
   },
   "settings": {
     "general": "Generał",

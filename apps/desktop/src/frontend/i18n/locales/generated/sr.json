@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Прозор плејера је отворен",
     "protectedWindowClosed": "Прозор плејера је затворен",
     "protectedWindowUnavailable": "Прозор плејера није доступан",
+    "protectedWindowsOnly": "За заштићену репродукцију је потребан Windows.",
+    "protectedRuntimeMissing": "Инсталирајте Мицрософт Едге ВебВиев2 Рунтиме да бисте отворили овај стрим.",
+    "installWebView2Runtime": "Набавите ВебВиев2 Рунтиме",
     "protectedWindowNotice": "Twitch's званични плејер се отвара засебно. Огласи се могу појавити.",
     "focusPlayerWindow": "Фокусирајте прозор плејера",
     "closePlayerWindow": "Затвори прозор плејера",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Извор уживо је недоступан",
       "buffering": "Пуферовање",
       "bufferingDetail": "Плејер чува овај стрим уживо.",
-      "focusedActive": "Фокусирана репродукција уживо је активна."
-    },
-    "protectedWindowsOnly": "За заштићену репродукцију је потребан Windows.",
-    "protectedRuntimeMissing": "Инсталирајте Мицрософт Едге ВебВиев2 Рунтиме да бисте отворили овај стрим.",
-    "installWebView2Runtime": "Набавите ВебВиев2 Рунтиме"
+      "focusedActive": "Фокусирана репродукција уживо је активна.",
+      "options": "Опције",
+      "backToOptions": "Назад на опције",
+      "backToPlayer": "Назад на играч"
+    }
   },
   "settings": {
     "general": "генерал",

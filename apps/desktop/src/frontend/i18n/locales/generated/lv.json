@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Atvērts atskaņotāja logs",
     "protectedWindowClosed": "Spēlētāja logs ir aizvērts",
     "protectedWindowUnavailable": "Spēlētāja logs nav pieejams",
+    "protectedWindowsOnly": "Aizsargātai atskaņošanai nepieciešams Windows.",
+    "protectedRuntimeMissing": "Lai atvērtu šo straumi, instalējiet Microsoft Edge WebView2 Runtime.",
+    "installWebView2Runtime": "Iegūstiet WebView2 izpildlaiku",
     "protectedWindowNotice": "Twitch's oficiālais atskaņotājs tiek atvērts atsevišķi. Var parādīties reklāmas.",
     "focusPlayerWindow": "Fokusa atskaņotāja logs",
     "closePlayerWindow": "Aizveriet atskaņotāja logu",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Tiešraides avots nav pieejams",
       "buffering": "Buferizācija",
       "bufferingDetail": "Spēlētājs buferizē šo tiešraides straumi.",
-      "focusedActive": "Fokusēta tiešraides atskaņošana ir aktīva."
-    },
-    "protectedWindowsOnly": "Aizsargātai atskaņošanai nepieciešams Windows.",
-    "protectedRuntimeMissing": "Lai atvērtu šo straumi, instalējiet Microsoft Edge WebView2 Runtime.",
-    "installWebView2Runtime": "Iegūstiet WebView2 izpildlaiku"
+      "focusedActive": "Fokusēta tiešraides atskaņošana ir aktīva.",
+      "options": "Iespējas",
+      "backToOptions": "Atgriezties pie opcijām",
+      "backToPlayer": "Atpakaļ pie atskaņotāja"
+    }
   },
   "settings": {
     "general": "Ģenerālis",

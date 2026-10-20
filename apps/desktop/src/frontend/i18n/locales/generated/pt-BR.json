@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "A janela do player está aberta",
     "protectedWindowClosed": "Janela do jogador fechada",
     "protectedWindowUnavailable": "Janela do player indisponível",
+    "protectedWindowsOnly": "A reprodução protegida requer Windows.",
+    "protectedRuntimeMissing": "Instale o Microsoft Edge WebView2 Runtime para abrir este fluxo.",
+    "installWebView2Runtime": "Obtenha o tempo de execução do WebView2",
     "protectedWindowNotice": "Twitch's player oficial abre separadamente. Os anúncios podem aparecer.",
     "focusPlayerWindow": "Janela do player em foco",
     "closePlayerWindow": "Fechar janela do player",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Fonte ao vivo indisponível",
       "buffering": "Buffer",
       "bufferingDetail": "O player está armazenando esta transmissão ao vivo em buffer.",
-      "focusedActive": "A reprodução ao vivo focada está ativa."
-    },
-    "protectedWindowsOnly": "A reprodução protegida requer Windows.",
-    "protectedRuntimeMissing": "Instale o Microsoft Edge WebView2 Runtime para abrir este fluxo.",
-    "installWebView2Runtime": "Obtenha o tempo de execução do WebView2"
+      "focusedActive": "A reprodução ao vivo focada está ativa.",
+      "options": "Opções",
+      "backToOptions": "Voltar para opções",
+      "backToPlayer": "Voltar ao jogador"
+    }
   },
   "settings": {
     "general": "Geral",

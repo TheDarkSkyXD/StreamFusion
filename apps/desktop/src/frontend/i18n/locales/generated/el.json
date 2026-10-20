@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Το παράθυρο του προγράμματος αναπαραγωγής είναι ανοιχτό",
     "protectedWindowClosed": "Το παράθυρο του προγράμματος αναπαραγωγής έκλεισε",
     "protectedWindowUnavailable": "Το παράθυρο του προγράμματος αναπαραγωγής δεν είναι διαθέσιμο",
+    "protectedWindowsOnly": "Η προστατευμένη αναπαραγωγή απαιτεί Windows.",
+    "protectedRuntimeMissing": "Εγκαταστήστε το Microsoft Edge WebView2 Runtime για να ανοίξετε αυτήν τη ροή.",
+    "installWebView2Runtime": "Αποκτήστε το WebView2 Runtime",
     "protectedWindowNotice": "Το επίσημο πρόγραμμα αναπαραγωγής Twitch's ανοίγει ξεχωριστά. Μπορεί να εμφανιστούν διαφημίσεις.",
     "focusPlayerWindow": "Παράθυρο εστίασης του προγράμματος αναπαραγωγής",
     "closePlayerWindow": "Κλείστε το παράθυρο του προγράμματος αναπαραγωγής",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Η ζωντανή πηγή δεν είναι διαθέσιμη",
       "buffering": "Προσωρινή αποθήκευση",
       "bufferingDetail": "Το πρόγραμμα αναπαραγωγής αποθηκεύει προσωρινά αυτήν τη ζωντανή ροή.",
-      "focusedActive": "Η εστιασμένη ζωντανή αναπαραγωγή είναι ενεργή."
-    },
-    "protectedWindowsOnly": "Η προστατευμένη αναπαραγωγή απαιτεί Windows.",
-    "protectedRuntimeMissing": "Εγκαταστήστε το Microsoft Edge WebView2 Runtime για να ανοίξετε αυτήν τη ροή.",
-    "installWebView2Runtime": "Αποκτήστε το WebView2 Runtime"
+      "focusedActive": "Η εστιασμένη ζωντανή αναπαραγωγή είναι ενεργή.",
+      "options": "Επιλογές",
+      "backToOptions": "Επιστροφή στις επιλογές",
+      "backToPlayer": "Επιστροφή στον παίκτη"
+    }
   },
   "settings": {
     "general": "Στρατηγός",

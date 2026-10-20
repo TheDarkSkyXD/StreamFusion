@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Grotuvo langas atidarytas",
     "protectedWindowClosed": "Grotuvo langas uždarytas",
     "protectedWindowUnavailable": "Leistuvo langas nepasiekiamas",
+    "protectedWindowsOnly": "Apsaugotam atkūrimui reikia Windows.",
+    "protectedRuntimeMissing": "Įdiekite „Microsoft Edge WebView2 Runtime“, kad atidarytumėte šį srautą.",
+    "installWebView2Runtime": "Gaukite „WebView2 Runtime“.",
     "protectedWindowNotice": "Twitch's oficialus grotuvas atsidaro atskirai. Gali pasirodyti skelbimai.",
     "focusPlayerWindow": "Fokusavimo grotuvo langas",
     "closePlayerWindow": "Uždaryti grotuvo langą",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Tiesioginis šaltinis nepasiekiamas",
       "buffering": "Buferis",
       "bufferingDetail": "Žaidėjas saugo šį tiesioginį srautą.",
-      "focusedActive": "Aktyvus fokusuotas tiesioginis atkūrimas."
-    },
-    "protectedWindowsOnly": "Apsaugotam atkūrimui reikia Windows.",
-    "protectedRuntimeMissing": "Įdiekite „Microsoft Edge WebView2 Runtime“, kad atidarytumėte šį srautą.",
-    "installWebView2Runtime": "Gaukite „WebView2 Runtime“."
+      "focusedActive": "Aktyvus fokusuotas tiesioginis atkūrimas.",
+      "options": "Parinktys",
+      "backToOptions": "Grįžti į parinktis",
+      "backToPlayer": "Atgal į grotuvą"
+    }
   },
   "settings": {
     "general": "Generolas",

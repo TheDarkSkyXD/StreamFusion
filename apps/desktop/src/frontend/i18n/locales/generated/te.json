@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "ప్లేయర్ విండో తెరిచి ఉంది",
     "protectedWindowClosed": "ప్లేయర్ విండో మూసివేయబడింది",
     "protectedWindowUnavailable": "ప్లేయర్ విండో అందుబాటులో లేదు",
+    "protectedWindowsOnly": "రక్షిత ప్లేబ్యాక్‌కి Windows అవసరం.",
+    "protectedRuntimeMissing": "ఈ స్ట్రీమ్‌ను తెరవడానికి Microsoft Edge WebView2 రన్‌టైమ్‌ని ఇన్‌స్టాల్ చేయండి.",
+    "installWebView2Runtime": "WebView2 రన్‌టైమ్‌ని పొందండి",
     "protectedWindowNotice": "Twitch's అధికారిక ప్లేయర్ విడిగా తెరవబడుతుంది. ప్రకటనలు కనిపించవచ్చు.",
     "focusPlayerWindow": "ఫోకస్ ప్లేయర్ విండో",
     "closePlayerWindow": "ప్లేయర్ విండోను మూసివేయండి",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "ప్రత్యక్ష మూలం అందుబాటులో లేదు",
       "buffering": "బఫరింగ్",
       "bufferingDetail": "ప్లేయర్ ఈ ప్రత్యక్ష ప్రసారాన్ని బఫర్ చేస్తున్నారు.",
-      "focusedActive": "ఫోకస్డ్ లైవ్ ప్లేబ్యాక్ సక్రియంగా ఉంది."
-    },
-    "protectedWindowsOnly": "రక్షిత ప్లేబ్యాక్‌కి Windows అవసరం.",
-    "protectedRuntimeMissing": "ఈ స్ట్రీమ్‌ను తెరవడానికి Microsoft Edge WebView2 రన్‌టైమ్‌ని ఇన్‌స్టాల్ చేయండి.",
-    "installWebView2Runtime": "WebView2 రన్‌టైమ్‌ని పొందండి"
+      "focusedActive": "ఫోకస్డ్ లైవ్ ప్లేబ్యాక్ సక్రియంగా ఉంది.",
+      "options": "ఎంపికలు",
+      "backToOptions": "ఎంపికలకు తిరిగి వెళ్ళు",
+      "backToPlayer": "తిరిగి ప్లేయర్‌కి"
+    }
   },
   "settings": {
     "general": "జనరల్",

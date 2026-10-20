@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "หน้าต่างผู้เล่นเปิดอยู่",
     "protectedWindowClosed": "หน้าต่างผู้เล่นปิดลง",
     "protectedWindowUnavailable": "หน้าต่างผู้เล่นไม่พร้อมใช้งาน",
+    "protectedWindowsOnly": "การเล่นที่มีการป้องกันต้องใช้ Windows",
+    "protectedRuntimeMissing": "ติดตั้ง Microsoft Edge WebView2 Runtime เพื่อเปิดสตรีมนี้",
+    "installWebView2Runtime": "รับรันไทม์ WebView2",
     "protectedWindowNotice": "ผู้เล่นอย่างเป็นทางการของ Twitch's เปิดแยกกัน โฆษณาอาจปรากฏขึ้น",
     "focusPlayerWindow": "หน้าต่างโปรแกรมเล่นโฟกัส",
     "closePlayerWindow": "ปิดหน้าต่างผู้เล่น",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "แหล่งถ่ายทอดสดไม่พร้อมใช้งาน",
       "buffering": "การบัฟเฟอร์",
       "bufferingDetail": "โปรแกรมเล่นกำลังบัฟเฟอร์สตรีมแบบสดนี้",
-      "focusedActive": "การเล่นสดแบบเน้นการใช้งานเปิดใช้งานอยู่"
-    },
-    "protectedWindowsOnly": "การเล่นที่มีการป้องกันต้องใช้ Windows",
-    "protectedRuntimeMissing": "ติดตั้ง Microsoft Edge WebView2 Runtime เพื่อเปิดสตรีมนี้",
-    "installWebView2Runtime": "รับรันไทม์ WebView2"
+      "focusedActive": "การเล่นสดแบบเน้นการใช้งานเปิดใช้งานอยู่",
+      "options": "ตัวเลือก",
+      "backToOptions": "กลับไปที่ตัวเลือก",
+      "backToPlayer": "กลับไปที่ผู้เล่น"
+    }
   },
   "settings": {
     "general": "ทั่วไป",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "પ્લેયર વિન્ડો ખુલ્લી છે",
     "protectedWindowClosed": "પ્લેયર વિન્ડો બંધ",
     "protectedWindowUnavailable": "પ્લેયર વિન્ડો અનુપલબ્ધ છે",
+    "protectedWindowsOnly": "સંરક્ષિત પ્લેબેક માટે Windows ની જરૂર છે.",
+    "protectedRuntimeMissing": "આ સ્ટ્રીમ ખોલવા માટે Microsoft Edge WebView2 રનટાઇમ ઇન્સ્ટોલ કરો.",
+    "installWebView2Runtime": "WebView2 રનટાઇમ મેળવો",
     "protectedWindowNotice": "Twitch's સત્તાવાર ખેલાડી અલગથી ખુલે છે. જાહેરાતો દેખાઈ શકે છે.",
     "focusPlayerWindow": "ફોકસ પ્લેયર વિન્ડો",
     "closePlayerWindow": "પ્લેયર વિન્ડો બંધ કરો",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "જીવંત સ્ત્રોત અનુપલબ્ધ",
       "buffering": "બફરિંગ",
       "bufferingDetail": "ખેલાડી આ લાઇવ સ્ટ્રીમને બફર કરી રહ્યો છે.",
-      "focusedActive": "કેન્દ્રિત લાઇવ પ્લેબેક સક્રિય છે."
-    },
-    "protectedWindowsOnly": "સંરક્ષિત પ્લેબેક માટે Windows ની જરૂર છે.",
-    "protectedRuntimeMissing": "આ સ્ટ્રીમ ખોલવા માટે Microsoft Edge WebView2 રનટાઇમ ઇન્સ્ટોલ કરો.",
-    "installWebView2Runtime": "WebView2 રનટાઇમ મેળવો"
+      "focusedActive": "કેન્દ્રિત લાઇવ પ્લેબેક સક્રિય છે.",
+      "options": "વિકલ્પો",
+      "backToOptions": "વિકલ્પો પર પાછા જાઓ",
+      "backToPlayer": "પ્લેયર પર પાછા જાઓ"
+    }
   },
   "settings": {
     "general": "જનરલ",

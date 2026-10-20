@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "Spillervinduet er åpent",
     "protectedWindowClosed": "Spillervinduet er lukket",
     "protectedWindowUnavailable": "Spillervinduet er utilgjengelig",
+    "protectedWindowsOnly": "Beskyttet avspilling krever Windows.",
+    "protectedRuntimeMissing": "Installer Microsoft Edge WebView2 Runtime for å åpne denne strømmen.",
+    "installWebView2Runtime": "Få WebView2 Runtime",
     "protectedWindowNotice": "Twitch's offisiell spiller åpner separat. Annonser kan vises.",
     "focusPlayerWindow": "Fokus spillervinduet",
     "closePlayerWindow": "Lukk spillervinduet",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "Live-kilde er ikke tilgjengelig",
       "buffering": "Bufring",
       "bufferingDetail": "Spilleren buffrer denne direktesendingen.",
-      "focusedActive": "Fokusert direkteavspilling er aktiv."
-    },
-    "protectedWindowsOnly": "Beskyttet avspilling krever Windows.",
-    "protectedRuntimeMissing": "Installer Microsoft Edge WebView2 Runtime for å åpne denne strømmen.",
-    "installWebView2Runtime": "Få WebView2 Runtime"
+      "focusedActive": "Fokusert direkteavspilling er aktiv.",
+      "options": "Alternativer",
+      "backToOptions": "Tilbake til alternativer",
+      "backToPlayer": "Tilbake til spilleren"
+    }
   },
   "settings": {
     "general": "Generelt",

@@ -1898,6 +1898,9 @@
     "protectedWindowOpen": "پلیئر ونڈو کھلی ہے۔",
     "protectedWindowClosed": "پلیئر کی کھڑکی بند",
     "protectedWindowUnavailable": "پلیئر ونڈو دستیاب نہیں ہے۔",
+    "protectedWindowsOnly": "محفوظ پلے بیک کے لیے Windows کی ضرورت ہے۔",
+    "protectedRuntimeMissing": "اس سلسلے کو کھولنے کے لیے Microsoft Edge WebView2 رن ٹائم انسٹال کریں۔",
+    "installWebView2Runtime": "WebView2 رن ٹائم حاصل کریں۔",
     "protectedWindowNotice": "Twitch's آفیشل پلیئر الگ سے کھلتا ہے۔ اشتہارات ظاہر ہو سکتے ہیں۔",
     "focusPlayerWindow": "فوکس پلیئر ونڈو",
     "closePlayerWindow": "پلیئر ونڈو بند کریں۔",
@@ -2136,11 +2139,11 @@
       "liveSourceUnavailable": "لائیو سورس دستیاب نہیں ہے۔",
       "buffering": "بفرنگ",
       "bufferingDetail": "کھلاڑی اس لائیو سلسلہ کو بفر کر رہا ہے۔",
-      "focusedActive": "فوکسڈ لائیو پلے بیک فعال ہے۔"
-    },
-    "protectedWindowsOnly": "محفوظ پلے بیک کے لیے Windows کی ضرورت ہے۔",
-    "protectedRuntimeMissing": "اس سلسلے کو کھولنے کے لیے Microsoft Edge WebView2 رن ٹائم انسٹال کریں۔",
-    "installWebView2Runtime": "WebView2 رن ٹائم حاصل کریں۔"
+      "focusedActive": "فوکسڈ لائیو پلے بیک فعال ہے۔",
+      "options": "اختیارات",
+      "backToOptions": "اختیارات پر واپس جائیں۔",
+      "backToPlayer": "پلیئر پر واپس جائیں۔"
+    }
   },
   "settings": {
     "general": "جنرل",
