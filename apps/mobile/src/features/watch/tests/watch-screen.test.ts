@@ -197,7 +197,7 @@ describe("watch screen", () => {
       [false, true].map((expanded) => ({ ...entry, expanded })),
     ),
   )(
-    "shows the avatar, live ring and provider badge on $platform, expanded=$expanded, partner=$isPartner, verified=$isVerified",
+    "shows the avatar, platform logo and verified badge on $platform, expanded=$expanded, partner=$isPartner, verified=$isVerified",
     ({ platform, expanded, isPartner, isVerified, hasBadge }) => {
       const nodes = descendants(
         WatchChannelCard({
@@ -246,17 +246,15 @@ describe("watch screen", () => {
       expect(
         descendants(avatar).find((node) => node.type === "Image")?.props.source,
       ).toEqual({ uri: "https://cdn.example/avatar.png" });
-      const badgeLabel = hasBadge
-        ? `Verified on ${platform === "twitch" ? "Twitch" : "Kick"}`
-        : platform === "twitch"
-          ? "Twitch"
-          : "Kick";
-      const badge = nodes.find(
-        (node) => node.props.accessibilityLabel === badgeLabel,
+      const platformLabel = platform === "twitch" ? "Twitch" : "Kick";
+      const platformLogo = nodes.find(
+        (node) => node.props.accessibilityLabel === platformLabel,
       );
-      expect(badge).toBeDefined();
+      expect(platformLogo).toBeDefined();
       expect(
-        nodes.findIndex((node) => node.props.accessibilityLabel === badgeLabel),
+        nodes.findIndex(
+          (node) => node.props.accessibilityLabel === platformLabel,
+        ),
       ).toBeGreaterThan(
         nodes.findIndex((node) => node.props.testID === "watch-target"),
       );
@@ -268,10 +266,9 @@ describe("watch screen", () => {
       expect(
         nodes.some(
           (node) =>
-            node.props.accessibilityLabel ===
-            (platform === "twitch" ? "Twitch" : "Kick"),
+            node.props.accessibilityLabel === `Verified on ${platformLabel}`,
         ),
-      ).toBe(!hasBadge);
+      ).toBe(hasBadge);
     },
   );
 
