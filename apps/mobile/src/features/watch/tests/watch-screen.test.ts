@@ -197,7 +197,7 @@ describe("watch screen", () => {
       [false, true].map((expanded) => ({ ...entry, expanded })),
     ),
   )(
-    "shows the avatar, platform logo and verified badge on $platform, expanded=$expanded, partner=$isPartner, verified=$isVerified",
+    "shows platform logos only for non-partners and preserves verification on $platform, expanded=$expanded, partner=$isPartner, verified=$isVerified",
     ({ platform, expanded, isPartner, isVerified, hasBadge }) => {
       const nodes = descendants(
         WatchChannelCard({
@@ -250,14 +250,16 @@ describe("watch screen", () => {
       const platformLogo = nodes.find(
         (node) => node.props.accessibilityLabel === platformLabel,
       );
-      expect(platformLogo).toBeDefined();
-      expect(
-        nodes.findIndex(
-          (node) => node.props.accessibilityLabel === platformLabel,
-        ),
-      ).toBeGreaterThan(
-        nodes.findIndex((node) => node.props.testID === "watch-target"),
-      );
+      expect(Boolean(platformLogo)).toBe(!isPartner);
+      if (!isPartner) {
+        expect(
+          nodes.findIndex(
+            (node) => node.props.accessibilityLabel === platformLabel,
+          ),
+        ).toBeGreaterThan(
+          nodes.findIndex((node) => node.props.testID === "watch-target"),
+        );
+      }
       expect(
         nodes.some(
           (node) => node.props.testID === `verified-badge-${platform}`,
