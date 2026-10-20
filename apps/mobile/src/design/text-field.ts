@@ -13,12 +13,14 @@ export const mobileTextFieldProps: Pick<
   TextInputProps,
   | "cursorColor"
   | "keyboardAppearance"
+  | "placeholderTextColor"
   | "selectionColor"
   | "textAlignVertical"
   | "underlineColorAndroid"
 > = {
   cursorColor: mobileColors.textPrimary,
   keyboardAppearance: "dark",
+  placeholderTextColor: mobileColors.textSecondary,
   selectionColor: mobileColors.textPrimary,
   textAlignVertical: "center",
   underlineColorAndroid: "transparent",

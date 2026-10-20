@@ -67,7 +67,6 @@ export function FollowingControls({
         autoCorrect={false}
         onChangeText={onQuery}
         placeholder={t("discovery.following.searchPlaceholder")}
-        placeholderTextColor={mobileColors.textMuted}
         style={styles.search}
         testID="following-search"
         value={query}

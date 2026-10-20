@@ -38,6 +38,7 @@ import {
 
 import { MobileScreenHeader } from "@mobile/design/screen-header";
 import { MobileListRow } from "@mobile/design/list-row";
+import { mobileTextFieldProps } from "@mobile/design/text-field";
 import {
   mobileColors,
   mobileHitSlop,
@@ -422,6 +423,7 @@ function SettingsSearchField({
   return (
     <View style={styles.searchRow}>
       <TextInput
+        {...mobileTextFieldProps}
         accessibilityLabel={t("settings.searchSettings")}
         autoCapitalize="none"
         autoCorrect={false}
@@ -429,7 +431,6 @@ function SettingsSearchField({
           void session.search(query);
         }}
         placeholder={t("settings.hubSearchPlaceholder")}
-        placeholderTextColor={mobileColors.textMuted}
         style={styles.search}
         testID="settings-search"
         value={value}

@@ -56,7 +56,6 @@ export function SearchDock({
             onSubmit(nativeEvent.text);
           }}
           placeholder={t("discovery.search.placeholder")}
-          placeholderTextColor={mobileColors.textMuted}
           returnKeyType="search"
           style={styles.field}
           testID="search-field"

@@ -4,7 +4,7 @@ import {
   mobileTextFieldProps,
   mobileTextFieldStyle,
 } from "@mobile/design/text-field";
-import { mobileColors, mobileSizing } from "@mobile/design/tokens";
+import { mobileSizing } from "@mobile/design/tokens";
 
 export function DiscoverySearchDock({
   onChangeQuery,
@@ -24,7 +24,6 @@ export function DiscoverySearchDock({
       autoCorrect={false}
       onChangeText={onChangeQuery}
       placeholder={placeholder}
-      placeholderTextColor={mobileColors.textMuted}
       style={styles.input}
       testID={testID}
       value={query}
