@@ -173,6 +173,7 @@ import type {
 } from "@mobile/features/watch/capabilities/watch";
 
 import { DestinationIcon, MoreRouteIcon } from "./destination-icon";
+import { useShellWatchPresentation } from "./use-shell-watch-presentation";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { resolveHardwareBack } from "../domain/hardware-back";
 import { safeFrameBottomInset } from "../domain/keyboard-overlay-inset";
@@ -426,7 +427,10 @@ export function AppShell({
   const watchOwnsChrome =
     location.route === "watch/session-preview" &&
     location.target.kind === "channel";
-  const watchPeek = useWatchPeek(watch.runtime.session);
+  const watchPeek = useShellWatchPresentation(
+    watch.runtime.session,
+    watchingWatch,
+  );
   const pictureInPictureSurface =
     watchPeek.kind === "active" &&
     isPictureInPictureSurface(watchPeek.presentation);
@@ -449,13 +453,6 @@ export function AppShell({
       void notificationSession.load();
     });
   }, [activity, dispatch, nativeNotifications, notificationSession]);
-  useEffect(() => {
-    if (watchingWatch || pictureInPictureSurface) {
-      watch.runtime.session.reveal();
-      return;
-    }
-    watch.runtime.session.conceal();
-  }, [pictureInPictureSurface, watchingWatch, watch.runtime.session]);
   const selectedJobId =
     location.route === "activity/job-preview" ||
     location.route === "more/job-preview"
