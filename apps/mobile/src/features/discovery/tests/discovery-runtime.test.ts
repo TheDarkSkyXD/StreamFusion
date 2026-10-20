@@ -156,6 +156,58 @@ describe("createDiscoveryRuntime", () => {
     expect(urls[0]).not.toContain("/v1/discovery/top-streams");
   });
 
+  it("continues signed-in Twitch Home with the provider cursor", async () => {
+    const streamUrls: string[] = [];
+    const session = createDiscoveryRuntime({
+      cache: memoryCache(),
+      fetch: async (input) => {
+        const url = String(input);
+        if (url.includes("/users?")) return jsonResponse({ data: [] });
+        streamUrls.push(url);
+        const after = new URL(url).searchParams.get("after");
+        return jsonResponse({
+          data: [
+            {
+              id: after ? "second" : "first",
+              language: "en",
+              title: "Live",
+              type: "live",
+              user_id: "channel",
+              user_login: "channel",
+              user_name: "Channel",
+              viewer_count: 5,
+            },
+          ],
+          pagination: after ? {} : { cursor: "page-two" },
+        });
+      },
+      installation: { read: async () => ({ kind: "none" }) },
+      kickAccessToken: async () => null,
+      network: { read: async () => "online" },
+      relayBaseUrl: "http://relay.test/",
+      twitchClientId: "client",
+      userTokens: {
+        read: async (platform) =>
+          platform === "twitch"
+            ? { accessToken: "user", kind: "ready" }
+            : { kind: "none" },
+      },
+    });
+    const first = await session.readTopStreams({ platform: "twitch" });
+    const second = await session.readTopStreams({
+      platform: "twitch",
+      cursor: first.cursor,
+    });
+    expect(first.items.map((stream) => stream.id)).toEqual(["first"]);
+    expect(first.cursor).toBe("page-two");
+    expect(second.items.map((stream) => stream.id)).toEqual(["second"]);
+    expect(second.cursor).toBeUndefined();
+    expect(streamUrls.map((url) => new URL(url).searchParams.get("after"))).toEqual([
+      null,
+      "page-two",
+    ]);
+  });
+
   it("reads signed-out catalogs from public Kick even when an installation exists", async () => {
     const urls: string[] = [];
     const session = createDiscoveryRuntime({

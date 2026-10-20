@@ -93,6 +93,7 @@ export function createKickOfficialReader(input: {
     },
     async getTopStreams(
       read: {
+        readonly cursor?: string;
         readonly language?: string;
         readonly signal?: AbortSignal;
       } = {},
@@ -101,6 +102,15 @@ export function createKickOfficialReader(input: {
       const accessToken = await input.readAccessToken();
       if (read.signal?.aborted) return cancelled("kick");
       if (accessToken === null) {
+        if (read.cursor !== undefined) {
+          return {
+            cache: { kind: "miss" },
+            items: [],
+            path: { kind: "guest", platform: "kick" },
+            platform: "kick",
+            status: "complete",
+          };
+        }
         return readKickPublicTopStreams(
           input.fetch,
           read.signal,
@@ -111,6 +121,7 @@ export function createKickOfficialReader(input: {
       try {
         const params = new URLSearchParams({ limit: "20" });
         if (read.language) params.set("language_code", read.language);
+        if (read.cursor) params.set("cursor", read.cursor);
         const response = await input.fetch(
           `https://api.kick.com/public/v2/livestreams?${params}`,
           requestInit({ Authorization: `Bearer ${accessToken}` }, read.signal),
@@ -120,6 +131,19 @@ export function createKickOfficialReader(input: {
         }
         const payload: unknown = await response.json();
         if (read.signal?.aborted) return cancelled("kick");
+        const pagination =
+          typeof payload === "object" && payload !== null && "pagination" in payload
+            ? payload.pagination
+            : undefined;
+        const cursor =
+          typeof pagination === "object" &&
+          pagination !== null &&
+          "next_cursor" in pagination &&
+          typeof pagination.next_cursor === "string" &&
+          pagination.next_cursor !== "" &&
+          pagination.next_cursor !== read.cursor
+            ? pagination.next_cursor
+            : undefined;
         return {
           cache: { kind: "miss" },
           items: mapKickOfficialStreams(payload).filter(
@@ -128,6 +152,7 @@ export function createKickOfficialReader(input: {
           path: { kind: "direct", platform: "kick" },
           platform: "kick",
           status: "complete",
+          ...(cursor === undefined ? {} : { cursor }),
         };
       } catch (error) {
         if (read.signal?.aborted || isAbort(error)) return cancelled("kick");

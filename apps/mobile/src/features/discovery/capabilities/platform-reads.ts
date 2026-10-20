@@ -153,6 +153,7 @@ export type UnifiedSearchView = {
 export interface PlatformCatalogReader {
   readonly platform: Platform;
   getTopStreams(input?: {
+    readonly cursor?: string;
     readonly language?: string;
     readonly signal?: AbortSignal;
   }): Promise<PlatformReadOutcome<Stream>>;
@@ -251,6 +252,7 @@ export interface SearchSession {
 
 export interface DiscoverySession {
   readTopStreams(input: {
+    readonly cursor?: string;
     readonly language?: string;
     readonly platform: Platform;
     readonly signal?: AbortSignal;

@@ -26,6 +26,7 @@ export function createTwitchGqlGuestReader(input: {
   return {
     async getTopStreams(
       read: {
+        readonly cursor?: string;
         readonly language?: string;
         readonly signal?: AbortSignal;
       } = {},
@@ -33,7 +34,7 @@ export function createTwitchGqlGuestReader(input: {
       const language = read.language?.trim().toLowerCase();
       const items: Stream[] = [];
       const seenStreamIds = new Set<string>();
-      let cursor: string | undefined;
+      let cursor = read.cursor;
       for (let page = 0; page < (language ? 3 : 1); page += 1) {
         const outcome = await gqlCollection({
           fetchImpl: input.fetch,
@@ -53,7 +54,9 @@ export function createTwitchGqlGuestReader(input: {
           seenStreamIds.add(stream.id);
           items.push(stream);
         }
+        const previousCursor = cursor;
         cursor = outcome.cursor;
+        if (cursor === previousCursor) break;
         if (!cursor || items.length >= 10) break;
       }
       return {

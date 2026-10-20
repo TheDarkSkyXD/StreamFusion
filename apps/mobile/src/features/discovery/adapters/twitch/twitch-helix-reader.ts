@@ -149,6 +149,7 @@ export function createTwitchHelixReader(input: {
     },
     async getTopStreams(
       read: {
+        readonly cursor?: string;
         readonly language?: string;
         readonly signal?: AbortSignal;
       } = {},
@@ -160,6 +161,7 @@ export function createTwitchHelixReader(input: {
       }
       const params = new URLSearchParams({ first: "20" });
       if (read.language) params.set("language", read.language);
+      if (read.cursor) params.set("after", read.cursor);
       try {
         const response = await input.fetch(
           `${HELIX}/streams?${params}`,
@@ -176,13 +178,16 @@ export function createTwitchHelixReader(input: {
             response.status === 401 ? "auth-lost" : "twitch-failed",
           );
         }
+        const payload: unknown = await response.json();
+        const cursor = helixPaginationCursor(payload);
         return completeHelixStreams(
           {
             cache: { kind: "miss" },
-            items: helixStreams(await response.json()),
+            items: helixStreams(payload),
             path: { kind: "direct", platform: "twitch" },
             platform: "twitch",
             status: "complete",
+            ...(cursor === undefined || cursor === read.cursor ? {} : { cursor }),
           },
           {
             clientId: input.clientId,

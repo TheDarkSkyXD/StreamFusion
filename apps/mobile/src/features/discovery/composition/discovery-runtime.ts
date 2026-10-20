@@ -1,4 +1,5 @@
 import type { DisposableCache } from "@mobile/features/storage/capabilities/persistence";
+import type { Stream } from "@streamfusion/core/content";
 import type { Platform } from "@streamfusion/core/platform";
 import type { LiveStreamCatalog } from "../capabilities/live-stream-catalog";
 
@@ -61,25 +62,28 @@ export function createDiscoveryRuntime(input: {
 
   return {
     readTopStreams(read) {
-      return cachedRead({
+      const page = read.cursor === undefined ? {} : { cursor: read.cursor };
+      const request = {
         cacheFallback: (platform, language) =>
           cache.readTopStreams(platform, language),
         readDirect: (platform, extra) =>
           platform === "twitch"
             ? twitch.getTopStreams({
                 ...extra,
+                ...page,
                 ...(read.language === undefined
                   ? {}
                   : { language: read.language }),
               })
             : kick.getTopStreams({
                 ...extra,
+                ...page,
                 ...(read.language === undefined
                   ? {}
                   : { language: read.language }),
               }),
         readRelay: (platform, extra) =>
-          relay.getTopStreams({ platform, ...signalOf(extra) }),
+          relay.getTopStreams({ platform, ...page, ...signalOf(extra) }),
         sources,
         writeCache: (outcome, platform, language) =>
           cache.writeTopStreams({
@@ -89,7 +93,9 @@ export function createDiscoveryRuntime(input: {
             ...(outcome.cursor === undefined ? {} : { cursor: outcome.cursor }),
           }),
         ...read,
-      });
+      } satisfies Parameters<typeof cachedRead<Stream>>[0];
+      if (read.cursor !== undefined) return liveRead(request);
+      return cachedRead(request);
     },
     readCategories(read) {
       const page = read.cursor === undefined ? {} : { cursor: read.cursor };

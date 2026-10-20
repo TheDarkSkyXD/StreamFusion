@@ -67,6 +67,32 @@ describe("Kick official V2 livestreams", () => {
     expect(outcome.items).toEqual([expectedStream]);
   });
 
+  it("continues signed-in top streams using the documented cursor parameter", async () => {
+    const urls: string[] = [];
+    const reader = createKickOfficialReader({
+      fetch: async (url) => {
+        urls.push(String(url));
+        const cursor = new URL(String(url)).searchParams.get("cursor");
+        return Response.json({
+          data: [{ ...officialStream, id: cursor ? "second" : "first" }],
+          pagination: { next_cursor: cursor ? "" : "page-two" },
+        });
+      },
+      readAccessToken: async () => "user-token",
+    });
+
+    const first = await reader.getTopStreams();
+    const second = await reader.getTopStreams({ cursor: first.cursor });
+
+    expect(first.cursor).toBe("page-two");
+    expect(second.items.map((stream) => stream.id)).toEqual(["second"]);
+    expect(second.cursor).toBeUndefined();
+    expect(urls.map((url) => new URL(url).searchParams.get("cursor"))).toEqual([
+      null,
+      "page-two",
+    ]);
+  });
+
   it("reads signed-in category streams using V2 and language_code", async () => {
     const urls: string[] = [];
     const reader = createKickOfficialCategoryReads({

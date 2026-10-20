@@ -17,7 +17,12 @@ import { topStreamsQueryKey } from "../components/use-home-live-discovery";
 import { fixtureOutcome, fixtureStream } from "../domain/discovery-fixture";
 
 const renderedCards = vi.hoisted(() => new Map<string, number>());
-const listWindow = vi.hoisted(() => ({ limit: Infinity, dataCount: 0 }));
+const listWindow = vi.hoisted(() => ({
+  limit: Infinity,
+  dataCount: 0,
+  onEndReached: undefined as (() => void) | undefined,
+  onRefresh: undefined as (() => void) | undefined,
+}));
 
 vi.mock("../components/live-stream-card-content", async (importOriginal) => {
   const original =
@@ -68,6 +73,8 @@ vi.mock("react-native", () => {
     RefreshControl: () => null,
     FlatList(props: FlatListProps<Stream>) {
       listWindow.dataCount = props.data?.length ?? 0;
+      listWindow.onEndReached = props.onEndReached;
+      listWindow.onRefresh = props.onRefresh;
       return createElement(
         "div",
         { "data-testid": props.testID },
@@ -121,6 +128,8 @@ afterEach(() => {
   renderedCards.clear();
   listWindow.limit = Infinity;
   listWindow.dataCount = 0;
+  listWindow.onEndReached = undefined;
+  listWindow.onRefresh = undefined;
   vi.useRealTimers();
 });
 
@@ -161,7 +170,10 @@ async function mountDiscovery(streamsPerProvider = 4) {
   for (const platform of ["twitch", "kick"] satisfies Platform[]) {
     queryClient.setQueryData(
       topStreamsQueryKey(platform),
-      await session.readTopStreams({ platform }),
+      {
+        pages: [await session.readTopStreams({ platform })],
+        pageParams: [""],
+      },
     );
   }
   const container = document.createElement("div");
@@ -252,6 +264,18 @@ async function mountLiveReads(
   return {
     container,
     queryClient,
+    async reachEnd() {
+      await act(async () => {
+        listWindow.onEndReached?.();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    },
+    async refresh() {
+      await act(async () => {
+        listWindow.onRefresh?.();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    },
     dispose() {
       act(() => root.unmount());
       queryClient.clear();
@@ -260,6 +284,158 @@ async function mountLiveReads(
 }
 
 describe("Watch discovery recommendation rendering", () => {
+  it("continues both live catalogs when the list reaches the end", async () => {
+    const reads: string[] = [];
+    const screen = await mountLiveReads(async ({ platform, cursor }) => {
+      reads.push(`${platform}:${cursor ?? "first"}`);
+      return {
+        ...fixtureOutcome(platform, "ready"),
+        items: cursor
+          ? [fixtureStream(platform, `${platform}-second`, 20)]
+          : [fixtureStream(platform, `${platform}-first`, 40)],
+        ...(cursor ? {} : { cursor: `${platform}-next` }),
+      };
+    });
+    try {
+      await screen.reachEnd();
+      expect(reads).toEqual([
+        "twitch:first",
+        "kick:first",
+        "twitch:twitch-next",
+        "kick:kick-next",
+      ]);
+      expect(listWindow.dataCount).toBe(4);
+      expect(
+        screen.container.querySelector(
+          '[data-testid="home-stream-twitch-twitch-second"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        screen.container.querySelector(
+          '[data-testid="home-stream-kick-kick-second"]',
+        ),
+      ).not.toBeNull();
+    } finally {
+      screen.dispose();
+    }
+  });
+
+  it("refreshes from the first page after loading more", async () => {
+    const reads: string[] = [];
+    const screen = await mountLiveReads(async ({ platform, cursor }) => {
+      reads.push(`${platform}:${cursor ?? "first"}`);
+      return {
+        ...fixtureOutcome(platform, "ready"),
+        items: [fixtureStream(platform, cursor ? "second" : "first", 20)],
+        ...(cursor ? {} : { cursor: "next" }),
+      };
+    });
+    try {
+      await screen.reachEnd();
+      await screen.refresh();
+      expect(reads).toEqual([
+        "twitch:first",
+        "kick:first",
+        "twitch:next",
+        "kick:next",
+        "twitch:first",
+        "kick:first",
+      ]);
+      expect(listWindow.dataCount).toBe(2);
+    } finally {
+      screen.dispose();
+    }
+  });
+
+  it("keeps loaded cards and retries only the failed provider page", async () => {
+    const reads: string[] = [];
+    let continuationAttempts = 0;
+    const screen = await mountLiveReads(async ({ platform, cursor }) => {
+      reads.push(`${platform}:${cursor ?? "first"}`);
+      if (platform === "kick") {
+        return {
+          ...fixtureOutcome("kick", "ready"),
+          items: [fixtureStream("kick", "k-first", 30)],
+        };
+      }
+      if (cursor) {
+        continuationAttempts += 1;
+        if (continuationAttempts === 1)
+          return { ...fixtureOutcome("twitch", "twitch-fail"), items: [] };
+        return {
+          ...fixtureOutcome("twitch", "ready"),
+          items: [
+            fixtureStream("twitch", "t-first", 40),
+            fixtureStream("twitch", "t-second", 20),
+          ],
+        };
+      }
+      return {
+        ...fixtureOutcome("twitch", "ready"),
+        items: [fixtureStream("twitch", "t-first", 40)],
+        cursor: "next",
+      };
+    });
+    try {
+      await screen.reachEnd();
+      expect(listWindow.dataCount).toBe(2);
+      expect(
+        screen.container.querySelector('[data-testid="home-stream-twitch-t-first"]'),
+      ).not.toBeNull();
+      const retry = screen.container.querySelector(
+        '[data-testid="home-load-more-retry-twitch"]',
+      );
+      if (!(retry instanceof HTMLElement)) throw new Error("Missing Twitch retry");
+      await act(async () => {
+        retry.click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(reads).toEqual([
+        "twitch:first",
+        "kick:first",
+        "twitch:next",
+        "twitch:next",
+      ]);
+      expect(listWindow.dataCount).toBe(3);
+      expect(
+        screen.container.querySelector('[data-testid="home-stream-twitch-t-second"]'),
+      ).not.toBeNull();
+    } finally {
+      screen.dispose();
+    }
+  });
+
+  it("deduplicates repeated streams and stops a repeated cursor", async () => {
+    const reads: string[] = [];
+    const screen = await mountLiveReads(async ({ platform, cursor }) => {
+      reads.push(`${platform}:${cursor ?? "first"}`);
+      if (platform === "kick") return fixtureOutcome("kick", "ready");
+      return {
+        ...fixtureOutcome("twitch", "ready"),
+        items: cursor
+          ? [
+              fixtureStream("twitch", "first", 40),
+              fixtureStream("twitch", "second", 20),
+            ]
+          : [fixtureStream("twitch", "first", 40)],
+        cursor: "next",
+      };
+    });
+    try {
+      await screen.reachEnd();
+      await screen.reachEnd();
+      expect(reads).toEqual(["twitch:first", "kick:first", "twitch:next"]);
+      expect(
+        screen.container.querySelectorAll(
+          '[data-testid="home-stream-twitch-first"]',
+        ),
+      ).toHaveLength(1);
+      expect(listWindow.dataCount).toBe(3);
+    } finally {
+      screen.dispose();
+    }
+  });
+
   it("uses the Settings display language for provider reads and cache keys", async () => {
     for (const displayLanguage of ["fil", "zh-TW"] as const) {
       const language = getDisplayLanguage(displayLanguage).streamLanguage;
@@ -477,7 +653,10 @@ describe("Watch discovery recommendation rendering", () => {
         ),
       };
       await act(async () => {
-        screen.queryClient.setQueryData(topStreamsQueryKey("kick"), updated);
+        screen.queryClient.setQueryData(topStreamsQueryKey("kick"), {
+          pages: [updated],
+          pageParams: [""],
+        });
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
       expect(

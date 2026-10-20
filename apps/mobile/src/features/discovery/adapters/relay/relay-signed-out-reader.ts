@@ -89,9 +89,19 @@ export function createRelaySignedOutReader(input: {
       });
     },
     async getTopStreams(inputRead: {
+      readonly cursor?: string;
       readonly platform: Platform;
       readonly signal?: AbortSignal;
     }): Promise<PlatformReadOutcome<Stream>> {
+      if (inputRead.cursor !== undefined) {
+        return {
+          cache: { kind: "miss" },
+          items: [],
+          path: { kind: "relay", platform: inputRead.platform },
+          platform: inputRead.platform,
+          status: "complete",
+        };
+      }
       return relayRead({
         input,
         parse: relayTopStreamsOutcome,
@@ -308,6 +318,5 @@ function relayTopStreamsOutcome(
     path: { kind: "relay", platform },
     platform,
     status: "complete",
-    ...(body.cursor === undefined ? {} : { cursor: body.cursor }),
   };
 }
