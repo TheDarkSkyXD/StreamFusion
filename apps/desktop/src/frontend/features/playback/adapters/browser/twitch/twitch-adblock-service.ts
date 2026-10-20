@@ -63,6 +63,8 @@ interface PreparedBackup {
 }
 
 interface RenditionSwitchState {
+  unsafeOriginalSegments: Set<string>;
+  adEpisodeGeneration: number;
   candidatePromise: Promise<void> | null;
   readyCandidate: PreparedBackup | null;
   servedBackup: PreparedBackup | null;
@@ -223,6 +225,8 @@ function getRenditionSwitchState(scope: string): RenditionSwitchState {
   let state = renditionSwitchStates.get(scope);
   if (!state) {
     state = {
+      unsafeOriginalSegments: new Set(),
+      adEpisodeGeneration: 0,
       candidatePromise: null,
       readyCandidate: null,
       servedBackup: null,
@@ -237,6 +241,40 @@ function getRenditionSwitchState(scope: string): RenditionSwitchState {
     renditionSwitchStates.set(scope, state);
   }
   return state;
+}
+
+function advanceAdEpisode(channelName: string, phase: "started" | "ended"): void {
+  for (const [scope, state] of renditionSwitchStates) {
+    if (!scope.startsWith(`${channelName}:`)) continue;
+    state.adEpisodeGeneration += 1;
+    if (phase === "ended") {
+      state.readyCandidate = null;
+    }
+  }
+}
+
+function recordCleanOriginalPoll(state: RenditionSwitchState): boolean {
+  const now = Date.now();
+  state.originalCleanSince ??= now;
+  state.consecutiveOriginalCleanPolls += 1;
+  return (
+    state.consecutiveOriginalCleanPolls >= ORIGINAL_CLEAN_CONFIRMATION_POLLS &&
+    now - state.originalCleanSince >= ORIGINAL_CLEAN_STABILITY_MS
+  );
+}
+
+function retireUnsafeOriginalSegments(state: RenditionSwitchState): void {
+  state.unsafeOriginalSegments.clear();
+  state.consecutiveOriginalCleanPolls = 0;
+  state.originalCleanSince = null;
+}
+
+function resetChannelCleanOriginalConfirmation(channelName: string): void {
+  for (const [scope, state] of renditionSwitchStates) {
+    if (!scope.startsWith(`${channelName}:`)) continue;
+    state.consecutiveOriginalCleanPolls = 0;
+    state.originalCleanSince = null;
+  }
 }
 
 // ========== Public API ==========
@@ -561,6 +599,64 @@ function getPlaylistDetectionScope(streamInfo: StreamInfo, mediaUrl: string): st
     : `${streamInfo.channelName}:unknown`;
 }
 
+function getMediaSegmentUrls(text: string, playlistUrl: string): Set<string> {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const urls = new Set<string>();
+  let awaitingSegmentUri = false;
+  let segmentIsGap = false;
+
+  const addUri = (uri: string): void => {
+    if (!uri) return;
+    try {
+      urls.add(new URL(uri, playlistUrl).href);
+    } catch {
+      return;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith("#EXTINF:")) {
+      awaitingSegmentUri = true;
+      segmentIsGap = false;
+      continue;
+    }
+    if (line === "#EXT-X-GAP" && awaitingSegmentUri) {
+      segmentIsGap = true;
+      continue;
+    }
+    if (line.startsWith("#EXT-X-TWITCH-PREFETCH:")) {
+      addUri(line.slice("#EXT-X-TWITCH-PREFETCH:".length).trim());
+      continue;
+    }
+    if (line.startsWith("#EXT-X-PART:") || line.startsWith("#EXT-X-PRELOAD-HINT:")) {
+      const attributes = line.slice(line.indexOf(":") + 1);
+      const isPart = line.startsWith("#EXT-X-PART:") || /(?:^|,)TYPE=PART(?:,|$)/.test(attributes);
+      if (isPart && !/(?:^|,)GAP=YES(?:,|$)/.test(attributes)) {
+        addUri(/(?:^|,)URI="([^"]+)"/.exec(attributes)?.[1] ?? "");
+      }
+      continue;
+    }
+    if (awaitingSegmentUri && line && !line.startsWith("#")) {
+      if (!segmentIsGap) addUri(line);
+      awaitingSegmentUri = false;
+    }
+  }
+  return urls;
+}
+
+function sharesBlockedMedia(text: string, playlistUrl: string, channelName: string): boolean {
+  const urls = getMediaSegmentUrls(text, playlistUrl);
+  if (urls.size === 0) return false;
+  for (const [scope, state] of renditionSwitchStates) {
+    if (!scope.startsWith(`${channelName}:`)) continue;
+    for (const url of urls) {
+      if (state.unsafeOriginalSegments.has(url)) return true;
+    }
+  }
+  return false;
+}
+
 function promotePlaylistDetectionBaseline(
   text: string,
   streamInfo: StreamInfo,
@@ -673,6 +769,36 @@ export async function processMediaPlaylist(
   const detection = detectAds(text, streamInfo, url);
   const { hasAds: hasAdTags, method: detectionMethod } = detection;
   const hasExplicitCueInRecovery = isExplicitCueInRecovery(text, detection);
+  const switchState = getRenditionSwitchState(getPlaylistDetectionScope(streamInfo, url));
+
+  if (hasAdTags) {
+    if (!streamInfo.isShowingAd) advanceAdEpisode(streamInfo.channelName, "started");
+    resetChannelCleanOriginalConfirmation(streamInfo.channelName);
+    for (const segment of getMediaSegmentUrls(text, url)) {
+      switchState.unsafeOriginalSegments.add(segment);
+    }
+  } else if (sharesBlockedMedia(text, url, streamInfo.channelName)) {
+    if (!streamInfo.isShowingAd) {
+      advanceAdEpisode(streamInfo.channelName, "started");
+      streamInfo.isShowingAd = true;
+      streamInfo.adStartTime = Date.now();
+    }
+    resetChannelCleanOriginalConfirmation(streamInfo.channelName);
+    const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
+    const backup = currentResolution
+      ? (getServedBackupOrScheduleRefresh(streamInfo, currentResolution) ??
+        tryGetReadyBackupOrScheduleSearch(streamInfo, currentResolution, text))
+      : null;
+    if (backup) {
+      streamInfo.isUsingFallbackMode = false;
+      streamInfo.isStrippingAdSegments = false;
+      notifyStatusChange(streamInfo);
+      return backup;
+    }
+    streamInfo.isUsingFallbackMode = true;
+    notifyStatusChange(streamInfo);
+    return holdUnsafeTwitchMediaPlaylist(text);
+  }
 
   if (hasAdTags) {
     // We're in an ad break
@@ -724,9 +850,6 @@ export async function processMediaPlaylist(
     // Try to get backup stream
     let backupResult: string | null = null;
     if (currentResolution) {
-      const switchState = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
-      switchState.consecutiveOriginalCleanPolls = 0;
-      switchState.originalCleanSince = null;
       backupResult =
         getServedBackupOrScheduleRefresh(streamInfo, currentResolution) ??
         tryGetReadyBackupOrScheduleSearch(streamInfo, currentResolution, text);
@@ -760,14 +883,11 @@ export async function processMediaPlaylist(
       ? getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution))
       : null;
     const restoredFromBackup = Boolean(switchState?.servedBackup);
+    const originalIsStable =
+      switchState && detection.verdict === "clean" && !hasExplicitCueInRecovery
+        ? recordCleanOriginalPoll(switchState)
+        : false;
     if (switchState?.servedBackup && detection.verdict === "clean" && !hasExplicitCueInRecovery) {
-      const now = Date.now();
-      switchState.originalCleanSince ??= now;
-      switchState.consecutiveOriginalCleanPolls += 1;
-      const cleanForMs = Math.max(0, now - switchState.originalCleanSince);
-      const originalIsStable =
-        switchState.consecutiveOriginalCleanPolls >= ORIGINAL_CLEAN_CONFIRMATION_POLLS &&
-        cleanForMs >= ORIGINAL_CLEAN_STABILITY_MS;
       if (!originalIsStable) {
         const continuedBackup = currentResolution
           ? getServedBackupOrScheduleRefresh(streamInfo, currentResolution)
@@ -779,7 +899,7 @@ export async function processMediaPlaylist(
             {
               channelName: streamInfo.channelName,
               confirmationPolls: switchState.consecutiveOriginalCleanPolls,
-              cleanForMs,
+              cleanForMs: Date.now() - (switchState.originalCleanSince ?? Date.now()),
               requiredCleanMs: ORIGINAL_CLEAN_STABILITY_MS,
             }
           );
@@ -797,14 +917,9 @@ export async function processMediaPlaylist(
       });
     }
     if (switchState) {
-      if (switchState.readyRefresh) {
-        switchState.servedBackup = switchState.readyRefresh;
-        switchState.readyRefresh = null;
-      }
-      switchState.readyCandidate = null;
+      promoteSafeReadyRefresh(switchState, streamInfo.channelName);
       switchState.consecutiveRefreshFailures = 0;
-      switchState.consecutiveOriginalCleanPolls = 0;
-      switchState.originalCleanSince = null;
+      if (originalIsStable) retireUnsafeOriginalSegments(switchState);
       switchState.consecutiveMisses = 0;
       switchState.nextRetryAt = 0;
       if (switchState.servedBackup) {
@@ -823,6 +938,7 @@ export async function processMediaPlaylist(
     streamInfo.activeBackupPlayerType = null;
     streamInfo.isUsingFallbackMode = false;
     streamInfo.adStartTime = null;
+    advanceAdEpisode(streamInfo.channelName, "ended");
 
     // Update bitrate baseline now that we're showing clean content
     updateBitrateBaseline(text, streamInfo);
@@ -847,10 +963,10 @@ export async function processMediaPlaylist(
     const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
     if (currentResolution) {
       const switchState = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
-      if (switchState.readyRefresh) {
-        switchState.servedBackup = switchState.readyRefresh;
-        switchState.readyRefresh = null;
+      if (switchState.unsafeOriginalSegments.size > 0 && recordCleanOriginalPoll(switchState)) {
+        retireUnsafeOriginalSegments(switchState);
       }
+      promoteSafeReadyRefresh(switchState, streamInfo.channelName);
       if (switchState.servedBackup) {
         scheduleServedBackupRefresh(streamInfo, switchState);
       } else {
@@ -1041,6 +1157,7 @@ async function prepareCleanBackup(
         fingerprint: analysis.diagnostic.fingerprint,
       });
       if (analysis.verdict !== "clean") return null;
+      if (sharesBlockedMedia(playlist, rendition.url, streamInfo.channelName)) return null;
       // Stitched prerolls use a separate media-sequence namespace (often
       // starting at zero). Rendition continuity plus a clean classification
       // are the safe admission checks during an ad. A transient startup level
@@ -1151,6 +1268,7 @@ function recordBackupRefreshFailure(
 function scheduleServedBackupRefresh(streamInfo: StreamInfo, state: RenditionSwitchState): void {
   const served = state.servedBackup;
   if (!served || state.refreshPromise) return;
+  const refreshEpisode = state.adEpisodeGeneration;
 
   const refreshPromise = (async () => {
     try {
@@ -1161,6 +1279,7 @@ function scheduleServedBackupRefresh(streamInfo: StreamInfo, state: RenditionSwi
       }
 
       const playlist = await response.text();
+      if (state.adEpisodeGeneration !== refreshEpisode) return;
       if (!hasPlayableSegmentReference(playlist)) {
         recordBackupRefreshFailure(streamInfo, state, served, { outcome: "unplayable" });
         return;
@@ -1174,6 +1293,11 @@ function scheduleServedBackupRefresh(streamInfo: StreamInfo, state: RenditionSwi
           verdict: analysis.verdict,
           fingerprint: analysis.diagnostic.fingerprint,
         });
+        invalidateServedBackup(streamInfo, state, served);
+        return;
+      }
+
+      if (sharesBlockedMedia(playlist, served.rendition.url, streamInfo.channelName)) {
         invalidateServedBackup(streamInfo, state, served);
         return;
       }
@@ -1201,18 +1325,28 @@ function scheduleServedBackupRefresh(streamInfo: StreamInfo, state: RenditionSwi
   state.refreshPromise = refreshPromise;
 }
 
+function promoteSafeReadyRefresh(state: RenditionSwitchState, channelName: string): void {
+  const refresh = state.readyRefresh;
+  if (!refresh) return;
+  if (!sharesBlockedMedia(refresh.playlist, refresh.rendition.url, channelName)) {
+    state.servedBackup = refresh;
+  }
+  state.readyRefresh = null;
+}
+
 function getServedBackupOrScheduleRefresh(
   streamInfo: StreamInfo,
   currentResolution: ResolutionInfo
 ): string | null {
   const state = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
-  if (state.readyRefresh) {
-    state.servedBackup = state.readyRefresh;
-    state.readyRefresh = null;
-  }
+  promoteSafeReadyRefresh(state, streamInfo.channelName);
 
   const served = state.servedBackup;
   if (!served) return null;
+  if (sharesBlockedMedia(served.playlist, served.rendition.url, streamInfo.channelName)) {
+    invalidateServedBackup(streamInfo, state, served);
+    return null;
+  }
   streamInfo.activeBackupPlayerType = served.playerType;
   scheduleServedBackupRefresh(streamInfo, state);
   return served.playlist;
@@ -1228,26 +1362,33 @@ function tryGetReadyBackupOrScheduleSearch(
   const candidate = state.readyCandidate;
   if (candidate) {
     state.readyCandidate = null;
-    state.servedBackup = candidate;
-    state.readyRefresh = null;
-    state.consecutiveRefreshFailures = 0;
-    streamInfo.activeBackupPlayerType = candidate.playerType;
-    scheduleServedBackupRefresh(streamInfo, state);
-    logger.debug("Adblock:TwitchService", "using verified clean backup", {
-      channelName: streamInfo.channelName,
-      playerType: candidate.playerType,
-      resolution: candidate.rendition.resolution,
-    });
-    return candidate.playlist;
+    if (!sharesBlockedMedia(candidate.playlist, candidate.rendition.url, streamInfo.channelName)) {
+      state.servedBackup = candidate;
+      state.readyRefresh = null;
+      state.consecutiveRefreshFailures = 0;
+      streamInfo.activeBackupPlayerType = candidate.playerType;
+      scheduleServedBackupRefresh(streamInfo, state);
+      logger.debug("Adblock:TwitchService", "using verified clean backup", {
+        channelName: streamInfo.channelName,
+        playerType: candidate.playerType,
+        resolution: candidate.rendition.resolution,
+      });
+      return candidate.playlist;
+    }
   }
 
   if (state.candidatePromise || Date.now() < state.nextRetryAt) return null;
 
+  const candidateEpisode = state.adEpisodeGeneration;
   const candidatePromise = getOrStartBackupMasterPreload(streamInfo)
     .then((masters) => prepareCleanBackup(streamInfo, currentResolution, activePlaylist, masters))
     .then((prepared) => {
       if (streamInfos.get(streamInfo.channelName) !== streamInfo) return;
-      if (prepared) {
+      if (state.adEpisodeGeneration !== candidateEpisode) return;
+      if (
+        prepared &&
+        !sharesBlockedMedia(prepared.playlist, prepared.rendition.url, streamInfo.channelName)
+      ) {
         state.readyCandidate = prepared;
         state.consecutiveMisses = 0;
         state.nextRetryAt = 0;
