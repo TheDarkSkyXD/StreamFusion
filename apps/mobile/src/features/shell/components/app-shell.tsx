@@ -17,7 +17,10 @@ import type { WatchModerationRoleReader } from "@mobile/features/moderation/doma
 import type { EngagementController } from "@mobile/features/engagement/domain/engagement-controller";
 import type { ModerationChannel } from "@mobile/features/moderation/capabilities/moderation";
 import type { PlatformWorkflowNavigation } from "@mobile/features/moderation/capabilities/workflow-navigation";
-import type { ChannelIdentity, Platform as StreamPlatform } from "@streamfusion/core/platform";
+import type {
+  ChannelIdentity,
+  Platform as StreamPlatform,
+} from "@streamfusion/core/platform";
 import { ArrowLeft, ChevronRight, CircleUserRound } from "lucide-react-native";
 import { StatusBar } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -88,7 +91,10 @@ import {
 } from "@mobile/features/diagnostics/domain/diagnostics-workspace";
 import { HistoryScreen } from "@mobile/features/media-library/components/history-screen";
 import type { WatchScreenRuntime } from "@mobile/features/watch/components/watch-screen";
-import { DownloadsScreen } from "@mobile/features/media-jobs/components/downloads-screen";
+import {
+  DownloadsScreen,
+  type DownloadsPresentationState,
+} from "@mobile/features/media-jobs/components/downloads-screen";
 import { MediaJobScreen } from "@mobile/features/media-jobs/components/media-job-screen";
 import { MediaJobsDiagnosticsPanel } from "@mobile/features/media-jobs/components/media-jobs-diagnostics-panel";
 import { useMediaJobsController } from "@mobile/features/media-jobs/components/use-media-jobs-controller";
@@ -121,6 +127,7 @@ import {
 } from "@mobile/features/discovery/components/unified-search-screen";
 import type { FollowingSession } from "@mobile/features/follows/capabilities/following-session";
 import { FollowingWorkspace } from "@mobile/features/follows/components/following-workspace";
+import type { FollowingPresentationState } from "@mobile/features/follows/components/following-screen";
 import type { ConnectivitySession } from "@mobile/features/connectivity/capabilities/connectivity-session";
 import { ConnectivityDiagnosticsPanel } from "@mobile/features/connectivity/components/connectivity-diagnostics-panel";
 import { ProxySettingsPanel } from "@mobile/features/connectivity/components/proxy-settings-panel";
@@ -450,7 +457,8 @@ export function AppShell({
     watch.runtime.session.conceal();
   }, [pictureInPictureSurface, watchingWatch, watch.runtime.session]);
   const selectedJobId =
-    location.route === "activity/job-preview"
+    location.route === "activity/job-preview" ||
+    location.route === "more/job-preview"
       ? location.jobId
       : (watchMediaJobIdFor(location, watchPeek) ?? undefined);
   const mediaJobsController = useMediaJobsController({
@@ -766,11 +774,16 @@ function ShellHeader({
   const location = getActiveShellLocation(state);
   const header = resolveShellHeaderCopy(location, route);
   const showsBack = canNavigateBack(state);
+  const history = state.histories[state.activeDestination];
+  const backRoute =
+    location.route === "watch"
+      ? state.watchReturnDestination
+      : (history.trail.at(-2)?.route ?? history.root);
   return (
     <View style={styles.header}>
       {showsBack ? (
         <MobileIconButton
-          hint={`Returns to ${SHELL_ROUTES[state.activeDestination].title}`}
+          hint={`Returns to ${SHELL_ROUTES[backRoute].title}`}
           label="Back"
           onPress={() => dispatch({ type: "back" })}
           testID="shell-back"
@@ -1002,6 +1015,8 @@ function ShellScreen({
     verifiedWatchRole.platform === moderationWatchTarget?.platform &&
     verifiedWatchRole.channelId === moderationWatchTarget?.channelId;
   const scrollView = useRef<ScrollView>(null);
+  const followingPresentation = useRef<FollowingPresentationState | null>(null);
+  const downloadsPresentation = useRef<DownloadsPresentationState | null>(null);
   const scrollRequest = state.rootScrollRequests[state.activeDestination];
   const [diagnosticsTab, setDiagnosticsTab] =
     useState<MobileDiagnosticsTab>("overview");
@@ -1271,14 +1286,17 @@ function ShellScreen({
     );
   }
 
-  if (location.route === "activity/job-preview") {
+  if (
+    location.route === "activity/job-preview" ||
+    location.route === "more/job-preview"
+  ) {
     return (
       <ScrollView
         contentContainerStyle={styles.screenContent}
         contentInsetAdjustmentBehavior="automatic"
         ref={scrollView}
         style={styles.screenScroll}
-        testID="screen-activity-job-preview"
+        testID={`screen-${SHELL_ROUTES[location.route].reviewId}`}
       >
         <View style={styles.contentColumn}>
           <MediaJobScreen
@@ -1318,10 +1336,16 @@ function ShellScreen({
         }
       >
         <FollowingWorkspace
+          {...(followingPresentation.current === null
+            ? {}
+            : { restoredState: followingPresentation.current })}
+          onStateChange={(value) => {
+            followingPresentation.current = value;
+          }}
           onOpenCategory={(category) =>
             dispatch({
               type: "navigate",
-              location: { category, route: "more/category-detail" },
+              location: { category, route: "following/category-detail" },
             })
           }
           onOpenChannel={(channel) =>
@@ -1366,7 +1390,7 @@ function ShellScreen({
               onOpenCategory={(category) =>
                 dispatch({
                   type: "navigate",
-                  location: { category, route: "more/category-detail" },
+                  location: { category, route: "search/category-detail" },
                 })
               }
               onOpenSearch={() => onSearchFocusChange(true)}
@@ -1388,6 +1412,20 @@ function ShellScreen({
             dispatch({
               type: "navigate",
               location: { channel, route: "search/result-preview" },
+            })
+          }
+          onOpenCategory={(category) =>
+            dispatch({
+              type: "navigate",
+              location: {
+                route: "search/category-detail",
+                category: {
+                  id: category.id,
+                  name: category.name,
+                  platform: category.platform,
+                  boxArtUrl: category.boxArtUrl,
+                },
+              },
             })
           }
           onWatch={openWatch}
@@ -1438,11 +1476,15 @@ function ShellScreen({
     );
   }
 
-  if (location.route === "more/category-detail") {
+  if (
+    location.route === "more/category-detail" ||
+    location.route === "search/category-detail" ||
+    location.route === "following/category-detail"
+  ) {
     return (
       <View
         style={styles.activityWorkspace}
-        testID="screen-more-category-detail"
+        testID={`screen-${SHELL_ROUTES[location.route].reviewId}`}
       >
         <CategoryDetailScreen
           category={location.category}
@@ -1473,12 +1515,18 @@ function ShellScreen({
     return (
       <View style={styles.activityWorkspace} testID="screen-more-downloads">
         <DownloadsScreen
+          {...(downloadsPresentation.current === null
+            ? {}
+            : { restoredState: downloadsPresentation.current })}
+          onStateChange={(value) => {
+            downloadsPresentation.current = value;
+          }}
           offline={offline}
           jobs={mediaJobsController.model.jobs}
           onOpenJob={(jobId) =>
             dispatch({
               type: "navigate",
-              location: { route: "activity/job-preview", jobId },
+              location: { route: "more/job-preview", jobId },
             })
           }
           onRefresh={() => mediaJobsController.refresh()}

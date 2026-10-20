@@ -3,6 +3,7 @@ import { act, createElement, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import type { Category } from "@streamfusion/core/content";
 
 import type {
   MobileSearchKind,
@@ -17,6 +18,7 @@ import {
 import { useUnifiedSearch } from "../components/use-unified-search";
 import {
   fixtureChannel,
+  fixtureCategory,
   fixtureClip,
   fixtureSearchOutcome,
   fixtureVideo,
@@ -88,7 +90,21 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../components/search-results-view", () => ({
-  SearchResultsView: () => null,
+  SearchResultsView: (props: {
+    readonly onOpenCategory?: (category: Category) => void;
+  }) => {
+    return props.onOpenCategory
+      ? createElement(
+          "button",
+          {
+            "data-testid": "open-search-category",
+            onClick: () =>
+              props.onOpenCategory?.(fixtureCategory("twitch", "509658")),
+          },
+          "Open category",
+        )
+      : null;
+  },
 }));
 
 vi.mock("../components/search-provider-banner", () => ({
@@ -245,14 +261,20 @@ describe("search journey", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
-    let setPreview: (next: boolean) => void = () => undefined;
     let saved: SearchPresentationState | null = null;
 
     function Journey() {
       const [focused, setFocused] = useState(false);
       const [preview, setPreviewState] = useState(false);
-      setPreview = setPreviewState;
-      if (preview) return createElement("div", { "data-testid": "preview" });
+      if (preview)
+        return createElement(
+          "button",
+          {
+            "data-testid": "category-detail",
+            onClick: () => setPreviewState(false),
+          },
+          "Back to Search",
+        );
       return createElement(UnifiedSearchScreen, {
         categoriesPanel: createElement(
           "button",
@@ -265,6 +287,9 @@ describe("search journey", () => {
         focused,
         history,
         onOpenAccounts() {},
+        onOpenCategory() {
+          setPreviewState(true);
+        },
         onSearchFocusChange: setFocused,
         onStateChange(state) {
           saved = state;
@@ -325,10 +350,15 @@ describe("search journey", () => {
       await click("search-tab-channels");
       expect(find("repeat-search-shroud")).toBeNull();
       await submit("arcade");
-      await act(async () => setPreview(true));
-      expect(find("preview")).not.toBeNull();
-      await act(async () => setPreview(false));
+      await click("search-tab-categories");
+      await click("open-search-category");
+      expect(find("category-detail")).not.toBeNull();
+      await click("category-detail");
       expect(find("search-field")?.getAttribute("value")).toBe("arcade");
+      expect(find("search-tab-categories")?.getAttribute("data-selected")).toBe(
+        "true",
+      );
+      await click("search-tab-channels");
       expect(find("search-tab-channels")?.getAttribute("data-selected")).toBe(
         "true",
       );

@@ -3,9 +3,11 @@ import type { ShellRouteId } from "@mobile/features/shell/domain/shell-navigatio
 export const routeStoryCoverage = {
   search: "android-screens-discovery--search",
   "search/result-preview": "android-screens-discovery--search-result-preview",
+  "search/category-detail": "android-screens-discovery--category-detail",
   following: "android-screens-discovery--following",
   "following/channel-preview":
     "android-screens-discovery--following-channel-preview",
+  "following/category-detail": "android-screens-discovery--category-detail",
   "following/manage": "android-screens-discovery--manage-guest-follows",
   watch: "android-screens-discovery--home",
   "watch/session-preview": "android-screens-watch--session-preview",
@@ -19,6 +21,7 @@ export const routeStoryCoverage = {
   "more/categories": "android-screens-discovery--categories",
   "more/history": "android-screens-library-and-activity--history",
   "more/downloads": "android-screens-library-and-activity--downloads",
+  "more/job-preview": "android-screens-library-and-activity--download-detail",
   "more/moderation": "android-workflows-moderation--broadcaster",
   "more/multistream": "android-workflows-multistream--workspace",
   "more/settings": "android-screens-settings--hub",

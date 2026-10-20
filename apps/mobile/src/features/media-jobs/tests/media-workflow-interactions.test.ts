@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,7 +8,10 @@ import {
 } from "@streamfusion/core/media-jobs";
 import { toSerializedTimestamp } from "@streamfusion/core/activity";
 import { MediaJobScreen } from "../components/media-job-screen";
-import { DownloadsScreen } from "../components/downloads-screen";
+import {
+  DownloadsScreen,
+  type DownloadsPresentationState,
+} from "../components/downloads-screen";
 import { WatchDownloadBar } from "@mobile/features/watch/components/watch-download-bar";
 import { CaptionModelManagement } from "@mobile/features/local-captions/components/caption-model-management";
 const fields = vi.hoisted(() => new Map<string, (value: string) => void>());
@@ -30,9 +33,14 @@ vi.mock("react-native", async () => {
     TextInput: (props: {
       accessibilityLabel: string;
       onChangeText: (value: string) => void;
+      value: string;
     }) => {
       fields.set(props.accessibilityLabel, props.onChangeText);
-      return createElement("input", { "aria-label": props.accessibilityLabel });
+      return createElement("input", {
+        "aria-label": props.accessibilityLabel,
+        value: props.value,
+        readOnly: true,
+      });
     },
     Pressable: (props: Record<string, unknown>) =>
       createElement(
@@ -40,6 +48,9 @@ vi.mock("react-native", async () => {
         {
           "data-testid": props.testID,
           "aria-label": props.accessibilityLabel,
+          "aria-selected": (
+            props.accessibilityState as { selected?: boolean } | undefined
+          )?.selected,
           disabled: props.disabled,
           onClick: props.onPress,
         },
@@ -87,6 +98,60 @@ const queued = createQueuedMediaJobSnapshot({
   createdAt: toSerializedTimestamp("2026-10-05T00:00:00.000Z"),
 });
 describe("media workflow controls", () => {
+  it("restores the Downloads filter and search after opening a job", () => {
+    const clip = {
+      ...queued,
+      intent: {
+        ...queued.intent,
+        jobId: asMediaJobId("clip-job"),
+        display: {
+          title: "Highlight",
+          channelName: "Second channel",
+          platform: "kick",
+          contentKind: "clip",
+          sourceIdentity: "two",
+          thumbnailUrl: null,
+        },
+      },
+    } as const;
+    function Journey() {
+      const saved = useRef<DownloadsPresentationState | null>(null);
+      const [detail, setDetail] = useState(false);
+      return detail
+        ? createElement(
+            "button",
+            { "data-testid": "job-back", onClick: () => setDetail(false) },
+            "Back",
+          )
+        : createElement(DownloadsScreen, {
+            jobs: [queued, clip],
+            onOpenJob() {
+              setDetail(true);
+            },
+            restoredState: saved.current ?? undefined,
+            onStateChange(state) {
+              saved.current = state;
+            },
+          });
+    }
+    const container = render(createElement(Journey));
+    click(container, "downloads-filter-clip");
+    act(() => fields.get("Search downloads")?.("Second"));
+    click(container, "downloads-open-clip-job");
+    click(container, "job-back");
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[aria-label="Search downloads"]',
+      )?.value,
+    ).toBe("Second");
+    expect(
+      container
+        .querySelector('[data-testid="downloads-filter-clip"]')
+        ?.getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(container.textContent).toContain("Highlight");
+    expect(container.textContent).not.toContain("Saved download");
+  });
   it("filters persisted jobs by kind and channel search while retaining row navigation", () => {
     const video = {
       ...queued,

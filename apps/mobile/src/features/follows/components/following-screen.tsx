@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 import type {
@@ -26,12 +26,22 @@ import {
 } from "./following-tab-body";
 import { useFollowingView } from "./use-following-view";
 
+export type FollowingPresentationState = {
+  readonly tab: FollowingTab;
+  readonly chip: FollowingChip;
+  readonly query: string;
+  readonly sort: FollowedRecordedSort;
+  readonly period: FollowedClipPeriod;
+};
+
 export function FollowingScreen({
   onOpenCategory,
   onOpenChannel,
   onOpenManage,
   onOpenSearch,
   onWatch,
+  onStateChange,
+  restoredState,
   session,
 }: {
   readonly onOpenCategory?: (category: FollowingCategoryTarget) => void;
@@ -39,13 +49,22 @@ export function FollowingScreen({
   readonly onOpenManage: () => void;
   readonly onOpenSearch?: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
+  readonly onStateChange?: (state: FollowingPresentationState) => void;
+  readonly restoredState?: FollowingPresentationState;
   readonly session: FollowingSession;
 }) {
-  const [tab, setTab] = useState<FollowingTab>("live");
-  const [chip, setChip] = useState<FollowingChip>("all");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<FollowedRecordedSort>("recent");
-  const [period, setPeriod] = useState<FollowedClipPeriod>("all");
+  const [tab, setTab] = useState<FollowingTab>(restoredState?.tab ?? "live");
+  const [chip, setChip] = useState<FollowingChip>(restoredState?.chip ?? "all");
+  const [query, setQuery] = useState(restoredState?.query ?? "");
+  const [sort, setSort] = useState<FollowedRecordedSort>(
+    restoredState?.sort ?? "recent",
+  );
+  const [period, setPeriod] = useState<FollowedClipPeriod>(
+    restoredState?.period ?? "all",
+  );
+  useEffect(() => {
+    onStateChange?.({ tab, chip, query, sort, period });
+  }, [tab, chip, query, sort, period, onStateChange]);
   const live = useFollowingView({
     chip,
     period,

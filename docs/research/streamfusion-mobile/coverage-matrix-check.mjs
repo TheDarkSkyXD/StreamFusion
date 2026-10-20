@@ -126,6 +126,7 @@ const implemented = new Set([
   "shell-route:activity",
   "shell-route:activity/alert-preview",
   "shell-route:activity/job-preview",
+  "shell-route:more/job-preview",
   "shell-route:more",
   "screen:search",
   "screen:home",
@@ -152,7 +153,9 @@ const implemented = new Set([
   "tab:following:categories",
   "tab:following:channels",
   "shell-route:search",
+  "shell-route:search/category-detail",
   "shell-route:following",
+  "shell-route:following/category-detail",
   "shell-route:following/manage",
   "shell-route:more/channel",
   "shell-route:more/categories",
@@ -391,6 +394,9 @@ const paths = {
   "shell-route:activity/job-preview": [
     "apps/mobile/src/features/media-jobs/components/media-job-screen.tsx",
   ],
+  "shell-route:more/job-preview": [
+    "apps/mobile/src/features/media-jobs/components/media-job-screen.tsx",
+  ],
   "screen:search": [
     "apps/mobile/src/features/discovery/components/unified-search-screen.tsx",
   ],
@@ -500,6 +506,12 @@ const paths = {
     "apps/mobile/src/features/discovery/components/categories-screen.tsx",
   ],
   "shell-route:more/category-detail": [
+    "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
+  ],
+  "shell-route:search/category-detail": [
+    "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
+  ],
+  "shell-route:following/category-detail": [
     "apps/mobile/src/features/discovery/components/category-detail-screen.tsx",
   ],
   "panel:proxy": [

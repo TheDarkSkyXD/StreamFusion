@@ -10,11 +10,14 @@ export type ShellDestinationId =
 export type ShellRouteId =
   | ShellDestinationId
   | "search/result-preview"
+  | "search/category-detail"
   | "following/channel-preview"
+  | "following/category-detail"
   | "following/manage"
   | "watch/session-preview"
   | "activity/alert-preview"
   | "activity/job-preview"
+  | "more/job-preview"
   | "more/channel"
   | "more/categories"
   | "more/history"
@@ -31,10 +34,13 @@ type StaticShellRouteId = Exclude<
   | "watch/session-preview"
   | "activity/alert-preview"
   | "activity/job-preview"
+  | "more/job-preview"
   | "more/channel"
   | "search/result-preview"
   | "following/channel-preview"
   | "more/category-detail"
+  | "search/category-detail"
+  | "following/category-detail"
 >;
 
 export type ShellLocation =
@@ -52,7 +58,10 @@ export type ShellLocation =
           };
     }
   | { readonly route: "activity/alert-preview"; readonly eventId: string }
-  | { readonly route: "activity/job-preview"; readonly jobId: string }
+  | {
+      readonly route: "activity/job-preview" | "more/job-preview";
+      readonly jobId: string;
+    }
   | {
       readonly route:
         "more/channel" | "search/result-preview" | "following/channel-preview";
@@ -63,7 +72,10 @@ export type ShellLocation =
       };
     }
   | {
-      readonly route: "more/category-detail";
+      readonly route:
+        | "more/category-detail"
+        | "search/category-detail"
+        | "following/category-detail";
       readonly category: {
         readonly id: string;
         readonly name: string;
@@ -151,6 +163,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "Result preview",
     "search",
   ),
+  "search/category-detail": route(
+    "search/category-detail",
+    "SEARCH",
+    "search-category-detail",
+    "Inspect live streams, clips, and videos for one category.",
+    "Category",
+    "search",
+  ),
   following: route(
     "following",
     "YOUR CHANNELS",
@@ -165,6 +185,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "following-channel-preview",
     "A channel can open here without losing your place in any other destination.",
     "Channel preview",
+    "following",
+  ),
+  "following/category-detail": route(
+    "following/category-detail",
+    "FOLLOWING",
+    "following-category-detail",
+    "Inspect live streams, clips, and videos for a followed category.",
+    "Category",
     "following",
   ),
   "following/manage": route(
@@ -214,6 +242,14 @@ export const SHELL_ROUTES: Readonly<Record<ShellRouteId, ShellRoute>> = {
     "Media job details remain local and survive lifecycle restoration.",
     "Media job",
     "activity",
+  ),
+  "more/job-preview": route(
+    "more/job-preview",
+    "DOWNLOADS",
+    "more-job-preview",
+    "Inspect and manage a saved download or recording.",
+    "Media job",
+    "more",
   ),
   more: route("more", "STREAMFUSION", "more-root", "", "More", "more"),
   "more/channel": route(
@@ -351,7 +387,11 @@ export function resolveShellHeaderCopy(
   location: ShellLocation,
   route: ShellRoute,
 ): { readonly eyebrow: string; readonly title: string } {
-  if (location.route === "more/category-detail") {
+  if (
+    location.route === "more/category-detail" ||
+    location.route === "search/category-detail" ||
+    location.route === "following/category-detail"
+  ) {
     return { eyebrow: route.eyebrow, title: location.category.name };
   }
   if (
@@ -384,7 +424,10 @@ function shellWatchSessionHeader(
 }
 
 export function canNavigateBack(state: ShellNavigationState): boolean {
-  return state.histories[state.activeDestination].trail.length > 0;
+  return (
+    state.activeDestination === "watch" ||
+    state.histories[state.activeDestination].trail.length > 0
+  );
 }
 
 function locationsMatch(left: ShellLocation, right: ShellLocation): boolean {
@@ -571,10 +614,13 @@ function isStaticRoute(value: unknown): value is StaticShellRouteId {
     value !== "watch/session-preview" &&
     value !== "activity/alert-preview" &&
     value !== "activity/job-preview" &&
+    value !== "more/job-preview" &&
     value !== "more/channel" &&
     value !== "search/result-preview" &&
     value !== "following/channel-preview" &&
-    value !== "more/category-detail"
+    value !== "more/category-detail" &&
+    value !== "search/category-detail" &&
+    value !== "following/category-detail"
   );
 }
 
@@ -587,7 +633,10 @@ function isShellLocation(value: unknown): value is ShellLocation {
       typeof value.eventId === "string" &&
       identifierPattern.test(value.eventId)
     );
-  if (value.route === "activity/job-preview")
+  if (
+    value.route === "activity/job-preview" ||
+    value.route === "more/job-preview"
+  )
     return (
       hasOnlyKeys(value, ["route", "jobId"]) &&
       typeof value.jobId === "string" &&
@@ -609,7 +658,11 @@ function isShellLocation(value: unknown): value is ShellLocation {
       channelLoginPattern.test(value.channel.username)
     );
   }
-  if (value.route === "more/category-detail") {
+  if (
+    value.route === "more/category-detail" ||
+    value.route === "search/category-detail" ||
+    value.route === "following/category-detail"
+  ) {
     return isCategoryDetailLocation(value);
   }
   if (value.route !== "watch/session-preview" || !isRecord(value.target))

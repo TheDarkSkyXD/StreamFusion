@@ -236,10 +236,82 @@ describe("adaptive app shell", () => {
       destination: "watch",
     });
     expect(getActiveShellRoute(state).id).toBe("watch");
-    expect(canNavigateBack(state)).toBe(false);
+    expect(canNavigateBack(state)).toBe(true);
     expect(
       getActiveShellRoute(shellNavigationReducer(state, { type: "back" })).id,
     ).toBe("following");
+  });
+
+  it.each([
+    ["search", "search/category-detail"],
+    ["following", "following/category-detail"],
+    ["more", "more/category-detail"],
+  ] as const)(
+    "returns from a %s category to its own destination",
+    (destination, route) => {
+      let state = shellNavigationReducer(createInitialShellNavigationState(), {
+        type: "select",
+        destination,
+      });
+      if (destination === "more") {
+        state = shellNavigationReducer(state, {
+          type: "navigate",
+          location: { route: "more/categories" },
+        });
+      }
+      state = shellNavigationReducer(state, {
+        type: "navigate",
+        location: {
+          route,
+          category: {
+            boxArtUrl: "https://example.com/box.png",
+            id: "509658",
+            name: "Just Chatting",
+            platform: "twitch",
+          },
+        },
+      });
+      const restored = restoreShellNavigationState(
+        serializeShellNavigationState(state),
+      );
+      expect(restored.kind).toBe("restored");
+      expect(restored.state.activeDestination).toBe(destination);
+      expect(getActiveShellLocation(restored.state).route).toBe(route);
+      expect(
+        resolveShellHeaderCopy(
+          getActiveShellLocation(restored.state),
+          getActiveShellRoute(restored.state),
+        ).title,
+      ).toBe("Just Chatting");
+      const backed = shellNavigationReducer(restored.state, { type: "back" });
+      expect(getActiveShellRoute(backed).id).toBe(
+        destination === "more" ? "more/categories" : destination,
+      );
+    },
+  );
+
+  it("returns from a Downloads job to Downloads after restoration", () => {
+    let state = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "navigate",
+      location: { route: "more/downloads" },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "more/job-preview", jobId: "job-1" },
+    });
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(getActiveShellLocation(restored.state)).toEqual({
+      route: "more/job-preview",
+      jobId: "job-1",
+    });
+    expect(
+      getActiveShellRoute(
+        shellNavigationReducer(restored.state, { type: "back" }),
+      ).id,
+    ).toBe("more/downloads");
   });
 
   it("keeps an empty Watch preview inside Watch when backing out", () => {

@@ -1,6 +1,7 @@
 import { createElement, isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
+import type { Category } from "@streamfusion/core/content";
 
 import { SEARCH_PROOF_SOURCE } from "../components/search-proof-controls";
 import { UnifiedSearchView } from "../components/unified-search-screen";
@@ -106,6 +107,7 @@ function render(
     readonly mode?: "search" | "browse";
     readonly idle?: boolean;
     readonly onWatch?: (target: WatchTarget) => void;
+    readonly onOpenCategory?: (category: Category) => void;
     readonly resultType?: "all" | "streams" | "videos";
   } = {},
 ) {
@@ -134,6 +136,9 @@ function render(
     onSubmit: () => undefined,
     onToggleLiveOnly: () => undefined,
     ...(extras.onWatch === undefined ? {} : { onWatch: extras.onWatch }),
+    ...(extras.onOpenCategory === undefined
+      ? {}
+      : { onOpenCategory: extras.onOpenCategory }),
     platform: "all",
     tab: extras.resultType ?? "all",
     view: composeUnifiedSearch({
@@ -163,6 +168,26 @@ function render(
 
 // Guards: typed search draft stays in the field with a regular-weight white glyph so Android API 30 does not hide input text
 describe("Unified search screen", () => {
+  it("opens a category result with its identity and an accessible button", () => {
+    const opened: Category[] = [];
+    const { nodes } = render(
+      fixtureSearchOutcome("twitch", "ready"),
+      fixtureSearchOutcome("kick", "ready"),
+      {
+        onOpenCategory: (category) => opened.push(category),
+        resultType: "categories",
+      },
+    );
+    const category = nodes.find(
+      (node) => node.props.testID === "search-category-twitch-twitch-cat",
+    );
+    expect(category?.type).toBe("Pressable");
+    expect(category?.props.accessibilityRole).toBe("button");
+    category?.props.onPress?.();
+    expect(opened).toMatchObject([
+      { id: "twitch-cat", name: "Just Chatting", platform: "twitch" },
+    ]);
+  });
   it.each(["all", "streams"] as const)(
     "opens a live stream from the %s tab through Watch",
     (resultType) => {

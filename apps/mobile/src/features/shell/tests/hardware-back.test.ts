@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { resolveHardwareBack } from "../domain/hardware-back";
+import {
+  canNavigateBack,
+  createInitialShellNavigationState,
+  shellNavigationReducer,
+} from "../domain/shell-navigation";
 
 // Guards: Android Back cancels an Activity overlay before it pops a route
 // Guards: destination-root Back leaves the task instead of popping an empty stack
@@ -64,6 +69,21 @@ describe("hardware back", () => {
         fullscreen: false,
         hasOverlay: false,
         watchingStream: true,
+      }),
+    ).toBe("navigate-back");
+  });
+
+  it("navigates from Watch root before playback starts", () => {
+    const state = shellNavigationReducer(createInitialShellNavigationState(), {
+      type: "select",
+      destination: "watch",
+    });
+    expect(
+      resolveHardwareBack({
+        canNavigateBack: canNavigateBack(state),
+        fullscreen: false,
+        hasOverlay: false,
+        watchingStream: false,
       }),
     ).toBe("navigate-back");
   });

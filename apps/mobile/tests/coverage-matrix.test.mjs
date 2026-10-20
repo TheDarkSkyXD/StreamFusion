@@ -43,8 +43,8 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
   const ledger = JSON.parse(ledgerBefore.toString("utf8"));
   assert.equal(ledger.schemaVersion, 1);
   assert.equal(ledger.issue, 195);
-  assert.equal(ledger.totals.discovered, 185);
-  assert.equal(ledger.totals.implemented, 134);
+  assert.equal(ledger.totals.discovered, 188);
+  assert.equal(ledger.totals.implemented, 137);
   assert.equal(ledger.totals.partial, 14);
   assert.equal(ledger.totals.placeholder, 2);
   assert.equal(ledger.totals.missing, 35);
@@ -130,6 +130,9 @@ test("coverage matrix reconciles prototype, contract, and shell routes", () => {
     ),
   );
   for (const id of [
+    "shell-route:search/category-detail",
+    "shell-route:following/category-detail",
+    "shell-route:more/job-preview",
     "tab:search:all",
     "tab:category-detail:clips",
     "tab:channel:home",

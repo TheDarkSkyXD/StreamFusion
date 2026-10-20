@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import type { SearchResultType } from "@streamfusion/core/discovery";
+import type { Category } from "@streamfusion/core/content";
 import type { ChannelIdentity } from "@streamfusion/core/platform";
 
 import { MobileRefreshableScroll } from "@mobile/design/refreshable";
@@ -55,6 +56,7 @@ export function UnifiedSearchScreen({
   history,
   initialQuery,
   onOpenAccounts,
+  onOpenCategory,
   onOpenChannel,
   onSearchFocusChange,
   onStateChange,
@@ -67,6 +69,7 @@ export function UnifiedSearchScreen({
   readonly history: SearchHistoryRepository;
   readonly initialQuery?: string;
   readonly onOpenAccounts: () => void;
+  readonly onOpenCategory?: (category: Category) => void;
   readonly onOpenChannel?: (
     channel: ChannelIdentity & { readonly avatarUrl?: string | null },
   ) => void;
@@ -138,6 +141,7 @@ export function UnifiedSearchScreen({
         void live.confirmClear();
       }}
       onOpenAccounts={onOpenAccounts}
+      {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
       onRemoveHistory={live.remove}
       onRepeatHistory={(entry) => submit(historyEntryLabel(entry))}
       onRequestClear={live.requestClear}
@@ -195,6 +199,7 @@ export function UnifiedSearchView({
   onClearDraft,
   onConfirmClear,
   onOpenAccounts,
+  onOpenCategory,
   onRefresh,
   onRemoveHistory,
   onRepeatHistory,
@@ -225,6 +230,7 @@ export function UnifiedSearchView({
   readonly onClearDraft: () => void;
   readonly onConfirmClear: () => void;
   readonly onOpenAccounts: () => void;
+  readonly onOpenCategory?: (category: Category) => void;
   readonly onRefresh?: () => void | Promise<void>;
   readonly onRemoveHistory: (entry: SearchHistoryEntry) => void;
   readonly onRepeatHistory: (entry: SearchHistoryEntry) => void;
@@ -338,6 +344,7 @@ export function UnifiedSearchView({
           ) : (
             <SearchResultsView
               header={resultHeader}
+              {...(onOpenCategory === undefined ? {} : { onOpenCategory })}
               {...(onLoadMore === undefined ? {} : { onLoadMore })}
               {...(onRefresh === undefined ? {} : { onRefresh })}
               refreshing={refreshing}

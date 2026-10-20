@@ -14,6 +14,7 @@ import type {
 import { mediaItems } from "../domain/channel-detail";
 import {
   watchTargetFromClip,
+  watchTargetFromStream,
   watchTargetFromVideo,
 } from "../domain/channel-watch-target";
 import { ChannelMediaRow } from "./channel-media-row";
@@ -45,9 +46,17 @@ export function HomeTab({
   readonly onWatch?: (target: WatchTarget) => void;
   readonly view: ChannelDetailModel;
 }) {
+  const live = view.live;
   return (
     <View style={styles.section} testID="channel-home-tab">
-      {view.live ? <HomeStreamCard stream={view.live} /> : null}
+      {live ? (
+        <HomeStreamCard
+          stream={live}
+          {...(onWatch
+            ? { onOpen: () => onWatch(watchTargetFromStream(live)) }
+            : {})}
+        />
+      ) : null}
       {view.channel?.bio ? (
         <View style={styles.about} testID="channel-about">
           <Text selectable style={styles.aboutTitle}>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { MediaJobSnapshot } from "@streamfusion/core/media-jobs";
 import { MobileButton } from "@mobile/design/button";
@@ -29,21 +29,34 @@ const filters: readonly {
   { value: "clip", label: "Clips" },
   { value: "recording", label: "Recordings" },
 ];
+export type DownloadsPresentationState = {
+  readonly query: string;
+  readonly filter: MediaLibraryFilter;
+};
 export function DownloadsScreen({
   jobs,
   onOpenJob,
   onRefresh,
   refreshing = false,
   offline = false,
+  onStateChange,
+  restoredState,
 }: {
   readonly jobs: readonly MediaJobSnapshot[];
   readonly onOpenJob: (jobId: string) => void;
   readonly onRefresh?: () => void | Promise<void>;
   readonly refreshing?: boolean;
   readonly offline?: boolean;
+  readonly onStateChange?: (state: DownloadsPresentationState) => void;
+  readonly restoredState?: DownloadsPresentationState;
 }) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<MediaLibraryFilter>("all");
+  const [query, setQuery] = useState(restoredState?.query ?? "");
+  const [filter, setFilter] = useState<MediaLibraryFilter>(
+    restoredState?.filter ?? "all",
+  );
+  useEffect(() => {
+    onStateChange?.({ query, filter });
+  }, [query, filter, onStateChange]);
   const visible = filterMediaJobs(jobs, query, filter);
   return (
     <MobileRefreshableScroll

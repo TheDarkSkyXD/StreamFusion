@@ -3,7 +3,10 @@ import type { WatchTarget } from "@mobile/features/watch/capabilities/watch";
 
 import type { FollowingSession } from "../capabilities/following-session";
 import { FollowingManageScreen } from "./following-manage-screen";
-import { FollowingScreen } from "./following-screen";
+import {
+  FollowingScreen,
+  type FollowingPresentationState,
+} from "./following-screen";
 import type { FollowingCategoryTarget } from "./following-tab-body";
 
 export function FollowingWorkspace({
@@ -12,6 +15,8 @@ export function FollowingWorkspace({
   onOpenManage,
   onOpenSearch,
   onWatch,
+  onStateChange,
+  restoredState,
   route,
   session,
 }: {
@@ -20,6 +25,8 @@ export function FollowingWorkspace({
   readonly onOpenManage: () => void;
   readonly onOpenSearch?: () => void;
   readonly onWatch?: (target: WatchTarget) => void;
+  readonly onStateChange?: (state: FollowingPresentationState) => void;
+  readonly restoredState?: FollowingPresentationState;
   readonly route: "following" | "following/manage";
   readonly session: FollowingSession;
 }) {
@@ -33,6 +40,8 @@ export function FollowingWorkspace({
       {...(onOpenChannel === undefined ? {} : { onOpenChannel })}
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       {...(onWatch === undefined ? {} : { onWatch })}
+      {...(onStateChange === undefined ? {} : { onStateChange })}
+      {...(restoredState === undefined ? {} : { restoredState })}
       session={session}
     />
   );

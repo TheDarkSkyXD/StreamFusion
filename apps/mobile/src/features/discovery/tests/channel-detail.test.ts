@@ -172,6 +172,32 @@ function bodyProps(
 }
 
 describe("channel detail screen", () => {
+  it("opens the live card from Channel Home", () => {
+    const channel = {
+      id: "twitch-c1",
+      platform: "twitch",
+      username: "twitch-live",
+    } as const;
+    const watched: unknown[] = [];
+    const nodes = descendants(
+      ChannelDetailBody({
+        ...bodyProps(channel, "ready"),
+        onWatch: (target) => watched.push(target),
+      }),
+    );
+    const card = nodes.find(
+      (node) => node.props.testID === "home-stream-twitch-twitch-ready",
+    );
+    expect(card?.props.onPress).toBeTypeOf("function");
+    card?.props.onPress?.();
+    expect(watched).toEqual([
+      {
+        channelId: "twitch-twitch-ready",
+        channelName: "twitch-live",
+        platform: "twitch",
+      },
+    ]);
+  });
   it("keeps channel tabs scrollable and selects their existing destinations", () => {
     const select = vi.fn();
     const nodes = descendants(ChannelTabs({ tab: "videos", onSelect: select }));

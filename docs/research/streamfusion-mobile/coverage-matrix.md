@@ -9,11 +9,11 @@ Source revisions are the files in this commit. The checker fails when a contract
 
 | Status | Count |
 | --- | ---: |
-| Implemented | 134 |
+| Implemented | 137 |
 | Partial | 14 |
 | Placeholder | 2 |
 | Missing | 35 |
-| Discovered | 185 |
+| Discovered | 188 |
 
 Implemented means the current candidate has a working control or screen for that row.
 Placeholder means the shell can open a saved-place route.
@@ -199,14 +199,17 @@ Missing means no route or control exists yet.
 | `action:sheet-fixture-action` | missing | — | — | missing |
 | `shell-route:search` | implemented | — | apps/mobile/src/features/discovery/components/unified-search-screen.tsx | tests |
 | `shell-route:search/result-preview` | placeholder | — | — | missing |
+| `shell-route:search/category-detail` | implemented | — | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
 | `shell-route:following` | implemented | — | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
 | `shell-route:following/channel-preview` | placeholder | — | — | missing |
+| `shell-route:following/category-detail` | implemented | — | apps/mobile/src/features/discovery/components/category-detail-screen.tsx | tests |
 | `shell-route:following/manage` | implemented | — | apps/mobile/src/features/follows/components/following-workspace.tsx | tests |
 | `shell-route:watch` | implemented | — | apps/mobile/src/features/watch/components/watch-route.tsx | tests |
 | `shell-route:watch/session-preview` | implemented | — | apps/mobile/src/features/watch/components/watch-route.tsx | tests |
 | `shell-route:activity` | implemented | — | apps/mobile/src/features/activity/components/activity-screen.tsx | tests |
 | `shell-route:activity/alert-preview` | implemented | — | — | tests |
 | `shell-route:activity/job-preview` | implemented | #163 | apps/mobile/src/features/media-jobs/components/media-job-screen.tsx | tests |
+| `shell-route:more/job-preview` | implemented | — | apps/mobile/src/features/media-jobs/components/media-job-screen.tsx | tests |
 | `shell-route:more` | implemented | — | — | tests |
 | `shell-route:more/channel` | implemented | — | apps/mobile/src/features/discovery/components/channel-detail-screen.tsx | tests |
 | `shell-route:more/categories` | implemented | — | apps/mobile/src/features/discovery/components/categories-screen.tsx | tests |

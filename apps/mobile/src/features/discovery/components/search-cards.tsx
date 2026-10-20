@@ -74,15 +74,13 @@ export function SearchChannelCard({
 
 export function SearchCategoryCard({
   category,
+  onOpen,
 }: {
   readonly category: Category;
+  readonly onOpen?: () => void;
 }) {
-  return (
-    <View
-      accessibilityLabel={`${category.name} on ${category.platform}`}
-      style={styles.category}
-      testID={`search-category-${category.platform}-${category.id}`}
-    >
+  const content = (
+    <>
       <View style={styles.boxArtWrap}>
         {category.boxArtUrl ? (
           <Image
@@ -94,16 +92,42 @@ export function SearchCategoryCard({
           <View style={styles.media} />
         )}
       </View>
-      <Text selectable style={styles.categoryTitle}>
-        {category.name}
-      </Text>
-      <View style={styles.categoryMeta}>
-        <MobilePlatformBadge platform={category.platform} />
-        <MobileCatalogTags
-          {...(category.tags === undefined ? {} : { tags: category.tags })}
-        />
+      <View style={styles.categoryCopy}>
+        <Text selectable style={styles.categoryTitle}>
+          {category.name}
+        </Text>
+        <View style={styles.categoryMeta}>
+          <MobilePlatformBadge platform={category.platform} />
+          <MobileCatalogTags
+            {...(category.tags === undefined ? {} : { tags: category.tags })}
+          />
+        </View>
       </View>
-    </View>
+    </>
+  );
+  const label = `${category.name} on ${category.platform}`;
+  const testID = `search-category-${category.platform}-${category.id}`;
+  if (!onOpen)
+    return (
+      <View accessibilityLabel={label} style={styles.category} testID={testID}>
+        {content}
+      </View>
+    );
+  return (
+    <Pressable
+      accessibilityHint="Opens category details"
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      android_ripple={{ color: mobileColors.surfaceRaised }}
+      onPress={onOpen}
+      style={({ pressed }) => [
+        styles.category,
+        pressed ? styles.pressed : null,
+      ]}
+      testID={testID}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -167,11 +191,15 @@ const styles = StyleSheet.create({
     ...mobilePressRing.pressed,
   },
   category: {
+    ...mobilePressRing.rest,
+    alignItems: "center",
     backgroundColor: mobileColors.surface,
     borderRadius: mobileRadii.large,
-    gap: mobileSpacing.small,
+    flexDirection: "row",
+    gap: mobileSpacing.medium,
     overflow: "hidden",
-    paddingBottom: mobileSpacing.medium,
+    padding: mobileSpacing.small,
+    minHeight: 112,
   },
   copy: {
     flex: 1,
@@ -188,7 +216,7 @@ const styles = StyleSheet.create({
   },
   categoryTitle: {
     ...mobileType.title,
-    paddingHorizontal: mobileSpacing.medium,
+    flexShrink: 1,
   },
   meta: {
     color: mobileColors.textSecondary,
@@ -197,16 +225,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   boxArtWrap: {
-    aspectRatio: 3 / 4,
     backgroundColor: mobileColors.surfaceMuted,
-    width: "100%",
+    borderRadius: mobileRadii.medium,
+    height: 96,
+    overflow: "hidden",
+    width: 72,
   },
   media: {
     height: "100%",
     width: "100%",
   },
   categoryMeta: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: mobileSpacing.small,
-    paddingHorizontal: mobileSpacing.medium,
   },
+  categoryCopy: { flex: 1, gap: mobileSpacing.small, minWidth: 0 },
 });

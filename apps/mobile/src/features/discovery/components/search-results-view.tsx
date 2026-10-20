@@ -5,7 +5,13 @@ import {
   Text,
   type ListRenderItemInfo,
 } from "react-native";
-import type { Channel, Clip, Stream, Video } from "@streamfusion/core/content";
+import type {
+  Category,
+  Channel,
+  Clip,
+  Stream,
+  Video,
+} from "@streamfusion/core/content";
 
 import { MobileButton } from "@mobile/design/button";
 import { mobileColors, mobileSpacing } from "@mobile/design/tokens";
@@ -26,6 +32,7 @@ import {
 export function SearchResultsView({
   header,
   onLoadMore,
+  onOpenCategory,
   onOpenChannel,
   onRefresh,
   onWatchClip,
@@ -36,6 +43,7 @@ export function SearchResultsView({
 }: {
   readonly header?: ReactElement;
   readonly onLoadMore?: (kind: MobileSearchKind) => void;
+  readonly onOpenCategory?: (category: Category) => void;
   readonly onOpenChannel?: (channel: Channel) => void;
   readonly onRefresh?: () => void | Promise<void>;
   readonly onWatchClip?: (clip: Clip) => void;
@@ -55,6 +63,7 @@ export function SearchResultsView({
         row={item}
         loadingMore={view.loadingMore}
         onLoadMore={onLoadMore}
+        onOpenCategory={onOpenCategory}
         onOpenChannel={onOpenChannel}
         onWatchClip={onWatchClip}
         onWatchStream={onWatchStream}
@@ -63,6 +72,7 @@ export function SearchResultsView({
     ),
     [
       onLoadMore,
+      onOpenCategory,
       onOpenChannel,
       onWatchClip,
       onWatchStream,
@@ -101,6 +111,7 @@ const SearchRowView = memo(function SearchRowView({
   row,
   loadingMore,
   onLoadMore,
+  onOpenCategory,
   onOpenChannel,
   onWatchClip,
   onWatchStream,
@@ -109,6 +120,7 @@ const SearchRowView = memo(function SearchRowView({
   readonly row: SearchRow;
   readonly loadingMore?: UnifiedSearchView["loadingMore"];
   readonly onLoadMore?: ((kind: MobileSearchKind) => void) | undefined;
+  readonly onOpenCategory?: ((category: Category) => void) | undefined;
   readonly onOpenChannel?: ((channel: Channel) => void) | undefined;
   readonly onWatchClip?: ((clip: Clip) => void) | undefined;
   readonly onWatchStream?: ((stream: Stream) => void) | undefined;
@@ -136,7 +148,14 @@ const SearchRowView = memo(function SearchRowView({
         />
       );
     case "category":
-      return <SearchCategoryCard category={row.item} />;
+      return (
+        <SearchCategoryCard
+          category={row.item}
+          {...(onOpenCategory
+            ? { onOpen: () => onOpenCategory(row.item) }
+            : {})}
+        />
+      );
     case "video":
       return (
         <SearchVideoCard
