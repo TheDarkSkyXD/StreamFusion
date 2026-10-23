@@ -150,13 +150,28 @@ export type LivePlaybackSourceFailure =
     }
   | { readonly detail: string; readonly kind: "invalid-response" };
 
+export type PlaybackSourceProtection = {
+  readonly kind: "widevine";
+  readonly authorization: {
+    readonly kind: "provider-live";
+    readonly platform: "twitch";
+    readonly channelName: string;
+  };
+};
+
+export type ResolvedPlaybackSource = {
+  readonly requestHeaders: Readonly<Record<string, string>>;
+  readonly sourceUri: HlsSourceUri;
+} & (
+  | { readonly protection?: never }
+  | { readonly protection: PlaybackSourceProtection }
+);
+
 export type LivePlaybackSourceResolution =
-  | {
+  | (ResolvedPlaybackSource & {
       readonly integration: PlaybackIntegration;
       readonly kind: "resolved";
-      readonly requestHeaders: Readonly<Record<string, string>>;
-      readonly sourceUri: HlsSourceUri;
-    }
+    })
   | {
       readonly failure: LivePlaybackSourceFailure;
       readonly integration: PlaybackIntegration;
@@ -319,28 +334,29 @@ export interface FocusedPlaybackPort {
     sessionId: string,
     volume: number,
   ): Promise<FocusedPlaybackControlResult>;
-  start(input: {
-    readonly sourceRecovery?: "resolve-live-source";
-    readonly muted?: boolean;
-    readonly allowHevc?: boolean;
-    readonly buffer?: {
-      readonly liveSyncDurationCount: number;
-      readonly lowLatencyMode: boolean;
-      readonly maxBufferLengthSec: number;
-      readonly maxMaxBufferLengthSec: number;
-    };
-    readonly filtering?: PlaybackFilterRequest;
-    readonly requestHeaders: Readonly<Record<string, string>>;
-    readonly sessionId: string;
-    readonly sourceUri: HlsSourceUri;
-  }): Promise<FocusedPlaybackStartResult>;
+  start(
+    input: ResolvedPlaybackSource & {
+      readonly sourceRecovery?: "resolve-live-source";
+      readonly muted?: boolean;
+      readonly allowHevc?: boolean;
+      readonly buffer?: {
+        readonly liveSyncDurationCount: number;
+        readonly lowLatencyMode: boolean;
+        readonly maxBufferLengthSec: number;
+        readonly maxMaxBufferLengthSec: number;
+      };
+      readonly filtering?: PlaybackFilterRequest;
+      readonly sessionId: string;
+    },
+  ): Promise<FocusedPlaybackStartResult>;
   subscribe(listener: (event: NativePlaybackEvent) => void): () => void;
 }
 
-export type FocusedPlaybackSourceRecoveryRequest = Pick<
-  Parameters<FocusedPlaybackPort["start"]>[0],
-  "sessionId" | "sourceUri" | "requestHeaders" | "filtering"
-> & { readonly interruptionId: number };
+export type FocusedPlaybackSourceRecoveryRequest = ResolvedPlaybackSource &
+  Pick<
+    Parameters<FocusedPlaybackPort["start"]>[0],
+    "sessionId" | "filtering"
+  > & { readonly interruptionId: number };
 
 export type FocusedPlaybackProtection =
   | { readonly kind: "normal" }

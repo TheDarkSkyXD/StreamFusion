@@ -19,7 +19,23 @@ export function createAndroidFocusedPlaybackPort(
 ): FocusedPlaybackPort {
   return {
     async recoverSource(input) {
-      const result = await contract.recoverSource?.(input);
+      const result = await contract.recoverSource?.({
+        interruptionId: input.interruptionId,
+        sessionId: input.sessionId,
+        sourceUri: input.sourceUri,
+        requestHeaders: input.requestHeaders,
+        ...(input.filtering === undefined
+          ? {}
+          : { filtering: input.filtering }),
+        ...(input.protection === undefined
+          ? {}
+          : {
+              protection: {
+                kind: "twitch-widevine" as const,
+                channelName: input.protection.authorization.channelName,
+              },
+            }),
+      });
       if (!result) {
         return {
           kind: "unavailable",
@@ -75,6 +91,14 @@ export function createAndroidFocusedPlaybackPort(
           ? {}
           : { filtering: input.filtering }),
         requestHeaders: input.requestHeaders,
+        ...(input.protection === undefined
+          ? {}
+          : {
+              protection: {
+                kind: "twitch-widevine" as const,
+                channelName: input.protection.authorization.channelName,
+              },
+            }),
         sessionId: input.sessionId,
         sourceUri: input.sourceUri,
       });

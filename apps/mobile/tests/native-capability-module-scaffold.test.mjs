@@ -124,7 +124,7 @@ test("the React Native modules keep contained stubs plus measured diagnostics an
         : className === "Captions"
           ? /fun getContractVersion\(\) = 4/u
           : className === "Playback"
-            ? /fun getContractVersion\(\) = 6/u
+            ? /fun getContractVersion\(\) = 7/u
           : /fun getContractVersion\(\) = 1/u,
     );
     if (className === "Diagnostics") {

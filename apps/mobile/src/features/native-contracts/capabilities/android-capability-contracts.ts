@@ -29,7 +29,7 @@ export type AndroidNativeFailure =
 export type AndroidCapabilityReadiness =
   | {
       readonly capability: AndroidCapabilityId;
-      readonly contractVersion: 1 | 2 | 3 | 4 | 5 | 6;
+      readonly contractVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
       readonly kind: "ready";
     }
   | {
@@ -63,7 +63,20 @@ export type PlaybackBufferRequest = {
   readonly maxMaxBufferLengthSec: number;
 };
 
-export interface PlaybackSessionRequest {
+export type NativePlaybackSource = {
+  readonly sourceUri: string;
+  readonly requestHeaders: Readonly<Record<string, string>>;
+} & (
+  | { readonly protection?: never }
+  | {
+      readonly protection: {
+        readonly kind: "twitch-widevine";
+        readonly channelName: string;
+      };
+    }
+);
+
+export type PlaybackSessionRequest = NativePlaybackSource & {
   readonly sourceRecovery?: "resolve-live-source";
   readonly muted?: boolean;
   readonly allowHevc?: boolean;
@@ -74,15 +87,13 @@ export interface PlaybackSessionRequest {
     readonly mode: "passthrough" | "canary" | "strip";
     readonly platform: string;
   };
-  readonly requestHeaders: Readonly<Record<string, string>>;
   readonly sessionId: string;
-  readonly sourceUri: string;
-}
+};
 
-export type PlaybackSourceRecoveryRequest = Pick<
-  PlaybackSessionRequest,
-  "sessionId" | "sourceUri" | "requestHeaders" | "filtering"
-> & { readonly interruptionId: number };
+export type PlaybackSourceRecoveryRequest = NativePlaybackSource &
+  Pick<PlaybackSessionRequest, "sessionId" | "filtering"> & {
+    readonly interruptionId: number;
+  };
 
 export interface PlaybackSessionState {
   readonly pictureInPictureEligible: boolean;

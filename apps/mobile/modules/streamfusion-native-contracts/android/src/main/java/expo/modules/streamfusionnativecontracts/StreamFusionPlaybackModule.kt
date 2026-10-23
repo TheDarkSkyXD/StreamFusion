@@ -21,7 +21,7 @@ class StreamFusionPlaybackModule(private val context: ReactApplicationContext) :
   override fun getName() = "StreamFusionPlayback"
 
   @ReactMethod(isBlockingSynchronousMethod = true)
-  fun getContractVersion() = 6
+  fun getContractVersion() = 7
 
   @ReactMethod fun addListener(eventName: String) = Unit
   @ReactMethod fun removeListeners(count: Int) = Unit

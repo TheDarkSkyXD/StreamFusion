@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TwitchPlaylistProxyPreferences } from "@mobile/features/ad-blocking/capabilities/twitch-playlist-proxy";
+import type { PlaybackFiltering } from "@mobile/features/ad-blocking/capabilities/ad-blocking";
 
 import type {
   FocusedPlaybackPort,
   FocusedPlaybackProtectionPort,
   LivePlaybackSources,
   NativePlaybackEvent,
+  PlaybackSourceProtection,
   WatchSessionIdSource,
   WatchTarget,
 } from "../capabilities/watch";
@@ -21,6 +23,14 @@ const target: WatchTarget = {
 const first = asHlsSourceUri("https://example.com/first.m3u8")!;
 const second = asHlsSourceUri("https://example.com/second.m3u8")!;
 const third = asHlsSourceUri("https://example.com/third.m3u8")!;
+const widevine: PlaybackSourceProtection = {
+  kind: "widevine",
+  authorization: {
+    kind: "provider-live",
+    platform: "twitch",
+    channelName: "live",
+  },
+};
 
 function fixture(
   resolve: LivePlaybackSources["twitch"]["resolve"] = async () => ({
@@ -32,6 +42,8 @@ function fixture(
   recover?: NonNullable<FocusedPlaybackPort["recoverSource"]>,
   sessionIds: WatchSessionIdSource = { create: () => "watch:1" },
   playlistProxy?: { snapshot(): Promise<TwitchPlaylistProxyPreferences> },
+  initialProtection?: PlaybackSourceProtection,
+  filtering?: PlaybackFiltering,
 ) {
   let emit: ((event: NativePlaybackEvent) => void) | undefined;
   const starts: Parameters<FocusedPlaybackPort["start"]>[0][] = [];
@@ -141,6 +153,7 @@ function fixture(
             kind: "resolved",
             requestHeaders: {},
             sourceUri: first,
+            ...(initialProtection ? { protection: initialProtection } : {}),
           };
         return resolve(input);
       },
@@ -163,6 +176,7 @@ function fixture(
     protection,
     sessionIds,
     sources,
+    ...(filtering ? { filtering } : {}),
     ...(playlistProxy ? { playlistProxy } : {}),
   });
   return {
@@ -196,6 +210,63 @@ async function heartbeat(app: ReturnType<typeof fixture>, elapsedMs: number) {
 afterEach(() => vi.useRealTimers());
 
 describe("focused live source recovery", () => {
+  it("keeps protection on direct start and recovery while proxy preferences are enabled", async () => {
+    vi.useFakeTimers();
+    const app = fixture(
+      async () => ({
+        integration: "twitch-gql-usher",
+        kind: "resolved",
+        requestHeaders: {},
+        sourceUri: second,
+        protection: widevine,
+      }),
+      undefined,
+      undefined,
+      {
+        snapshot: async () => ({
+          enabled: true,
+          sources: [
+            {
+              id: "proxy",
+              enabled: true,
+              addQueryParams: false,
+              url: "https://proxy.example/live/$channel",
+            },
+          ],
+        }),
+      },
+      widevine,
+      {
+        effective: async () => ({
+          enabled: true,
+          mode: "strip",
+          platform: "twitch",
+        }),
+      },
+    );
+    await app.session.start(target);
+    expect(app.starts).toMatchObject([
+      {
+        sourceUri: first,
+        protection: widevine,
+        filtering: { enabled: true, mode: "strip", channelName: "live" },
+      },
+    ]);
+    app.emit({
+      kind: "source-recovery-required",
+      sessionId: "watch:1",
+      interruptionId: 1,
+    });
+    await heartbeat(app, 1000);
+    expect(app.recoveries).toMatchObject([
+      {
+        sourceUri: second,
+        protection: widevine,
+        filtering: { enabled: true, mode: "strip", channelName: "live" },
+      },
+    ]);
+  });
+
   it("retries from native progress while JavaScript timers are suspended in PiP", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

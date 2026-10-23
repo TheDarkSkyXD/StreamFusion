@@ -100,8 +100,11 @@ object FocusedPlaybackSessionOwner {
     if (sourceUri.isNullOrBlank() || !isHttpsMedia(sourceUri)) {
       return@onMain mapOf("kind" to "invalid")
     }
+    val protection = try { TwitchProtectedSource.parse(request) } catch (_: IllegalArgumentException) {
+      return@onMain mapOf("kind" to "invalid")
+    }
     val quarantine = TwitchAdMediaQuarantine()
-    val source = playbackSource(sessionId, sourceUri, request, request, quarantine)
+    val source = playbackSource(sessionId, sourceUri, request, request, quarantine, protection)
     val exo = ExoPlayer.Builder(context.applicationContext)
       .setMediaSourceFactory(source.factory)
       .setRenderersFactory(captionRenderers(context.applicationContext, sessionId))
@@ -121,7 +124,7 @@ object FocusedPlaybackSessionOwner {
       }
       val outgoing = sessions.remove(sessionId)
       sessions[sessionId] = Session(
-        sessionId, exo, source.filteringFactory, request, quarantine,
+        sessionId, exo, source.filteringFactory, source.widevine, request, quarantine,
         sourceRecovery = request["sourceRecovery"] == "resolve-live-source",
       ).also { it.muted = initiallyMuted }
       bindViewsLocked()
@@ -157,15 +160,21 @@ object FocusedPlaybackSessionOwner {
       ?: return@onMain mapOf("kind" to "invalid")
     val sourceUri = request["sourceUri"] as? String
     if (sourceUri.isNullOrBlank() || !isHttpsMedia(sourceUri)) return@onMain mapOf("kind" to "invalid")
+    val protection = try { TwitchProtectedSource.parse(request) } catch (_: IllegalArgumentException) {
+      return@onMain mapOf("kind" to "invalid")
+    }
     val current = requireSession(sessionId) ?: return@onMain missing(sessionId)
     val interruption = current.interruption
     if (interruption?.id != interruptionId || interruption.phase != RecoveryPhase.WAITING) {
       return@onMain mapOf("kind" to "invalid")
     }
-    val source = playbackSource(sessionId, sourceUri, request, current.startRequest, current.quarantine)
+    val source = playbackSource(sessionId, sourceUri, request, current.startRequest, current.quarantine, protection)
     val outgoingFactory = current.filteringFactory
+    val outgoingWidevine = current.widevine
     current.filteringFactory = source.filteringFactory
+    current.widevine = source.widevine
     current.interruption = interruption.copy(phase = RecoveryPhase.PREPARING)
+    outgoingWidevine?.close()
     current.player.setMediaSource(source.mediaSource)
     outgoingFactory?.dispose()
     current.player.prepare()
@@ -648,16 +657,19 @@ object FocusedPlaybackSessionOwner {
     val factory: DefaultMediaSourceFactory,
     val mediaItem: androidx.media3.common.MediaItem,
     val filteringFactory: FilteringDataSource.Factory?,
+    val widevine: TwitchWidevineSession?,
   ) {
     val mediaSource: MediaSource get() = factory.createMediaSource(mediaItem)
   }
 
+  @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
   private fun playbackSource(
     sessionId: String,
     sourceUri: String,
     sourceRequest: Map<String, Any>,
     preferences: Map<String, Any>,
     quarantine: TwitchAdMediaQuarantine,
+    protection: TwitchProtectedSource?,
   ): PlaybackSource {
     val headers = requestHeaders(sourceRequest)
     val httpFactory = DefaultHttpDataSource.Factory()
@@ -677,14 +689,20 @@ object FocusedPlaybackSessionOwner {
         ))
       },
       sourceUri,
-      (sourceRequest["filtering"] as? Map<*, *>)?.get("channelName") as? String,
+      protection?.channel ?: (sourceRequest["filtering"] as? Map<*, *>)?.get("channelName") as? String,
       quarantine,
+      protection != null,
     )
+    val widevine = protection?.let(::TwitchWidevineSession)
+    val factory = DefaultMediaSourceFactory(filteringFactory ?: httpFactory)
+      .setLoadErrorHandlingPolicy(PlaybackLoadErrorHandlingPolicy())
+    if (widevine != null) factory.setDrmSessionManagerProvider { widevine.manager }
     return PlaybackSource(
-      DefaultMediaSourceFactory(filteringFactory ?: httpFactory)
-        .setLoadErrorHandlingPolicy(PlaybackLoadErrorHandlingPolicy()),
-      PlaybackPreferenceConfig.mediaItem(sourceUri, mimeType(sourceUri), preferences),
+      factory,
+      PlaybackPreferenceConfig.mediaItem(sourceUri, mimeType(sourceUri), preferences)
+        .buildUpon().setDrmConfiguration(widevine?.configuration).build(),
       filteringFactory,
+      widevine,
     )
   }
 
@@ -777,6 +795,7 @@ object FocusedPlaybackSessionOwner {
     val sessionId: String,
     val player: ExoPlayer,
     var filteringFactory: FilteringDataSource.Factory?,
+    var widevine: TwitchWidevineSession?,
     val startRequest: Map<String, Any>,
     val quarantine: TwitchAdMediaQuarantine,
     val sourceRecovery: Boolean,
@@ -791,6 +810,7 @@ object FocusedPlaybackSessionOwner {
 
     fun dispose() {
       CaptionPcmTap.endSession(sessionId)
+      widevine?.close()
       player.release()
       filteringFactory?.dispose()
     }
@@ -917,7 +937,11 @@ object FocusedPlaybackSessionOwner {
     }
   }
 
+  @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
   private fun isRecoverableSourceError(error: PlaybackException): Boolean {
+    if (error.errorCode in 6000..6999 || generateSequence<Throwable>(error) { it.cause }.any {
+        it is androidx.media3.exoplayer.drm.DrmSession.DrmSessionException || it is TwitchWidevineFailure
+      }) return false
     if (generateSequence<Throwable>(error) { it.cause }.any {
         it is HlsPlaylistTracker.PlaylistStuckException || it is HlsPlaylistTracker.PlaylistResetException
       }) return true

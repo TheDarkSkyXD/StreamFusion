@@ -78,19 +78,28 @@ export async function prepareWatchSourceAttempts(
         : input.target.platform === "twitch"
           ? { ...filtering, channelName: input.target.channelName }
           : filtering;
-  const proxyPreferences = await input.playlistProxy?.snapshot();
-  const attempts = playlistProxyPlaybackAttempts({
-    direct: {
-      requestHeaders: resolved.requestHeaders,
-      sourceUri: resolved.sourceUri,
-    },
-    preferences:
-      targetFiltering?.enabled === true &&
-      targetFiltering.mode !== "passthrough"
-        ? undefined
-        : proxyPreferences,
-    target: input.target,
-  });
+  const proxyPreferences = resolved.protection
+    ? undefined
+    : await input.playlistProxy?.snapshot();
+  const attempts = resolved.protection
+    ? [
+        {
+          requestHeaders: resolved.requestHeaders,
+          sourceUri: resolved.sourceUri,
+        },
+      ]
+    : playlistProxyPlaybackAttempts({
+        direct: {
+          requestHeaders: resolved.requestHeaders,
+          sourceUri: resolved.sourceUri,
+        },
+        preferences:
+          targetFiltering?.enabled === true &&
+          targetFiltering.mode !== "passthrough"
+            ? undefined
+            : proxyPreferences,
+        target: input.target,
+      });
   return attempts.map((attempt) => {
     const isProxyAttempt = attempt.sourceUri !== resolved.sourceUri;
     const attemptFiltering =
@@ -109,6 +118,9 @@ export async function prepareWatchSourceAttempts(
         : { filtering: attemptFiltering }),
       requestHeaders: attempt.requestHeaders,
       sourceUri: attempt.sourceUri,
+      ...(resolved.protection === undefined
+        ? {}
+        : { protection: resolved.protection }),
     };
   });
 }

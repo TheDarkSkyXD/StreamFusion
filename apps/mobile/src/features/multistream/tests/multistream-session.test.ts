@@ -131,6 +131,30 @@ describe("Multistream session", () => {
       "end:player-2",
     ]);
   });
+
+  it("forwards Widevine protection when adding a Twitch tile", async () => {
+    const { session, playback, resolve } = setup();
+    const protection = {
+      kind: "widevine" as const,
+      authorization: {
+        kind: "provider-live" as const,
+        platform: "twitch" as const,
+        channelName: "alpha",
+      },
+    };
+    resolve.mockResolvedValueOnce({
+      kind: "resolved",
+      integration: "twitch-gql-usher",
+      sourceUri: "https://example.com/protected.m3u8" as HlsSourceUri,
+      requestHeaders: {},
+      protection,
+    });
+    const start = vi.spyOn(playback, "start");
+    await session.add("twitch", "alpha");
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({ muted: true, protection }),
+    );
+  });
   it("rejects duplicate channels and enforces capacity even for concurrent adds", async () => {
     const { session, resolve } = setup(1);
     await Promise.all([

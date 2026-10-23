@@ -127,8 +127,9 @@ internal class FilteringDataSource(
     private val sourceUri: String,
     channelName: String?,
     quarantine: TwitchAdMediaQuarantine = TwitchAdMediaQuarantine(),
+    protected: Boolean = false,
   ) : DataSource.Factory {
-    private val backup = if (mode == "strip") TwitchBackupOrchestrator(sourceUri, channelName, quarantine = quarantine) else null
+    private val backup = if (mode == "strip") TwitchBackupOrchestrator(sourceUri, channelName, quarantine = quarantine, protected = protected) else null
 
     override fun createDataSource(): DataSource {
       return FilteringDataSource(upstreamFactory.createDataSource(), mode, onDiagnostic, backup, sourceUri)

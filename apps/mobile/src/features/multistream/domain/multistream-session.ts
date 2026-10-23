@@ -240,6 +240,9 @@ export function createMultistreamSession(input: {
           sessionId: id,
           sourceUri: source.sourceUri,
           requestHeaders: source.requestHeaders,
+          ...(source.protection === undefined
+            ? {}
+            : { protection: source.protection }),
           muted: true,
         });
         if (!active()) {

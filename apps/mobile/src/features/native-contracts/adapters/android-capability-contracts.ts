@@ -75,8 +75,8 @@ function describe(capability: AndroidCapabilityId): string {
 
 function expectedContractVersion(
   capability: AndroidCapabilityId,
-): 1 | 2 | 3 | 4 | 5 | 6 {
-  if (capability === "playback") return 6;
+): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
+  if (capability === "playback") return 7;
   if (capability === "diagnostics" || capability === "media-jobs") {
     return 3;
   }

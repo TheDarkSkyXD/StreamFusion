@@ -9,17 +9,25 @@ const target = {
   platform: "twitch" as const,
 };
 
-const tokenResponse = new Response(
-  JSON.stringify({
-    data: {
-      streamPlaybackAccessToken: {
-        signature: "sig",
-        value: '{"authorization":{"forbidden":false}}',
+function twitchResponse(
+  isEncrypted: unknown = false,
+  stream: unknown = { isEncrypted },
+) {
+  return new Response(
+    JSON.stringify([
+      { data: { user: { stream } } },
+      {
+        data: {
+          streamPlaybackAccessToken: {
+            signature: "sig",
+            value: '{"authorization":{"forbidden":false}}',
+          },
+        },
       },
-    },
-  }),
-  { status: 200 },
-);
+    ]),
+    { status: 200 },
+  );
+}
 
 describe("twitch live playback source", () => {
   it("returns offline when a request fails without DOMException in the runtime", async () => {
@@ -66,7 +74,7 @@ describe("twitch live playback source", () => {
 
   it("builds an HTTPS Usher URL from a guest token", async () => {
     const source = createTwitchLivePlaybackSource({
-      fetch: async () => tokenResponse.clone(),
+      fetch: async () => twitchResponse(),
     });
     const result = await source.resolve({
       signal: new AbortController().signal,
@@ -79,10 +87,122 @@ describe("twitch live playback source", () => {
     );
     expect(result.sourceUri).toContain("sig=sig");
     expect(result.requestHeaders).toEqual(twitchHlsRequestHeaders());
+    expect(result).not.toHaveProperty("protection");
+  });
+
+  it("selects a Widevine master and protection descriptor for encrypted Twitch live", async () => {
+    const fetch = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      twitchResponse(true),
+    );
+    const source = createTwitchLivePlaybackSource({ fetch });
+    const result = await source.resolve({
+      signal: new AbortController().signal,
+      target,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = fetch.mock.calls[0]?.[1]?.body;
+    expect(typeof body).toBe("string");
+    if (typeof body !== "string") return;
+    const request: unknown = JSON.parse(body);
+    expect(request).toMatchObject([
+      { operationName: "VideoPlayerStreamMetadata" },
+      { operationName: "PlaybackAccessToken" },
+    ]);
+    expect(result).toMatchObject({
+      kind: "resolved",
+      protection: {
+        kind: "widevine",
+        authorization: {
+          kind: "provider-live",
+          platform: "twitch",
+          channelName: "ninja",
+        },
+      },
+    });
+    if (result.kind !== "resolved") return;
+    const params = new URL(result.sourceUri).searchParams;
+    expect(params.get("cdm")).toBe("wv");
+    expect(params.get("player_backend")).toBe("mediaplayer");
+    expect(params.get("supported_codecs")).toBe("h264");
+    expect(params.get("playlist_include_framerate")).toBe("true");
+    expect(params.get("allow_source")).toBe("true");
+    expect(params.get("allow_audio_only")).toBe("true");
+  });
+
+  it("reports an offline stream even when Twitch issues a playback token", async () => {
+    const source = createTwitchLivePlaybackSource({
+      fetch: async () => twitchResponse(false, null),
+    });
+    await expect(
+      source.resolve({ signal: new AbortController().signal, target }),
+    ).resolves.toMatchObject({
+      kind: "unavailable",
+      failure: { kind: "channel-offline" },
+    });
+  });
+
+  it.each([{}, { isEncrypted: "true" }])(
+    "rejects malformed stream metadata %j",
+    async (stream) => {
+      const source = createTwitchLivePlaybackSource({
+        fetch: async () => twitchResponse(true, stream),
+      });
+      await expect(
+        source.resolve({ signal: new AbortController().signal, target }),
+      ).resolves.toMatchObject({
+        kind: "unavailable",
+        failure: { kind: "invalid-response" },
+      });
+    },
+  );
+
+  it("rejects GraphQL metadata errors even when a clear flag is present", async () => {
+    const source = createTwitchLivePlaybackSource({
+      fetch: async () =>
+        new Response(
+          JSON.stringify([
+            {
+              data: { user: { stream: { isEncrypted: false } } },
+              errors: [{ message: "failed" }],
+            },
+            {
+              data: {
+                streamPlaybackAccessToken: { signature: "sig", value: "token" },
+              },
+            },
+          ]),
+          { status: 200 },
+        ),
+    });
+    await expect(
+      source.resolve({ signal: new AbortController().signal, target }),
+    ).resolves.toMatchObject({
+      kind: "unavailable",
+      failure: { kind: "invalid-response" },
+    });
+  });
+
+  it("does not report a metadata failure as channel-offline when the token is absent", async () => {
+    const source = createTwitchLivePlaybackSource({
+      fetch: async () =>
+        new Response(
+          JSON.stringify([
+            { errors: [{ message: "failed" }] },
+            { data: { streamPlaybackAccessToken: null } },
+          ]),
+          { status: 200 },
+        ),
+    });
+    await expect(
+      source.resolve({ signal: new AbortController().signal, target }),
+    ).resolves.toMatchObject({
+      kind: "unavailable",
+      failure: { kind: "invalid-response" },
+    });
   });
 
   it("resolves named channels through Twitch GQL instead of a local fixture", async () => {
-    const fetch = vi.fn(async () => tokenResponse.clone());
+    const fetch = vi.fn(async () => twitchResponse());
     const source = createTwitchLivePlaybackSource({ fetch });
     const result = await source.resolve({
       signal: new AbortController().signal,
@@ -103,9 +223,13 @@ describe("twitch live playback source", () => {
   it("treats a missing token as channel-offline", async () => {
     const source = createTwitchLivePlaybackSource({
       fetch: async () =>
-        new Response(JSON.stringify({ data: { streamPlaybackAccessToken: null } }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify([
+            { data: { user: { stream: { isEncrypted: false } } } },
+            { data: { streamPlaybackAccessToken: null } },
+          ]),
+          { status: 200 },
+        ),
     });
     await expect(
       source.resolve({ signal: new AbortController().signal, target }),

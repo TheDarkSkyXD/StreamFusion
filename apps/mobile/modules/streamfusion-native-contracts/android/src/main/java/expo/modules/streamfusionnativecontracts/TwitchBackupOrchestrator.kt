@@ -30,6 +30,7 @@ internal class TwitchBackupOrchestrator(
   private val executor: ExecutorService = Executors.newSingleThreadExecutor(),
   private val now: () -> Long = System::currentTimeMillis,
   private val quarantine: TwitchAdMediaQuarantine = TwitchAdMediaQuarantine(),
+  private val protected: Boolean = false,
 ) {
   private enum class OutputSource { ORIGINAL, BACKUP }
 
@@ -256,6 +257,7 @@ internal class TwitchBackupOrchestrator(
     val playlist = transport.text(rendition.url) ?: return null
     if (PlaybackPlaylistFilter.hasAds(playlist) || !TwitchBackupPlaylist.hasPlayableSegment(playlist)) return null
     val absolute = TwitchBackupPlaylist.absoluteMedia(playlist, rendition.url) ?: return null
+    if (!compatibleProtection(absolute)) return null
     if (TwitchBackupPlaylist.sequence(absolute) == null) return null
     if (containsBlockedMedia(absolute, rendition.url)) return null
     return Backup(playerType, rendition, absolute, now())
@@ -277,7 +279,7 @@ internal class TwitchBackupOrchestrator(
           if (disposed) return@synchronized
           state.refreshing = false
           if (state.served !== served) return@synchronized
-          if (refreshed == null || containsBlockedMedia(refreshed, served.rendition.url)) {
+          if (refreshed == null || !compatibleProtection(refreshed) || containsBlockedMedia(refreshed, served.rendition.url)) {
             state.served = null
             state.nextRetryAt = 0
           } else if (TwitchBackupPlaylist.aligned(served.playlist, refreshed)) {
@@ -304,6 +306,14 @@ internal class TwitchBackupOrchestrator(
     base.setQueryParameter("allow_source", "true")
     base.setQueryParameter("allow_audio_only", "true")
     base.setQueryParameter("playlist_include_framerate", "true")
+    if (protected) {
+      base.setQueryParameter("cdm", "wv")
+      base.setQueryParameter("player_backend", "mediaplayer")
+      base.setQueryParameter("supported_codecs", "h264")
+    }
     return base.build().toString()
   }
+
+  private fun compatibleProtection(playlist: String): Boolean = !protected ||
+    playlist.lineSequence().any { it.startsWith("#EXT-X-MAP:") && it.contains("URI=\"https://") }
 }

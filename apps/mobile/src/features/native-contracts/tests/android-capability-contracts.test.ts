@@ -26,7 +26,7 @@ const unsupported = async () => ({
 const playbackBinding: NativePlaybackBinding = {
   endFocusedSession: unsupported,
   enterPictureInPicture: unsupported,
-  getContractVersion: () => 6,
+  getContractVersion: () => 7,
   listQualities: unsupported,
   seekTo: unsupported,
   setMuted: unsupported,
@@ -279,7 +279,7 @@ describe("Android capability module contracts", () => {
       { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 3, kind: "ready" },
-      { capability: "playback", contractVersion: 6, kind: "ready" },
+      { capability: "playback", contractVersion: 7, kind: "ready" },
     ]);
     await expect(
       contracts.playback.enterPictureInPicture("watch-1"),
@@ -330,6 +330,18 @@ describe("Android capability module contracts", () => {
         kind: "unavailable",
       },
     );
+
+    expect(
+      createAndroidPlaybackContractPort(
+        reader({
+          ...playbackBinding,
+          getContractVersion: () => 6,
+        }),
+      ).readiness(),
+    ).toMatchObject({
+      kind: "unavailable",
+      failure: { code: "NATIVE_CONTRACT_VERSION_UNSUPPORTED" },
+    });
 
     expect(
       createAndroidDiagnosticsContractPort(

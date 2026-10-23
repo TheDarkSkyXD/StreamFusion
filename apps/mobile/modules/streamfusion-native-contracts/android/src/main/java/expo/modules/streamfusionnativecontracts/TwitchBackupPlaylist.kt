@@ -107,7 +107,9 @@ internal object TwitchBackupPlaylist {
           line.startsWith("#EXT-X-RENDITION-REPORT:") -> {
           val match = uriAttribute.find(line)
           if (match == null) line else {
-            val url = resolve(baseUrl, match.groupValues[1]) ?: return null
+            val reference = match.groupValues[1]
+            if (line.startsWith("#EXT-X-KEY:") && reference.startsWith("data:", ignoreCase = true)) return@map line
+            val url = resolve(baseUrl, reference) ?: return null
             line.replaceRange(match.range, "URI=\"$url\"")
           }
         }

@@ -6,6 +6,7 @@ import androidx.media3.exoplayer.hls.playlist.HlsPlaylistParser
 import java.io.ByteArrayInputStream
 import java.util.concurrent.AbstractExecutorService
 import java.util.concurrent.TimeUnit
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,6 +48,63 @@ class TwitchBackupOrchestratorTest {
     #EXTINF:2.0,
     commercial.ts
   """.trimIndent()
+
+  @Test fun inlineWidevineKeysAndInitializationMapsSurviveBackupRewriting() {
+    val playlist = clean.replace("#EXTINF:2.0,", "#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"data:text/plain;base64,AQID\",KEYFORMAT=\"urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed\"\n#EXTINF:2.0,")
+    val rewritten = TwitchBackupPlaylist.absoluteMedia(playlist, backupMedia)
+    assertEquals(playlist.replace("URI=\"init.mp4\"", "URI=\"https://backup.example/live/init.mp4\"")
+      .replace("live100.ts", "https://backup.example/live/live100.ts")
+      .replace("live101.ts", "https://backup.example/live/live101.ts"), rewritten)
+  }
+
+  @Test fun protectedBackupForcesWidevineMasterAndPreservesKeylessInitialization() {
+    val protectedClean = clean.replace("#EXTINF:2.0,", "#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:2.0,")
+    val transport = FakeTransport(backupMaster, protectedClean)
+    val orchestrator = TwitchBackupOrchestrator(source, null, transport, InlineExecutor(), protected = true)
+    try {
+      orchestrator.process(source, master)
+      orchestrator.process(media, protectedClean)
+      val result = orchestrator.process(media, ad)
+      val request = transport.requestedMasterUrl.toHttpUrl()
+      assertEquals("wv", request.queryParameter("cdm"))
+      assertEquals("mediaplayer", request.queryParameter("player_backend"))
+      assertEquals("h264", request.queryParameter("supported_codecs"))
+      assertTrue(result.playlist.contains("#EXT-X-MAP:URI=\"https://backup.example/live/init.mp4\""))
+      assertFalse(result.playlist.contains("#EXT-X-KEY:"))
+      assertTrue(result.playlist.contains("https://backup.example/live/live100.ts"))
+    } finally { orchestrator.dispose() }
+  }
+
+  @Test fun protectedBackupRejectsMissingInitializationOnCandidate() {
+    val noMap = TwitchBackupOrchestrator(source, null, FakeTransport(backupMaster, clean), InlineExecutor(), protected = true)
+    try {
+      noMap.process(source, master)
+      noMap.process(media, clean)
+      assertFalse(noMap.process(media, ad).playlist.contains("live100.ts"))
+    } finally { noMap.dispose() }
+  }
+
+  @Test fun protectedRefreshPreservesRotatedMapAndInlineKeyThenHoldsWhenInitializationDisappears() {
+    val first = clean.replace("#EXT-X-MEDIA-SEQUENCE:100", "#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-MAP:URI=\"init-one.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"data:text/plain;base64,AQ==\",KEYFORMAT=\"urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed\"")
+    val transport = FakeTransport(backupMaster, first)
+    var time = 1000L
+    val orchestrator = TwitchBackupOrchestrator(source, null, transport, InlineExecutor(), { time }, protected = true)
+    try {
+      orchestrator.process(source, master)
+      orchestrator.process(media, first)
+      assertTrue(orchestrator.process(media, ad).playlist.contains("init-one.mp4"))
+      transport.backupPlaylist = first.replace("init-one.mp4", "init-two.mp4").replace("AQ==", "Ag==")
+      time += 3000
+      orchestrator.process(media, ad)
+      val rotated = orchestrator.process(media, ad).playlist
+      assertTrue(rotated.contains("#EXT-X-MAP:URI=\"https://backup.example/live/init-two.mp4\""))
+      assertTrue(rotated.contains("URI=\"data:text/plain;base64,Ag==\""))
+      transport.backupPlaylist = clean
+      time += 3000
+      orchestrator.process(media, ad)
+      assertFalse(orchestrator.process(media, ad).playlist.contains("#EXTINF:"))
+    } finally { orchestrator.dispose() }
+  }
 
   @Test fun verifiedBackupReplacesAdWithAbsoluteUris() {
     val transport = FakeTransport(backupMaster, clean)

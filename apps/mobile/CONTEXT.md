@@ -36,9 +36,11 @@ StreamFusionSecureStore retains the existing Android Keystore aliases and encryp
 
 ## Native capabilities
 
-React Native modules use playback contract version 6, captions version 4, diagnostics and Media Jobs version 3, and connectivity and maintenance version 1. Maintenance remains a contained stub. Existing engines own Media3 sessions, decoded program audio, Vosk recognition, thermal and memory facts, download journals, app update verification, and installer handoffs. Typed adapters validate their responses and events before feature code consumes them.
+React Native modules use playback contract version 7, captions version 4, diagnostics and Media Jobs version 3, and connectivity and maintenance version 1. Maintenance remains a contained stub. Existing engines own Media3 sessions, decoded program audio, Vosk recognition, thermal and memory facts, download journals, app update verification, and installer handoffs. Typed adapters validate their responses and events before feature code consumes them.
 
 Media3 is the Android playback implementation for Watch and MultiStream. It retains Twitch playlist interception, muted starts, quality selection, playback speed, seek, volume, and system Picture-in-Picture. MainActivity forwards user-leave events for automatic PiP. React Native lifecycle listeners forward foreground and background state. Android owns system PiP movement and resizing. The floating in-app player retains dragging, resizing, and position within the current stream session.
+
+Twitch live resolution reads stream encryption metadata with the guest playback token. Encrypted sources carry Widevine protection through Watch starts, source recovery, and MultiStream. The Android playback contract maps that descriptor to `twitch-widevine` with the channel name; license authorization and CDM bytes stay native. Protected Watch attempts use the direct Usher master with the existing media blocker.
 
 Each focused playback session owns its Twitch blocked-media quarantine across source refreshes. Marked playlists add absolute segment, prefetch, and partial-media URLs. Original playlists and backup candidates, active backups, and backup refreshes reject those URLs even without ad markers. Each rendition retains its evidence through the ad break and stable original recovery. A clean rendition cannot clear another rendition's evidence. Source factories still own and dispose their backup searches and transports.
 

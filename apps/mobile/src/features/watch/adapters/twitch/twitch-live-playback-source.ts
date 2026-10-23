@@ -11,6 +11,9 @@ const TWITCH_GQL_URL = "https://gql.twitch.tv/gql";
 const TWITCH_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const PLAYBACK_ACCESS_TOKEN_HASH =
   "ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9";
+const STREAM_METADATA_QUERY = `query VideoPlayerStreamMetadata($login: String!) {
+  user(login: $login) { stream { isEncrypted } }
+}`;
 
 export function createTwitchLivePlaybackSource(input: {
   readonly fetch: typeof globalThis.fetch;
@@ -21,7 +24,14 @@ export function createTwitchLivePlaybackSource(input: {
     async resolve({ signal, target }): Promise<LivePlaybackSourceResolution> {
       try {
         const response = await input.fetch(TWITCH_GQL_URL, {
-          body: JSON.stringify(playbackAccessTokenBody(target)),
+          body: JSON.stringify([
+            {
+              operationName: "VideoPlayerStreamMetadata",
+              query: STREAM_METADATA_QUERY,
+              variables: { login: target.channelName },
+            },
+            playbackAccessTokenBody(target),
+          ]),
           headers: {
             "Client-Id": TWITCH_CLIENT_ID,
             "Content-Type": "application/json",
@@ -36,8 +46,17 @@ export function createTwitchLivePlaybackSource(input: {
           return rejected(response.status);
         }
         const payload: unknown = await response.json();
-        const token = streamToken(payload);
-        if (token === null) {
+        if (!Array.isArray(payload) || payload.length !== 2) return invalid();
+        const [metadataPayload, tokenPayload] = payload;
+        const isEncrypted = streamEncryption(metadataPayload);
+        if (isEncrypted === null) return invalid();
+        const token = streamToken(tokenPayload);
+        if (isEncrypted === "offline" || token === null) {
+          if (
+            isEncrypted !== "offline" &&
+            !isExplicitOfflineToken(tokenPayload)
+          )
+            return invalid();
           return {
             failure: {
               detail: "This Twitch channel is not live.",
@@ -47,7 +66,9 @@ export function createTwitchLivePlaybackSource(input: {
             kind: "unavailable",
           };
         }
-        const sourceUri = asHlsSourceUri(usherUrl(target.channelName, token));
+        const sourceUri = asHlsSourceUri(
+          usherUrl(target.channelName, token, isEncrypted),
+        );
         if (!sourceUri) {
           return invalid();
         }
@@ -56,6 +77,18 @@ export function createTwitchLivePlaybackSource(input: {
           kind: "resolved",
           requestHeaders: twitchHlsRequestHeaders(),
           sourceUri,
+          ...(isEncrypted
+            ? {
+                protection: {
+                  kind: "widevine" as const,
+                  authorization: {
+                    kind: "provider-live" as const,
+                    platform: "twitch" as const,
+                    channelName: target.channelName,
+                  },
+                },
+              }
+            : {}),
         };
       } catch (error) {
         return failureFrom(error);
@@ -84,8 +117,15 @@ function playbackAccessTokenBody(target: WatchTarget) {
   };
 }
 
-function streamToken(payload: unknown): { signature: string; value: string } | null {
-  if (!isRecord(payload) || !isRecord(payload.data)) return null;
+function streamToken(
+  payload: unknown,
+): { signature: string; value: string } | null {
+  if (
+    !isRecord(payload) ||
+    payload.errors !== undefined ||
+    !isRecord(payload.data)
+  )
+    return null;
   const token = payload.data.streamPlaybackAccessToken;
   if (!isRecord(token)) return null;
   const signature = token.signature;
@@ -95,9 +135,36 @@ function streamToken(payload: unknown): { signature: string; value: string } | n
   return { signature, value };
 }
 
+function isExplicitOfflineToken(payload: unknown): boolean {
+  return (
+    isRecord(payload) &&
+    payload.errors === undefined &&
+    isRecord(payload.data) &&
+    payload.data.streamPlaybackAccessToken === null
+  );
+}
+
+function streamEncryption(payload: unknown): boolean | "offline" | null {
+  if (
+    !isRecord(payload) ||
+    payload.errors !== undefined ||
+    !isRecord(payload.data)
+  )
+    return null;
+  const user = payload.data.user;
+  if (user === null) return "offline";
+  if (!isRecord(user)) return null;
+  if (user.stream === null) return "offline";
+  if (!isRecord(user.stream)) return null;
+  return typeof user.stream.isEncrypted === "boolean"
+    ? user.stream.isEncrypted
+    : null;
+}
+
 function usherUrl(
   channelName: string,
   token: { signature: string; value: string },
+  isEncrypted: boolean,
 ): string {
   const channel = encodeURIComponent(channelName.toLowerCase());
   const params = new URLSearchParams({
@@ -107,6 +174,12 @@ function usherUrl(
     sig: token.signature,
     token: token.value,
   });
+  if (isEncrypted) {
+    params.set("cdm", "wv");
+    params.set("player_backend", "mediaplayer");
+    params.set("playlist_include_framerate", "true");
+    params.set("supported_codecs", "h264");
+  }
   return `https://usher.ttvnw.net/api/channel/hls/${channel}.m3u8?${params.toString()}`;
 }
 
