@@ -9,6 +9,7 @@ import type { ModerationEventSubType } from "@shared/moderation-types";
  */
 
 import { contextBridge, ipcRenderer } from "electron";
+import { parseDeveloperWidgetLayout, type DeveloperWidgetLayout } from "@shared/developer-widget-layout";
 
 import { createFeatureAwareIpc } from "./ipc-feature-loader";
 
@@ -252,6 +253,14 @@ function invokeUserProfile<Channel extends UserProfileChannel>(
 
 // Define the API exposed to the renderer
 const electronAPI = {
+  developerWidgets: {
+    arm: (): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.DEVELOPER_WIDGET_ARM),
+    updateLayout: (layout: DeveloperWidgetLayout): Promise<{ applied: boolean; revision: number }> => {
+      const parsed = parseDeveloperWidgetLayout(layout, { width: window.innerWidth, height: window.innerHeight });
+      return parsed ? ipcRenderer.invoke(IPC_CHANNELS.DEVELOPER_WIDGET_LAYOUT, parsed) : Promise.resolve({ applied: false, revision: -1 });
+    },
+    close: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.DEVELOPER_WIDGET_CLOSE),
+  },
   // ========== App Info ==========
   getVersion: (): Promise<string> => invokeIpc(IPC_CHANNELS.APP_GET_VERSION),
   getVersionInfo: (): Promise<VersionInfo> => invokeIpc(IPC_CHANNELS.APP_GET_VERSION_INFO),

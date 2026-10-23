@@ -221,25 +221,44 @@ function saveLocalPersisted(state: DeveloperConsoleLayoutState): void {
   }
 }
 
-function defaultPosition(): Position {
+function defaultPosition(view: Window = window): Position {
   return {
-    x: Math.max(16, window.innerWidth - PANEL_WIDTH_HINT - 16),
-    y: Math.max(16, window.innerHeight - PANEL_HEIGHT_HINT - 16),
+    x: Math.max(16, view.innerWidth - PANEL_WIDTH_HINT - 16),
+    y: Math.max(16, view.innerHeight - PANEL_HEIGHT_HINT - 16),
   };
 }
 
-function clampPosition(p: Position, w: number, h: number): Position {
-  const maxX = Math.max(0, window.innerWidth - w);
-  const maxY = Math.max(0, window.innerHeight - h);
+function clampPosition(p: Position, w: number, h: number, view: Window = window): Position {
+  const maxX = Math.max(0, view.innerWidth - w);
+  const maxY = Math.max(0, view.innerHeight - h);
   return {
     x: Math.max(0, Math.min(maxX, p.x)),
     y: Math.max(0, Math.min(maxY, p.y)),
   };
 }
 
-export function DeveloperConsole() {
+export function DeveloperConsole({
+  targetDocument = document,
+  onCollapse,
+  onPrepareMove,
+}: {
+  targetDocument?: Document;
+  onCollapse?: () => void;
+  onPrepareMove?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => Promise<boolean>;
+} = {}) {
   if (!import.meta.env.DEV) return null;
-  return <DeveloperConsoleImpl />;
+  return (
+    <DeveloperConsoleImpl
+      targetDocument={targetDocument}
+      onCollapse={onCollapse}
+      onPrepareMove={onPrepareMove}
+    />
+  );
 }
 
 function getWidgetSize(visibility: DeveloperConsoleVisibility): { width: number; height: number } {
@@ -249,23 +268,38 @@ function getWidgetSize(visibility: DeveloperConsoleVisibility): { width: number;
 }
 
 function createInitialLayoutState(
-  persisted: Partial<DeveloperConsoleLayoutState>
+  persisted: Partial<DeveloperConsoleLayoutState>,
+  view: Window
 ): DeveloperConsoleLayoutState {
   const visibility = persisted.visibility ?? "expanded";
   const { width, height } = getWidgetSize(visibility);
   return {
     activeId: persisted.activeId ?? TOOLS[0].id,
-    position: clampPosition(persisted.position ?? defaultPosition(), width, height),
+    position: clampPosition(persisted.position ?? defaultPosition(view), width, height, view),
     visibility,
   };
 }
 
-function DeveloperConsoleImpl() {
+function DeveloperConsoleImpl({
+  targetDocument,
+  onCollapse,
+  onPrepareMove,
+}: {
+  targetDocument: Document;
+  onCollapse?: () => void;
+  onPrepareMove?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => Promise<boolean>;
+}) {
+  const targetWindow = targetDocument.defaultView ?? window;
   const { t } = useTranslation();
   const [localPersisted] = useState(loadLocalPersisted);
   const durableStore = window.electronAPI?.store;
   const [layoutState, setLayoutState] = useState<DeveloperConsoleLayoutState>(() =>
-    createInitialLayoutState(localPersisted ?? {})
+    createInitialLayoutState(localPersisted ?? {}, targetWindow)
   );
   const [hasLoadedDurableState, setHasLoadedDurableState] = useState(!durableStore);
 
@@ -289,7 +323,10 @@ function DeveloperConsoleImpl() {
       .then((stored) => {
         if (!isCurrent) return;
         const durablePersisted = parsePersisted(stored);
-        const next = createInitialLayoutState(durablePersisted ?? localPersisted ?? {});
+        const next = createInitialLayoutState(
+          durablePersisted ?? localPersisted ?? {},
+          targetWindow
+        );
         layoutStateRef.current = next;
         saveLocalPersisted(next);
         setLayoutState(next);
@@ -305,7 +342,7 @@ function DeveloperConsoleImpl() {
     return () => {
       isCurrent = false;
     };
-  }, [durableStore, localPersisted, saveDurablePersisted]);
+  }, [durableStore, localPersisted, saveDurablePersisted, targetWindow]);
 
   const commitLayoutState = useCallback(
     (
@@ -332,26 +369,33 @@ function DeveloperConsoleImpl() {
       }
     };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [commitLayoutState]);
+    if (targetDocument !== document) targetDocument.addEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      if (targetDocument !== document) targetDocument.removeEventListener("keydown", handler);
+    };
+  }, [commitLayoutState, targetDocument]);
 
   useEffect(() => {
     const onResize = () => {
       commitLayoutState((current) => {
         const { width, height } = getWidgetSize(current.visibility);
-        return { ...current, position: clampPosition(current.position, width, height) };
+        return {
+          ...current,
+          position: clampPosition(current.position, width, height, targetWindow),
+        };
       });
     };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [commitLayoutState]);
+    targetWindow.addEventListener("resize", onResize);
+    return () => targetWindow.removeEventListener("resize", onResize);
+  }, [commitLayoutState, targetWindow]);
 
   useEffect(() => {
     const { width, height } = getWidgetSize(layoutState.visibility);
-    const clamped = clampPosition(layoutState.position, width, height);
+    const clamped = clampPosition(layoutState.position, width, height, targetWindow);
     if (clamped.x === layoutState.position.x && clamped.y === layoutState.position.y) return;
     commitLayoutState((current) => ({ ...current, position: clamped }));
-  }, [commitLayoutState, layoutState.position, layoutState.visibility]);
+  }, [commitLayoutState, layoutState.position, layoutState.visibility, targetWindow]);
 
   const dragRef = useRef<{
     originX: number;
@@ -359,50 +403,118 @@ function DeveloperConsoleImpl() {
     startClientX: number;
     startClientY: number;
     moved: boolean;
+    ending: boolean;
+    sequence: number;
+    widget: HTMLElement;
     onClick: () => void;
   } | null>(null);
+  const pendingMoveRef = useRef<Promise<void> | null>(null);
+  const captureRef = useRef<{ element: Element; pointerId: number } | null>(null);
+
+  const releaseCapture = useCallback(() => {
+    const captured = captureRef.current;
+    captureRef.current = null;
+    if (captured?.element.hasPointerCapture(captured.pointerId)) {
+      captured.element.releasePointerCapture(captured.pointerId);
+    }
+  }, []);
+
+  const cancelDrag = useCallback(() => {
+    dragRef.current = null;
+    pendingMoveRef.current = null;
+    releaseCapture();
+    targetWindow.dispatchEvent(new Event("streamfusion-widget-geometry-changed"));
+  }, [releaseCapture, targetWindow]);
+
+  const capturePointer = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    captureRef.current = { element: e.currentTarget, pointerId: e.pointerId };
+  }, []);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       const drag = dragRef.current;
-      if (!drag) return;
+      if (!drag || drag.ending) return;
       const dx = e.clientX - drag.startClientX;
       const dy = e.clientY - drag.startClientY;
       if (!drag.moved && Math.abs(dx) < MIN_DRAG_PX && Math.abs(dy) < MIN_DRAG_PX) return;
       drag.moved = true;
-      commitLayoutState((current) => {
-        const { width, height } = getWidgetSize(current.visibility);
-        return {
-          ...current,
-          position: clampPosition({ x: drag.originX + dx, y: drag.originY + dy }, width, height),
-        };
-      }, false);
+      const { width, height } = getWidgetSize(layoutStateRef.current.visibility);
+      const next = clampPosition(
+        { x: drag.originX + dx, y: drag.originY + dy },
+        width,
+        height,
+        targetWindow
+      );
+      if (!onPrepareMove) {
+        commitLayoutState((current) => ({ ...current, position: next }), false);
+        return;
+      }
+      const bounds = drag.widget.getBoundingClientRect();
+      const sequence = ++drag.sequence;
+      pendingMoveRef.current = onPrepareMove({
+        x: next.x,
+        y: next.y,
+        width: bounds.width || width,
+        height: bounds.height || height,
+      })
+        .then((allowed) => {
+          if (allowed && dragRef.current === drag && drag.sequence === sequence) {
+            commitLayoutState((current) => ({ ...current, position: next }), false);
+          }
+        })
+        .catch(() => undefined);
     };
 
     const onMouseUp = () => {
       const drag = dragRef.current;
-      if (!drag) return;
-      if (drag.moved) saveDurablePersisted(layoutStateRef.current);
-      else drag.onClick();
-      dragRef.current = null;
+      if (!drag || drag.ending) return;
+      drag.ending = true;
+      const finish = () => {
+        if (dragRef.current !== drag) return;
+        if (drag.moved) saveDurablePersisted(layoutStateRef.current);
+        else drag.onClick();
+        dragRef.current = null;
+        pendingMoveRef.current = null;
+        releaseCapture();
+      };
+      if (pendingMoveRef.current) void pendingMoveRef.current.then(finish);
+      else finish();
     };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    targetDocument.addEventListener("mousemove", onMouseMove);
+    targetDocument.addEventListener("mouseup", onMouseUp);
+    targetWindow.addEventListener("blur", cancelDrag);
     return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+      targetDocument.removeEventListener("mousemove", onMouseMove);
+      targetDocument.removeEventListener("mouseup", onMouseUp);
+      targetWindow.removeEventListener("blur", cancelDrag);
     };
-  }, [commitLayoutState, saveDurablePersisted]);
+  }, [
+    cancelDrag,
+    commitLayoutState,
+    onPrepareMove,
+    releaseCapture,
+    saveDurablePersisted,
+    targetDocument,
+    targetWindow,
+  ]);
 
-  const startDrag = useCallback((e: React.MouseEvent, onClickIfNoMove: () => void) => {
+  const startDrag = useCallback((e: React.MouseEvent<HTMLElement>, onClickIfNoMove: () => void) => {
     if (e.button !== 0) return;
+    pendingMoveRef.current = null;
     dragRef.current = {
       originX: layoutStateRef.current.position.x,
       originY: layoutStateRef.current.position.y,
       startClientX: e.clientX,
       startClientY: e.clientY,
       moved: false,
+      ending: false,
+      sequence: 0,
+      widget:
+        e.currentTarget.tagName === "BUTTON"
+          ? e.currentTarget
+          : (e.currentTarget.parentElement ?? e.currentTarget),
       onClick: onClickIfNoMove,
     };
     e.preventDefault();
@@ -414,6 +526,9 @@ function DeveloperConsoleImpl() {
     return (
       <button
         type="button"
+        onPointerDown={capturePointer}
+        onPointerCancel={cancelDrag}
+        onLostPointerCapture={cancelDrag}
         onMouseDown={(e) =>
           startDrag(e, () => {
             commitLayoutState((current) => ({ ...current, visibility: "expanded" }));
@@ -453,6 +568,9 @@ function DeveloperConsoleImpl() {
     return (
       <button
         type="button"
+        onPointerDown={capturePointer}
+        onPointerCancel={cancelDrag}
+        onLostPointerCapture={cancelDrag}
         onMouseDown={(e) =>
           startDrag(e, () =>
             commitLayoutState((current) => ({ ...current, visibility: "expanded" }))
@@ -515,6 +633,9 @@ function DeveloperConsoleImpl() {
       }}
     >
       <div
+        onPointerDown={capturePointer}
+        onPointerCancel={cancelDrag}
+        onLostPointerCapture={cancelDrag}
         onMouseDown={(e) => startDrag(e, () => undefined)}
         style={{
           display: "flex",
@@ -534,7 +655,10 @@ function DeveloperConsoleImpl() {
             {t("dev.console.title")}
           </strong>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{ display: "flex", alignItems: "center", gap: 2 }}
+        >
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
@@ -629,9 +753,10 @@ function DeveloperConsoleImpl() {
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
-            onClick={() =>
-              commitLayoutState((current) => ({ ...current, visibility: "collapsed" }))
-            }
+            onClick={() => {
+              commitLayoutState((current) => ({ ...current, visibility: "collapsed" }));
+              onCollapse?.();
+            }}
             title={t("dev.console.collapseHint")}
             aria-label={t("dev.console.collapse")}
             style={{

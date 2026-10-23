@@ -13,6 +13,7 @@ import { logger } from "@backend/logging/logger";
 import { configureWindowIdentity } from "./features/shell/domain/app-identity";
 import { installContextMenu } from "./features/shell/adapters/electron/context-menu";
 import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
+import { createDeveloperWidgetOverlay } from "./features/shell/adapters/electron/developer-widget-overlay";
 
 /**
  * Resolve the checked-in application artwork from electron-vite's built
@@ -215,6 +216,8 @@ class WindowManager {
       },
     });
 
+    const developerWidgets = createDeveloperWidgetOverlay(this.mainWindow, this.isDev && process.platform === "win32");
+
     configureWindowIdentity(this.mainWindow, appIconPath, {
       platform: process.platform,
       isPackaged: app.isPackaged,
@@ -309,6 +312,7 @@ class WindowManager {
 
     // Handle window closed
     this.mainWindow.on("closed", () => {
+      developerWidgets.dispose();
       this.unregisterDevToolsShortcuts();
       if (this.unresponsiveTimer) {
         clearTimeout(this.unresponsiveTimer);
@@ -329,7 +333,10 @@ class WindowManager {
     }
 
     // Ensure any target="_blank" navigations open in the system browser
-    this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    this.mainWindow.webContents.setWindowOpenHandler(({ url, frameName, features }) => {
+      const widgetResponse = developerWidgets.handleOpen({ url, frameName, features });
+      if (widgetResponse) return widgetResponse;
+      if (url === "about:blank") return { action: "deny" };
       shell.openExternal(url);
       return { action: "deny" };
     });

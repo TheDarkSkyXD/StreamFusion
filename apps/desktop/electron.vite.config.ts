@@ -194,6 +194,9 @@ export const createDesktopConfig = ({ command, mode }: { command: "build" | "ser
                         // no app chrome.
                         slot: resolve(__dirname, 'src/frontend/slot-renderer/index.html'),
                         protectedPlayer: resolve(__dirname, 'src/frontend/features/playback/routes/protected-player.html'),
+                        ...(mode !== 'production'
+                            ? { developerWidgetPopup: resolve(__dirname, 'src/frontend/features/shell/components/dev/developer-widget-popup-entry.ts') }
+                            : {}),
                     },
                     treeshake: {
                         moduleSideEffects: 'no-external',

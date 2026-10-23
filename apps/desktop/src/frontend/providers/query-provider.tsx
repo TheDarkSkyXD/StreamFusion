@@ -3,6 +3,7 @@ import type React from "react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { useBrowseSnapshotBootstrap } from "@/features/discovery/components/hooks/queries/browse-snapshot-bootstrap";
+import { electronDeveloperWidgetOverlay } from "@/features/shell/adapters/electron/developer-widget-overlay";
 import { configureConfirmedConnectivity } from "./query-connectivity";
 
 // Lazy load ReactQueryDevtools only in development to avoid bundling in production
@@ -170,19 +171,23 @@ interface QueryProviderProps {
   children: React.ReactNode;
 }
 
+export function FallbackQueryDevtools() {
+  return (
+    <Suspense fallback={null}>
+      <DraggableDevtools>
+        <ReactQueryDevtools initialIsOpen={false} buttonPosition="relative" />
+      </DraggableDevtools>
+    </Suspense>
+  );
+}
+
 export function QueryProvider({ children }: QueryProviderProps) {
   useBrowseSnapshotBootstrap(queryClient);
 
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {isDev && (
-        <Suspense fallback={null}>
-          <DraggableDevtools>
-            <ReactQueryDevtools initialIsOpen={false} buttonPosition="relative" />
-          </DraggableDevtools>
-        </Suspense>
-      )}
+      {isDev && !electronDeveloperWidgetOverlay.supported() && <FallbackQueryDevtools />}
     </QueryClientProvider>
   );
 }

@@ -38,6 +38,7 @@ I wanted to share some of my preferences here so we can be more aligned as we wo
   through it. Break it on purpose.
 - Restart the Electron app after code changes to see and verify them as you work. Always test and verify desktop app flows in the actual Electron app.
 - Run only one local StreamFusion Electron app instance at a time. Check for an existing instance before launching, and confirm it has exited before starting a replacement.
+- When embedding native content, verify that overlapping app controls preserve input and visual composition, including translucent backgrounds.
 - For mobile work, restart the emulator and mobile app after code changes to see and verify them as you work. Always test and verify mobile app flows in the emulator.
 - Always leave the latest app running and ready for the user when work is done, so they do not have to open it themselves. Temporary stops for rebuilds, restarts, and testing are allowed, but relaunch the app afterward. Before reporting completion, confirm that one Electron instance is running with the latest code for desktop work, or that the emulator is running with the latest mobile app open for mobile work.
 - **Fix the root cause, not the symptom.** Sink one level further rather than

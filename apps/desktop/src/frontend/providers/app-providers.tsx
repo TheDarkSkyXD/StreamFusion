@@ -14,8 +14,8 @@ import { UpdateNotice } from "@/features/settings/components/update-notice";
 
 const DeveloperConsole = import.meta.env.DEV
   ? lazy(() =>
-      import("@/components/dev/DeveloperConsole").then((module) => ({
-        default: module.DeveloperConsole,
+      import("@/features/shell/components/dev/developer-widget-overlay").then((module) => ({
+        default: module.DeveloperWidgetOverlay,
       }))
     )
   : null;

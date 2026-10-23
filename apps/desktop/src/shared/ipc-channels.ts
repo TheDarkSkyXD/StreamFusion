@@ -54,6 +54,9 @@ export const IPC_CHANNELS = {
   WINDOW_IS_MAXIMIZED: "window:is-maximized",
   WINDOW_ON_MAXIMIZE_CHANGE: "window:on-maximize-change",
   WINDOW_TOGGLE_DEV_TOOLS: "window:toggle-dev-tools",
+  DEVELOPER_WIDGET_ARM: "developer-widgets:arm",
+  DEVELOPER_WIDGET_LAYOUT: "developer-widgets:layout",
+  DEVELOPER_WIDGET_CLOSE: "developer-widgets:close",
 
   // Theme
   THEME_GET: "theme:get",

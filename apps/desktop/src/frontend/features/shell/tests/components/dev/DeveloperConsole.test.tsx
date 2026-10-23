@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createPortal } from "react-dom";
 
 import { DeveloperConsole } from "@/components/dev/DeveloperConsole";
 import { createBrowserElectronApi } from "@/dev-relay/browser-electron-api";
@@ -86,6 +87,62 @@ describe("DeveloperConsole", () => {
     expect(window.location.hash).toBe("#/settings?tab=diagnostics");
   });
 
+  it("lets every popup header button handle a pointer click", () => {
+    const toggleDevTools = vi.fn();
+    const onCollapse = vi.fn();
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { toggleDevTools },
+    });
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const childDocument = frame.contentDocument;
+    if (!childDocument) throw new Error("Missing iframe document");
+    const { unmount } = render(
+      createPortal(
+        <DeveloperConsole targetDocument={childDocument} onCollapse={onCollapse} />,
+        childDocument.body
+      )
+    );
+
+    try {
+      const popup = within(childDocument.body);
+      const collapse = popup.getByRole("button", { name: "Collapse" });
+      const header = collapse.parentElement?.parentElement;
+      if (!header) throw new Error("Missing console header");
+      const setPointerCapture = vi.fn();
+      Object.defineProperty(header, "setPointerCapture", {
+        configurable: true,
+        value: setPointerCapture,
+      });
+      fireEvent.pointerDown(popup.getByText("Developer Console"), { pointerId: 2 });
+      expect(setPointerCapture).toHaveBeenCalledWith(2);
+      setPointerCapture.mockClear();
+
+      for (const name of ["Open Diagnostics", "Open mod page", "Toggle DevTools", "Collapse"]) {
+        const button = popup.getByRole("button", { name });
+        fireEvent.pointerDown(button, { pointerId: 1 });
+        expect(setPointerCapture).not.toHaveBeenCalled();
+        fireEvent.mouseDown(button, { button: 0 });
+        fireEvent.pointerUp(button, { pointerId: 1 });
+        fireEvent.mouseUp(button);
+        fireEvent.click(button);
+        if (name === "Open Diagnostics") {
+          expect(window.location.hash).toBe("#/settings?tab=diagnostics");
+        } else if (name === "Open mod page") {
+          expect(window.location.hash).toBe("#/mod");
+        }
+      }
+
+      expect(toggleDevTools).toHaveBeenCalledTimes(1);
+      expect(onCollapse).toHaveBeenCalledTimes(1);
+      expect(readStoredLayout()).toMatchObject({ visibility: "collapsed" });
+    } finally {
+      unmount();
+      frame.remove();
+    }
+  });
+
   it("persists minimized state immediately when the console collapses", () => {
     const { unmount } = render(<DeveloperConsole />);
 
@@ -130,6 +187,49 @@ describe("DeveloperConsole", () => {
     render(<DeveloperConsole />);
 
     expect(screen.getByTitle(/^Click to expand/)).toHaveStyle({ left: "65px", top: "85px" });
+  });
+
+  it("drags in the popup document while keeping the owner's stored layout", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ activeId: "chat-sim", position: { x: 40, y: 50 }, visibility: "collapsed" })
+    );
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const childDocument = frame.contentDocument;
+    if (!childDocument) throw new Error("Missing iframe document");
+    const { unmount } = render(
+      createPortal(<DeveloperConsole targetDocument={childDocument} />, childDocument.body)
+    );
+    const button = childDocument.querySelector("button");
+    if (!button) throw new Error("Missing console button");
+    fireEvent.mouseDown(button, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(childDocument, { clientX: 35, clientY: 45 });
+    expect(readStoredLayout()).toMatchObject({ position: { x: 65, y: 85 } });
+    unmount();
+    frame.remove();
+  });
+
+  it("waits for a positive popup shape before moving the console", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ activeId: "chat-sim", position: { x: 40, y: 50 }, visibility: "collapsed" })
+    );
+    let allowMove: ((allowed: boolean) => void) | undefined;
+    const onPrepareMove = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          allowMove = resolve;
+        })
+    );
+    render(<DeveloperConsole onPrepareMove={onPrepareMove} />);
+    const button = screen.getByTitle(/^Click to expand/);
+    fireEvent.mouseDown(button, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(document, { clientX: 35, clientY: 45 });
+    expect(onPrepareMove).toHaveBeenCalledWith({ x: 65, y: 85, width: 48, height: 48 });
+    expect(readStoredLayout()).toMatchObject({ position: { x: 40, y: 50 } });
+    await act(async () => allowMove?.(true));
+    expect(readStoredLayout()).toMatchObject({ position: { x: 65, y: 85 } });
   });
 
   it("keeps the dragged position when an older browser relay read completes", async () => {
