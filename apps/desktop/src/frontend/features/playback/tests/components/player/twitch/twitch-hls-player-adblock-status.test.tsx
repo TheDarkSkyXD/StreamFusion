@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { act } from "react";
+import { fireEvent, render } from "@testing-library/react";
+import { act, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdBlockStatus } from "@shared/adblock-types";
@@ -28,6 +28,7 @@ const {
   mockUpdateAdBlockConfig,
   sourceLoadVideoStates,
   synchronousManifestState,
+  emeSessions,
 } = vi.hoisted(() => ({
   hlsConstructorConfigs: [] as Array<Record<string, unknown>>,
   hlsInstances: [] as Array<{
@@ -95,6 +96,15 @@ const {
   sourceLoadVideoStates: [] as Array<{ muted: boolean; volume: number }>,
   synchronousManifestState: {
     levels: null as Array<Record<string, unknown>> | null,
+  },
+  emeSessions: [] as Array<{ dispose: ReturnType<typeof vi.fn> }>,
+}));
+
+vi.mock("@/features/playback/adapters/browser/twitch-native-eme-session", () => ({
+  createTwitchNativeEmeSession: () => {
+    const session = { ready: Promise.resolve(), dispose: vi.fn(async () => {}) };
+    emeSessions.push(session);
+    return session;
   },
 }));
 
@@ -215,6 +225,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     vi.clearAllMocks();
     hlsConstructorConfigs.length = 0;
     hlsInstances.length = 0;
+    emeSessions.length = 0;
     playerCallbackState.reload = null;
     statusCallbackState.callback = null;
     sourceLoadVideoStates.length = 0;
@@ -1689,6 +1700,78 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
     expect(play).not.toHaveBeenCalled();
     play.mockRestore();
+  });
+
+  it("retains protected playback and pause intent across control and presentation rerenders", () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const requestLicense = vi.fn(async () => new Uint8Array([1]));
+
+    function ProtectedSessionHarness() {
+      const [playing, setPlaying] = useState(true);
+      const [compact, setCompact] = useState(false);
+      return (
+        <>
+          <button onClick={() => setCompact((current) => !current)}>Change presentation</button>
+          <TwitchHlsPlayer
+            src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+            channelName="sodapoppin"
+            protection={{ kind: "widevine", requestLicense }}
+            autoPlay={playing}
+            muted={compact}
+            volume={compact ? 0.5 : 1}
+            onPause={() => setPlaying(false)}
+          />
+        </>
+      );
+    }
+
+    const { container, getByRole } = render(<ProtectedSessionHarness />);
+    const video = container.querySelector("video");
+    if (!video) throw new Error("Expected a video element");
+    video.currentTime = 90;
+    const hls = hlsInstances[0];
+
+    fireEvent.pause(video);
+    fireEvent.click(getByRole("button", { name: "Change presentation" }));
+    act(() => {
+      hls.emit("hlsManifestParsed", { levels: [] });
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(hlsInstances).toHaveLength(1);
+    expect(emeSessions).toHaveLength(1);
+    expect(hls.destroy).not.toHaveBeenCalled();
+    expect(emeSessions[0].dispose).not.toHaveBeenCalled();
+    expect(video.currentTime).toBe(90);
+    expect(play).not.toHaveBeenCalled();
+    play.mockRestore();
+  });
+
+  it("replaces protected playback when the license capability changes", () => {
+    const originalLicense = vi.fn(async () => new Uint8Array([1]));
+    const replacementLicense = vi.fn(async () => new Uint8Array([2]));
+    const { rerender } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        protection={{ kind: "widevine", requestLicense: originalLicense }}
+      />
+    );
+    const initialHls = hlsInstances[0];
+
+    rerender(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        protection={{ kind: "widevine", requestLicense: replacementLicense }}
+      />
+    );
+
+    expect(initialHls.destroy).toHaveBeenCalledOnce();
+    expect(emeSessions[0].dispose).toHaveBeenCalledOnce();
+    expect(hlsInstances).toHaveLength(2);
+    expect(emeSessions).toHaveLength(2);
   });
 
   it("cancels pending autoplay work when the source unmounts", () => {

@@ -177,6 +177,7 @@ import type {
   ProtectedPlaybackMuteRequest,
   ProtectedPlaybackOpenRequest,
   ProtectedPlaybackOpenResult,
+  ProtectedPlaybackPresentRequest,
   ProtectedPlaybackOwnerRequest,
   ProtectedPlaybackState,
 } from "../../shared/protected-playback-types";
@@ -653,6 +654,8 @@ const electronAPI = {
       invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_CLOSE, request),
     mute: (request: ProtectedPlaybackMuteRequest): Promise<void> =>
       invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_MUTE, request),
+    present: (request: ProtectedPlaybackPresentRequest): Promise<void> =>
+      invokeIpc(IPC_CHANNELS.PROTECTED_PLAYBACK_PRESENT, request),
     onState: (callback: (state: ProtectedPlaybackState) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, state: ProtectedPlaybackState) =>
         callback(state);

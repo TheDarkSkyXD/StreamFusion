@@ -10,6 +10,7 @@ export const desktopProtectedPlaybackController: ProtectedPlaybackController = {
   focus: (ownerId) => window.electronAPI!.protectedPlayback.focus({ ownerId }),
   close: (ownerId) => window.electronAPI!.protectedPlayback.close({ ownerId }),
   mute: (ownerId, muted) => window.electronAPI!.protectedPlayback.mute({ ownerId, muted }),
+  present: (request) => window.electronAPI!.protectedPlayback.present(request),
   onState: (callback) => window.electronAPI?.protectedPlayback.onState(callback) ?? (() => {}),
   installRuntime: () => window.electronAPI!.openExternal(RUNTIME_DOWNLOAD_URL),
 };

@@ -24,6 +24,7 @@ I wanted to share some of my preferences here so we can be more aligned as we wo
    fix later.
 3. **Say what you'd need to see to call it done.** One sentence. This becomes
    the proof you attach later.
+- Preserve explicitly requested behavior when changing a runtime or host. Approval of one tradeoff does not waive the remaining requirements.
 4. **If asked to investigate, investigate.** "Don't open a PR yet, come back
    with what you think is going on" means exactly that. Do not start fixing
    because you spotted something on the way.

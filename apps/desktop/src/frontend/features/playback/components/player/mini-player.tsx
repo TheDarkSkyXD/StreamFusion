@@ -155,6 +155,8 @@ export function MiniPlayer() {
   // Keep the last verified URL through loading and transient resolver failures.
   // Only an explicit offline/not-found response may retire active playback.
   const playbackIdentity = `${platform}:${channelName.toLowerCase()}`;
+  const [protectedIdentity, setProtectedIdentity] = useState<string | null>(null);
+  const isProtected = protectedIdentity === playbackIdentity;
   const playbackIdentityRef = useRef(playbackIdentity);
   const streamStatusUpdatedAtRef = useRef(streamStatusUpdatedAt);
   const [offlinePlayerSignal, setOfflinePlayerSignal] = useState<{
@@ -374,7 +376,7 @@ export function MiniPlayer() {
   // Dragging handlers
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (isDocked) return;
+      if (isDocked || isProtected) return;
       // Ignore if clicking on buttons
       if ((e.target as HTMLElement).closest("button")) return;
 
@@ -383,7 +385,7 @@ export function MiniPlayer() {
       positionStart.current = { ...positionRef.current };
       e.preventDefault();
     },
-    [isDocked]
+    [isDocked, isProtected]
   );
 
   useEffect(() => {
@@ -623,8 +625,35 @@ export function MiniPlayer() {
                 : miniTwitchRecovery.markPlaybackHealthy
             }
             onProtectedPlaybackSelected={() => {
+              setProtectedIdentity(playbackIdentity);
               miniTwitchRecovery.suspend();
               if (isDocked) dockedConfig?.onProtectedPlaybackSelected?.();
+            }}
+            onProtectedAction={(action, delta) => {
+              if (action === "expand") handleExpand();
+              else if (action === "close") closePip();
+              else if (action === "theater" && isDocked) dockedConfig?.onToggleTheater?.();
+              else if (action === "drag" && delta && !isDocked) {
+                const next = {
+                  x: Math.max(
+                    PADDING,
+                    Math.min(
+                      window.innerWidth - MINI_PLAYER_WIDTH - PADDING,
+                      positionRef.current.x + delta.dx
+                    )
+                  ),
+                  y: Math.max(
+                    PADDING + 60,
+                    Math.min(
+                      window.innerHeight - MINI_PLAYER_HEIGHT - PADDING,
+                      positionRef.current.y + delta.dy
+                    )
+                  ),
+                };
+                positionRef.current = next;
+                if (containerRef.current)
+                  containerRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0)`;
+              }
             }}
             onRefresh={isDocked && dockedConfig ? dockedConfig.onRefresh : reload}
             recoveryManagedExternally
@@ -681,7 +710,7 @@ export function MiniPlayer() {
       )}
 
       {/* Controls Overlay */}
-      {!isDocked && (
+      {!isDocked && !isProtected && (
         <div
           className={cn(
             "absolute inset-0 z-30 bg-gradient-to-t from-black/80 via-transparent to-black/50",

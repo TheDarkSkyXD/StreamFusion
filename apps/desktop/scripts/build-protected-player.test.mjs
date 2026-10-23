@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -24,8 +24,15 @@ test('builds the native helper and runs its protocol tests', () => {
     'WebView2Loader.dll',
     'Microsoft.Web.WebView2.LICENSE.txt',
     'Microsoft.Web.WebView2.NOTICE.txt',
+    'renderer/src/frontend/features/playback/routes/protected-player.html',
   ]) {
     assert.equal(existsSync(path.join(output, name)), true, name)
+  }
+  const pagePath = path.join(output, 'renderer', 'src', 'frontend', 'features', 'playback', 'routes', 'protected-player.html')
+  const page = readFileSync(pagePath, 'utf8')
+  assert.match(page, /protectedPlayer-[\w-]+\.js/)
+  for (const [, resource] of page.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    assert.equal(existsSync(path.resolve(path.dirname(pagePath), resource)), true, resource)
   }
   const invalid = spawnSync(path.join(output, 'StreamFusion.ProtectedPlayer.exe'), [
     '--channel', 'bad/url', '--owner', '12345', '--parent-pid', '456',

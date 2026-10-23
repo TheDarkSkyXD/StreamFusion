@@ -45,6 +45,7 @@ import { resolveHlsBufferConfig } from "../../../adapters/browser/hls-buffer-con
 import { useLivePlaybackStallRecovery } from "../hooks/use-live-playback-stall-recovery";
 import { type PlayerQualityPreference } from "../../../domain/quality-preference";
 import type { PlayerError, QualityLevel } from "../../../capabilities/media-types";
+import type { TwitchMediaProtection } from "../../../capabilities/twitch-media-protection";
 
 import { resolvePlaybackAdvancedAdBlockOverrides } from "../../../adapters/browser/twitch/playback-advanced-config";
 import {
@@ -79,6 +80,7 @@ export interface TwitchHlsPlayerProps extends Omit<
   preferredQuality?: PlayerQualityPreference | string;
   enableAdBlock?: boolean;
   volume?: number;
+  protection?: TwitchMediaProtection;
 }
 
 export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps>(
@@ -100,6 +102,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       preferredQuality,
       enableAdBlock = true,
       volume,
+      protection,
       muted = false,
       ...props
     },
@@ -109,6 +112,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const translateRef = useRef(t);
     const videoRef = useRef<HTMLVideoElement>(null);
     const preferences = useAuthStore((state) => state.preferences);
+    const requestLicense = protection?.kind === "widevine" ? protection.requestLicense : undefined;
+    const sessionProtection = useMemo<TwitchMediaProtection | undefined>(
+      () => (requestLicense ? { kind: "widevine", requestLicense } : undefined),
+      [requestLicense]
+    );
     const playlistProxyPreferences = preferences?.twitchPlaylistProxy;
     const playlistProxySources = useMemo(
       () => getEnabledTwitchPlaylistProxySources(playlistProxyPreferences?.sources ?? []),
@@ -126,7 +134,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         ),
       [playlistProxyPreferences?.sources]
     );
-    const playlistProxyEnabled = isTwitchPlaylistProxyMode(preferences);
+    const playlistProxyEnabled =
+      protection?.kind !== "widevine" && isTwitchPlaylistProxyMode(preferences);
     const playlistRouteKey = `${src}\u0000${channelName}\u0000${playlistProxyEnabled}\u0000${playlistProxyRevision}`;
     const [playlistProxyCursor, setPlaylistProxyCursor] = useState({
       key: playlistRouteKey,
@@ -668,11 +677,13 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           invalidatePresentationRecovery,
           bufferPreferences:
             useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES,
+          protection: sessionProtection,
         }),
       [
         activeSource,
         channelName,
         effectiveEnableAdBlock,
+        sessionProtection,
         advancePlaylistProxySource,
         isPlaylistProxyAttempt,
         playlistProxySource?.id,

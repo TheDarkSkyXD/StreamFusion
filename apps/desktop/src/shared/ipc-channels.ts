@@ -183,6 +183,7 @@ export const IPC_CHANNELS = {
   PROTECTED_PLAYBACK_FOCUS: "protected-playback:focus",
   PROTECTED_PLAYBACK_CLOSE: "protected-playback:close",
   PROTECTED_PLAYBACK_MUTE: "protected-playback:mute",
+  PROTECTED_PLAYBACK_PRESENT: "protected-playback:present",
   PROTECTED_PLAYBACK_STATE: "protected-playback:state",
 
   // ========== Discovery: Categories ==========

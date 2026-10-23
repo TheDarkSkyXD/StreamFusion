@@ -2,7 +2,12 @@ import { act, type Ref, useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/features/playback/capabilities/media-types";
-import { fireEvent, renderWithProviders, screen, waitFor } from "../../../../../../../tests/test-utils";
+import {
+  fireEvent,
+  renderWithProviders,
+  screen,
+  waitFor,
+} from "../../../../../../../tests/test-utils";
 
 const routerState = vi.hoisted(() => ({
   pathname: "/",
@@ -14,6 +19,12 @@ const playerProps = vi.hoisted(() => ({
     compact?: boolean;
     onError?: (error: PlayerError) => void;
     poster?: string;
+    onProtectedPlaybackSelected?: () => void;
+    onProtectedAction?: (
+      action:
+        "expand" | "close" | "theater" | "back" | "forward" | "tab-next" | "tab-previous" | "drag",
+      delta?: { dx: number; dy: number }
+    ) => void;
   },
 }));
 const playerLifecycle = vi.hoisted(() => ({ unmounted: vi.fn() }));
@@ -77,6 +88,12 @@ vi.mock("@/features/playback/components/player/twitch/twitch-live-player", () =>
     onRefresh?: () => void;
     ref?: Ref<HTMLVideoElement>;
     streamUrl?: string;
+    onProtectedPlaybackSelected?: () => void;
+    onProtectedAction?: (
+      action:
+        "expand" | "close" | "theater" | "back" | "forward" | "tab-next" | "tab-previous" | "drag",
+      delta?: { dx: number; dy: number }
+    ) => void;
   }) => {
     playerProps.twitch = props;
     useEffect(() => () => playerLifecycle.unmounted("twitch"), []);
@@ -370,6 +387,7 @@ describe("MiniPlayer playback routing", () => {
     expect(playerProps.twitch?.poster).toBe(
       "https://static-cdn.jtvnw.net/previews-ttv/live_user_xqc-440x248.jpg"
     );
+    act(() => playerProps.twitch?.onProtectedPlaybackSelected?.());
 
     routerState.pathname = "/following";
     act(() => usePipStore.getState().setIsOnStreamPage(false));
@@ -377,6 +395,12 @@ describe("MiniPlayer playback routing", () => {
 
     expect(screen.getByTestId("twitch-hls-player")).toBe(dockedPlayer);
     expect(dockedPlayer).toHaveAttribute("data-controls", "compact");
+    expect(playerLifecycle.unmounted).not.toHaveBeenCalledWith("twitch");
+    expect(screen.queryByRole("button", { name: /close mini player/i })).toBeNull();
+    act(() => playerProps.twitch?.onProtectedAction?.("expand"));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/stream/$platform/$channel" })
+    );
     expect(playerProps.twitch?.poster).toBe(
       "https://static-cdn.jtvnw.net/previews-ttv/live_user_xqc-440x248.jpg"
     );

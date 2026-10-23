@@ -19,6 +19,12 @@ sealed class PlayerCommand
 {
     public string Type;
     public bool Muted;
+    public string BaseUrl;
+    public int Revision;
+    public bool Visible;
+    public double X, Y, Width, Height, ClipX, ClipY, ClipWidth, ClipHeight, Radius, Zoom;
+    public string Presentation;
+    public bool BlockerEnabled;
 }
 
 static class HostProtocol
@@ -64,10 +70,9 @@ static class HostProtocol
         return value;
     }
 
-    public static string BuildPlayerUrl(string channel)
+    public static string BuildPlayerUrl()
     {
-        return "https://player.twitch.tv/?channel=" + Uri.EscapeDataString(channel) +
-            "&parent=player.twitch.tv&autoplay=true&muted=false";
+        return "https://streamfusion.test/src/frontend/features/playback/routes/protected-player.html";
     }
 
     public static PlayerCommand ParseCommand(string line)
@@ -81,7 +86,7 @@ static class HostProtocol
         if (!body.TryGetValue("type", out typeValue) || !(typeValue is string))
             throw new ArgumentException("Missing command type.");
         string type = (string)typeValue;
-        if (type == "focus" || type == "close")
+        if (type == "focus" || type == "close" || type == "raise" || type == "suspend")
         {
             if (body.Count != 1) throw new ArgumentException("Unexpected command fields.");
             return new PlayerCommand { Type = type };
@@ -93,7 +98,62 @@ static class HostProtocol
                 throw new ArgumentException("Invalid mute command.");
             return new PlayerCommand { Type = type, Muted = (bool)muted };
         }
+        if (type == "session")
+        {
+            object baseUrl;
+            if (body.Count != 2 || !body.TryGetValue("baseUrl", out baseUrl) || !(baseUrl is string) ||
+                !Regex.IsMatch((string)baseUrl, @"^http://127\.0\.0\.1:[0-9]{2,5}/s/[a-f0-9]{64}$", RegexOptions.CultureInvariant))
+                throw new ArgumentException("Invalid session command.");
+            return new PlayerCommand { Type = type, BaseUrl = (string)baseUrl };
+        }
+        if (type == "present")
+        {
+            object revision, visible;
+            if (!body.TryGetValue("revision", out revision) || !(revision is int) || (int)revision < 0 ||
+                !body.TryGetValue("visible", out visible) || !(visible is bool))
+                throw new ArgumentException("Invalid presentation header.");
+            var command = new PlayerCommand { Type = type, Revision = (int)revision, Visible = (bool)visible };
+            if (!command.Visible)
+            {
+                if (body.Count != 3) throw new ArgumentException("Unexpected hidden presentation fields.");
+                return command;
+            }
+            if (body.Count != 15) throw new ArgumentException("Invalid visible presentation fields.");
+            command.X = Number(body, "x", -16384, 16384);
+            command.Y = Number(body, "y", -16384, 16384);
+            command.Width = Number(body, "width", 0.01, 16384);
+            command.Height = Number(body, "height", 0.01, 16384);
+            command.ClipX = Number(body, "clipX", 0, 16384);
+            command.ClipY = Number(body, "clipY", 0, 16384);
+            command.ClipWidth = Number(body, "clipWidth", 0.01, 16384);
+            command.ClipHeight = Number(body, "clipHeight", 0.01, 16384);
+            command.Radius = Number(body, "radius", 0, 256);
+            command.Zoom = Number(body, "zoom", 0.25, 5);
+            object presentation, blockerEnabled;
+            if (!body.TryGetValue("presentation", out presentation) || !(presentation is string) ||
+                ((string)presentation != "docked" && (string)presentation != "theater" && (string)presentation != "mini") ||
+                !body.TryGetValue("blockerEnabled", out blockerEnabled) || !(blockerEnabled is bool) ||
+                command.ClipX + command.ClipWidth > command.Width + 0.001 ||
+                command.ClipY + command.ClipHeight > command.Height + 0.001)
+                throw new ArgumentException("Invalid visible presentation.");
+            command.Presentation = (string)presentation;
+            command.BlockerEnabled = (bool)blockerEnabled;
+            return command;
+        }
         throw new ArgumentException("Unknown command.");
+    }
+
+    static double Number(Dictionary<string, object> body, string key, double minimum, double maximum)
+    {
+        object raw;
+        if (!body.TryGetValue(key, out raw) || raw is bool || raw is string || raw == null)
+            throw new ArgumentException("Invalid " + key + ".");
+        double value;
+        try { value = Convert.ToDouble(raw, CultureInfo.InvariantCulture); }
+        catch (Exception) { throw new ArgumentException("Invalid " + key + "."); }
+        if (Double.IsNaN(value) || Double.IsInfinity(value) || value < minimum || value > maximum)
+            throw new ArgumentException("Invalid " + key + ".");
+        return value;
     }
 
     public static string ReadCommandLine(TextReader reader)

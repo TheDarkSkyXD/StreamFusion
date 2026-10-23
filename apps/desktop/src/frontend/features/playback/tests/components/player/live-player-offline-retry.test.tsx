@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -248,14 +248,23 @@ describe("live player offline retry handling", () => {
     vi.useRealTimers();
   });
 
-  it("moves a confirmed encrypted stream to one owned player window", async () => {
+  it("keeps a confirmed encrypted stream in the player slot", async () => {
     const check = vi.fn().mockResolvedValue(true);
     const open = vi.fn().mockResolvedValue({ kind: "opened" });
     const close = vi.fn().mockResolvedValue(undefined);
     const focus = vi.fn().mockResolvedValue(undefined);
     const mute = vi.fn().mockResolvedValue(undefined);
+    const present = vi.fn().mockResolvedValue(undefined);
     window.electronAPI = {
-      protectedPlayback: { check, open, close, focus, mute, onState: vi.fn(() => vi.fn()) },
+      protectedPlayback: {
+        check,
+        open,
+        close,
+        focus,
+        mute,
+        present,
+        onState: vi.fn(() => vi.fn()),
+      },
     } as unknown as typeof window.electronAPI;
     const onRefresh = vi.fn();
     const { unmount } = render(
@@ -279,11 +288,42 @@ describe("live player offline retry handling", () => {
     expect(check).toHaveBeenCalledWith("primevideo");
     expect(screen.queryByTestId("twitch-hls-player")).toBeNull();
     expect(onRefresh).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /focus/i }));
-    expect(focus).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: /close/i }));
-    expect(close).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /focus player window/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /close player window/i })).toBeNull();
+    expect(screen.queryByText(/official player/i)).toBeNull();
+    await waitFor(() =>
+      expect(present).toHaveBeenCalledWith(
+        expect.objectContaining({ ownerId: expect.stringContaining("primevideo") })
+      )
+    );
     expect(open).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("opens a protected stream from metadata while the ordinary HLS loader only spins", async () => {
+    const check = vi.fn().mockResolvedValue(true);
+    const open = vi.fn().mockResolvedValue({ kind: "opened" });
+    window.electronAPI = {
+      protectedPlayback: {
+        check,
+        open,
+        close: vi.fn(),
+        focus: vi.fn(),
+        mute: vi.fn(),
+        present: vi.fn().mockResolvedValue(undefined),
+        onState: vi.fn(() => vi.fn()),
+      },
+    } as unknown as typeof window.electronAPI;
+    const { unmount } = render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/primevideo.m3u8"
+        channelName="primevideo"
+        autoPlay
+      />
+    );
+    await waitFor(() => expect(open).toHaveBeenCalledOnce());
+    expect(check).toHaveBeenCalledWith("primevideo");
+    expect(screen.queryByTestId("twitch-hls-player")).toBeNull();
     unmount();
   });
 
@@ -300,6 +340,7 @@ describe("live player offline retry handling", () => {
         close: vi.fn(),
         focus: vi.fn(),
         mute: vi.fn(),
+        present: vi.fn().mockResolvedValue(undefined),
         onState: vi.fn(() => vi.fn()),
       },
     } as unknown as typeof window.electronAPI;
@@ -320,13 +361,13 @@ describe("live player offline retry handling", () => {
       shouldRefresh: true,
     };
 
-    act(() => h.twitchHlsProps?.onError?.(playbackError));
-    await waitFor(() => expect(onError).toHaveBeenCalledWith(playbackError));
-    expect(open).not.toHaveBeenCalled();
-
+    await act(async () => {
+      await Promise.resolve();
+    });
     act(() => h.twitchHlsProps?.onError?.(playbackError));
     await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
     expect(check).toHaveBeenCalledTimes(2);
+    expect(onError).not.toHaveBeenCalled();
     expect(screen.queryByTestId("twitch-hls-player")).toBeNull();
     unmount();
   });

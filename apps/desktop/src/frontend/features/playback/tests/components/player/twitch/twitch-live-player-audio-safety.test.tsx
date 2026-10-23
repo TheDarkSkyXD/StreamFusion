@@ -3,21 +3,31 @@ import { forwardRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useVolumeStore } from "@/features/playback/components/state/volume-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 
 const harness = vi.hoisted(() => ({
+  defaultQuality: "auto",
   hlsProps: null as null | {
     autoPlay?: boolean;
     muted?: boolean;
+    protection?: { kind: string };
+    enableAdBlock?: boolean;
+    preferredQuality?: string;
   },
 }));
 
 vi.mock("@/components/ui/loading-spinner", () => ({
   TwitchLoadingSpinner: () => null,
 }));
-vi.mock("@/features/playback/components/hooks/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
-vi.mock("@/features/playback/components/state/adblock-store", () => ({ useAdBlockStore: () => true }));
+vi.mock("@/features/playback/components/hooks/use-ad-element-observer", () => ({
+  useAdElementObserver: vi.fn(),
+}));
+vi.mock("@/features/playback/components/state/adblock-store", () => ({
+  useAdBlockStore: () => true,
+}));
 vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({
-  useDefaultQuality: () => ({ defaultQuality: "auto" }),
+  useDefaultQuality: () => ({ defaultQuality: harness.defaultQuality }),
 }));
 vi.mock("@/features/playback/components/player/persistent-player-shell", () => ({
   useDockedPlayerConfig: () => null,
@@ -43,7 +53,9 @@ vi.mock("@/features/playback/components/player/hooks/use-local-live-captions", (
 vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
-vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({ usePlayerKeyboard: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({
+  usePlayerKeyboard: vi.fn(),
+}));
 vi.mock("@/features/playback/components/player/hooks/use-player-network-recovery", () => ({
   usePlayerNetworkRecovery: vi.fn(),
 }));
@@ -55,7 +67,9 @@ vi.mock("@/features/playback/components/player/hooks/use-timed-text", () => ({
     selectTrack: vi.fn(),
   }),
 }));
-vi.mock("@/features/playback/components/player/caption-overlay", () => ({ CaptionOverlay: () => null }));
+vi.mock("@/features/playback/components/player/caption-overlay", () => ({
+  CaptionOverlay: () => null,
+}));
 vi.mock("@/features/playback/components/player/twitch/ad-block-fallback-overlay", () => ({
   AdBlockFallbackOverlay: () => null,
 }));
@@ -106,6 +120,9 @@ vi.mock("@/features/playback/components/player/twitch/twitch-hls-player", () => 
     {
       autoPlay?: boolean;
       muted?: boolean;
+      protection?: { kind: string };
+      enableAdBlock?: boolean;
+      preferredQuality?: string;
     }
   >((props, ref) => {
     harness.hlsProps = props;
@@ -129,6 +146,7 @@ describe("Twitch live-player audio safety gate", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     harness.hlsProps = null;
+    harness.defaultQuality = "auto";
     sessionStorage.clear();
     useVolumeStore.setState({ volume: 37, isMuted: false });
   });
@@ -279,5 +297,22 @@ describe("Twitch live-player audio safety gate", () => {
     fireEvent.click(screen.getByRole("button", { name: "Set volume to 55" }));
     expect(useVolumeStore.getState()).toMatchObject({ volume: 55, isMuted: false });
     expect(harness.hlsProps?.muted).toBe(false);
+  });
+
+  it("keeps existing controls and passes protected playback to the local HLS player", () => {
+    harness.defaultQuality = "1080p";
+    useAuthStore.setState({ preferences: DEFAULT_USER_PREFERENCES });
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/primevideo.m3u8?cdm=wv"
+        channelName="primevideo"
+        autoPlay
+        protection={{ kind: "widevine", requestLicense: async () => new Uint8Array([1]) }}
+      />
+    );
+    expect(screen.getByTestId("twitch-control-state")).toHaveAttribute("data-playing", "true");
+    expect(harness.hlsProps?.protection?.kind).toBe("widevine");
+    expect(harness.hlsProps?.enableAdBlock).toBe(true);
+    expect(harness.hlsProps?.preferredQuality).toBe("1080p");
   });
 });

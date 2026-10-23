@@ -25,6 +25,7 @@ describe("protected playback IPC", () => {
     focus: vi.fn(),
     close: vi.fn(),
     mute: vi.fn(),
+    present: vi.fn().mockResolvedValue(undefined),
     closeOwner: vi.fn(),
     closeAll: vi.fn(),
   };
@@ -90,6 +91,42 @@ describe("protected playback IPC", () => {
     expect(host.close).toHaveBeenCalledWith("8:player-1");
     await close({ sender: { id: 7 } }, { ownerId: "../../another" });
     expect(host.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts only bounded presentation from the current renderer", async () => {
+    const present = handlers.get(IPC_CHANNELS.PROTECTED_PLAYBACK_PRESENT)!;
+    const layout = {
+      ownerId: "player-1",
+      revision: 2,
+      presentation: "docked",
+      blockerEnabled: true,
+      layout: {
+        kind: "visible",
+        boundsCss: { x: 10, y: 20, width: 640, height: 360 },
+        clipCss: { x: 10, y: 40, width: 640, height: 340 },
+        radiusCss: 0,
+      },
+    };
+    await present({ sender: { id: 7 } }, layout);
+    expect(host.present).toHaveBeenCalledWith(
+      "7:player-1",
+      expect.objectContaining({ revision: 2 })
+    );
+    await present({ sender: { id: 7 } }, { ...layout, revision: 3, presentation: "theater" });
+    expect(host.present).toHaveBeenCalledWith(
+      "7:player-1",
+      expect.objectContaining({ revision: 3, presentation: "theater" })
+    );
+    await present({ sender: { id: 8 } }, layout);
+    await present({ sender: { id: 7 } }, { ...layout, revision: -1 });
+    await present(
+      { sender: { id: 7 } },
+      {
+        ...layout,
+        layout: { ...layout.layout, clipCss: { x: 10, y: 40, width: 700, height: 340 } },
+      }
+    );
+    expect(host.present).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the player on same-document navigation and closes it on reload", () => {

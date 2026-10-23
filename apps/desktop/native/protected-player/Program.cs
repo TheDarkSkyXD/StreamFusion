@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -7,6 +8,11 @@ static class Program
 {
     static readonly object OutputLock = new object();
     static StreamWriter output;
+
+    [DllImport("user32.dll")]
+    static extern IntPtr GetWindowDpiAwarenessContext(IntPtr window);
+    [DllImport("user32.dll")]
+    static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 
     [STAThread]
     static int Main(string[] args)
@@ -20,12 +26,20 @@ static class Program
             return 2;
         }
 
+        SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(options.Owner));
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         var form = new ProtectedPlayerForm(options, Emit);
         var input = new Thread(() => ReadCommands(form)) { IsBackground = true };
-        form.Shown += (sender, eventArgs) => input.Start();
-        try { Application.Run(form); }
+        try
+        {
+            form.AttachHidden();
+            var context = new ApplicationContext();
+            form.FormClosed += (sender, eventArgs) => context.ExitThread();
+            form.BeginInvoke((Action)(() => form.StartPlayer()));
+            input.Start();
+            Application.Run(context);
+        }
         catch (Exception error)
         {
             Emit("failed", error.Message);

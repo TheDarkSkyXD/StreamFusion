@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Ref } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,23 @@ interface HlsHarnessProps {
 const harness = vi.hoisted(() => ({
   hlsProps: null as HlsHarnessProps | null,
   recoverFromNetworkError: null as (() => void) | null,
+  checkProtection: vi.fn(),
+  openProtectedPlayer: vi.fn(),
+  presentProtectedPlayer: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/features/playback/composition/protected-playback", () => ({
+  protectedPlaybackController: {
+    isAvailable: () => true,
+    check: harness.checkProtection,
+    open: harness.openProtectedPlayer,
+    onState: () => () => {},
+    close: vi.fn(),
+    mute: vi.fn(),
+    focus: vi.fn(),
+    present: harness.presentProtectedPlayer,
+    installRuntime: vi.fn(),
+  },
 }));
 
 vi.mock("@/components/ui/loading-spinner", () => ({
@@ -23,7 +40,9 @@ vi.mock("@/components/ui/loading-spinner", () => ({
 vi.mock("@/features/playback/components/hooks/use-ad-element-observer", () => ({
   useAdElementObserver: vi.fn(),
 }));
-vi.mock("@/features/playback/components/state/adblock-store", () => ({ useAdBlockStore: () => true }));
+vi.mock("@/features/playback/components/state/adblock-store", () => ({
+  useAdBlockStore: () => true,
+}));
 vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({
   useDefaultQuality: () => ({ defaultQuality: "auto" }),
 }));
@@ -134,6 +153,11 @@ describe("Twitch live-player ad-block indicator", () => {
   beforeEach(() => {
     harness.hlsProps = null;
     harness.recoverFromNetworkError = null;
+    harness.checkProtection.mockReset();
+    harness.openProtectedPlayer.mockReset();
+    harness.presentProtectedPlayer.mockClear();
+    harness.checkProtection.mockResolvedValue(false);
+    harness.openProtectedPlayer.mockResolvedValue({ kind: "opened" });
     useAuthStore.setState({ preferences: null });
   });
 
@@ -161,6 +185,54 @@ describe("Twitch live-player ad-block indicator", () => {
 
     expect(harness.hlsProps?.enableAdBlock).toBe(false);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("passes the requested blocker setting to protected playback while proxy mode is enabled", async () => {
+    useAuthStore.setState({ preferences: { ...DEFAULT_USER_PREFERENCES } });
+    harness.checkProtection.mockResolvedValue(true);
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/primevideo.m3u8"
+        channelName="primevideo"
+        autoPlay
+        enableAdBlock
+      />
+    );
+
+    await waitFor(() => expect(harness.openProtectedPlayer).toHaveBeenCalled());
+    expect(harness.openProtectedPlayer.mock.calls[0][0]).toMatchObject({
+      channelSlug: "primevideo",
+      blockerEnabled: true,
+    });
+  });
+
+  it("sends the app's theater state to protected playback", async () => {
+    harness.checkProtection.mockResolvedValue(true);
+    const props = {
+      streamUrl: "https://usher.ttvnw.net/api/channel/hls/primevideo.m3u8",
+      channelName: "primevideo",
+      autoPlay: true,
+    };
+    const player = render(<TwitchLivePlayer {...props} isTheater={false} />);
+    await waitFor(() =>
+      expect(harness.presentProtectedPlayer).toHaveBeenCalledWith(
+        expect.objectContaining({ presentation: "docked" })
+      )
+    );
+
+    player.rerender(<TwitchLivePlayer {...props} isTheater />);
+    await waitFor(() =>
+      expect(harness.presentProtectedPlayer).toHaveBeenCalledWith(
+        expect.objectContaining({ presentation: "theater" })
+      )
+    );
+
+    player.rerender(<TwitchLivePlayer {...props} isTheater={false} />);
+    await waitFor(() =>
+      expect(harness.presentProtectedPlayer).toHaveBeenLastCalledWith(
+        expect.objectContaining({ presentation: "docked" })
+      )
+    );
   });
 
   it("distinguishes active midroll substitution", () => {

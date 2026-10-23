@@ -118,6 +118,7 @@ export function NotificationsDropdown() {
       {isOpen && (
         <div
           id="notifications-dropdown"
+          data-native-player-occluder
           className="absolute right-0 top-full mt-2 w-96 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
         >
           <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex items-center justify-between gap-2 bg-[var(--color-background-elevated)] sticky top-0 z-10">

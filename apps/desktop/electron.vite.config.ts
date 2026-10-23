@@ -193,6 +193,7 @@ export const createDesktopConfig = ({ command, mode }: { command: "build" | "ser
                         // minimal video page. Vanilla TS + HLS.js, no React,
                         // no app chrome.
                         slot: resolve(__dirname, 'src/frontend/slot-renderer/index.html'),
+                        protectedPlayer: resolve(__dirname, 'src/frontend/features/playback/routes/protected-player.html'),
                     },
                     treeshake: {
                         moduleSideEffects: 'no-external',

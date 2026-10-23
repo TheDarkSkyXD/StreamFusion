@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -9,9 +10,12 @@ const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const source = path.join(desktop, 'native', 'protected-player')
 const cache = path.join(desktop, '.cache', 'native')
 const output = path.join(cache, 'protected-player')
+const rendererSource = path.join(desktop, 'out', 'renderer')
+const rendererOutput = path.join(output, 'renderer')
+const playerPage = path.join('src', 'frontend', 'features', 'playback', 'routes', 'protected-player.html')
 const version = '1.0.4258.31'
 const sha256 = '56f7f4b8bf9aee4b8efefbbdd4f67d5f74ebd1b100ed0806da71bf76af481aa9'
-const nativeSources = ['Program.cs', 'HostProtocol.cs', 'ProtectedPlayerForm.cs']
+const nativeSources = ['Program.cs', 'HostProtocol.cs', 'ProtectedPlayerForm.cs', 'ProtectedPlayerBridge.cs', 'CompletedResponseStream.cs']
 const outputFiles = [
   'StreamFusion.ProtectedPlayer.exe',
   'Microsoft.Web.WebView2.Core.dll',
@@ -26,6 +30,31 @@ function run(file, args) {
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`${file} failed (${result.status})\n${result.stdout}\n${result.stderr}`)
   if (result.stdout) process.stdout.write(result.stdout)
+}
+
+function buildRenderer() {
+  const require = createRequire(import.meta.url)
+  const cli = path.join(path.dirname(require.resolve('electron-vite/package.json')), 'bin', 'electron-vite.js')
+  run(process.execPath, [cli, 'build', '--filter', 'renderer'])
+}
+
+async function rendererFingerprint() {
+  const fingerprint = createHash('sha256')
+  const roots = [path.join(desktop, 'src', 'frontend'), path.join(desktop, 'src', 'shared'),
+    path.join(desktop, '..', '..', 'packages', 'core', 'src')]
+  const sourceEntries = await Promise.all(roots.map((root) => readdir(root, { recursive: true, withFileTypes: true })))
+  const files = sourceEntries.flatMap((entries) => entries
+      .filter((entry) => entry.isFile() && /\.(?:ts|tsx|css|html|json)$/.test(entry.name) &&
+        !entry.parentPath.split(path.sep).includes('tests') &&
+        !/\.(?:test|stories)\.[cm]?[jt]sx?$/.test(entry.name))
+      .map((entry) => path.join(entry.parentPath, entry.name)).sort())
+  const fileStats = await Promise.all(files.map((file) => stat(file)))
+  for (const [index, file] of files.entries()) {
+    const info = fileStats[index]
+    fingerprint.update(file).update(String(info.size)).update(String(info.mtimeMs))
+  }
+  fingerprint.update(await readFile(path.join(desktop, 'electron.vite.config.ts')))
+  return fingerprint.digest('hex')
 }
 
 async function downloadPackage(archive) {
@@ -53,6 +82,7 @@ function compiler() {
 function compile(file, target, sources, sdk) {
   const references = [
     'System.Web.Extensions.dll',
+    'System.Net.Http.dll',
     ...(target === 'winexe' || sources.some((entry) => entry.endsWith('NativeSmokeTests.cs')) ? [
       'System.Windows.Forms.dll',
       'System.Drawing.dll',
@@ -77,7 +107,18 @@ if (process.platform !== 'win32') {
   throw new Error('The protected player builds on Windows only.')
 }
 if (!['x64', 'arm64'].includes(arch)) throw new Error(`Unsupported protected player architecture: ${arch}`)
-if (args.some((arg) => !['--arch', 'x64', 'arm64', '--test', '--smoke', '--if-windows'].includes(arg))) throw new Error('Unknown build argument.')
+if (args.some((arg) => !['--arch', 'x64', 'arm64', '--test', '--smoke', '--if-windows', '--renderer'].includes(arg))) throw new Error('Unknown build argument.')
+
+const rendererStamp = path.join(cache, 'protected-player-renderer.json')
+const rendererId = await rendererFingerprint()
+let rendererCurrent = false
+try { rendererCurrent = JSON.parse(await readFile(rendererStamp, 'utf8')).rendererId === rendererId } catch {}
+if (args.includes('--renderer') || !rendererCurrent || !existsSync(path.join(rendererSource, playerPage))) {
+  buildRenderer()
+  await mkdir(cache, { recursive: true })
+  await writeFile(rendererStamp, JSON.stringify({ rendererId }))
+}
+if (!existsSync(path.join(rendererSource, playerPage))) throw new Error('Protected player renderer build is missing.')
 
 await mkdir(cache, { recursive: true })
 await mkdir(output, { recursive: true })
@@ -114,10 +155,13 @@ if (!isCurrent) {
 }
 const files = await readdir(output)
 if (files.length < 4) throw new Error('Protected player build is incomplete.')
+if (path.dirname(rendererOutput) !== output) throw new Error('Invalid protected player renderer destination.')
+await rm(rendererOutput, { recursive: true, force: true })
+await cp(rendererSource, rendererOutput, { recursive: true })
 
 if (args.includes('--test')) {
   const testExe = path.join(cache, 'HostProtocolTests.exe')
-  compile(testExe, 'exe', [path.join(source, 'HostProtocol.cs'), path.join(source, 'HostProtocolTests.cs')], sdk)
+  compile(testExe, 'exe', [path.join(source, 'HostProtocol.cs'), path.join(source, 'CompletedResponseStream.cs'), path.join(source, 'HostProtocolTests.cs')], sdk)
   run(testExe, [])
 }
 if (args.includes('--smoke')) {

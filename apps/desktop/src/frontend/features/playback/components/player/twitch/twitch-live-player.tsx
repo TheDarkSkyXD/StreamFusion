@@ -20,8 +20,15 @@ import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sle
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@shared/adblock-types";
 import type { ProtectedPlaybackFailure } from "@shared/protected-playback-types";
+import type { TwitchMediaProtection } from "../../../capabilities/twitch-media-protection";
 import { protectedPlaybackController } from "@/features/playback/composition/protected-playback";
+import {
+  measureProtectedPlayerLayout,
+  observeProtectedPlayerLayout,
+  observeProtectedPlayerOcclusion,
+} from "@/features/playback/adapters/electron/protected-player-layout";
 import { useAdBlockStore } from "@/features/playback/components/state/adblock-store";
+import { useVolumeStore } from "@/features/playback/components/state/volume-store";
 import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -90,6 +97,11 @@ export interface TwitchLivePlayerProps {
   onError?: (error: PlayerError) => boolean | void;
   onCleanPresentedFrame?: () => void;
   onProtectedPlaybackSelected?: () => void;
+  onProtectedAction?: (
+    action:
+      "expand" | "close" | "theater" | "back" | "forward" | "tab-next" | "tab-previous" | "drag",
+    delta?: { dx: number; dy: number }
+  ) => void;
   onQualityChange?: (quality: QualityLevel) => void;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
   className?: string;
@@ -101,6 +113,7 @@ export interface TwitchLivePlayerProps {
   /** A stable parent surface owns the retry budget across keyed player remounts. */
   recoveryManagedExternally?: boolean;
   compact?: boolean;
+  protection?: TwitchMediaProtection;
 }
 
 const NO_QUALITY_LEVELS: QualityLevel[] = [];
@@ -120,6 +133,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       onError,
       onCleanPresentedFrame,
       onProtectedPlaybackSelected,
+      onProtectedAction,
       onQualityChange,
       onAdBlockStatusChange,
       className,
@@ -129,9 +143,10 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       onRefresh,
       recoveryManagedExternally = false,
       compact = false,
+      protection,
     } = props;
     const isDockedChannelSurface = useDockedPlayerConfig() !== null;
-    const shouldApplySavedQuality = isDockedChannelSurface;
+    const shouldApplySavedQuality = isDockedChannelSurface || protection?.kind === "widevine";
     const protectedOwnerId = useMemo(
       () =>
         `protected-${channelName.replace(/[^a-zA-Z0-9_]/g, "")}-${Math.random().toString(36).slice(2)}`,
@@ -140,6 +155,12 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     const [protectedMode, setProtectedMode] = useState<ProtectedMode | null>(null);
     const protectedProbeRef = useRef<"unchecked" | "checking" | "not-encrypted">("unchecked");
     const protectedProbeGenerationRef = useRef(0);
+    const protectedLayoutRevisionRef = useRef(0);
+    const protectedLayoutKeyRef = useRef("");
+    const onProtectedActionRef = useRef(onProtectedAction);
+    useLayoutEffect(() => {
+      onProtectedActionRef.current = onProtectedAction;
+    }, [onProtectedAction]);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -151,13 +172,12 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     // Ad-block store setting
     const storeEnableAdBlock = useAdBlockStore((s) => s.enableAdBlock);
-    const isPlaylistProxyMode = useAuthStore((state) =>
-      isTwitchPlaylistProxyMode(state.preferences)
+    const isPlaylistProxyMode = useAuthStore(
+      (state) => protection?.kind !== "widevine" && isTwitchPlaylistProxyMode(state.preferences)
     );
     // Use prop if explicitly set, otherwise use store value
-    const effectiveEnableAdBlock =
-      !isPlaylistProxyMode &&
-      (enableAdBlock !== undefined ? enableAdBlock && storeEnableAdBlock : storeEnableAdBlock);
+    const requestedEnableAdBlock = enableAdBlock && storeEnableAdBlock;
+    const effectiveEnableAdBlock = !isPlaylistProxyMode && requestedEnableAdBlock;
 
     // Ad-block status tracking
     const [adBlockStatus, setAdBlockStatus] = useState<AdBlockStatus | null>(null);
@@ -280,17 +300,62 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       readPlaybackIntent(channelName, autoPlay)
     );
     const playbackIntentRef = useRef(playbackIntent);
-    const protectedMutedRef = useRef(isMuted);
     useLayoutEffect(() => {
       playbackIntentRef.current = playbackIntent;
     }, [playbackIntent]);
-    useLayoutEffect(() => {
-      protectedMutedRef.current = isMuted;
-    }, [isMuted]);
     useEffect(() => {
-      if (!protectedPlaybackController.isAvailable()) return;
+      if (protection?.kind === "widevine" || !protectedPlaybackController.isAvailable()) return;
       const unsubscribe = protectedPlaybackController.onState((state) => {
         if (state.ownerId !== protectedOwnerId) return;
+        if (state.kind === "volume") {
+          useVolumeStore.getState().setVolume(state.volume);
+          useVolumeStore.getState().setMuted(state.muted);
+          return;
+        }
+        if (state.kind === "action") {
+          if (state.action === "back") {
+            window.history.back();
+            return;
+          }
+          if (state.action === "forward") {
+            window.history.forward();
+            return;
+          }
+          if (state.action === "tab-next" || state.action === "tab-previous") {
+            const slot = containerRef.current;
+            if (!slot) return;
+            const candidates = [
+              ...document.querySelectorAll<HTMLElement>(
+                'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+              ),
+            ].filter(
+              (candidate) => !slot.contains(candidate) && candidate.getClientRects().length > 0
+            );
+            const next =
+              state.action === "tab-next"
+                ? (candidates.find((candidate) =>
+                    Boolean(
+                      slot.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_FOLLOWING
+                    )
+                  ) ?? candidates[0])
+                : (candidates
+                    .reverse()
+                    .find((candidate) =>
+                      Boolean(
+                        slot.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_PRECEDING
+                      )
+                    ) ?? candidates[0]);
+            next?.focus();
+            return;
+          }
+          onProtectedActionRef.current?.(state.action);
+          return;
+        }
+        if (state.kind === "drag") {
+          onProtectedActionRef.current?.("drag", { dx: state.dx, dy: state.dy });
+          return;
+        }
+        if (state.kind === "fullscreen") return;
         setProtectedMode((current) => {
           if (!current) return current;
           return state.kind === "closed"
@@ -303,7 +368,50 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         unsubscribe();
         void protectedPlaybackController.close(protectedOwnerId);
       };
-    }, [protectedOwnerId]);
+    }, [protectedOwnerId, protection?.kind]);
+
+    useLayoutEffect(() => {
+      if (protectedMode?.kind !== "opening" && protectedMode?.kind !== "opened") return;
+      const element = containerRef.current;
+      if (!element) return;
+      let occluded = false;
+      const update = () => {
+        const presentation = {
+          layout: occluded ? { kind: "hidden" as const } : measureProtectedPlayerLayout(element),
+          presentation: compact
+            ? ("mini" as const)
+            : isTheater
+              ? ("theater" as const)
+              : ("docked" as const),
+          blockerEnabled: requestedEnableAdBlock,
+        };
+        const key = JSON.stringify(presentation);
+        if (key === protectedLayoutKeyRef.current) return Promise.resolve();
+        protectedLayoutKeyRef.current = key;
+        return protectedPlaybackController.present({
+          ownerId: protectedOwnerId,
+          revision: ++protectedLayoutRevisionRef.current,
+          ...presentation,
+        });
+      };
+      const stopLayout = observeProtectedPlayerLayout(element, () => {
+        void update();
+      });
+      const stopOcclusion = observeProtectedPlayerOcclusion(element, (value) => {
+        occluded = value;
+        return update();
+      });
+      return () => {
+        stopLayout();
+        stopOcclusion();
+      };
+    }, [protectedMode?.kind, compact, isTheater, requestedEnableAdBlock, protectedOwnerId]);
+
+    useEffect(() => {
+      if (protectedMode?.kind === "closed" || protectedMode?.kind === "failed") {
+        protectedLayoutKeyRef.current = "";
+      }
+    }, [protectedMode?.kind]);
 
     useEffect(() => {
       if (protectedMode?.kind !== "opening") return;
@@ -313,7 +421,10 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         .open({
           ownerId: protectedOwnerId,
           channelSlug: channelName,
-          muted: protectedMutedRef.current,
+          muted: useVolumeStore.getState().isMuted,
+          volume: useVolumeStore.getState().volume,
+          blockerEnabled: requestedEnableAdBlock,
+          forcedMuted: initialMuted,
         })
         .then((result) => {
           if (!active) return;
@@ -330,12 +441,12 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       return () => {
         active = false;
       };
-    }, [channelName, protectedMode?.kind, protectedOwnerId]);
+    }, [channelName, requestedEnableAdBlock, initialMuted, protectedMode?.kind, protectedOwnerId]);
 
     useEffect(() => {
       if (protectedMode?.kind !== "opened") return;
-      void protectedPlaybackController.mute(protectedOwnerId, isMuted);
-    }, [isMuted, protectedMode?.kind, protectedOwnerId]);
+      void protectedPlaybackController.mute(protectedOwnerId, initialMuted);
+    }, [initialMuted, protectedMode?.kind, protectedOwnerId]);
     const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
     const [activeQualityId, setActiveQualityId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -371,6 +482,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       sourceKey: streamUrl,
       muted: isMuted,
       volume,
+      allowLocalCaptions: protection?.kind !== "widevine",
     });
 
     // Track mute state before fallback mode for restoration
@@ -635,6 +747,10 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     };
 
     const handlePlaybackError = (error: PlayerError) => {
+      if (protection?.kind === "widevine") {
+        handleRegularPlaybackError(error);
+        return;
+      }
       const hasProtectedPlayback = protectedPlaybackController.isAvailable();
       if (
         protectedMode ||
@@ -686,51 +802,87 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         });
     };
 
+    useEffect(() => {
+      if (
+        protection?.kind === "widevine" ||
+        !autoPlay ||
+        !streamUrl ||
+        !protectedPlaybackController.isAvailable() ||
+        protectedMode ||
+        protectedProbeRef.current !== "unchecked"
+      )
+        return;
+      protectedProbeRef.current = "checking";
+      const generation = protectedProbeGenerationRef.current;
+      let active = true;
+      void protectedPlaybackController
+        .check(channelName)
+        .then((encrypted) => {
+          if (!active || generation !== protectedProbeGenerationRef.current) return;
+          if (!encrypted) {
+            protectedProbeRef.current = "not-encrypted";
+            return;
+          }
+          onProtectedPlaybackSelected?.();
+          hideAdPresentationCover();
+          setIsLoading(false);
+          setHasError(false);
+          setProtectedMode({ kind: "opening" });
+        })
+        .catch(() => {
+          if (active && generation === protectedProbeGenerationRef.current) {
+            protectedProbeRef.current = "unchecked";
+          }
+        });
+      return () => {
+        active = false;
+        if (
+          generation === protectedProbeGenerationRef.current &&
+          protectedProbeRef.current === "checking"
+        ) {
+          protectedProbeRef.current = "unchecked";
+          protectedProbeGenerationRef.current += 1;
+        }
+      };
+    }, [
+      autoPlay,
+      channelName,
+      hideAdPresentationCover,
+      onProtectedPlaybackSelected,
+      protectedMode,
+      protection?.kind,
+      streamUrl,
+    ]);
+
     return (
       <div
         ref={containerRef}
         className={`relative w-full h-full bg-black overflow-hidden group flex flex-col justify-center ${className || ""}`}
       >
-        {protectedMode && (
+        {protectedMode?.kind === "opened" && (
+          <button
+            type="button"
+            className="sr-only"
+            aria-label="Focus player"
+            onFocus={() => {
+              void protectedPlaybackController.focus(protectedOwnerId);
+            }}
+          />
+        )}
+        {protectedMode && protectedMode.kind !== "opened" && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black px-5 text-center text-white">
             <p className="text-base font-semibold">
               {protectedMode.kind === "opening"
-                ? t("playback.protectedWindowOpening")
-                : protectedMode.kind === "opened"
-                  ? t("playback.protectedWindowOpen")
-                  : protectedMode.kind === "failed"
-                    ? protectedMode.reason === "unsupported-platform"
-                      ? t("playback.protectedWindowsOnly")
-                      : protectedMode.reason === "runtime-missing"
-                        ? t("playback.protectedRuntimeMissing")
-                        : t("playback.protectedWindowUnavailable")
-                    : t("playback.protectedWindowClosed")}
-            </p>
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              {t("playback.protectedWindowNotice")}
+                ? t("multistream.loadingStream")
+                : protectedMode.kind === "failed"
+                  ? protectedMode.reason === "unsupported-platform"
+                    ? t("playback.protectedWindowsOnly")
+                    : protectedMode.reason === "runtime-missing"
+                      ? t("playback.protectedRuntimeMissing")
+                      : t("playback.streamUnavailable")
+                  : t("playback.streamUnavailable")}
             </p>
             <div className="flex gap-2">
-              {protectedMode.kind === "opened" && (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    void protectedPlaybackController.focus(protectedOwnerId);
-                  }}
-                >
-                  {t("playback.focusPlayerWindow")}
-                </Button>
-              )}
-              {protectedMode.kind === "opened" && (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setProtectedMode({ kind: "closed" });
-                    void protectedPlaybackController.close(protectedOwnerId);
-                  }}
-                >
-                  {t("playback.closePlayerWindow")}
-                </Button>
-              )}
               {protectedMode.kind === "failed" && protectedMode.reason === "runtime-missing" && (
                 <Button
                   variant="secondary"
@@ -745,7 +897,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
                 (protectedMode.kind === "failed" &&
                   protectedMode.reason !== "unsupported-platform")) && (
                 <Button variant="secondary" onClick={() => setProtectedMode({ kind: "opening" })}>
-                  {t("playback.openPlayerWindow")}
+                  {t("playback.retryPlayback")}
                 </Button>
               )}
             </div>
@@ -756,6 +908,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             key={networkRecoveryRevision}
             ref={videoRef}
             src={streamUrl}
+            protection={protection}
             channelName={channelName}
             enableAdBlock={effectiveEnableAdBlock}
             poster={poster}
@@ -907,7 +1060,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             onToggleFullscreen={toggleFullscreen}
             onToggleTheater={onToggleTheater}
             isTheater={isTheater}
-            onTogglePip={togglePipHandler}
+            onTogglePip={protection?.kind === "widevine" ? undefined : togglePipHandler}
             playbackRate={playbackRate}
             onPlaybackRateChange={handlePlaybackRateChange}
             showVideoStats={showVideoStats}

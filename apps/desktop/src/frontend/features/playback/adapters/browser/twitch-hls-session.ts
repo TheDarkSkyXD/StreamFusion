@@ -22,6 +22,11 @@ import {
 } from "./twitch/twitch-adblock-service";
 
 import type { BufferPreferences } from "@shared/auth-types";
+import type { TwitchMediaProtection } from "../../capabilities/twitch-media-protection";
+import {
+  createTwitchNativeEmeSession,
+  type TwitchNativeEmeSession,
+} from "./twitch-native-eme-session";
 
 interface MutableCell<Value> {
   current: Value;
@@ -121,6 +126,7 @@ interface SessionBindings {
   clearAdBlockRecoveryWatchdog: () => void;
   invalidatePresentationRecovery: () => void;
   bufferPreferences: BufferPreferences;
+  protection?: TwitchMediaProtection;
 }
 
 export function startTwitchHlsSession({
@@ -164,6 +170,7 @@ export function startTwitchHlsSession({
   clearAdBlockRecoveryWatchdog,
   invalidatePresentationRecovery,
   bufferPreferences,
+  protection,
 }: SessionBindings): (() => void) | undefined {
   const video = videoRef.current;
 
@@ -182,6 +189,7 @@ export function startTwitchHlsSession({
   }
 
   let hls: Hls | null = null;
+  let eme: TwitchNativeEmeSession | null = null;
   let handleLoadedMetadata: (() => void) | null = null;
   let handleError: ((e: Event) => void) | null = null;
   let handleLivePauseStopLoad: (() => void) | null = null;
@@ -269,6 +277,7 @@ export function startTwitchHlsSession({
     hls = new Hls({
       // Keep long-lived segment buffers out of the worker transfer boundary.
       enableWorker: false,
+      emeEnabled: false,
       // Bound automatic quality by the rendered viewport. Users can still
       // explicitly select Source when they prefer it.
       capLevelToPlayerSize: true,
@@ -608,11 +617,46 @@ export function startTwitchHlsSession({
       setMemoryCleanupDelay(LIVE_MEMORY_CLEANUP_INTERVAL_MS);
     });
 
-    try {
-      hls.loadSource(activeSource);
-      hls.attachMedia(video);
-    } catch (e) {
-      logger.error("Player:Twitch:HLS", "error setting up HLS", { error: e });
+    const attach = () => {
+      if (!isEffectActive || !hls) return;
+      try {
+        hls.loadSource(activeSource);
+        hls.attachMedia(video);
+      } catch (error) {
+        onErrorRef.current?.({
+          code: "PLAYBACK_ERROR",
+          message:
+            protection?.kind === "widevine"
+              ? "Protected playback could not start"
+              : translateRef.current("playback.playbackFailed"),
+          fatal: true,
+          originalError: error,
+        });
+      }
+    };
+    if (protection?.kind === "widevine") {
+      eme = createTwitchNativeEmeSession({
+        video,
+        requestLicense: protection.requestLicense,
+        onError: (error) =>
+          onErrorRef.current?.({
+            code: "DRM_ERROR",
+            message: "Protected playback authorization failed",
+            fatal: true,
+            originalError: error,
+          }),
+      });
+      void eme.ready.then(attach).catch((error: unknown) => {
+        if (isEffectActive)
+          onErrorRef.current?.({
+            code: "DRM_ERROR",
+            message: "Protected playback is unavailable",
+            fatal: true,
+            originalError: error,
+          });
+      });
+    } else {
+      attach();
     }
   } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
     // Native HLS (Safari)
@@ -712,6 +756,7 @@ export function startTwitchHlsSession({
 
     if (hlsRef.current === hls) releaseHls();
     else if (hls === null) onHlsInstanceRef.current?.(null);
+    if (eme) void eme.dispose();
 
     try {
       currentVideo.removeAttribute("src");

@@ -76,7 +76,7 @@ try {
   Object.assign(process.env, env);
   signal.throwIfAborted();
   if (process.platform === "win32" && env.STREAMFUSION_BROWSER_DEV !== "1") {
-    const native = spawnSync(process.execPath, [resolve(desktop, "scripts/build-protected-player.mjs")], {
+    const native = spawnSync(process.execPath, [resolve(desktop, "scripts/build-protected-player.mjs"), "--renderer"], {
       cwd: desktop,
       stdio: "inherit",
     });
