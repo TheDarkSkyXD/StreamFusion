@@ -822,7 +822,9 @@ export const KickBroadcasterReady: Story = {
   args: { fixtureState: "kick-broadcaster-ready" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByTestId("retention-card-channel:kick:2048")).toBeInTheDocument();
+    await expect(
+      await canvas.findByTestId("retention-card-channel:kick:miramakes")
+    ).toBeInTheDocument();
     await expect(await canvas.findByTestId("channel-mod-log-feed")).toBeInTheDocument();
     await expect(await canvas.findByTestId("mod-story-video")).toHaveTextContent(
       "Kick video fixture"

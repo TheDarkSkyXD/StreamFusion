@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { NavigateFn } from "@tanstack/react-router";
 
 import { ToastRoot } from "@/features/shell/components/ToastRoot";
@@ -54,7 +54,7 @@ export const Available: Story = {
   play: async ({ canvasElement }) => {
     navigateAction.mockClear();
     const canvas = within(canvasElement.ownerDocument.body);
-    expect(await canvas.findByText("Version 2.3.0 is available")).toBeVisible();
+    await waitFor(() => expect(canvas.getByText("Version 2.3.0 is available")).toBeVisible());
     await userEvent.click(canvas.getByRole("button", { name: "Updates" }));
     expect(navigateAction).toHaveBeenCalledWith({ to: "/settings", search: { tab: "updates" } });
   },
@@ -63,8 +63,7 @@ export const Available: Story = {
 export const ReadyToInstall: Story = {
   render: ({ navigate }) => <UpdatePreview status="downloaded" navigate={navigate} />,
   play: async ({ canvasElement }) => {
-    expect(
-      await within(canvasElement.ownerDocument.body).findByText("Update ready to install")
-    ).toBeVisible();
+    const canvas = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(canvas.getByText("Update ready to install")).toBeVisible());
   },
 };

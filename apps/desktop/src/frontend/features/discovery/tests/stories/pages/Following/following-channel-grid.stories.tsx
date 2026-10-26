@@ -12,7 +12,7 @@ const meta = {
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <div className="h-[560px] w-full bg-[#0f0f0f] p-4 text-white">
+      <div className="flex h-[560px] w-full flex-col bg-[#0f0f0f] p-4 text-white">
         <Story />
       </div>
     ),
@@ -38,6 +38,7 @@ type Story = StoryObj<typeof meta>;
 export const FollowedChannels: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    expect(canvas.getByTestId("following-channel-grid").clientHeight).toBeGreaterThan(0);
     const firstChannel = await canvas.findByRole("button", {
       name: new RegExp(channels[0].displayName, "i"),
     });

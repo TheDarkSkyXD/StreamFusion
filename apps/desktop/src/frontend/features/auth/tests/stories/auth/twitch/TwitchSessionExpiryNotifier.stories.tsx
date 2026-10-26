@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { toast } from "sonner";
 
 import { ToastRoot } from "@/features/shell/components/ToastRoot";
@@ -48,7 +48,7 @@ export const ExpiredSession: Story = {
   play: async ({ canvasElement }) => {
     reconnect.mockClear();
     const canvas = within(canvasElement.ownerDocument.body);
-    expect(await canvas.findByText("Signed out of Twitch")).toBeVisible();
+    await waitFor(() => expect(canvas.getByText("Signed out of Twitch")).toBeVisible());
     await userEvent.click(canvas.getByRole("button", { name: "Reconnect" }));
     expect(reconnect).toHaveBeenCalledOnce();
   },
