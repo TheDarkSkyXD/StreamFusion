@@ -13,7 +13,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-lockfile": "^2.1.0",
     "js-yaml": "^5.2.2",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "ws": "8.21.3",
     "typescript-eslint": "8.67.0"
@@ -40,7 +40,7 @@
       "seroval-plugins": "1.6.2"
     },
     "js-yaml@4.3.1": "4.3.2",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "react": "19.2.8",
     "react-native": "0.86.3",
     "react-dom": "19.2.8"
