@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
@@ -29,7 +30,10 @@ const factKinds = new Set([
 const sourceInventoryCache = new Map();
 const routeFactAliases = new Map([["timeout-routes", "timeout-moderation-handlers"]]);
 const migratedStateStoreLocations = new Map([
-  ["category-language-preference-store", "features/discovery/data/category-language-preference-store"],
+  [
+    "category-language-preference-store",
+    "features/discovery/data/category-language-preference-store",
+  ],
   ["chat-replay-playback-store", "features/chat/data/chat-replay-playback-store"],
   ["moderated-channels-store", "features/moderation/data/moderated-channels-store"],
   ["multistream-store", "features/multistream/data/multistream-store"],
@@ -212,8 +216,7 @@ function discoverFacts(repositoryRoot) {
 
   for (const path of walkFiles(join(backendRoot, "features")).filter(
     (candidate) =>
-      isFeatureImplementation(candidate) &&
-      /[\\/]routes[\\/][^\\/]+-routes\.ts$/.test(candidate)
+      isFeatureImplementation(candidate) && /[\\/]routes[\\/][^\\/]+-routes\.ts$/.test(candidate)
   )) {
     const name = basename(path);
     addFact(facts, {
@@ -491,7 +494,13 @@ export function buildInventory(options = {}) {
   if (!sourceInventory) {
     sourceInventory = {
       facts: discoverFacts(repositoryRoot),
-      repositoryFiles: walkFiles(repositoryRoot).map((path) => toSourcePath(repositoryRoot, path)),
+      repositoryFiles: execFileSync(
+        "git",
+        ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }
+      )
+        .split("\0")
+        .filter((file) => file && existsSync(join(repositoryRoot, file))),
     };
     sourceInventoryCache.set(repositoryRoot, sourceInventory);
   }

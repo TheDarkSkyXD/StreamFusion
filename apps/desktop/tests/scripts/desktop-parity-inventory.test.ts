@@ -1,5 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -75,6 +75,22 @@ afterEach(() => {
 // Guards: a source change cannot silently alter the inventory bytes produced for the same Desktop tree.
 // Guards: every discovered Desktop structural boundary remains assigned to a capability or an explicit reason.
 describe("desktop parity inventory", () => {
+  it("rejects generated build output as verification source", () => {
+    const cacheRoot = join(repositoryRoot, "apps/desktop/.cache");
+    mkdirSync(cacheRoot, { recursive: true });
+    const directory = mkdtempSync(join(cacheRoot, "inventory-evidence-"));
+    temporaryDirectories.push(directory);
+    const generated = join(directory, "generated.test.ts");
+    writeFileSync(generated, "export {};\n");
+    const ledger = manualLedger();
+    ledger.capabilities[0].verification = [
+      relative(repositoryRoot, generated).split(sep).join("/"),
+    ];
+    expect(() => buildInventory({ repositoryRoot, manualLedger: ledger })).toThrow(
+      "verification pattern matches no files"
+    );
+  });
+
   it("builds deterministic inventory from the real Desktop source", () => {
     const first = buildInventory({ repositoryRoot });
     const second = buildInventory({ repositoryRoot });
@@ -99,7 +115,8 @@ describe("desktop parity inventory", () => {
     );
     expect(
       inventory.facts.some(
-        (fact) => fact.sourcePath.includes("/tests/") || /\.(?:test|stories)\./.test(fact.sourcePath)
+        (fact) =>
+          fact.sourcePath.includes("/tests/") || /\.(?:test|stories)\./.test(fact.sourcePath)
       )
     ).toBe(false);
   });

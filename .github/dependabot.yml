@@ -1,7 +1,13 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/"
+    directories:
+      - "/apps/desktop"
+      - "/apps/mobile"
+      - "/apps/worker"
+      - "/apps/integration-relay"
+      - "/packages/core"
+      - "/packages/tooling"
     schedule:
       interval: "weekly"
     cooldown:

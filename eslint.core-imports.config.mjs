@@ -1,4 +1,5 @@
-import tseslint from "typescript-eslint";
+import { toolingRequire } from "./scripts/tooling.mjs";
+const tseslint = toolingRequire("typescript-eslint");
 
 const consumerFiles = [
   "apps/**/*.{js,mjs,cjs,jsx,ts,tsx}",

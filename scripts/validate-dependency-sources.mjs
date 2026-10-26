@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -145,12 +145,12 @@ export function validateRepository(rootDirectory) {
       workspaceDirectory,
       "package-lock.json",
     );
-    if (existsSync(nestedLockfilePath)) {
+    if (!existsSync(nestedLockfilePath)) {
       violations.push({
         file: path.relative(rootDirectory, nestedLockfilePath),
         section: "repository",
         dependency: "package-lock.json",
-        specifier: "nested npm lockfile is not allowed",
+        specifier: "required npm lockfile is missing",
       });
     }
     violations.push(
@@ -164,6 +164,30 @@ export function validateRepository(rootDirectory) {
       ...findForbiddenDependencySources(manifest),
       ...findForbiddenOverrideSources(manifest.overrides),
     ]) {
+      const relativeManifest = path
+        .relative(rootDirectory, manifestPath)
+        .split(path.sep)
+        .join("/");
+      if (
+        ["dependencies", "devDependencies"].includes(violation.section) &&
+        violation.dependency === "@streamfusion/core" &&
+        violation.specifier === "file:../../packages/core" &&
+        [
+          "apps/desktop/package.json",
+          "apps/mobile/package.json",
+          "apps/integration-relay/package.json",
+        ].includes(relativeManifest)
+      ) {
+        const coreRoot = path.join(rootDirectory, "packages/core");
+        if (
+          existsSync(path.join(coreRoot, "package.json")) &&
+          realpathSync(coreRoot) ===
+            path.join(realpathSync(rootDirectory), "packages/core") &&
+          loadJson(path.join(coreRoot, "package.json")).name ===
+            "@streamfusion/core"
+        )
+          continue;
+      }
       violations.push({
         file: path.relative(rootDirectory, manifestPath),
         ...violation,

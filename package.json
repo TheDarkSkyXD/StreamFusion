@@ -1,10 +1,6 @@
 {
   "name": "streamfusion-monorepo",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "packageManager": "npm@11.19.0",
   "engines": {
     "node": ">=22.14.0",
@@ -22,88 +18,45 @@
       "onFail": "error"
     }
   },
-  "allowScripts": {
-    "better-sqlite3@13.0.3": true,
-    "electron-winstaller@5.4.0": true,
-    "esbuild@0.25.12": true,
-    "esbuild@0.28.1": true,
-    "esbuild@0.28.2": true,
-    "ffmpeg-static@5.3.0": true,
-    "fsevents@2.3.2": true,
-    "fsevents@2.3.3": true,
-    "unrs-resolver@1.12.2": true,
-    "workerd@1.20260820.1": true
-  },
   "scripts": {
     "preinstall": "node scripts/require-npm.mjs",
-    "prepare": "npm run install:hooks",
+    "prepare": "node scripts/run-npm.mjs run install:hooks",
     "install:hooks": "git config --local core.hooksPath .githooks",
     "start": "node scripts/start-picker.mjs",
     "e2e:preview": "node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview --",
     "test:e2e": "node .agents/skills/verify-streamfusion/scripts/control.mjs smoke --mode preview --fresh",
-    "desktop": "npm run --workspace streamfusion dev:electron --",
-    "browser": "npm run --workspace streamfusion dev --",
-    "mobile": "npm run --workspace @streamfusion/mobile android --",
-    "mobile:native": "npm run --workspace @streamfusion/mobile android:native --",
-    "relay": "npm run --workspace @streamfusion/integration-relay dev",
-    "build:mobile:development": "npm run --workspace @streamfusion/mobile build:android:development",
-    "build:relay": "npm run --workspace @streamfusion/integration-relay build",
-    "build": "npm run --workspace @streamfusion/core build && npm run --workspace streamfusion build",
-    "dist": "npm run --workspace @streamfusion/core build && npm run --workspace streamfusion dist",
-    "dist:win": "npm run --workspace @streamfusion/core build && npm run --workspace streamfusion dist:win",
-    "dist:mac": "npm run --workspace @streamfusion/core build && npm run --workspace streamfusion dist:mac",
-    "dist:linux": "npm run --workspace @streamfusion/core build && npm run --workspace streamfusion dist:linux",
-    "install:dependencies": "npm ci --ignore-scripts && npm run install:hooks && npm run lint:dependencies && npm run lint:release-age && npm run audit:signatures && npm run audit:dependencies && npm run rebuild:dependencies",
-    "rebuild:dependencies": "npm rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents unrs-resolver workerd --ignore-scripts=false && npm run --workspace streamfusion install:electron",
-    "audit:signatures": "npm audit signatures",
-    "audit:dependencies": "npm audit --audit-level=high",
-    "lint": "npm run lint:dependencies && npm run lint:lockfile && npm run lint:core-imports && npm run lint:core-extraction && npm run --workspace @streamfusion/core lint && npm run --workspace @streamfusion/mobile lint && npm run --workspace @streamfusion/integration-relay lint && npm run --workspace streamfusion-worker lint && npm run --workspace streamfusion lint",
+    "desktop": "node scripts/run-npm.mjs run --prefix apps/desktop dev:electron --",
+    "browser": "node scripts/run-npm.mjs run --prefix apps/desktop dev --",
+    "mobile": "node scripts/run-npm.mjs run --prefix apps/mobile android --",
+    "mobile:native": "node scripts/run-npm.mjs run --prefix apps/mobile android:native --",
+    "relay": "node scripts/run-npm.mjs run --prefix apps/integration-relay dev",
+    "build:mobile:development": "node scripts/run-npm.mjs run --prefix apps/mobile build:android:development",
+    "build:relay": "node scripts/run-npm.mjs run --prefix apps/integration-relay build",
+    "build": "node scripts/run-npm.mjs run --prefix packages/core build && node scripts/run-npm.mjs run --prefix apps/desktop build",
+    "dist": "node scripts/run-npm.mjs run --prefix packages/core build && node scripts/run-npm.mjs run --prefix apps/desktop dist",
+    "dist:win": "node scripts/run-npm.mjs run --prefix packages/core build && node scripts/run-npm.mjs run --prefix apps/desktop dist:win",
+    "dist:mac": "node scripts/run-npm.mjs run --prefix packages/core build && node scripts/run-npm.mjs run --prefix apps/desktop dist:mac",
+    "dist:linux": "node scripts/run-npm.mjs run --prefix packages/core build && node scripts/run-npm.mjs run --prefix apps/desktop dist:linux",
+    "install:dependencies": "node scripts/run-npm.mjs run install:packages && node scripts/run-npm.mjs run install:hooks && node scripts/run-npm.mjs run lint:dependencies && node scripts/run-npm.mjs run lint:release-age && node scripts/run-npm.mjs run audit:signatures && node scripts/run-npm.mjs run audit:dependencies && node scripts/run-npm.mjs run rebuild:dependencies",
+    "rebuild:dependencies": "node scripts/package-command.mjs rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents unrs-resolver workerd --ignore-scripts=false && node scripts/run-npm.mjs run --prefix apps/desktop install:electron",
+    "audit:signatures": "node scripts/package-command.mjs audit signatures",
+    "audit:dependencies": "node scripts/package-command.mjs audit --audit-level=high",
+    "lint": "node scripts/run-npm.mjs run lint:dependencies && node scripts/run-npm.mjs run lint:lockfile && node scripts/run-npm.mjs run lint:core-imports && node scripts/run-npm.mjs run lint:core-extraction && node scripts/run-npm.mjs run --prefix packages/core lint && node scripts/run-npm.mjs run --prefix apps/mobile lint && node scripts/run-npm.mjs run --prefix apps/integration-relay lint && node scripts/run-npm.mjs run --prefix apps/worker lint && node scripts/run-npm.mjs run --prefix apps/desktop lint",
     "lint:core-imports": "node scripts/verify-core-import-policy.mjs",
     "lint:core-extraction": "node scripts/verify-core-extraction-complete.mjs",
     "lint:dependencies": "node scripts/validate-dependency-sources.mjs",
-    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs package-lock.json package.json \"apps/*/package.json\" \"packages/*/package.json\" && npm run lint:release-age",
+    "lint:lockfile": "node packages/tooling/node_modules/eslint/bin/eslint.js --config eslint.lockfile.config.mjs package-lock.json package.json \"apps/*/package*.json\" \"packages/*/package*.json\" && node scripts/run-npm.mjs run lint:release-age",
     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
     "verify:evidence": "node scripts/verify-evidence.mjs --resume",
     "verify:android-gates": "node scripts/verify-android-gates.mjs",
     "test:evidence": "node --test scripts/verify-evidence.test.mjs scripts/verify-android-gates.test.mjs scripts/android-gates-workflow.test.mjs scripts/android-release-set.test.mjs scripts/apksigner-report.test.mjs scripts/android-identity-gate.test.mjs scripts/audit-android-release-deps.test.mjs scripts/blocked-dependencies.test.mjs scripts/validate-lockfile-release-age.test.mjs scripts/verify-core-extraction-complete.test.mjs scripts/relocate-feature-files.test.mjs verification/verify-receipt-artifacts.test.mjs",
-    "test": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test && npm run --workspace streamfusion-worker test",
-    "test:all": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test:all && npm run --workspace streamfusion-worker test",
-    "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs",
+    "test": "node scripts/run-npm.mjs run --prefix packages/core test && node scripts/run-npm.mjs run test:package-policy && node scripts/run-npm.mjs run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs && node scripts/run-npm.mjs run --prefix apps/mobile test && node scripts/run-npm.mjs run --prefix apps/integration-relay test && node scripts/run-npm.mjs run --prefix apps/desktop test && node scripts/run-npm.mjs run --prefix apps/worker test",
+    "test:all": "node scripts/run-npm.mjs run --prefix packages/core test && node scripts/run-npm.mjs run test:package-policy && node scripts/run-npm.mjs run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs && node scripts/run-npm.mjs run --prefix apps/mobile test && node scripts/run-npm.mjs run --prefix apps/integration-relay test && node scripts/run-npm.mjs run --prefix apps/desktop test:all && node scripts/run-npm.mjs run --prefix apps/worker test",
+    "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/control-windows-process.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs scripts/package-layout.test.mjs scripts/package-command.test.mjs scripts/run-npm.test.mjs apps/desktop/tests/scripts/build-lockfile-digest.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
-    "typecheck": "npm run --workspace @streamfusion/core typecheck && npm run --workspace @streamfusion/mobile typecheck && npm run --workspace @streamfusion/integration-relay typecheck && npm run --workspace streamfusion typecheck && npm run --workspace streamfusion-worker typecheck",
-    "perf:soak": "npm run --workspace streamfusion perf:soak"
-  },
-  "overrides": {
-    "ajv@8.20.0": {
-      "fast-uri": "3.1.8"
-    },
-    "miniflare@5.20260820.0-alpha": {
-      "undici": "7.29.1"
-    },
-    "glob": "^10.4.5",
-    "react-native-reanimated": "4.5.1",
-    "react-native-worklets": "0.10.1",
-    "rimraf": "^5.0.0",
-    "tar": "^7.5.7",
-    "tmp": "^0.2.5",
-    "uuid": "11.1.1",
-    "@npmcli/move-file": "npm:@npmcli/fs@^3.1.0",
-    "cacache": "^18.0.0",
-    "@napi-rs/wasm-runtime": "1.1.6",
-    "@tanstack/router-core@1.171.26": {
-      "seroval": "1.6.2",
-      "seroval-plugins": "1.6.2"
-    },
-    "js-yaml@4.3.1": "4.3.2",
-    "sharp": "0.35.4",
-    "react": "19.2.8",
-    "react-native": "0.86.3",
-    "react-dom": "19.2.8"
-  },
-  "devDependencies": {
-    "eslint": "^9.39.5",
-    "eslint-plugin-lockfile": "^2.1.0",
-    "js-yaml": "^5.2.2",
-    "ws": "8.21.3"
+    "typecheck": "node scripts/run-npm.mjs run --prefix packages/core typecheck && node scripts/run-npm.mjs run --prefix apps/mobile typecheck && node scripts/run-npm.mjs run --prefix apps/integration-relay typecheck && node scripts/run-npm.mjs run --prefix apps/desktop typecheck && node scripts/run-npm.mjs run --prefix apps/worker typecheck",
+    "perf:soak": "node scripts/run-npm.mjs run --prefix apps/desktop perf:soak",
+    "install:packages": "node scripts/package-command.mjs ci --ignore-scripts",
+    "postinstall": "node scripts/run-npm.mjs run install:packages"
   }
 }

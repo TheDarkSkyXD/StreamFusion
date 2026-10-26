@@ -52,7 +52,7 @@ test("Metro loads TanStack Query from the modern build", () => {
       resolution.filePath,
       path.resolve(
         mobileDirectory,
-        "../../node_modules",
+        "node_modules",
         moduleName,
         "build/modern/index.js",
       ),
@@ -61,10 +61,9 @@ test("Metro loads TanStack Query from the modern build", () => {
   }
 });
 
-test("Metro searches the mobile workspace before the repository hoist", () => {
+test("Metro searches only the mobile dependency install", () => {
   assert.deepEqual(config.resolver.nodeModulesPaths, [
     path.join(mobileDirectory, "node_modules"),
-    path.resolve(mobileDirectory, "../../node_modules"),
   ]);
   assert.ok(
     (config.watchFolders ?? []).every(

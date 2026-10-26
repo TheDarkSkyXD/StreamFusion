@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { load as loadYaml } from "js-yaml";
+import { toolingRequire } from "./tooling.mjs";
+const { load: loadYaml } = toolingRequire("js-yaml");
 
 const VERIFY_SHARDS = [
   { id: "verify-deps", name: "Verify deps" },
@@ -29,8 +30,27 @@ function stepNamed(job, name) {
 }
 
 function jobRuns(job, command) {
-  return job.steps.some((step) => step.run === command);
+  return job.steps.some((step) =>
+    step.run?.split(/\s*(?:&&|\n)\s*/).includes(command),
+  );
 }
+
+test("Dependabot covers every package-local npm install", () => {
+  const configuration = loadYaml(
+    readFileSync(".github/dependabot.yml", "utf8"),
+  );
+  const npm = configuration.updates.find(
+    (entry) => entry["package-ecosystem"] === "npm",
+  );
+  assert.deepEqual(npm.directories, [
+    "/apps/desktop",
+    "/apps/mobile",
+    "/apps/worker",
+    "/apps/integration-relay",
+    "/packages/core",
+    "/packages/tooling",
+  ]);
+});
 
 test("the build workflow is CI-only and cannot publish a GitHub release", () => {
   const source = readFileSync(".github/workflows/build.yml", "utf8");
@@ -121,6 +141,7 @@ test("every verify shard installs without lifecycle scripts then rebuilds approv
   for (const { id } of VERIFY_SHARDS) {
     const job = workflow.jobs[id];
     assert.ok(jobRuns(job, "npm ci --ignore-scripts"), id);
+    assert.ok(jobRuns(job, "npm run install:packages"), id);
     assert.ok(jobRuns(job, "npm run rebuild:dependencies"), id);
   }
 });
@@ -136,9 +157,7 @@ test("dependency review and audit gates stay on the deps shard", () => {
     /actions\/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294/,
   );
   assert.equal(review.with["fail-on-severity"], "high");
-  assert.ok(
-    jobRuns(deps, "node --test scripts/release-workflow.test.mjs"),
-  );
+  assert.ok(jobRuns(deps, "node --test scripts/release-workflow.test.mjs"));
   assert.ok(jobRuns(deps, "npm run lint:dependencies"));
   assert.ok(jobRuns(deps, "npm run lint:lockfile"));
   assert.ok(jobRuns(deps, "npm run audit:signatures"));
@@ -160,37 +179,21 @@ test("verify shards keep the workspace commands from the former Verify workspace
   const mobile = workflow.jobs["verify-mobile"];
   const desktop = workflow.jobs["verify-desktop"];
 
-  assert.ok(jobRuns(core, "npm run --workspace @streamfusion/core lint"));
+  assert.ok(jobRuns(core, "npm run --prefix packages/core lint"));
   assert.ok(jobRuns(core, "npm run lint:core-imports"));
-  assert.ok(jobRuns(core, "npm run --workspace @streamfusion/core typecheck"));
-  assert.ok(jobRuns(core, "npm run --workspace @streamfusion/core test"));
+  assert.ok(jobRuns(core, "npm run --prefix packages/core typecheck"));
+  assert.ok(jobRuns(core, "npm run --prefix packages/core test"));
+  assert.ok(jobRuns(core, "npm run --prefix apps/integration-relay lint"));
+  assert.ok(jobRuns(core, "npm run --prefix apps/integration-relay typecheck"));
+  assert.ok(jobRuns(core, "npm run --prefix apps/integration-relay test"));
   assert.ok(
-    jobRuns(core, "npm run --workspace @streamfusion/integration-relay lint"),
-  );
-  assert.ok(
-    jobRuns(
-      core,
-      "npm run --workspace @streamfusion/integration-relay typecheck",
-    ),
-  );
-  assert.ok(
-    jobRuns(core, "npm run --workspace @streamfusion/integration-relay test"),
-  );
-  assert.ok(
-    jobRuns(
-      core,
-      "npm run --workspace @streamfusion/integration-relay deploy:dry-run",
-    ),
+    jobRuns(core, "npm run --prefix apps/integration-relay deploy:dry-run"),
   );
 
-  assert.ok(jobRuns(mobile, "npm run --workspace @streamfusion/mobile lint"));
-  assert.ok(
-    jobRuns(mobile, "npm run --workspace @streamfusion/mobile typecheck"),
-  );
-  assert.ok(jobRuns(mobile, "npm run --workspace @streamfusion/mobile test"));
-  assert.ok(
-    jobRuns(mobile, "npm run --workspace @streamfusion/mobile bundle:android"),
-  );
+  assert.ok(jobRuns(mobile, "npm run --prefix apps/mobile lint"));
+  assert.ok(jobRuns(mobile, "npm run --prefix apps/mobile typecheck"));
+  assert.ok(jobRuns(mobile, "npm run --prefix apps/mobile test"));
+  assert.ok(jobRuns(mobile, "npm run --prefix apps/mobile bundle:android"));
 
   assert.ok(jobRuns(desktop, "npm run test:evidence"));
   assert.ok(jobRuns(desktop, "npm run verify:evidence"));
@@ -200,13 +203,9 @@ test("verify shards keep the workspace commands from the former Verify workspace
     jobRuns(desktop, "npm --prefix apps/desktop run parity:desktop:check"),
   );
   assert.ok(jobRuns(desktop, "npm --prefix apps/desktop test"));
-  assert.ok(
-    jobRuns(desktop, "npm run --workspace streamfusion-worker typecheck"),
-  );
-  assert.ok(jobRuns(desktop, "npm run --workspace streamfusion-worker test"));
-  assert.ok(
-    jobRuns(desktop, "npm run --workspace streamfusion-worker deploy:dry-run"),
-  );
+  assert.ok(jobRuns(desktop, "npm run --prefix apps/worker typecheck"));
+  assert.ok(jobRuns(desktop, "npm run --prefix apps/worker test"));
+  assert.ok(jobRuns(desktop, "npm run --prefix apps/worker deploy:dry-run"));
 });
 
 test("Android Change Gate runs on the desktop shard without a hosted emulator", () => {
@@ -294,7 +293,8 @@ test("one release workflow handles tagged and manual releases with fail-closed g
 test("the android tag namespace cannot trigger the desktop release workflow", async () => {
   const { validateMobileReleaseTag } = await import("./release-policy.mjs");
   const [tagPattern] = loadWorkflow("release.yml").on.push.tags;
-  const matches = (tag) => new RegExp(`^${tagPattern.replaceAll("*", "[\\s\\S]*")}$`, "u").test(tag);
+  const matches = (tag) =>
+    new RegExp(`^${tagPattern.replaceAll("*", "[\\s\\S]*")}$`, "u").test(tag);
 
   assert.equal(matches("v2.0.0"), true, "desktop tags still trigger a release");
   assert.equal(
@@ -303,8 +303,12 @@ test("the android tag namespace cannot trigger the desktop release workflow", as
     "an android tag must not start a desktop release",
   );
   assert.throws(
-    () => validateMobileReleaseTag({ tag: "android-v9.9.9", version: "0.1.0-alpha" }),
-    /must exactly match mobile version/
+    () =>
+      validateMobileReleaseTag({
+        tag: "android-v9.9.9",
+        version: "0.1.0-alpha",
+      }),
+    /must exactly match mobile version/,
   );
 });
 
@@ -368,7 +372,7 @@ test("the android release fails closed on the signing certificate", () => {
     stepNamed(signing, "Require a pinned production signing certificate").run,
     /verify:release(?! --)/u,
   );
-  // npm run --workspace executes in apps/mobile, so a workspace-relative APK
+  // npm run --prefix apps/mobile executes there, so a repository-relative APK
   // path would resolve against the wrong directory and the check would report a
   // missing artifact instead of verifying a signature.
   assert.match(
@@ -376,7 +380,8 @@ test("the android release fails closed on the signing certificate", () => {
     /verify:release -- \\\n\s+"\$GITHUB_WORKSPACE\/android-release-set\/\$ASSET_NAME"/u,
   );
   assert.match(
-    stepNamed(workflow.jobs.release, "Re-verify the signer after transport").run,
+    stepNamed(workflow.jobs.release, "Re-verify the signer after transport")
+      .run,
     /verify:release -- \\\n\s+"\$GITHUB_WORKSPACE\/release-assets\/\$ASSET_NAME"/u,
   );
   for (const jobId of ["build", "release"]) {
@@ -392,9 +397,15 @@ test("the android release fails closed on the signing certificate", () => {
     "Verify the APK against the pinned signer",
     "Re-verify the signer after transport",
   ]) {
-    const step = stepNamed(workflow.jobs.build, stepName) ?? stepNamed(workflow.jobs.release, stepName);
+    const step =
+      stepNamed(workflow.jobs.build, stepName) ??
+      stepNamed(workflow.jobs.release, stepName);
     assert.ok(step, `${stepName} must exist`);
-    assert.match(step.run, /export JAVA_HOME="\$\{JAVA_HOME:\?/u, `${stepName} must export JAVA_HOME`);
+    assert.match(
+      step.run,
+      /export JAVA_HOME="\$\{JAVA_HOME:\?/u,
+      `${stepName} must export JAVA_HOME`,
+    );
     assert.match(step.run, /PATH="\$JAVA_HOME\/bin:\$PATH"/u);
   }
 });
@@ -412,7 +423,10 @@ test("the android release publishes a draft before it publishes", () => {
   assert.match(create.run, /publish_flag\+=\(--prerelease\)/u);
   assert.doesNotMatch(create.run, /--generate-notes/u);
   assert.match(publish.run, /--draft=false/u);
-  assert.match(publish.run, /gh release edit "\$RELEASE_TAG" --draft=false --latest=false/u);
+  assert.match(
+    publish.run,
+    /gh release edit "\$RELEASE_TAG" --draft=false --latest=false/u,
+  );
   assert.match(publish.run, /gh release verify/u);
   assert.doesNotMatch(source, /gh release delete/u);
   assert.doesNotMatch(source, /--clobber/u);
@@ -453,11 +467,16 @@ test("every job that installs dependencies pins npm first", () => {
 
   for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
     const names = (job.steps ?? []).map((step) => step.name);
-    if (!names.includes("Install dependencies without lifecycle scripts")) continue;
+    if (!names.includes("Install dependencies without lifecycle scripts"))
+      continue;
     if (!names.includes("Pin npm")) offenders.push(id);
   }
 
-  assert.deepEqual(offenders, [], `these jobs install without pinning npm: ${offenders}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `these jobs install without pinning npm: ${offenders}`,
+  );
 });
 
 test("only the android publish job may write to the repository", () => {
@@ -505,7 +524,9 @@ test("the android release assembles the signed APK on its runner", () => {
     "STREAMFUSION_MOBILE_KEY_PASSWORD",
   ]) {
     assert.ok(
-      Object.values(materialize.env ?? {}).includes(`\${{ secrets.${secret} }}`),
+      Object.values(materialize.env ?? {}).includes(
+        `\${{ secrets.${secret} }}`,
+      ),
       `${secret} must be read or the build signs with the debug key`,
     );
   }
@@ -521,7 +542,10 @@ test("the android release assembles the signed APK on its runner", () => {
       `${exported} must reach Gradle or the release is signed with the debug key`,
     );
   }
-  assert.equal(assemble.env.ASSET_NAME, "${{ needs.verify.outputs.asset_name }}");
+  assert.equal(
+    assemble.env.ASSET_NAME,
+    "${{ needs.verify.outputs.asset_name }}",
+  );
 });
 
 test("the android release attaches the whole Release Set and nothing partial", () => {
@@ -530,12 +554,23 @@ test("the android release attaches the whole Release Set and nothing partial", (
 
   const upload = stepNamed(build, "Upload the Android Release Set");
   assert.equal(upload.with["if-no-files-found"], "error");
-  assert.ok(upload.with["retention-days"], "the promote step must survive approval latency");
+  assert.ok(
+    upload.with["retention-days"],
+    "the promote step must survive approval latency",
+  );
   assert.match(source, /assemble-android-release-set\.mjs/u);
-  for (const asset of ["android-update.json", "SHA256SUMS", "build-info.json", "release-notes.md"]) {
+  for (const asset of [
+    "android-update.json",
+    "SHA256SUMS",
+    "build-info.json",
+    "release-notes.md",
+  ]) {
     assert.ok(
       existsSync(`scripts/assemble-android-release-set.mjs`) &&
-        readFileSync("scripts/assemble-android-release-set.mjs", "utf8").includes(asset),
+        readFileSync(
+          "scripts/assemble-android-release-set.mjs",
+          "utf8",
+        ).includes(asset),
       `the Release Set must include ${asset}`,
     );
   }
@@ -555,8 +590,17 @@ test("the android release does not duplicate the Android Release Gate", () => {
 test("the Android release bundle receives the public provider and relay configuration", () => {
   const { build } = loadWorkflow("android-release.yml").jobs;
   const assemble = stepNamed(build, "Assemble the signed release APK");
-  for (const name of ["RELAY_URL", "POLICY_TRUSTED_KEYS", "TWITCH_CLIENT_ID", "KICK_CLIENT_ID", "WORKER_URL"]) {
-    assert.equal(assemble.env[`STREAMFUSION_PUBLIC_${name}`], `\u0024{{ vars.STREAMFUSION_PUBLIC_${name} }}`);
+  for (const name of [
+    "RELAY_URL",
+    "POLICY_TRUSTED_KEYS",
+    "TWITCH_CLIENT_ID",
+    "KICK_CLIENT_ID",
+    "WORKER_URL",
+  ]) {
+    assert.equal(
+      assemble.env[`STREAMFUSION_PUBLIC_${name}`],
+      `\u0024{{ vars.STREAMFUSION_PUBLIC_${name} }}`,
+    );
   }
 });
 

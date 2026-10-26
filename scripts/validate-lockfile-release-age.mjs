@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { packageDirectories } from "./package-command.mjs";
 
 const EXACT_VERSION =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -14,7 +15,7 @@ export async function fetchPublicationMetadata(
     request = fetch,
     cacheDirectory = path.resolve(
       import.meta.dirname,
-      "../node_modules/.cache/publication-times",
+      "../packages/tooling/node_modules/.cache/publication-times",
     ),
   } = {},
 ) {
@@ -319,18 +320,36 @@ export async function validateRepository(
       "utf8",
     ),
   );
-  const [lockfileSource, npmrcSource] = await Promise.all([
-    readFile(path.join(rootDirectory, "package-lock.json"), "utf8"),
+  const lockfilePaths = [
+    "package-lock.json",
+    ...packageDirectories(rootDirectory).map(
+      (directory) => directory + "/package-lock.json",
+    ),
+  ];
+  const [lockfileSources, npmrcSource] = await Promise.all([
+    Promise.all(
+      lockfilePaths.map((file) =>
+        readFile(path.join(rootDirectory, file), "utf8"),
+      ),
+    ),
     readFile(path.join(rootDirectory, ".npmrc"), "utf8"),
   ]);
+  const packages = {};
+  for (const [index, source] of lockfileSources.entries()) {
+    for (const [key, entry] of Object.entries(
+      JSON.parse(source).packages ?? {},
+    )) {
+      if (key) packages[index + "/" + key] = entry;
+    }
+  }
   const violations = await findReleaseAgeViolations({
-    lockfile: JSON.parse(lockfileSource),
+    lockfile: { lockfileVersion: 3, packages },
     minimumReleaseAgeMinutes: readMinimumReleaseAgeMinutes(npmrcSource),
     exceptions,
     now,
     getPackageTimes,
   });
-  return violations.map((violation) => `package-lock.json: ${violation}`);
+  return violations.map((violation) => `package lockfiles: ${violation}`);
 }
 
 const isDirectExecution =

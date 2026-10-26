@@ -32,10 +32,10 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Test checked-in workflow contracts
-        run: node --test scripts/release-workflow.test.mjs
+        run: node --test scripts/release-workflow.test.mjs && npm run test:package-policy
 
       - name: Validate dependency sources
         run: npm run lint:dependencies
@@ -68,34 +68,34 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Run approved dependency setup
         run: npm run rebuild:dependencies
 
       - name: Lint shared core
-        run: npm run --workspace @streamfusion/core lint
+        run: npm run --prefix packages/core lint
 
       - name: Verify core consumer imports
         run: npm run lint:core-imports
 
       - name: Typecheck shared core
-        run: npm run --workspace @streamfusion/core typecheck
+        run: npm run --prefix packages/core typecheck
 
       - name: Test shared core contracts and architecture
-        run: npm run --workspace @streamfusion/core test
+        run: npm run --prefix packages/core test
 
       - name: Lint integration relay
-        run: npm run --workspace @streamfusion/integration-relay lint
+        run: npm run --prefix apps/integration-relay lint
 
       - name: Typecheck integration relay
-        run: npm run --workspace @streamfusion/integration-relay typecheck
+        run: npm run --prefix apps/integration-relay typecheck
 
       - name: Test integration relay boundaries
-        run: npm run --workspace @streamfusion/integration-relay test
+        run: npm run --prefix apps/integration-relay test
 
       - name: Build integration relay dry run
-        run: npm run --workspace @streamfusion/integration-relay deploy:dry-run
+        run: npm run --prefix apps/integration-relay deploy:dry-run
 
   verify-mobile:
     name: Verify mobile
@@ -113,22 +113,22 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Run approved dependency setup
         run: npm run rebuild:dependencies
 
       - name: Lint mobile
-        run: npm run --workspace @streamfusion/mobile lint
+        run: npm run --prefix apps/mobile lint
 
       - name: Typecheck mobile
-        run: npm run --workspace @streamfusion/mobile typecheck
+        run: npm run --prefix apps/mobile typecheck
 
       - name: Test mobile scaffold and architecture
-        run: npm run --workspace @streamfusion/mobile test
+        run: npm run --prefix apps/mobile test
 
       - name: Bundle mobile for Android
-        run: npm run --workspace @streamfusion/mobile bundle:android
+        run: npm run --prefix apps/mobile bundle:android
 
   verify-desktop:
     name: Verify desktop
@@ -146,7 +146,7 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Run approved dependency setup
         run: npm run rebuild:dependencies
@@ -173,13 +173,13 @@ jobs:
         # apps/desktop/tests/e2e/README.md.
 
       - name: Typecheck worker
-        run: npm run --workspace streamfusion-worker typecheck
+        run: npm run --prefix apps/worker typecheck
 
       - name: Test worker
-        run: npm run --workspace streamfusion-worker test
+        run: npm run --prefix apps/worker test
 
       - name: Build worker dry run
-        run: npm run --workspace streamfusion-worker deploy:dry-run
+        run: npm run --prefix apps/worker deploy:dry-run
 
       - name: Android Change Gate
         env:
@@ -240,7 +240,7 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Build Android development APK
         run: npm run build:mobile:development
@@ -281,15 +281,15 @@ jobs:
 
       - name: Install and verify desktop dependencies
         run: |
-          npm ci --ignore-scripts
-          npm audit signatures
+          npm ci --ignore-scripts && npm run install:packages
+          npm run audit:signatures
           npm run rebuild:dependencies
 
       - name: Rebuild native dependencies for package target
         run: npm --prefix apps/desktop run rebuild-deps:${{ matrix.arch }}
 
       - name: Build shared core
-        run: npm run --workspace @streamfusion/core build
+        run: npm run --prefix packages/core build
 
       - name: Test Windows system contracts
         if: matrix.platform == 'win32'

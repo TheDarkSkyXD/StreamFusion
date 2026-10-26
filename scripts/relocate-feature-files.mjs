@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import ts from "typescript";
+import { toolingRequire } from "./tooling.mjs";
+const ts = toolingRequire("typescript");
 
 const slash = (value) => value.split(path.sep).join("/");
 const extensions = [

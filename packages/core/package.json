@@ -71,15 +71,15 @@
     "src"
   ],
   "scripts": {
-    "preinstall": "node ../../scripts/require-npm.mjs",
     "build": "tsc --project tsconfig.json",
     "lint": "eslint src/ tests/*.mjs scripts/ eslint.config.mjs --max-warnings=0 && prettier --check . --ignore-path ../../.gitignore",
-    "test": "node --test tests/*.test.mjs src/features/*/tests/*.test.mjs && npm run test:architecture",
+    "test": "node --test tests/*.test.mjs src/features/*/tests/*.test.mjs && node ../../scripts/run-npm.mjs run test:architecture",
     "test:architecture": "node scripts/verify-architecture.mjs && node ../../scripts/verify-core-import-policy.mjs",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@types/node": "24.13.3",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-alias": "1.1.2",
@@ -88,5 +88,56 @@
     "prettier": "^3.9.6",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.65.0"
+  },
+  "overrides": {
+    "ajv@8.20.0": {
+      "fast-uri": "3.1.8"
+    },
+    "miniflare@5.20260820.0-alpha": {
+      "undici": "7.29.1"
+    },
+    "glob": "^10.4.5",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1",
+    "rimraf": "^5.0.0",
+    "tar": "^7.5.7",
+    "tmp": "^0.2.5",
+    "uuid": "11.1.1",
+    "@npmcli/move-file": "npm:@npmcli/fs@^3.1.0",
+    "cacache": "^18.0.0",
+    "@napi-rs/wasm-runtime": "1.1.6",
+    "@tanstack/router-core@1.171.26": {
+      "seroval": "1.6.2",
+      "seroval-plugins": "1.6.2"
+    },
+    "js-yaml@4.3.1": "4.3.2",
+    "sharp": "0.35.4",
+    "react": "19.2.8",
+    "react-native": "0.86.3",
+    "react-dom": "19.2.8"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true,
+    "esbuild@0.28.2": true,
+    "ffmpeg-static@5.3.0": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true,
+    "unrs-resolver@1.12.2": true,
+    "workerd@1.20260820.1": true
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=22.14.0",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "11.19.0",
+      "onFail": "error"
+    }
   }
 }

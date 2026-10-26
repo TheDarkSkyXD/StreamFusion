@@ -25,19 +25,19 @@ function slot(id, owner, freshnessClass, binding, options = {}) {
 
 const changeSlots = [
   slot("workspace-static", "npm-script", "exact-artifact", "commit", {
-    npmScript: "npm run --workspace @streamfusion/mobile lint",
+    npmScript: "npm run --prefix apps/mobile lint",
   }),
   slot("workspace-unit", "npm-script", "exact-artifact", "commit", {
-    npmScript: "npm run --workspace @streamfusion/mobile test",
+    npmScript: "npm run --prefix apps/mobile test",
   }),
   slot("workspace-component", "npm-script", "exact-artifact", "commit", {
-    npmScript: "npm run --workspace @streamfusion/mobile test",
+    npmScript: "npm run --prefix apps/mobile test",
   }),
   slot("workspace-contract", "npm-script", "exact-artifact", "commit", {
-    npmScript: "npm run --workspace @streamfusion/mobile typecheck",
+    npmScript: "npm run --prefix apps/mobile typecheck",
   }),
   slot("android-native-config", "npm-script", "exact-artifact", "commit", {
-    npmScript: "npm run --workspace @streamfusion/mobile config:android",
+    npmScript: "npm run --prefix apps/mobile config:android",
   }),
   slot("dependency-policy", "npm-script", "exact-artifact", "commit", {
     npmScript: "npm run lint:dependencies",

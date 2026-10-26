@@ -15,6 +15,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { buildLockfileDigest } from "./build-lockfile-digest.mjs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -285,7 +286,10 @@ export async function verifyPackage(options) {
       assert(options.app.endsWith(".app"), "Provide the actual .app package path");
       return {
         sourceRevision: command("git", ["rev-parse", "HEAD"], { cwd: repoRoot }),
-        lockfileSha256: await sha256(path.join(repoRoot, "package-lock.json")),
+        ...(await buildLockfileDigest(repoRoot, [
+          "apps/desktop/package-lock.json",
+          "packages/core/package-lock.json",
+        ])),
         os: command("/usr/bin/sw_vers", []),
         runnerImage: process.env.ImageVersion ?? null,
       };

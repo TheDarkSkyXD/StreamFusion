@@ -2,7 +2,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { isDeepStrictEqual } = require("node:util");
-const yaml = require("js-yaml");
+const { toolingRequire } = require("../../scripts/tooling.mjs");
+const yaml = toolingRequire("js-yaml");
 
 const outputDirectory = "release-assets";
 const version = process.argv[2];

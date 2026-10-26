@@ -1,5 +1,5 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "streamfusion-integration-relay-development",
   "main": "src/composition/worker.ts",
   "compatibility_date": "2026-08-27",

@@ -63,7 +63,7 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Validate dependency sources and lockfile
         run: |
@@ -81,7 +81,7 @@ jobs:
           NPM_CLI_JS="$(dirname "$(readlink -f "$(command -v npm)")")/../lib/node_modules/npm/bin/npm-cli.js"
           test -f "$NPM_CLI_JS" || NPM_CLI_JS="$(npm root -g)/npm/bin/npm-cli.js"
           export NPM_CLI_JS
-          npm run --workspace @streamfusion/mobile bundle:android -- --source-maps
+          npm run --prefix apps/mobile bundle:android -- --source-maps
           node scripts/audit-android-release-deps.mjs apps/mobile/dist
 
       - name: Require the Android tag namespace and a mobile version
@@ -97,11 +97,11 @@ jobs:
 
       - name: Lint, typecheck, and test the mobile workspace
         run: |
-          npm run --workspace @streamfusion/core lint
+          npm run --prefix packages/core lint
           npm run lint:core-imports
-          npm run --workspace @streamfusion/mobile lint
-          npm run --workspace @streamfusion/mobile typecheck
-          npm run --workspace @streamfusion/mobile test
+          npm run --prefix apps/mobile lint
+          npm run --prefix apps/mobile typecheck
+          npm run --prefix apps/mobile test
 
   signing:
     name: Verify Android signing prerequisites
@@ -124,17 +124,17 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Require a pinned production signing certificate
-        run: npm run --workspace @streamfusion/mobile verify:release
+        run: npm run --prefix apps/mobile verify:release
 
       - name: Resolve the production identity closed
         env:
           STREAMFUSION_RELEASE_CHANNEL: production
           STREAMFUSION_PRODUCTION_VERSION: ${{ needs.verify.outputs.version }}
           STREAMFUSION_PRODUCTION_VERSION_CODE: ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}
-        run: npm run --workspace @streamfusion/mobile config:android:production
+        run: npm run --prefix apps/mobile config:android:production
 
   build:
     name: Build signed production APK
@@ -164,7 +164,7 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Materialize the production keystore
         shell: bash
@@ -194,7 +194,7 @@ jobs:
           STREAMFUSION_RELEASE_CHANNEL: production
           STREAMFUSION_PRODUCTION_VERSION: ${{ needs.verify.outputs.version }}
           STREAMFUSION_PRODUCTION_VERSION_CODE: ${{ vars.ANDROID_PRODUCTION_VERSION_CODE }}
-        run: npm run --workspace @streamfusion/mobile config:android:production
+        run: npm run --prefix apps/mobile config:android:production
 
       - name: Assemble the signed release APK
         timeout-minutes: 40
@@ -241,7 +241,7 @@ jobs:
             echo "apksigner not found under $ANDROID_HOME/build-tools" >&2
             exit 1
           }
-          npm run --workspace @streamfusion/mobile verify:release -- \
+          npm run --prefix apps/mobile verify:release -- \
             "$GITHUB_WORKSPACE/android-release-set/$ASSET_NAME"
 
       - name: Assemble the Android Release Set
@@ -296,7 +296,7 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Download the Android Release Set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -318,7 +318,7 @@ jobs:
             echo "apksigner not found under $ANDROID_HOME/build-tools" >&2
             exit 1
           }
-          npm run --workspace @streamfusion/mobile verify:release -- \
+          npm run --prefix apps/mobile verify:release -- \
             "$GITHUB_WORKSPACE/release-assets/$ASSET_NAME"
 
       - name: Create the draft release

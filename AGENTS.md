@@ -211,7 +211,7 @@ Dont open a PR only commit and push to main.
 
 ## Project structure
 
-This repository is an npm workspace monorepo. Use these paths to locate each app and shared code:
+This repository is an npm monorepo with separate installs for each app and shared package. Keep dependencies in the owning package's `node_modules`; do not add dependencies or npm workspaces to the repository root. Use `npm run install:dependencies` for a complete install and `npm install --prefix apps/<app> <package>` to add an app dependency. Use these paths to locate each app and shared code:
 
 ```text
 StreamFusion/
@@ -228,7 +228,8 @@ StreamFusion/
 │   ├── worker/               # Cloudflare Worker for Kick OAuth
 │   └── integration-relay/    # Cloudflare Worker for external integrations
 ├── packages/
-│   └── core/                 # Shared platform contracts and business logic
+│   ├── core/                 # Shared platform contracts and business logic
+│   └── tooling/              # Repository-only dependencies
 ├── docs/                     # Architecture, ADRs, plans, and agent guidance
 ├── scripts/                  # Workspace tooling, release checks, and verification
 ├── verification/             # Verification scripts and evidence definitions
@@ -237,8 +238,8 @@ StreamFusion/
 ├── AGENTS.md                 # Root agent instructions
 ├── CONTEXT-MAP.md            # App contexts and their domain documents
 ├── DESIGN.md                 # UI design system
-├── package.json              # Workspace registration and root commands
-└── package-lock.json         # Shared npm lockfile
+├── package.json              # Root command entry points, with no dependencies
+└── package-lock.json         # Root metadata; each app and package has its own lockfile
 ```
 
 The web frontend lives in `apps/desktop/src/frontend/`. There is no separate root `web/` or `app/` folder. Keep app-specific changes in the owning workspace and shared code in `packages/core/`. Read `CONTEXT-MAP.md` and the owning app's `CONTEXT.md` before changing a feature.

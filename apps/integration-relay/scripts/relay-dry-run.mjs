@@ -5,10 +5,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const relayRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const repositoryRoot = path.resolve(relayRoot, "../..");
+const relayRoot = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
 const wranglerBin = path.join(
-  repositoryRoot,
+  relayRoot,
   "node_modules/wrangler/bin/wrangler.js"
 );
 const outputRoot = await mkdtemp(

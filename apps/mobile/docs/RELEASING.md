@@ -33,7 +33,7 @@ Production identity is active only when `STREAMFUSION_RELEASE_CHANNEL` equals `p
 `native-config.cjs` and `android/app/build.gradle` reject a missing version, an invalid version code, or an unpinned production certificate. Preview the resolved identity with:
 
 ```text
-npm run --workspace @streamfusion/mobile config:android
+npm run --prefix apps/mobile config:android
 ```
 
 Set the three production variables before running that command to preview the production identity.
@@ -47,13 +47,13 @@ Read [SIGNING-KEY-RECOVERY.md](./SIGNING-KEY-RECOVERY.md) before changing the pr
 To record the first fingerprint, run:
 
 ```text
-npm run --workspace @streamfusion/mobile verify:release -- --pin <sha256> <recorded-by>
+npm run --prefix apps/mobile verify:release -- --pin <sha256> <recorded-by>
 ```
 
 To verify an APK, set `APKSIGNER_PATH` to the Android SDK `apksigner`. The script also needs `aapt2`, either through `AAPT2_PATH` or the configured Android SDK.
 
 ```text
-npm run --workspace @streamfusion/mobile verify:release -- StreamFusion-android-v0.1.9.apk
+npm run --prefix apps/mobile verify:release -- StreamFusion-android-v0.1.9.apk
 ```
 
 The check rejects an unreadable signature, an unexpected signer, and any application ID other than `com.thedarkskyxd.streamfusion`.

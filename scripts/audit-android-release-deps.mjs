@@ -5,52 +5,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { findBlockedRuntimeDependencies } from "./blocked-dependencies.mjs";
+import { npmInvocation } from "./package-command.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = path.resolve(path.dirname(scriptPath), "..");
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 
-function npmInvocation() {
-  // npm's install location differs per platform and per runner image, and a
-  // GitHub runner does not export npm_execpath. NPM_CLI_JS is supplied by the
-  // release workflow, which resolves it with the shell, and the remaining
-  // candidates cover a normal local checkout.
-  const candidates = [
-    process.env.NPM_CLI_JS,
-    process.env.npm_execpath,
-    path.join(
-      path.dirname(process.execPath),
-      "node_modules",
-      "npm",
-      "bin",
-      "npm-cli.js",
-    ),
-    process.platform === "win32"
-      ? path.join(
-          process.env.APPDATA ?? path.sep,
-          "npm",
-          "node_modules",
-          "npm",
-          "bin",
-          "npm-cli.js",
-        )
-      : "/usr/local/lib/node_modules/npm/bin/npm-cli.js",
-    process.platform === "win32"
-      ? null
-      : "/usr/lib/node_modules/npm/bin/npm-cli.js",
-  ].filter(Boolean);
-
-  const entry = candidates.find((candidate) => existsSync(candidate));
-  if (!entry) {
-    throw new Error(
-      "Could not locate npm-cli.js. Set NPM_CLI_JS to its absolute path.",
-    );
-  }
-  return { command: process.execPath, prefix: [entry] };
-}
-
-function audit(workspace) {
+function audit() {
   // npm audit exits non-zero whenever it reports any advisory, which is the
   // normal case here, so the report is read from stdout rather than the status.
   const { command, prefix } = npmInvocation();
@@ -58,7 +20,7 @@ function audit(workspace) {
   try {
     stdout = execFileSync(
       command,
-      [...prefix, "audit", "--workspace", workspace, "--omit=dev", "--json"],
+      [...prefix, "audit", "--prefix", "apps/mobile", "--omit=dev", "--json"],
       {
         cwd: repositoryRoot,
         encoding: "utf8",
@@ -248,7 +210,7 @@ function runCli() {
     [],
     "Blocked dependencies cannot be shipped in an Android release.",
   );
-  const report = audit("@streamfusion/mobile");
+  const report = audit();
   const { blocking, ignored } = partitionAdvisories({
     report,
     shipped,

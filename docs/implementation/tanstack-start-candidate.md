@@ -4,14 +4,14 @@ The candidate implements the frontend migration in [issue 234](https://github.co
 
 ## Run the candidate
 
-Run these commands from the repository root with the installed workspace dependencies.
+Run these commands from the repository root after installing the app and package dependencies.
 
 ```powershell
-npm run dev:start --workspace streamfusion
-npm run dev:start:browser --workspace streamfusion
-npm run build:start --workspace streamfusion
-npm run preview:start --workspace streamfusion
-npm run package:start --workspace streamfusion -- --win --x64 --dir
+npm run dev:start --prefix apps/desktop
+npm run dev:start:browser --prefix apps/desktop
+npm run build:start --prefix apps/desktop
+npm run preview:start --prefix apps/desktop
+npm run package:start --prefix apps/desktop -- --win --x64 --dir
 ```
 
 The browser command also starts Electron. Open the printed `browser.html` URL to use the existing development relay. The responsive browser view keeps Electron as its backend. A standalone website is outside the agreed scope. Desktop visual parity precedes the narrow-screen layout work.

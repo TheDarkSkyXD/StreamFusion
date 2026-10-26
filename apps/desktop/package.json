@@ -51,26 +51,26 @@
     "build:start": "node scripts/build-start.mjs",
     "package:start": "node scripts/build-protected-player.mjs --if-windows && electron-builder --config start.builder.config.cjs --publish never",
     "preview:start": "electron-vite preview --skipBuild --entry .cache/start/app",
-    "start": "npm run start:checked --",
-    "start:checked": "npm run typecheck && npm run lint && node scripts/start-picker.js",
+    "start": "node ../../scripts/run-npm.mjs run start:checked --",
+    "start:checked": "node ../../scripts/run-npm.mjs run typecheck && node ../../scripts/run-npm.mjs run lint && node scripts/start-picker.js",
     "preview": "electron-vite preview",
-    "dist": "npm run rebuild-deps && npm run build && node scripts/build-protected-player.mjs --if-windows && electron-builder --publish never",
-    "dist:win": "npm run rebuild-deps && npm run build && node scripts/build-protected-player.mjs && electron-builder --win --publish never",
-    "dist:mac": "npm run rebuild-deps && npm run build && electron-builder --mac --publish never",
-    "dist:linux": "npm run rebuild-deps && npm run build && electron-builder --linux --publish never",
+    "dist": "node ../../scripts/run-npm.mjs run rebuild-deps && node ../../scripts/run-npm.mjs run build && node scripts/build-protected-player.mjs --if-windows && electron-builder --publish never",
+    "dist:win": "node ../../scripts/run-npm.mjs run rebuild-deps && node ../../scripts/run-npm.mjs run build && node scripts/build-protected-player.mjs && electron-builder --win --publish never",
+    "dist:mac": "node ../../scripts/run-npm.mjs run rebuild-deps && node ../../scripts/run-npm.mjs run build && electron-builder --mac --publish never",
+    "dist:linux": "node ../../scripts/run-npm.mjs run rebuild-deps && node ../../scripts/run-npm.mjs run build && electron-builder --linux --publish never",
     "lint": "eslint src/ tests/ \"*.config.{js,mjs,cjs,jsx,ts,mts,tsx}\" start.routes.mts && node scripts/verify-feature-boundaries.mjs",
     "lint:fix": "eslint src/ --fix && prettier --write src/",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "routes:generate": "node scripts/generate-start-routes.mjs",
     "routes:check": "node scripts/generate-start-routes.mjs --check",
-    "typecheck": "npm run routes:check && npm run --workspace @streamfusion/core build && tsc --noEmit",
-    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "typecheck": "node ../../scripts/run-npm.mjs run routes:check && node ../../scripts/run-npm.mjs run --prefix ../../packages/core build && tsc --noEmit",
+    "check": "node ../../scripts/run-npm.mjs run typecheck && node ../../scripts/run-npm.mjs run lint && node ../../scripts/run-npm.mjs run format:check",
     "test": "vitest run --project=node --project=dom",
     "test:node": "vitest run --project=node",
     "test:dom": "vitest run --project=dom",
     "test:system": "vitest run --project=system-windows",
-    "test:all": "npm test && npm run test:system",
+    "test:all": "node ../../scripts/run-npm.mjs test && node ../../scripts/run-npm.mjs run test:system",
     "test:benchmark": "node scripts/benchmark-test-suite.mjs",
     "test:watch": "vitest --project=node --project=dom",
     "test:coverage": "vitest run --project=node --project=dom --coverage",
@@ -85,7 +85,7 @@
     "parity:desktop:write": "node scripts/desktop-parity-inventory.mjs write",
     "parity:desktop:check": "node scripts/desktop-parity-inventory.mjs check",
     "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",
-    "bundle:analyze": "cross-env ANALYZE=true npm run build",
+    "bundle:analyze": "cross-env ANALYZE=true node ../../scripts/run-npm.mjs run build",
     "perf:soak": "node scripts/performance-soak.mjs"
   },
   "build": {
@@ -118,7 +118,9 @@
         {
           "from": ".cache/native/protected-player",
           "to": "protected-player",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
@@ -198,7 +200,8 @@
     "vite": "^7.3.6",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-svgr": "^5.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "@streamfusion/core": "file:../../packages/core"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -240,8 +243,8 @@
     "lodash-es": "^4.18.1",
     "lucide-react": "^1.27.0",
     "pusher-js": "^8.6.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "react-i18next": "17.0.12",
     "react-icons": "^5.7.0",
     "react-virtuoso": "^4.18.11",
@@ -255,5 +258,44 @@
     "ws": "8.21.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
+  },
+  "overrides": {
+    "ajv@8.20.0": {
+      "fast-uri": "3.1.8"
+    },
+    "miniflare@5.20260820.0-alpha": {
+      "undici": "7.29.1"
+    },
+    "glob": "^10.4.5",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1",
+    "rimraf": "^5.0.0",
+    "tar": "^7.5.7",
+    "tmp": "^0.2.5",
+    "uuid": "11.1.1",
+    "@npmcli/move-file": "npm:@npmcli/fs@^3.1.0",
+    "cacache": "^18.0.0",
+    "@napi-rs/wasm-runtime": "1.1.6",
+    "@tanstack/router-core@1.171.26": {
+      "seroval": "1.6.2",
+      "seroval-plugins": "1.6.2"
+    },
+    "js-yaml@4.3.1": "4.3.2",
+    "sharp": "0.35.4",
+    "react": "19.2.8",
+    "react-native": "0.86.3",
+    "react-dom": "19.2.8"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true,
+    "esbuild@0.28.2": true,
+    "ffmpeg-static@5.3.0": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true,
+    "unrs-resolver@1.12.2": true,
+    "workerd@1.20260820.1": true
   }
 }

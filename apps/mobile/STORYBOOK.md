@@ -3,7 +3,7 @@
 From the repository root, start the catalog:
 
 ```powershell
-npm run --workspace @streamfusion/mobile storybook
+npm run --prefix apps/mobile storybook
 ```
 
 Open [mobile Storybook](http://127.0.0.1:6007). The default viewport is a 412 by 892 Android phone. The viewport toolbar also offers a compact phone and tablet. Resize above 599 dp for the navigation rail, and above 840 dp for Watch's video and chat layout.
@@ -19,8 +19,8 @@ Every screen uses local fixtures. Controls update local presentation state. Chat
 Build and verify the catalog:
 
 ```powershell
-npm run --workspace @streamfusion/mobile build-storybook
-npm run --workspace @streamfusion/mobile verify:storybook
+npm run --prefix apps/mobile build-storybook
+npm run --prefix apps/mobile verify:storybook
 ```
 
 The static build is in `apps/mobile/dist/storybook`. The verifier checks built story IDs against both apps' route registries, mobile Settings categories, shared presentation files, and exported shared components. Representative states have separate stories; the verifier does not infer every possible component state.

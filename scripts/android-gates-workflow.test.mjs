@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
-import { load as loadYaml } from "js-yaml";
+import { toolingRequire } from "./tooling.mjs";
+const { load: loadYaml } = toolingRequire("js-yaml");
 
 const HOSTED_EMU_FORBIDDEN =
   /android-emulator-runner|\/dev\/kvm|Enable KVM|android-smoke-journey\.sh/;

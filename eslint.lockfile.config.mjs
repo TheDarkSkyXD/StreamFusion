@@ -1,4 +1,5 @@
-import lockfile from "eslint-plugin-lockfile";
+import { toolingRequire } from "./scripts/tooling.mjs";
+const { default: lockfile } = toolingRequire("eslint-plugin-lockfile");
 
 const recommended = Array.isArray(lockfile.configs.recommended)
   ? lockfile.configs.recommended
@@ -16,7 +17,11 @@ export default [
     },
   },
   {
-    files: ["package-lock.json"],
+    files: [
+      "package-lock.json",
+      "apps/*/package-lock.json",
+      "packages/*/package-lock.json",
+    ],
     rules: {
       "lockfile/flavor": ["error", "npm"],
       "lockfile/integrity": "error",

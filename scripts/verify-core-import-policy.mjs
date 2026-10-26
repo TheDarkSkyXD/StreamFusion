@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ESLint } from "eslint";
+import { toolingRequire } from "./tooling.mjs";
+const { ESLint } = toolingRequire("eslint");
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

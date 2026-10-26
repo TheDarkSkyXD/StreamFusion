@@ -14,7 +14,7 @@ const tanstackModern = new Set([
   "@tanstack/react-query",
 ]);
 
-config.watchFolders = [path.join(workspaceRoot, "node_modules"), path.join(workspaceRoot, "packages"), desktopI18nRoot];
+config.watchFolders = [path.join(workspaceRoot, "packages", "core"), desktopI18nRoot];
 config.resolver.blockList = [
   ...[config.resolver.blockList].flat(),
   /[\\/]android[\\/](?:\.gradle|\.cxx|build|app[\\/](?:build|\.cxx))[\\/].*/,
@@ -82,7 +82,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (tanstackModern.has(moduleName)) {
     return {
       filePath: path.resolve(
-        workspaceRoot,
+        mobileRoot,
         "node_modules",
         moduleName,
         "build/modern/index.js",
@@ -91,8 +91,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     };
   }
 
-  // Prefer the app workspace copy of react / react-native so Metro never mixes
-  // root 0.86.2 with apps/mobile 0.86.3 during RN environment setup.
   if (isReactFamily(moduleName)) {
     return context.resolveRequest(
       { ...context, originModulePath: mobileOrigin },
@@ -104,5 +102,5 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
-config.resolver.nodeModulesPaths = [path.join(mobileRoot, "node_modules"), path.join(workspaceRoot, "node_modules")];
+config.resolver.nodeModulesPaths = [path.join(mobileRoot, "node_modules")];
 module.exports = config;

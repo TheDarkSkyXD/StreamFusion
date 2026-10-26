@@ -18,7 +18,7 @@ jobs:
           package-manager-cache: false
 
       - run: npm install --global npm@11.19.0
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts && npm run install:packages
 
       - id: public-release
         name: Evaluate public release gate

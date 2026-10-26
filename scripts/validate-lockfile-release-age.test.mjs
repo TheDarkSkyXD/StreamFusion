@@ -425,7 +425,7 @@ test("validates the root npm policy", async () => {
       }),
     });
     assert.equal(violations.length, 1);
-    assert.match(violations[0], /^package-lock\.json: young-package@2\.0\.0:/);
+    assert.match(violations[0], /^package lockfiles: young-package@2\.0\.0:/);
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

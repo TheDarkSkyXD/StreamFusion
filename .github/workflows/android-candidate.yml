@@ -20,7 +20,7 @@ jobs:
           package-manager-cache: false
 
       - run: npm install --global npm@11.19.0
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts && npm run install:packages
 
       - id: candidate
         name: Evaluate candidate gate

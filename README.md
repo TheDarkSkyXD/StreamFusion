@@ -31,7 +31,7 @@
 
 ## Tech Stack
 
-StreamFusion is an npm workspace monorepo (`apps/*`, `packages/*`) on **Node.js ≥ 22.14** and **npm 11.19**.
+StreamFusion is an npm monorepo on **Node.js ≥ 22.14** and **npm 11.19**. Each app and shared package owns its dependencies and lockfile. The repository root only dispatches commands.
 
 ### Desktop (`apps/desktop`)
 
@@ -61,7 +61,7 @@ StreamFusion is an npm workspace monorepo (`apps/*`, `packages/*`) on **Node.js 
 
 - **Tests**: [Vitest](https://vitest.dev/) (desktop/mobile), Node test runner for scripts and gates
 - **Quality**: ESLint 9, Prettier, Storybook 10 (desktop)
-- **Install policy**: root lockfile with lifecycle-script allowlist, release-age checks, and registry signature audits
+- **Install policy**: package-local lockfiles with a lifecycle-script allowlist, release-age checks, and registry signature audits
 
 ## Project Structure
 
@@ -73,7 +73,8 @@ StreamFusion/
 │   ├── worker/
 │   └── integration-relay/
 ├── packages/
-│   └── core/
+│   ├── core/
+│   └── tooling/
 ├── package-lock.json
 └── package.json
 ```
@@ -100,14 +101,16 @@ StreamFusion/
    npm run install:dependencies
    ```
 
-   The install command uses the root workspace lockfile. It installs with lifecycle scripts
-   disabled, checks the seven-day release-age policy and registry signatures, then runs
-   only the version-pinned scripts in `allowScripts`. Use `npm install <package>` for the
-   root. Use `npm install --workspace streamfusion <package>` for the desktop app,
-   `npm install --workspace @streamfusion/mobile <package>` for the Android app, and
-   `npm install --workspace streamfusion-worker <package>` for the Worker. Mobile
-   dependencies and tooling belong to `apps/mobile`. Shared-core tooling belongs to
-   the `@streamfusion/core` workspace under `packages/core`.
+   The install command runs `npm ci` in every app and shared package using its local
+   lockfile. It installs with lifecycle scripts disabled, checks the seven-day
+   release-age policy and registry signatures, then runs the version-pinned scripts
+   in `allowScripts`. It creates no root `node_modules`.
+
+   Add dependencies with `npm install --prefix apps/desktop <package>`,
+   `npm install --prefix apps/mobile <package>`, or
+   `npm install --prefix apps/worker <package>`. Shared Core tooling belongs to
+   `packages/core`; repository-only tools belong to `packages/tooling`. Each package
+   has the same `.npmrc` and reviewed overrides from `dependency-install-policy.json`.
    See the [npm security research](docs/brainstorms/2026-08-29-npm-supply-chain-security-research.md)
    for the policy and its limits.
 

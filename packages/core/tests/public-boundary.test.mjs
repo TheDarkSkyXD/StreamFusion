@@ -89,16 +89,13 @@ test("Desktop and Worker reference core and the root gate orders core first", ()
   assert.deepEqual(workerTsconfig.references, [
     { path: "../../packages/core" },
   ]);
-  assert.match(
-    rootPackage.scripts.lint,
-    /--workspace @streamfusion\/core lint/,
-  );
+  assert.match(rootPackage.scripts.lint, /--prefix packages\/core lint/);
   assert.match(
     rootPackage.scripts.test,
-    /^npm run --workspace @streamfusion\/core test/,
+    /^node scripts\/run-npm\.mjs run --prefix packages\/core test/,
   );
   assert.match(
     rootPackage.scripts.typecheck,
-    /^npm run --workspace @streamfusion\/core typecheck/,
+    /^node scripts\/run-npm\.mjs run --prefix packages\/core typecheck/,
   );
 });

@@ -61,7 +61,7 @@ try {
   Write-Output "encrypted, in separate physical locations, before continuing. Then record the"
   Write-Output "fingerprint in the Android Developer Console and pin it in this repository:"
   Write-Output ""
-  Write-Output "  npm run --workspace @streamfusion/mobile verify:release -- --pin $normalized <recorded-by>"
+  Write-Output "  npm run --prefix apps/mobile verify:release -- --pin $normalized <recorded-by>"
 } finally {
   Remove-Item Env:\STREAMFUSION_KEYSTORE_PASS -ErrorAction SilentlyContinue
   Remove-Item Env:\STREAMFUSION_KEY_PASS -ErrorAction SilentlyContinue

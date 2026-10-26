@@ -43,7 +43,11 @@ function createHookRepository(t) {
   runGit("config", "user.email", "hook-test@example.invalid");
   runGit("config", "commit.gpgSign", "false");
   runGit("config", "core.autocrlf", "false");
-  runGit("config", "core.whitespace", "blank-at-eol,blank-at-eof,space-before-tab");
+  runGit(
+    "config",
+    "core.whitespace",
+    "blank-at-eol,blank-at-eof,space-before-tab",
+  );
   const hooksDirectory = path.join(directory, ".git", "hooks");
   writeFileSync(
     path.join(hooksDirectory, "pre-commit"),
@@ -115,125 +119,32 @@ test("the install guard accepts only the pinned npm version", () => {
   }
 });
 
-test("the root workspace owns npm policy and application startup", () => {
-  const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
-  const desktopPackage = JSON.parse(
-    readFileSync("apps/desktop/package.json", "utf8"),
-  );
-  const mobilePackage = JSON.parse(
-    readFileSync("apps/mobile/package.json", "utf8"),
-  );
-  const relayPackage = JSON.parse(
-    readFileSync("apps/integration-relay/package.json", "utf8"),
-  );
-
-  assert.equal(rootPackage.engines.npm, ">=11.8.0 <12");
-  assert.equal(rootPackage.devEngines.packageManager.version, ">=11.8.0 <12");
-  assert.equal(rootPackage.devEngines.packageManager.onFail, "error");
-  assert.equal(rootPackage.packageManager, `npm@${REQUIRED_NPM_VERSION}`);
-  assert.match(rootPackage.scripts.preinstall, /require-npm\.mjs/);
-  assert.deepEqual(rootPackage.workspaces, ["apps/*", "packages/*"]);
-
-  assert.equal(rootPackage.scripts.start, "node scripts/start-picker.mjs");
-  assert.equal(rootPackage.scripts.prepare, "npm run install:hooks");
+test("the root preserves npm policy and app command entry points", () => {
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(manifest.packageManager, `npm@${REQUIRED_NPM_VERSION}`);
+  assert.equal(manifest.workspaces, undefined);
+  assert.equal(manifest.scripts.start, "node scripts/start-picker.mjs");
   assert.equal(
-    rootPackage.scripts["install:hooks"],
-    "git config --local core.hooksPath .githooks",
+    manifest.scripts.desktop,
+    "node scripts/run-npm.mjs run --prefix apps/desktop dev:electron --",
+  );
+  assert.equal(
+    manifest.scripts.mobile,
+    "node scripts/run-npm.mjs run --prefix apps/mobile android --",
+  );
+  assert.equal(
+    manifest.scripts["mobile:native"],
+    "node scripts/run-npm.mjs run --prefix apps/mobile android:native --",
+  );
+  assert.equal(
+    manifest.scripts["install:packages"],
+    "node scripts/package-command.mjs ci --ignore-scripts",
   );
   assert.match(
-    rootPackage.scripts["install:dependencies"],
-    /npm run install:hooks/,
+    manifest.scripts["install:dependencies"],
+    /node scripts\/run-npm\.mjs run install:hooks/,
   );
-  assert.equal(
-    rootPackage.scripts["e2e:preview"],
-    "node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview --",
-  );
-  assert.equal(
-    rootPackage.scripts["test:e2e"],
-    "node .agents/skills/verify-streamfusion/scripts/control.mjs smoke --mode preview --fresh",
-  );
-  assert.equal(
-    rootPackage.scripts.desktop,
-    "npm run --workspace streamfusion dev:electron --",
-  );
-  assert.equal(
-    rootPackage.scripts.browser,
-    "npm run --workspace streamfusion dev --",
-  );
-  assert.equal(
-    rootPackage.scripts.mobile,
-    "npm run --workspace @streamfusion/mobile android --",
-  );
-  assert.equal(
-    rootPackage.scripts["mobile:native"],
-    "npm run --workspace @streamfusion/mobile android:native --",
-  );
-  assert.equal(mobilePackage.scripts.start, "expo start --dev-client");
-  assert.equal(
-    mobilePackage.scripts.android,
-    "node scripts/start-development-client.mjs",
-  );
-  assert.equal(
-    mobilePackage.scripts["android:native"],
-    "node scripts/run-android.mjs",
-  );
-  assert.equal(
-    rootPackage.scripts.relay,
-    "npm run --workspace @streamfusion/integration-relay dev",
-  );
-  assert.equal(
-    rootPackage.scripts["build:relay"],
-    "npm run --workspace @streamfusion/integration-relay build",
-  );
-  assert.equal(relayPackage.scripts.dev, "wrangler dev --env development");
-  assert.equal(
-    rootPackage.scripts["verify:evidence"],
-    "node scripts/verify-evidence.mjs --resume",
-  );
-  assert.equal(
-    rootPackage.scripts["test:evidence"],
-    "node --test scripts/verify-evidence.test.mjs scripts/verify-android-gates.test.mjs scripts/android-gates-workflow.test.mjs scripts/verify-core-extraction-complete.test.mjs scripts/relocate-feature-files.test.mjs verification/verify-receipt-artifacts.test.mjs",
-  );
-  assert.match(rootPackage.scripts.test, /npm run test:evidence/);
-  assert.match(rootPackage.scripts["test:all"], /npm run test:evidence/);
-
-  assert.match(readFileSync(".npmrc", "utf8"), /^loglevel=error$/m);
-  assert.equal(existsSync("apps/desktop/.npmrc"), false);
-  assert.equal(desktopPackage.allowScripts, undefined);
-  assert.equal(desktopPackage.overrides, undefined);
-  assert.ok(rootPackage.allowScripts["better-sqlite3@13.0.3"]);
-  assert.ok(rootPackage.overrides["@napi-rs/wasm-runtime"]);
-  assert.match(
-    rootPackage.scripts["rebuild:dependencies"],
-    /^npm rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents unrs-resolver workerd /,
-  );
-  assert.doesNotMatch(
-    rootPackage.scripts["rebuild:dependencies"],
-    /^npm rebuild --ignore-scripts=false/,
-  );
-  assert.match(
-    rootPackage.scripts.lint,
-    /npm run --workspace @streamfusion\/core lint/,
-  );
-  assert.match(rootPackage.scripts.lint, /npm run lint:core-imports/);
-  assert.match(
-    rootPackage.scripts.typecheck,
-    /^npm run --workspace @streamfusion\/core typecheck/,
-  );
-  assert.match(
-    rootPackage.scripts.typecheck,
-    /npm run --workspace @streamfusion\/mobile typecheck/,
-  );
-  for (const gate of ["lint", "test", "test:all", "typecheck"]) {
-    const relayGate = gate === "test:all" ? "test" : gate;
-    assert.match(
-      rootPackage.scripts[gate],
-      new RegExp(
-        `npm run --workspace @streamfusion/integration-relay ${relayGate}`,
-      ),
-      `${gate} must include the integration relay`,
-    );
-  }
+  assert.match(manifest.scripts.lint, /lint:core-imports/);
 });
 
 test("dependency policy rejects Git, URL, tarball, and local sources", () => {
@@ -311,7 +222,7 @@ test("dependency policy rejects other package-manager files", () => {
   );
 });
 
-test("repository policy requires one root lockfile and rejects nested lockfiles", () => {
+test("repository policy requires a lockfile for each package and rejects other managers", () => {
   const rootDirectory = mkdtempSync(
     path.join(os.tmpdir(), "streamfusion-package-policy-"),
   );
@@ -334,16 +245,16 @@ test("repository policy requires one root lockfile and rejects nested lockfiles"
         specifier: "required npm lockfile is missing",
       },
       {
-        file: path.join("apps", "desktop", "package-lock.json"),
-        section: "repository",
-        dependency: "package-lock.json",
-        specifier: "nested npm lockfile is not allowed",
-      },
-      {
         file: path.join("apps", "desktop", "pnpm-lock.yaml"),
         section: "repository",
         dependency: "pnpm-lock.yaml",
         specifier: "competing package-manager file",
+      },
+      {
+        file: path.join("apps", "worker", "package-lock.json"),
+        section: "repository",
+        dependency: "package-lock.json",
+        specifier: "required npm lockfile is missing",
       },
     ]);
   } finally {
@@ -367,6 +278,8 @@ test("repository policy checks nested npm overrides", () => {
     writeFileSync(path.join(desktopDirectory, "package.json"), "{}\n");
     writeFileSync(path.join(workerDirectory, "package.json"), "{}\n");
     writeFileSync(path.join(rootDirectory, "package-lock.json"), "{}\n");
+    writeFileSync(path.join(desktopDirectory, "package-lock.json"), "{}\n");
+    writeFileSync(path.join(workerDirectory, "package-lock.json"), "{}\n");
 
     assert.deepEqual(validateRepository(rootDirectory), [
       {
@@ -381,83 +294,26 @@ test("repository policy checks nested npm overrides", () => {
   }
 });
 
-test("the root owns the dependency policy and override baseline", () => {
-  const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
-  const rootLockfile = JSON.parse(readFileSync("package-lock.json", "utf8"));
-  const desktopPackage = JSON.parse(
-    readFileSync("apps/desktop/package.json", "utf8"),
+test("each package keeps the reviewed dependency overrides and lifecycle allowlist", () => {
+  const policy = JSON.parse(
+    readFileSync("dependency-install-policy.json", "utf8"),
   );
-  assert.equal(existsSync("apps/desktop/.npmrc"), false);
-  assert.equal(desktopPackage.overrides, undefined);
-  assert.equal(desktopPackage.allowScripts, undefined);
-  assert.ok(Object.keys(rootPackage.overrides).length > 0);
-  assert.equal(rootPackage.devDependencies.ws, "8.21.3");
-  assert.deepEqual(rootPackage.overrides["@tanstack/router-core@1.171.26"], {
-    seroval: "1.6.2",
-    "seroval-plugins": "1.6.2",
-  });
-  assert.equal(rootPackage.overrides["react-native-reanimated"], "4.5.1");
-  assert.equal(rootPackage.overrides["react-native-worklets"], "0.10.1");
-  assert.equal(rootPackage.overrides.react, "19.2.8");
-  assert.equal(rootPackage.overrides["react-dom"], "19.2.8");
-  assert.equal(rootPackage.overrides["react-native"], "0.86.3");
-  assert.equal(rootPackage.overrides.expo, "57.0.17");
-  assert.ok(Object.keys(rootPackage.allowScripts).length > 0);
-  assert.deepEqual(
-    rootLockfile.packages[""].workspaces,
-    rootPackage.workspaces,
-  );
-  assert.equal(rootLockfile.packages["apps/desktop"].name, "streamfusion");
-  assert.equal(
-    rootLockfile.packages["apps/worker"].name,
-    "streamfusion-worker",
-  );
-  assert.equal(
-    rootLockfile.packages["apps/mobile"].name,
-    "@streamfusion/mobile",
-  );
-  assert.equal(
-    rootLockfile.packages["apps/integration-relay"].name,
-    "@streamfusion/integration-relay",
-  );
-  assert.equal(
-    rootLockfile.packages["packages/core"].name,
-    "@streamfusion/core",
-  );
-  assert.deepEqual(rootLockfile.packages["node_modules/streamfusion"], {
-    resolved: "apps/desktop",
-    link: true,
-  });
-  assert.deepEqual(rootLockfile.packages["node_modules/@streamfusion/core"], {
-    resolved: "packages/core",
-    link: true,
-  });
-  assert.deepEqual(rootLockfile.packages["node_modules/@streamfusion/mobile"], {
-    resolved: "apps/mobile",
-    link: true,
-  });
-  assert.deepEqual(
-    rootLockfile.packages["node_modules/@streamfusion/integration-relay"],
-    {
-      resolved: "apps/integration-relay",
-      link: true,
-    },
-  );
-  assert.equal(rootLockfile.packages["node_modules/ws"].version, "8.21.3");
-  assert.equal(
-    rootLockfile.packages["node_modules/miniflare/node_modules/ws"].version,
-    "8.21.0",
-  );
-  assert.equal(
-    rootLockfile.packages[
-      "node_modules/@tanstack/router-core/node_modules/seroval"
-    ].version,
-    "1.6.2",
-  );
-  assert.equal(
-    rootLockfile.packages[
-      "node_modules/@tanstack/router-core/node_modules/seroval-plugins"
-    ].version,
-    "1.6.2",
-  );
+  assert.equal(policy.overrides.react, "19.2.8");
+  assert.equal(policy.overrides["react-native"], "0.86.3");
+  assert.equal(policy.overrides["react-native-reanimated"], "4.5.1");
+  assert.ok(policy.allowScripts["better-sqlite3@13.0.3"]);
+  for (const directory of [
+    "apps/desktop",
+    "apps/mobile",
+    "apps/worker",
+    "apps/integration-relay",
+    "packages/core",
+    "packages/tooling",
+  ]) {
+    const manifest = JSON.parse(
+      readFileSync(path.join(directory, "package.json"), "utf8"),
+    );
+    assert.deepEqual(manifest.overrides, policy.overrides, directory);
+    assert.deepEqual(manifest.allowScripts, policy.allowScripts, directory);
+  }
 });

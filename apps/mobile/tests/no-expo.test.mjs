@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import ts from "typescript";
 
-const root = new URL("../../../", import.meta.url);
 const mobile = new URL("../", import.meta.url);
 const readJson = (url) => JSON.parse(readFileSync(url, "utf8"));
 const isExpo = (name) =>
@@ -61,14 +60,14 @@ test("the installed mobile dependency graph runs without Expo", () => {
     }
   }
   visit(new URL("package.json", mobile));
-  const lock = readJson(new URL("package-lock.json", root));
+  const lock = readJson(new URL("package-lock.json", mobile));
   const expoPackages = Object.keys(lock.packages).filter((name) =>
     /(?:^|\/)node_modules\/(?:expo(?:-|$)|@expo\/)/u.test(name),
   );
   assert.deepEqual(
     expoPackages,
     [],
-    "the workspace lockfile retains Expo packages",
+    "the mobile lockfile retains Expo packages",
   );
 });
 

@@ -36,7 +36,7 @@ jobs:
         run: npm install --global npm@11.19.0
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && npm run install:packages
 
       - name: Verify dependency policy
         run: |
@@ -53,11 +53,11 @@ jobs:
 
       - name: Build shared core and Start candidate
         run: |
-          npm run --workspace @streamfusion/core build
-          npm run --workspace streamfusion build:start
+          npm run --prefix packages/core build
+          npm run --prefix apps/desktop build:start
 
       - name: Package unsigned candidate without publishing
-        run: npm run --workspace streamfusion package:start -- --mac --${{ matrix.arch }}
+        run: npm run --prefix apps/desktop package:start -- --mac --${{ matrix.arch }}
 
       - name: Verify unchanged packaged application through native accessibility
         env:

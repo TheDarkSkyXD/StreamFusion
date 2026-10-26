@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import sharp from "sharp";
+import { toolingRequire } from "../../scripts/tooling.mjs";
+const sharp = toolingRequire("sharp");
 
 const evidence = new URL("../evidence/mobile-stream-info/", import.meta.url);
 const read = async (state) =>

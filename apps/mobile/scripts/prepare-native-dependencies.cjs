@@ -3,15 +3,16 @@ const path = require("node:path");
 const { prepareWindowsNinja } = require("./prepare-windows-ninja.cjs");
 
 const repositoryRoot = path.resolve(__dirname, "../../..");
+const mobileRoot = path.resolve(__dirname, "..");
 const result = spawnSync(
   process.execPath,
   [
     require.resolve("patch-package/index.js"),
     "--patch-dir",
-    "apps/mobile/patches",
+    "patches",
     "--error-on-fail",
   ],
-  { cwd: repositoryRoot, stdio: "inherit" },
+  { cwd: mobileRoot, stdio: "inherit" },
 );
 
 if (result.error) throw result.error;

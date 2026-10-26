@@ -45,7 +45,7 @@ The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-us
 
 ## Start candidate proof
 
-While the frontend migration remains opt-in, use `launch --mode dev:start` for the Start development renderer. For compiled local-file proof, first run `npm run build:start --workspace streamfusion`, then `launch --mode preview:start`. These modes use the same disposable profiles, process ownership checks, doctor, driving commands and cleanup. `preview:start` launches the existing candidate without rebuilding it. Record its build evidence before launch. The default mode remains `dev:electron`.
+While the frontend migration remains opt-in, use `launch --mode dev:start` for the Start development renderer. For compiled local-file proof, first run `npm run build:start --prefix apps/desktop`, then `launch --mode preview:start`. These modes use the same disposable profiles, process ownership checks, doctor, driving commands and cleanup. `preview:start` launches the existing candidate without rebuilding it. Record its build evidence before launch. The default mode remains `dev:electron`.
 
 Run `node apps/desktop/scripts/verify-start-runtime.mjs <run.json>` on a compiled candidate to reload the real window and retain CSP, hydration and preload-bridge diagnostics in `start-reload.json`. This is a compiled-output check, not a development-server check.
 
