@@ -5,7 +5,7 @@ import test from "node:test";
 import { buildLockfileDigest } from "../../scripts/build-lockfile-digest.mjs";
 
 test("build provenance covers every input lockfile in a stable order", async (t) => {
-  const scratch = path.resolve(import.meta.dirname, "../../../../.tmp");
+  const scratch = path.resolve(import.meta.dirname, "../../.tmp");
   mkdirSync(scratch, { recursive: true });
   const root = mkdtempSync(path.join(scratch, "lockfile-digest-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

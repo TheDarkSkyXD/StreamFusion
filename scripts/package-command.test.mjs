@@ -11,7 +11,7 @@ import test from "node:test";
 import { packageDirectories, runPackageCommands } from "./package-command.mjs";
 
 test("package commands run in their owning folders and preserve arguments", (t) => {
-  const scratch = path.resolve(import.meta.dirname, "../.tmp");
+  const scratch = path.resolve(import.meta.dirname, "../packages/tooling/.tmp");
   mkdirSync(scratch, { recursive: true });
   const root = mkdtempSync(path.join(scratch, "package commands "));
   t.after(() => rmSync(root, { recursive: true, force: true }));

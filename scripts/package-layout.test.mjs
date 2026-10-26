@@ -18,9 +18,15 @@ test("linked Core enforces npm through devEngines without an install hook", () =
   assert.deepEqual(tooling.devEngines, core.devEngines);
 });
 
-test("the repository root only dispatches commands and owns no dependencies", () => {
+test("the repository root keeps dependencies and generated artifacts in owning packages", () => {
   const manifest = readJson(path.join(root, "package.json"));
-  assert.equal(existsSync(path.join(root, "node_modules")), false);
+  for (const directory of ["node_modules", ".expo", ".tmp"]) {
+    assert.equal(
+      existsSync(path.join(root, directory)),
+      false,
+      directory + " belongs in its owning app or package",
+    );
+  }
   assert.equal(manifest.workspaces, undefined);
   for (const section of [
     "dependencies",
