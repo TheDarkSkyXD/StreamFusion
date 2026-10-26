@@ -1,3 +1,44 @@
+import org.gradle.api.flow.BuildWorkResult
+import org.gradle.api.flow.FlowAction
+import org.gradle.api.flow.FlowParameters
+import org.gradle.api.flow.FlowProviders
+import org.gradle.api.flow.FlowScope
+
+abstract class NativeBuildCleanup implements FlowAction<NativeBuildCleanup.Parameters> {
+  interface Parameters extends FlowParameters {
+    @Input
+    Property<BuildWorkResult> getBuildResult()
+    @Input
+    Property<String> getStagingPath()
+  }
+
+  @Inject
+  abstract FileSystemOperations getFileSystemOperations()
+
+  @Override
+  void execute(Parameters parameters) {
+    fileSystemOperations.delete { spec ->
+      spec.delete(parameters.stagingPath.get())
+      spec.followSymlinks = false
+    }
+  }
+}
+
+abstract class NativeBuildCleanupPlugin implements Plugin<Project> {
+  @Inject
+  abstract FlowScope getFlowScope()
+  @Inject
+  abstract FlowProviders getFlowProviders()
+
+  @Override
+  void apply(Project target) {
+    flowScope.always(NativeBuildCleanup) {
+      parameters.buildResult.set(flowProviders.buildWorkResult)
+      parameters.stagingPath.set(target.file("../.cxx").absolutePath)
+    }
+  }
+}
+
 buildscript {
   ext {
     buildToolsVersion = "36.0.0"
@@ -14,17 +55,18 @@ buildscript {
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
   }
 }
+apply plugin: NativeBuildCleanupPlugin
 allprojects { repositories { google(); mavenCentral() } }
-if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")) {
-  def repositoryRoot = file("../../..").canonicalFile
-  def ninja = new File(repositoryRoot, ".cache/ninja/1.13.2/ninja.exe")
-  if (!ninja.isFile()) throw new GradleException("Windows Ninja setup did not complete")
-  subprojects { nativeProject ->
-    ["com.android.application", "com.android.library"].each { plugin ->
-      nativeProject.pluginManager.withPlugin(plugin) {
-        nativeProject.extensions.getByName("androidComponents").finalizeDsl { android ->
-          def moduleIndex = rootProject.subprojects.toList().sort { it.path }.indexOf(nativeProject)
-          android.externalNativeBuild.cmake.buildStagingDirectory = new File(repositoryRoot, ".cxx/${moduleIndex}")
+def windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")
+def ninja = new File(file("../../.."), ".cache/ninja/1.13.2/ninja.exe")
+if (windows && !ninja.isFile()) throw new GradleException("Windows Ninja setup did not complete")
+subprojects { nativeProject ->
+  ["com.android.application", "com.android.library"].each { plugin ->
+    nativeProject.pluginManager.withPlugin(plugin) {
+      nativeProject.extensions.getByName("androidComponents").finalizeDsl { android ->
+        def moduleIndex = rootProject.subprojects.toList().sort { it.path }.indexOf(nativeProject)
+        android.externalNativeBuild.cmake.buildStagingDirectory = rootProject.file("../.cxx/${moduleIndex}")
+        if (windows) {
           android.defaultConfig.externalNativeBuild.cmake.arguments.add("-DCMAKE_MAKE_PROGRAM=" + ninja.absolutePath.replace('\\', '/'))
         }
       }

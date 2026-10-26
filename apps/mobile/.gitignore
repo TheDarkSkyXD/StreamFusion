@@ -1,4 +1,5 @@
 /dist/
+/.cxx/
 /.expo/
 *.jks
 *.keystore

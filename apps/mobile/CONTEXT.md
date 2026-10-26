@@ -60,6 +60,8 @@ The normal mobile command opens the installed development app with Metro on port
 
 For checkout paths containing commas, the native-contracts module puts its build output in Gradle's user-home cache, keyed by the checkout path. This keeps Kotlin's test-access path list intact. App APK paths stay under `android/app/build/outputs/apk/`.
 
+Android CMake staging stays under `apps/mobile/.cxx/` for every native module. Gradle removes it after successful or failed builds. Native builds recreate that staging on each run. A forced process kill can leave files behind until the next build finishes. Run `node --test apps/mobile/tests/native-build-lifecycle.integration.mjs` from the repository root to check the staging lifecycle with the installed Android toolchain.
+
 native-config.json records the development identity. Production builds require the exact production release channel, an explicit release version and version code, and the pinned signing certificate. The development application remains com.thedarkskyxd.streamfusion.dev with scheme streamfusion-development. The production application remains com.thedarkskyxd.streamfusion with scheme streamfusion. Release builds use the existing upload-signing variables and APK verification gates.
 
 Public Metro configuration uses STREAMFUSION_PUBLIC_RELAY_URL, STREAMFUSION_PUBLIC_POLICY_TRUSTED_KEYS, STREAMFUSION_PUBLIC_TWITCH_CLIENT_ID, STREAMFUSION_PUBLIC_KICK_CLIENT_ID, and STREAMFUSION_PUBLIC_WORKER_URL. The release workflow supplies these values from matching repository variables. The Babel plugin inlines only those explicit public variables. It never reads dotenv files or arbitrary environment values.
