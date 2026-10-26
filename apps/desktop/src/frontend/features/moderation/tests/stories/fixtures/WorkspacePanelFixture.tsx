@@ -1,16 +1,15 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useState } from "react";
-import { expect, within } from "storybook/test";
 import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import type { ModerationFeedEvent } from "@shared/moderation-types";
-import { ActivityFeedPanel } from "../../components/panels/ActivityFeedPanel";
-import { SuspiciousActivityPanel } from "../../components/panels/SuspiciousActivityPanel";
-import { WhispersPanel } from "../../components/panels/WhispersPanel";
-import { CommunityPanel } from "../../components/panels/CommunityPanel";
-import { RewardRequestsPanel } from "../../components/panels/RewardRequestsPanel";
+import { ActivityFeedPanel } from "../../../components/panels/ActivityFeedPanel";
+import { SuspiciousActivityPanel } from "../../../components/panels/SuspiciousActivityPanel";
+import { WhispersPanel } from "../../../components/panels/WhispersPanel";
+import { CommunityPanel } from "../../../components/panels/CommunityPanel";
+import { RewardRequestsPanel } from "../../../components/panels/RewardRequestsPanel";
+import { WorkspaceFeedPanel } from "../../../components/panels/WorkspaceFeedPanel";
 
-type Panel = "activity" | "suspicious" | "whispers" | "community" | "rewards";
-type FixtureState = "ready" | "permission" | "error" | "loading" | "empty";
+export type Panel = "activity" | "suspicious" | "whispers" | "community" | "rewards" | "workspace";
+export type FixtureState = "ready" | "permission" | "error" | "loading" | "empty";
 const panels = {
   activity: ActivityFeedPanel,
   suspicious: SuspiciousActivityPanel,
@@ -39,7 +38,7 @@ const redemption = {
   redeemedAt: stamp,
 } as const;
 
-function WorkspacePanelFixture({ panel, state }: { panel: Panel; state: FixtureState }) {
+export function WorkspacePanelFixture({ panel, state }: { panel: Panel; state: FixtureState }) {
   const [ready, setReady] = useState(false);
   useLayoutEffect(() => {
     const previous = Object.getOwnPropertyDescriptor(window, "electronAPI");
@@ -189,70 +188,23 @@ function WorkspacePanelFixture({ panel, state }: { panel: Panel; state: FixtureS
       states.clear();
       useAuthStore.setState(previousAuth, true);
       if (previous) Object.defineProperty(window, "electronAPI", previous);
+      else Reflect.deleteProperty(window, "electronAPI");
     };
   }, [panel, state]);
-  const Panel = panels[panel];
+  const Panel = panel === "workspace" ? null : panels[panel];
   return (
     <div className="h-[560px] w-[400px] bg-[#18181b] text-white">
-      {ready && <Panel key={`${panel}:${state}`} channelId="100" channelName="fixture_owner" />}
+      {ready &&
+        (Panel ? (
+          <Panel key={`${panel}:${state}`} channelId="100" channelName="fixture_owner" />
+        ) : (
+          <WorkspaceFeedPanel
+            key={`${panel}:${state}`}
+            kind="activity"
+            channelId="100"
+            channelName="fixture_owner"
+          />
+        ))}
     </div>
   );
 }
-
-const meta = {
-  title: "Pages/Moderation/Workspace/NewPanels",
-  component: WorkspacePanelFixture,
-  args: { panel: "activity", state: "ready" },
-  parameters: {
-    layout: "centered",
-    docs: {
-      description: {
-        component:
-          "Deterministic local fixtures. Every read, feed, external link and moderation action is intercepted; these stories never contact Twitch or mutate a live channel.",
-      },
-    },
-  },
-} satisfies Meta<typeof WorkspacePanelFixture>;
-export default meta;
-type Story = StoryObj<typeof meta>;
-export const Activity: Story = {
-  play: async ({ canvasElement }) => {
-    await expect(await within(canvasElement).findByText("Orbit Owl")).toBeInTheDocument();
-  },
-};
-export const Suspicious: Story = {
-  args: { panel: "suspicious" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("button", { name: "Restrict user" })
-    ).toBeInTheDocument();
-  },
-};
-export const Whispers: Story = { args: { panel: "whispers" } };
-export const Community: Story = { args: { panel: "community" } };
-export const Rewards: Story = {
-  args: { panel: "rewards" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("button", { name: "Fulfill request" })
-    ).toBeInTheDocument();
-  },
-};
-export const Permission: Story = {
-  args: { panel: "suspicious", state: "permission" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("button", { name: "Reconnect Twitch" })
-    ).toBeInTheDocument();
-  },
-};
-export const Error: Story = {
-  args: { state: "error" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByText("Twitch is unavailable in this error fixture.")
-    ).toBeInTheDocument();
-  },
-};
-export const Loading: Story = { args: { state: "loading" } };
-export const Empty: Story = { args: { state: "empty" } };

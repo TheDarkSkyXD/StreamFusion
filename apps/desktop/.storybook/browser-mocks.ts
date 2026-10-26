@@ -24,6 +24,9 @@ function createBridgeSection(path: string[] = []): AnyFunction {
       });
     }
     if (methodName === "isMaximized") return Promise.resolve(false);
+    if (path[0] === "connectivity" && methodName === "check") {
+      return Promise.resolve({ status: "online" });
+    }
 
     return Promise.resolve(undefined);
   };
@@ -69,6 +72,7 @@ if (!window.IntersectionObserver) {
   window.IntersectionObserver = class IntersectionObserver {
     readonly root = null;
     readonly rootMargin = "0px";
+    readonly scrollMargin = "0px";
     readonly thresholds = [0];
 
     observe() {}

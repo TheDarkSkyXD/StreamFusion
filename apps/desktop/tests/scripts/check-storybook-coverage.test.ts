@@ -12,6 +12,15 @@ function sourceFile(relativePath: string) {
 // Guards: every Storybook-eligible React module across src must report its missing same-basename story using a path relative to src.
 // Guards: a collocated same-basename story must cover its React module instead of being reported as missing.
 describe("check-storybook-coverage", () => {
+  it("accounts for every desktop React module in the real catalog", async () => {
+    const report = await buildCoverageReport();
+
+    expect(report.missingComponents).toEqual([]);
+    expect(report.orphanStories).toEqual([]);
+    expect(report.exclusionErrors).toEqual([]);
+    expect(report.passed).toBe(true);
+  });
+
   it("tracks feature-owned stories while excluding feature test modules", async () => {
     const report = await buildCoverageReport({
       rootDirectory: sourceRoot,

@@ -638,7 +638,7 @@ function componentMock(component: unknown): ReturnType<typeof spyOn> {
   throw new Error("The workspace media fixture requires the Storybook component spy registration.");
 }
 
-function installPageFixtures(state: PageState): () => void {
+export function installPageFixtures(state: PageState): () => void {
   const twitchPlayerMock = componentMock(TwitchLivePlayer);
   const kickPlayerMock = componentMock(KickLivePlayer);
   const chatMock = componentMock(ChatPanel);
@@ -700,7 +700,7 @@ function installPageFixtures(state: PageState): () => void {
   };
 }
 
-function PageQueryProvider({ children }: { children: ReactNode }) {
+export function PageQueryProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createStoryQueryClient);
 
   useEffect(() => () => queryClient.clear(), [queryClient]);
@@ -723,6 +723,7 @@ function ModChannelPageStoryCanvas({ state }: { state: PageState }) {
 const meta = {
   title: "Pages/Moderation/Channel/ModChannelPage",
   component: ModChannelPage,
+  excludeStories: ["installPageFixtures", "PageQueryProvider"],
   args: {
     platform: "twitch",
     channel: TWITCH_CHANNEL_LOGIN,

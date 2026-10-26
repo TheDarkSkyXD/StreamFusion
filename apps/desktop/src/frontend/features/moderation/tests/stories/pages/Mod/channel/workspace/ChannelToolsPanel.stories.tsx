@@ -1,7 +1,8 @@
 import { useLayoutEffect } from "react";
+import type { ComponentProps } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { ChannelToolsPanel } from "@/features/moderation/components/screens/Mod/channel/workspace/ChannelToolsPanel";
-import { ChannelEngagement } from "@/features/moderation/components/screens/Mod/channel/ChannelEngagement";
 import { twitchToolAccess } from "@/features/moderation/adapters/electron/twitch-tool-access";
 import type { TwitchApiCommand, TwitchApiResult } from "@shared/twitch-api-types";
 
@@ -164,11 +165,12 @@ function ChannelToolsCanvas({ state }: { state: StoryState }) {
     });
     return () => {
       if (descriptor) Object.defineProperty(window, "electronAPI", descriptor);
+      else Reflect.deleteProperty(window, "electronAPI");
     };
   }, [state]);
   const access = twitchToolAccess(state === "permission" ? [] : scopes, state !== "remote");
   return (
-    <div className="grid min-h-[720px] grid-cols-1 gap-3 bg-[#0e0e10] p-4 text-white md:grid-cols-2">
+    <div className="min-h-[720px] bg-[#0e0e10] p-4 text-white">
       <div className="rounded-md border border-[#303034] bg-[#18181b]">
         <ChannelToolsPanel
           key={state}
@@ -180,23 +182,23 @@ function ChannelToolsCanvas({ state }: { state: StoryState }) {
           requestScopes={() => {}}
         />
       </div>
-      <div className="rounded-md border border-[#303034] bg-[#18181b]">
-        <ChannelEngagement
-          key={state}
-          broadcasterId="123"
-          channel="fixture"
-          access={access}
-          requestScopes={() => {}}
-        />
-      </div>
     </div>
   );
 }
 
 const meta = {
-  title: "Pages/Moderation/Channel/ChannelTools",
-  component: ChannelToolsCanvas,
-  args: { state: "ready" },
+  title: "Pages/Moderation/Workspace/Channel tools",
+  component: ChannelToolsPanel,
+  args: {
+    channelId: "123",
+    actorId: "123",
+    channel: "fixture",
+    refreshCounter: 0,
+    access: twitchToolAccess(scopes, true),
+    requestScopes: () => undefined,
+    state: "ready",
+  },
+  render: ({ state }) => <ChannelToolsCanvas state={state} />,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -206,10 +208,16 @@ const meta = {
       },
     },
   },
-} satisfies Meta<typeof ChannelToolsCanvas>;
+} satisfies Meta<ComponentProps<typeof ChannelToolsPanel> & { state: StoryState }>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const Ready: Story = {};
+export const Ready: Story = {
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByText("A relaxed evening of games and conversation")
+    ).toBeInTheDocument();
+  },
+};
 export const PermissionRequired: Story = { args: { state: "permission" } };
 export const ProviderError: Story = { args: { state: "error" } };
 export const Loading: Story = { args: { state: "loading" } };
