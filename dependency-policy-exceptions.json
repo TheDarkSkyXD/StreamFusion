@@ -1,3 +1,8 @@
 {
-  "minimumReleaseAge": {}
+  "minimumReleaseAge": {
+    "body-parser@2.4.0": {
+      "reason": "Fix GHSA-27r3-jxmh-p828 in the React Native CLI development server before publishing desktop v2.0.2.",
+      "expiresAt": "2026-10-29T11:39:38.614Z"
+    }
+  }
 }

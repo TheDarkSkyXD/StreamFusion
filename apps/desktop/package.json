@@ -157,14 +157,14 @@
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@storybook/addon-a11y": "10.5.10",
-    "@storybook/addon-docs": "10.5.10",
-    "@storybook/react-vite": "10.5.10",
+    "@storybook/addon-a11y": "10.6.3",
+    "@storybook/addon-docs": "10.6.3",
+    "@storybook/react-vite": "10.6.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/query-devtools": "5.101.4",
     "@tanstack/react-query-devtools": "^5.101.4",
-    "@tanstack/react-start": "1.168.56",
+    "@tanstack/react-start": "1.168.61",
     "@tanstack/router-generator": "1.167.38",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
@@ -181,7 +181,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.5.4",
     "cross-env": "^10.1.0",
-    "electron": "43.7.5",
+    "electron": "43.8.2",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.5",
@@ -198,11 +198,11 @@
     "postcss": "^8.5.24",
     "prettier": "^3.9.6",
     "rollup-plugin-visualizer": "^7.0.1",
-    "storybook": "10.5.10",
+    "storybook": "10.6.3",
     "tailwindcss": "^4.3.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.65.0",
-    "vite": "^7.3.6",
+    "vite": "7.3.7",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-svgr": "^5.2.0",
     "vitest": "^4.1.10",
@@ -228,7 +228,7 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "@radix-ui/react-visually-hidden": "^1.2.11",
     "@tanstack/react-query": "^5.101.4",
-    "@tanstack/react-router": "1.170.38",
+    "@tanstack/react-router": "1.170.42",
     "axios": "^1.20.0",
     "better-sqlite3": "^13.0.1",
     "chokidar": "^5.0.0",
@@ -261,7 +261,7 @@
     "twitch-gql-queries": "^0.1.25",
     "update-electron-app": "^3.3.0",
     "ws": "8.21.3",
-    "zod": "^4.4.3",
+    "zod": "^4.6.7",
     "zustand": "^5.0.14"
   },
   "overrides": {
@@ -269,7 +269,7 @@
       "fast-uri": "3.1.8"
     },
     "miniflare@5.20260820.0-alpha": {
-      "undici": "7.29.1"
+      "undici": "7.30.1"
     },
     "glob": "^10.4.5",
     "react-native-reanimated": "4.5.1",
@@ -286,10 +286,13 @@
       "seroval-plugins": "1.6.2"
     },
     "js-yaml@4.3.1": "4.3.2",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "react": "19.2.8",
     "react-native": "0.86.3",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "handlebars": "4.7.10",
+    "body-parser": "2.4.0",
+    "vite": "7.3.7"
   },
   "allowScripts": {
     "better-sqlite3@13.0.3": true,
