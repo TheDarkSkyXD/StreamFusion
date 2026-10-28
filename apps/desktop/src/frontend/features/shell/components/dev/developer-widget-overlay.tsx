@@ -3,11 +3,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 
 import { DeveloperConsole } from "@/components/dev/DeveloperConsole";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { FallbackQueryDevtools, queryClient } from "@/providers/query-provider";
 import {
   DEVELOPER_WIDGET_FRAME,
   type DeveloperWidgetLayout,
 } from "@shared/developer-widget-layout";
+import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 import { electronDeveloperWidgetOverlay as overlay } from "../../adapters/electron/developer-widget-overlay";
 import {
   collectDeveloperWidgetRects,
@@ -33,6 +35,7 @@ export function DeveloperWidgetOverlay() {
     if (lastFocusedElement?.isConnected) lastFocusedElement.focus();
     else window.focus();
   }, [lastFocusedElement]);
+  const restoreFocusTimeout = useManagedTimeout(restoreFocus);
 
   useLayoutEffect(() => {
     target?.consoleRoot.ownerDocument.defaultView?.dispatchEvent(
@@ -46,7 +49,7 @@ export function DeveloperWidgetOverlay() {
     let opening = false;
     let popup: Window | null = null;
     let frame = 0;
-    let bootstrapTimer: ReturnType<typeof setTimeout> | null = null;
+    let bootstrapTimer: CancellableSleep | null = null;
     let observer: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let revision = 0;
@@ -127,11 +130,13 @@ export function DeveloperWidgetOverlay() {
     const schedule = (): void => {
       if (disposed || !popup || popup.closed) return;
       if (lastRects === "" || lastRects === "[]") {
-        if (!bootstrapTimer)
-          bootstrapTimer = setTimeout(() => {
+        if (!bootstrapTimer) {
+          bootstrapTimer = createCancellableSleep(16);
+          void bootstrapTimer.result.then((result) => {
             bootstrapTimer = null;
-            measure();
-          }, 16);
+            if (result.ok && !disposed) measure();
+          });
+        }
       } else if (!frame) frame = popup.requestAnimationFrame(measure);
     };
 
@@ -242,7 +247,7 @@ export function DeveloperWidgetOverlay() {
       prepareRectRef.current = null;
       document.removeEventListener("keydown", onOwnerShortcut);
       if (popup && frame) popup.cancelAnimationFrame(frame);
-      if (bootstrapTimer) clearTimeout(bootstrapTimer);
+      bootstrapTimer?.cancel();
       observer?.disconnect();
       resizeObserver?.disconnect();
       popup?.streamfusionDeveloperWidgets?.dispose();
@@ -262,7 +267,7 @@ export function DeveloperWidgetOverlay() {
     ? createPortal(
         <DeveloperConsole
           targetDocument={target.consoleRoot.ownerDocument}
-          onCollapse={() => setTimeout(restoreFocus, 0)}
+          onCollapse={() => restoreFocusTimeout.start(0)}
           onPrepareMove={(rect) => prepareRectRef.current?.(rect) ?? Promise.resolve(false)}
         />,
         target.consoleRoot

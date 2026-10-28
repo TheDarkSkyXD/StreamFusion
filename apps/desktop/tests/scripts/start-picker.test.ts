@@ -77,9 +77,7 @@ describe("start picker", () => {
       })
     ).resolves.toBe(1);
 
-    expect(reportUnavailable).toHaveBeenCalledWith(
-      "StreamFusion Mobile is not implemented yet."
-    );
+    expect(reportUnavailable).toHaveBeenCalledWith("StreamFusion Mobile is not implemented yet.");
     expect(launch).not.toHaveBeenCalled();
   });
 
@@ -104,7 +102,9 @@ describe("start picker", () => {
       readFileSync(resolve(__dirname, "../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    expect(desktopPackage.scripts.start).toBe("npm run start:checked --");
+    expect(desktopPackage.scripts.start).toBe(
+      "node ../../scripts/run-npm.mjs run start:checked --"
+    );
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"
     );
@@ -174,12 +174,7 @@ describe("start picker", () => {
 
     expect(spawn).toHaveBeenCalledWith(
       process.execPath,
-      [
-        startDevPath,
-        "--",
-        "--remote-debugging-port=48123",
-        `--user-data-dir=${profileDir}`,
-      ],
+      [startDevPath, "--", "--remote-debugging-port=48123", `--user-data-dir=${profileDir}`],
       expect.objectContaining({
         env: { STREAMFUSION_DEV_USER_DATA_DIR: profileDir },
         stdio: "inherit",

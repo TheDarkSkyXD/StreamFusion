@@ -1,5 +1,6 @@
 import { TanstackQueryDevtools } from "@tanstack/query-devtools";
 import type { QueryClient, onlineManager } from "@tanstack/react-query";
+import { sleep } from "@shared/utils/sleep";
 
 import "@/global.css";
 import "./developer-widget-popup.css";
@@ -51,9 +52,9 @@ const stopDrag = (): void => {
   if (!active) return;
   if (active.moved) {
     suppressLauncherClick = true;
-    window.setTimeout(() => {
+    void sleep(0).then(() => {
       suppressLauncherClick = false;
-    }, 0);
+    });
   }
   const finish = () => {
     if (drag !== active) return;

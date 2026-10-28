@@ -1,4 +1,6 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, type Rectangle } from "electron";
+import { BrowserWindow, type IpcMainInvokeEvent, type Rectangle } from "electron";
+
+import { trustedIpcMain as ipcMain } from "@backend/ipc/trusted-ipc-main";
 
 import {
   DEVELOPER_WIDGET_FRAME,
