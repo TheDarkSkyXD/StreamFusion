@@ -66,7 +66,7 @@
     "routes:check": "node scripts/generate-start-routes.mjs --check",
     "typecheck": "node ../../scripts/run-npm.mjs run routes:check && node ../../scripts/run-npm.mjs run --prefix ../../packages/core build && tsc --noEmit",
     "check": "node ../../scripts/run-npm.mjs run typecheck && node ../../scripts/run-npm.mjs run lint && node ../../scripts/run-npm.mjs run format:check",
-    "test": "vitest run --project=node --project=dom",
+    "test": "node --test tests/build/update-package.test.cjs && vitest run --project=node --project=dom",
     "test:node": "vitest run --project=node",
     "test:dom": "vitest run --project=dom",
     "test:system": "vitest run --project=system-windows",
@@ -89,6 +89,11 @@
     "perf:soak": "node scripts/performance-soak.mjs"
   },
   "build": {
+    "afterPack": "scripts/write-update-config.cjs",
+    "publish": {
+      "provider": "generic",
+      "url": "https://github.com/TheDarkSkyXD/StreamFusion/releases/latest/download"
+    },
     "appId": "com.streamfusion.app",
     "productName": "StreamFusion",
     "icon": "assets/icons/icon",
