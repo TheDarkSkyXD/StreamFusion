@@ -3,7 +3,7 @@ import { trustedIpcMain as ipcMain } from "../../../ipc/trusted-ipc-main";
 import { authenticationRepository } from "@backend/features/authentication/data/authentication-repository";
 import { twitchBadgeCatalogProvider } from "@backend/features/chat/adapters/twitch/twitch-badge-catalog-provider";
 import { logger } from "@backend/logging/logger";
-import { TWITCH_APP_CLIENT_ID } from "@shared/auth-types";
+import { TWITCH_APP_CLIENT_ID } from "@streamfusion/core/auth";
 import { IPC_CHANNELS } from "../../../../shared/ipc-channels";
 
 interface MentionUserLookup {

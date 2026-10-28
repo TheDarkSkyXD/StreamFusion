@@ -6,7 +6,8 @@ import {
   TWITCH_OAUTH_CONFIG,
   WORKER_BASE_URL,
 } from "@backend/features/authentication/adapters/oauth/oauth-config";
-import { TWITCH_APP_CLIENT_ID, TWITCH_APP_SCOPES } from "@shared/auth-types";
+import { TWITCH_APP_CLIENT_ID } from "@streamfusion/core/auth";
+import { TWITCH_APP_SCOPES } from "@shared/auth-types";
 
 describe("Twitch public-client configuration", () => {
   it("uses StreamFusion's bundled public client ID without runtime configuration", () => {

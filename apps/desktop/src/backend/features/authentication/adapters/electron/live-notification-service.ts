@@ -17,12 +17,12 @@ import {
   type LiveNotificationCoverageStatus,
   type LiveNotificationPayload,
   type LocalFollow,
-  TWITCH_APP_CLIENT_ID,
   type UserPreferences,
 } from "@shared/auth-types";
 import { nativeText } from "@shared/i18n/native-copy.generated";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 import type { UnifiedStream } from "@shared/platform-types";
+import { TWITCH_APP_CLIENT_ID } from "@streamfusion/core/auth";
 import {
   isFollowEligibleForLiveNotification,
   liveNotificationChannelKey,
